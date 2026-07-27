@@ -8,8 +8,12 @@ export const settingsPageTabSchema = z.enum([
   'interface',
   'browser',
   'repository',
-  'clis-models',
+  'prompts',
+  'system',
   'workspaces-local',
+  'clis-models',
+  'mcp',
+  'skills',
   'connections',
   'docs',
 ]);

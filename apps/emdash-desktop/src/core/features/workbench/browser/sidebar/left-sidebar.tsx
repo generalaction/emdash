@@ -1,11 +1,9 @@
-import { Clock, FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
+import { Clock, FolderInput, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
-import { libraryViewDef } from '@core/features/library/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { cn } from '@core/primitives/ui/browser/cn';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
@@ -83,18 +81,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Clock className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
                 <span className="truncate">Automations</span>
               </span>
-            </SidebarMenuButton>
-            <SidebarMenuButton
-              isActive={viewCatalog.byId(currentView)?.traits.has('library') ?? false}
-              onClick={() => navigate(libraryViewDef())}
-              aria-label="Library"
-              className="w-full justify-between"
-            >
-              <span className="flex items-center gap-2">
-                <Library className="h-5 w-5 sm:h-4 sm:w-4" />
-                Library
-              </span>
-              <BoundShortcut command="app.library" variant="keycaps" />
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}

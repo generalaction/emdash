@@ -9,7 +9,7 @@ import type {
   MachineSystemDependencyStatus,
 } from '@core/features/machines/api';
 import { toast } from '@core/primitives/ui/browser/use-toast';
-import type { MachinesStore } from './machines-store';
+import type { SystemDependenciesStore } from './machines-store';
 
 const systemDependencyQueryKey = (machineId: string | undefined) =>
   ['machines', machineId, 'system-dependencies'] as const;
@@ -28,7 +28,7 @@ const selectInstallVariables = (mutation: { state: { variables?: unknown } }) =>
 export function useSystemDependencies(
   machineId: string | undefined,
   enabled: boolean,
-  machinesStore: MachinesStore
+  machinesStore: SystemDependenciesStore
 ) {
   const queryClient = useQueryClient();
   const queryKey = systemDependencyQueryKey(machineId);
@@ -36,12 +36,9 @@ export function useSystemDependencies(
 
   const query = useQuery<MachineSystemDependencyStatus[]>({
     queryKey,
-    enabled: enabled && !!machineId,
+    enabled,
     staleTime: 30_000,
-    queryFn: async () => {
-      if (!machineId) return [];
-      return await machinesStore.getSystemDependencies(machineId);
-    },
+    queryFn: async () => await machinesStore.getSystemDependencies(machineId),
   });
 
   const nameById = useMemo(() => {
@@ -62,16 +59,12 @@ export function useSystemDependencies(
     InstallVariables
   >({
     mutationKey: installKey,
-    mutationFn: async ({ id, method }) => {
-      if (!machineId) {
-        return { success: false, error: { type: 'unknown-dependency', id } };
-      }
-      return await machinesStore.installSystemDependency({
+    mutationFn: async ({ id, method }) =>
+      await machinesStore.installSystemDependency({
         machineId,
         id,
         method,
-      });
-    },
+      }),
     onSuccess: (result, variables) => {
       invalidate();
       const name = nameOf(variables.id);

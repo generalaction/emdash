@@ -2,7 +2,6 @@ import {
   commandPaletteCommand,
   closeTabCommand,
   giveFeedbackCommand,
-  libraryCommand,
   newProjectCommand,
   newTaskCommand,
   openInEditorCommand,
@@ -20,7 +19,6 @@ import { definePaletteItem } from '@core/primitives/palette/api';
 
 export const WORKBENCH_PALETTE_ITEMS = [
   definePaletteItem({ command: settingsCommand, rank: 10 }),
-  definePaletteItem({ command: libraryCommand, rank: 20 }),
   definePaletteItem({ command: newProjectCommand, rank: 30 }),
   definePaletteItem({ command: newTaskCommand, rank: 40 }),
   definePaletteItem({ command: giveFeedbackCommand, rank: 50 }),

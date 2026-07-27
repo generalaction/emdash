@@ -7,7 +7,6 @@ import { BrowserSettingsPage } from '../browser/pages/browser-settings-page';
 import { GeneralSettingsPage } from '../browser/pages/general-settings-page';
 import { IntegrationsSettingsPage } from '../browser/pages/integrations-settings-page';
 import { InterfaceSettingsPage } from '../browser/pages/interface-settings-page';
-import { LocalWorkspacesSettingsPage } from '../browser/pages/local-workspaces-settings-page';
 import { RepositorySettingsPage } from '../browser/pages/repository-settings-page';
 import type { SettingsPageTab } from './views';
 
@@ -51,11 +50,4 @@ export const agentsSettingsPage = defineSettingsPageContribution({
   label: 'Agents',
   icon: 'bot',
   component: AgentsSettingsPage,
-} satisfies SettingsPageContribution<SettingsPageTab>);
-
-export const localWorkspacesSettingsPage = defineSettingsPageContribution({
-  id: 'workspaces-local',
-  label: 'Workspaces (local)',
-  icon: 'folder-git-2',
-  component: LocalWorkspacesSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);

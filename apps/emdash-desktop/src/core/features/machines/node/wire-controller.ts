@@ -1,4 +1,4 @@
-import { hostRef } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import {
   hostDependenciesContract,
   RECOMMENDED_CORE_DEPENDENCIES,
@@ -38,9 +38,8 @@ export function createMachinesWireController(
     getMachines: () => service.getMachines(),
     getMachineUsage: () => service.getMachineUsage(),
     getMachineMetrics: async ({ machineId }) => {
-      const runtime = await runtimes.client(hostRef('remote', machineId));
-      if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-      return await runtime.data.resourceUsage.sample(undefined);
+      const runtime = await resolveMachineRuntime(runtimes, machineId);
+      return await runtime.resourceUsage.sample(undefined);
     },
     getMachineSystemDependencies: async ({ machineId }) => {
       const runtime = await resolveMachineRuntime(runtimes, machineId);
@@ -66,9 +65,9 @@ export function createMachinesWireController(
 
 async function resolveMachineRuntime(
   runtimes: RuntimeBroker,
-  machineId: string
+  machineId?: string
 ): Promise<HostRuntimesClient> {
-  const runtime = await runtimes.client(hostRef('remote', machineId));
+  const runtime = await runtimes.client(machineId ? hostRef('remote', machineId) : LOCAL_HOST_REF);
   if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
   return runtime.data;
 }

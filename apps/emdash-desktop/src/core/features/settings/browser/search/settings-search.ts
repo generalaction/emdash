@@ -134,6 +134,20 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Manage installed CLI agents and their configuration.',
     keywords: ['claude', 'codex', 'copilot', 'cursor', 'gemini', 'cli'],
   },
+  {
+    id: 'mcp',
+    label: 'MCPs',
+    tab: 'mcp',
+    description: 'Manage local MCP servers available to agents.',
+    keywords: ['model context protocol', 'servers', 'tools'],
+  },
+  {
+    id: 'skills',
+    label: 'Skills',
+    tab: 'skills',
+    description: 'Manage reusable local agent skills.',
+    keywords: ['skill modules', 'agents'],
+  },
 
   // Integrations
   {
@@ -147,7 +161,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   // Connections
   {
     id: 'ssh-connections',
-    label: 'SSH connections',
+    label: 'Machines',
     tab: 'connections',
     description: 'Reusable remote hosts for SSH projects.',
     keywords: ['remote', 'host'],
@@ -186,10 +200,28 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   // Local workspaces
   {
     id: 'task-worktree-storage',
-    label: 'Task worktree storage',
+    label: 'Workspaces',
     tab: 'workspaces-local',
     description: 'Review task worktree usage and remove stale task worktrees.',
-    keywords: ['disk', 'cleanup', 'worktrees'],
+    keywords: ['disk', 'cleanup', 'storage', 'worktrees'],
+  },
+
+  // Prompts
+  {
+    id: 'prompts',
+    label: 'Prompts',
+    tab: 'prompts',
+    description: 'Manage reusable prompts for tasks and conversations.',
+    keywords: ['prompt library', 'snippets'],
+  },
+
+  // System
+  {
+    id: 'system',
+    label: 'System',
+    tab: 'system',
+    description: 'Review local resource utilization and system dependencies.',
+    keywords: ['cpu', 'memory', 'disk', 'dependencies', 'git', 'tmux'],
   },
 
   // Interface

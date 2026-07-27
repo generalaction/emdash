@@ -35,7 +35,6 @@
     "apps/emdash-desktop/src/core/features/integrations/api/browser/integrations-provider.tsx",
     "apps/emdash-desktop/src/core/features/integrations/api/browser/use-issues.ts",
     "apps/emdash-desktop/src/core/features/library/api/browser/prompts/use-prompt-library.ts",
-    "apps/emdash-desktop/src/core/features/library/browser/library-view.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/components/machine-list-row.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/components/workspace-server-card.tsx",
     "apps/emdash-desktop/src/core/features/machines/browser/machine-form.tsx",

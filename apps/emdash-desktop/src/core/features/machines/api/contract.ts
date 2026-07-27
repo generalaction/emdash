@@ -31,7 +31,7 @@ export type MachineSystemDependencyStatus = {
 };
 
 export type InstallMachineSystemDependencyInput = {
-  machineId: string;
+  machineId?: string;
   id: string;
   method?: InstallMethod;
 };
@@ -42,7 +42,7 @@ export type InstallMachineSystemDependencyResult = Result<
 >;
 
 const voidInput = z.void();
-const machineIdInput = z.object({ machineId: z.string().min(1) });
+const hostInput = z.object({ machineId: z.string().min(1).optional() });
 
 export const machinesContract = defineContract({
   getMachines: procedure({ input: voidInput, output: z.array(z.custom<SshConfig>()) }),
@@ -51,15 +51,15 @@ export const machinesContract = defineContract({
     output: z.custom<SshConnectionUsage>(),
   }),
   getMachineMetrics: procedure({
-    input: machineIdInput,
+    input: hostInput,
     output: resourceUsageSampleSchema,
   }),
   getMachineSystemDependencies: procedure({
-    input: machineIdInput,
+    input: hostInput,
     output: z.array(z.custom<MachineSystemDependencyStatus>()),
   }),
   installMachineSystemDependency: procedure({
-    input: machineIdInput.extend({
+    input: hostInput.extend({
       id: z.string().min(1),
       method: installMethodSchema.optional(),
     }),

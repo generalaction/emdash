@@ -1,16 +1,15 @@
 import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { Box, Button, Heading, Surface } from '@emdash/ui/react/primitives';
-import { Field } from '@emdash/ui/react/primitives';
+import { Box, Button, Field, Heading } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 import type { MachineSystemDependencyStatus } from '@core/features/machines/api';
-import type { MachinesStore } from '../machines-store';
+import type { SystemDependenciesStore } from '../machines-store';
 import { useSystemDependencies } from '../use-system-dependencies';
 
 type MachineSystemDependenciesCardProps = {
-  machineId: string;
-  machinesStore: MachinesStore;
+  machineId?: string;
+  machinesStore: SystemDependenciesStore;
 };
 
 export function MachineSystemDependenciesCard({
@@ -113,22 +112,22 @@ function DependencySection({
           No {title.toLowerCase()} dependencies.
         </div>
       ) : (
-        <Box surface='sunken' borderRadius='md' padding='3'>
-        <div className="divide-y divide-border">
-          {dependencies.map((dependency) => (
-            <SystemDependencyRow
-              key={dependency.id}
-              dependency={dependency}
-              installing={installingIds.has(dependency.id)}
-              onInstall={() => {
-                const option =
-                  dependency.installOptions.find((candidate) => candidate.recommended) ??
-                  dependency.installOptions[0];
-                onInstall(dependency.id, option?.method);
-              }}
-            />
-          ))}
-        </div>
+        <Box surface="sunken" borderRadius="md" padding="3">
+          <div className="divide-y divide-border">
+            {dependencies.map((dependency) => (
+              <SystemDependencyRow
+                key={dependency.id}
+                dependency={dependency}
+                installing={installingIds.has(dependency.id)}
+                onInstall={() => {
+                  const option =
+                    dependency.installOptions.find((candidate) => candidate.recommended) ??
+                    dependency.installOptions[0];
+                  onInstall(dependency.id, option?.method);
+                }}
+              />
+            ))}
+          </div>
         </Box>
       )}
     </div>
@@ -148,27 +147,25 @@ function SystemDependencyRow({
   const canInstall = !available && dependency.installOptions.length > 0;
 
   return (
-
-      <div className="flex min-w-0 items-center gap-3 h-10">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xs">{dependency.name}</div>
-        </div>
-        {available ? (
-          <CheckCircle2 className="size-4 shrink-0 text-foreground-success" />
-        ) : canInstall ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={installing}
-            onClick={onInstall}
-          >
-            {installing ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
-          </Button>
-        ) : (
-          <span className="shrink-0 text-xs text-foreground-muted">Not found</span>
-        )}
+    <div className="flex h-10 min-w-0 items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs">{dependency.name}</div>
       </div>
-
+      {available ? (
+        <CheckCircle2 className="size-4 shrink-0 text-foreground-success" />
+      ) : canInstall ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={installing}
+          onClick={onInstall}
+        >
+          {installing ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
+        </Button>
+      ) : (
+        <span className="shrink-0 text-xs text-foreground-muted">Not found</span>
+      )}
+    </div>
   );
 }

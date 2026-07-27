@@ -168,14 +168,6 @@ export class NavigationStore implements NavigationParticipantHost {
     this.navigate(previous?.ref ?? homeViewDef());
   }
 
-  exitLibrary(): void {
-    const previous = appState.history.nearestBefore((entry) => {
-      const definition = viewCatalog.byId(entry.ref.viewId);
-      return !definition?.traits.has('library');
-    });
-    this.navigate(previous?.ref ?? homeViewDef());
-  }
-
   invalidateSubject(subject: Subject): void {
     const affects = (ref: ViewRef): boolean => {
       const definition = viewCatalog.byId(ref.viewId);

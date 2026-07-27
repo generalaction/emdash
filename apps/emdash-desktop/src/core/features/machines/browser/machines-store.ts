@@ -31,6 +31,10 @@ type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
 type SshClient = ContractClient<typeof sshContract>;
 type MachinesClient = ContractClient<typeof machinesContract>;
 type ConnectionsModel = OptimisticLiveModel<typeof sshContract.connections>;
+export type SystemDependenciesStore = Pick<
+  MachinesStore,
+  'getSystemDependencies' | 'installSystemDependency'
+>;
 
 export type MachinesStoreOptions = {
   onConnectionReady?: (connectionId: string) => void;
@@ -206,7 +210,7 @@ export class MachinesStore {
     return await (await this.getSshClient()).testConnection(config);
   }
 
-  async getSystemDependencies(machineId: string): Promise<MachineSystemDependencyStatus[]> {
+  async getSystemDependencies(machineId?: string): Promise<MachineSystemDependencyStatus[]> {
     return await (await this.getMachinesClient()).getMachineSystemDependencies({ machineId });
   }
 
@@ -298,4 +302,13 @@ export class MachinesStore {
       });
     }
   }
+}
+
+export function createSystemDependenciesStore(): SystemDependenciesStore {
+  return {
+    getSystemDependencies: async (machineId?: string) =>
+      await (await getDesktopWireClient()).machines.getMachineSystemDependencies({ machineId }),
+    installSystemDependency: async (input: InstallMachineSystemDependencyInput) =>
+      await (await getDesktopWireClient()).machines.installMachineSystemDependency(input),
+  };
 }

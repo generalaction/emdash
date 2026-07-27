@@ -47,6 +47,7 @@ import type {
 } from '@core/primitives/workspaces/api';
 import {
   deleteMachineProjectWorkspaces,
+  useLocalWorkspaces,
   useMachineWorkspaces,
   type MachineProjectWorkspaces,
 } from '../use-machine-workspaces';
@@ -121,17 +122,29 @@ function createMachineWorkspacesListView(
 
 type MachineWorkspacesListView = ReturnType<typeof createMachineWorkspacesListView>;
 
-export const MachineWorkspacesList = observer(function MachineWorkspacesList({
-  machineId,
-  connectionId,
-  enabled,
-}: {
-  machineId: string;
-  connectionId: string;
-  enabled: boolean;
-}) {
-  const workspaces = useMachineWorkspaces(machineId, enabled);
-  const items = useMemo(() => flattenWorkspaces(workspaces.data ?? []), [workspaces.data]);
+type MachineWorkspacesListProps =
+  | {
+      scope?: 'remote';
+      machineId: string;
+      connectionId: string;
+      enabled: boolean;
+    }
+  | {
+      scope: 'local';
+      enabled: boolean;
+    };
+
+export const MachineWorkspacesList = observer(function MachineWorkspacesList(
+  props: MachineWorkspacesListProps
+) {
+  const isLocal = props.scope === 'local';
+  const machineId = isLocal ? undefined : props.machineId;
+  const connectionId = isLocal ? undefined : props.connectionId;
+  const workspaces = useMachineWorkspaces(machineId, !isLocal && props.enabled);
+  const localWorkspaces = useLocalWorkspaces(isLocal && props.enabled);
+  const workspaceQuery = isLocal ? localWorkspaces : workspaces;
+  const queryKeyId = isLocal ? 'local' : machineId;
+  const items = useMemo(() => flattenWorkspaces(workspaceQuery.data ?? []), [workspaceQuery.data]);
   const statusInputs = useMemo(
     () =>
       items.map((item) => ({
@@ -152,12 +165,12 @@ export const MachineWorkspacesList = observer(function MachineWorkspacesList({
     <view.Root>
       <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background-1">
         <MachineWorkspacesHeader view={view} connectionId={connectionId} />
-        <MachineWorkspacesSelectionBar view={view} machineId={machineId} />
+        <MachineWorkspacesSelectionBar view={view} queryKeyId={queryKeyId} />
         <ListView.Body className="min-h-60 flex-1">
-          {workspaces.isLoading ? (
+          {workspaceQuery.isLoading ? (
             <WorkspacesLoadingState />
-          ) : workspaces.isError ? (
-            <WorkspacesErrorState error={workspaces.error} />
+          ) : workspaceQuery.isError ? (
+            <WorkspacesErrorState error={workspaceQuery.error} />
           ) : (
             <view.List
               virtualization={{ estimateSize: 48, estimateHeaderSize: 48, overscan: 8 }}
@@ -177,7 +190,7 @@ const MachineWorkspacesHeader = observer(function MachineWorkspacesHeader({
   connectionId,
 }: {
   view: MachineWorkspacesListView;
-  connectionId: string;
+  connectionId?: string;
 }) {
   const list = view.useListView();
   const search = view.useSearch();
@@ -241,7 +254,13 @@ const MachineWorkspacesHeader = observer(function MachineWorkspacesHeader({
       <Button
         type="button"
         size="sm"
-        onClick={() => void openAddProject({ strategy: 'ssh', mode: 'clone', connectionId })}
+        onClick={() =>
+          void openAddProject(
+            connectionId
+              ? { strategy: 'ssh', mode: 'clone', connectionId }
+              : { strategy: 'local', mode: 'pick' }
+          )
+        }
       >
         <PlusIcon className="size-3.5" />
         Add Project
@@ -339,10 +358,10 @@ const WorkspaceRow = observer(function WorkspaceRow({
 
 const MachineWorkspacesSelectionBar = observer(function MachineWorkspacesSelectionBar({
   view,
-  machineId,
+  queryKeyId,
 }: {
   view: MachineWorkspacesListView;
-  machineId: string;
+  queryKeyId?: string;
 }) {
   const queryClient = useQueryClient();
   const openConfirm = useOpenModal('confirmActionModal');
@@ -375,7 +394,7 @@ const MachineWorkspacesSelectionBar = observer(function MachineWorkspacesSelecti
               : await deleteWorkspaces(items);
         showActionResult(kind, result);
         if (result.failedCount === 0) selection.clear();
-        await queryClient.invalidateQueries({ queryKey: ['machineWorkspaces', machineId] });
+        await queryClient.invalidateQueries({ queryKey: ['machineWorkspaces', queryKeyId] });
       } catch (error) {
         toast({
           title: actionFailureTitle(kind),
@@ -386,7 +405,7 @@ const MachineWorkspacesSelectionBar = observer(function MachineWorkspacesSelecti
         setPendingAction(null);
       }
     },
-    [machineId, queryClient, selection]
+    [queryKeyId, queryClient, selection]
   );
 
   const confirmAction = useCallback(

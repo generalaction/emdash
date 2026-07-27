@@ -11,15 +11,6 @@ export const settingsCommand = defineCommand({
   keybinding: keybinding.settings('settings', 'Mod+,'),
 });
 
-export const libraryCommand = defineCommand({
-  id: 'app.library',
-  title: 'Open Library',
-  description: 'Open the Library',
-  category: 'App',
-  icon: 'library',
-  keybinding: keybinding.settings('library', 'Mod+L'),
-});
-
 export const newProjectCommand = defineCommand({
   id: 'app.newProject',
   title: 'New Project',
@@ -245,7 +236,6 @@ export const zenModeCommand = defineCommand({
 
 export const WINDOW_COMMAND_DEFS = [
   settingsCommand,
-  libraryCommand,
   newProjectCommand,
   newTaskCommand,
   giveFeedbackCommand,

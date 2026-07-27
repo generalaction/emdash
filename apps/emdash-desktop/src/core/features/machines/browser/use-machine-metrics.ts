@@ -6,7 +6,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 const REFRESH_INTERVAL_MS = 5_000;
 
 interface MetricsState {
-  machineId: string;
+  hostKey: string;
   metrics: ResourceUsageSample;
 }
 
@@ -14,7 +14,8 @@ export function useMachineMetrics(
   machineId: string | undefined,
   enabled: boolean
 ): ResourceUsageSample | null {
-  const connected = machineId ? appState.machines.stateFor(machineId) === 'connected' : false;
+  const connected = machineId ? appState.machines.stateFor(machineId) === 'connected' : true;
+  const hostKey = machineId ?? 'local';
   const [state, setState] = useState<MetricsState | null>(null);
 
   useEffect(() => {
@@ -27,8 +28,8 @@ export function useMachineMetrics(
     const refresh = async () => {
       try {
         const client = await getDesktopWireClient();
-        const metrics = await client.machines.getMachineMetrics({ machineId });
-        if (!cancelled) setState({ machineId, metrics });
+        const metrics = await client.machines.getMachineMetrics(machineId ? { machineId } : {});
+        if (!cancelled) setState({ hostKey, metrics });
       } catch {
         if (!cancelled) setState(null);
       }
@@ -40,8 +41,8 @@ export function useMachineMetrics(
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [connected, enabled, machineId]);
+  }, [connected, enabled, hostKey, machineId]);
 
-  if (!enabled || !connected || !state || state.machineId !== machineId) return null;
+  if (!enabled || !connected || !state || state.hostKey !== hostKey) return null;
   return state.metrics;
 }

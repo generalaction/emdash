@@ -25,16 +25,33 @@ const DOCS_ITEM = {
 } satisfies PageNavItem;
 
 const DIVIDER: PageNavDivider = { kind: 'divider' };
+const LOCAL_DIVIDER: PageNavDivider = { kind: 'divider', label: 'Local' };
+const REMOTE_DIVIDER: PageNavDivider = { kind: 'divider', label: 'Remote' };
 
 const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
-  ...settingsPageContributions.slice(0, 3).map(toNavItem),
-  DIVIDER,
-  ...settingsPageContributions.slice(3, 6).map(toNavItem),
-  DIVIDER,
-  ...settingsPageContributions.slice(6, 8).map(toNavItem),
+  navItemFor('general'),
+  navItemFor('integrations'),
+  navItemFor('interface'),
+  navItemFor('browser'),
+  navItemFor('repository'),
+  navItemFor('prompts'),
+  LOCAL_DIVIDER,
+  navItemFor('system'),
+  navItemFor('workspaces-local'),
+  navItemFor('clis-models'),
+  navItemFor('mcp'),
+  navItemFor('skills'),
+  REMOTE_DIVIDER,
+  navItemFor('connections'),
   DIVIDER,
   DOCS_ITEM,
 ];
+
+function navItemFor(id: Exclude<SettingsPageTab, 'docs'>): PageNavItem {
+  const page = settingsPageContributions.find((contribution) => contribution.id === id);
+  if (!page) throw new Error(`Unknown settings page: ${id}`);
+  return toNavItem(page);
+}
 
 function toNavItem({ id, label, icon }: PageNavItem): PageNavItem {
   return { id, label, icon };

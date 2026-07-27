@@ -1,12 +1,10 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
-import { libraryViewDef } from '@core/features/library/contributions/views';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
-import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import { applyHistoryEntry } from '@core/primitives/ui/browser/components/nav-buttons';
 import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
@@ -37,15 +35,6 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
   const implementation = {
     'app.settings': () => ({
       execute: () => toggleSettingsView(),
-    }),
-    'app.library': () => ({
-      execute: () => {
-        if (viewCatalog.byId(appState.navigation.currentViewId)?.traits.has('library')) {
-          appState.navigation.exitLibrary();
-        } else {
-          appState.navigation.navigate(libraryViewDef());
-        }
-      },
     }),
     'app.newProject': () => ({
       execute: () => {
