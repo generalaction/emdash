@@ -1,0 +1,25 @@
+import type { MachineStatusKind } from '@emdash/ui/react/components';
+import type { ConnectionState } from '@core/primitives/ssh/api';
+import { deriveMachineStatusKind } from './components/machine-status-kind';
+import { useRemoteMachineServerState } from './use-remote-machine-server-state';
+
+export function useMachineStatusKind({
+  machineId,
+  connectionState,
+}: {
+  machineId: string | undefined;
+  connectionState: ConnectionState;
+}): MachineStatusKind {
+  const connected = connectionState === 'connected';
+  const workspaceServer = useRemoteMachineServerState({
+    machineId,
+    enabled: !!machineId && connected,
+    connected,
+  });
+
+  return deriveMachineStatusKind({
+    connectionState,
+    workspaceServerStatus: workspaceServer.state?.status,
+    workspaceServerLoading: workspaceServer.loading,
+  });
+}

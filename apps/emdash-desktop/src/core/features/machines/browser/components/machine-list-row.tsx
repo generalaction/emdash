@@ -3,8 +3,7 @@ import { ListPage } from '@emdash/ui/react/patterns';
 import { observer } from 'mobx-react-lite';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { appState } from '@renderer/lib/stores/app-state';
-import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
-import { deriveMachineStatusKind } from './machine-status-kind';
+import { useMachineStatusKind } from '../use-machine-status-kind';
 
 export const MachineListRow = observer(function MachineListRow({
   machine,
@@ -13,17 +12,10 @@ export const MachineListRow = observer(function MachineListRow({
   machine: SshConfig;
   onSelect: (machine: SshConfig) => void;
 }) {
-  const state = appState.machines.stateFor(machine.id);
-  const connected = state === 'connected';
-  const workspaceServer = useRemoteMachineServerState({
+  const connectionState = appState.machines.stateFor(machine.id);
+  const machineStatus = useMachineStatusKind({
     machineId: machine.id,
-    enabled: connected,
-    connected,
-  });
-  const machineStatus = deriveMachineStatusKind({
-    connectionState: state,
-    workspaceServerStatus: workspaceServer.state?.status,
-    workspaceServerLoading: workspaceServer.loading,
+    connectionState,
   });
 
   return (

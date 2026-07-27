@@ -1,17 +1,18 @@
+import { ToggleGroup } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
-import { Github, Home, Server } from 'lucide-react';
+import { Github } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, useState } from 'react';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
 } from '@core/features/projects/api/browser/components/github-account-select';
+import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
 import { createRequiredGitHubAccountSelectState } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
   getProjectManagerStore,
   getProjectSettingsStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
-import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
 import type {
   ModeData as ProjectCreationModeData,
   ProjectType,
@@ -22,6 +23,7 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
+import type { SshConfig } from '@core/primitives/ssh/api';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -29,23 +31,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
+import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { Select, SelectContent, SelectTrigger } from '@core/primitives/ui/browser/select';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { toast } from '@core/primitives/ui/browser/use-toast';
+import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
-import { useCloneMode, useNewMode, usePickMode } from './modes';
+import { LocationSelector } from './location-selector';
+import { extractRepoName, useCloneMode, useNewMode, usePickMode } from './modes';
+import { useProjectName } from './use-project-name';
 
 export type Strategy = 'local' | 'ssh';
 
 export type Mode = 'pick' | 'new' | 'clone';
+type MachineOption = SshConfig & { id: string };
 
 export interface AddProjectModalProps {
   strategy?: Strategy;
@@ -64,19 +69,22 @@ export const AddProjectModal = observer(function AddProjectModal({
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
   const [submitState, setSubmitState] = useState<'idle' | 'creating'>('idle');
   const { connections } = appState.machines;
-  const availableConnectionIds = useMemo(
+  const availableConnections = useMemo(
     () =>
-      connections.map((connection) => connection.id).filter((id): id is string => id !== undefined),
+      connections.filter(
+        (connection): connection is MachineOption => connection.id !== undefined
+      ),
     [connections]
+  );
+  const availableConnectionIds = useMemo(
+    () => availableConnections.map((connection) => connection.id),
+    [availableConnections]
   );
   const selectedConnectionId =
     strategy === 'ssh' ? (connectionId ?? availableConnectionIds[0]) : connectionId;
 
   const { navigate } = useNavigate();
 
-  const openSshConnModal = useOpenModal('addSshConnModal');
-  const openAddProjectModal = useOpenModal('addProjectModal');
-  const openConfirm = useOpenModal('confirmActionModal');
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
   const getProjectsClient = useCallback(async () => (await getDesktopWireClient()).projects, []);
 
@@ -107,97 +115,6 @@ export const AddProjectModal = observer(function AddProjectModal({
     }
   };
 
-  const reopenAddProjectModal = (nextConnectionId?: string) => {
-    void openAddProjectModal({
-      strategy: 'ssh',
-      mode,
-      connectionId: nextConnectionId,
-    });
-  };
-
-  const handleAddConnection = async () => {
-    const priorConnectionId = selectedConnectionId;
-    const outcome = await openSshConnModal({});
-    if (outcome.success) {
-      reopenAddProjectModal(outcome.data.connectionId);
-    } else if (outcome.error.reason === 'explicit') {
-      reopenAddProjectModal(priorConnectionId);
-    }
-  };
-
-  const handleEditConnection = async (id: string) => {
-    const conn = appState.machines.connections.find((c) => c.id === id);
-    if (!conn) return;
-    const priorConnectionId = selectedConnectionId;
-    const outcome = await openSshConnModal({
-      initialConfig: conn,
-    });
-    if (outcome.success) {
-      reopenAddProjectModal(outcome.data.connectionId);
-    } else if (outcome.error.reason === 'explicit') {
-      reopenAddProjectModal(priorConnectionId);
-    }
-  };
-
-  const handleDeleteConnection = async (id: string) => {
-    const conn = appState.machines.connections.find((c) => c.id === id);
-    if (!conn) return;
-    const priorConnectionId = selectedConnectionId ?? id;
-
-    let usage;
-    try {
-      usage = await (await getDesktopWireClient()).machines.getMachineUsage(undefined);
-    } catch (error) {
-      toast({
-        title: 'Failed to load SSH connection usage',
-        description: String(error),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const projects = usage[id] ?? [];
-    if (projects.length > 0) {
-      const projectNames = projects.map((project) => project.name).join(', ');
-      const outcome = await openConfirm({
-        title: 'Cannot delete SSH connection',
-        description: `This SSH connection is used by: ${projectNames}. Change those projects to another connection before deleting it.`,
-        confirmLabel: 'Close',
-      });
-      if (outcome.success || outcome.error.reason === 'explicit') {
-        reopenAddProjectModal(priorConnectionId);
-      }
-      return;
-    }
-
-    const outcome = await openConfirm({
-      title: 'Delete SSH connection',
-      description: `This will remove "${conn.name}" and its saved credentials from this device.`,
-      confirmLabel: 'Delete',
-      variant: 'destructive',
-    });
-    if (!outcome.success) {
-      if (outcome.error.reason !== 'explicit') return;
-      reopenAddProjectModal(priorConnectionId);
-      return;
-    }
-
-    try {
-      await appState.machines.deleteConnection(id);
-      const nextConnectionId = appState.machines.connections.find(
-        (connection) => connection.id !== id
-      )?.id;
-      reopenAddProjectModal(nextConnectionId);
-    } catch (error) {
-      toast({
-        title: 'Failed to delete SSH connection',
-        description: String(error),
-        variant: 'destructive',
-      });
-      reopenAddProjectModal(priorConnectionId);
-    }
-  };
-
   const { value: localProjectSettings } = useAppSettingsKey('localProject');
   const defaultPath =
     strategy === 'local' ? (localProjectSettings?.defaultProjectsDirectory ?? '') : '';
@@ -220,6 +137,17 @@ export const AddProjectModal = observer(function AddProjectModal({
   const pickState = usePickMode();
   const newState = useNewMode(defaultPath, mode === 'new' ? selectedGitHubAccountId : null);
   const cloneState = useCloneMode(defaultPath);
+  const generatedProjectName = useMemo(() => {
+    switch (mode) {
+      case 'pick':
+        return basenameFromAnyPath(pickState.path);
+      case 'new':
+        return newState.repositoryName;
+      case 'clone':
+        return extractRepoName(cloneState.repositoryUrl);
+    }
+  }, [cloneState.repositoryUrl, mode, newState.repositoryName, pickState.path]);
+  const projectName = useProjectName(generatedProjectName);
   const showGithubAuthDisclaimer =
     mode === 'new' && !githubAccountsQuery.isPending && selectedGitHubAccountId === null;
 
@@ -253,6 +181,7 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const canSubmit =
     activeMode.isValid &&
+    projectName.effectiveName.length > 0 &&
     (strategy === 'local' || !!selectedConnectionId) &&
     !isCheckingPickPathStatus &&
     !pickPathInspectionError &&
@@ -279,7 +208,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       case 'pick':
         data = {
           mode: 'pick',
-          name: pickState.name,
+          name: projectName.effectiveName,
           path: pickState.path,
           initGitRepository: pickState.initGitRepository,
           githubAccountId: pickState.initGitRepository
@@ -290,7 +219,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       case 'new':
         data = {
           mode: 'new',
-          name: newState.name,
+          name: projectName.effectiveName,
           path: newState.path,
           repositoryName: newState.repositoryName,
           repositoryOwner: newState.repositoryOwner?.value ?? '',
@@ -301,7 +230,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       case 'clone':
         data = {
           mode: 'clone',
-          name: cloneState.name,
+          name: projectName.effectiveName,
           path: cloneState.path,
           repositoryUrl: cloneState.repositoryUrl,
         };
@@ -362,63 +291,50 @@ export const AddProjectModal = observer(function AddProjectModal({
     >
       <DialogContentArea data-autofocus tabIndex={-1} className="gap-4">
         <div className="flex items-center gap-2">
-          <ToggleGroup
-            className="w-full flex-1"
-            value={[mode]}
-            onValueChange={([value]) => {
-              if (value) setMode(value as Mode);
+          <EditableNameField
+            autoFocus
+            value={projectName.name}
+            placeholder={projectName.placeholder}
+            className="min-w-0 flex-1"
+            onChange={projectName.handleNameChange}
+          />
+          <LocationSelector
+            strategy={strategy}
+            connectionId={selectedConnectionId}
+            machines={availableConnections}
+            getMachineStatusKind={(machineId) =>
+              machineId
+                ? deriveConnectionMachineStatusKind(appState.machines.stateFor(machineId))
+                : 'idle'
+            }
+            onSelectLocal={() => setStrategy('local')}
+            onSelectMachine={(nextConnectionId) => {
+              setStrategy('ssh');
+              setConnectionId(nextConnectionId);
             }}
-          >
-            <ToggleGroupItem value="pick" className="flex-1">
-              Pick
-            </ToggleGroupItem>
-            <ToggleGroupItem value="new" className="flex-1">
-              New
-            </ToggleGroupItem>
-            <ToggleGroupItem value="clone" className="flex-1">
-              Clone
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <ToggleGroup
-            value={[strategy]}
-            onValueChange={([value]) => {
-              if (value) setStrategy(value as Strategy);
+            onManageMachines={() => {
+              modal.dismiss();
+              navigate(settingsViewDef({ tab: 'connections' }));
             }}
-          >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem value="local" aria-label="Local">
-                    <Home className="size-3.5" />
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>Local</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem value="ssh" aria-label="SSH">
-                    <Server className="size-3.5" />
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>SSH</TooltipContent>
-            </Tooltip>
-          </ToggleGroup>
+          />
         </div>
-        {strategy === 'ssh' && !showGithubAuthDisclaimer && (
-          <Field>
-            <FieldLabel>SSH Connection</FieldLabel>
-            <SshConnectionSelector
-              connectionId={selectedConnectionId}
-              onConnectionIdChange={setConnectionId}
-              onAddConnection={() => void handleAddConnection()}
-              onEditConnection={(id) => void handleEditConnection(id)}
-              onDeleteConnection={(id) => void handleDeleteConnection(id)}
-            />
-          </Field>
-        )}
+        <ToggleGroup.Root
+          className="w-full"
+          value={[mode]}
+          onValueChange={([value]) => {
+            if (value) setMode(value as Mode);
+          }}
+        >
+          <ToggleGroup.Item value="pick" className="flex-1">
+            Pick Directory
+          </ToggleGroup.Item>
+          <ToggleGroup.Item value="new" className="flex-1">
+            New Repository
+          </ToggleGroup.Item>
+          <ToggleGroup.Item value="clone" className="flex-1">
+            Clone Repository
+          </ToggleGroup.Item>
+        </ToggleGroup.Root>
         {showGitHubAccountSelector ? (
           <GitHubAccountCreationSelector
             accounts={githubAccountSelect.accounts}

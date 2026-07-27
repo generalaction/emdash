@@ -33,7 +33,6 @@ export function PickExistingPanel({
   inspectionError?: string;
   showInitializeGitPrompt: boolean;
 }) {
-  const nameId = useId();
   return (
     <FieldGroup>
       <Field>
@@ -61,15 +60,6 @@ export function PickExistingPanel({
             />
           </div>
         )}
-      </Field>
-      <Field>
-        <FieldLabel htmlFor={nameId}>Name</FieldLabel>
-        <Input
-          id={nameId}
-          placeholder="Enter a project name"
-          value={state.name}
-          onChange={(e) => state.handleNameChange(e.target.value)}
-        />
       </Field>
       {inspectionError && (
         <div className="border-destructive/40 overflow-hidden rounded-md border">
@@ -118,7 +108,6 @@ export function CreateNewPanel({
   onOpenAccountSettings: () => void;
 }) {
   const repositoryNameId = useId();
-  const projectNameId = useId();
 
   if (showGithubAuthDisclaimer) {
     return <GithubAuthDisclaimer onOpenAccountSettings={onOpenAccountSettings} />;
@@ -176,15 +165,6 @@ export function CreateNewPanel({
       <Separator className="w-full" />
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor={projectNameId}>Project Name</FieldLabel>
-          <Input
-            id={projectNameId}
-            placeholder="Enter a project name"
-            value={state.name}
-            onChange={(e) => state.handleNameChange(e.target.value)}
-          />
-        </Field>
-        <Field>
           <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
           {strategy === 'local' ? (
             <LocalDirectorySelector
@@ -227,7 +207,6 @@ export function ClonePanel({
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
 }) {
   const repositoryUrlId = useId();
-  const projectNameId = useId();
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup>
@@ -244,15 +223,6 @@ export function ClonePanel({
       </FieldGroup>
       <Separator className="w-full" />
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor={projectNameId}>Project Name</FieldLabel>
-          <Input
-            id={projectNameId}
-            placeholder="Enter a project name"
-            value={state.name}
-            onChange={(e) => state.handleNameChange(e.target.value)}
-          />
-        </Field>
         <Field>
           <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
           {strategy === 'local' ? (

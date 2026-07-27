@@ -1,6 +1,10 @@
+import { ComboboxPopover, MachineStatus, type MachineStatusKind } from '@emdash/ui/react/components';
+import { Button as UiButton } from '@emdash/ui/react/primitives';
+import { PencilIcon, PlusIcon } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
-import { SshConnectionSelector } from '@core/features/projects/browser/components/add-project-modal/ssh-connection-selector';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { Button } from '@core/primitives/ui/browser/button';
@@ -13,6 +17,7 @@ import {
 } from '@core/primitives/ui/browser/dialog';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
+import type { SshConfig } from '@core/primitives/ssh/api';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export interface ChangeProjectConnectionModalProps {
@@ -100,7 +105,7 @@ export function ChangeProjectConnectionModal({
       <DialogContentArea>
         <Field>
           <FieldLabel>SSH Connection</FieldLabel>
-          <SshConnectionSelector
+          <ChangeConnectionSelector
             connectionId={selectedConnectionId}
             onConnectionIdChange={setSelectedConnectionId}
             onAddConnection={() => void handleAddConnection()}
@@ -109,6 +114,102 @@ export function ChangeProjectConnectionModal({
         </Field>
       </DialogContentArea>
     </ModalLayout>
+  );
+}
+
+type MachineOption = SshConfig & { id: string };
+
+const ChangeConnectionSelector = observer(function ChangeConnectionSelector({
+  connectionId,
+  onConnectionIdChange,
+  onAddConnection,
+  onEditConnection,
+}: {
+  connectionId: string;
+  onConnectionIdChange: (connectionId: string) => void;
+  onAddConnection: () => void;
+  onEditConnection?: (connectionId: string) => void;
+}) {
+  const machines = appState.machines.connections.filter(
+    (machine): machine is MachineOption => machine.id !== undefined
+  );
+
+  return (
+    <ComboboxPopover
+      items={machines}
+      value={connectionId}
+      onValueChange={onConnectionIdChange}
+      itemToKey={(machine) => machine.id}
+      itemToLabel={(machine) => machine.name}
+      renderTrigger={(machine) => (
+        <MachineConnectionLabel
+          machine={machine}
+          status={getMachineStatusKind(machine?.id)}
+          placeholder="Select a connection"
+        />
+      )}
+      triggerTitle={(machine) => machine?.name ?? 'Select a connection'}
+      renderItem={(machine) => (
+        <MachineConnectionLabel machine={machine} status={getMachineStatusKind(machine.id)} />
+      )}
+      renderFooter={() => (
+        <div className="flex gap-1 p-1">
+          <UiButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            tone="neutral"
+            className="flex-1 justify-start"
+            onClick={onAddConnection}
+          >
+            <PlusIcon className="size-4" />
+            Add
+          </UiButton>
+          {connectionId && onEditConnection ? (
+            <UiButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              tone="neutral"
+              className="flex-1 justify-start"
+              onClick={() => onEditConnection(connectionId)}
+            >
+              <PencilIcon className="size-4" />
+              Edit
+            </UiButton>
+          ) : null}
+        </div>
+      )}
+      searchPlaceholder="Search connections..."
+      appearance="input"
+      className="w-full"
+    />
+  );
+});
+
+function getMachineStatusKind(machineId: string | undefined) {
+  if (!machineId) return 'idle';
+  return deriveConnectionMachineStatusKind(appState.machines.stateFor(machineId));
+}
+
+function MachineConnectionLabel({
+  machine,
+  status,
+  placeholder,
+}: {
+  machine: MachineOption | null;
+  status: MachineStatusKind;
+  placeholder?: string;
+}) {
+  if (!machine) {
+    return <span className="text-foreground-muted">{placeholder ?? 'Unknown connection'}</span>;
+  }
+
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <MachineStatus status={status} size="1rem" />
+      <span className="min-w-0 truncate">{machine.name}</span>
+    </span>
   );
 }
 
