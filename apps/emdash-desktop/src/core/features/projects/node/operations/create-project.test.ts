@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ok } from '@emdash/shared';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { createProject } from './create-project';
 import { initializeRepository } from './initialize-repository';
@@ -15,8 +16,9 @@ describe('project creation without a git repository', () => {
   let rows: Record<string, unknown>[];
   let filesStat: ReturnType<typeof vi.fn>;
   let ensureRepository: ReturnType<typeof vi.fn>;
+  let closeProject: ReturnType<typeof vi.fn>;
   let openProject: ReturnType<typeof vi.fn>;
-  let dependencies: Parameters<typeof createProject>[0];
+  let dependencies: Parameters<typeof initializeRepository>[0];
 
   beforeEach(() => {
     rows = [];
@@ -25,7 +27,8 @@ describe('project creation without a git repository', () => {
       data: { type: 'directory' },
     });
     ensureRepository = vi.fn();
-    openProject = vi.fn().mockResolvedValue(undefined);
+    closeProject = vi.fn().mockResolvedValue(ok());
+    openProject = vi.fn().mockResolvedValue(ok({}));
     mocks.ensureRepositoryWorkspace.mockReturnValue('repo-workspace-1');
     dependencies = {
       db: createFakeDb(rows),
@@ -38,8 +41,8 @@ describe('project creation without a git repository', () => {
           },
         }),
       },
-      projects: { openProject },
-    } as unknown as Parameters<typeof createProject>[0];
+      projects: { closeProject, openProject },
+    } as unknown as Parameters<typeof initializeRepository>[0];
   });
 
   afterEach(() => {
@@ -98,6 +101,8 @@ describe('project creation without a git repository', () => {
     });
     expect(result.data.baseRef).toBe('main');
     expect(result.data.repositoryWorkspaceId).toBeTruthy();
+    expect(closeProject).toHaveBeenCalledWith('project-plain');
+    expect(openProject).toHaveBeenCalledWith(expect.objectContaining({ id: 'project-plain' }));
 
     const row = rows.find((entry) => entry.id === 'project-plain');
     expect(row?.baseRef).toBe('main');

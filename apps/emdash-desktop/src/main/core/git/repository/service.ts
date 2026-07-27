@@ -1,6 +1,7 @@
 import type { GitRemotesState, RepositorySelector } from '@emdash/core/runtimes/git/api';
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
 import { ReplicaState } from '@emdash/wire';
 import { resolveConfiguredRemotes } from '@core/primitives/git/api';
 import type { ProjectSettings } from '@core/primitives/project-settings/api';
@@ -26,11 +27,23 @@ export class GitRepositoryService {
     const binding = replica.ready.then(() => {
       if (!active) return null;
       return replica.onChange(cb);
+    }).catch((error) => {
+      log.warn('GitRepositoryService: failed to subscribe to remotes', {
+        repository: this.selector,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
     });
     return () => {
       active = false;
       void binding
         .then((unsubscribe) => unsubscribe?.())
+        .catch((error) => {
+          log.warn('GitRepositoryService: failed to unsubscribe from remotes', {
+            repository: this.selector,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        })
         .finally(() => {
           void replica.dispose();
         });

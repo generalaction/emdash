@@ -6,7 +6,7 @@ import { PullRequestsRegistration } from './pull-requests-registration';
 const mocks = vi.hoisted(() => ({
   projects: new Map<
     string,
-    { remoteUrls: string[]; subscribeRemotes: (handler: () => void) => () => void }
+    { remoteUrls: string[]; subscribeRemotes?: (handler: () => void) => () => void }
   >(),
   resolveAuth: vi.fn(),
 }));
@@ -36,7 +36,7 @@ function createRegistration(client: ReturnType<typeof createClient>) {
     onTaskProvisioned: vi.fn(() => () => {}),
     subscribeToProjectRemotes: (projectId, handler) => {
       const project = mocks.projects.get(projectId);
-      return project?.subscribeRemotes(handler);
+      return project?.subscribeRemotes?.(handler);
     },
     resolveProjectRepositoryUrls: async (projectId) =>
       mocks.projects.get(projectId)?.remoteUrls ?? [],
@@ -81,6 +81,16 @@ describe('PullRequestsRegistration', () => {
       branch: 'feature-branch',
     });
     expect(client.syncSingle).toHaveBeenCalledWith({ repositoryUrl, number: 42 });
+  });
+
+  it('does not subscribe or register repositories when a project has no repository', async () => {
+    mocks.projects.set('project-1', { remoteUrls: [] });
+    const client = createClient();
+    const registration = createRegistration(client);
+
+    await registration.onProjectOpened('project-1');
+
+    expect(client.registerRepository).not.toHaveBeenCalled();
   });
 
   it('unregisters repositories when their project is deleted', async () => {

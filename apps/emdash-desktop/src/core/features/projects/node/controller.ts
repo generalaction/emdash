@@ -19,12 +19,12 @@ import { resolveRepositoryDestination } from './operations/resolve-repository-de
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
 
-export type ProjectOperationDependencies = CreateProjectDependencies & {
+export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'projects'> & {
   operations: OperationsEngine;
   getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   placement: WorkspacePlacementResolver;
   projectSettings: ProjectSettingsService;
-  projects: Pick<ProjectSessionManager, 'openProject'>;
+  projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;
 };
 
 export function createProjectOperations(dependencies: ProjectOperationDependencies) {

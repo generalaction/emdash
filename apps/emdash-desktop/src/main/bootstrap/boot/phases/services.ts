@@ -410,11 +410,14 @@ export async function bootServices(
     onProjectSettingsChanged: (handler) =>
       projectSettingsService.on('project-settings:changed', ({ projectId }) => handler(projectId)),
     onTaskProvisioned: (handler) => taskSessionManager.hooks.on('task:provisioned', handler),
-    subscribeToProjectRemotes: (projectId, handler) =>
-      projectManager.getProject(projectId)?.gitRepository.subscribeRemotes(handler),
+    subscribeToProjectRemotes: (projectId, handler) => {
+      const project = projectManager.getProject(projectId);
+      if (!project?.hasRepository) return undefined;
+      return project.gitRepository.subscribeRemotes(handler);
+    },
     resolveProjectRepositoryUrls: async (projectId) => {
       const project = projectManager.getProject(projectId);
-      if (!project) return [];
+      if (!project?.hasRepository) return [];
       const remotes = (
         await project.git.repository.model.state(project.repository, 'remotes').snapshot()
       ).data.remotes;

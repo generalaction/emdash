@@ -84,8 +84,12 @@ export const ChangesPanel = observer(function ChangesPanel() {
         return;
       }
 
-      await Promise.all([gitCheckout.retry(), getGitRepositoryStore(projectId)?.retry()]);
-      await queryClient.invalidateQueries({ queryKey: noRepositoryQueryKey });
+      await Promise.all([
+        gitCheckout.retry(),
+        getGitRepositoryStore(projectId)?.retry(),
+        queryClient.invalidateQueries({ queryKey: ['projectPathStatus'] }),
+        queryClient.invalidateQueries({ queryKey: noRepositoryQueryKey }),
+      ]);
       toast({ title: 'Git repository initialized' });
     },
     onError: (error) => {

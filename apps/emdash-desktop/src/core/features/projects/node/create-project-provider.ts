@@ -16,7 +16,11 @@ import {
 } from '@core/features/projects/api/node/project-provider';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
-import { nativePathFromHost, relativeRuntimePath } from '@core/primitives/desktop-runtime/api';
+import {
+  hostPathFromNative,
+  nativePathFromHost,
+  relativeRuntimePath,
+} from '@core/primitives/desktop-runtime/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
@@ -82,16 +86,23 @@ export async function createProvider(
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
     const checkout = checkoutSelector(project.path);
+    const repositoryInspection = await git.inspectPath({ path: hostPathFromNative(project.path) });
+    const hasRepository =
+      repositoryInspection.kind === 'inspect-failed' || repositoryInspection.kind === 'repository';
     const gitInspector = {
       isFileCleanlyTracked: async (filePath: string) => {
-        const relative = gitFilePath(relativeRuntimePath(checkout.checkout, filePath));
-        const [index, status] = await Promise.all([
-          git.checkout.getFileAtIndex({ ...checkout, filePath: relative }),
-          git.checkout.model.state(checkout, 'status').snapshot(),
-        ]);
-        if (!index.success || index.data === null || status.data.kind !== 'ok') return false;
-        const entry = status.data.entries[relative];
-        return !entry || (entry.index === 'unmodified' && entry.worktree === 'unmodified');
+        try {
+          const relative = gitFilePath(relativeRuntimePath(checkout.checkout, filePath));
+          const [index, status] = await Promise.all([
+            git.checkout.getFileAtIndex({ ...checkout, filePath: relative }),
+            git.checkout.model.state(checkout, 'status').snapshot(),
+          ]);
+          if (!index.success || index.data === null || status.data.kind !== 'ok') return false;
+          const entry = status.data.entries[relative];
+          return !entry || (entry.index === 'unmodified' && entry.worktree === 'unmodified');
+        } catch {
+          return false;
+        }
       },
     };
     const settings = new HostProjectSettingsProvider(
@@ -148,13 +159,14 @@ export async function createProvider(
     const fetchService = dependencies.createGitRepositoryFetch(git, repository, () =>
       repositoryService.getBaseRemote()
     );
-    fetchService.start();
+    if (hasRepository) fetchService.start();
 
     const provider = new ProjectProvider(
       project,
       transport,
       repositoryService,
       fetchService,
+      hasRepository,
       git,
       workspace,
       terminals,

@@ -26,7 +26,7 @@ vi.mock('@core/primitives/views/react', () => ({
 }));
 
 vi.mock('@core/primitives/modals/react/modal-store', () => ({
-  modalStore: { dismiss: dismissModal },
+  modalStore: { dismissAll: dismissModal },
 }));
 
 vi.mock('@renderer/utils/focus-tracker', () => ({

@@ -14,7 +14,7 @@ import { projectFromRow } from './getProjects';
 export type InitializeRepositoryDependencies = {
   db: AppDb;
   runtimes: Pick<RuntimeBroker, 'client'>;
-  projects: Pick<ProjectSessionManager, 'openProject'>;
+  projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;
 };
 
 export async function initializeRepository(
@@ -58,7 +58,20 @@ export async function initializeRepository(
     .returning();
 
   const project = projectFromRow(row);
-  await dependencies.projects.openProject(project);
+  const closeResult = await dependencies.projects.closeProject(projectId);
+  if (!closeResult.success) {
+    log.warn('initializeRepository: failed to close project before reopening', {
+      projectId,
+      error: closeResult.error.message,
+    });
+  }
+  const openResult = await dependencies.projects.openProject(project);
+  if (!openResult.success) {
+    log.warn('initializeRepository: failed to reopen project after initializing repository', {
+      projectId,
+      error: openResult.error.message,
+    });
+  }
 
   try {
     project.repositoryWorkspaceId = ensureRepositoryWorkspace(dependencies.db, project);

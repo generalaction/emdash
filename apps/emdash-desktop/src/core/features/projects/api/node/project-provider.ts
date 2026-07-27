@@ -94,6 +94,7 @@ export class ProjectProvider implements Disposable {
   readonly git: GitRuntimeClient;
   readonly repository: RepositorySelector;
   readonly gitRepository: GitRepositoryPort;
+  readonly hasRepository: boolean;
   readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   readonly workspace: WorkspaceRuntimeClient;
@@ -109,6 +110,7 @@ export class ProjectProvider implements Disposable {
     transport: ProjectProviderTransport,
     gitRepository: GitRepositoryPort,
     private readonly gitRepositoryFetchService: GitRepositoryFetchPort,
+    hasRepository: boolean,
     git: GitRuntimeClient,
     workspace: WorkspaceRuntimeClient,
     terminals: TerminalsRuntimeClient,
@@ -131,6 +133,7 @@ export class ProjectProvider implements Disposable {
     this.terminals = terminals;
     this.repository = repository;
     this.gitRepository = gitRepository;
+    this.hasRepository = hasRepository;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
   }
 
