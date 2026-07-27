@@ -2,6 +2,7 @@ import {
   PageLayout,
   type PageNavItem,
   type PageNavDivider,
+  type PageNavSection,
   type PageSidebarMenuItem,
 } from '@emdash/ui/react/patterns';
 import { Breadcrumbs } from '@emdash/ui/react/primitives';
@@ -25,8 +26,8 @@ const DOCS_ITEM = {
 } satisfies PageNavItem;
 
 const DIVIDER: PageNavDivider = { kind: 'divider' };
-const LOCAL_DIVIDER: PageNavDivider = { kind: 'divider', label: 'Local' };
-const REMOTE_DIVIDER: PageNavDivider = { kind: 'divider', label: 'Remote' };
+const LOCAL_SECTION: PageNavSection = { kind: 'section', id: 'local', label: 'Local' };
+const REMOTE_SECTION: PageNavSection = { kind: 'section', id: 'remote', label: 'Remote' };
 
 const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
   navItemFor('general'),
@@ -35,13 +36,13 @@ const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
   navItemFor('browser'),
   navItemFor('repository'),
   navItemFor('prompts'),
-  LOCAL_DIVIDER,
+  LOCAL_SECTION,
   navItemFor('system'),
   navItemFor('workspaces-local'),
   navItemFor('clis-models'),
   navItemFor('mcp'),
   navItemFor('skills'),
-  REMOTE_DIVIDER,
+  REMOTE_SECTION,
   navItemFor('connections'),
   DIVIDER,
   DOCS_ITEM,

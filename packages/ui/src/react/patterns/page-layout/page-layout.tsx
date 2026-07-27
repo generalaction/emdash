@@ -3,8 +3,6 @@ import * as React from 'react';
 import * as styles from './page-layout.css';
 import type { ContentVariants } from './page-layout.css';
 
-// ── Root ──────────────────────────────────────────────────────────────────────
-
 export interface PageLayoutProps {
   /**
    * When provided the layout switches to the two-column sidebar+content grid

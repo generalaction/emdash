@@ -22,13 +22,20 @@ export interface PageNavItem {
 
 export interface PageNavDivider {
   kind: 'divider';
-  /** Optional text-only section label; unlabeled dividers render as separator lines. */
+  /**
+   * @deprecated Use PageNavSection instead. Labeled dividers still render as
+   * section labels for compatibility.
+   */
   label?: string;
 }
 
-export type PageSidebarMenuItem = PageNavItem | PageNavDivider;
+export interface PageNavSection {
+  kind: 'section';
+  id: string;
+  label: string;
+}
 
-export type PageNavSection = PageNavDivider;
+export type PageSidebarMenuItem = PageNavItem | PageNavDivider | PageNavSection;
 
 export interface PageSidebarMenuProps {
   items: PageSidebarMenuItem[];
@@ -42,6 +49,7 @@ export interface PageSidebarMenuProps {
   draggable?: boolean;
   className?: string;
   header?: React.ReactNode;
+  footer?: React.ReactNode;
   emptyMessage?: string;
 }
 
@@ -73,6 +81,7 @@ function PageSidebarMenu({
   draggable = false,
   className,
   header,
+  footer,
   emptyMessage,
 }: PageSidebarMenuProps) {
   // Inline style type-cast for Electron drag region so vanilla-extract is not
@@ -87,8 +96,12 @@ function PageSidebarMenu({
           <div className={styles.emptyMessage}>{emptyMessage}</div>
         )}
         {items.map((item, index) => {
-          if (isDivider(item)) {
+          if (item.kind === 'divider') {
             return <NavDivider key={`divider-${index}`} label={item.label} />;
+          }
+
+          if (item.kind === 'section') {
+            return <NavSection key={`section-${item.id}`} label={item.label} />;
           }
 
           const { id, label, icon, isExternal, badge } = item;
@@ -110,20 +123,21 @@ function PageSidebarMenu({
           );
         })}
       </nav>
+      {footer && <div className={styles.footer}>{footer}</div>}
     </div>
   );
 }
 
-function isDivider(item: PageSidebarMenuItem): item is PageNavDivider {
-  return item.kind === 'divider';
-}
-
 function NavDivider({ label }: { label?: string }) {
   if (label) {
-    return <div className={styles.sectionLabel}>{label}</div>;
+    return <NavSection label={label} />;
   }
 
   return <div className={styles.divider} role="separator" />;
+}
+
+function NavSection({ label }: { label: string }) {
+  return <div className={styles.sectionLabel}>{label}</div>;
 }
 
 export { PageSidebarMenu };

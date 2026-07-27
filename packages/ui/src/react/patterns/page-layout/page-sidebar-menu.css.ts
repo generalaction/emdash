@@ -12,12 +12,17 @@ export const wrapper = style({
   position: 'sticky',
   top: 0,
   alignSelf: 'start',
+  boxSizing: 'border-box',
+  display: 'flex',
+  maxHeight: '100vh',
+  flexDirection: 'column',
   paddingTop: '2.5rem',
   paddingBottom: '2.5rem',
 });
 
 export const header = style({
   width: '13rem',
+  flexShrink: 0,
   marginBottom: '0.75rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
@@ -25,8 +30,18 @@ export const header = style({
 export const nav = style({
   display: 'flex',
   width: '13rem',
+  flex: 1,
   flexDirection: 'column',
-  gap: '0.125rem',
+  gap: '0.0625rem',
+  minHeight: 0,
+  overflowY: 'auto',
+  ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
+});
+
+export const footer = style({
+  width: '13rem',
+  flexShrink: 0,
+  marginTop: '0.75rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
 });
 
@@ -49,13 +64,12 @@ export const navItem = recipe({
     backgroundColor: 'transparent',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
-    paddingTop: '0.5rem',
-    paddingBottom: '0.5rem',
-    fontSize: tokenVars.textSm,
+    height: '32px',
+    fontSize: tokenVars.textXs,
     fontWeight: 400,
     color: vars.foregroundMuted,
     cursor: 'pointer',
-    transition: 'background-color 150ms, color 150ms',
+    transition: 'background-color 150ms, box-shadow 150ms, color 150ms',
     textAlign: 'left',
     selectors: {
       '&:hover': {
@@ -67,11 +81,11 @@ export const navItem = recipe({
   variants: {
     active: {
       true: {
-        backgroundColor: vars.background2,
+        backgroundColor: vars.background3,
         color: vars.foreground,
         selectors: {
           '&:hover': {
-            backgroundColor: vars.background2,
+            backgroundColor: vars.background3,
             color: vars.foreground,
           },
         },

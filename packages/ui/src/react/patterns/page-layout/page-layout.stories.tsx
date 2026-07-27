@@ -101,7 +101,7 @@ function LibraryDemo() {
                   style={{ flex: 1 }}
                 />
                 <Button size="sm">
-                  <PlusIcon style={{ width: '0.875rem', height: '0.875rem' }} />
+                  <PlusIcon size={14} />
                   New Prompt
                 </Button>
               </div>
@@ -331,20 +331,21 @@ export const CustomSidebar: Story = {
   render: () => <CustomSidebarDemo />,
 };
 
-// ── 5. Sectioned sidebar — PageNavSection dividers ────────────────────────────
+// ── 5. Sectioned sidebar — PageNavSection labels ──────────────────────────────
 
 const SECTIONED_ITEMS = [
+  { kind: 'section', id: 'account-section', label: 'Account' },
   { id: 'general', label: 'General', icon: 'settings' },
   { id: 'account', label: 'Account', icon: 'user' },
   { id: 'integrations', label: 'Integrations', icon: 'plug' },
-  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { kind: 'section', id: 'application-section', label: 'Application' },
   { id: 'interface', label: 'Interface', icon: 'panel-left' },
   { id: 'browser', label: 'Browser', icon: 'globe' },
   { id: 'repository', label: 'Repository', icon: 'git-branch' },
-  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { kind: 'section', id: 'workspace-section', label: 'Workspace' },
   { id: 'agents', label: 'Agents', icon: 'bot' },
   { id: 'workspaces', label: 'Workspaces (local)', icon: 'folder-git-2' },
-  { kind: 'divider' } satisfies PageSidebarMenuItem,
+  { kind: 'section', id: 'remote-section', label: 'Remote' },
   { id: 'remote-machines', label: 'Remote Machines', icon: 'server' },
   { kind: 'divider' } satisfies PageSidebarMenuItem,
   { id: 'docs', label: 'Docs', icon: 'external-link', isExternal: true },
@@ -376,10 +377,11 @@ function SectionedSidebarDemo() {
         <PageLayout.Content>
           <PageLayout.Header
             title={
-              SECTIONED_ITEMS.find((item) => item.kind !== 'divider' && item.id === tab)?.label ??
-              ''
+              SECTIONED_ITEMS.find(
+                (item) => item.kind !== 'divider' && item.kind !== 'section' && item.id === tab
+              )?.label ?? ''
             }
-            description="Sectioned sidebar demonstrating divider support."
+            description="Sectioned sidebar demonstrating section label support."
             sticky
           />
           <div style={{ paddingTop: '1.5rem', paddingBottom: '2.5rem' }}>
@@ -392,6 +394,105 @@ function SectionedSidebarDemo() {
 }
 
 export const SectionedSidebar: Story = {
-  name: 'Sectioned sidebar — divider support',
+  name: 'Sectioned sidebar — section labels',
   render: () => <SectionedSidebarDemo />,
+};
+
+// ── 6. Sidebar with footer — pinned slots + scrolling nav ─────────────────────
+
+const SIDEBAR_WITH_FOOTER_ITEMS: PageSidebarMenuItem[] = [
+  { kind: 'section', id: 'projects-section', label: 'Projects' },
+  ...Array.from(
+    { length: 20 },
+    (_, index) =>
+      ({
+        id: `project-${index + 1}`,
+        label: `Project ${index + 1}`,
+        icon: 'folder',
+        badge: String(index + 2),
+      }) satisfies PageNavItem
+  ),
+  { kind: 'divider' },
+  { kind: 'section', id: 'resources-section', label: 'Resources' },
+  { id: 'templates', label: 'Templates', icon: 'sparkles' },
+  { id: 'archive', label: 'Archive', icon: 'archive' },
+];
+
+function SidebarWithFooterDemo() {
+  const [tab, setTab] = React.useState('project-1');
+  const [query, setQuery] = React.useState('');
+
+  return (
+    <div
+      style={{
+        height: '40rem',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--em-background)',
+      }}
+    >
+      <PageLayout
+        sidebar={
+          <PageLayout.SidebarMenu
+            items={SIDEBAR_WITH_FOOTER_ITEMS}
+            activeId={tab}
+            onSelect={(item) => setTab(item.id)}
+            header={
+              <SearchInput
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onClear={() => setQuery('')}
+                placeholder="Search projects…"
+              />
+            }
+            footer={
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  borderTop: '1px solid var(--em-border)',
+                  paddingTop: '0.75rem',
+                }}
+              >
+                <div
+                  style={{
+                    color: 'var(--em-foreground-passive)',
+                    fontSize: 'var(--em-text-xs)',
+                    paddingLeft: '0.75rem',
+                    paddingRight: '0.75rem',
+                  }}
+                >
+                  Emdash UI v1.0.0
+                </div>
+                <Button size="sm" variant="ghost" style={{ justifyContent: 'flex-start' }}>
+                  Manage sidebar
+                </Button>
+              </div>
+            }
+          />
+        }
+      >
+        <PageLayout.Content>
+          <PageLayout.Header
+            title={
+              SIDEBAR_WITH_FOOTER_ITEMS.find(
+                (item) => item.kind !== 'divider' && item.kind !== 'section' && item.id === tab
+              )?.label ?? ''
+            }
+            description="Long sidebar demonstrating pinned header/footer slots and a scrolling nav."
+            sticky
+          />
+          <div style={{ paddingTop: '1.5rem', paddingBottom: '2.5rem' }}>
+            <PlaceholderList count={4} />
+          </div>
+        </PageLayout.Content>
+      </PageLayout>
+    </div>
+  );
+}
+
+export const SidebarWithFooter: Story = {
+  name: 'Sidebar with footer — scrolling nav',
+  render: () => <SidebarWithFooterDemo />,
 };
