@@ -34,10 +34,6 @@ export const shortcut = style({
   color: vars.foregroundMuted,
 });
 
-export const shortcutWithClear = style({
-  right: '1.875rem',
-});
-
 /** Hide the shortcut hint once the user has typed so it behaves as a placeholder adornment. */
 globalStyle(`${container}:has(input:not(:placeholder-shown)) .${shortcut}`, {
   display: 'none',
@@ -68,3 +64,8 @@ export const clearButton = style({
   },
 });
 globalStyle(`${clearButton} svg`, { pointerEvents: 'none', width: '0.75rem', height: '0.75rem' });
+
+/** Suppress the browser-native clear button on search inputs; the component renders its own. */
+globalStyle('input[type="search"]::-webkit-search-cancel-button', {
+  display: 'none',
+});

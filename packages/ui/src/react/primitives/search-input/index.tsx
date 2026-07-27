@@ -62,10 +62,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(functio
       />
 
       {shortcut != null && (
-        <span
-          data-slot="search-input-shortcut"
-          className={cx(styles.shortcut, onClear != null && styles.shortcutWithClear)}
-        >
+        <span data-slot="search-input-shortcut" className={cx(styles.shortcut)}>
           {shortcut}
         </span>
       )}
