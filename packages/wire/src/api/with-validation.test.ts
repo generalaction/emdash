@@ -119,6 +119,43 @@ describe('withValidation', () => {
     ).rejects.toThrow();
   });
 
+  it('round-trips void live model inputs through nested validation layers', async () => {
+    const contract = defineContract({
+      group: liveModel({
+        key: z.object({ id: z.string() }),
+        states: { item: liveState({ data: z.object({ touched: z.boolean() }) }) },
+        mutations: {
+          touch: mutation({
+            input: z.void().optional(),
+            data: z.void(),
+            error: z.object({ type: z.string() }),
+          }),
+        },
+      }),
+    });
+    const host = createLiveModelHost(contract.group, {
+      mutations: {
+        touch: (ctx) => {
+          ctx.produce('item', (draft) => {
+            (draft as { touched: boolean }).touched = true;
+          });
+          return ok<void>();
+        },
+      },
+    });
+    host.create({ id: 'known' }, { item: { touched: false } });
+    const controller = withValidation(
+      contract,
+      withValidation(contract, createController(contract, { group: host }), 'full'),
+      'inputs'
+    );
+
+    await expect(
+      controller.call('group.touch', { key: { id: 'known' }, input: undefined })
+    ).resolves.toMatchObject({ success: true });
+    expect(host.get({ id: 'known' })?.states.item.snapshot().data).toEqual({ touched: true });
+  });
+
   it('accepts void mutation results whose data key was dropped by JSON transports', async () => {
     const contract = defineContract({
       group: liveModel({

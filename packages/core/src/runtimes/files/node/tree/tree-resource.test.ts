@@ -153,6 +153,37 @@ describe('TreeResource', () => {
     });
   });
 
+  it('creates files inside unloaded directories and loads the parent', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+
+    expect(diagnostic.current().entries.src?.childrenLoaded).toBe(false);
+
+    const result = await tree.createFile({
+      resource: tree,
+      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+      input: { path: portable('src/new.ts') },
+      mutationId: 'create-file-unloaded-parent-test',
+      settle: async () => {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(diagnostic.current().entries.src).toMatchObject({
+      path: 'src',
+      kind: 'directory',
+      childrenLoaded: true,
+      hasChildren: true,
+    });
+    expect(diagnostic.current().entries.src?.children).toContain('src/new.ts');
+    expect(diagnostic.current().entries['src/new.ts']).toMatchObject({
+      path: 'src/new.ts',
+      kind: 'file',
+      parentPath: 'src',
+    });
+  });
+
   it('deletes loaded subtrees through the tree mutation lane', async () => {
     const { rootPath, tree } = await createHarness();
     await mkdir(path.join(rootPath, 'src'), { recursive: true });
@@ -204,7 +235,7 @@ describe('TreeResource', () => {
     expect(diagnostic.current().entries.dest?.children).toContain('dest/app.ts');
   });
 
-  it('does not force-load collapsed mutation parents', async () => {
+  it('loads unloaded destination parents after move mutations', async () => {
     const { rootPath, tree } = await createHarness();
     await mkdir(path.join(rootPath, 'src'), { recursive: true });
     await mkdir(path.join(rootPath, 'dest'), { recursive: true });
@@ -226,9 +257,13 @@ describe('TreeResource', () => {
     expect(result.success).toBe(true);
     expect(diagnostic.current().entries['src/app.ts']).toBeUndefined();
     expect(diagnostic.current().entries.src?.children).not.toContain('src/app.ts');
-    expect(diagnostic.current().entries.dest?.childrenLoaded).toBe(false);
-    expect(diagnostic.current().entries.dest?.children).toEqual([]);
-    expect(diagnostic.current().entries['dest/app.ts']).toBeUndefined();
+    expect(diagnostic.current().entries.dest?.childrenLoaded).toBe(true);
+    expect(diagnostic.current().entries.dest?.children).toContain('dest/app.ts');
+    expect(diagnostic.current().entries['dest/app.ts']).toMatchObject({
+      path: 'dest/app.ts',
+      parentPath: 'dest',
+      kind: 'file',
+    });
   });
 
   it('copies entries across loaded parents', async () => {

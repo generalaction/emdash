@@ -78,7 +78,11 @@ function insertEntry(
   if (!entry.path || model.entries[entry.path]) return;
   const parentPath = parentPathFor(entry.path);
   const parent = model.entries[parentPath];
-  if (!parent?.childrenLoaded) return;
+  if (!parent) return;
+  if (!parent.childrenLoaded) {
+    parent.hasChildren = true;
+    return;
+  }
   const name = basename(entry.path);
   model.entries[entry.path] = {
     ...entry,
@@ -102,7 +106,11 @@ function relocateSubtree(
 
   const parentPath = parentPathFor(to);
   const parent = model.entries[parentPath];
-  if (!parent?.childrenLoaded) return;
+  if (!parent) return;
+  if (!parent.childrenLoaded) {
+    parent.hasChildren = true;
+    return;
+  }
 
   const relocated: FileEntry = {
     ...source,
@@ -132,7 +140,11 @@ function copyEntry(
 
   const parentPath = parentPathFor(to);
   const parent = model.entries[parentPath];
-  if (!parent?.childrenLoaded) return;
+  if (!parent) return;
+  if (!parent.childrenLoaded) {
+    parent.hasChildren = true;
+    return;
+  }
 
   const copied: FileEntry = {
     ...source,

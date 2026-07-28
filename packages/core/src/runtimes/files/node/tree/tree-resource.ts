@@ -290,7 +290,6 @@ export class TreeResource {
     for (const parentPath of parents) {
       const parent = model.entries[parentPath];
       if (!parent || !isExpandableFileEntry(parent)) continue;
-      if (!parent.childrenLoaded) continue;
       const children = await this.reader.readChildren(parentPath);
       if (!children.success) return children;
       reconcileDirectory(model, parentPath, children.data);

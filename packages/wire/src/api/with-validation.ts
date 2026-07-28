@@ -170,12 +170,21 @@ function parseLiveModelMutationInput(
   input: unknown
 ): { key: unknown; input: Record<string, unknown>; mutationId?: string } {
   const envelope = input as { key?: unknown; input?: unknown; mutationId?: unknown };
-  const mutationInput = def.input.parse(envelope.input);
+  const mutationInput = parseMutationInput(def.input, envelope.input);
   return {
     key: group.keySchema.parse(envelope.key),
     input: (mutationInput ?? {}) as Record<string, unknown>,
     mutationId: typeof envelope.mutationId === 'string' ? envelope.mutationId : undefined,
   };
+}
+
+function parseMutationInput(schema: z.ZodTypeAny, input: unknown): unknown {
+  const parsed = schema.safeParse(input);
+  if (parsed.success) return parsed.data;
+  if (isEmptyRecord(input) && schema.safeParse(undefined).success) {
+    return schema.parse(undefined);
+  }
+  return schema.parse(input);
 }
 
 function liveModelMutationOutputSchema(def: MutationDef): z.ZodTypeAny {
@@ -190,4 +199,8 @@ function liveModelMutationOutputSchema(def: MutationDef): z.ZodTypeAny {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isEmptyRecord(value: unknown): value is Record<string, never> {
+  return isRecord(value) && Object.keys(value).length === 0;
 }

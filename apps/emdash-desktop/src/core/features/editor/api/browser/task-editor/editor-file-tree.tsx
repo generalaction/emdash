@@ -367,6 +367,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
       });
       return;
     }
+    editorView.expandPath(parentPath);
     openFile(path, false);
     toast({ title: 'File created' });
   };
@@ -383,6 +384,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
       });
       return;
     }
+    editorView.expandPath(parentPath);
     editorView.expandPath(path);
     toast({ title: 'Folder created' });
   };
