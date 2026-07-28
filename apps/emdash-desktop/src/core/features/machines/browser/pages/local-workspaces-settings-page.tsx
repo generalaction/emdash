@@ -1,5 +1,5 @@
 import { PageLayout } from '@emdash/ui/react/patterns';
-import { MachineWorkspacesList } from '../components/machine-workspaces-list';
+import { LocalWorkspacesView } from '../components/local-workspaces-view';
 
 export function LocalWorkspacesSettingsPage() {
   return (
@@ -9,7 +9,7 @@ export function LocalWorkspacesSettingsPage() {
         title="Workspaces"
         description="Review local project workspaces and remove stale task worktrees."
       />
-      <MachineWorkspacesList scope="local" enabled />
+      <LocalWorkspacesView />
     </div>
   );
 }

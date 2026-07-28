@@ -55,6 +55,7 @@ import {
   useWorkspaceRuntimeStatuses,
   type WorkspaceRuntimeStatus,
 } from '../use-workspace-runtime-statuses';
+import { workspaceStatus } from '../workspace-runtime-status';
 import { formatBytes } from './machine-resources';
 
 type UsageFilter = 'all' | 'used' | 'unused';
@@ -558,14 +559,6 @@ function flattenWorkspaces(groups: MachineProjectWorkspaces[]): MachineWorkspace
       row,
     }))
   );
-}
-
-function workspaceStatus(
-  row: ProjectWorkspaceRow,
-  statuses: ObservableMap<string, WorkspaceRuntimeStatus>
-): WorkspaceRuntimeStatus {
-  if (!row.workspaceId) return row.hasActiveSessions ? 'active' : 'idle';
-  return statuses.get(row.workspaceId) ?? (row.hasActiveSessions ? 'active' : 'idle');
 }
 
 function workspaceLabel(workspace: ProjectWorkspaceRow): string {

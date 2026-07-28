@@ -38,7 +38,9 @@ export function useLocalWorkspaces(enabled: boolean) {
       const projects = (await client.projects.getProjects()).filter(
         (project) => project.type === 'local'
       );
-      return await listProjectWorkspaceGroups(projects);
+      // The local workspaces view does not show disk usage, so skip the
+      // expensive per-file measurement scan and only run the cheap listing.
+      return await listProjectWorkspaceGroups(projects, { measure: false });
     },
     enabled,
     refetchOnWindowFocus: false,
@@ -60,14 +62,18 @@ export async function deleteMachineProjectWorkspaces({
 }
 
 async function listProjectWorkspaceGroups(
-  projects: Array<Pick<Project, 'id' | 'name'>>
+  projects: Array<Pick<Project, 'id' | 'name'>>,
+  options: { measure?: boolean } = {}
 ): Promise<MachineProjectWorkspaces[]> {
+  const measure = options.measure ?? true;
   const client = await getDesktopWireClient();
   const groups = await Promise.all(
     projects.map(async (project) => {
       const listed = await client.projectWorkspaces.listProjectWorkspaces({
         projectId: project.id,
       });
+      if (!measure) return { project, workspaces: listed.rows };
+
       const measured = await client.projectWorkspaces.measureProjectWorkspaces({
         projectId: project.id,
         paths: listed.rows.filter((row) => row.pathState === 'measured').map((row) => row.path),
