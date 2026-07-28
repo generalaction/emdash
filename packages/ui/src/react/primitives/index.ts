@@ -59,6 +59,11 @@ export {
 } from './split-button';
 
 export { SegmentedSpinnerIcon, type SegmentedSpinnerIconProps } from './segmented-spinner';
+export {
+  useAsyncAction,
+  type AsyncActionTrigger,
+  type UseAsyncActionOptions,
+} from './hooks/use-async-action';
 
 // ── Theme / provider ──────────────────────────────────────────────────────────
 export {

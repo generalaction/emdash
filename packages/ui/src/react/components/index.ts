@@ -107,6 +107,17 @@ export {
   type ScriptStatusProps,
 } from './script-status/script-status';
 export {
+  StatusIcon,
+  type StatusIconProps,
+  type StatusIconSeverity,
+  type StatusIconSize,
+} from './status-icon/status-icon';
+export {
+  HierarchicalList,
+  type HierarchicalListNode,
+  type HierarchicalListProps,
+} from './hierarchical-list/hierarchical-list';
+export {
   SteppedLoader,
   SteppedLoaderProgress,
   type StepStatus,

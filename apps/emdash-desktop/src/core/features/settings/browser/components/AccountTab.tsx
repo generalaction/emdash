@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Loader2, LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -9,7 +10,6 @@ import {
   useAccountSignOut,
 } from '@renderer/lib/hooks/useAccount';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
-import { Button } from '@emdash/ui/react/primitives';
 
 export function AccountTab() {
   const { data: session, isLoading } = useAccountSession();
@@ -91,12 +91,12 @@ export function AccountTab() {
 
   if (isSignedIn && user) {
     return (
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {user.avatarUrl ? (
           <img
             src={user.avatarUrl}
             alt={displayName}
-            className="h-12 w-12 rounded-full border border-border/60"
+            className="h-10 w-10 rounded-full border border-border/60"
           />
         ) : (
           <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full border border-border/60">
@@ -104,8 +104,8 @@ export function AccountTab() {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground">{displayName}</p>
-          {user.email && <p className="text-muted-foreground text-xs">{user.email}</p>}
+          <p className="text-sm text-foreground">{displayName}</p>
+          {user.email && <p className="text-xs text-foreground-muted">{user.email}</p>}
         </div>
         <Button
           variant="secondary"
