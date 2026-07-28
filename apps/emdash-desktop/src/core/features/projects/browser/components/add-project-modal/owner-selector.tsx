@@ -123,7 +123,12 @@ function GitHubAccountSelect({
             </span>
           )}
         </Select.Trigger>
-        <Select.Content align="end" alignItemWithTrigger={false} sideOffset={6} className="min-w-56">
+        <Select.Content
+          align="end"
+          alignItemWithTrigger={false}
+          sideOffset={6}
+          className="min-w-56"
+        >
           {accounts.map((account) => (
             <Select.Item key={account.accountId} value={account.accountId}>
               <GitHubAccountSelectListItem account={account} />

@@ -1,3 +1,4 @@
+import { McpIcon } from '@emdash/ui/react/components';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import {
   defineSettingsPageContribution,
@@ -8,6 +9,6 @@ import { McpView } from '../api/browser/components/McpView';
 export const mcpSettingsPage = defineSettingsPageContribution({
   id: 'mcp',
   label: 'MCPs',
-  icon: 'server',
+  icon: <McpIcon size={14} />,
   component: McpView,
 } satisfies SettingsPageContribution<SettingsPageTab>);

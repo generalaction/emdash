@@ -12,8 +12,8 @@ export interface PageNavItem {
   kind?: undefined;
   id: string;
   label: string;
-  /** Optional kebab-case Lucide icon name. */
-  icon?: IconName;
+  /** Optional kebab-case Lucide icon name or a custom icon element. */
+  icon?: IconName | React.ReactNode;
   /** When true an external-link icon is shown and the active state is suppressed. */
   isExternal?: boolean;
   /** Optional compact value displayed at the trailing edge. */
@@ -113,7 +113,12 @@ function PageSidebarMenu({
               onClick={() => onSelect(item)}
               className={styles.navItem({ active: isActive })}
             >
-              {icon && <Icon name={icon} size="sm" className={styles.navItemIcon} />}
+              {icon &&
+                (typeof icon === 'string' ? (
+                  <Icon name={icon as IconName} size="sm" className={styles.navItemIcon} />
+                ) : (
+                  <span className={styles.navItemIcon}>{icon}</span>
+                ))}
               <span className={styles.navItemLabel}>{label}</span>
               {badge && <span className={styles.badge}>{badge}</span>}
               {isExternal && (

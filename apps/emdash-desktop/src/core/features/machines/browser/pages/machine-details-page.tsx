@@ -1,17 +1,8 @@
-import { MachineStatus } from '@emdash/ui/react/components';
+import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
 import { SelectableCard } from '@emdash/ui/react/primitives';
-import {
-  Brain,
-  EllipsisIcon,
-  Folder,
-  PencilIcon,
-  Server,
-  Settings,
-  Trash2Icon,
-  User,
-} from 'lucide-react';
+import { Brain, EllipsisIcon, Folder, PencilIcon, Settings, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -289,7 +280,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           onClick={() => setSection('agents')}
         />
         <MachineDetailsCard
-          icon={<Server size={14} />}
+          icon={<McpIcon size={14} />}
           title="MCP Servers"
           selected={section === 'mcp'}
           onClick={() => setSection('mcp')}

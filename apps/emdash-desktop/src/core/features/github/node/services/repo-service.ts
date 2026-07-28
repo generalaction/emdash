@@ -26,7 +26,6 @@ export interface GitHubRepo {
   forksCount: number;
 }
 
-
 export interface GitHubRepositoryService {
   listRepositories(authContext?: GitHubApiAuthContext): Promise<GitHubRepo[]>;
   getOwners(authContext?: GitHubApiAuthContext): Promise<GitHubOwner[]>;

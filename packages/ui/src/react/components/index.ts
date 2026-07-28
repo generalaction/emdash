@@ -115,3 +115,4 @@ export {
   type SteppedLoaderStep,
 } from './stepped-loader/stepped-loader';
 export { UpdateCard, type UpdateCardProps, type UpdateStatus } from './update-card/update-card';
+export { McpIcon, type McpIconProps } from './mcp-icon/mcp-icon';

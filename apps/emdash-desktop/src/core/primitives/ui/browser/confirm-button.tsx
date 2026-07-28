@@ -42,13 +42,7 @@ function isIconSize(size: ConfirmButtonProps['size']): boolean {
   return typeof size === 'string' && size.startsWith('icon');
 }
 
-export function ConfirmButton({
-  disabled,
-  children,
-  variant,
-  size,
-  ...props
-}: ConfirmButtonProps) {
+export function ConfirmButton({ disabled, children, variant, size, ...props }: ConfirmButtonProps) {
   const ref = useRef<HTMLButtonElement>(null);
   useConfirm(() => ref.current?.click(), {
     enabled: !disabled,

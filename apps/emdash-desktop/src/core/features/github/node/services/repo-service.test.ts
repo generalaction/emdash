@@ -38,7 +38,9 @@ function makeOctokit(
       users: {
         getAuthenticated:
           overrides.usersGetAuthenticated ??
-          vi.fn().mockResolvedValue({ data: { login: 'testuser', avatar_url: 'https://avatars.githubusercontent.com/u/1' } }),
+          vi.fn().mockResolvedValue({
+            data: { login: 'testuser', avatar_url: 'https://avatars.githubusercontent.com/u/1' },
+          }),
       },
       orgs: {
         listForAuthenticatedUser:
@@ -113,7 +115,11 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       expect(owners).toEqual([
         { login: 'testuser', type: 'User', avatarUrl: 'https://avatars.githubusercontent.com/u/1' },
-        { login: 'acme', type: 'Organization', avatarUrl: 'https://avatars.githubusercontent.com/u/2' },
+        {
+          login: 'acme',
+          type: 'Organization',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/2',
+        },
       ]);
     });
 
