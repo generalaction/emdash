@@ -1,7 +1,7 @@
 import { MachineStatus } from '@emdash/ui/react/components';
 import type { MachineStatusKind } from '@emdash/ui/react/components';
-import { DropdownMenu, SearchInput, TriggerButton } from '@emdash/ui/react/primitives';
-import { CheckIcon, HomeIcon, SettingsIcon } from 'lucide-react';
+import { DropdownMenu, TriggerButton } from '@emdash/ui/react/primitives';
+import { CheckIcon, HomeIcon, SearchIcon, SettingsIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { Strategy } from './add-project-modal';
@@ -82,13 +82,14 @@ export function LocationSelector({
             />
           </DropdownMenu.SubTrigger>
           <DropdownMenu.SubContent className="p-1" sideOffset={4} style={{ minWidth: '20rem' }}>
-            <div className="px-1 pb-1">
-              <SearchInput
-                size="sm"
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <SearchIcon className="size-3.5 shrink-0 text-foreground-muted" />
+              <input
+                type="text"
                 value={query}
                 placeholder="Filter machines..."
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-foreground-muted"
                 onChange={(event) => setQuery(event.target.value)}
-                onClear={() => setQuery('')}
                 onKeyDown={(event) => {
                   if (
                     event.key !== 'Escape' &&
@@ -100,6 +101,7 @@ export function LocationSelector({
                 }}
               />
             </div>
+            <DropdownMenu.Separator />
             {filteredMachines.length > 0 ? (
               filteredMachines.map((machine) => (
                 <MachineLocationItem
