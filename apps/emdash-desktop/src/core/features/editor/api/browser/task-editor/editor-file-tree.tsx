@@ -228,6 +228,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const treeRef = useRef<FileTreeHandle>(null);
+  const lastSyncedActivePathRef = useRef<string | null>(null);
   const focusRequest = editorView.fileSearchFocusRequest;
   const revealRequest = editorView.revealFileRequest;
   const expandedPaths = editorView.expandedPaths;
@@ -273,12 +274,17 @@ export const EditorFileTree = observer(function EditorFileTree() {
   }, [expandedPaths, files]);
 
   React.useEffect(() => {
-    const activePath = activeFile?.isExternal ? null : activeFile?.path;
-    if (!activePath || !nodeByPath.has(activePath)) return;
-    if (selectedPaths.has(activePath)) return;
+    const activePath = activeFile?.isExternal ? null : (activeFile?.path ?? null);
+    if (!activePath) {
+      lastSyncedActivePathRef.current = null;
+      return;
+    }
+    if (lastSyncedActivePathRef.current === activePath) return;
+    if (!nodeByPath.has(activePath)) return;
+    lastSyncedActivePathRef.current = activePath;
     setSelectedPaths(new Set([activePath]));
     setSelectionAnchorPath(activePath);
-  }, [activeFile?.isExternal, activeFile?.path, nodeByPath, selectedPaths]);
+  }, [activeFile?.isExternal, activeFile?.path, nodeByPath]);
 
   React.useEffect(() => {
     setSelectedPaths((current) => prunePathSet(current, nodeByPath));

@@ -42,6 +42,7 @@ describe('drag-files', () => {
     expect(dataTransfer.getData('text/plain')).toBe(
       '/remote/repo/src/index.ts /remote/repo/src/app.ts'
     );
+    expect(dataTransfer.effectAllowed).toBe('copyMove');
   });
 
   it('does not accept stale workspace state without a matching transfer marker', () => {

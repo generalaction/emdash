@@ -50,7 +50,8 @@ export function setDraggedWorkspaceFile(
   draggedWorkspaceFile = payload;
   dataTransfer.setData(WORKSPACE_FILE_DRAG_TYPE, JSON.stringify(payload));
   dataTransfer.setData('text/plain', payload.targetPaths.join(' '));
-  dataTransfer.effectAllowed = 'copy';
+  // Prompt drops copy these paths, while the file tree needs the same drag to allow moves.
+  dataTransfer.effectAllowed = 'copyMove';
 }
 
 /** Call on dragend; drop fires on the target before dragend on the source. */
