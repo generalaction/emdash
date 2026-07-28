@@ -1,5 +1,5 @@
 import '@styles/layers.css';
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
@@ -12,21 +12,23 @@ export const root = style({
       minHeight: 0,
       flexDirection: 'column',
       overflow: 'hidden',
-      border: `1px solid ${vars.border}`,
       borderRadius: tokenVars.radiusLg,
       backgroundColor: vars.surface,
     },
   },
 });
 
-export const headerRow = style({
-  '@layer': {
-    recipes: {
-      flexShrink: 0,
-      borderBottom: `1px solid ${vars.border}`,
-      padding: '0.5rem 0.75rem',
-      fontSize: tokenVars.textXs,
-      color: vars.foregroundMuted,
+/**
+ * Softer separators than the ListView.Row default. Deliberately unlayered:
+ * the list-row recipe is unlayered too, so a rule inside `@layer recipes`
+ * would always lose. Matching our own data-slot attribute boosts specificity
+ * (0-2-0) over the recipe's `borderBottom` shorthand (0-1-0), independent of
+ * stylesheet emission order.
+ */
+export const row = style({
+  selectors: {
+    "&[data-slot='list-row']": {
+      borderBottomColor: vars.borderSubtle,
     },
   },
 });
@@ -36,43 +38,29 @@ export const rowGrid = style({
     recipes: {
       display: 'grid',
       width: '100%',
-      gridTemplateColumns: '2.25rem minmax(0, 1fr) 9rem 8rem 9rem',
+      gridTemplateColumns: 'var(--column-list-template)',
       alignItems: 'center',
       columnGap: tokenVars.space3,
+      paddingInline: '0.75rem',
     },
   },
 });
 
-export const pathRegion = style({
+export const bodyCell = style({
   '@layer': {
     recipes: {
-      display: 'flex',
       minWidth: 0,
-      gridColumn: '1 / span 2',
-      alignItems: 'center',
-      gap: tokenVars.space3,
+      paddingBlock: '0.75rem',
+      selectors: {
+        "&[data-align='start']": {
+          alignSelf: 'start',
+        },
+        "&[data-align='end']": {
+          alignSelf: 'end',
+        },
+      },
     },
   },
-});
-
-export const iconTile = style({
-  '@layer': {
-    recipes: {
-      display: 'flex',
-      width: '2.25rem',
-      height: '2.25rem',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: tokenVars.radiusLg,
-      backgroundColor: vars.background1,
-      color: vars.foregroundMuted,
-      transition: 'background-color 100ms',
-    },
-  },
-});
-
-globalStyle(`[data-slot='list-row']:hover ${iconTile}`, {
-  backgroundColor: vars.background2,
 });
 
 export const cell = style({

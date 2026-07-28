@@ -113,13 +113,12 @@ export {
   type StatusIconSize,
 } from './status-icon/status-icon';
 export {
-  HierarchicalList,
-  HierarchicalListCell,
-  type HierarchicalListCellProps,
-  type HierarchicalListNode,
-  type HierarchicalListProps,
-  type HierarchicalListRowCells,
-} from './hierarchical-list/hierarchical-list';
+  ColumnList,
+  ColumnListCell,
+  type ColumnListCellProps,
+  type ColumnListColumn,
+  type ColumnListProps,
+} from './column-list/column-list';
 export {
   SteppedLoader,
   SteppedLoaderProgress,
@@ -129,4 +128,10 @@ export {
   type SteppedLoaderStep,
 } from './stepped-loader/stepped-loader';
 export { UpdateCard, type UpdateCardProps, type UpdateStatus } from './update-card/update-card';
+export {
+  WorkspaceIcon,
+  type WorkspaceIconProps,
+  type WorkspaceIconStatus,
+  type WorkspaceIconType,
+} from './workspace-icon/workspace-icon';
 export { McpIcon, type McpIconProps } from './mcp-icon/mcp-icon';
