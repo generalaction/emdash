@@ -184,6 +184,10 @@ export const controlVariants = recipe({
       true: {},
       false: {},
     },
+    kbd: {
+      true: {},
+      false: {},
+    },
   },
 
   compoundVariants: [
@@ -307,6 +311,17 @@ export const controlVariants = recipe({
       variants: { icon: true, size: 'sm' },
       style: { width: '1.5rem', height: '1.5rem', paddingLeft: 0, paddingRight: 0 },
     },
+    // kbd + base → align the trailing shortcut and keep the text-to-kbd gap
+    // equal to the right padding so the Kbd sits in a balanced right-side slot.
+    {
+      variants: { kbd: true, size: 'base' },
+      style: { gap: tokenVars.space2, paddingRight: tokenVars.space1_5 },
+    },
+    // kbd + sm → smaller right-side slot for the smaller button.
+    {
+      variants: { kbd: true, size: 'sm' },
+      style: { gap: '6px', paddingRight: '2.5px' },
+    },
   ],
 
   defaultVariants: {
@@ -314,6 +329,7 @@ export const controlVariants = recipe({
     tone: 'neutral',
     size: 'base',
     icon: false,
+    kbd: false,
   },
 });
 

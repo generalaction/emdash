@@ -148,40 +148,54 @@ export const WithShortcuts: Story = {
     <Box display="flex" flexDirection="column" gap="3" alignItems="flex-start">
       <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
         {buttonVariants.map((variant) => (
-          <Button key={variant} variant={variant}>
-            {variant}
-            <Kbd>K</Kbd>
+          <Button key={variant} variant={variant} kbd={<Kbd>K</Kbd>}>
+            {variant[0].toUpperCase() + variant.slice(1)}
           </Button>
         ))}
       </Box>
 
       <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
         {buttonVariants.map((variant) => (
-          <Button key={variant} variant={variant} size="sm">
-            {variant}
-            <KbdGroup>
-              <Kbd>⌘</Kbd>
-              <Kbd>K</Kbd>
-            </KbdGroup>
+          <Button
+            key={variant}
+            variant={variant}
+            size="sm"
+            kbd={
+              <KbdGroup>
+                <Kbd>⌘</Kbd>
+                <Kbd>K</Kbd>
+              </KbdGroup>
+            }
+          >
+            {variant[0].toUpperCase() + variant.slice(1)}
           </Button>
         ))}
       </Box>
 
       <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
-        <Button variant="primary">
+        <Button
+          variant="primary"
+          kbd={
+            <KbdGroup>
+              <Kbd>⌘</Kbd>
+              <Kbd>⇧</Kbd>
+              <Kbd>P</Kbd>
+            </KbdGroup>
+          }
+        >
           Command palette
-          <KbdGroup>
-            <Kbd>⌘</Kbd>
-            <Kbd>⇧</Kbd>
-            <Kbd>P</Kbd>
-          </KbdGroup>
         </Button>
-        <Button variant="secondary" size="sm">
+        <Button
+          variant="secondary"
+          size="sm"
+          kbd={
+            <KbdGroup>
+              <Kbd>⌘</Kbd>
+              <Kbd>S</Kbd>
+            </KbdGroup>
+          }
+        >
           Save
-          <KbdGroup>
-            <Kbd>⌘</Kbd>
-            <Kbd>S</Kbd>
-          </KbdGroup>
         </Button>
       </Box>
     </Box>

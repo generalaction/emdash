@@ -3,13 +3,17 @@ import { controlVariants, type ControlVariantProps } from '@styles/recipes/contr
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
 
+import './button.css';
+
 export type ButtonVariant = NonNullable<ControlVariantProps['variant']> | 'destructive' | 'link';
 
 export type ButtonProps = ButtonPrimitive.Props &
-  Omit<ControlVariantProps, 'variant'> & {
+  Omit<ControlVariantProps, 'variant' | 'kbd'> & {
     variant?: ButtonVariant;
     /** Square aspect ratio; collapses padding. Combines with size. */
     icon?: boolean;
+    /** Trailing keyboard shortcut; reduces right padding so the Kbd aligns. */
+    kbd?: React.ReactNode;
   };
 
 export function resolveButtonControlVariant({
@@ -33,7 +37,16 @@ export function resolveButtonControlVariant({
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant = 'ghost', tone = 'neutral', size = 'base', icon = false, ...props },
+  {
+    className,
+    variant = 'ghost',
+    tone = 'neutral',
+    size = 'base',
+    icon = false,
+    kbd,
+    children,
+    ...props
+  },
   ref
 ) {
   const controlVariant = resolveButtonControlVariant({ variant, tone, size });
@@ -43,9 +56,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       ref={ref}
       data-slot="button"
       data-variant={controlVariant.variant}
-      className={cx(controlVariants({ ...controlVariant, icon }), className)}
+      data-tone={controlVariant.tone}
+      data-kbd={kbd ? '' : undefined}
+      className={cx(controlVariants({ ...controlVariant, icon, kbd: Boolean(kbd) }), className)}
       {...props}
-    />
+    >
+      {children}
+      {kbd}
+    </ButtonPrimitive>
   );
 });
 
