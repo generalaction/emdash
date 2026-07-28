@@ -1,167 +1,64 @@
-import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
+import { UpdateCard as UpdateCardUi, type UpdateStatus } from '@emdash/ui/react/components';
+import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import React from 'react';
+import type React from 'react';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
-import { Badge } from '@core/primitives/ui/browser/badge';
-import { Button } from '@core/primitives/ui/browser/button';
 import { appState } from '@renderer/lib/stores/app-state';
-import { SettingRow } from './SettingRow';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
-  const downloadProgress =
-    update.state.status === 'downloading' ? update.state.progress : undefined;
+  const state = update.state;
 
-  const versionTitle = (
-    <div className="flex items-center gap-2">
-      Version
-      {update.currentVersion && (
-        <Badge variant="outline" className="h-5 px-2 font-sans text-xs leading-none">
-          v{update.currentVersion}
-        </Badge>
-      )}
-    </div>
-  );
+  const availableVersion =
+    update.availableVersion ?? (state.status === 'available' ? state.info?.version : undefined);
+  const downloadVersion = availableVersion ?? update.currentVersion;
 
-  return (
-    <div className="grid gap-3">
-      <SettingRow
-        title={versionTitle}
-        description={renderStatusMessage()}
-        className="items-center"
-        control={
-          <div className="flex items-center gap-2">
-            {update.state.status !== 'downloaded' && update.state.status !== 'installing' && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => update.check()}
-                disabled={update.state.status === 'checking'}
-                aria-label="Check for updates"
-              >
-                <RefreshCw
-                  className={`size-4 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
-                />
-              </Button>
-            )}
-            {renderAction()}
-          </div>
-        }
-      />
-
-      {update.state.status === 'downloading' && downloadProgress && (
-        <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-          <div
-            className="bg-primary h-full transition-all duration-300 ease-out"
-            style={{ width: `${downloadProgress.percent || 0}%` }}
-          />
-        </div>
-      )}
-    </div>
-  );
-
-  function renderStatusMessage() {
-    switch (update.state.status) {
-      case 'checking':
-        return (
-          <p className="text-muted-foreground flex items-center gap-1 text-sm">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Checking for updates...
-          </p>
-        );
-
-      case 'available':
-        if (update.state.info?.version) {
-          return (
-            <p className="text-muted-foreground text-sm">
-              Version {update.state.info.version} is available
-            </p>
-          );
-        }
-        return <p className="text-muted-foreground text-sm">An update is available</p>;
-
-      case 'downloading':
-        return (
-          <p className="text-muted-foreground text-sm">
-            Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '...'}
-          </p>
-        );
-
-      case 'downloaded':
-        return (
-          <p className="flex items-center gap-1 text-sm text-foreground-success">
-            <CheckCircle2 className="h-3 w-3" />
-            Update ready. Restart {PRODUCT_NAME} to use the new version.
-          </p>
-        );
-
-      case 'installing':
-        return (
-          <p className="text-muted-foreground flex items-center gap-1 text-sm">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Installing update. {PRODUCT_NAME} will close and restart automatically — this may take a
-            few seconds.
-          </p>
-        );
-
-      case 'error':
-        return (
-          <Badge
-            variant="outline"
-            className="border-border-warning bg-background-warning text-foreground-warning"
-          >
-            <AlertCircle className="h-3 w-3" />
-            Update temporarily unavailable — please try again later
-          </Badge>
-        );
-
-      default:
-        return (
-          <p className="text-muted-foreground flex items-center gap-1 text-sm">
-            <CheckCircle2 className="h-3 w-3 text-foreground-success" />
-            You're up to date.{' '}
-          </p>
-        );
-    }
+  let status: UpdateStatus;
+  switch (state.status) {
+    case 'available':
+    case 'downloading':
+      status = buildDownloadAvailable(downloadVersion);
+      break;
+    case 'downloaded':
+    case 'installing':
+      status = { type: 'update-install-available', onInstall: () => update.install() };
+      break;
+    case 'error':
+      status = availableVersion ? buildDownloadAvailable(availableVersion) : { type: 'up-to-date' };
+      break;
+    default:
+      status = { type: 'up-to-date' };
   }
 
-  function renderAction() {
-    switch (update.state.status) {
-      case 'available':
-        return (
-          <Button variant="default" onClick={() => update.download()}>
-            <Download className="size-4" />
-            Download
-          </Button>
-        );
+  return (
+    <UpdateCardUi
+      currentVersion={update.currentVersion}
+      appName={PRODUCT_NAME}
+      status={status}
+      error={state.status === 'error' ? { message: state.message } : undefined}
+      onCheckForUpdates={() => update.check()}
+    />
+  );
 
-      case 'downloading':
-        return (
-          <Button variant="outline" disabled>
-            <Loader2 className="size-4 animate-spin" />
-            Downloading
-          </Button>
-        );
+  function buildDownloadAvailable(version: string): UpdateStatus {
+    return {
+      type: 'update-download-available',
+      version,
+      size: 0,
+      onDownload: async (onProgress) => {
+        const dispose = autorun(() => {
+          const nextState = update.state;
+          if (nextState.status === 'downloading' && nextState.progress?.percent != null) {
+            onProgress(nextState.progress.percent);
+          }
+        });
 
-      case 'downloaded':
-        return (
-          <Button variant="default" onClick={() => update.install()}>
-            <RefreshCw className="size-4" />
-            Restart
-          </Button>
-        );
-
-      case 'installing':
-        return (
-          <Button variant="outline" disabled>
-            <Loader2 className="size-4 animate-spin" />
-            Installing
-          </Button>
-        );
-
-      default:
-        return null;
-    }
+        try {
+          await update.download();
+        } finally {
+          dispose();
+        }
+      },
+    };
   }
 });
