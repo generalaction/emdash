@@ -22,6 +22,7 @@ const focusRing = {
 const secondaryBackground = `color-mix(in srgb, ${vars.foreground} 6%, transparent)`;
 const secondaryBackgroundHover = `color-mix(in srgb, ${vars.foreground} 9%, transparent)`;
 const secondaryBackgroundSelected = `color-mix(in srgb, ${vars.foreground} 12%, transparent)`;
+const primaryButtonBackgroundPressed = `color-mix(in srgb, black 10%, ${vars.primaryButtonBackground})`;
 
 // Pre-create base style so we can attach globalStyle child selectors
 const controlBase = style({
@@ -97,10 +98,14 @@ export const controlVariants = recipe({
         borderColor: vars.primaryButtonBorder,
         selectors: {
           '&:hover': { backgroundColor: vars.primaryButtonBackgroundHover },
-          '&:active': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&:active': { backgroundColor: primaryButtonBackgroundPressed },
           '&[aria-expanded="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&[aria-pressed="true"]': { backgroundColor: primaryButtonBackgroundPressed },
+          '&[aria-selected="true"]': { backgroundColor: primaryButtonBackgroundPressed },
+          '&[data-pressed]': { backgroundColor: primaryButtonBackgroundPressed },
+          '&[data-selected]': { backgroundColor: primaryButtonBackgroundPressed },
           '&[data-popup-open]': { backgroundColor: vars.primaryButtonBackgroundHover },
-          '&[data-active="true"]': { backgroundColor: vars.primaryButtonBackgroundHover },
+          '&[data-active="true"]': { backgroundColor: primaryButtonBackgroundPressed },
         },
       },
       secondary: {

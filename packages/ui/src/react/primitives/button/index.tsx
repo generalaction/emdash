@@ -3,7 +3,7 @@ import { controlVariants, type ControlVariantProps } from '@styles/recipes/contr
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
 
-import './button.css';
+import * as buttonStyles from './button.css';
 
 export type ButtonVariant = NonNullable<ControlVariantProps['variant']> | 'destructive' | 'link';
 
@@ -58,7 +58,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       data-variant={controlVariant.variant}
       data-tone={controlVariant.tone}
       data-kbd={kbd ? '' : undefined}
-      className={cx(controlVariants({ ...controlVariant, icon, kbd: Boolean(kbd) }), className)}
+      className={cx(
+        controlVariants({ ...controlVariant, icon, kbd: Boolean(kbd) }),
+        buttonStyles.kbdHost,
+        className
+      )}
       {...props}
     >
       {children}

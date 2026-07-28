@@ -1,4 +1,4 @@
-import { Kbd } from '@emdash/ui/react/primitives';
+import { Kbd, KbdGroup } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import type { CommandDef } from '@core/primitives/commands/api';
@@ -25,6 +25,7 @@ interface ShortcutProps {
   hotkey: Chord | string | null | undefined;
   className?: string;
   variant?: ShortcutVariant;
+  bare?: boolean;
 }
 
 function ShortcutKey({ keyName }: { keyName: string }) {
@@ -36,7 +37,7 @@ function ShortcutKey({ keyName }: { keyName: string }) {
 }
 
 /** Display a shortcut when the hotkey string is already resolved. */
-function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
+function Shortcut({ hotkey, className, variant = 'text', bare = false }: ShortcutProps) {
   const [, setLayoutVersion] = useState(0);
   useEffect(
     () => keyboardLayoutService.onDidChangeLayout(() => setLayoutVersion((version) => version + 1)),
@@ -54,6 +55,23 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
   if (!parsed) return null;
 
   const keys = keyboardLayoutService.displayLabel(parsed, detectPlatformContext());
+
+  if (bare) {
+    return (
+      <KbdGroup
+        data-slot="shortcut"
+        role="img"
+        aria-label={keys.join(' + ')}
+        className={className}
+      >
+        {keys.map((key, index) => (
+          <Kbd key={`${key}-${index}`} aria-hidden="true">
+            <ShortcutKey keyName={key} />
+          </Kbd>
+        ))}
+      </KbdGroup>
+    );
+  }
 
   return (
     <span
@@ -87,6 +105,7 @@ interface BoundShortcutProps {
   command: CommandDef | string;
   className?: string;
   variant?: ShortcutVariant;
+  bare?: boolean;
 }
 
 /** Display a shortcut directly from an app shortcut settings key. */
@@ -94,10 +113,11 @@ const BoundShortcut = observer(function BoundShortcut({
   command,
   className,
   variant,
+  bare,
 }: BoundShortcutProps) {
   const hotkey = keybindingService.chordFor(typeof command === 'string' ? command : command.id);
 
-  return <Shortcut hotkey={hotkey} className={className} variant={variant} />;
+  return <Shortcut hotkey={hotkey} className={className} variant={variant} bare={bare} />;
 });
 
 export { BoundShortcut, Shortcut, type ShortcutVariant };

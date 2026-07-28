@@ -58,12 +58,10 @@ export function ConfirmButton({ disabled, children, variant, size, ...props }: C
       variant={mappedVariant}
       size={mappedSize}
       icon={isIconSize(size)}
+      kbd={<BoundShortcut command="app.confirm" bare />}
       {...props}
     >
-      <span className="flex items-center gap-2">
-        {children}
-        <BoundShortcut command="app.confirm" variant="keycaps" />
-      </span>
+      {children}
     </Button>
   );
 }
