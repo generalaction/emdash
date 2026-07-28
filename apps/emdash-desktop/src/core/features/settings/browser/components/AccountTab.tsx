@@ -1,7 +1,6 @@
 import { Loader2, LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useAccountHealth,
@@ -10,6 +9,7 @@ import {
   useAccountSignOut,
 } from '@renderer/lib/hooks/useAccount';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
+import { Button } from '@emdash/ui/react/primitives';
 
 export function AccountTab() {
   const { data: session, isLoading } = useAccountSession();
@@ -108,8 +108,8 @@ export function AccountTab() {
           {user.email && <p className="text-muted-foreground text-xs">{user.email}</p>}
         </div>
         <Button
-          type="button"
-          className="w-fit"
+          variant="secondary"
+          size="sm"
           onClick={handleSignOut}
           disabled={signOutMutation.isPending}
         >

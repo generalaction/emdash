@@ -19,7 +19,7 @@ export function useMachineMetrics(
   const [state, setState] = useState<MetricsState | null>(null);
 
   useEffect(() => {
-    if (!enabled || !connected || !machineId) {
+    if (!enabled || !connected) {
       setState(null);
       return;
     }
