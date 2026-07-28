@@ -52,7 +52,18 @@ Silicon, `linux-x64` otherwise), writes `dist-artifacts/latest.txt`, copies `ins
 the Compose service with preinstall and autostart enabled. Override the target with
 `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
 
+The Compose service is force-recreated so the container entrypoint reinstalls the freshly packaged
+artifact; the artifact directory is only bind-mounted, so without recreation the previously
+installed daemon would keep running. After startup the script queries the daemon's `status` inside
+the container and fails if the reported version does not match `dist-artifacts/latest.txt`.
+
 When testing the desktop app interactively against this remote, launch it with:
+
+```bash
+pnpm run dev:remote-app
+```
+
+which expands to:
 
 ```bash
 EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts \
