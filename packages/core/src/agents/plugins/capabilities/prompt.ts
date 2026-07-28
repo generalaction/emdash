@@ -14,6 +14,11 @@ export type CommandContext = {
    * codex, droid). Undefined means the provider has not yet emitted a session ID. */
   providerSessionId?: string;
   isResuming?: boolean;
+  /**
+   * The host confirmed that Claude may safely expose bypassPermissions in its
+   * in-session mode cycle. False/undefined keeps the CLI's restricted default.
+   */
+  canToggleBypassPermissions?: boolean;
   model: string;
 };
 

@@ -3,6 +3,7 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
+import { canExposeClaudeBypassPermissions } from '@main/core/conversations/claude-permission-mode-capability';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import {
@@ -142,6 +143,18 @@ export class LocalConversationProvider implements ConversationProvider {
         hostDependencyStore,
         cachedStatePath,
       });
+      const canToggleBypassPermissions =
+        conversation.providerId === 'claude' && !conversation.autoApprove
+          ? await canExposeClaudeBypassPermissions({
+              cli: executableCli,
+              ctx: this.ctx,
+              host: {
+                kind: 'local',
+                platform: process.platform,
+                uid: process.getuid?.(),
+              },
+            })
+          : false;
 
       // Very large prompts (e.g. a full Linear issue + activity context) can blow
       // past OS argument limits and crash the underlying CLI. Spill them to a temp
@@ -160,6 +173,7 @@ export class LocalConversationProvider implements ConversationProvider {
         providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
+        canToggleBypassPermissions,
       });
 
       const customEnv = providerConfig?.env ?? {};

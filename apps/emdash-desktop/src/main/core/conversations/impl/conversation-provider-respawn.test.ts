@@ -12,6 +12,7 @@ import { SshConversationProvider } from './ssh-conversation';
 
 const spawnLocalPty = vi.hoisted(() => vi.fn());
 const openSsh2Pty = vi.hoisted(() => vi.fn());
+const canExposeClaudeBypassPermissions = vi.hoisted(() => vi.fn());
 const buildCommandMock = vi.hoisted(() =>
   vi.fn((_ctx: Record<string, unknown>) => ({
     command: 'agent',
@@ -40,6 +41,10 @@ vi.mock('@main/core/agents/workspace-trust', () => ({
   workspaceTrustService: {
     maybeAutoTrust: vi.fn(),
   },
+}));
+
+vi.mock('@main/core/conversations/claude-permission-mode-capability', () => ({
+  canExposeClaudeBypassPermissions,
 }));
 
 vi.mock('@main/core/agents/plugin-registry', () => ({
@@ -250,6 +255,8 @@ describe('conversation provider respawn state', () => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
+    canExposeClaudeBypassPermissions.mockReset();
+    canExposeClaudeBypassPermissions.mockResolvedValue(true);
     buildCommandMock.mockReset();
     buildCommandMock.mockReturnValue({ command: 'agent', args: [], env: {} });
     installPluginMock.mockReset();
@@ -289,6 +296,64 @@ describe('conversation provider respawn state', () => {
         process.env.SHELL = previousShell;
       }
     }
+  });
+
+  it('rechecks and passes the safe Claude bypass capability for local sessions', async () => {
+    spawnLocalPty.mockImplementation(() => fakePty([]));
+    const provider = localProvider();
+    const first = conversation({ providerId: 'claude' });
+    const second = conversation({ id: 'conversation-2', providerId: 'claude' });
+
+    await provider.startSession(first);
+    await provider.startSession(second);
+
+    expect(canExposeClaudeBypassPermissions).toHaveBeenCalledTimes(2);
+    expect(canExposeClaudeBypassPermissions).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        cli: 'claude',
+        host: expect.objectContaining({ kind: 'local' }),
+      })
+    );
+    expect(buildCommandMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ canToggleBypassPermissions: true })
+    );
+    expect(buildCommandMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ canToggleBypassPermissions: true })
+    );
+
+    await provider.destroyAll();
+  });
+
+  it('rechecks and passes the safe Claude bypass capability for SSH sessions', async () => {
+    openSsh2Pty.mockImplementation(() => Promise.resolve({ success: true, data: fakePty([]) }));
+    const provider = sshProvider();
+    const first = conversation({ providerId: 'claude' });
+    const second = conversation({ id: 'conversation-2', providerId: 'claude' });
+
+    await provider.startSession(first);
+    await provider.startSession(second);
+
+    expect(canExposeClaudeBypassPermissions).toHaveBeenCalledTimes(2);
+    expect(canExposeClaudeBypassPermissions).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        cli: 'claude',
+        host: { kind: 'ssh' },
+      })
+    );
+    expect(buildCommandMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ canToggleBypassPermissions: true })
+    );
+    expect(buildCommandMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ canToggleBypassPermissions: true })
+    );
+
+    await provider.destroyAll();
   });
 
   it('uses the injected shell profile for local agent sessions', async () => {
