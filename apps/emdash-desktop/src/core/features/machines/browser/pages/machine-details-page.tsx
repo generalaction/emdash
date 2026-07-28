@@ -2,7 +2,7 @@ import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
 import { SelectableCard } from '@emdash/ui/react/primitives';
-import { Brain, EllipsisIcon, Folder, PencilIcon, Settings, Trash2Icon, User } from 'lucide-react';
+import { Activity, Brain, EllipsisIcon, Folder, PencilIcon, Settings, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -262,7 +262,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
 
       <div className="grid grid-cols-5 gap-2">
         <MachineDetailsCard
-          icon={<Settings size={14} />}
+          icon={<Activity size={14} />}
           title="System"
           selected={section === 'system'}
           onClick={() => setSection('system')}

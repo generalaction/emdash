@@ -41,21 +41,22 @@ daemon startup, reconnects, and desktop-managed streamlocal forwarding.
 
 ## Dev Artifact Loop
 
-For day-to-day development, build a dev-versioned artifact and start the remote with one command:
+For day-to-day development, build a dev-versioned Linux artifact, publish it to local minio, and
+start the remote with one command:
 
 ```bash
 pnpm run dev:remote
 ```
 
 The script packages a Linux artifact for the host's native architecture (`linux-arm64` on Apple
-Silicon, `linux-x64` otherwise), writes `dist-artifacts/latest.txt`, copies `install.sh`, and starts
-the Compose service with preinstall and autostart enabled. Override the target with
-`EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
+Silicon, `linux-x64` otherwise), starts the Compose services (`minio`, `minio-setup`, and
+`workspace-remote`), uploads the artifact layout to `http://localhost:9000/emdash-releases`, and
+verifies that minio's `workspace-server/latest.txt` points at the new version. Override the target
+with `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` or `EMDASH_WS_DEV_REMOTE_TARGET=linux-arm64`.
 
-The Compose service is force-recreated so the container entrypoint reinstalls the freshly packaged
-artifact; the artifact directory is only bind-mounted, so without recreation the previously
-installed daemon would keep running. After startup the script queries the daemon's `status` inside
-the container and fails if the reported version does not match `dist-artifacts/latest.txt`.
+The remote container is no longer recreated to ingest artifacts. It stays a bare SSH host; the
+desktop provisioner installs the workspace server by curling the same `install.sh` that production
+uses, with the artifact source URL pointed at minio.
 
 When testing the desktop app interactively against this remote, launch it with:
 
@@ -66,10 +67,13 @@ pnpm run dev:remote-app
 which expands to:
 
 ```bash
-EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts \
+EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=http://minio:9000/emdash-releases/workspace-server \
   EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 \
   pnpm --dir ../emdash-desktop run dev
 ```
+
+The `minio` hostname is resolved by the `workspace-remote` container. The host can inspect the same
+objects through `http://localhost:9000/emdash-releases/workspace-server/`.
 
 `EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1` makes the desktop compare the running daemon's
 `appVersion` with `latest.txt` from the configured artifact URL. If they differ, the desktop
@@ -77,44 +81,18 @@ reinstalls and restarts the remote daemon during the next ensure/reconnect. This
 production provisioning still keeps compatible running daemons installed until an explicit update or
 protocol upgrade.
 
-## Preinstall And Autostart Modes
+## Re-publish Without Restarting Docker
 
-First build an artifact matching the container architecture. Apple Silicon uses `linux-arm64`
-natively:
-
-```bash
-pnpm run package --target linux-arm64
-node -p "require('./package.json').version" > dist-artifacts/latest.txt
-cp install.sh dist-artifacts/install.sh
-```
-
-Set `WORKSPACE_SERVER_PREINSTALL=1` to install the newest matching artifact mounted from
-`dist-artifacts/`:
+After `pnpm run dev:remote` has started minio, you can rebuild and publish a specific version and
+target manually:
 
 ```bash
-WORKSPACE_SERVER_PREINSTALL=1 pnpm run run:docker-remote
+EMDASH_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
+pnpm run upload:dev -- --version 0.1.0-dev.manual --target linux-arm64
 ```
 
-The entrypoint extracts it under
-`/home/devuser/.emdash/workspace-server/versions/<version>/` and updates the `current` symlink.
-The named home volume preserves this installation and daemon state across container recreation.
-
-Set both toggles to start the installed daemon during container startup:
-
-```bash
-WORKSPACE_SERVER_PREINSTALL=1 WORKSPACE_SERVER_AUTOSTART=1 pnpm run run:docker-remote
-```
-
-Check its health from the host:
-
-```bash
-ssh -p 2223 devuser@localhost \
-  '~/.emdash/workspace-server/current/bin/emdash-workspace-server status \
-  --socket ~/.emdash/workspace-server/run/workspace.sock'
-```
-
-`WORKSPACE_SERVER_AUTOSTART=1` can be used without preinstall after an installation already exists
-in the persistent home volume.
+Use the target that matches the container architecture. With the desktop running in dev-auto-update
+mode, the next ensure/reconnect sees the new `latest.txt`, reinstalls, and restarts the daemon.
 
 Run the desktop connection smoke test against the installed daemon:
 
@@ -123,12 +101,9 @@ pnpm --dir ../emdash-desktop run test:workspace-server-remote
 ```
 
 The test uses the Compose service's fixed `localhost:2223` and `devuser`/`devpass` credentials. It
-resets the desktop-managed root, invokes the mounted `install.sh` against
-`file:///opt/emdash-artifacts`, installs from the mounted artifact and checksum, exercises a runtime
-call and SSH reconnection, then stops the daemon and removes its temporary workspace. When testing
-the desktop app interactively, launch it with
-`EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts`. For the dev artifact loop, also
-set `EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1`.
+expects `pnpm run dev:remote` to have already published artifacts to minio, resets the
+desktop-managed root, installs through the curl installer, exercises a runtime call and SSH
+reconnection, then stops the daemon and removes its temporary workspace.
 
 ## Logs And Socket Forwarding
 
@@ -161,9 +136,10 @@ docker compose down -v
 ```
 
 This removes only the workspace remote container, network, and its `emdash-workspace-remote-home`
-volume. The legacy desktop `ssh-dev` Compose project and its `projects` volume are separate.
-This is no longer required for normal dev artifact refreshes; use it only when you need a bare
-machine or want to remove persisted daemon state.
+and `emdash-workspace-minio-data` volumes. The legacy desktop `ssh-dev` Compose project and its
+`projects` volume are separate. This is no longer required for normal dev artifact refreshes; use it
+only when you need a bare machine, want to remove persisted daemon state, or want to clear the local
+artifact bucket.
 
 ## Testing Another Architecture
 
@@ -172,11 +148,9 @@ optional Compose platform to exercise the `linux-x64` artifact and architecture-
 under emulation:
 
 ```bash
-pnpm run package --target linux-x64
 WORKSPACE_REMOTE_PLATFORM=linux/amd64 \
-  WORKSPACE_SERVER_PREINSTALL=1 \
-  WORKSPACE_SERVER_AUTOSTART=1 \
-  pnpm run run:docker-remote
+  EMDASH_WS_DEV_REMOTE_TARGET=linux-x64 \
+  pnpm run dev:remote
 ```
 
 Docker runs the amd64 image with its equivalent of `--platform linux/amd64`; startup is slower

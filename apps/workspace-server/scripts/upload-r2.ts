@@ -3,7 +3,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { S3mini } from 's3mini';
-import { artifactArchiveName } from './package-helpers';
+import { artifactArchiveName, parsePackageTarget, type PackageTarget } from './package-helpers';
 import {
   contentTypeForObjectKey,
   expectedArtifactNames,
@@ -20,6 +20,18 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, '..');
 const artifactsDirectory = join(appDirectory, 'dist-artifacts');
 
+type UploadOptions = {
+  version?: string;
+  targets?: PackageTarget[];
+};
+
+type UploadConfig = {
+  label: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint: string;
+};
+
 type ValidatedArtifact = {
   path: string;
   key: string;
@@ -27,12 +39,15 @@ type ValidatedArtifact = {
 };
 
 async function main(): Promise<void> {
-  const version = await readPackageVersion();
-  const artifacts = await validateArtifacts(version);
+  const options = parseUploadArgs(process.argv.slice(2));
+  const targets = options.targets ?? [...releaseTargets];
+  const version = options.version ?? (await readPackageVersion());
+  const artifacts = await validateArtifacts(version, targets, options.targets === undefined);
+  const config = resolveUploadConfig();
   const s3 = new S3mini({
-    accessKeyId: requireEnv('R2_ACCESS_KEY_ID'),
-    secretAccessKey: requireEnv('R2_SECRET_ACCESS_KEY'),
-    endpoint: r2Endpoint(),
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    endpoint: config.endpoint,
     region: 'auto',
   });
 
@@ -51,11 +66,58 @@ async function main(): Promise<void> {
     new TextEncoder().encode(latestVersionContents(version))
   );
 
-  process.stdout.write(`Published workspace-server ${version} to R2\n`);
+  process.stdout.write(`Published workspace-server ${version} to ${config.label}\n`);
 }
 
-async function validateArtifacts(version: string): Promise<ValidatedArtifact[]> {
-  const expectedNames = expectedArtifactNames(version);
+function parseUploadArgs(args: string[]): UploadOptions {
+  const targets: PackageTarget[] = [];
+  let version: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--target') {
+      const value = args[index + 1];
+      if (value === undefined) throw new Error('--target requires a value');
+      targets.push(parsePackageTarget(value));
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('--target=')) {
+      targets.push(parsePackageTarget(argument.slice('--target='.length)));
+      continue;
+    }
+    if (argument === '--version') {
+      const value = args[index + 1];
+      if (value === undefined) throw new Error('--version requires a value');
+      version = value;
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('--version=')) {
+      version = argument.slice('--version='.length);
+      continue;
+    }
+    throw new Error(`Unknown upload option '${argument}'`);
+  }
+
+  return {
+    version,
+    targets:
+      targets.length === 0
+        ? undefined
+        : targets.filter(
+            (target, index) =>
+              targets.findIndex((candidate) => candidate.id === target.id) === index
+          ),
+  };
+}
+
+async function validateArtifacts(
+  version: string,
+  targets: readonly PackageTarget[],
+  requireExactArtifactSet: boolean
+): Promise<ValidatedArtifact[]> {
+  const expectedNames = expectedArtifactNames(version, targets);
   const expectedNameSet = new Set(expectedNames);
   const entries = await readdir(artifactsDirectory, { withFileTypes: true });
   const actualNames = entries
@@ -66,7 +128,9 @@ async function validateArtifacts(version: string): Promise<ValidatedArtifact[]> 
     .map((entry) => entry.name)
     .sort();
   const missingNames = expectedNames.filter((name) => !actualNames.includes(name));
-  const unexpectedNames = actualNames.filter((name) => !expectedNameSet.has(name));
+  const unexpectedNames = requireExactArtifactSet
+    ? actualNames.filter((name) => !expectedNameSet.has(name))
+    : [];
 
   if (missingNames.length > 0 || unexpectedNames.length > 0) {
     const details = [
@@ -77,7 +141,7 @@ async function validateArtifacts(version: string): Promise<ValidatedArtifact[]> 
   }
 
   const validatedArtifacts: ValidatedArtifact[] = [];
-  for (const target of releaseTargets) {
+  for (const target of targets) {
     const archiveName = artifactArchiveName(version, target);
     const archivePath = join(artifactsDirectory, archiveName);
     const sidecarName = `${archiveName}.sha256`;
@@ -156,8 +220,24 @@ async function readPackageVersion(): Promise<string> {
   return raw['version'];
 }
 
-function r2Endpoint(): string {
-  return `https://${requireEnv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com/${requireEnv('R2_BUCKET')}`;
+function resolveUploadConfig(): UploadConfig {
+  const endpoint = process.env['EMDASH_WS_UPLOAD_ENDPOINT'];
+  if (endpoint !== undefined && endpoint.length > 0) {
+    return {
+      label: endpoint,
+      accessKeyId: requireEnv('EMDASH_WS_UPLOAD_ACCESS_KEY'),
+      secretAccessKey: requireEnv('EMDASH_WS_UPLOAD_SECRET_KEY'),
+      endpoint,
+    };
+  }
+  return {
+    label: 'R2',
+    accessKeyId: requireEnv('R2_ACCESS_KEY_ID'),
+    secretAccessKey: requireEnv('R2_SECRET_ACCESS_KEY'),
+    endpoint: `https://${requireEnv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com/${requireEnv(
+      'R2_BUCKET'
+    )}`,
+  };
 }
 
 function requireEnv(name: string): string {
@@ -178,7 +258,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 void main().catch((error: unknown) => {
   process.stderr.write(
-    `workspace-server R2 upload failed: ${error instanceof Error ? error.message : String(error)}\n`
+    `workspace-server upload failed: ${error instanceof Error ? error.message : String(error)}\n`
   );
   process.exit(1);
 });

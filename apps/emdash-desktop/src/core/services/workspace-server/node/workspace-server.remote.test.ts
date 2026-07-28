@@ -1,5 +1,3 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { Command } from '@emdash/core/primitives/exec/api';
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
@@ -15,6 +13,9 @@ import { createDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
 import { workspaceServerLayout } from './layout';
 
 const remoteTestEnabled = process.env['EMDASH_TEST_REMOTE_WSS'] === '1';
+const defaultRemoteInstallBaseUrl = 'http://minio:9000/emdash-releases/workspace-server';
+const defaultPublishedVersionUrl =
+  'http://localhost:9000/emdash-releases/workspace-server/latest.txt';
 
 describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker SSH', () => {
   it('installs, resolves a runtime, and preserves the session across an SSH reconnect', async () => {
@@ -38,26 +39,11 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       }));
       return manager.getConnectionState(connectionId);
     };
-    const latestPointer = resolve(
-      __dirname,
-      '../../../../../../workspace-server/dist-artifacts/latest.txt'
+    const installBaseUrl =
+      process.env['EMDASH_TEST_REMOTE_WSS_INSTALL_BASE_URL'] ?? defaultRemoteInstallBaseUrl;
+    const expectedVersion = await readPublishedVersion(
+      process.env['EMDASH_TEST_REMOTE_WSS_LATEST_URL'] ?? defaultPublishedVersionUrl
     );
-    const installScriptTarget = resolve(
-      __dirname,
-      '../../../../../../workspace-server/dist-artifacts/install.sh'
-    );
-    const [previousLatest, previousInstallScript, installScript] = await Promise.all([
-      readOptionalFile(latestPointer),
-      readOptionalFile(installScriptTarget),
-      readFile(resolve(__dirname, '../../../../../../workspace-server/install.sh'), 'utf8'),
-    ]);
-    const packageMetadata = JSON.parse(
-      await readFile(resolve(__dirname, '../../../../../../workspace-server/package.json'), 'utf8')
-    ) as { version: string };
-    await Promise.all([
-      writeFile(latestPointer, `${packageMetadata.version}\n`, 'utf8'),
-      writeFile(installScriptTarget, installScript, 'utf8'),
-    ]);
     const remoteMachine = createRemoteMachineService({
       scope,
       ssh: {
@@ -65,8 +51,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         connect: { ensureConnected: connect },
       },
       machineEvents: { on: () => () => {} },
-      installBaseUrl: 'file:///opt/emdash-artifacts',
-      installCommand: 'cat /opt/emdash-artifacts/install.sh | sh -s -- --base-url {{baseUrl}}',
+      installBaseUrl,
     });
     const broker = createDesktopRuntimeBroker({} as never, remoteMachine);
     const layout = workspaceServerLayout('/home/devuser');
@@ -145,7 +130,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 
       const connection = await remoteMachine.client(connectionId);
       expect(connection.target).toMatchObject({ socketPath: layout.socketPath });
-      expect(connection.currentHandshake()?.server.appVersion).toBe(packageMetadata.version);
+      expect(connection.currentHandshake()?.server.appVersion).toBe(expectedVersion);
       const disconnected = deferred<void>();
       const stopWatchingDisconnect = connection.connection.onDisconnect(() =>
         disconnected.resolve()
@@ -173,10 +158,6 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       await remoteMachine.dispose();
       await manager.disconnectAll();
       await scope.dispose();
-      await Promise.all([
-        restoreOptionalFile(latestPointer, previousLatest),
-        restoreOptionalFile(installScriptTarget, previousInstallScript),
-      ]);
     }
   }, 120_000);
 });
@@ -212,19 +193,16 @@ async function stopDaemon(
   if (result.exitCode !== 0) throw new Error(result.stderr);
 }
 
-async function readOptionalFile(path: string): Promise<string | undefined> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined;
-    throw error;
+async function readPublishedVersion(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Could not read workspace-server latest.txt from ${url} (HTTP ${response.status})`
+    );
   }
-}
-
-async function restoreOptionalFile(path: string, contents: string | undefined): Promise<void> {
-  if (contents === undefined) {
-    await rm(path, { force: true });
-    return;
+  const version = (await response.text()).trim();
+  if (version.length === 0) {
+    throw new Error(`workspace-server latest.txt from ${url} was empty`);
   }
-  await writeFile(path, contents, 'utf8');
+  return version;
 }

@@ -19,7 +19,9 @@ latest published version, detects Linux architecture and glibc support, pulls th
 verifies its SHA-256 sidecar, and extracts it before `current` changes. There is no desktop-pinned
 server version: compatible same-major daemons remain installed until a future explicit update.
 `EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL` overrides the install-script and artifact base URL for
-development.
+development; the Docker remote dev setup publishes Linux builds to local minio and uses
+`http://minio:9000/emdash-releases/workspace-server` so remote installation exercises the same
+curl-based object-store path as production.
 
 The contract lives in `packages/core/src/workspace-server/`, shared by the server and every client so TypeScript clients stay in sync at build time. Non-TypeScript clients (e.g. a future mobile app) use the negotiation handshake at runtime — compile-time sharing is a convenience, not the contract.
 

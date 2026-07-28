@@ -89,6 +89,9 @@ describe('workspace-server package helpers', () => {
   it('derives semver-compatible dev package versions', () => {
     expect(createDevPackageVersion('0.1.0', 'abc123')).toBe('0.1.0-dev.abc123');
     expect(createDevPackageVersion('0.1.0', '0.1.0-dev.manual')).toBe('0.1.0-dev.manual');
+    expect(createDevPackageVersion('0.1.0', '0.1.0-dev.abc123.1234567890')).toBe(
+      '0.1.0-dev.abc123.1234567890'
+    );
     expect(() => createDevPackageVersion('0.1.0', 'not valid')).toThrow(
       /Invalid workspace-server package version/
     );

@@ -84,6 +84,7 @@ async function main(): Promise<void> {
   validateTargetHosts(options.targets);
 
   const packageMetadata = await readPackageMetadata();
+  process.stdout.write(`Workspace-server package version: ${packageMetadata.version}\n`);
   const nodeVersion = (await readFile(join(repositoryDirectory, '.nvmrc'), 'utf8')).trim();
   if (!/^\d+\.\d+\.\d+$/.test(nodeVersion)) {
     throw new Error(`Expected .nvmrc to contain a full Node version, received '${nodeVersion}'`);
@@ -116,9 +117,6 @@ async function main(): Promise<void> {
       adapterAssets,
       verify: options.verify,
     });
-  }
-  if (packageMetadata.devBuild) {
-    await emitDevInstallMetadata(packageMetadata.version);
   }
 }
 
@@ -230,13 +228,6 @@ async function devBuildIdentifier(): Promise<string> {
     // Fall back below when this source tree is not a git checkout.
   }
   return timestamp;
-}
-
-async function emitDevInstallMetadata(version: string): Promise<void> {
-  await writeFile(join(artifactsDirectory, 'latest.txt'), `${version}\n`, 'utf8');
-  await copyFile(join(appDirectory, 'install.sh'), join(artifactsDirectory, 'install.sh'));
-  process.stdout.write(`Created ${join(artifactsDirectory, 'latest.txt')}\n`);
-  process.stdout.write(`Created ${join(artifactsDirectory, 'install.sh')}\n`);
 }
 
 async function readProtocolVersion(): Promise<string> {

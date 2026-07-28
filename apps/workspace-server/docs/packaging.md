@@ -91,6 +91,27 @@ The workflow fails before building if the version's Linux x64 archive already ex
 workspace server or its bundled workspace packages also run
 `.github/workflows/workspace-server-package-check.yml`, which packages and verifies Linux x64.
 
+## Publish to Local Minio
+
+The Docker remote dev loop uses the same object layout as R2, but publishes to the local minio
+service from `docker-compose.yaml`:
+
+```bash
+pnpm run dev:remote
+```
+
+For manual iteration after minio is running, package one Linux target with an explicit dev version
+and upload only that target:
+
+```bash
+EMDASH_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
+pnpm run upload:dev -- --version 0.1.0-dev.manual --target linux-arm64
+```
+
+`upload:dev` points the S3 uploader at `http://localhost:9000/emdash-releases` with the local minio
+credentials. It uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
+updates `workspace-server/install.sh` and `workspace-server/latest.txt` last.
+
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parsePackageTarget } from './package-helpers';
 import {
   contentTypeForObjectKey,
   expectedArtifactNames,
@@ -19,6 +20,13 @@ describe('workspace-server R2 upload helpers', () => {
       'emdash-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
       'emdash-workspace-server-1.2.3-darwin-arm64.tar.gz',
       'emdash-workspace-server-1.2.3-darwin-arm64.tar.gz.sha256',
+    ]);
+  });
+
+  it('builds the expected artifact set for selected targets', () => {
+    expect(expectedArtifactNames('1.2.3', [parsePackageTarget('linux-arm64')])).toEqual([
+      'emdash-workspace-server-1.2.3-linux-arm64.tar.gz',
+      'emdash-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
     ]);
   });
 

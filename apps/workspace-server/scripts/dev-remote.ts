@@ -2,98 +2,158 @@ import { spawn, type StdioOptions } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createDevPackageVersion } from './package-helpers.ts';
 
 const linuxTargets = ['linux-arm64', 'linux-x64'] as const;
 type LinuxTarget = (typeof linuxTargets)[number];
 
 const appDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const containerName = 'emdash-workspace-remote';
-const containerInstallRoot = '/home/devuser/.emdash/workspace-server';
+const repositoryDirectory = resolve(appDirectory, '../..');
+const minioBucket = process.env['EMDASH_WS_DEV_MINIO_BUCKET'] ?? 'emdash-releases';
+const minioHostEndpoint =
+  process.env['EMDASH_WS_DEV_MINIO_ENDPOINT'] ?? `http://localhost:9000/${minioBucket}`;
+const minioArtifactsUrl =
+  process.env['EMDASH_WS_DEV_ARTIFACTS_URL'] ?? `http://minio:9000/${minioBucket}/workspace-server`;
 
 async function main(): Promise<void> {
   const target = resolveTarget(process.env['EMDASH_WS_DEV_REMOTE_TARGET']);
-  process.stdout.write(`Packaging workspace-server dev artifact for ${target}...\n`);
+  const expectedVersion = await resolveDevVersion();
+  process.stdout.write(`Packaging workspace-server ${expectedVersion} for ${target}...\n`);
   await runCommand('pnpm', ['run', 'package', '--target', target], {
-    env: { ...process.env, EMDASH_WS_DEV_BUILD: '1' },
+    env: {
+      ...process.env,
+      EMDASH_WS_DEV_BUILD: '1',
+      EMDASH_WS_DEV_VERSION: expectedVersion,
+    },
   });
-  const expectedVersion = await readLatestArtifactVersion();
 
-  process.stdout.write('Starting docker remote with preinstalled workspace-server...\n');
-  // --force-recreate is required: the fresh artifact is only bind-mounted into the
-  // container, and only the entrypoint installs it. Without recreation the old daemon
-  // keeps running the previously installed version.
+  process.stdout.write('Starting docker remote infrastructure...\n');
+  await runCommand('docker', ['compose', 'up', '--build', '-d', 'minio']);
+  await runCommand('docker', ['compose', 'up', 'minio-setup']);
+  await runCommand('docker', ['compose', 'up', '--build', '-d', 'workspace-remote'], {
+    env: {
+      ...process.env,
+      ...(target === 'linux-x64' && process.arch === 'arm64'
+        ? { WORKSPACE_REMOTE_PLATFORM: 'linux/amd64' }
+        : {}),
+    },
+  });
+
+  await waitForMinio();
+
+  process.stdout.write(`Uploading workspace-server ${expectedVersion} to local minio...\n`);
   await runCommand(
-    'docker',
-    ['compose', 'up', '--build', '--force-recreate', '-d', 'workspace-remote'],
+    'node',
+    [
+      '--experimental-strip-types',
+      'scripts/upload-r2.ts',
+      '--version',
+      expectedVersion,
+      '--target',
+      target,
+    ],
     {
+      cwd: appDirectory,
       env: {
         ...process.env,
-        WORKSPACE_SERVER_PREINSTALL: '1',
-        WORKSPACE_SERVER_AUTOSTART: '1',
-        ...(target === 'linux-x64' && process.arch === 'arm64'
-          ? { WORKSPACE_REMOTE_PLATFORM: 'linux/amd64' }
-          : {}),
+        EMDASH_WS_UPLOAD_ENDPOINT: minioHostEndpoint,
+        EMDASH_WS_UPLOAD_ACCESS_KEY: process.env['EMDASH_WS_UPLOAD_ACCESS_KEY'] ?? 'minioadmin',
+        EMDASH_WS_UPLOAD_SECRET_KEY: process.env['EMDASH_WS_UPLOAD_SECRET_KEY'] ?? 'minioadmin',
       },
     }
   );
 
-  await verifyRunningDaemonVersion(expectedVersion);
+  await verifyPublishedVersion(expectedVersion);
 
   process.stdout.write(`
-Docker remote is ready on localhost:2223 (devuser / devpass) running ${expectedVersion}.
+Docker remote is ready on localhost:2223 (devuser / devpass).
+Workspace-server ${expectedVersion} is published to ${minioArtifactsUrl}.
 
 Launch the desktop app with:
 pnpm run dev:remote-app
 
 or equivalently:
-EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=file:///opt/emdash-artifacts EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 pnpm --dir ../emdash-desktop run dev
+EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=${minioArtifactsUrl} EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 pnpm --dir ../emdash-desktop run dev
 `);
 }
 
-async function readLatestArtifactVersion(): Promise<string> {
-  const latestPath = join(appDirectory, 'dist-artifacts', 'latest.txt');
-  const version = (await readFile(latestPath, 'utf8')).trim();
-  if (version.length === 0) {
-    throw new Error(`Expected ${latestPath} to contain the packaged artifact version`);
+async function resolveDevVersion(): Promise<string> {
+  const packageVersion = await readPackageVersion();
+  const explicitDevVersion = process.env['EMDASH_WS_DEV_VERSION']?.trim();
+  if (explicitDevVersion !== undefined && explicitDevVersion.length > 0) {
+    return createDevPackageVersion(packageVersion, explicitDevVersion);
   }
-  return version;
+  return createDevPackageVersion(packageVersion, await devBuildIdentifier());
 }
 
-async function verifyRunningDaemonVersion(expectedVersion: string): Promise<void> {
-  process.stdout.write('Verifying the remote daemon version...\n');
+async function readPackageVersion(): Promise<string> {
+  const raw: unknown = JSON.parse(await readFile(join(appDirectory, 'package.json'), 'utf8'));
+  if (!isRecord(raw) || typeof raw['version'] !== 'string') {
+    throw new Error('workspace-server package.json must contain a string version');
+  }
+  return raw['version'];
+}
+
+async function devBuildIdentifier(): Promise<string> {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  try {
+    const sha = (
+      await runCommandOutput('git', ['rev-parse', '--short', 'HEAD'], {
+        cwd: repositoryDirectory,
+      })
+    ).trim();
+    if (/^[0-9A-Za-z]+$/.test(sha)) return `${sha}.${timestamp}`;
+  } catch {
+    // Fall back below when this source tree is not a git checkout.
+  }
+  return timestamp;
+}
+
+async function verifyPublishedVersion(expectedVersion: string): Promise<void> {
+  process.stdout.write('Verifying the published minio latest.txt...\n');
   const deadline = Date.now() + 30_000;
-  let lastError = 'daemon status was never checked';
+  const latestUrl = `${minioHostEndpoint.replace(/\/$/, '')}/workspace-server/latest.txt`;
+  let lastError = 'latest.txt was never checked';
 
   while (Date.now() < deadline) {
     try {
-      const status = await runCommandOutput('docker', [
-        'exec',
-        containerName,
-        'runuser',
-        '-u',
-        'devuser',
-        '--',
-        `${containerInstallRoot}/current/bin/emdash-workspace-server`,
-        'status',
-        '--socket',
-        `${containerInstallRoot}/run/workspace.sock`,
-      ]);
-      const version = /\(version ([^,]+), uptime/.exec(status)?.[1];
-      if (version === expectedVersion) {
-        process.stdout.write(`Remote daemon is running ${version}\n`);
-        return;
+      const response = await fetch(latestUrl);
+      if (!response.ok) {
+        lastError = `latest.txt returned HTTP ${response.status}`;
+      } else {
+        const version = (await response.text()).trim();
+        if (version === expectedVersion) {
+          process.stdout.write(`Published latest.txt points at ${version}\n`);
+          return;
+        }
+        lastError = `latest.txt reports ${version}, expected ${expectedVersion}`;
       }
-      lastError =
-        version === undefined
-          ? `could not parse a version from daemon status: ${status.trim()}`
-          : `daemon reports version ${version}, expected ${expectedVersion}`;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
     await delay(1_000);
   }
 
-  throw new Error(`Remote daemon did not come up with ${expectedVersion}: ${lastError}`);
+  throw new Error(`Minio did not publish ${expectedVersion}: ${lastError}`);
+}
+
+async function waitForMinio(): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  const endpoint = minioHostEndpoint.replace(/\/$/, '');
+  let lastError = 'minio was never checked';
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(endpoint);
+      if (response.status < 500) return;
+      lastError = `minio returned HTTP ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await delay(1_000);
+  }
+
+  throw new Error(`Minio did not become reachable: ${lastError}`);
 }
 
 async function delay(ms: number): Promise<void> {
@@ -117,11 +177,13 @@ async function runCommand(
   args: string[],
   options: {
     env?: NodeJS.ProcessEnv;
+    cwd?: string;
     stdio?: StdioOptions;
   } = {}
 ): Promise<void> {
   await new Promise<void>((resolvePromise, rejectPromise) => {
     const child = spawn(command, args, {
+      cwd: options.cwd,
       env: options.env,
       stdio: options.stdio ?? 'inherit',
     });
@@ -140,9 +202,15 @@ async function runCommand(
   });
 }
 
-async function runCommandOutput(command: string, args: string[]): Promise<string> {
+async function runCommandOutput(
+  command: string,
+  args: string[],
+  options: {
+    cwd?: string;
+  } = {}
+): Promise<string> {
   return await new Promise<string>((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -169,6 +237,10 @@ async function runCommandOutput(command: string, args: string[]): Promise<string
       );
     });
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 void main().catch((error: unknown) => {

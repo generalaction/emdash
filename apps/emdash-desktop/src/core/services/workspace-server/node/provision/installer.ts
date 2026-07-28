@@ -129,11 +129,6 @@ export class WorkspaceServerInstaller {
 export function buildWorkspaceServerAvailableVersionCommand(baseUrl: string): string {
   const normalizedBaseUrl = validateInstallBaseUrl(baseUrl);
   const latestUrl = new URL('latest.txt', ensureTrailingSlash(normalizedBaseUrl));
-  if (latestUrl.protocol === 'file:') {
-    return `set -eu
-cat -- ${quoteArg(fileUrlPath(latestUrl), 'posix')}`;
-  }
-
   const quotedLatestUrl = quoteArg(latestUrl.href, 'posix');
   return `set -eu
 if command -v curl >/dev/null 2>&1; then
@@ -172,7 +167,7 @@ function validateInstallBaseUrl(value: string): string {
       { cause: error }
     );
   }
-  if (!['https:', 'http:', 'file:'].includes(url.protocol)) {
+  if (!['https:', 'http:'].includes(url.protocol)) {
     throw new WorkspaceServerInstallError(
       'artifact-download-failed',
       `Unsupported workspace-server install URL protocol '${url.protocol}'`
@@ -183,23 +178,6 @@ function validateInstallBaseUrl(value: string): string {
 
 function ensureTrailingSlash(value: string): string {
   return value.endsWith('/') ? value : `${value}/`;
-}
-
-function fileUrlPath(url: URL): string {
-  if (url.hostname.length > 0 && url.hostname !== 'localhost') {
-    throw new WorkspaceServerInstallError(
-      'artifact-download-failed',
-      `Unsupported file URL host '${url.hostname}'`
-    );
-  }
-  const path = decodeURIComponent(url.pathname);
-  if (!path.startsWith('/')) {
-    throw new WorkspaceServerInstallError(
-      'artifact-download-failed',
-      `Unsupported file URL path '${url.pathname}'`
-    );
-  }
-  return path;
 }
 
 function renderCustomInstallCommand(command: string, baseUrl: string): string {

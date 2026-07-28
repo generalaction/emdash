@@ -16,9 +16,12 @@ export const releaseTargets: readonly PackageTarget[] = [
 
 export type ImmutableUploadDecision = 'skip' | 'upload';
 
-export function expectedArtifactNames(version: string): string[] {
+export function expectedArtifactNames(
+  version: string,
+  targets: readonly PackageTarget[] = releaseTargets
+): string[] {
   validateReleaseVersion(version);
-  return releaseTargets.flatMap((target) => {
+  return targets.flatMap((target) => {
     const archiveName = artifactArchiveName(version, target);
     return [archiveName, `${archiveName}.sha256`];
   });
