@@ -2,6 +2,7 @@
 export { Box } from './box';
 export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs';
 export { Button, type ButtonProps } from './button';
+export { DirectoryField, type DirectoryFieldProps } from './directory-field';
 export { Icon, type IconName, type IconProps, type IconSize } from './icon';
 export { Input, type InputProps } from './input';
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from './kbd';

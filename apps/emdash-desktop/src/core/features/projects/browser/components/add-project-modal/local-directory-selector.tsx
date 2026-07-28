@@ -1,6 +1,5 @@
-import { Folder } from 'lucide-react';
+import { DirectoryField as DirectoryFieldPrimitive } from '@emdash/ui/react/primitives';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { cn } from '@core/primitives/ui/browser/cn';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { type Strategy } from './add-project-modal';
 import { type ProjectDirectoryPickerClient } from './project-directory-picker';
@@ -51,28 +50,11 @@ export function DirectoryField({
   };
 
   return (
-    <button
-      type="button"
-      className={cn(
-        'flex h-9 w-full items-center gap-2 rounded-md border border-border p-2 pr-1.5 transition-colors hover:bg-background-quaternary-1 disabled:cursor-not-allowed disabled:opacity-60',
-        disabled ? '' : 'cursor-pointer'
-      )}
+    <DirectoryFieldPrimitive
+      path={path}
+      placeholder={placeholder}
       disabled={disabled}
       onClick={() => void handleChooseDirectory()}
-    >
-      <Folder className="size-4 text-foreground-muted" />
-      <p
-        className={cn(
-          'text-sm text-foreground-passive truncate min-w-0 flex-1 w-full text-left',
-          path ? 'text-foreground' : ''
-        )}
-      >
-        {' '}
-        {path || placeholder}
-      </p>
-      <span className="inline-flex h-6 shrink-0 items-center justify-center rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground transition-colors">
-        Choose
-      </span>
-    </button>
+    />
   );
 }
