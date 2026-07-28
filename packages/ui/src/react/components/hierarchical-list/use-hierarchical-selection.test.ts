@@ -21,6 +21,19 @@ describe('applySelectionClick', () => {
     expect(result.anchor).toBe('workspace-main');
   });
 
+  it('deselects an already-selected row on plain click', () => {
+    const result = applySelectionClick(
+      new Set(['host-local', 'project-emdash']),
+      'project-emdash',
+      orderedIds,
+      'host-local',
+      {}
+    );
+
+    expect(selectedIds(result.next)).toEqual(['host-local']);
+    expect(result.anchor).toBeNull();
+  });
+
   it('selects the clicked row when shift-click has no anchor', () => {
     const result = applySelectionClick(new Set(), 'project-emdash', orderedIds, null, {
       shift: true,

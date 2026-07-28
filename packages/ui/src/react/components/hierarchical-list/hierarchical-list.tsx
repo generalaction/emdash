@@ -15,12 +15,20 @@ export interface HierarchicalListRenderContext {
   hasChildren: boolean;
 }
 
+export interface HierarchicalListRowCells {
+  icon: React.ReactNode;
+  path: React.ReactNode;
+  gitStatus?: React.ReactNode;
+  storage: React.ReactNode;
+  usage: React.ReactNode;
+}
+
 export interface HierarchicalListProps<T> {
   nodes: readonly HierarchicalListNode<T>[];
-  renderItem: (
+  renderCells: (
     node: HierarchicalListNode<T>,
     ctx: HierarchicalListRenderContext
-  ) => React.ReactNode;
+  ) => HierarchicalListRowCells;
   selectedIds?: ReadonlySet<string>;
   onSelectedIdsChange?: (ids: ReadonlySet<string>) => void;
   estimateSize?: number;
@@ -32,6 +40,11 @@ interface HierarchicalListRow<T> {
   node: HierarchicalListNode<T>;
   depth: number;
   hasChildren: boolean;
+}
+
+export interface HierarchicalListCellProps extends React.HTMLAttributes<HTMLDivElement> {
+  primary: React.ReactNode;
+  secondary?: React.ReactNode;
 }
 
 function flattenTree<T>(
@@ -50,12 +63,26 @@ function flattenTree<T>(
   return rows;
 }
 
+function HierarchicalListCell({
+  primary,
+  secondary,
+  className,
+  ...props
+}: HierarchicalListCellProps) {
+  return (
+    <div className={cx(styles.cell, className)} {...props}>
+      <div className={styles.cellPrimary}>{primary}</div>
+      {secondary !== undefined && <div className={styles.cellSecondary}>{secondary}</div>}
+    </div>
+  );
+}
+
 function HierarchicalList<T>({
   nodes,
-  renderItem,
+  renderCells,
   selectedIds,
   onSelectedIdsChange,
-  estimateSize = 32,
+  estimateSize = 52,
   emptySlot,
   className,
 }: HierarchicalListProps<T>) {
@@ -65,6 +92,13 @@ function HierarchicalList<T>({
 
   return (
     <ListView className={cx(styles.root, className)}>
+      <div className={cx(styles.headerRow, styles.rowGrid)}>
+        <div aria-hidden />
+        <div>Path</div>
+        <div>Git status</div>
+        <div>Storage</div>
+        <div>Usage</div>
+      </div>
       <ListView.Body>
         <ListView.List
           items={rows}
@@ -73,6 +107,7 @@ function HierarchicalList<T>({
           emptySlot={emptySlot}
           renderItem={(row, index) => {
             const { node, depth, hasChildren } = row;
+            const cells = renderCells(node, { depth, hasChildren });
 
             return (
               <ListView.Row
@@ -81,8 +116,16 @@ function HierarchicalList<T>({
                 isLast={index === rows.length - 1}
                 onClick={(event) => selection.handleClick(node.id, event)}
               >
-                <div className={styles.rowContent} style={{ paddingLeft: `${depth * 1.25}rem` }}>
-                  <div className={styles.content}>{renderItem(node, { depth, hasChildren })}</div>
+                <div className={styles.rowGrid}>
+                  <div className={styles.pathRegion} style={{ paddingLeft: `${depth * 1.25}rem` }}>
+                    <span className={styles.iconTile} aria-hidden>
+                      {cells.icon}
+                    </span>
+                    {cells.path}
+                  </div>
+                  <div>{cells.gitStatus}</div>
+                  <div>{cells.storage}</div>
+                  <div>{cells.usage}</div>
                 </div>
               </ListView.Row>
             );
@@ -93,4 +136,4 @@ function HierarchicalList<T>({
   );
 }
 
-export { HierarchicalList };
+export { HierarchicalList, HierarchicalListCell };

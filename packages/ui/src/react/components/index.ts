@@ -114,8 +114,11 @@ export {
 } from './status-icon/status-icon';
 export {
   HierarchicalList,
+  HierarchicalListCell,
+  type HierarchicalListCellProps,
   type HierarchicalListNode,
   type HierarchicalListProps,
+  type HierarchicalListRowCells,
 } from './hierarchical-list/hierarchical-list';
 export {
   SteppedLoader,

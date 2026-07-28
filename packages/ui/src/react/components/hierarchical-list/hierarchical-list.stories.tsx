@@ -1,15 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import {
-  FolderGit2Icon,
-  GitBranchIcon,
-  MonitorIcon,
-  ServerIcon,
-  type LucideIcon,
-} from 'lucide-react';
+import { FolderGit2Icon, FolderIcon, GitBranchIcon, type LucideIcon } from 'lucide-react';
 import * as React from 'react';
 import { Button } from '../../primitives/button';
-import { HierarchicalList, type HierarchicalListNode } from './hierarchical-list';
-import * as s from '../../story-layout.css';
+import {
+  HierarchicalList,
+  HierarchicalListCell,
+  type HierarchicalListNode,
+  type HierarchicalListRowCells,
+} from './hierarchical-list';
 
 const meta: Meta = {
   title: 'Components/HierarchicalList',
@@ -19,68 +17,149 @@ export default meta;
 type Story = StoryObj;
 
 interface WorkspaceNodeData {
-  label: string;
-  description: string;
-  kind: 'local-host' | 'ssh-host' | 'project' | 'workspace';
+  name: string;
+  fullPath: string;
+  kind: 'directory' | 'repository' | 'worktree';
+  git?: {
+    branch: string;
+    added: number;
+    removed: number;
+    ahead: number;
+    behind: number;
+  };
+  sizeLabel: string;
+  artifactsLabel: string;
+  lastUsedLabel: string;
+  linkedTasksLabel: string;
 }
 
 const WORKSPACE_TREE: HierarchicalListNode<WorkspaceNodeData>[] = [
   {
-    id: 'host-local',
+    id: 'dir-documents',
     data: {
-      label: 'Local',
-      description: 'Workspaces on this Mac',
-      kind: 'local-host',
+      name: 'Documents',
+      fullPath: '/Users/david/Documents',
+      kind: 'directory',
+      sizeLabel: '1.2 GB',
+      artifactsLabel: '0 MB artifacts',
+      lastUsedLabel: 'Today',
+      linkedTasksLabel: '5 linked tasks',
     },
     children: [
       {
-        id: 'project-emdash',
+        id: 'repo-emdash',
         data: {
-          label: 'emdash',
-          description: '~/Documents/repos/emdash',
-          kind: 'project',
+          name: 'emdash',
+          fullPath: '/Users/david/Documents/repos/emdash',
+          kind: 'repository',
+          git: {
+            branch: 'main',
+            added: 242,
+            removed: 121,
+            ahead: 2,
+            behind: 1,
+          },
+          sizeLabel: '24 MB',
+          artifactsLabel: '20 MB artifacts',
+          lastUsedLabel: '2 days ago',
+          linkedTasksLabel: '2 linked tasks',
         },
         children: [
           {
-            id: 'workspace-emdash-main',
+            id: 'worktree-emdash-settings',
             data: {
-              label: 'main',
-              description: 'Primary checkout',
-              kind: 'workspace',
+              name: 'feature/settings-redesign',
+              fullPath: '/Users/david/Documents/repos/.worktrees/emdash-settings',
+              kind: 'worktree',
+              git: {
+                branch: 'feature/settings-redesign',
+                added: 84,
+                removed: 32,
+                ahead: 4,
+                behind: 0,
+              },
+              sizeLabel: '18 MB',
+              artifactsLabel: '6 MB artifacts',
+              lastUsedLabel: '4 hours ago',
+              linkedTasksLabel: '1 linked task',
             },
           },
           {
-            id: 'workspace-emdash-settings',
+            id: 'worktree-emdash-icons',
             data: {
-              label: 'feature/settings-redesign',
-              description: 'Task worktree',
-              kind: 'workspace',
+              name: 'feature/status-icons',
+              fullPath: '/Users/david/Documents/repos/.worktrees/emdash-icons',
+              kind: 'worktree',
+              git: {
+                branch: 'feature/status-icons',
+                added: 126,
+                removed: 10,
+                ahead: 3,
+                behind: 1,
+              },
+              sizeLabel: '21 MB',
+              artifactsLabel: '8 MB artifacts',
+              lastUsedLabel: 'Yesterday',
+              linkedTasksLabel: '3 linked tasks',
             },
           },
         ],
       },
       {
-        id: 'project-acme',
+        id: 'repo-acme',
         data: {
-          label: 'acme',
-          description: '~/Documents/repos/acme',
-          kind: 'project',
+          name: 'acme',
+          fullPath: '/Users/david/Documents/repos/acme',
+          kind: 'repository',
+          git: {
+            branch: 'develop',
+            added: 12,
+            removed: 8,
+            ahead: 0,
+            behind: 2,
+          },
+          sizeLabel: '48 MB',
+          artifactsLabel: '15 MB artifacts',
+          lastUsedLabel: '1 week ago',
+          linkedTasksLabel: '0 linked tasks',
         },
         children: [
           {
-            id: 'workspace-acme-api',
+            id: 'worktree-acme-api',
             data: {
-              label: 'api',
-              description: 'Backend service workspace',
-              kind: 'workspace',
+              name: 'api-refactor',
+              fullPath: '/Users/david/Documents/repos/.worktrees/acme-api',
+              kind: 'worktree',
+              git: {
+                branch: 'api-refactor',
+                added: 65,
+                removed: 18,
+                ahead: 1,
+                behind: 0,
+              },
+              sizeLabel: '32 MB',
+              artifactsLabel: '11 MB artifacts',
+              lastUsedLabel: '3 days ago',
+              linkedTasksLabel: '1 linked task',
             },
           },
           {
-            id: 'workspace-acme-web',
+            id: 'worktree-acme-web',
             data: {
-              label: 'web',
-              description: 'Frontend app workspace',
-              kind: 'workspace',
+              name: 'web-polish',
+              fullPath: '/Users/david/Documents/repos/.worktrees/acme-web',
+              kind: 'worktree',
+              git: {
+                branch: 'web-polish',
+                added: 34,
+                removed: 42,
+                ahead: 2,
+                behind: 3,
+              },
+              sizeLabel: '36 MB',
+              artifactsLabel: '16 MB artifacts',
+              lastUsedLabel: '5 days ago',
+              linkedTasksLabel: '2 linked tasks',
             },
           },
         ],
@@ -88,27 +167,53 @@ const WORKSPACE_TREE: HierarchicalListNode<WorkspaceNodeData>[] = [
     ],
   },
   {
-    id: 'host-remote',
+    id: 'dir-srv-work',
     data: {
-      label: 'Remote (SSH)',
-      description: 'devbox.internal',
-      kind: 'ssh-host',
+      name: 'work',
+      fullPath: '/srv/work',
+      kind: 'directory',
+      sizeLabel: '832 MB',
+      artifactsLabel: '0 MB artifacts',
+      lastUsedLabel: 'Today',
+      linkedTasksLabel: '4 linked tasks',
     },
     children: [
       {
-        id: 'project-sandbox',
+        id: 'repo-sandbox',
         data: {
-          label: 'sandbox',
-          description: '/srv/work/sandbox',
-          kind: 'project',
+          name: 'sandbox',
+          fullPath: '/srv/work/sandbox',
+          kind: 'repository',
+          git: {
+            branch: 'main',
+            added: 4,
+            removed: 0,
+            ahead: 1,
+            behind: 0,
+          },
+          sizeLabel: '16 MB',
+          artifactsLabel: '2 MB artifacts',
+          lastUsedLabel: '6 hours ago',
+          linkedTasksLabel: '1 linked task',
         },
         children: [
           {
-            id: 'workspace-sandbox-experiment',
+            id: 'worktree-sandbox-experiment',
             data: {
-              label: 'experiment',
-              description: 'Remote task workspace',
-              kind: 'workspace',
+              name: 'experiment',
+              fullPath: '/srv/work/.worktrees/sandbox-experiment',
+              kind: 'worktree',
+              git: {
+                branch: 'experiment',
+                added: 242,
+                removed: 121,
+                ahead: 2,
+                behind: 1,
+              },
+              sizeLabel: '24 MB',
+              artifactsLabel: '20 MB artifacts',
+              lastUsedLabel: '2 days ago',
+              linkedTasksLabel: '2 linked tasks',
             },
           },
         ],
@@ -118,63 +223,57 @@ const WORKSPACE_TREE: HierarchicalListNode<WorkspaceNodeData>[] = [
 ];
 
 const ICONS: Record<WorkspaceNodeData['kind'], LucideIcon> = {
-  'local-host': MonitorIcon,
-  'ssh-host': ServerIcon,
-  project: FolderGit2Icon,
-  workspace: GitBranchIcon,
+  directory: FolderIcon,
+  repository: FolderGit2Icon,
+  worktree: GitBranchIcon,
 };
 
-function renderWorkspaceNode(
-  node: HierarchicalListNode<WorkspaceNodeData>,
-  { depth }: { depth: number }
-) {
+function renderWorkspaceCells(
+  node: HierarchicalListNode<WorkspaceNodeData>
+): HierarchicalListRowCells {
   const Icon = ICONS[node.data.kind];
+  const { git } = node.data;
 
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+  return {
+    icon: (
       <Icon
         style={{
-          width: '0.875rem',
-          height: '0.875rem',
-          flexShrink: 0,
-          color: 'var(--em-foreground-muted)',
+          width: '1rem',
+          height: '1rem',
+          color: 'currentColor',
         }}
       />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            fontSize: 'var(--em-text-sm)',
-            fontWeight: depth === 0 ? 500 : 400,
-            color: 'var(--em-foreground)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {node.data.label}
-        </div>
-        <div
-          style={{
-            marginTop: 1,
-            fontSize: 'var(--em-text-xs)',
-            color: 'var(--em-foreground-muted)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {node.data.description}
-        </div>
-      </div>
-    </div>
-  );
+    ),
+    path: <HierarchicalListCell primary={node.data.name} secondary={node.data.fullPath} />,
+    gitStatus: git ? (
+      <HierarchicalListCell
+        primary={git.branch}
+        secondary={
+          <>
+            <span style={{ color: 'var(--em-status-success)' }}>+{git.added}</span>{' '}
+            <span style={{ color: 'var(--em-status-error)' }}>-{git.removed}</span>{' '}
+            <span>↑{git.ahead}</span> <span>↓{git.behind}</span>
+          </>
+        }
+      />
+    ) : undefined,
+    storage: (
+      <HierarchicalListCell primary={node.data.sizeLabel} secondary={node.data.artifactsLabel} />
+    ),
+    usage: (
+      <HierarchicalListCell
+        primary={node.data.lastUsedLabel}
+        secondary={node.data.linkedTasksLabel}
+      />
+    ),
+  };
 }
 
 export const ThreeLevelHierarchy: Story = {
   name: '3-level workspace hierarchy',
   render: () => (
-    <div className={s.w96} style={{ height: '24rem' }}>
-      <HierarchicalList nodes={WORKSPACE_TREE} renderItem={renderWorkspaceNode} estimateSize={52} />
+    <div style={{ width: '48rem', maxWidth: '100%', height: '28rem' }}>
+      <HierarchicalList nodes={WORKSPACE_TREE} renderCells={renderWorkspaceCells} />
     </div>
   ),
 };
@@ -184,8 +283,9 @@ function InteractiveSelectionDemo() {
 
   return (
     <div
-      className={s.w96}
       style={{
+        width: '48rem',
+        maxWidth: '100%',
         height: '28rem',
         display: 'flex',
         flexDirection: 'column',
@@ -206,8 +306,7 @@ function InteractiveSelectionDemo() {
           nodes={WORKSPACE_TREE}
           selectedIds={selectedIds}
           onSelectedIdsChange={setSelectedIds}
-          renderItem={renderWorkspaceNode}
-          estimateSize={52}
+          renderCells={renderWorkspaceCells}
         />
       </div>
       <div

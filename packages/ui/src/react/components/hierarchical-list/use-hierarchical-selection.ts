@@ -53,6 +53,12 @@ export function applySelectionClick(
     return { next, anchor: id };
   }
 
+  if (prev.has(id)) {
+    const next = new Set(prev);
+    next.delete(id);
+    return { next, anchor: null };
+  }
+
   return { next: new Set([id]), anchor: id };
 }
 
