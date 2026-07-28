@@ -8,7 +8,6 @@ import type { Automation } from '@core/primitives/automations/api';
 const mocks = vi.hoisted(() => ({
   buildAutomationDeployment: vi.fn(),
   client: vi.fn(),
-  deleteAutomationDefinition: vi.fn(),
   deploy: vi.fn(),
   getAutomation: vi.fn(),
   getAutomationRuntimeAvailability: vi.fn(),
@@ -43,7 +42,6 @@ vi.mock('./deployment-builder', () => ({
 }));
 
 vi.mock('./repo', () => ({
-  deleteAutomationDefinition: mocks.deleteAutomationDefinition,
   getAutomation: mocks.getAutomation,
   insertAutomation: mocks.insertAutomation,
   listAutomations: mocks.listAutomations,
@@ -170,6 +168,7 @@ beforeEach(() => {
   mocks.getAutomationRuntimeAvailability.mockResolvedValue({ available: true });
   mocks.setAutomationRevision.mockResolvedValue(true);
   mocks.listAutomations.mockResolvedValue([]);
+  mocks.getAutomation.mockResolvedValue(automationFixture());
   mocks.upsertRunProjection.mockResolvedValue(undefined);
   const runtimeClient = {
     automations: {
@@ -238,22 +237,14 @@ describe('AutomationsService definition synchronization', () => {
     expect(mocks.setAutomationRevision).toHaveBeenCalledWith(expect.anything(), existing.id, 3);
   });
 
-  it('restores a removed deployment when the desktop delete fails', async () => {
+  it('publishes deletion hooks for callers that tombstoned an automation', () => {
     const service = createService();
-    const existing = automationFixture();
-    mocks.getAutomation.mockResolvedValue(existing);
-    mocks.deleteAutomationDefinition.mockRejectedValue(new Error('delete failed'));
+    const hook = vi.fn();
+    service.on('automation:deleted', hook);
 
-    const result = await service.delete(existing.id);
+    service.notifyDeleted('automation-1');
 
-    expect(result).toEqual({
-      success: false,
-      error: { type: 'runtime-unavailable', message: 'delete failed' },
-    });
-
-    expect(mocks.remove).toHaveBeenCalledWith({ automationId: existing.id });
-    expect(mocks.deploy.mock.calls.map(([deployment]) => deployment.revision)).toEqual([3]);
-    expect(mocks.setAutomationRevision).toHaveBeenCalledWith(expect.anything(), existing.id, 3);
+    expect(hook).toHaveBeenCalledWith('automation-1');
   });
 });
 
@@ -291,9 +282,9 @@ describe('AutomationsService run projection', () => {
 
     expect(() => mocks.onEvent?.({ run })).not.toThrow();
 
-    expect(mocks.upsertRunProjection).toHaveBeenCalledWith(expect.anything(), run);
-    expect(telemetryHook).toHaveBeenCalledWith(run);
     await vi.waitFor(() => {
+      expect(mocks.upsertRunProjection).toHaveBeenCalledWith(expect.anything(), run);
+      expect(telemetryHook).toHaveBeenCalledWith(run);
       expect(mocks.logWarn).toHaveBeenCalledWith('Failed to update the automation run projection', {
         automationId: 'automation-1',
         runId: 'run-1',
@@ -303,5 +294,21 @@ describe('AutomationsService run projection', () => {
 
     service.stop();
     expect(mocks.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('ignores runtime events for tombstoned automations', async () => {
+    const service = createService();
+    const telemetryHook = vi.fn();
+    service.on('run:step-completed', telemetryHook);
+    await service.initialize();
+    mocks.getAutomation.mockResolvedValue(null);
+
+    mocks.onEvent?.({ run: runFixture() });
+
+    await vi.waitFor(() => {
+      expect(mocks.getAutomation).toHaveBeenCalledWith(expect.anything(), 'automation-1');
+    });
+    expect(mocks.upsertRunProjection).not.toHaveBeenCalled();
+    expect(telemetryHook).not.toHaveBeenCalled();
   });
 });

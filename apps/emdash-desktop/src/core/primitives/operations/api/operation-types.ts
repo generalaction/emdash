@@ -1,5 +1,6 @@
 export const operationKinds = [
   'delete-task',
+  'delete-automation',
   'delete-workspace',
   'archive-workspace',
   'delete-project',

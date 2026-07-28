@@ -69,6 +69,8 @@ export type CleanupSessionsDependencies = {
     db: AppDb,
     operation: Parameters<typeof resolveLifecycleSessionTargets>[2]
   ): Promise<LifecycleSessionContext>;
+  listTombstonedAutomationIds(db: AppDb): Promise<string[]>;
+  submitReconcilerAutomationCleanup(submit: OperationSubmit, automationId: string): Promise<void>;
   submitReconcilerProjectCleanup(submit: OperationSubmit, projectId: string): Promise<void>;
   submitReconcilerTaskCleanup(submit: OperationSubmit, taskId: string): Promise<void>;
   submitReconcilerWorkspaceCleanup(
@@ -177,6 +179,9 @@ export async function sweepLifecycleDrift(
   );
   for (const taskId of invalidTaskIds) {
     await dependencies.submitReconcilerTaskCleanup(submit, taskId);
+  }
+  for (const automationId of await dependencies.listTombstonedAutomationIds(db)) {
+    await dependencies.submitReconcilerAutomationCleanup(submit, automationId);
   }
   for (const projectId of await loadTombstonedProjectIds(db)) {
     await dependencies.submitReconcilerProjectCleanup(submit, projectId);

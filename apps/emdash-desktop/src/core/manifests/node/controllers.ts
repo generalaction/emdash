@@ -304,10 +304,11 @@ export const desktopNodeControllers = {
       ),
   },
   automations: {
-    create: ({ automations, db, projects, runtimes, taskService }) =>
+    create: ({ automations, db, operations, projects, runtimes, taskService }) =>
       createAutomationsWireController({
         db,
         getProjectById: async (projectId) => projects.getProject(projectId)?.project,
+        operations,
         runtime: {
           runtimes,
           getProjectById: async (projectId) => projects.getProject(projectId)?.project,

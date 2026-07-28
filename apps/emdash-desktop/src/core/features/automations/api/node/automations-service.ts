@@ -19,7 +19,6 @@ import { projectHostRef } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { buildAutomationDeployment } from '../../node/deployment-builder';
 import {
-  deleteAutomationDefinition,
   getAutomation,
   insertAutomation,
   listAutomations as listAutomationDefinitions,
@@ -80,6 +79,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
 
   getTargetAvailability(projectId?: string) {
     return getAutomationRuntimeAvailability(this.dependencies.runtime, projectId);
+  }
+
+  notifyDeleted(id: string): void {
+    this.hooks.callHookBackground('automation:deleted', id);
   }
 
   async create(params: CreateAutomationParams): Promise<DefinitionResult<Automation>> {
@@ -166,42 +169,6 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     }
   }
 
-  async delete(id: string): Promise<DefinitionResult<void>> {
-    try {
-      return await this.definitionMutationMutex.runExclusive(id, async () => {
-        const automation = await this.requireAutomation(id);
-        if (!automation.success) return automation;
-        const client = await resolveAutomationRuntimeClient(
-          this.dependencies.runtime,
-          automation.data.projectId
-        );
-        const removed = await this.removeFromRuntime(client.automations, id, true);
-        if (!removed.success) return removed;
-        try {
-          if (!(await deleteAutomationDefinition(this.dependencies.db, id))) {
-            await this.restoreDeploymentAfterFailure(
-              automation.data,
-              client.automations,
-              'desktop deletion'
-            );
-            return err(automationNotFound(id));
-          }
-        } catch (error) {
-          await this.restoreDeploymentAfterFailure(
-            automation.data,
-            client.automations,
-            'desktop deletion'
-          );
-          return err(runtimeUnavailable(error));
-        }
-        this.hooks.callHookBackground('automation:deleted', id);
-        return ok();
-      });
-    } catch (error) {
-      return err(runtimeUnavailable(error));
-    }
-  }
-
   async removeProjectDeployments(projectId: string): Promise<void> {
     const definitions = await listAutomationDefinitions(this.dependencies.db, projectId);
     if (definitions.length === 0) return;
@@ -223,7 +190,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     this.runEventsUnsubscribe = await client.automations.runEvents.subscribe(
       {},
       {
-        onEvent: ({ run }) => this.handleRunEvent(run),
+        onEvent: ({ run }) => void this.handleRunEvent(run),
         onGap: () => {},
         onError: (error, { retrying }) => {
           if (!retrying) log.warn('Automation telemetry event stream disconnected', { error });
@@ -438,8 +405,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     }
   }
 
-  private handleRunEvent(run: AutomationRun): void {
-    void upsertRunProjection(this.dependencies.db, run).catch((error) => {
+  private async handleRunEvent(run: AutomationRun): Promise<void> {
+    const automation = await getAutomation(this.dependencies.db, run.automationId);
+    if (!automation) return;
+    await upsertRunProjection(this.dependencies.db, run).catch((error) => {
       log.warn('Failed to update the automation run projection', {
         automationId: run.automationId,
         runId: run.id,

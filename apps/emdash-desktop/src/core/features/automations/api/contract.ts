@@ -16,7 +16,14 @@ import {
   startRunInputSchema,
   startRunResultSchema,
 } from '@emdash/core/runtimes/automations/api';
-import { defineContract, eventStream, fallible, procedure } from '@emdash/wire';
+import {
+  defineContract,
+  eventStream,
+  fallible,
+  liveModel,
+  liveState,
+  procedure,
+} from '@emdash/wire';
 import { z } from 'zod';
 import {
   automationAdoptionErrorSchema,
@@ -26,8 +33,15 @@ import {
   createAutomationParamsSchema,
   updateAutomationPatchSchema,
 } from '@core/primitives/automations/api';
+import {
+  deletionListSchema,
+  deletionModelKeySchema,
+  deletionMutationErrorSchema,
+  deletionMutationResultSchema,
+} from '@core/primitives/operations/api';
 
 const projectIdField = z.object({ projectId: z.string() });
+const automationIdInputSchema = z.object({ automationId: z.string() });
 
 export const automationsContract = defineContract({
   list: procedure({
@@ -45,9 +59,25 @@ export const automationsContract = defineContract({
     error: automationDefinitionErrorSchema,
   }),
   delete: fallible({
-    input: z.object({ automationId: z.string() }),
+    input: automationIdInputSchema,
     data: z.void(),
     error: automationDefinitionErrorSchema,
+  }),
+  retryDelete: fallible({
+    input: automationIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  forgetWithoutCleanup: fallible({
+    input: automationIdInputSchema,
+    data: deletionMutationResultSchema,
+    error: deletionMutationErrorSchema,
+  }),
+  deletions: liveModel({
+    key: deletionModelKeySchema,
+    states: {
+      list: liveState({ data: deletionListSchema }),
+    },
   }),
   adoptRun: fallible({
     input: z.object({ automationId: z.string(), runId: z.string() }),

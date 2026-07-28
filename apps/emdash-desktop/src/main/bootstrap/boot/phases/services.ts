@@ -11,6 +11,11 @@ import { getPlugin, getPluginMetadata } from '@core/features/agents/api/node/plu
 import { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { buildAutomationDeployment } from '@core/features/automations/node/deployment-builder';
+import {
+  createDeleteAutomationOperationDefinition,
+  submitReconcilerAutomationCleanup,
+} from '@core/features/automations/node/operations/delete-automation-definition';
+import { listTombstonedAutomationIds } from '@core/features/automations/node/repo';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
@@ -577,6 +582,7 @@ export async function bootServices(
         telemetry: telemetryService,
         unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
       }),
+      createDeleteAutomationOperationDefinition({ runtimes }),
       createDeleteWorkspaceOperationDefinition(workspaceLifecycle),
       createArchiveWorkspaceOperationDefinition(workspaceLifecycle),
       createDeleteProjectOperationDefinition({
@@ -593,7 +599,9 @@ export async function bootServices(
           resolveLifecycleOperationContext(lifecycleContext, database, operation, {
             resolveRuntimeConfig: true,
           }),
+        listTombstonedAutomationIds,
         submitReconcilerProjectCleanup,
+        submitReconcilerAutomationCleanup,
         submitReconcilerTaskCleanup,
         submitReconcilerWorkspaceCleanup,
         listProjectWorkspaces: (projectId) =>

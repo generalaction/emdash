@@ -243,9 +243,11 @@ function definition(
     entityKind:
       kind === 'delete-project'
         ? 'project'
-        : kind === 'delete-workspace' || kind === 'archive-workspace'
-          ? 'workspace'
-          : 'task',
+        : kind === 'delete-automation'
+          ? 'automation'
+          : kind === 'delete-workspace' || kind === 'archive-workspace'
+            ? 'workspace'
+            : 'task',
     run,
     reconcile,
     async describe({ operation }) {

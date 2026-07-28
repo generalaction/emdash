@@ -232,9 +232,11 @@ function successfulDefinition(kind: OperationKind): OperationDefinition {
     entityKind:
       kind === 'delete-project'
         ? 'project'
-        : kind === 'delete-workspace' || kind === 'archive-workspace'
-          ? 'workspace'
-          : 'task',
+        : kind === 'delete-automation'
+          ? 'automation'
+          : kind === 'delete-workspace' || kind === 'archive-workspace'
+            ? 'workspace'
+            : 'task',
     async run() {
       return ok(undefined);
     },

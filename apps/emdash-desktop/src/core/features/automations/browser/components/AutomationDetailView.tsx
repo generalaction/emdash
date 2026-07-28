@@ -51,7 +51,6 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     reason: 'Checking automation runtime…',
   };
   const canEdit = runtimeAvailability.available;
-  const canDelete = canEdit || automation.projectId == null;
 
   const { formState, setCronExpr, handlePromptBlur, handleNameBlur, saveError } =
     useAutomationSettingsAutoSave(automation, canEdit);
@@ -90,11 +89,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                 <Ellipsis className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent side="bottom" align="end">
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={!canDelete}
-                  onClick={() => onDelete?.(automation)}
-                >
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
                   <Trash2 />
                   Delete automation
                 </DropdownMenuItem>

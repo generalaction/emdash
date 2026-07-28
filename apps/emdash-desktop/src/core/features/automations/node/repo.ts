@@ -1,7 +1,12 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Automation } from '@core/primitives/automations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { automations, projects, type AutomationRow } from '@core/services/app-db/node/schema';
+import {
+  automationRuns,
+  automations,
+  projects,
+  type AutomationRow,
+} from '@core/services/app-db/node/schema';
 
 function mapAutomationRow(row: AutomationRow): Automation {
   return {
@@ -35,6 +40,23 @@ export async function getAutomation(db: AppDb, id: string): Promise<Automation |
     .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
     .limit(1);
   return row ? mapAutomationRow(row) : null;
+}
+
+export async function automationExists(db: AppDb, id: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: automations.id })
+    .from(automations)
+    .where(eq(automations.id, id))
+    .limit(1);
+  return row !== undefined;
+}
+
+export async function listTombstonedAutomationIds(db: AppDb): Promise<string[]> {
+  const rows = await db
+    .select({ id: automations.id })
+    .from(automations)
+    .where(isNotNull(automations.deletedAt));
+  return rows.map((row) => row.id);
 }
 
 export async function projectExists(db: AppDb, projectId: string): Promise<boolean> {
@@ -112,4 +134,11 @@ export async function deleteAutomationDefinition(db: AppDb, id: string): Promise
     .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
     .returning({ id: automations.id });
   return rows.length > 0;
+}
+
+export async function purgeAutomationRows(db: AppDb, automationId: string): Promise<void> {
+  db.transaction((tx) => {
+    tx.delete(automationRuns).where(eq(automationRuns.automationId, automationId)).run();
+    tx.delete(automations).where(eq(automations.id, automationId)).run();
+  });
 }

@@ -1,5 +1,6 @@
 import { createLiveModelReplica } from '@emdash/wire';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { automationsContract } from '@core/features/automations/api';
 import { projectsWireContract } from '@core/features/projects/api';
 import { tasksWireContract } from '@core/features/tasks/api';
 import { workspacesWireContract } from '@core/features/workspaces/api';
@@ -16,6 +17,7 @@ export function usePendingCleanups(projectId: string): {
   forget(cleanup: DeletionState): Promise<void>;
 } {
   const [taskDeletions, setTaskDeletions] = useState<DeletionList>({});
+  const [automationDeletions, setAutomationDeletions] = useState<DeletionList>({});
   const [workspaceDeletions, setWorkspaceDeletions] = useState<DeletionList>({});
   const [projectDeletions, setProjectDeletions] = useState<DeletionList>({});
 
@@ -28,6 +30,11 @@ export function usePendingCleanups(projectId: string): {
       const tasks = createLiveModelReplica(tasksWireContract.deletions, client.tasks.deletions, {
         onChange: { list: (list: DeletionList) => setTaskDeletions(list) },
       });
+      const automations = createLiveModelReplica(
+        automationsContract.deletions,
+        client.automations.deletions,
+        { onChange: { list: (list: DeletionList) => setAutomationDeletions(list) } }
+      );
       const workspaces = createLiveModelReplica(
         workspacesWireContract.deletions,
         client.workspaces.deletions,
@@ -39,11 +46,16 @@ export function usePendingCleanups(projectId: string): {
         { onChange: { list: (list: DeletionList) => setProjectDeletions(list) } }
       );
       const taskLease = tasks.acquire({});
+      const automationLease = automations.acquire({});
       const workspaceLease = workspaces.acquire({});
       const projectLease = projects.acquire({});
       cleanups.push(() => {
         void taskLease.release();
         void tasks.dispose();
+      });
+      cleanups.push(() => {
+        void automationLease.release();
+        void automations.dispose();
       });
       cleanups.push(() => {
         void workspaceLease.release();
@@ -53,8 +65,9 @@ export function usePendingCleanups(projectId: string): {
         void projectLease.release();
         void projects.dispose();
       });
-      const [taskModel, workspaceModel, projectModel] = await Promise.all([
+      const [taskModel, automationModel, workspaceModel, projectModel] = await Promise.all([
         taskLease.ready(),
+        automationLease.ready(),
         workspaceLease.ready(),
         projectLease.ready(),
       ]);
@@ -62,12 +75,14 @@ export function usePendingCleanups(projectId: string): {
         for (const cleanup of cleanups) cleanup();
         return;
       }
-      const [taskList, workspaceList, projectList] = await Promise.all([
+      const [taskList, automationList, workspaceList, projectList] = await Promise.all([
         taskModel.states.list.snapshot(),
+        automationModel.states.list.snapshot(),
         workspaceModel.states.list.snapshot(),
         projectModel.states.list.snapshot(),
       ]);
       setTaskDeletions(taskList.data as DeletionList);
+      setAutomationDeletions(automationList.data as DeletionList);
       setWorkspaceDeletions(workspaceList.data as DeletionList);
       setProjectDeletions(projectList.data as DeletionList);
     })();
@@ -81,6 +96,7 @@ export function usePendingCleanups(projectId: string): {
     () =>
       [
         ...Object.values(taskDeletions),
+        ...Object.values(automationDeletions),
         ...Object.values(workspaceDeletions),
         ...Object.values(projectDeletions),
       ]
@@ -92,7 +108,7 @@ export function usePendingCleanups(projectId: string): {
               cleanup.status === 'failed')
         )
         .sort((left, right) => left.createdAt - right.createdAt),
-    [projectDeletions, projectId, taskDeletions, workspaceDeletions]
+    [automationDeletions, projectDeletions, projectId, taskDeletions, workspaceDeletions]
   );
 
   const mutate = useCallback(
@@ -120,6 +136,8 @@ async function mutateCleanup(
   switch (kind) {
     case 'task':
       return client.tasks[action]({ taskId: entityId });
+    case 'automation':
+      return client.automations[action]({ automationId: entityId });
     case 'workspace':
       return client.workspaces[action]({ workspaceId: entityId });
     case 'project':
