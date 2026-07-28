@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createFileIndexSchema } from '@main/db/file-index-schema';
 
 type LoadedStore = Awaited<ReturnType<typeof loadStore>>;
 
@@ -47,6 +48,7 @@ describe('WorkspaceFileIndexStore', () => {
 
     expect(indexedPaths(sqlite, 'ws-1')).toEqual(['/repo/b.ts', '/repo/c.ts']);
     expect(store.countIndexedFiles('ws-1')).toBe(2);
+    expectFtsConsistent(sqlite);
   });
 
   it('returns whether insertPath added a new row', async () => {
@@ -84,6 +86,43 @@ describe('WorkspaceFileIndexStore', () => {
     store.deleteSubtree('ws-1', '/repo/foo_%');
 
     expect(indexedPaths(sqlite, 'ws-1')).toEqual(['/repo/foo-x/a.ts']);
+    expectFtsConsistent(sqlite);
+  });
+
+  it('drops trigger-synced deletes from FTS search results', async () => {
+    loadedStore = await loadStore();
+    const { store, sqlite } = loadedStore;
+    store.syncRows('ws-1', paths(['/repo/src/index.ts', '/repo/src/router.ts']));
+
+    store.deletePath('ws-1', '/repo/src/index.ts');
+
+    expect(store.search('ws-1', 'index')).toEqual([]);
+    expect(store.search('ws-1', 'router')).toEqual([
+      { path: '/repo/src/router.ts', filename: 'router.ts' },
+    ]);
+    expectFtsConsistent(sqlite);
+  });
+
+  it('never full-scans the FTS index for bookkeeping queries', async () => {
+    loadedStore = await loadStore();
+    const { sqlite } = loadedStore;
+
+    const bookkeepingQueries = [
+      `SELECT path FROM workspace_files WHERE workspace_id = 'ws'`,
+      `SELECT COUNT(*) FROM workspace_files WHERE workspace_id = 'ws'`,
+      `SELECT path, filename FROM workspace_files WHERE workspace_id = 'ws' ORDER BY path LIMIT 5`,
+      `DELETE FROM workspace_files WHERE workspace_id = 'ws' AND path = '/repo/a.ts'`,
+      `DELETE FROM workspace_files WHERE workspace_id = 'ws'`,
+    ];
+
+    for (const query of bookkeepingQueries) {
+      const plan = sqlite.prepare(`EXPLAIN QUERY PLAN ${query}`).all() as Array<{
+        detail: string;
+      }>;
+      const details = plan.map((row) => row.detail).join('; ');
+      expect(details, query).not.toMatch(/SCAN workspace_file/);
+      expect(details, query).toMatch(/SEARCH workspace_files USING/);
+    }
   });
 
   it('deletes an entire workspace index', async () => {
@@ -137,6 +176,7 @@ describe('WorkspaceFileIndexStore', () => {
 
     expect(allIndexedWorkspaces(sqlite)).toEqual(['fresh']);
     expect(indexedPaths(sqlite, 'fresh')).toEqual(['/repo/fresh.ts']);
+    expectFtsConsistent(sqlite);
   });
 });
 
@@ -159,23 +199,8 @@ async function loadStore() {
 }
 
 function createTables(sqlite: BetterSqlite3.Database): void {
+  createFileIndexSchema(sqlite);
   sqlite.exec(`
-    CREATE VIRTUAL TABLE workspace_file_index USING fts5(
-      workspace_id UNINDEXED,
-      path,
-      filename,
-      tokenize = 'trigram case_sensitive 0'
-    );
-    CREATE TABLE workspace_file_index_meta (
-      workspace_id     TEXT PRIMARY KEY,
-      indexed_at       INTEGER NOT NULL,
-      root_path        TEXT NOT NULL,
-      status           TEXT NOT NULL
-        CHECK (status IN ('complete', 'stale', 'truncated')),
-      file_count       INTEGER NOT NULL,
-      truncate_reason  TEXT
-        CHECK (truncate_reason IS NULL OR truncate_reason IN ('maxEntries', 'timeBudget'))
-    );
     CREATE TABLE workspaces (
       id TEXT PRIMARY KEY
     );
@@ -189,7 +214,7 @@ function paths(values: string[]): string[] {
 function indexedPaths(sqlite: BetterSqlite3.Database, workspaceId: string): string[] {
   return (
     sqlite
-      .prepare(`SELECT path FROM workspace_file_index WHERE workspace_id = ? ORDER BY path`)
+      .prepare(`SELECT path FROM workspace_files WHERE workspace_id = ? ORDER BY path`)
       .all(workspaceId) as Array<{ path: string }>
   ).map((row) => row.path);
 }
@@ -197,7 +222,17 @@ function indexedPaths(sqlite: BetterSqlite3.Database, workspaceId: string): stri
 function allIndexedWorkspaces(sqlite: BetterSqlite3.Database): string[] {
   return (
     sqlite
-      .prepare(`SELECT DISTINCT workspace_id FROM workspace_file_index ORDER BY workspace_id`)
+      .prepare(`SELECT DISTINCT workspace_id FROM workspace_files ORDER BY workspace_id`)
       .all() as Array<{ workspace_id: string }>
   ).map((row) => row.workspace_id);
+}
+
+function expectFtsConsistent(sqlite: BetterSqlite3.Database): void {
+  expect(() =>
+    sqlite
+      .prepare(
+        `INSERT INTO workspace_file_index(workspace_file_index, rank) VALUES ('integrity-check', 1)`
+      )
+      .run()
+  ).not.toThrow();
 }

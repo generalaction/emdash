@@ -137,7 +137,7 @@ export default defineConfig({
             'src/renderer/tests/browser/**',
             'src/main/db/tests/migrations/**',
             'src/main/db/legacy-port/**/*.test.ts',
-            'src/main/core/**/*.db.test.ts',
+            'src/main/**/*.db.test.ts',
           ],
         },
       },
@@ -149,7 +149,7 @@ export default defineConfig({
         test: {
           name: 'main-db',
           environment: 'node',
-          include: ['src/main/core/**/*.db.test.ts', 'src/main/db/legacy-port/**/*.test.ts'],
+          include: ['src/main/**/*.db.test.ts', 'src/main/db/legacy-port/**/*.test.ts'],
         },
       },
       {

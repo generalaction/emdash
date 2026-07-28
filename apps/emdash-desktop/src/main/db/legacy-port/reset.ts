@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { createFileIndexSchema, FILE_INDEX_TABLES } from '../file-index-schema';
 import { quoteIdentifier, tableExists, withForeignKeysDisabled } from './sqlite-utils';
 
 export const PRESERVED_SECRET_KEYS = ['emdash-account-token', 'emdash-github-token'] as const;
@@ -34,8 +35,15 @@ export function listUserTables(sqlite: Database.Database): string[] {
 export function clearDestinationDataPreservingSignIn(sqlite: Database.Database): void {
   withForeignKeysDisabled(sqlite, () => {
     const tables = listUserTables(sqlite);
+    const fileIndexTables = new Set<string>(FILE_INDEX_TABLES);
+    const hasFileIndex = tables.some((table) => fileIndexTables.has(table));
     const clear = sqlite.transaction(() => {
       for (const table of tables) {
+        // The file index is an external-content FTS5 table synced by triggers:
+        // a plain DELETE on the virtual table followed by trigger-fired FTS
+        // 'delete' commands corrupts the index. Drop and recreate it instead.
+        if (fileIndexTables.has(table)) continue;
+
         if (table === 'app_secrets' && tableExists(sqlite, 'app_secrets')) {
           sqlite
             .prepare(
@@ -56,6 +64,8 @@ export function clearDestinationDataPreservingSignIn(sqlite: Database.Database):
 
         sqlite.prepare(`DELETE FROM ${quoteIdentifier(table)}`).run();
       }
+
+      if (hasFileIndex) createFileIndexSchema(sqlite);
     });
 
     clear();

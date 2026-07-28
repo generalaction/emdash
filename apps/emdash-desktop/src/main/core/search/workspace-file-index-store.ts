@@ -95,10 +95,10 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
     const existingPaths = this.indexedPathSet(workspaceId);
     const desiredPaths = new Set<string>(paths);
     const deletePath = sqlite.prepare(
-      `DELETE FROM workspace_file_index WHERE workspace_id = ? AND path = ?`
+      `DELETE FROM workspace_files WHERE workspace_id = ? AND path = ?`
     );
     const insertPath = sqlite.prepare(
-      `INSERT INTO workspace_file_index(workspace_id, path, filename) VALUES (?, ?, ?)`
+      `INSERT INTO workspace_files(workspace_id, path, filename) VALUES (?, ?, ?)`
     );
 
     for (const path of existingPaths) {
@@ -111,16 +111,18 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
   }
 
   insertPath(workspaceId: string, path: string): boolean {
-    if (this.hasIndexedPath(workspaceId, path)) return false;
-    sqlite
-      .prepare(`INSERT INTO workspace_file_index(workspace_id, path, filename) VALUES (?, ?, ?)`)
+    const result = sqlite
+      .prepare(
+        `INSERT INTO workspace_files(workspace_id, path, filename) VALUES (?, ?, ?)
+         ON CONFLICT(workspace_id, path) DO NOTHING`
+      )
       .run(workspaceId, path, basename(path));
-    return true;
+    return result.changes > 0;
   }
 
   deletePath(workspaceId: string, path: string): boolean {
     const result = sqlite
-      .prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ? AND path = ?`)
+      .prepare(`DELETE FROM workspace_files WHERE workspace_id = ? AND path = ?`)
       .run(workspaceId, path);
     return result.changes > 0;
   }
@@ -128,7 +130,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
   deleteSubtree(workspaceId: string, path: string): void {
     sqlite
       .prepare(
-        `DELETE FROM workspace_file_index
+        `DELETE FROM workspace_files
          WHERE workspace_id = ?
            AND (path = ? OR path LIKE ? ESCAPE '\\')`
       )
@@ -137,7 +139,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
 
   countIndexedFiles(workspaceId: string): number {
     const row = sqlite
-      .prepare(`SELECT COUNT(*) AS count FROM workspace_file_index WHERE workspace_id = ?`)
+      .prepare(`SELECT COUNT(*) AS count FROM workspace_files WHERE workspace_id = ?`)
       .get(workspaceId) as { count: number };
     return row.count;
   }
@@ -157,7 +159,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
       try {
         return sqlite
           .prepare(
-            `SELECT path, filename FROM workspace_file_index
+            `SELECT path, filename FROM workspace_files
              WHERE workspace_id = ?
              ORDER BY path
              LIMIT ?`
@@ -180,7 +182,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
       try {
         return sqlite
           .prepare(
-            `SELECT path, filename FROM workspace_file_index
+            `SELECT path, filename FROM workspace_files
              WHERE workspace_id = ?
                AND (filename LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')
              LIMIT ?`
@@ -239,7 +241,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
   deleteIndex(workspaceId: string): void {
     try {
       sqlite.transaction(() => {
-        sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`).run(workspaceId);
+        sqlite.prepare(`DELETE FROM workspace_files WHERE workspace_id = ?`).run(workspaceId);
         sqlite
           .prepare(`DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`)
           .run(workspaceId);
@@ -257,17 +259,9 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
 
   private indexedPathSet(workspaceId: string): Set<string> {
     const rows = sqlite
-      .prepare(`SELECT path FROM workspace_file_index WHERE workspace_id = ?`)
+      .prepare(`SELECT path FROM workspace_files WHERE workspace_id = ?`)
       .all(workspaceId) as Array<{ path: string }>;
     return new Set(rows.map((row) => row.path));
-  }
-
-  private hasIndexedPath(workspaceId: string, path: string): boolean {
-    return Boolean(
-      sqlite
-        .prepare(`SELECT 1 FROM workspace_file_index WHERE workspace_id = ? AND path = ? LIMIT 1`)
-        .get(workspaceId, path)
-    );
   }
 
   private evictStale(staleDays: number): void {
@@ -280,7 +274,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
       if (stale.length === 0) return;
 
       sqlite.transaction(() => {
-        const delIndex = sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`);
+        const delIndex = sqlite.prepare(`DELETE FROM workspace_files WHERE workspace_id = ?`);
         const delMeta = sqlite.prepare(
           `DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`
         );
@@ -309,7 +303,7 @@ export class WorkspaceFileIndexStore implements IWorkspaceFileIndexStore {
       if (orphans.length === 0) return;
 
       sqlite.transaction(() => {
-        const delIndex = sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`);
+        const delIndex = sqlite.prepare(`DELETE FROM workspace_files WHERE workspace_id = ?`);
         const delMeta = sqlite.prepare(
           `DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`
         );

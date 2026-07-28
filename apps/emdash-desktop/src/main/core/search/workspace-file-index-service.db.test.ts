@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createFileIndexSchema } from '@main/db/file-index-schema';
 import type {
   WorkspaceFileEnumerator,
   WorkspaceFileIndexServiceOptions,
@@ -188,34 +189,13 @@ async function loadService(options: WorkspaceFileIndexServiceOptions = {}) {
     import('./workspace-file-index-service'),
     import('@main/db/client'),
   ]);
-  createFileIndexTables(sqlite);
+  createFileIndexSchema(sqlite);
 
   return {
     service: new WorkspaceFileIndexService(options),
     sqlite,
     tempDir,
   };
-}
-
-function createFileIndexTables(sqlite: BetterSqlite3.Database): void {
-  sqlite.exec(`
-    CREATE VIRTUAL TABLE workspace_file_index USING fts5(
-      workspace_id UNINDEXED,
-      path,
-      filename,
-      tokenize = 'trigram case_sensitive 0'
-    );
-    CREATE TABLE workspace_file_index_meta (
-      workspace_id     TEXT PRIMARY KEY,
-      indexed_at       INTEGER NOT NULL,
-      root_path        TEXT NOT NULL,
-      status           TEXT NOT NULL
-        CHECK (status IN ('complete', 'stale', 'truncated')),
-      file_count       INTEGER NOT NULL,
-      truncate_reason  TEXT
-        CHECK (truncate_reason IS NULL OR truncate_reason IN ('maxEntries', 'timeBudget'))
-    );
-  `);
 }
 
 function enumerator(readPaths: () => readonly string[]): WorkspaceFileEnumerator {
@@ -231,7 +211,7 @@ function enumerator(readPaths: () => readonly string[]): WorkspaceFileEnumerator
 
 function indexedPaths(sqlite: BetterSqlite3.Database): string[] {
   return (
-    sqlite.prepare(`SELECT path FROM workspace_file_index ORDER BY path`).all() as Array<{
+    sqlite.prepare(`SELECT path FROM workspace_files ORDER BY path`).all() as Array<{
       path: string;
     }>
   ).map((row) => row.path);

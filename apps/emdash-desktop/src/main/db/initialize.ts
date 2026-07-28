@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type BetterSqlite3 from 'better-sqlite3';
 import journal from '@root/drizzle/meta/_journal.json';
+import { createFileIndexSchema } from './file-index-schema';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
@@ -85,13 +86,15 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
 }
 
 /**
- * Creates the FTS5 virtual table and companion meta table used for workspace
- * file indexing. Managed outside Drizzle (same reason as ensureSearchIndex).
- * Version-gated via `kv` so the tables can be dropped and recreated on schema
- * changes without a full Drizzle migration.
+ * Creates the workspace file index tables (see file-index-schema.ts). Managed
+ * outside Drizzle (same reason as ensureSearchIndex). Version-gated via `kv`
+ * so the tables can be dropped and recreated on schema changes without a full
+ * Drizzle migration. Dropping returns pages to the freelist but does not
+ * shrink the file (no VACUUM here — it would rewrite multi-GB files
+ * synchronously before the window exists).
  */
 function ensureFileIndex(connection: BetterSqlite3.Database): void {
-  const FILE_INDEX_VERSION = '4';
+  const FILE_INDEX_VERSION = '5';
 
   const row = connection.prepare(`SELECT value FROM kv WHERE key = 'file_index_version'`).get() as
     | { value: string }
@@ -99,28 +102,7 @@ function ensureFileIndex(connection: BetterSqlite3.Database): void {
 
   if (row?.value === FILE_INDEX_VERSION) return;
 
-  connection.exec(`DROP TABLE IF EXISTS workspace_file_index`);
-  connection.exec(`DROP TABLE IF EXISTS workspace_file_index_meta`);
-  connection.exec(`
-    CREATE VIRTUAL TABLE workspace_file_index USING fts5(
-      workspace_id UNINDEXED,
-      path,
-      filename,
-      tokenize = 'trigram case_sensitive 0'
-    )
-  `);
-  connection.exec(`
-    CREATE TABLE workspace_file_index_meta (
-      workspace_id     TEXT PRIMARY KEY,
-      indexed_at       INTEGER NOT NULL,
-      root_path        TEXT NOT NULL,
-      status           TEXT NOT NULL
-        CHECK (status IN ('complete', 'stale', 'truncated')),
-      file_count       INTEGER NOT NULL,
-      truncate_reason  TEXT
-        CHECK (truncate_reason IS NULL OR truncate_reason IN ('maxEntries', 'timeBudget'))
-    )
-  `);
+  createFileIndexSchema(connection);
   connection
     .prepare(
       `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES ('file_index_version', ?, unixepoch())`
