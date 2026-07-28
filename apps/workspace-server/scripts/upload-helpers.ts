@@ -1,4 +1,9 @@
-import { artifactArchiveName, parsePackageTarget, type PackageTarget } from './package-helpers';
+import {
+  artifactArchiveName,
+  artifactRootName,
+  parsePackageTarget,
+  type PackageTarget,
+} from './package-helpers';
 
 export const workspaceServerObjectPrefix = 'workspace-server';
 export const installScriptObjectKey = `${workspaceServerObjectPrefix}/install.sh`;
@@ -25,6 +30,18 @@ export function expectedArtifactNames(
     const archiveName = artifactArchiveName(version, target);
     return [archiveName, `${archiveName}.sha256`];
   });
+}
+
+export function artifactVersionFromArchiveName(
+  archiveName: string,
+  target: PackageTarget
+): string | undefined {
+  const prefix = `${artifactRootName}-`;
+  const suffix = `-${target.os}-${target.arch}.tar.gz`;
+  if (!archiveName.startsWith(prefix) || !archiveName.endsWith(suffix)) return undefined;
+  const version = archiveName.slice(prefix.length, -suffix.length);
+  validateReleaseVersion(version);
+  return version;
 }
 
 export function versionedArtifactObjectKey(version: string, artifactName: string): string {

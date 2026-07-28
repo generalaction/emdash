@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { S3mini } from 's3mini';
 import { artifactArchiveName, parsePackageTarget, type PackageTarget } from './package-helpers';
 import {
+  artifactVersionFromArchiveName,
   contentTypeForObjectKey,
   expectedArtifactNames,
   immutableUploadDecision,
@@ -40,9 +41,16 @@ type ValidatedArtifact = {
 
 async function main(): Promise<void> {
   const options = parseUploadArgs(process.argv.slice(2));
-  const targets = options.targets ?? [...releaseTargets];
-  const version = options.version ?? (await readPackageVersion());
-  const artifacts = await validateArtifacts(version, targets, options.targets === undefined);
+  const devUpload = process.env['EMDASH_WS_DEV_UPLOAD'] === '1';
+  const targets = resolveUploadTargets(options, devUpload);
+  const version =
+    options.version ??
+    (devUpload ? await resolveLatestDevArtifactVersion(targets) : await readPackageVersion());
+  const artifacts = await validateArtifacts(
+    version,
+    targets,
+    !devUpload && options.targets === undefined
+  );
   const config = resolveUploadConfig();
   const s3 = new S3mini({
     accessKeyId: config.accessKeyId,
@@ -110,6 +118,51 @@ function parseUploadArgs(args: string[]): UploadOptions {
               targets.findIndex((candidate) => candidate.id === target.id) === index
           ),
   };
+}
+
+function resolveUploadTargets(options: UploadOptions, devUpload: boolean): PackageTarget[] {
+  if (options.targets !== undefined) return options.targets;
+  if (devUpload) return [defaultDevUploadTarget()];
+  return [...releaseTargets];
+}
+
+function defaultDevUploadTarget(): PackageTarget {
+  const explicitTarget = process.env['EMDASH_WS_DEV_REMOTE_TARGET']?.trim();
+  if (explicitTarget !== undefined && explicitTarget.length > 0) {
+    return parsePackageTarget(explicitTarget);
+  }
+  return parsePackageTarget(process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64');
+}
+
+async function resolveLatestDevArtifactVersion(targets: readonly PackageTarget[]): Promise<string> {
+  if (targets.length !== 1) {
+    throw new Error('--version is required when uploading multiple targets');
+  }
+
+  const target = targets[0];
+  if (target === undefined) throw new Error('At least one upload target is required');
+
+  const entries = await readdir(artifactsDirectory, { withFileTypes: true });
+  let latest: { archiveName: string; version: string; mtimeMs: number } | undefined;
+  for (const entry of entries) {
+    if (!entry.isFile() || entry.name.endsWith('.sha256')) continue;
+    const version = artifactVersionFromArchiveName(entry.name, target);
+    if (version === undefined) continue;
+    const archivePath = join(artifactsDirectory, entry.name);
+    const { mtimeMs } = await stat(archivePath);
+    if (latest === undefined || mtimeMs > latest.mtimeMs) {
+      latest = { archiveName: entry.name, version, mtimeMs };
+    }
+  }
+
+  if (latest === undefined) {
+    throw new Error(
+      `No workspace-server ${target.id} artifact found under ${artifactsDirectory}; run pnpm run package --target ${target.id}`
+    );
+  }
+
+  process.stdout.write(`Using ${latest.archiveName} for dev upload\n`);
+  return latest.version;
 }
 
 async function validateArtifacts(

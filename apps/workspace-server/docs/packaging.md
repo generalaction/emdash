@@ -100,17 +100,19 @@ service from `docker-compose.yaml`:
 pnpm run dev:remote
 ```
 
-For manual iteration after minio is running, package one Linux target with an explicit dev version
-and upload only that target:
+For manual iteration after minio is running, package one Linux target and publish the newest
+matching artifact:
 
 ```bash
 EMDASH_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
-pnpm run upload:dev -- --version 0.1.0-dev.manual --target linux-arm64
+pnpm run upload:dev
 ```
 
 `upload:dev` points the S3 uploader at `http://localhost:9000/emdash-releases` with the local minio
-credentials. It uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
-updates `workspace-server/install.sh` and `workspace-server/latest.txt` last.
+credentials. It defaults to the host's Linux target, picks the newest matching artifact under
+`dist-artifacts/`, uploads `workspace-server/<version>/<artifact>` and its `.sha256` sidecar, then
+updates `workspace-server/install.sh` and `workspace-server/latest.txt` last. Pass `--version` and
+`--target` when you need an explicit override.
 
 Downloaded Node archives are cached under `~/.cache/emdash/workspace-server/`. Set
 `EMDASH_WS_PACKAGE_CACHE_DIR` to use another cache directory.

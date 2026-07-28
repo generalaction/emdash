@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parsePackageTarget } from './package-helpers';
 import {
+  artifactVersionFromArchiveName,
   contentTypeForObjectKey,
   expectedArtifactNames,
   immutableUploadDecision,
@@ -28,6 +29,22 @@ describe('workspace-server R2 upload helpers', () => {
       'emdash-workspace-server-1.2.3-linux-arm64.tar.gz',
       'emdash-workspace-server-1.2.3-linux-arm64.tar.gz.sha256',
     ]);
+  });
+
+  it('parses versions from target artifact archive names', () => {
+    const linuxArm64 = parsePackageTarget('linux-arm64');
+    expect(
+      artifactVersionFromArchiveName(
+        'emdash-workspace-server-1.2.3-dev.abc123.1234567890-linux-arm64.tar.gz',
+        linuxArm64
+      )
+    ).toBe('1.2.3-dev.abc123.1234567890');
+    expect(
+      artifactVersionFromArchiveName(
+        'emdash-workspace-server-1.2.3-dev.abc123.1234567890-linux-x64.tar.gz',
+        linuxArm64
+      )
+    ).toBeUndefined();
   });
 
   it('places every object under the workspace-server prefix', () => {

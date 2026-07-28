@@ -16,7 +16,7 @@
     "dev:remote": "node --experimental-strip-types scripts/dev-remote.ts",
     "dev:remote-app": "EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=http://minio:9000/emdash-releases/workspace-server EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 pnpm --dir ../emdash-desktop run dev",
     "package": "node --experimental-strip-types scripts/package.ts",
-    "upload:dev": "EMDASH_WS_UPLOAD_ENDPOINT=http://localhost:9000/emdash-releases EMDASH_WS_UPLOAD_ACCESS_KEY=minioadmin EMDASH_WS_UPLOAD_SECRET_KEY=minioadmin node --experimental-strip-types scripts/upload-r2.ts",
+    "upload:dev": "EMDASH_WS_DEV_UPLOAD=1 EMDASH_WS_UPLOAD_ENDPOINT=http://localhost:9000/emdash-releases EMDASH_WS_UPLOAD_ACCESS_KEY=minioadmin EMDASH_WS_UPLOAD_SECRET_KEY=minioadmin node --experimental-strip-types scripts/upload-r2.ts",
     "upload:r2": "node --experimental-strip-types scripts/upload-r2.ts",
     "run:docker-remote": "docker compose up --build -d minio minio-setup workspace-remote",
     "start": "node dist/index.mjs",

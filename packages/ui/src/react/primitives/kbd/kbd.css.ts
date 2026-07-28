@@ -8,20 +8,17 @@ export const kbd = style({
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
-  width: 'fit-content',
-  minWidth: '1.25rem',
-  height: '1.25rem',
-  gap: tokenVars.space1,
+  minWidth: '1.15rem',
+  height: '1.15rem',
+  width: '1rem',
   borderRadius: tokenVars.radiusSm,
   border: `1px solid ${vars.borderSubtle}`,
   backgroundColor: vars.backgroundSecondary,
-  boxShadow: 'inset 0 -1px 0 rgba(255, 255, 255, 0.05)',
   color: vars.foregroundMuted,
   fontFamily: tokenVars.fontSans,
-  fontSize: tokenVars.textTiny,
-  fontWeight: tokenVars.fontWeightMedium,
+  fontSize: '10px',
+  fontWeight: 400,
   lineHeight: 1,
-  paddingInline: tokenVars.space1,
   userSelect: 'none',
 });
 
@@ -33,23 +30,5 @@ globalStyle(`${kbd} svg:not([class*='size-'])`, {
 export const kbdGroup = style({
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 0,
-});
-
-globalStyle(`${kbdGroup} > ${kbd}`, {
-  minWidth: 0,
-  borderRadius: 0,
-  paddingInline: 0,
-});
-
-globalStyle(`${kbdGroup} > ${kbd}:first-child`, {
-  borderTopLeftRadius: tokenVars.radiusSm,
-  borderBottomLeftRadius: tokenVars.radiusSm,
-  paddingLeft: tokenVars.space1,
-});
-
-globalStyle(`${kbdGroup} > ${kbd}:last-child`, {
-  borderTopRightRadius: tokenVars.radiusSm,
-  borderBottomRightRadius: tokenVars.radiusSm,
-  paddingRight: tokenVars.space1,
+  gap: '0.1rem',
 });

@@ -1,5 +1,6 @@
 import { Box } from '@react/primitives/box';
 import { Button, type ButtonVariant } from '@react/primitives/button';
+import { Kbd, KbdGroup } from '@react/primitives/kbd';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import * as s from '@react/story-layout.css';
@@ -137,6 +138,52 @@ export const AcrossSurfaces: Story = {
           </Box>
         )
       )}
+    </Box>
+  ),
+};
+
+/** Buttons with trailing keyboard shortcuts, across variants and sizes. */
+export const WithShortcuts: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="3" alignItems="flex-start">
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+        {buttonVariants.map((variant) => (
+          <Button key={variant} variant={variant}>
+            {variant}
+            <Kbd>K</Kbd>
+          </Button>
+        ))}
+      </Box>
+
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+        {buttonVariants.map((variant) => (
+          <Button key={variant} variant={variant} size="sm">
+            {variant}
+            <KbdGroup>
+              <Kbd>⌘</Kbd>
+              <Kbd>K</Kbd>
+            </KbdGroup>
+          </Button>
+        ))}
+      </Box>
+
+      <Box display="flex" flexWrap="wrap" alignItems="center" gap="2">
+        <Button variant="primary">
+          Command palette
+          <KbdGroup>
+            <Kbd>⌘</Kbd>
+            <Kbd>⇧</Kbd>
+            <Kbd>P</Kbd>
+          </KbdGroup>
+        </Button>
+        <Button variant="secondary" size="sm">
+          Save
+          <KbdGroup>
+            <Kbd>⌘</Kbd>
+            <Kbd>S</Kbd>
+          </KbdGroup>
+        </Button>
+      </Box>
     </Box>
   ),
 };

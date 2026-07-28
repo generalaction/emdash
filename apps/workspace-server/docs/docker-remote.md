@@ -84,14 +84,16 @@ protocol upgrade.
 ## Re-publish Without Restarting Docker
 
 After `pnpm run dev:remote` has started minio, you can rebuild and publish a specific version and
-target manually:
+target manually. `upload:dev` defaults to the host's Linux target and uploads the newest matching
+archive under `dist-artifacts/`:
 
 ```bash
 EMDASH_WS_DEV_VERSION=0.1.0-dev.manual pnpm run package --target linux-arm64
-pnpm run upload:dev -- --version 0.1.0-dev.manual --target linux-arm64
+pnpm run upload:dev
 ```
 
-Use the target that matches the container architecture. With the desktop running in dev-auto-update
+Use `EMDASH_WS_DEV_REMOTE_TARGET=linux-x64` when publishing an x64 artifact from Apple Silicon, or
+pass `--version` / `--target` to override detection. With the desktop running in dev-auto-update
 mode, the next ensure/reconnect sees the new `latest.txt`, reinstalls, and restarts the daemon.
 
 Run the desktop connection smoke test against the installed daemon:
