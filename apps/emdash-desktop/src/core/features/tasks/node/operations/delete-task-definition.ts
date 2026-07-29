@@ -31,6 +31,7 @@ import {
   isResumedOperation,
   operationNeedsConfirmation,
   runOperationActions,
+  type OperationActionContext,
   type OperationDefinition,
   type OperationSubmit,
   type OperationsEngine,
@@ -169,8 +170,11 @@ export function createDeleteTaskOperationDefinition(
         actions.push({
           id: 'deactivate-workspace',
           timeoutMs: WORKSPACE_TIMEOUT_MS,
-          run: async () =>
-            deactivateLifecycleWorkspace(dependencies.lifecycleCleanup, operation, context),
+          run: async (signal: AbortSignal, actionContext: OperationActionContext) =>
+            deactivateLifecycleWorkspace(dependencies.lifecycleCleanup, operation, context, {
+              signal,
+              onWaitingChange: actionContext.reportWaiting,
+            }),
         });
       }
       if (context.task && shouldTeardown) {

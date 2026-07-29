@@ -806,6 +806,8 @@ function cleanupStatusLabel(cleanup: DeletionState): string {
       return 'Needs review';
     case 'failed':
       return 'Failed';
+    case 'waiting':
+      return 'Waiting for workspace';
     case 'cleaning':
       return 'Cleaning';
   }

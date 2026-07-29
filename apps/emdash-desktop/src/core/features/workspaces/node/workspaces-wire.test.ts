@@ -33,4 +33,16 @@ describe('provisionWorkspaceErrorToWorkspaceError', () => {
       resolutions: ['clone-destination-exists'],
     });
   });
+
+  it('maps cancelled provisioning without setup failure context', () => {
+    expect(
+      provisionWorkspaceErrorToWorkspaceError({
+        type: 'cancelled',
+        message: 'Workspace operation was preempted by teardown',
+      })
+    ).toEqual({
+      type: 'cancelled',
+      message: 'Workspace operation was preempted by teardown',
+    });
+  });
 });

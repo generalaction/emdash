@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createKeyedLanes, createScope, type Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import {
   createLiveModelHost,
   createLiveJobReplica,
@@ -75,7 +76,17 @@ type WorkspaceRuntimeRecord = {
   state: LiveSource;
   binding: { dispose(): void };
   scope: Scope;
+  currentOperation?: RuntimeOperation;
 };
+
+type RuntimeOperation = {
+  kind: WorkspaceOperationKind;
+  operationId: string;
+  controller: AbortController;
+  settled: Promise<void>;
+};
+
+const PREEMPT_SETTLE_TIMEOUT_MS = 30_000;
 
 export type WorkspaceRuntimeOptions = {
   lifecycle?: WorkspaceLifecycleManager;
@@ -100,6 +111,7 @@ export class WorkspaceRuntime {
   private readonly records = new Map<string, WorkspaceRuntimeRecord>();
   private readonly activity: WorkspaceActivityIndex;
   private readonly topologyObserver: WorkspaceTopologyObserver;
+  private readonly reconcileLanes = createKeyedLanes();
 
   constructor(options: WorkspaceRuntimeOptions = {}) {
     this.host = createLiveModelHost(workspaceContract.workspace);
@@ -111,8 +123,13 @@ export class WorkspaceRuntime {
     this.onError = options.onError ?? (() => {});
     this.activity = new WorkspaceActivityIndex((workspace) => this.syncActivity(workspace));
     this.topologyObserver = new WorkspaceTopologyObserver(options.watcher, (workspace) => {
-      void this.reconcile({ workspace }).catch((error) =>
-        this.onError('workspace topology reconcile', error)
+      this.reconcileLanes.coalesce(
+        resourceKeyFromFileRef(workspace),
+        async () => {
+          const result = await this.reconcile({ workspace });
+          if (!result.success) throw result.error;
+        },
+        (error) => this.onError('workspace topology reconcile', error)
       );
     });
 
@@ -218,10 +235,10 @@ export class WorkspaceRuntime {
       input.workspace,
       (operationId, startedAt) => ({ type: 'Provision', operationId, startedAt }),
       ctx,
-      async (stage) => {
+      async (stage, operationCtx) => {
         const record = this.recordFor(input.workspace);
         stage.start('inspect', 'Inspect workspace');
-        await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        await this.inspectAndPublish(record, input.workspace, operationCtx.signal);
         stage.done('inspect');
 
         if (input.lifecycle?.setupPlan && input.lifecycle.setupPlan.steps.length > 0) {
@@ -233,7 +250,7 @@ export class WorkspaceRuntime {
               plan: input.lifecycle.setupPlan,
               phase: 'provision',
             },
-            ctx,
+            operationCtx,
             stage,
             'lifecycle'
           );
@@ -244,7 +261,7 @@ export class WorkspaceRuntime {
         }
 
         stage.start('refresh', 'Refresh workspace');
-        const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        const topology = await this.inspectAndPublish(record, input.workspace, operationCtx.signal);
         if (!topology.success) return topology;
         stage.done('refresh');
         return ok({
@@ -264,10 +281,10 @@ export class WorkspaceRuntime {
       input.workspace,
       (operationId, startedAt) => ({ type: 'Convert', operationId, startedAt }),
       ctx,
-      async (stage) => {
+      async (stage, operationCtx) => {
         const record = this.recordFor(input.workspace);
         stage.start('convert', 'Convert workspace');
-        const converted = await this.provisioner.convert(input, { signal: ctx.signal });
+        const converted = await this.provisioner.convert(input, { signal: operationCtx.signal });
         if (!converted.success) return converted;
         record.machine.apply({ type: 'TopologyObserved', topology: converted.data });
         stage.done('convert');
@@ -301,10 +318,10 @@ export class WorkspaceRuntime {
         consumerId: input.consumerId,
       }),
       ctx,
-      async (stage) => {
+      async (stage, operationCtx) => {
         const record = this.recordFor(input.workspace);
         stage.start('inspect', 'Inspect workspace');
-        const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        const topology = await this.inspectAndPublish(record, input.workspace, operationCtx.signal);
         if (!topology.success) return topology;
         stage.done('inspect');
 
@@ -315,7 +332,7 @@ export class WorkspaceRuntime {
           const prepareResult = await this.runTerminalsPrepare(
             input.workspace,
             input.automation,
-            ctx,
+            operationCtx,
             stage
           );
           if (!prepareResult.success) return prepareResult;
@@ -344,7 +361,7 @@ export class WorkspaceRuntime {
       input.workspace,
       (operationId, startedAt) => ({ type: 'Deactivate', operationId, startedAt }),
       ctx,
-      async (stage) => {
+      async (stage, operationCtx) => {
         const record = this.recordFor(input.workspace);
         record.machine.apply({ type: 'ConsumerDeactivated', consumerId: input.consumerId });
 
@@ -365,7 +382,7 @@ export class WorkspaceRuntime {
                 plan: input.lifecycle.deactivationPlan,
                 phase: 'setup',
               },
-              ctx,
+              operationCtx,
               stage,
               'deactivation-plan'
             );
@@ -375,7 +392,7 @@ export class WorkspaceRuntime {
             stage.skip('deactivation-plan', 'Run deactivation plan');
           }
 
-          await this.runTerminalsTeardown(input.workspace, input.automation, ctx, stage);
+          await this.runTerminalsTeardown(input.workspace, input.automation, operationCtx, stage);
           await this.killTerminalsScope(input.workspace);
         }
 
@@ -397,12 +414,12 @@ export class WorkspaceRuntime {
         force: input.force,
       }),
       ctx,
-      async (stage) => {
+      async (stage, operationCtx) => {
         const record = this.recordFor(input.workspace);
         const teardownPlan =
           input.lifecycle && !input.lifecycle.teardownPlan
             ? compileTeardownFromProbe(
-                await probeWorkspace(input.lifecycle.ref, { signal: ctx.signal }),
+                await probeWorkspace(input.lifecycle.ref, { signal: operationCtx.signal }),
                 input.lifecycle.ref,
                 { deleteBranch: input.lifecycle.deleteBranch }
               )
@@ -418,7 +435,7 @@ export class WorkspaceRuntime {
               phase: 'teardown',
               force: input.force,
             },
-            ctx,
+            operationCtx,
             stage,
             'teardown-plan'
           );
@@ -428,7 +445,7 @@ export class WorkspaceRuntime {
           stage.skip('teardown-plan', 'Remove workspace');
         }
 
-        const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        const topology = await this.inspectAndPublish(record, input.workspace, operationCtx.signal);
         if (!topology.success) return topology;
         return ok({
           workspace: input.workspace,
@@ -447,10 +464,10 @@ export class WorkspaceRuntime {
       input.workspace,
       (operationId, startedAt) => ({ type: 'CleanArtifacts', operationId, startedAt }),
       ctx,
-      async (stage) => {
+      async (stage, operationCtx) => {
         const workspacePath = nativePathFromWorkspace(input.workspace);
         stage.start('scan', 'Find ignored artifacts');
-        const artifacts = await listIgnoredArtifacts(workspacePath, ctx.signal);
+        const artifacts = await listIgnoredArtifacts(workspacePath, operationCtx.signal);
         if (!artifacts.success) return err(artifacts.error);
         const cleanable = artifacts.data.filter(
           (artifact) => !matchesPreservePatterns(artifact.relativePath, input.preservePatterns)
@@ -465,7 +482,9 @@ export class WorkspaceRuntime {
         stage.start('delete', 'Delete ignored artifacts');
         for (let index = 0; index < cleanable.length; index += 1) {
           const artifact = cleanable[index];
-          if (ctx.signal.aborted) return err({ type: 'cancelled', message: 'Operation cancelled' });
+          if (operationCtx.signal.aborted) {
+            return err({ type: 'cancelled', message: 'Operation cancelled' });
+          }
           await rm(artifact.absolutePath, { recursive: true, force: true });
           stage.update('delete', {
             percent: Math.round(((index + 1) / Math.max(cleanable.length, 1)) * 100),
@@ -533,20 +552,47 @@ export class WorkspaceRuntime {
     workspace: HostFileRef,
     commandFactory: (operationId: string, startedAt: number) => WorkspaceCommand,
     ctx: LiveJobContext<WorkspaceOperationProgress>,
-    run: (stage: StageReporter) => Promise<Result<T, WorkspaceError>>
+    run: (
+      stage: StageReporter,
+      ctx: LiveJobContext<WorkspaceOperationProgress>
+    ) => Promise<Result<T, WorkspaceError>>
   ): Promise<Result<T, WorkspaceError>> {
     const record = this.recordFor(workspace);
     const startedAt = this.now();
     const command = commandFactory(ctx.jobId, startedAt);
+    if (command.type === 'Teardown') {
+      const preempted = await this.preemptForTeardown(record, ctx.signal);
+      if (!preempted.success) return preempted;
+    }
     const started = record.machine.dispatch(command, undefined);
     if (!started.success) {
       return started;
     }
 
     const kind = operationKindForCommand(command);
+    const controller = new AbortController();
+    const operationCtx = {
+      ...ctx,
+      signal: controller.signal,
+    };
+    const abortOperation = () => {
+      if (!controller.signal.aborted) controller.abort(ctx.signal.reason);
+    };
+    if (ctx.signal.aborted) abortOperation();
+    else ctx.signal.addEventListener('abort', abortOperation, { once: true });
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    record.currentOperation = {
+      kind,
+      operationId: ctx.jobId,
+      controller,
+      settled,
+    };
     const stage = new StageReporter(kind, ctx.jobId, ctx);
     try {
-      const result = await run(stage);
+      const result = await run(stage, operationCtx);
       if (result.success) {
         record.machine.apply({ type: 'OperationCompleted' });
       } else {
@@ -559,6 +605,40 @@ export class WorkspaceRuntime {
       record.machine.apply({ type: 'OperationFailed', error: workspaceError });
       stage.failCurrent(workspaceError);
       return err(workspaceError);
+    } finally {
+      ctx.signal.removeEventListener('abort', abortOperation);
+      if (record.currentOperation?.operationId === ctx.jobId) {
+        record.currentOperation = undefined;
+      }
+      settle();
+    }
+  }
+
+  private async preemptForTeardown(
+    record: WorkspaceRuntimeRecord,
+    signal: AbortSignal
+  ): Promise<Result<void, WorkspaceError>> {
+    const current = record.currentOperation;
+    if (!current || current.kind === 'teardown') return ok(undefined);
+
+    if (!current.controller.signal.aborted) {
+      current.controller.abort({
+        type: 'cancelled',
+        message: 'Workspace operation was preempted by teardown',
+      } satisfies WorkspaceError);
+    }
+
+    try {
+      await runWithTimeout(() => current.settled, {
+        timeoutMs: PREEMPT_SETTLE_TIMEOUT_MS,
+        signal,
+      });
+      return ok(undefined);
+    } catch (error) {
+      if (error instanceof TimeoutError) {
+        return err(operationInFlight(record.machine.current().operation.kind));
+      }
+      return err(toWorkspaceError(error));
     }
   }
 
@@ -785,6 +865,16 @@ function operationKindForCommand(command: WorkspaceCommand): WorkspaceOperationK
     case 'CleanArtifacts':
       return 'clean-artifacts';
   }
+}
+
+function operationInFlight(kind: WorkspaceOperationKind | 'idle'): WorkspaceError {
+  return {
+    type: 'operation-in-flight',
+    message:
+      kind === 'idle'
+        ? 'Workspace operation did not settle before teardown'
+        : `Workspace already has an active ${kind} operation`,
+  };
 }
 
 class StageReporter {

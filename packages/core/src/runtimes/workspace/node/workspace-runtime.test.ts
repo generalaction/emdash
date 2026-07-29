@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { err, ok, type Unsubscribe } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
 import type { LiveJobContext } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
@@ -20,6 +21,7 @@ import {
 } from '@services/script-workflows/api';
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceActivityProvider } from './activity';
+import type { WorkspaceProvisioner } from './provisioning/provisioner';
 import { WorkspaceRuntime } from './workspace-runtime';
 
 const execFileAsync = promisify(execFile);
@@ -62,6 +64,67 @@ describe('WorkspaceRuntime', () => {
       if (!result.success) {
         expect(result.error.type).toBe('workspace-busy');
       }
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('preempts an in-flight activation before teardown', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const activationInspectStarted = deferred<void>();
+      let inspectCount = 0;
+      const provisioner: WorkspaceProvisioner = {
+        async inspect(_workspace, options) {
+          inspectCount += 1;
+          if (inspectCount === 2) {
+            activationInspectStarted.resolve();
+            return await new Promise((resolve) => {
+              options?.signal?.addEventListener(
+                'abort',
+                () =>
+                  resolve(
+                    err({
+                      type: 'cancelled',
+                      message: 'Activation inspect was cancelled',
+                    })
+                  ),
+                { once: true }
+              );
+            });
+          }
+          return ok({ kind: 'directory' });
+        },
+        async provision() {
+          return ok({ kind: 'directory' });
+        },
+        async convert() {
+          return ok({ kind: 'directory' });
+        },
+        async remove() {
+          return ok(undefined);
+        },
+      };
+      const runtime = new WorkspaceRuntime({ provisioner });
+
+      const activation = runtime.activate(
+        { workspace, consumerId: 'task-1' },
+        jobContext('activate-1')
+      );
+      await activationInspectStarted.promise;
+
+      const teardown = await runtime.teardown({ workspace, force: true }, jobContext('teardown-1'));
+      const activationResult = await activation;
+
+      expect(teardown.success).toBe(true);
+      expect(activationResult.success).toBe(false);
+      if (!activationResult.success) {
+        expect(activationResult.error.type).toBe('cancelled');
+      }
+      expect(runtime.host.get(workspace)?.states.state.snapshot().data.operation.kind).toBe('idle');
 
       runtime.dispose();
     } finally {

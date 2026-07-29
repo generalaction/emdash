@@ -35,6 +35,7 @@ import type {
   OperationsNotificationPublisher,
   OperationsSshManager,
 } from './definition';
+import { createDurableQueue, type DurableQueue } from './durable-queue';
 import {
   nextOperationStatus,
   requireNextOperationStatus,
@@ -80,9 +81,8 @@ export class OperationsEngine {
   private readonly notifications: OperationsNotificationPublisher;
   private readonly definitions: Map<OperationKind, OperationDefinition>;
   private readonly clock: Clock;
+  private readonly queue: DurableQueue;
   private started = false;
-  private drainRequested = false;
-  private drainPromise: Promise<void> | undefined;
   private readonly progress = new Map<string, OperationProgress>();
   private readonly deletionStateKeys = new Map<string, DeletionStateKey>();
   private readonly deletionStates: ReturnType<
@@ -96,6 +96,15 @@ export class OperationsEngine {
     this.notifications = deps.notifications;
     this.clock = deps.clock ?? systemClock;
     this.definitions = definitionMap(deps.definitions);
+    this.queue = createDurableQueue({
+      scope: this.scope,
+      list: () => this.queuedOperations(),
+      laneOf: (operation) => operation.hostRef,
+      isRunnable: (operation) => this.operationIsRunnable(operation),
+      run: (operation, signal) => this.runQueuedOperation(operation, signal),
+      onError: (error) => log.error('lifecycle operations drain failed', { error }),
+      onPass: () => this.refreshDeletionStates(),
+    });
     this.deletionStates = createResourceCache<DeletionStateKey, ComputedLiveState<DeletionList>>({
       scope: this.scope,
       label: 'deletion-states',
@@ -305,25 +314,11 @@ export class OperationsEngine {
 
   poke(): void {
     if (!this.started || this.scope.disposed) return;
-    this.drainRequested = true;
-    if (this.drainPromise) return;
-    this.drainPromise = this.scope
-      .run('drain', async (signal) => {
-        while (this.drainRequested && !signal.aborted) {
-          this.drainRequested = false;
-          await this.drain(signal);
-        }
-      })
-      .value()
-      .catch((error) => log.error('lifecycle operations drain failed', { error }))
-      .finally(() => {
-        this.drainPromise = undefined;
-        if (this.drainRequested) this.poke();
-      });
+    this.queue.poke();
   }
 
   async waitForIdle(): Promise<void> {
-    while (this.drainPromise) await this.drainPromise;
+    await this.queue.waitForIdle();
   }
 
   async waitForConflictingCleanup(input: {
@@ -362,33 +357,38 @@ export class OperationsEngine {
     });
   }
 
-  private async drain(signal: AbortSignal): Promise<void> {
-    let madeProgress = true;
-    while (madeProgress && !signal.aborted) {
-      madeProgress = false;
-      const operations = await this.db
-        .select()
-        .from(lifecycleOperations)
-        .where(inArray(lifecycleOperations.status, ['pending', 'running']))
-        .orderBy(lifecycleOperations.createdAt);
+  private async queuedOperations(): Promise<LifecycleOperationRow[]> {
+    return await this.db
+      .select()
+      .from(lifecycleOperations)
+      .where(inArray(lifecycleOperations.status, ['pending', 'running']))
+      .orderBy(lifecycleOperations.createdAt);
+  }
 
-      for (const operation of operations) {
-        if (signal.aborted) return;
-        const definition = this.definitions.get(operation.kind);
-        if (!definition) {
-          await this.failMissingDefinition(operation);
-          madeProgress = true;
-          continue;
-        }
-        if (!this.hostIsOnline(operation.hostRef)) continue;
-        if (definition.isReady && !(await definition.isReady({ operation, db: this.db }))) {
-          continue;
-        }
-        await this.run(operation, definition, signal);
-        madeProgress = true;
-      }
+  private async operationIsRunnable(operation: LifecycleOperationRow): Promise<boolean> {
+    const definition = this.definitions.get(operation.kind);
+    if (!definition) return true;
+    if (!this.hostIsOnline(operation.hostRef)) return false;
+    if (definition.isReady && !(await definition.isReady({ operation, db: this.db }))) {
+      return false;
     }
-    await this.refreshDeletionStates();
+    return true;
+  }
+
+  private async runQueuedOperation(
+    operation: LifecycleOperationRow,
+    signal: AbortSignal
+  ): Promise<void> {
+    const definition = this.definitions.get(operation.kind);
+    if (!definition) {
+      await this.failMissingDefinition(operation);
+      return;
+    }
+    if (!this.hostIsOnline(operation.hostRef)) return;
+    if (definition.isReady && !(await definition.isReady({ operation, db: this.db }))) {
+      return;
+    }
+    await this.run(operation, definition, signal);
   }
 
   private async run(
@@ -749,6 +749,7 @@ function toDeletionState(
     case 'pending':
       return { ...base, status: hostOnline ? 'cleaning' : 'blocked-host-offline' };
     case 'running':
+      if (progress?.waiting) return { ...base, status: 'waiting' };
       return { ...base, status: 'cleaning' };
     case 'awaiting-confirmation':
       return {

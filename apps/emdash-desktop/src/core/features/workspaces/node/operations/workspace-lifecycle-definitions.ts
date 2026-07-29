@@ -174,13 +174,20 @@ export function createArchiveWorkspaceOperationDefinition(
           {
             id: 'deactivate-workspace',
             timeoutMs: WORKSPACE_TIMEOUT_MS,
-            run: async () => deactivateLifecycleWorkspace(dependencies.cleanup, operation, context),
+            run: async (signal, actionContext) =>
+              deactivateLifecycleWorkspace(dependencies.cleanup, operation, context, {
+                signal,
+                onWaitingChange: actionContext.reportWaiting,
+              }),
           },
           {
             id: 'clean-artifacts',
             timeoutMs: WORKSPACE_TIMEOUT_MS,
-            run: async () =>
-              cleanLifecycleWorkspaceArtifacts(dependencies.cleanup, operation, context),
+            run: async (signal, actionContext) =>
+              cleanLifecycleWorkspaceArtifacts(dependencies.cleanup, operation, context, {
+                signal,
+                onWaitingChange: actionContext.reportWaiting,
+              }),
           }
         );
       }

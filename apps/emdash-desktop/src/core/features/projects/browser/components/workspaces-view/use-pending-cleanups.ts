@@ -104,6 +104,7 @@ export function usePendingCleanups(projectId: string): {
           (cleanup) =>
             cleanup.projectId === projectId &&
             (cleanup.status === 'awaiting-confirmation' ||
+              cleanup.status === 'waiting' ||
               cleanup.status === 'blocked-host-offline' ||
               cleanup.status === 'failed')
         )

@@ -5,7 +5,11 @@ import type { OperationRunContext, OperationRunError } from './definition';
 export type OperationAction = {
   id: string;
   timeoutMs: number;
-  run(signal: AbortSignal): Promise<void>;
+  run(signal: AbortSignal, context: OperationActionContext): Promise<void>;
+};
+
+export type OperationActionContext = {
+  reportWaiting(waiting: boolean): void;
 };
 
 export async function runOperationActions(
@@ -16,17 +20,26 @@ export async function runOperationActions(
   context.reportProgress({ completedSteps, totalSteps: actions.length });
 
   for (const action of actions) {
-    context.reportProgress({
-      currentStep: action.id,
-      completedSteps,
-      totalSteps: actions.length,
-    });
-    try {
-      await runWithTimeout((signal) => action.run(signal), {
-        timeoutMs: action.timeoutMs,
-        signal: context.signal,
-        clock: context.clock,
+    const reportCurrentStep = (waiting?: boolean) =>
+      context.reportProgress({
+        currentStep: action.id,
+        completedSteps,
+        totalSteps: actions.length,
+        waiting,
       });
+    reportCurrentStep();
+    try {
+      await runWithTimeout(
+        (signal) =>
+          action.run(signal, {
+            reportWaiting: (waiting) => reportCurrentStep(waiting),
+          }),
+        {
+          timeoutMs: action.timeoutMs,
+          signal: context.signal,
+          clock: context.clock,
+        }
+      );
     } catch (error) {
       const timedOut = error instanceof TimeoutError;
       const code =

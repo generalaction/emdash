@@ -20,6 +20,7 @@ export type OperationProgress = {
   currentStep?: string;
   completedSteps: number;
   totalSteps: number;
+  waiting?: boolean;
 };
 
 export type OperationDescription = {

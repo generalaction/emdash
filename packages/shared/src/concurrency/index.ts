@@ -7,6 +7,7 @@ export {
   type CreateBoundedBufferOptions,
 } from './bounded-buffer';
 export { ConcurrencyLimiter } from './concurrency-limiter';
+export { createKeyedLanes, type CreateKeyedLanesOptions, type KeyedLanes } from './keyed-lanes';
 export {
   LifecycleRegistry,
   type LifecycleRegistryObserver,

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Box } from '../../primitives/box';
 import { Button } from '../../primitives/button';
 import { useAsyncAction } from '../../primitives/hooks/use-async-action';
 import { Pill } from '../pill/pill';
@@ -145,21 +146,23 @@ export function UpdateCard({
   };
 
   return (
-    <div className={styles.row}>
-      <StatusIcon size="lg" severity={getStatusSeverity()} />
-      <div className={styles.rowBody}>
-        <div className={styles.rowTitle}>
-          {renderStatusLabel()}
-          {error && (
-            <Pill variant="error" className={styles.errorPill} title={error.message}>
-              {error.message}
-            </Pill>
-          )}
+    <Box surface="sunken" borderRadius="md" padding="2" px="3" className="min-w-0">
+      <div className={styles.row}>
+        <StatusIcon size="lg" severity={getStatusSeverity()} />
+        <div className={styles.rowBody}>
+          <div className={styles.rowTitle}>
+            {renderStatusLabel()}
+            {error && (
+              <Pill variant="error" className={styles.errorPill} title={error.message}>
+                {error.message}
+              </Pill>
+            )}
+          </div>
+          <div className={styles.rowDescription}>{renderStatusDescription()}</div>
         </div>
-        <div className={styles.rowDescription}>{renderStatusDescription()}</div>
+        <div className={styles.rowControls}>{renderActionButton()}</div>
       </div>
-      <div className={styles.rowControls}>{renderActionButton()}</div>
-    </div>
+    </Box>
   );
 }
 

@@ -27,6 +27,9 @@ export const deletionStateSchema = z.discriminatedUnion('status', [
     status: z.literal('cleaning'),
   }),
   deletionBaseSchema.extend({
+    status: z.literal('waiting'),
+  }),
+  deletionBaseSchema.extend({
     status: z.literal('blocked-host-offline'),
   }),
   deletionBaseSchema.extend({

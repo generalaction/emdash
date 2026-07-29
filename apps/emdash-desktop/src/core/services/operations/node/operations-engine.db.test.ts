@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { ManualClock } from '@emdash/shared/testing';
+import { deferred, ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -265,6 +265,88 @@ describe('OperationsEngine', () => {
     expect(row).toMatchObject({ status: 'succeeded', attempt: 1 });
   });
 
+  it('projects running operations with waiting progress as waiting cleanups', async () => {
+    fixture = await openFixture('empty');
+    const releaseRun = deferred<void>();
+    const run = vi.fn<OperationDefinition['run']>(async (context) => {
+      context.reportProgress({
+        currentStep: 'deactivate-workspace',
+        completedSteps: 0,
+        totalSteps: 1,
+        waiting: true,
+      });
+      await releaseRun.promise;
+      return ok(undefined);
+    });
+    handle = await createTestEngine({ run });
+
+    await handle.engine.submit(async () =>
+      ok({ outcome: 'enqueue', draft: operationDraft('task-1') })
+    );
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+
+    const lease = handle.engine.acquireDeletionState('task', 'task-1');
+    const source = await lease.ready();
+    const list = (await source.snapshot()).data as DeletionList;
+    expect(list['task-1']).toMatchObject({
+      status: 'waiting',
+      currentStep: 'deactivate-workspace',
+    });
+    await lease.release();
+
+    releaseRun.resolve();
+    await handle.engine.waitForIdle();
+  });
+
+  it('runs operations on another host while a host lane is blocked', async () => {
+    fixture = await openFixture('empty');
+    const releaseRemote = deferred<void>();
+    const calls: string[] = [];
+    const run = vi.fn<OperationDefinition['run']>(async ({ operation }) => {
+      calls.push(operation.entityKey ?? operation.id);
+      if (operation.hostRef === 'remote-1') await releaseRemote.promise;
+      return ok(undefined);
+    });
+    handle = await createTestEngine({ run });
+
+    await fixture.db
+      .insert(lifecycleOperations)
+      .values([operationRow('remote-task', 'remote-1', 1), operationRow('local-task', 'local', 2)]);
+
+    handle.engine.poke();
+    await vi.waitFor(() => expect(calls).toEqual(['remote-task', 'local-task']));
+
+    const localRow = await operationByEntityKey('local-task');
+    expect(localRow).toMatchObject({ status: 'succeeded' });
+
+    releaseRemote.resolve();
+    await handle.engine.waitForIdle();
+    expect(await operationStatusByEntityKey('remote-task')).toBe('succeeded');
+  });
+
+  it('preserves FIFO order within a host lane', async () => {
+    fixture = await openFixture('empty');
+    const calls: string[] = [];
+    const run = vi.fn<OperationDefinition['run']>(async ({ operation }) => {
+      calls.push(operation.entityKey ?? operation.id);
+      return ok(undefined);
+    });
+    handle = await createTestEngine({ run });
+
+    await fixture.db
+      .insert(lifecycleOperations)
+      .values([
+        operationRow('remote-1', 'remote-1', 1),
+        operationRow('remote-2', 'remote-1', 2),
+        operationRow('remote-3', 'remote-1', 3),
+      ]);
+
+    handle.engine.poke();
+    await handle.engine.waitForIdle();
+
+    expect(calls).toEqual(['remote-1', 'remote-2', 'remote-3']);
+  });
+
   it('runs definition reconciliation through the generic scheduler', async () => {
     fixture = await openFixture('empty');
     const reconcile = vi.fn<NonNullable<OperationDefinition['reconcile']>>(async ({ submit }) => {
@@ -318,6 +400,18 @@ describe('OperationsEngine', () => {
     const [row] = await fixture.db.select().from(lifecycleOperations);
     return row?.status;
   }
+
+  async function operationByEntityKey(entityKey: string) {
+    const [row] = await fixture.db
+      .select()
+      .from(lifecycleOperations)
+      .where(eq(lifecycleOperations.entityKey, entityKey));
+    return row;
+  }
+
+  async function operationStatusByEntityKey(entityKey: string) {
+    return (await operationByEntityKey(entityKey))?.status;
+  }
 });
 
 function definition(
@@ -354,6 +448,17 @@ function operationDraft(entityKey: string, hostRef = 'local') {
       source: 'user' as const,
       entityName: entityKey,
     },
+  };
+}
+
+function operationRow(entityKey: string, hostRef: string, createdAt: number) {
+  return {
+    ...operationDraft(entityKey, hostRef),
+    id: `operation-${entityKey}`,
+    status: 'pending' as const,
+    projectId: null,
+    workspaceId: null,
+    createdAt,
   };
 }
 

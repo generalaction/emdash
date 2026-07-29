@@ -146,6 +146,7 @@ export type ProvisionTaskResult = {
 export type ProvisionWorkspaceError =
   | { type: 'no-intent' }
   | { type: 'missing-workspace' }
+  | { type: 'cancelled'; message?: string }
   | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string }
   | RuntimeResolveError;
 

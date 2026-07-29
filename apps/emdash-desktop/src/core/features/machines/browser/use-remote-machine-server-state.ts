@@ -95,7 +95,8 @@ export function useRemoteMachineServerState({
   }
 
   useEffect(() => {
-    if (!enabled || !connected || !machineId || !modelReady || state) return;
+    if (!enabled || !connected || !machineId || !modelReady) return;
+    if (hasRecentLatestVersion(state)) return;
     let cancelled = false;
     void getDesktopWireClient()
       .then((client) => client.remoteMachine.refreshServerState({ connectionId: machineId }))
@@ -148,4 +149,8 @@ export function useRemoteMachineServerState({
     update: () => runAction('updateServer', 'update'),
     refresh,
   };
+}
+
+function hasRecentLatestVersion(state: RemoteMachineServerState | undefined): boolean {
+  return state?.latestVersion !== undefined;
 }

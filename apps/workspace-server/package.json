@@ -16,7 +16,7 @@
     "dev:remote": "tsx scripts/dev-remote.ts",
     "dev:remote-app": "EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL=http://minio:9000/emdash-releases/workspace-server EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE=1 pnpm --dir ../emdash-desktop run dev",
     "package": "tsx scripts/package.ts",
-    "package:dev": "tsx scripts/package.ts --target linux-arm64",
+    "package:dev": "EMDASH_WS_DEV_BUILD=1 tsx scripts/package.ts --target linux-arm64",
     "upload:dev": "EMDASH_WS_DEV_UPLOAD=1 EMDASH_WS_UPLOAD_ENDPOINT=http://localhost:9000/emdash-releases EMDASH_WS_UPLOAD_ACCESS_KEY=minioadmin EMDASH_WS_UPLOAD_SECRET_KEY=minioadmin tsx scripts/upload-r2.ts",
     "upload:r2": "tsx scripts/upload-r2.ts",
     "run:docker-remote": "docker compose up --build -d minio minio-setup workspace-remote",

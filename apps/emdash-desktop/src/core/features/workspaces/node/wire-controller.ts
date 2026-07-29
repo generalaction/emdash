@@ -568,6 +568,13 @@ export function provisionWorkspaceErrorToWorkspaceError(error: unknown): Workspa
   if (type === 'missing-workspace') {
     return workspaceError('missing-workspace', 'Workspace row is missing');
   }
+  if (type === 'cancelled') {
+    const cancelled = error as { message?: unknown };
+    return workspaceError(
+      'cancelled',
+      typeof cancelled.message === 'string' ? cancelled.message : 'Workspace setup was cancelled'
+    );
+  }
   if (type === 'setup-failed') {
     const setupError = error as { stepKind?: unknown; stepErrorType?: unknown; message?: unknown };
     return {

@@ -14,6 +14,7 @@ import { tasks, workspaces, type LifecycleOperationRow } from '@core/services/ap
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { checkoutSelector } from '@core/services/runtime-broker/node/git';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
+import { runInWorkspaceOperationLane } from '@core/services/runtime-clients/node/workspace-operation-lanes';
 
 export type LifecycleCleanupDependencies = {
   projects: Pick<ProjectSessionManager, 'getProject'>;
@@ -24,7 +25,8 @@ export type LifecycleCleanupDependencies = {
 export async function deactivateLifecycleWorkspace(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   operation: LifecycleOperationRow,
-  context: LifecycleOperationContext
+  context: LifecycleOperationContext,
+  options: { signal?: AbortSignal; onWaitingChange?: (waiting: boolean) => void } = {}
 ): Promise<void> {
   if (!context.workspacePath) return;
   const workspace = hostFileRefFromNativePath(
@@ -42,36 +44,56 @@ export async function deactivateLifecycleWorkspace(
       : [operation.taskId ?? operation.id];
   const resolvedConsumerIds = consumerIds.length > 0 ? consumerIds : [operation.id];
 
-  for (const consumerId of resolvedConsumerIds) {
-    const result = await runRuntimeLiveJob(workspaceContract.deactivate, client.deactivate, {
-      workspace,
-      consumerId,
-      strategy: 'stop',
-      automation: context.automation,
-    });
-    if (!result.success && !isMissingError(result.error)) {
-      throw new Error(result.error.message);
-    }
-  }
+  await runInWorkspaceOperationLane(
+    workspace,
+    options.signal ?? new AbortController().signal,
+    async () => {
+      for (const consumerId of resolvedConsumerIds) {
+        const result = await runRuntimeLiveJob(workspaceContract.deactivate, client.deactivate, {
+          workspace,
+          consumerId,
+          strategy: 'stop',
+          automation: context.automation,
+        });
+        if (!result.success && !isMissingError(result.error)) {
+          throw new Error(result.error.message);
+        }
+      }
+    },
+    { onWaitingChange: options.onWaitingChange }
+  );
 }
 
 export async function cleanLifecycleWorkspaceArtifacts(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   operation: LifecycleOperationRow,
-  context: LifecycleOperationContext
+  context: LifecycleOperationContext,
+  options: { signal?: AbortSignal; onWaitingChange?: (waiting: boolean) => void } = {}
 ): Promise<void> {
   if (!context.workspacePath || !context.projectPath) return;
   const hostId = operation.hostRef === 'local' ? undefined : operation.hostRef;
+  const projectPath = context.projectPath;
   const workspace = hostFileRefFromNativePath(context.workspacePath, hostId);
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
-  const result = await runRuntimeLiveJob(workspaceContract.cleanArtifacts, client.cleanArtifacts, {
+  await runInWorkspaceOperationLane(
     workspace,
-    repoPath: hostFileRefFromNativePath(context.projectPath, hostId),
-    preservePatterns: context.preservePatterns,
-  });
-  if (!result.success && !isMissingError(result.error)) {
-    throw new Error(result.error.message);
-  }
+    options.signal ?? new AbortController().signal,
+    async () => {
+      const result = await runRuntimeLiveJob(
+        workspaceContract.cleanArtifacts,
+        client.cleanArtifacts,
+        {
+          workspace,
+          repoPath: hostFileRefFromNativePath(projectPath, hostId),
+          preservePatterns: context.preservePatterns,
+        }
+      );
+      if (!result.success && !isMissingError(result.error)) {
+        throw new Error(result.error.message);
+      }
+    },
+    { onWaitingChange: options.onWaitingChange }
+  );
 }
 
 export async function teardownLifecycleWorkspace(
