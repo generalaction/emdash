@@ -1,4 +1,5 @@
 import { hostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import type * as WorkspaceApi from '@emdash/core/runtimes/workspace/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
@@ -14,9 +15,13 @@ const mocks = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock('@core/features/workspaces/api/node/workspace-operation-log', () => ({
-  submitAndFollowWorkspaceOperation: mocks.submitAndFollow,
-}));
+vi.mock('@emdash/core/runtimes/workspace/api', async (importOriginal) => {
+  const original = await importOriginal<typeof WorkspaceApi>();
+  return {
+    ...original,
+    submitAndFollowWorkspaceOperation: mocks.submitAndFollow,
+  };
+});
 
 describe('lifecycle workspace cleanup', () => {
   beforeEach(() => {

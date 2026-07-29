@@ -1,13 +1,5 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
 import { workspaceProvisioningDefinitions } from '@services/workspace-provisioning/api';
-import { z } from 'zod';
-import {
-  cancelWorkspaceOperationInputSchema,
-  cancelWorkspaceOperationResultSchema,
-  submitWorkspaceOperationInputSchema,
-  submitWorkspaceOperationOutcomeSchema,
-  workspaceOperationRecordMapSchema,
-} from './operation-records';
 import {
   measureWorkspaceUsageInputSchema,
   reconcileWorkspaceInputSchema,
@@ -35,22 +27,6 @@ export const workspaceContract = defineContract({
     input: measureWorkspaceUsageInputSchema,
     data: workspaceUsageSchema,
     error: workspaceErrorSchema,
-  }),
-  submitOperation: fallible({
-    input: submitWorkspaceOperationInputSchema,
-    data: submitWorkspaceOperationOutcomeSchema,
-    error: workspaceErrorSchema,
-  }),
-  cancelOperation: fallible({
-    input: cancelWorkspaceOperationInputSchema,
-    data: cancelWorkspaceOperationResultSchema,
-    error: workspaceErrorSchema,
-  }),
-  operationLog: liveModel({
-    key: z.object({}),
-    states: {
-      list: liveState({ data: workspaceOperationRecordMapSchema }),
-    },
   }),
 });
 

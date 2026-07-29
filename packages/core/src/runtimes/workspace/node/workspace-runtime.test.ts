@@ -565,6 +565,93 @@ describe('WorkspaceRuntime', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('does not resurrect a record cancelled before the operation starts', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 600 });
+      await operationRecords.appendRecord({
+        requestId: 'activate-cancelled',
+        kind: 'activate',
+        workspace,
+        params: { kind: 'activate', input: { workspace, consumerId: 'task-1' } },
+        status: 'cancelled',
+        error: { type: 'cancelled', message: 'Operation cancelled' },
+        finishedAt: 600,
+      });
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 600 });
+
+      const result = await runtime.activate(
+        { workspace, consumerId: 'task-1' },
+        jobContext('activate-cancelled')
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.type).toBe('cancelled');
+      expect(operationRecords.snapshot().records['activate-cancelled']).toMatchObject({
+        status: 'cancelled',
+      });
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('suspends non-terminal records for missing workspaces instead of pruning them', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(path.join(root, 'missing'));
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 700 });
+      await operationRecords.appendRecord({
+        requestId: 'missing-provision',
+        kind: 'provision',
+        workspace,
+        params: { kind: 'provision', input: { workspace } },
+        status: 'running',
+      });
+
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 700 });
+      await vi.waitFor(() =>
+        expect(operationRecords.snapshot().records['missing-provision']).toMatchObject({
+          status: 'suspended',
+          suspendedCause: 'daemon-restart',
+        })
+      );
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('prunes stale terminal records when submitting new work', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 90000000 });
+      await operationRecords.appendRecord({
+        requestId: 'old-terminal',
+        kind: 'activate',
+        workspace,
+        params: { kind: 'activate', input: { workspace, consumerId: 'old-task' } },
+        status: 'succeeded',
+        finishedAt: 1,
+      });
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 90000000 });
+
+      await runtime.submitOperation({
+        requestId: 'activate-new',
+        kind: 'activate',
+        workspace,
+        params: { kind: 'activate', input: { workspace, consumerId: 'new-task' } },
+      });
+
+      expect(operationRecords.snapshot().records['old-terminal']).toBeUndefined();
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 function jobContext(

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
-import { ROOT_RELATIVE_PATH, type HostFileRef } from '@emdash/core/primitives/path/api';
+import {
+  resourceKeyFromFileRef,
+  ROOT_RELATIVE_PATH,
+  type HostFileRef,
+} from '@emdash/core/primitives/path/api';
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
   compileBootstrapPlan,
@@ -14,6 +18,7 @@ import {
   type WorkspaceOperationProgress,
   type WorkspaceOperationResult,
   type WorkspaceError,
+  submitAndFollowWorkspaceOperation,
 } from '@emdash/core/runtimes/workspace/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
@@ -49,7 +54,6 @@ import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
-import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import {
   activateWorkspaceParticipants,
   deactivateWorkspaceParticipants,
@@ -738,7 +742,7 @@ async function runWorkspaceProvisionJob(
   const result = await submitAndFollowWorkspaceOperation(
     project.workspace,
     {
-      requestId: randomUUID(),
+      requestId: provisionRequestId(input.workspace),
       kind: 'provision',
       workspace: input.workspace,
       params: { kind: 'provision', input },
@@ -781,7 +785,7 @@ export async function runCloneRepositoryProvision(
   const result = await submitAndFollowWorkspaceOperation(
     workspaceRuntimeClient,
     {
-      requestId: randomUUID(),
+      requestId: provisionRequestId(provisionInput.workspace),
       kind: 'provision',
       workspace: provisionInput.workspace,
       params: { kind: 'provision', input: provisionInput },
@@ -812,6 +816,11 @@ async function runWorkspaceActivateJob(
     },
     { onProgress: (progress) => emitRuntimeProgress(task.id, project.projectId, progress) }
   );
+}
+
+function provisionRequestId(workspace: HostFileRef): string {
+  // Provision is idempotent for a workspace path; activation/deactivation remain per-attempt.
+  return `provision:${resourceKeyFromFileRef(workspace)}`;
 }
 
 async function runWorkspaceDeactivateJob(

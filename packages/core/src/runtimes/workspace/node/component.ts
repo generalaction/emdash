@@ -1,6 +1,6 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
 import {
-  createNoopWorkspaceOperationRecordStore,
+  createMemoryWorkspaceOperationRecordStore,
   workspaceContract,
 } from '@runtimes/workspace/api';
 import { createWorkspaceController } from '@runtimes/workspace/node/api/controller';
@@ -36,7 +36,7 @@ export const workspaceComponent = defineWireComponent({
         ? createFileWorkspaceOperationRecordStore({
             path: config.operationRecordsFilePath,
           })
-        : createNoopWorkspaceOperationRecordStore(),
+        : createMemoryWorkspaceOperationRecordStore(),
       scope,
       onError: (context, error) => logger.warn(context, { error }),
     });

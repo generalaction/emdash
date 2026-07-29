@@ -5,9 +5,12 @@ import {
   type LiveModelProvider,
   type ValidatePolicy,
 } from '@emdash/wire';
-import { workspaceContract, type WorkspaceContract } from '@runtimes/workspace/api';
+import {
+  workspaceContract,
+  type SubmitWorkspaceOperationInput,
+  type WorkspaceContract,
+} from '@runtimes/workspace/api';
 import type { WorkspaceRuntime } from '@runtimes/workspace/node/workspace-runtime';
-import { workspaceJobError } from '@runtimes/workspace/node/workspace-runtime';
 
 export type WorkspaceControllerOptions = {
   contract?: WorkspaceContract;
@@ -36,13 +39,9 @@ export function createWorkspaceController(
     createController(contract, {
       workspace: workspaceProvider,
       operationLog: operationLogProvider,
-      provisionFromIntent: {
-        run: (input, ctx) => runtime.provisionFromIntent(input, ctx),
-        toError: workspaceJobError,
-      },
       reconcile: (input, meta) => runtime.reconcile(input, meta.signal),
       measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
-      submitOperation: (input) => runtime.submitOperation(input),
+      submitOperation: (input) => runtime.submitOperation(input as SubmitWorkspaceOperationInput),
       cancelOperation: ({ requestId }) => runtime.cancelOperation(requestId),
     }),
     options.validate ?? 'inputs'

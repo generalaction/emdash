@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createKvWorkspaceOperationRecordStore,
   createMemoryWorkspaceOperationRecordStore,
+  isWorkspaceOperationRecordStatusConflict,
 } from './operation-records';
 
 describe('createKvWorkspaceOperationRecordStore', () => {
@@ -90,6 +91,43 @@ describe('createKvWorkspaceOperationRecordStore', () => {
     await expect(store.list()).resolves.toMatchObject({
       success: false,
       error: { type: 'decode', key: 'workspace-operation-records' },
+    });
+  });
+
+  it('serializes concurrent appends without losing records or reusing sequence numbers', async () => {
+    const store = createKvWorkspaceOperationRecordStore(createMemoryKeyValueStore(), {
+      now: () => 1,
+    });
+
+    await Promise.all(
+      Array.from({ length: 10 }, (_, index) => store.appendRecord(recordDraft(`request-${index}`)))
+    );
+
+    const listed = await store.list();
+    expect(listed.success).toBe(true);
+    if (!listed.success) throw new Error(listed.error.message);
+    expect(listed.data).toHaveLength(10);
+    expect(listed.data.map((record) => record.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
+  it('reports status conflicts without mutating the record', async () => {
+    const store = createKvWorkspaceOperationRecordStore(createMemoryKeyValueStore(), {
+      now: () => 1,
+    });
+
+    await store.appendRecord({ ...recordDraft('request-1'), status: 'cancelled' });
+    const updated = await store.updateRecord(
+      'request-1',
+      { status: 'running' },
+      { expectStatus: ['pending'] }
+    );
+
+    expect(updated.success).toBe(true);
+    if (!updated.success) throw new Error(updated.error.message);
+    expect(isWorkspaceOperationRecordStatusConflict(updated.data)).toBe(true);
+    await expect(store.get('request-1')).resolves.toMatchObject({
+      success: true,
+      data: { status: 'cancelled' },
     });
   });
 });

@@ -1,5 +1,6 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import { submitAndFollowWorkspaceOperation } from '@emdash/core/runtimes/workspace/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -7,7 +8,6 @@ import {
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { LifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
-import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces, type LifecycleOperationRow } from '@core/services/app-db/node/schema';

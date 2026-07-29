@@ -15,7 +15,7 @@ import {
 } from '@emdash/wire';
 import { bindMachineToLiveState } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import { formatAbsolute, resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
+import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
   type ActivateWorkspaceInput,
   type CleanWorkspaceArtifactsInput,
@@ -36,7 +36,8 @@ import {
   workspaceContract,
 } from '@runtimes/workspace/api';
 import {
-  createNoopWorkspaceOperationRecordStore,
+  createMemoryWorkspaceOperationRecordStore,
+  isWorkspaceOperationRecordStatusConflict,
   isTerminalStatus,
   type CancelWorkspaceOperationResult,
   type SubmitWorkspaceOperationInput,
@@ -49,8 +50,6 @@ import {
 } from '@runtimes/workspace/api/operation-records';
 import {
   compileTeardownFromProbe,
-  compileBootstrapPlan,
-  type BootstrapGitIntent,
   type BootstrapProgress,
   type RunPhaseInput,
 } from '@runtimes/workspace/api/provisioning';
@@ -67,19 +66,13 @@ import {
   type RunScriptWorkflowInput,
   type ScriptWorkflowsContract,
 } from '@services/script-workflows/api';
-import type {
-  WorkspaceProvisioningError,
-  WorkspaceProvisioningInput,
-  WorkspaceProvisioningProgress,
-  WorkspaceProvisioningResult,
-} from '@services/workspace-provisioning/api';
 import { WorkspaceActivityIndex, type WorkspaceActivityProvider } from './activity';
 import {
   createWorkspaceMachine,
   type WorkspaceCommand,
   type WorkspaceMachine,
 } from './machine/machine';
-import { nativePathFromWorkspace, workspaceFromNativePath } from './provisioning/paths';
+import { nativePathFromWorkspace } from './provisioning/paths';
 import { NodeWorkspaceProvisioner, type WorkspaceProvisioner } from './provisioning/provisioner';
 import { WorkspaceTopologyObserver } from './topology-observer';
 
@@ -100,6 +93,8 @@ type RuntimeOperation = {
 
 const PREEMPT_SETTLE_TIMEOUT_MS = 30_000;
 const OPERATION_RECORD_RETENTION_MS = 24 * 60 * 60_000;
+const OPERATION_LOG_PUBLISH_KEY = 'operation-log';
+const NEVER_ABORTED_SIGNAL = new AbortController().signal;
 
 export type WorkspaceRuntimeOptions = {
   lifecycle?: WorkspaceLifecycleManager;
@@ -129,8 +124,8 @@ export class WorkspaceRuntime {
   private readonly topologyObserver: WorkspaceTopologyObserver;
   private readonly reconcileLanes = createKeyedLanes();
   private readonly operationLanes = createKeyedLanes();
+  private readonly operationLogPublishLanes = createKeyedLanes();
   private readonly rehydration: Promise<void>;
-  private readonly rehydrationBypassRequestIds = new Set<string>();
   private readonly operationControllers = new Map<string, AbortController>();
 
   constructor(options: WorkspaceRuntimeOptions = {}) {
@@ -144,7 +139,7 @@ export class WorkspaceRuntime {
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
     this.activity = new WorkspaceActivityIndex((workspace) => this.syncActivity(workspace));
-    this.operationRecords = options.operationRecords ?? createNoopWorkspaceOperationRecordStore();
+    this.operationRecords = options.operationRecords ?? createMemoryWorkspaceOperationRecordStore();
     this.topologyObserver = new WorkspaceTopologyObserver(options.watcher, (workspace) => {
       this.reconcileLanes.coalesce(
         resourceKeyFromFileRef(workspace),
@@ -160,58 +155,9 @@ export class WorkspaceRuntime {
       this.activity.addProvider(provider);
     }
     this.scope.add(() => this.dispose());
-    this.rehydration = this.rehydrateOperationRecords();
-  }
-
-  async provisionFromIntent(
-    input: WorkspaceProvisioningInput,
-    ctx: LiveJobContext<WorkspaceProvisioningProgress>
-  ): Promise<Result<WorkspaceProvisioningResult, WorkspaceProvisioningError>> {
-    if (input.workspace.kind === 'directory') {
-      const provisioned = await this.provision({ workspace: input.workspace.path }, ctx);
-      if (!provisioned.success) return provisioned;
-      return ok({ workspace: provisioned.data.workspace, branchName: null });
-    }
-
-    const repositoryPath = nativePathFromWorkspace(input.workspace.repository);
-    const worktreePoolPath = formatAbsolute(input.workspace.worktreePoolPath, {
-      separator: input.workspace.worktreePoolPath.root.kind === 'posix' ? '/' : '\\',
+    this.rehydration = this.rehydrateOperationRecords().catch((error: unknown) => {
+      this.onError('workspace operation record rehydrate', error);
     });
-    const intent = toBootstrapGitIntent(input.workspace, input.generatedName);
-    const compiled = compileBootstrapPlan(intent, {
-      worktreePoolPath,
-      baseRemote: input.workspace.baseRemote,
-    });
-    const branchName =
-      input.workspace.git.kind === 'create-branch'
-        ? input.generatedName
-        : input.workspace.git.branchName;
-    const workspace = workspaceFromNativePath(
-      compiled.workspacePath,
-      input.workspace.repository.host
-    );
-    const provisioned = await this.provision(
-      {
-        workspace,
-        lifecycle: {
-          ref: {
-            kind: 'worktree',
-            repoPath: repositoryPath,
-            path: compiled.workspacePath,
-            branchName,
-          },
-          context: {
-            repoPath: repositoryPath,
-            preservePatterns: input.workspace.preservePatterns,
-            worktreePoolPath,
-          },
-          setupPlan: compiled.plan,
-        },
-      },
-      ctx
-    );
-    if (!provisioned.success) return provisioned;
-    return ok({ workspace: provisioned.data.workspace, branchName });
   }
 
   async reconcile(
@@ -254,7 +200,8 @@ export class WorkspaceRuntime {
   async submitOperation(
     input: SubmitWorkspaceOperationInput
   ): Promise<Result<SubmitWorkspaceOperationOutcome, WorkspaceError>> {
-    await this.waitForOperationRecordRehydration(input.requestId);
+    await this.waitForOperationRecordRehydration();
+    await this.pruneTerminalOperationRecords();
     const existing = await this.operationRecords.get(input.requestId);
     if (!existing.success) return err(recordStoreErrorToWorkspaceError(existing.error));
 
@@ -281,7 +228,7 @@ export class WorkspaceRuntime {
       if (!replaced.data) {
         return err({ type: 'not-found', message: 'Operation record disappeared during replace' });
       }
-      await this.publishOperationLog();
+      this.publishOperationLog();
       this.enqueueSubmittedOperation(replaced.data);
       return ok({
         requestId: replaced.data.requestId,
@@ -299,7 +246,7 @@ export class WorkspaceRuntime {
       status: 'pending',
     });
     if (!appended.success) return err(recordStoreErrorToWorkspaceError(appended.error));
-    await this.publishOperationLog();
+    this.publishOperationLog();
     this.enqueueSubmittedOperation(appended.data);
     return ok({ requestId: appended.data.requestId, seq: appended.data.seq, outcome: 'accepted' });
   }
@@ -318,7 +265,7 @@ export class WorkspaceRuntime {
         finishedAt: this.now(),
       });
       if (!cancelled.success) return err(recordStoreErrorToWorkspaceError(cancelled.error));
-      await this.publishOperationLog();
+      this.publishOperationLog();
       return ok({ requestId, status: 'cancelled' });
     }
 
@@ -333,9 +280,8 @@ export class WorkspaceRuntime {
   }
 
   private enqueueSubmittedOperation(record: WorkspaceOperationRecord): void {
-    const laneSignal = new AbortController().signal;
     void this.operationLanes
-      .run(resourceKeyFromFileRef(record.workspace), laneSignal, () =>
+      .run(resourceKeyFromFileRef(record.workspace), NEVER_ABORTED_SIGNAL, () =>
         this.runSubmittedOperation(record.requestId)
       )
       .catch((error) => this.onError('workspace operation log execution', error));
@@ -350,37 +296,29 @@ export class WorkspaceRuntime {
     const record = loaded.data;
     if (!record || record.status !== 'pending') return;
 
-    const controller = new AbortController();
-    this.operationControllers.set(requestId, controller);
     const ctx: LiveJobContext<WorkspaceOperationProgress> = {
       jobId: requestId,
-      signal: controller.signal,
+      signal: NEVER_ABORTED_SIGNAL,
       progress: () => {},
     };
 
-    try {
-      const result = await this.runOperationRecord(record, ctx);
-      if (!result.success) {
-        const latest = await this.operationRecords.get(requestId);
-        if (!latest.success) {
-          this.onError('workspace operation record rejection load', latest.error);
-          return;
-        }
-        if (latest.data?.status === 'pending' || latest.data?.status === 'running') {
-          const rejected = await this.operationRecords.updateRecord(requestId, {
-            status: 'rejected',
-            error: result.error,
-            finishedAt: this.now(),
-          });
-          if (!rejected.success) {
-            this.onError('workspace operation record rejection update', rejected.error);
-          }
-          await this.publishOperationLog();
-        }
+    const result = await this.runOperationRecord(record, ctx);
+    if (!result.success) {
+      const latest = await this.operationRecords.get(requestId);
+      if (!latest.success) {
+        this.onError('workspace operation record rejection load', latest.error);
+        return;
       }
-    } finally {
-      if (this.operationControllers.get(requestId) === controller) {
-        this.operationControllers.delete(requestId);
+      if (latest.data?.status === 'pending' || latest.data?.status === 'running') {
+        const rejected = await this.operationRecords.updateRecord(requestId, {
+          status: 'rejected',
+          error: result.error,
+          finishedAt: this.now(),
+        });
+        if (!rejected.success) {
+          this.onError('workspace operation record rejection update', rejected.error);
+        }
+        this.publishOperationLog();
       }
     }
   }
@@ -743,7 +681,7 @@ export class WorkspaceRuntime {
       ctx: LiveJobContext<WorkspaceOperationProgress>
     ) => Promise<Result<T, WorkspaceError>>
   ): Promise<Result<T, WorkspaceError>> {
-    await this.waitForOperationRecordRehydration(ctx.jobId);
+    await this.waitForOperationRecordRehydration();
     const record = this.recordFor(workspace);
     const startedAt = this.now();
     const command = commandFactory(ctx.jobId, startedAt);
@@ -778,11 +716,16 @@ export class WorkspaceRuntime {
       settled,
     };
     this.operationControllers.set(ctx.jobId, controller);
-    await this.markOperationStarted(ctx.jobId, kind, workspace, params);
     const stage = new StageReporter(kind, ctx.jobId, ctx, (progress) =>
       this.updateOperationStages(ctx.jobId, progress)
     );
     try {
+      const startResult = await this.markOperationStarted(ctx.jobId, kind, workspace, params);
+      if (!startResult.success) {
+        record.machine.apply({ type: 'OperationFailed', error: startResult.error });
+        return err(startResult.error);
+      }
+
       const result = await run(stage, operationCtx);
       if (result.success) {
         record.machine.apply({ type: 'OperationCompleted' });
@@ -809,18 +752,12 @@ export class WorkspaceRuntime {
     }
   }
 
-  private async waitForOperationRecordRehydration(requestId: string): Promise<void> {
-    if (this.rehydrationBypassRequestIds.has(requestId)) return;
+  private async waitForOperationRecordRehydration(): Promise<void> {
     await this.rehydration;
   }
 
   private async rehydrateOperationRecords(): Promise<void> {
-    const pruned = await this.operationRecords.pruneTerminal(OPERATION_RECORD_RETENTION_MS);
-    if (!pruned.success) {
-      this.onError('workspace operation record terminal prune', pruned.error);
-    } else if (pruned.data.length > 0) {
-      await this.publishOperationLog();
-    }
+    await this.pruneTerminalOperationRecords();
 
     const listed = await this.operationRecords.list();
     if (!listed.success) {
@@ -831,18 +768,32 @@ export class WorkspaceRuntime {
     for (const record of listed.data) {
       const inspected = await this.provisioner.inspect(record.workspace);
       if (inspected.success && inspected.data.kind === 'missing') {
-        const removed = await this.operationRecords.removeRecord(record.requestId);
-        if (!removed.success) {
-          this.onError('workspace operation record stale prune', removed.error);
-        } else {
-          await this.publishOperationLog();
+        if (isTerminalStatus(record.status)) {
+          const removed = await this.operationRecords.removeRecord(record.requestId);
+          if (!removed.success) {
+            this.onError('workspace operation record stale prune', removed.error);
+          } else {
+            this.publishOperationLog();
+          }
+          continue;
         }
-        continue;
       }
 
       if (isTerminalStatus(record.status)) continue;
       if (record.kind === 'teardown' || record.kind === 'clean-artifacts') {
-        await this.resumeOperationRecord(record);
+        const resumed = await this.operationRecords.updateRecord(record.requestId, {
+          status: 'pending',
+          suspendedCause: undefined,
+          error: undefined,
+          result: undefined,
+          finishedAt: undefined,
+        });
+        if (!resumed.success) {
+          this.onError('workspace operation record resume', resumed.error);
+        } else if (resumed.data && !isWorkspaceOperationRecordStatusConflict(resumed.data)) {
+          this.publishOperationLog();
+          this.enqueueSubmittedOperation(resumed.data);
+        }
       } else {
         const suspended = await this.operationRecords.updateRecord(record.requestId, {
           status: 'suspended',
@@ -852,44 +803,18 @@ export class WorkspaceRuntime {
         if (!suspended.success) {
           this.onError('workspace operation record suspend', suspended.error);
         } else {
-          await this.publishOperationLog();
+          this.publishOperationLog();
         }
       }
     }
   }
 
-  private async resumeOperationRecord(record: WorkspaceOperationRecord): Promise<void> {
-    const controller = new AbortController();
-    const ctx: LiveJobContext<WorkspaceOperationProgress> = {
-      jobId: record.requestId,
-      signal: controller.signal,
-      progress: () => {},
-    };
-
-    this.rehydrationBypassRequestIds.add(record.requestId);
-    try {
-      switch (record.params.kind) {
-        case 'teardown':
-          await this.teardown(record.params.input, ctx);
-          return;
-        case 'clean-artifacts':
-          await this.cleanArtifacts(record.params.input, ctx);
-          return;
-        default: {
-          const suspended = await this.operationRecords.updateRecord(record.requestId, {
-            status: 'suspended',
-            suspendedCause: 'daemon-restart',
-            finishedAt: this.now(),
-          });
-          if (!suspended.success) {
-            this.onError('workspace operation record suspend', suspended.error);
-          } else {
-            await this.publishOperationLog();
-          }
-        }
-      }
-    } finally {
-      this.rehydrationBypassRequestIds.delete(record.requestId);
+  private async pruneTerminalOperationRecords(): Promise<void> {
+    const pruned = await this.operationRecords.pruneTerminal(OPERATION_RECORD_RETENTION_MS);
+    if (!pruned.success) {
+      this.onError('workspace operation record terminal prune', pruned.error);
+    } else if (pruned.data.length > 0) {
+      this.publishOperationLog();
     }
   }
 
@@ -898,22 +823,29 @@ export class WorkspaceRuntime {
     kind: WorkspaceOperationKind,
     workspace: HostFileRef,
     params: WorkspaceOperationRecordParams
-  ): Promise<void> {
-    const updated = await this.operationRecords.updateRecord(requestId, {
-      status: 'running',
-      suspendedCause: undefined,
-      stages: undefined,
-      result: undefined,
-      error: undefined,
-      finishedAt: undefined,
-    });
+  ): Promise<Result<void, WorkspaceError>> {
+    const updated = await this.operationRecords.updateRecord(
+      requestId,
+      {
+        status: 'running',
+        suspendedCause: undefined,
+        stages: undefined,
+        result: undefined,
+        error: undefined,
+        finishedAt: undefined,
+      },
+      { expectStatus: ['pending', 'running'] }
+    );
     if (!updated.success) {
       this.onError('workspace operation record start update', updated.error);
-      return;
+      return err(recordStoreErrorToWorkspaceError(updated.error));
+    }
+    if (isWorkspaceOperationRecordStatusConflict(updated.data)) {
+      return err(operationStatusConflict(updated.data.record.status));
     }
     if (updated.data) {
-      await this.publishOperationLog();
-      return;
+      this.publishOperationLog();
+      return ok(undefined);
     }
 
     const appended = await this.operationRecords.appendRecord({
@@ -925,19 +857,23 @@ export class WorkspaceRuntime {
     });
     if (!appended.success) {
       this.onError('workspace operation record append', appended.error);
-      return;
+      return err(recordStoreErrorToWorkspaceError(appended.error));
     }
-    await this.publishOperationLog();
+    this.publishOperationLog();
+    return ok(undefined);
   }
 
   private updateOperationStages(requestId: string, stages: WorkspaceOperationProgress): void {
-    void this.operationRecords.updateRecord(requestId, { stages }).then((updated) => {
-      if (!updated.success) {
-        this.onError('workspace operation record progress update', updated.error);
-        return;
-      }
-      void this.publishOperationLog();
-    });
+    void this.operationRecords
+      .updateRecord(requestId, { stages }, { expectStatus: ['running'] })
+      .then((updated) => {
+        if (!updated.success) {
+          this.onError('workspace operation record progress update', updated.error);
+          return;
+        }
+        if (isWorkspaceOperationRecordStatusConflict(updated.data)) return;
+        this.publishOperationLog();
+      });
   }
 
   private async markOperationSucceeded(
@@ -955,7 +891,7 @@ export class WorkspaceRuntime {
       this.onError('workspace operation record success update', updated.error);
       return;
     }
-    await this.publishOperationLog();
+    this.publishOperationLog();
   }
 
   private async markOperationFailed(requestId: string, error: WorkspaceError): Promise<void> {
@@ -968,20 +904,26 @@ export class WorkspaceRuntime {
       this.onError('workspace operation record failure update', updated.error);
       return;
     }
-    await this.publishOperationLog();
+    this.publishOperationLog();
   }
 
-  private async publishOperationLog(): Promise<void> {
-    const listed = await this.operationRecords.list();
-    if (!listed.success) {
-      this.onError('workspace operation log publish', listed.error);
-      return;
-    }
-    const list: WorkspaceOperationRecordMap = {};
-    for (const record of listed.data) {
-      list[record.requestId] = record;
-    }
-    this.operationLogHost.get({})?.states.list.replace(list);
+  private publishOperationLog(): void {
+    this.operationLogPublishLanes.coalesce(
+      OPERATION_LOG_PUBLISH_KEY,
+      async () => {
+        const listed = await this.operationRecords.list();
+        if (!listed.success) {
+          this.onError('workspace operation log publish', listed.error);
+          return;
+        }
+        const list: WorkspaceOperationRecordMap = {};
+        for (const record of listed.data) {
+          list[record.requestId] = record;
+        }
+        this.operationLogHost.get({})?.states.list.replace(list);
+      },
+      (error) => this.onError('workspace operation log publish', error)
+    );
   }
 
   private async preemptForTeardown(
@@ -1204,22 +1146,6 @@ export class WorkspaceRuntime {
   }
 }
 
-function toBootstrapGitIntent(
-  workspace: Extract<WorkspaceProvisioningInput['workspace'], { kind: 'worktree' }>,
-  generatedName: string
-): BootstrapGitIntent {
-  const { git } = workspace;
-  if (git.kind === 'use-branch') {
-    return { kind: 'use-branch', branchName: git.branchName };
-  }
-  return {
-    kind: 'create-branch',
-    branchName: generatedName,
-    fromBranch: git.fromBranch,
-    ...(git.pushRemote ? { pushRemote: git.pushRemote } : {}),
-  };
-}
-
 function operationKindForCommand(command: WorkspaceCommand): WorkspaceOperationKind {
   switch (command.type) {
     case 'Provision':
@@ -1260,6 +1186,16 @@ function operationInFlight(kind: WorkspaceOperationKind | 'idle'): WorkspaceErro
       kind === 'idle'
         ? 'Workspace operation did not settle before teardown'
         : `Workspace already has an active ${kind} operation`,
+  };
+}
+
+function operationStatusConflict(status: string): WorkspaceError {
+  return {
+    type: status === 'cancelled' ? 'cancelled' : 'operation-status-conflict',
+    message:
+      status === 'cancelled'
+        ? 'Operation was cancelled before it started'
+        : `Operation cannot start from ${status} status`,
   };
 }
 
@@ -1575,10 +1511,6 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 export function createUnavailableWorkspaceError(error: unknown): WorkspaceError {
-  return toWorkspaceError(error);
-}
-
-export function workspaceJobError(error: unknown): WorkspaceError {
   return toWorkspaceError(error);
 }
 

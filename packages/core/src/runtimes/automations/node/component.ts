@@ -31,7 +31,7 @@ export function createAutomationsComponent() {
 
       const runtime = new AutomationsRuntime({
         handle,
-        workspacePort: createWorkspacePortFromDependency(dependencies.workspace, scope),
+        workspacePort: createWorkspacePortFromDependency(dependencies.workspace),
         sessionPort: createSessionPortFromDependencies({
           acp: dependencies.acpSessions,
           tui: dependencies.tuiSessions,

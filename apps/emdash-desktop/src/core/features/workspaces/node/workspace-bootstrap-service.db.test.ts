@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type * as WorkspaceApi from '@emdash/core/runtimes/workspace/api';
 import { ok } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
@@ -18,8 +19,10 @@ const mocks = vi.hoisted(() => ({
   submitAndFollow: vi.fn(),
 }));
 
-vi.mock('@core/features/workspaces/api/node/workspace-operation-log', () => {
+vi.mock('@emdash/core/runtimes/workspace/api', async (importOriginal) => {
+  const original = await importOriginal<typeof WorkspaceApi>();
   return {
+    ...original,
     submitAndFollowWorkspaceOperation: mocks.submitAndFollow,
   };
 });

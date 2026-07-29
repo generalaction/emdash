@@ -1,4 +1,5 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import type * as WorkspaceApi from '@emdash/core/runtimes/workspace/api';
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskProvider } from '@core/features/projects/api/node/project-provider';
@@ -8,8 +9,10 @@ import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api'
 const submitAndFollow = vi.hoisted(() => vi.fn());
 const deactivateParticipants = vi.hoisted(() => vi.fn());
 
-vi.mock('@core/features/workspaces/api/node/workspace-operation-log', () => {
+vi.mock('@emdash/core/runtimes/workspace/api', async (importOriginal) => {
+  const original = await importOriginal<typeof WorkspaceApi>();
   return {
+    ...original,
     submitAndFollowWorkspaceOperation: submitAndFollow,
   };
 });

@@ -1,18 +1,15 @@
-import {
-  workspaceContract,
-  type WorkspaceContract,
-  type WorkspaceError,
-} from '@emdash/core/runtimes/workspace/api';
+import { err, ok, type Result } from '@emdash/shared';
+import { createLiveModelReplica } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
+import { workspaceContract, type WorkspaceContract } from './contract';
 import {
   isTerminalStatus,
   type SubmitWorkspaceOperationInput,
   type WorkspaceOperationRecord,
   type WorkspaceOperationRecordMap,
   type WorkspaceOperationRecordResult,
-} from '@emdash/core/runtimes/workspace/api';
-import { err, ok, type Result } from '@emdash/shared';
-import { createLiveModelReplica } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
+} from './operation-records';
+import type { WorkspaceError } from './schemas';
 
 export type SubmitAndFollowWorkspaceOperationOptions = {
   signal?: AbortSignal;
@@ -25,28 +22,45 @@ export async function submitAndFollowWorkspaceOperation(
   request: SubmitWorkspaceOperationInput,
   options: SubmitAndFollowWorkspaceOperationOptions = {}
 ): Promise<Result<WorkspaceOperationRecordResult['data'], WorkspaceError>> {
+  if (options.signal?.aborted) return err(cancelledError());
+
   let settled = false;
-  let terminalResolve!: (record: WorkspaceOperationRecord) => void;
-  const terminal = new Promise<WorkspaceOperationRecord>((resolve) => {
+  let observed = false;
+  let aborted = false;
+  let terminalResolve!: (outcome: FollowOutcome) => void;
+  const terminal = new Promise<FollowOutcome>((resolve) => {
     terminalResolve = resolve;
   });
 
   const replica = createLiveModelReplica(workspaceContract.operationLog, client.operationLog, {
     onChange: {
-      list: (list: WorkspaceOperationRecordMap) => {
+      list: (value) => {
+        const list = value as unknown as WorkspaceOperationRecordMap;
         const record = list[request.requestId];
-        if (!record || settled) return;
+        if (settled) return;
+        if (!record) {
+          if (observed) {
+            settled = true;
+            terminalResolve({
+              kind: 'error',
+              error: { type: 'not-found', message: 'Workspace operation record disappeared' },
+            });
+          }
+          return;
+        }
+        observed = true;
         if (record.stages) options.onProgress?.(record.stages);
         options.onWaitingChange?.(record.status === 'pending');
         if (isTerminalStatus(record.status)) {
           settled = true;
-          terminalResolve(record);
+          terminalResolve({ kind: 'record', record });
         }
       },
     },
   });
   const lease = replica.acquire({});
   const cancel = () => {
+    aborted = true;
     void client.cancelOperation({ requestId: request.requestId });
   };
   options.signal?.addEventListener('abort', cancel, { once: true });
@@ -54,17 +68,26 @@ export async function submitAndFollowWorkspaceOperation(
   try {
     const model = await lease.ready();
     const snapshot = await model.states.list.snapshot();
+    // The replica snapshot currently loses the live-state data generic at this boundary.
     const records = snapshot.data as WorkspaceOperationRecordMap;
     const existing = records[request.requestId];
+    if (existing) observed = true;
     if (existing && isTerminalStatus(existing.status)) {
       settled = true;
-      terminalResolve(existing);
+      terminalResolve({ kind: 'record', record: existing });
     }
+
+    if (options.signal?.aborted) return err(cancelledError());
 
     const submitted = await client.submitOperation(request);
     if (!submitted.success) return err(submitted.error);
+    if (options.signal?.aborted || aborted) {
+      await client.cancelOperation({ requestId: request.requestId });
+    }
 
-    const record = await terminal;
+    const outcome = await terminal;
+    if (outcome.kind === 'error') return err(outcome.error);
+    const { record } = outcome;
     if (record.status === 'succeeded' && record.result) {
       return ok(record.result.data);
     }
@@ -79,4 +102,12 @@ export async function submitAndFollowWorkspaceOperation(
     await lease.release();
     await replica.dispose();
   }
+}
+
+type FollowOutcome =
+  | { kind: 'record'; record: WorkspaceOperationRecord }
+  | { kind: 'error'; error: WorkspaceError };
+
+function cancelledError(): WorkspaceError {
+  return { type: 'cancelled', message: 'Workspace operation was cancelled' };
 }

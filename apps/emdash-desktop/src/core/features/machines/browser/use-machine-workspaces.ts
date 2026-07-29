@@ -123,26 +123,36 @@ export function useMachineOperationLog(machineId?: string): Map<string, string> 
     let disposed = false;
     let cleanup: (() => void) | undefined;
     void (async () => {
-      const client = await getDesktopWireClient();
-      if (disposed) return;
-      const replica = createLiveModelReplica(
-        machinesContract.operationLog,
-        client.machines.operationLog,
-        {
-          onChange: { list: (list: WorkspaceOperationRecordMap) => setRecords(list) },
+      try {
+        const client = await getDesktopWireClient();
+        if (disposed) return;
+        const replica = createLiveModelReplica(
+          machinesContract.operationLog,
+          client.machines.operationLog,
+          {
+            onChange: { list: (list: WorkspaceOperationRecordMap) => setRecords(list) },
+          }
+        );
+        const lease = replica.acquire({ machineId });
+        let released = false;
+        cleanup = () => {
+          if (released) return;
+          released = true;
+          void lease.release();
+          void replica.dispose();
+        };
+        const model = await lease.ready();
+        if (disposed) {
+          cleanup();
+          return;
         }
-      );
-      const lease = replica.acquire({ machineId });
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      const model = await lease.ready();
-      if (disposed) {
-        cleanup();
-        return;
+        const snapshot = await model.states.list.snapshot();
+        // The replica snapshot currently loses the live-state data generic at this boundary.
+        setRecords(snapshot.data as WorkspaceOperationRecordMap);
+      } catch {
+        cleanup?.();
+        if (!disposed) setRecords({});
       }
-      setRecords((await model.states.list.snapshot()).data as WorkspaceOperationRecordMap);
     })();
     return () => {
       disposed = true;

@@ -173,6 +173,20 @@ export type WorkspaceOperationRecordPatch = Partial<
   >
 >;
 
+export type UpdateWorkspaceOperationRecordOptions = {
+  expectStatus?: WorkspaceOperationRecordStatus[];
+};
+
+export type WorkspaceOperationRecordStatusConflict = {
+  kind: 'status-conflict';
+  record: WorkspaceOperationRecord;
+};
+
+export type WorkspaceOperationRecordUpdateResult =
+  | WorkspaceOperationRecord
+  | WorkspaceOperationRecordStatusConflict
+  | null;
+
 export type WorkspaceOperationRecordStore = {
   list(): Promise<Result<WorkspaceOperationRecord[], WorkspaceOperationRecordError>>;
   get(
@@ -187,8 +201,9 @@ export type WorkspaceOperationRecordStore = {
   ): Promise<Result<WorkspaceOperationRecord | null, WorkspaceOperationRecordError>>;
   updateRecord(
     requestId: string,
-    patch: WorkspaceOperationRecordPatch
-  ): Promise<Result<WorkspaceOperationRecord | null, WorkspaceOperationRecordError>>;
+    patch: WorkspaceOperationRecordPatch,
+    options?: UpdateWorkspaceOperationRecordOptions
+  ): Promise<Result<WorkspaceOperationRecordUpdateResult, WorkspaceOperationRecordError>>;
   removeRecord(requestId: string): Promise<Result<void, WorkspaceOperationRecordError>>;
   pruneTerminal(
     olderThanMs: number
@@ -199,37 +214,23 @@ export type CreateWorkspaceOperationRecordStoreOptions = {
   now?: () => number;
 };
 
-export function createNoopWorkspaceOperationRecordStore(): WorkspaceOperationRecordStore {
-  return {
-    async list() {
-      return ok([]);
-    },
-    async get() {
-      return ok(null);
-    },
-    async appendRecord(input) {
-      return ok(operationRecordFromDraft(input, 1, 0, Date.now()));
-    },
-    async replaceRecord() {
-      return ok(null);
-    },
-    async updateRecord() {
-      return ok(null);
-    },
-    async removeRecord() {
-      return ok();
-    },
-    async pruneTerminal() {
-      return ok([]);
-    },
-  };
-}
-
 export function createKvWorkspaceOperationRecordStore(
   store: KeyValueStore,
   options: CreateWorkspaceOperationRecordStoreOptions = {}
 ): WorkspaceOperationRecordStore {
   const now = options.now ?? Date.now;
+  let mutationQueue = Promise.resolve();
+
+  const enqueueMutation = <T>(
+    operation: () => Promise<Result<T, WorkspaceOperationRecordError>>
+  ): Promise<Result<T, WorkspaceOperationRecordError>> => {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  };
 
   return {
     async list() {
@@ -243,79 +244,92 @@ export function createKvWorkspaceOperationRecordStore(
       return ok(state.data.records[requestId] ?? null);
     },
     async appendRecord(input) {
-      const state = await loadState(store);
-      if (!state.success) return state;
-      const timestamp = now();
-      const record = operationRecordFromDraft(input, state.data.nextSeq, 0, timestamp);
-      const saved = await saveState(store, {
-        nextSeq: state.data.nextSeq + 1,
-        records: { ...state.data.records, [record.requestId]: record },
+      return enqueueMutation<WorkspaceOperationRecord>(async () => {
+        const state = await loadState(store);
+        if (!state.success) return state;
+        const timestamp = now();
+        const record = operationRecordFromDraft(input, state.data.nextSeq, 0, timestamp);
+        const saved = await saveState(store, {
+          nextSeq: state.data.nextSeq + 1,
+          records: { ...state.data.records, [record.requestId]: record },
+        });
+        if (!saved.success) return saved;
+        return ok(record);
       });
-      if (!saved.success) return saved;
-      return ok(record);
     },
     async replaceRecord(requestId, input) {
-      const state = await loadState(store);
-      if (!state.success) return state;
-      const existing = state.data.records[requestId];
-      if (!existing) return ok(null);
-      const next = compactRecord({
-        requestId,
-        seq: existing.seq,
-        attempt: existing.attempt + 1,
-        kind: input.kind,
-        workspace: input.workspace,
-        params: input.params,
-        status: 'pending',
-        initiatedBy: input.initiatedBy,
-        createdAt: existing.createdAt,
-        updatedAt: now(),
+      return enqueueMutation<WorkspaceOperationRecord | null>(async () => {
+        const state = await loadState(store);
+        if (!state.success) return state;
+        const existing = state.data.records[requestId];
+        if (!existing) return ok(null);
+        const next = compactRecord({
+          requestId,
+          seq: existing.seq,
+          attempt: existing.attempt + 1,
+          kind: input.kind,
+          workspace: input.workspace,
+          params: input.params,
+          status: 'pending',
+          initiatedBy: input.initiatedBy,
+          createdAt: existing.createdAt,
+          updatedAt: now(),
+        });
+        const saved = await saveState(store, {
+          ...state.data,
+          records: { ...state.data.records, [requestId]: next },
+        });
+        if (!saved.success) return saved;
+        return ok(next);
       });
-      const saved = await saveState(store, {
-        ...state.data,
-        records: { ...state.data.records, [requestId]: next },
-      });
-      if (!saved.success) return saved;
-      return ok(next);
     },
-    async updateRecord(requestId, patch) {
-      const state = await loadState(store);
-      if (!state.success) return state;
-      const existing = state.data.records[requestId];
-      if (!existing) return ok(null);
-      const next = compactRecord({ ...existing, ...patch, updatedAt: now() });
-      const saved = await saveState(store, {
-        ...state.data,
-        records: { ...state.data.records, [requestId]: next },
+    async updateRecord(requestId, patch, updateOptions) {
+      return enqueueMutation<WorkspaceOperationRecordUpdateResult>(async () => {
+        const state = await loadState(store);
+        if (!state.success) return state;
+        const existing = state.data.records[requestId];
+        if (!existing) return ok(null);
+        if (updateOptions?.expectStatus && !updateOptions.expectStatus.includes(existing.status)) {
+          return ok({ kind: 'status-conflict', record: existing });
+        }
+        const next = compactRecord({ ...existing, ...patch, updatedAt: now() });
+        const saved = await saveState(store, {
+          ...state.data,
+          records: { ...state.data.records, [requestId]: next },
+        });
+        if (!saved.success) return saved;
+        return ok(next);
       });
-      if (!saved.success) return saved;
-      return ok(next);
     },
     async removeRecord(requestId) {
-      const state = await loadState(store);
-      if (!state.success) return state;
-      if (!state.data.records[requestId]) return ok();
-      const records = { ...state.data.records };
-      delete records[requestId];
-      const saved = await saveState(store, { ...state.data, records });
-      if (!saved.success) return saved;
-      return ok();
+      return enqueueMutation(async () => {
+        const state = await loadState(store);
+        if (!state.success) return state;
+        if (!state.data.records[requestId]) return ok();
+        const records = { ...state.data.records };
+        delete records[requestId];
+        const saved = await saveState(store, { ...state.data, records });
+        if (!saved.success) return saved;
+        return ok();
+      });
     },
     async pruneTerminal(olderThanMs) {
-      const state = await loadState(store);
-      if (!state.success) return state;
-      const cutoff = now() - olderThanMs;
-      const records: WorkspaceOperationRecordMap = {};
-      const pruned: WorkspaceOperationRecord[] = [];
-      for (const record of Object.values(state.data.records)) {
-        const finishedAt = record.finishedAt ?? record.updatedAt;
-        if (isTerminalStatus(record.status) && finishedAt < cutoff) pruned.push(record);
-        else records[record.requestId] = record;
-      }
-      if (pruned.length === 0) return ok([]);
-      const saved = await saveState(store, { ...state.data, records });
-      if (!saved.success) return saved;
-      return ok(sortRecords(pruned));
+      return enqueueMutation(async () => {
+        const state = await loadState(store);
+        if (!state.success) return state;
+        const cutoff = now() - olderThanMs;
+        const records: WorkspaceOperationRecordMap = {};
+        const pruned: WorkspaceOperationRecord[] = [];
+        for (const record of Object.values(state.data.records)) {
+          const finishedAt = record.finishedAt ?? record.updatedAt;
+          if (isTerminalStatus(record.status) && finishedAt < cutoff) pruned.push(record);
+          else records[record.requestId] = record;
+        }
+        if (pruned.length === 0) return ok([]);
+        const saved = await saveState(store, { ...state.data, records });
+        if (!saved.success) return saved;
+        return ok(sortRecords(pruned));
+      });
     },
   };
 }
@@ -356,6 +370,12 @@ export function isTerminalStatus(status: WorkspaceOperationRecordStatus): boolea
     status === 'cancelled' ||
     status === 'suspended'
   );
+}
+
+export function isWorkspaceOperationRecordStatusConflict(
+  result: WorkspaceOperationRecordUpdateResult
+): result is WorkspaceOperationRecordStatusConflict {
+  return result !== null && result.kind === 'status-conflict';
 }
 
 function operationRecordFromDraft(

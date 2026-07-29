@@ -5,6 +5,7 @@ import type {
   DeactivateWorkspaceInput,
   TeardownWorkspaceInput,
 } from '@emdash/core/runtimes/workspace/api';
+import { submitAndFollowWorkspaceOperation } from '@emdash/core/runtimes/workspace/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import {
   runtimeResolveErrorAsError,
@@ -26,7 +27,6 @@ import type {
 import { getTaskSessionLeafIds } from '@core/features/tasks/node/session-targets';
 import type { WorkspaceBootstrapResult } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
-import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { makePtySessionId } from '@core/primitives/pty/api';

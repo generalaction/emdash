@@ -5,6 +5,7 @@ import type {
   GitRemotesState,
   RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
+import { submitAndFollowWorkspaceOperation } from '@emdash/core/runtimes/workspace/api';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
@@ -13,7 +14,6 @@ import type { ProjectSettingsProvider } from '@core/features/projects/api/node/s
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import type { WorkspaceType } from '@core/features/workspaces/api/node/workspace-factory';
-import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import {
   hostFileRefFromNativePath,
   nativePathFromHost,

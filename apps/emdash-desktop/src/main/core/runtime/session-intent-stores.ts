@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import { createFileWorkspaceOperationRecordStore } from '@emdash/core/runtimes/workspace/node';
 import { createFileSessionIntentStore } from '@emdash/core/services/session-intents/node';
 import { app } from 'electron';
 
@@ -27,10 +26,4 @@ export function createDesktopSessionIntentStores() {
       scope: 'tui-agents',
     }),
   };
-}
-
-export function createDesktopWorkspaceOperationRecordStore() {
-  return createFileWorkspaceOperationRecordStore({
-    path: sessionIntentFilePaths().workspaceOperationLog,
-  });
 }
