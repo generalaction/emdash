@@ -28,6 +28,8 @@ export function createProjectWorkspacesWireController(
     listProjectWorkspaces: ({ projectId }) =>
       projectWorkspaceOperations.listProjectWorkspaces(projectId),
     measureProjectWorkspaces: (input) => projectWorkspaceOperations.measureProjectWorkspaces(input),
+    getProjectWorkspaceGitStats: (input) =>
+      projectWorkspaceOperations.getProjectWorkspaceGitStats(input),
     deleteProjectWorkspaces: (input) => projectWorkspaceOperations.deleteProjectWorkspaces(input),
   });
 }

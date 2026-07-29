@@ -139,9 +139,4 @@ export {
   type WorkspacesListItem,
   type WorkspacesListProps,
 } from './workspaces-list/workspaces-list';
-export {
-  WorkspaceDetailView,
-  type WorkspaceDetailGitStats,
-  type WorkspaceDetailViewProps,
-} from './workspace-detail/workspace-detail';
 export { McpIcon, type McpIconProps } from './mcp-icon/mcp-icon';

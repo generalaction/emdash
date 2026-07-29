@@ -2,6 +2,8 @@ import { defineContract, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import type { ProjectSettingsLoadResult } from '@core/primitives/project-settings/api';
 import type {
+  GetProjectWorkspaceGitStatsInput,
+  GetProjectWorkspaceGitStatsResult,
   MeasureProjectWorkspacesInput,
   MeasureProjectWorkspacesResult,
   ProjectWorkspaceActionSummary,
@@ -23,6 +25,10 @@ export const projectWorkspacesContract = defineContract({
   measureProjectWorkspaces: procedure({
     input: z.custom<MeasureProjectWorkspacesInput>(),
     output: z.custom<MeasureProjectWorkspacesResult>(),
+  }),
+  getProjectWorkspaceGitStats: procedure({
+    input: z.custom<GetProjectWorkspaceGitStatsInput>(),
+    output: z.custom<GetProjectWorkspaceGitStatsResult>(),
   }),
   deleteProjectWorkspaces: procedure({
     input: z.object({ projectId: z.string(), paths: z.array(z.string()) }),

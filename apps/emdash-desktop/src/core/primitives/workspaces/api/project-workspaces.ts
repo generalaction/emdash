@@ -72,6 +72,36 @@ export type MeasureProjectWorkspacesResult = {
   results: ProjectWorkspaceUsageResult[];
 };
 
+export type ProjectWorkspaceGitStats = {
+  added: number;
+  removed: number;
+  ahead: number;
+  behind: number;
+};
+
+export type GetProjectWorkspaceGitStatsInput = {
+  projectId: string;
+  paths: string[];
+};
+
+export type ProjectWorkspaceGitStatsResult =
+  | {
+      path: string;
+      success: true;
+      stats: ProjectWorkspaceGitStats;
+    }
+  | {
+      path: string;
+      success: false;
+      message: string;
+    };
+
+export type GetProjectWorkspaceGitStatsResult = {
+  scannedAt: string;
+  projectId: string;
+  results: ProjectWorkspaceGitStatsResult[];
+};
+
 export type ProjectWorkspaceActionReason =
   | 'workspace-not-found'
   | 'unsupported-workspace'

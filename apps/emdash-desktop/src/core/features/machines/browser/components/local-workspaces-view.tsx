@@ -1,39 +1,34 @@
 import {
-  WorkspaceDetailView,
   WorkspacesList,
   type WorkspaceIconStatus,
   type WorkspacesListItem,
 } from '@emdash/ui/react/components';
-import { useQueryClient } from '@tanstack/react-query';
+import { Button, SearchInput } from '@emdash/ui/react/primitives';
+import { PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
-import { toast } from '@core/primitives/ui/browser/use-toast';
-import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
-import {
-  deleteMachineProjectWorkspaces,
-  useLocalWorkspaces,
-  type MachineProjectWorkspaces,
-} from '../use-machine-workspaces';
+import { useLocalWorkspaces, type MachineProjectWorkspaces } from '../use-machine-workspaces';
 import { useWorkspaceRuntimeStatuses } from '../use-workspace-runtime-statuses';
 import { aggregateWorkspaceStatus, workspaceStatus } from '../workspace-runtime-status';
 
 type LocalWorkspaceEntry = {
-  group: MachineProjectWorkspaces;
   item: WorkspacesListItem;
-  rootRow: ProjectWorkspaceRow | undefined;
 };
 
 const EMPTY_WORKSPACE_GROUPS: MachineProjectWorkspaces[] = [];
 
-export const LocalWorkspacesView = observer(function LocalWorkspacesView() {
-  const queryClient = useQueryClient();
-  const openConfirm = useOpenModal('confirmActionModal');
+export const LocalWorkspacesView = observer(function LocalWorkspacesView({
+  openDetail,
+}: {
+  openDetail: (detailId: string) => void;
+}) {
+  const openAddProject = useOpenModal('addProjectModal');
   const workspaceQuery = useLocalWorkspaces(true);
   const groups = workspaceQuery.data ?? EMPTY_WORKSPACE_GROUPS;
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const statusInputs = useMemo(
     () =>
       groups.flatMap((group) =>
@@ -46,90 +41,48 @@ export const LocalWorkspacesView = observer(function LocalWorkspacesView() {
   );
   const statuses = useWorkspaceRuntimeStatuses(statusInputs);
   const entries = buildLocalWorkspaceEntries(groups, statuses);
-  const selectedEntry = entries.find((entry) => entry.item.id === selectedProjectId);
-
-  const handleDelete = useCallback(
-    async (entry: LocalWorkspaceEntry) => {
-      const deletableRows = entry.group.workspaces.filter((row) => row.canDelete);
-      if (deletableRows.length === 0) {
-        toast({
-          title: 'No deletable workspaces',
-          description: 'Repository roots cannot be deleted from this view.',
-        });
-        return;
-      }
-
-      const outcome = await openConfirm({
-        title: `Delete ${entry.item.name} workspaces?`,
-        description:
-          'This deletes linked task worktrees for this repository where supported. Repository roots are preserved.',
-        confirmLabel: 'Delete',
-        variant: 'destructive',
-      });
-
-      if (!outcome.success) return;
-
-      try {
-        const result = await deleteMachineProjectWorkspaces({
-          projectId: entry.group.project.id,
-          paths: deletableRows.map((row) => row.path),
-        });
-        const failed = result.results.filter((row) => !row.success);
-
-        if (failed.length > 0) {
-          toast({
-            title: `${result.results.length - failed.length} deleted, ${failed.length} failed`,
-            description: failed[0]?.message,
-            variant: 'destructive',
-          });
-        } else {
-          toast({ title: `Deleted ${deletableRows.length} workspaces` });
-          setSelectedProjectId(null);
-        }
-
-        await queryClient.invalidateQueries({ queryKey: ['machineWorkspaces', 'local'] });
-      } catch (error) {
-        toast({
-          title: 'Could not delete workspaces',
-          description: error instanceof Error ? error.message : String(error),
-          variant: 'destructive',
-        });
-      }
-    },
-    [openConfirm, queryClient]
-  );
+  const filteredEntries = entries.filter((entry) => matchesSearch(entry.item, search));
 
   if (workspaceQuery.isLoading) return <LocalWorkspacesLoadingState />;
   if (workspaceQuery.isError) return <LocalWorkspacesErrorState error={workspaceQuery.error} />;
 
-  if (selectedEntry) {
-    return (
-      <WorkspaceDetailView
-        name={selectedEntry.item.name}
-        path={selectedEntry.item.path}
-        kind={selectedEntry.item.kind}
-        status={selectedEntry.item.status}
-        branch={selectedEntry.rootRow?.branch}
-        worktreeCount={selectedEntry.item.worktreeCount ?? 0}
-        linkedTaskCount={selectedEntry.item.linkedTaskCount}
-        onBack={() => setSelectedProjectId(null)}
-        onDelete={() => void handleDelete(selectedEntry)}
-        worktreesSlot="Worktrees placeholder content."
-        tasksSlot="Tasks placeholder content."
-      />
-    );
-  }
-
   return (
-    <div className="min-h-0">
+    <div className="flex min-h-0 flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <SearchInput
+          size="sm"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          onClear={() => setSearch('')}
+          placeholder="Search workspaces…"
+          style={{ width: '14rem' }}
+        />
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          onClick={() => void openAddProject({ strategy: 'local', mode: 'pick' })}
+        >
+          <PlusIcon />
+          Add Project
+        </Button>
+      </div>
       <WorkspacesList
-        items={entries.map((entry) => entry.item)}
-        onItemClick={(item) => setSelectedProjectId(item.id)}
-        emptySlot={<LocalWorkspacesEmptyState />}
+        items={filteredEntries.map((entry) => entry.item)}
+        onItemClick={(item) => openDetail(item.id)}
+        emptySlot={<LocalWorkspacesEmptyState searching={search.trim().length > 0} />}
       />
     </div>
   );
 });
+
+function matchesSearch(item: WorkspacesListItem, query: string): boolean {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return true;
+  return [item.name, item.path].some((value) =>
+    value.toLocaleLowerCase().includes(normalizedQuery)
+  );
+}
 
 function buildLocalWorkspaceEntries(
   groups: readonly MachineProjectWorkspaces[],
@@ -143,8 +96,6 @@ function buildLocalWorkspaceEntries(
     const worktreeCount = rows.filter((row) => row.kind !== 'root').length;
 
     return {
-      group,
-      rootRow,
       item: {
         id: group.project.id,
         name: group.project.name,
@@ -194,10 +145,10 @@ function LocalWorkspacesErrorState({ error }: { error: unknown }) {
   );
 }
 
-function LocalWorkspacesEmptyState() {
+function LocalWorkspacesEmptyState({ searching }: { searching: boolean }) {
   return (
     <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
-      No workspaces found.
+      {searching ? 'No workspaces match your search.' : 'No workspaces found.'}
     </div>
   );
 }

@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Project } from '@core/primitives/projects/api';
-import type { ProjectWorkspaceRow, ProjectWorkspaceUsage } from '@core/primitives/workspaces/api';
+import type {
+  GetProjectWorkspaceGitStatsResult,
+  MeasureProjectWorkspacesResult,
+  ProjectWorkspaceRow,
+  ProjectWorkspaceUsage,
+} from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 
@@ -45,6 +50,48 @@ export function useLocalWorkspaces(enabled: boolean) {
     enabled,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
+  });
+}
+
+export function useProjectWorkspaceUsage(
+  projectId: string | undefined,
+  paths: readonly string[],
+  enabled: boolean
+) {
+  return useQuery({
+    queryKey: ['projectWorkspaceUsage', projectId, paths],
+    queryFn: async (): Promise<MeasureProjectWorkspacesResult> => {
+      if (!projectId) return { scannedAt: new Date().toISOString(), projectId: '', results: [] };
+      const client = await getDesktopWireClient();
+      return await client.projectWorkspaces.measureProjectWorkspaces({
+        projectId,
+        paths: Array.from(paths),
+      });
+    },
+    enabled: enabled && !!projectId && paths.length > 0,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useProjectWorkspaceGitStats(
+  projectId: string | undefined,
+  paths: readonly string[],
+  enabled: boolean
+) {
+  return useQuery({
+    queryKey: ['projectWorkspaceGitStats', projectId, paths],
+    queryFn: async (): Promise<GetProjectWorkspaceGitStatsResult> => {
+      if (!projectId) return { scannedAt: new Date().toISOString(), projectId: '', results: [] };
+      const client = await getDesktopWireClient();
+      return await client.projectWorkspaces.getProjectWorkspaceGitStats({
+        projectId,
+        paths: Array.from(paths),
+      });
+    },
+    enabled: enabled && !!projectId && paths.length > 0,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 }
 

@@ -4,6 +4,7 @@ import {
   type SettingsPageContribution,
 } from '@core/primitives/settings/api/page-contribution';
 import { appState } from '@renderer/lib/stores/app-state';
+import { LocalWorkspaceDetailPage } from '../browser/pages/local-workspace-detail-page';
 import { LocalWorkspacesSettingsPage } from '../browser/pages/local-workspaces-settings-page';
 import { MachineDetailsPage } from '../browser/pages/machine-details-page';
 import { MachinesSettingsPage } from '../browser/pages/machines-settings-page';
@@ -21,6 +22,10 @@ export const localWorkspacesSettingsPage = defineSettingsPageContribution({
   label: 'Workspaces',
   icon: 'folder-git-2',
   component: LocalWorkspacesSettingsPage,
+  detail: {
+    component: LocalWorkspaceDetailPage,
+    breadcrumbLabel: (detailId) => appState.projects.projects.get(detailId)?.data?.name ?? null,
+  },
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const machinesConnectionsPage = defineSettingsPageContribution({
