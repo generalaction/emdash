@@ -105,6 +105,19 @@ describe('MarkdownRenderer', () => {
     expect(html).toContain('Primary');
   });
 
+  it('uses the info accent for checked task list items', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(MarkdownRenderer, {
+        content: '- [ ] Pending\n- [x] Complete',
+      })
+    );
+
+    expect(html).toContain('checked:accent-foreground-info');
+    expect(html).toContain('checked=""');
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).not.toContain('disabled=""');
+  });
+
   it('prevents browser navigation when a link handler claims a relative href', () => {
     const onOpenLink = vi.fn(() => true);
 

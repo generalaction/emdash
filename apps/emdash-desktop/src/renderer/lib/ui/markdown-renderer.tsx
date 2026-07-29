@@ -277,12 +277,18 @@ function useFullComponents(
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
-      input: ({ checked, ...props }: React.ComponentPropsWithoutRef<'input'>) => (
+      input: ({
+        checked,
+        disabled: _disabled,
+        ...props
+      }: React.ComponentPropsWithoutRef<'input'>) => (
         <input
           type="checkbox"
           checked={checked}
-          disabled
-          className="mr-2 align-middle"
+          readOnly
+          aria-disabled="true"
+          tabIndex={-1}
+          className="pointer-events-none mr-2 align-middle checked:accent-foreground-info"
           {...props}
         />
       ),
