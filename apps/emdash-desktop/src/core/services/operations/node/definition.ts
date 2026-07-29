@@ -10,7 +10,11 @@ import type {
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 
-export type OperationConfirmationReason = 'stale' | 'workspace-modified' | 'reconciler-proposed';
+export type OperationConfirmationReason =
+  | 'stale'
+  | 'workspace-modified'
+  | 'reconciler-proposed'
+  | 'workspace-busy';
 
 export type OperationProgress = {
   currentStep?: string;

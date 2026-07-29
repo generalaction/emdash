@@ -35,6 +35,7 @@ import type {
   OperationsNotificationPublisher,
   OperationsSshManager,
 } from './definition';
+import { requireNextOperationStatus, type OperationStatusEvent } from './operation-status-machine';
 
 const RETRY_DELAYS_MS = [1_000, 4_000];
 const RECONCILE_INTERVAL_MS = 10 * 60_000;
@@ -122,7 +123,10 @@ export class OperationsEngine {
     this.started = true;
     await this.db
       .update(lifecycleOperations)
-      .set({ status: 'pending', error: null })
+      .set({
+        status: requireNextOperationStatus('running', { type: 'process-restarted' }),
+        error: null,
+      })
       .where(eq(lifecycleOperations.status, 'running'));
 
     const onConnection = (event: { type: string }) => {
@@ -136,7 +140,7 @@ export class OperationsEngine {
     this.scope.add(async () => {
       await this.db
         .update(lifecycleOperations)
-        .set({ status: 'pending' })
+        .set({ status: requireNextOperationStatus('running', { type: 'process-restarted' }) })
         .where(eq(lifecycleOperations.status, 'running'));
     });
 
@@ -211,9 +215,13 @@ export class OperationsEngine {
     const definition = this.requireDefinition(operation.kind);
     const confirmedAt = this.clock.now();
     const reset = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
+      const status = this.transitionStatus(item.status, {
+        type: 'user-retried',
+        confirmedAt,
+      });
       tx.update(lifecycleOperations)
         .set({
-          status: 'pending',
+          status,
           error: null,
           finishedAt: null,
           payload: {
@@ -252,8 +260,9 @@ export class OperationsEngine {
     }
     const definition = this.requireDefinition(operation.kind);
     const markAbandoned = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
+      const status = this.transitionStatus(item.status, { type: 'user-abandoned' });
       tx.update(lifecycleOperations)
-        .set({ status: 'abandoned', finishedAt: this.clock.now(), error: null })
+        .set({ status, finishedAt: this.clock.now(), error: null })
         .where(eq(lifecycleOperations.id, item.id))
         .run();
     };
@@ -374,10 +383,11 @@ export class OperationsEngine {
     definition: OperationDefinition,
     signal: AbortSignal
   ): Promise<void> {
+    const runningStatus = this.transitionStatus(operation.status, { type: 'started' });
     const current = { ...operation, status: 'running' as const };
     await this.db
       .update(lifecycleOperations)
-      .set({ status: 'running', attempt: operation.attempt + 1, error: null })
+      .set({ status: runningStatus, attempt: operation.attempt + 1, error: null })
       .where(eq(lifecycleOperations.id, operation.id));
     await this.refreshDeletionStates();
 
@@ -386,20 +396,29 @@ export class OperationsEngine {
     if (result.success) {
       await this.db
         .update(lifecycleOperations)
-        .set({ status: 'succeeded', finishedAt: this.clock.now(), error: null })
+        .set({
+          status: this.transitionStatus(current.status, { type: 'run-succeeded' }),
+          finishedAt: this.clock.now(),
+          error: null,
+        })
         .where(eq(lifecycleOperations.id, operation.id));
     } else if (result.error.type === 'awaiting-confirmation') {
       await this.awaitConfirmation(operation, result.error.reason);
       return;
     } else if (!signal.aborted) {
+      const error =
+        result.error.code === 'workspace-in-use'
+          ? `${result.error.code}: ${result.error.message}`
+          : result.error.message;
       await this.db
         .update(lifecycleOperations)
         .set({
-          status: 'failed',
-          error:
-            result.error.code === 'workspace-in-use'
-              ? `${result.error.code}: ${result.error.message}`
-              : result.error.message,
+          status: this.transitionStatus(current.status, {
+            type: 'run-failed',
+            error,
+            retryable: result.error.retryable,
+          }),
+          error,
         })
         .where(eq(lifecycleOperations.id, operation.id));
     }
@@ -454,7 +473,7 @@ export class OperationsEngine {
     await this.db
       .update(lifecycleOperations)
       .set({
-        status: 'awaiting-confirmation',
+        status: this.transitionStatus('running', { type: 'needs-confirmation', reason }),
         attempt: operation.attempt,
         payload: { ...operation.payload, confirmationReason: reason },
       })
@@ -480,14 +499,23 @@ export class OperationsEngine {
   }
 
   private async failMissingDefinition(operation: LifecycleOperationRow): Promise<void> {
+    const error = `No operation definition is registered for '${operation.kind}'`;
     await this.db
       .update(lifecycleOperations)
       .set({
-        status: 'failed',
-        error: `No operation definition is registered for '${operation.kind}'`,
+        status: this.transitionStatus(operation.status, {
+          type: 'run-failed',
+          error,
+          retryable: false,
+        }),
+        error,
       })
       .where(eq(lifecycleOperations.id, operation.id));
     await this.refreshDeletionStates();
+  }
+
+  private transitionStatus(current: OperationStatus, event: OperationStatusEvent): OperationStatus {
+    return requireNextOperationStatus(current, event);
   }
 
   private buildOperationDraft(input: OperationDraftInput): OperationDraft {

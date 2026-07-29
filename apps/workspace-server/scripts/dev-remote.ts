@@ -43,15 +43,8 @@ async function main(): Promise<void> {
 
   process.stdout.write(`Uploading workspace-server ${expectedVersion} to local minio...\n`);
   await runCommand(
-    'node',
-    [
-      '--experimental-strip-types',
-      'scripts/upload-r2.ts',
-      '--version',
-      expectedVersion,
-      '--target',
-      target,
-    ],
+    'tsx',
+    ['scripts/upload-r2.ts', '--version', expectedVersion, '--target', target],
     {
       cwd: appDirectory,
       env: {

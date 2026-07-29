@@ -801,9 +801,9 @@ function cleanupStatusLabel(cleanup: DeletionState): string {
     case 'blocked-host-offline':
       return 'Host offline';
     case 'awaiting-confirmation':
-      return cleanup.confirmationReason === 'workspace-modified'
-        ? 'Workspace modified'
-        : 'Needs review';
+      if (cleanup.confirmationReason === 'workspace-modified') return 'Workspace modified';
+      if (cleanup.confirmationReason === 'workspace-busy') return 'Workspace busy';
+      return 'Needs review';
     case 'failed':
       return 'Failed';
     case 'cleaning':

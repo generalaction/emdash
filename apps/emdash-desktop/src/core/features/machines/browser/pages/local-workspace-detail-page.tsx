@@ -332,12 +332,17 @@ function GitStatsCell({
   loading: boolean;
 }) {
   if (stats) {
+    const hasStats = stats.added > 0 || stats.removed > 0 || stats.ahead > 0 || stats.behind > 0;
+    if (!hasStats) return '-';
+
     return (
       <span className="inline-flex gap-1">
-        <span className="text-foreground-diff-added">+{stats.added}</span>
-        <span className="text-foreground-diff-deleted">-{stats.removed}</span>
-        <span>↑{stats.ahead}</span>
-        <span>↓{stats.behind}</span>
+        {stats.added > 0 && <span className="text-foreground-diff-added">+{stats.added}</span>}
+        {stats.removed > 0 && (
+          <span className="text-foreground-diff-deleted">-{stats.removed}</span>
+        )}
+        {stats.ahead > 0 && <span>↑{stats.ahead}</span>}
+        {stats.behind > 0 && <span>↓{stats.behind}</span>}
       </span>
     );
   }

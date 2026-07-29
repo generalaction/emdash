@@ -1,6 +1,6 @@
 import semver from 'semver';
 
-export const PROTOCOL_VERSION = '5.3.0';
+export const PROTOCOL_VERSION = '6.0.0';
 
 export type ProtocolNegotiation =
   | { compatible: true; agreedVersion: string; agreedMinor: number }

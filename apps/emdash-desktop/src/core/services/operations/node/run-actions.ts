@@ -38,6 +38,9 @@ export async function runOperationActions(
           : timedOut
             ? 'operation-timeout'
             : 'operation-failed';
+      if (code === 'workspace-busy') {
+        return err({ type: 'awaiting-confirmation', reason: 'workspace-busy' });
+      }
       return err({
         type: 'failed',
         code,

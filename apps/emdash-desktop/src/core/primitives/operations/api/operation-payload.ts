@@ -14,7 +14,9 @@ const v1Schema = z.object({
   tuiConversationIds: z.array(z.string()).optional(),
   terminalSessionIds: z.array(z.string()).optional(),
   tmuxSessionNames: z.array(z.string()).optional(),
-  confirmationReason: z.enum(['stale', 'workspace-modified', 'reconciler-proposed']).optional(),
+  confirmationReason: z
+    .enum(['stale', 'workspace-modified', 'reconciler-proposed', 'workspace-busy'])
+    .optional(),
   confirmedAt: z.number().int().nonnegative().optional(),
 });
 

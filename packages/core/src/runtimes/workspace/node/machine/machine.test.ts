@@ -20,6 +20,49 @@ describe('WorkspaceMachine prepared state', () => {
     expect(machine.current().prepared).toBe(false);
   });
 
+  it('derives lifecycle phase from topology, operation, and prepared state', () => {
+    const workspace = hostFileRefFromNative('/repo');
+    const machine = createWorkspaceMachine(workspace);
+
+    expect(machine.current().phase).toEqual({ kind: 'unprovisioned' });
+
+    machine.apply({ type: 'TopologyObserved', topology: { kind: 'directory' } });
+    expect(machine.current().phase).toEqual({ kind: 'provisioned' });
+
+    const activated = machine.dispatch(
+      { type: 'BeginOperation', kind: 'activate', operationId: 'activate-1', startedAt: 1 },
+      undefined
+    );
+    expect(activated.success).toBe(true);
+    expect(machine.current().phase).toEqual({ kind: 'activating', jobId: 'activate-1' });
+
+    machine.apply({ type: 'PrepareCompleted' });
+    expect(machine.current().phase).toEqual({ kind: 'activating', jobId: 'activate-1' });
+
+    machine.apply({ type: 'OperationCompleted' });
+    expect(machine.current().phase).toEqual({ kind: 'ready', prepared: true });
+  });
+
+  it('validates explicit lifecycle commands against the current phase', () => {
+    const workspace = hostFileRefFromNative('/repo');
+    const machine = createWorkspaceMachine(workspace);
+
+    expect(
+      machine.dispatch(
+        { type: 'Activate', operationId: 'activate-1', startedAt: 1, consumerId: 'task-1' },
+        undefined
+      )
+    ).toMatchObject({
+      success: false,
+      error: { type: 'illegal-transition' },
+    });
+
+    expect(
+      machine.dispatch({ type: 'Provision', operationId: 'provision-1', startedAt: 1 }, undefined)
+    ).toMatchObject({ success: true });
+    expect(machine.current().phase).toEqual({ kind: 'provisioning', jobId: 'provision-1' });
+  });
+
   it('clears prepared when teardown starts', () => {
     const workspace = hostFileRefFromNative('/repo');
     const machine = createWorkspaceMachine(workspace, { kind: 'directory' });

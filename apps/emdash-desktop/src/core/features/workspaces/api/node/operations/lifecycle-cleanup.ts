@@ -128,7 +128,7 @@ export async function teardownLifecycleWorkspace(
     },
   });
   if (!result.success && !isMissingError(result.error)) {
-    throw new Error(result.error.message);
+    throw workspaceRuntimeError(result.error);
   }
 }
 
@@ -206,6 +206,15 @@ export class WorkspaceInUseError extends Error {
   }
 }
 
+class WorkspaceRuntimeCleanupError extends Error {
+  readonly code: string;
+
+  constructor(error: { type?: string; message?: string }) {
+    super(error.message ?? 'Workspace runtime cleanup failed');
+    this.code = error.type ?? 'workspace-runtime-error';
+  }
+}
+
 async function resolveWorkspaceRuntimeClient(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   host: HostRef
@@ -219,4 +228,22 @@ function isMissingError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('type' in error)) return false;
   const type = String(error.type);
   return type === 'not-found' || type === 'workspace-not-found' || type === 'missing-workspace';
+}
+
+function workspaceRuntimeError(error: unknown): Error {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'type' in error &&
+    typeof error.type === 'string'
+  ) {
+    return new WorkspaceRuntimeCleanupError({
+      type: error.type,
+      message:
+        'message' in error && typeof error.message === 'string'
+          ? error.message
+          : 'Workspace runtime cleanup failed',
+    });
+  }
+  return error instanceof Error ? error : new Error(String(error));
 }

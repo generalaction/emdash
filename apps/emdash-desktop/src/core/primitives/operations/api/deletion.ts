@@ -30,7 +30,12 @@ export const deletionStateSchema = z.discriminatedUnion('status', [
   }),
   deletionBaseSchema.extend({
     status: z.literal('awaiting-confirmation'),
-    confirmationReason: z.enum(['stale', 'workspace-modified', 'reconciler-proposed']),
+    confirmationReason: z.enum([
+      'stale',
+      'workspace-modified',
+      'reconciler-proposed',
+      'workspace-busy',
+    ]),
   }),
   deletionBaseSchema.extend({
     status: z.literal('failed'),

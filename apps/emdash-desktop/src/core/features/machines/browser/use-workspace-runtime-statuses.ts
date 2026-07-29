@@ -155,21 +155,20 @@ function deriveWorkspaceRuntimeStatus(
   state: WorkspaceRuntimeState | undefined,
   hasActiveSessions: boolean
 ): WorkspaceRuntimeStatus {
-  const operationKind = state?.operation.kind;
-  if (
-    operationKind === 'teardown' ||
-    operationKind === 'deactivate' ||
-    operationKind === 'clean-artifacts'
-  ) {
-    return 'tearing-down';
-  }
-  if (
-    operationKind === 'provision' ||
-    operationKind === 'convert' ||
-    operationKind === 'activate' ||
-    operationKind === 'reconcile'
-  ) {
-    return 'setting-up';
+  switch (state?.phase.kind) {
+    case 'provisioning':
+    case 'activating':
+      return 'setting-up';
+    case 'deactivating':
+    case 'tearing-down':
+      return 'tearing-down';
+    case 'ready':
+      return 'active';
+    case 'broken':
+    case 'provisioned':
+    case 'unprovisioned':
+    case undefined:
+      break;
   }
   if ((state?.consumers.length ?? 0) > 0 || hasActiveSessions) return 'active';
   return 'idle';

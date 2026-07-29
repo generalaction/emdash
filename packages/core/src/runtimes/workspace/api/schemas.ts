@@ -84,8 +84,24 @@ export const workspaceErrorSchema = z.object({
   resolutions: z.array(z.string()).optional(),
 });
 
+export const workspacePhaseSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('unprovisioned') }),
+  z.object({ kind: z.literal('provisioning'), jobId: z.string().min(1) }),
+  z.object({ kind: z.literal('provisioned') }),
+  z.object({
+    kind: z.literal('activating'),
+    jobId: z.string().min(1),
+    consumerId: z.string().min(1).optional(),
+  }),
+  z.object({ kind: z.literal('ready'), prepared: z.literal(true) }),
+  z.object({ kind: z.literal('deactivating'), jobId: z.string().min(1) }),
+  z.object({ kind: z.literal('tearing-down'), jobId: z.string().min(1) }),
+  z.object({ kind: z.literal('broken'), error: workspaceErrorSchema }),
+]);
+
 export const workspaceStateSchema = z.object({
   workspace: hostFileRefSchema,
+  phase: workspacePhaseSchema,
   topology: workspaceTopologySchema,
   operation: workspaceOperationStateSchema,
   consumers: z.array(workspaceConsumerSchema),
@@ -217,6 +233,7 @@ export const teardownWorkspaceInputSchema = z.object({
 
 export type WorkspaceKey = z.infer<typeof workspaceKeySchema>;
 export type WorkspaceTopology = z.infer<typeof workspaceTopologySchema>;
+export type WorkspacePhase = z.infer<typeof workspacePhaseSchema>;
 export type WorkspaceOperationKind = z.infer<typeof workspaceOperationKindSchema>;
 export type WorkspaceOperationStage = z.infer<typeof workspaceOperationStageSchema>;
 export type WorkspaceOperationState = z.infer<typeof workspaceOperationStateSchema>;
