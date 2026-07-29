@@ -35,6 +35,17 @@ describe('deriveMachineStatusKind', () => {
     ).toBe('successful');
   });
 
+  it('is an error when the workspace server is running with an error', () => {
+    expect(
+      deriveMachineStatusKind({
+        connectionState: 'connected',
+        workspaceServerStatus: 'healthy',
+        workspaceServerError: true,
+        workspaceServerLoading: false,
+      })
+    ).toBe('error');
+  });
+
   it.each(['booting', 'shutting-down'] as const)(
     'is initializing while the workspace server is %s',
     (workspaceServerStatus) => {

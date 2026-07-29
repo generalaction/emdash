@@ -20,6 +20,7 @@ export function useMachineStatusKind({
   return deriveMachineStatusKind({
     connectionState,
     workspaceServerStatus: workspaceServer.state?.status,
+    workspaceServerError: workspaceServer.state?.error !== undefined,
     workspaceServerLoading: workspaceServer.loading,
   });
 }

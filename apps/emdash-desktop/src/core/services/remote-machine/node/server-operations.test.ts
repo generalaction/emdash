@@ -23,12 +23,62 @@ describe('RemoteMachineServerOperations', () => {
 
     await fixture.operations.refresh('ssh-1');
 
-    expect(fixture.status('ssh-1')).toEqual({ status: 'stopped', version: '1.2.3' });
+    expect(fixture.status('ssh-1')).toEqual({
+      status: 'stopped',
+      version: '1.2.3',
+      latestVersion: '1.2.4',
+    });
     await fixture.dispose();
   });
 
-  it('publishes handshake metadata for a healthy workspace server', async () => {
+  it('publishes handshake metadata and the latest available version for a healthy server', async () => {
     const fixture = createFixture();
+
+    await fixture.operations.refresh('ssh-1');
+
+    expect(fixture.status('ssh-1')).toEqual({
+      status: 'healthy',
+      version: '1.2.3',
+      latestVersion: '1.2.4',
+      startedAt: 100,
+    });
+    await fixture.dispose();
+  });
+
+  it('publishes protocol incompatibility as a running server with a typed error', async () => {
+    const fixture = createFixture();
+    fixture.wire.dialOnce.mockRejectedValueOnce(protocolError('upgrade-server'));
+
+    await fixture.operations.refresh('ssh-1');
+
+    expect(fixture.status('ssh-1')).toMatchObject({
+      status: 'healthy',
+      version: '1.2.3',
+      latestVersion: '1.2.4',
+      error: { code: 'protocol-upgrade-server' },
+    });
+    await fixture.dispose();
+  });
+
+  it('preserves the running lifecycle when restart hits a protocol incompatibility', async () => {
+    const fixture = createFixture();
+    fixture.wire.dialOnce.mockRejectedValueOnce(protocolError('upgrade-client'));
+
+    await expect(fixture.operations.restart('ssh-1')).rejects.toBeInstanceOf(
+      WorkspaceServerProtocolError
+    );
+
+    expect(fixture.status('ssh-1')).toMatchObject({
+      status: 'healthy',
+      version: '1.2.3',
+      error: { code: 'protocol-upgrade-client' },
+    });
+    await fixture.dispose();
+  });
+
+  it('preserves the latest available version when latest-version resolution fails', async () => {
+    const fixture = createFixture();
+    fixture.installer.availableVersion.mockRejectedValueOnce(new Error('metadata unavailable'));
 
     await fixture.operations.refresh('ssh-1');
 
@@ -40,24 +90,21 @@ describe('RemoteMachineServerOperations', () => {
     await fixture.dispose();
   });
 
-  it('publishes protocol incompatibility as a typed failure', async () => {
+  it('caches latest-version checks unless refresh is forced', async () => {
     const fixture = createFixture();
-    fixture.wire.dialOnce.mockRejectedValueOnce(
-      new WorkspaceServerProtocolError({
-        code: 'protocol-incompatible',
-        action: 'upgrade-client',
-        clientProtocolVersion: '2.0.0',
-        serverProtocolVersion: '1.0.0',
-      })
-    );
+    fixture.installer.availableVersion
+      .mockResolvedValueOnce('1.2.4')
+      .mockResolvedValueOnce('1.2.5');
 
     await fixture.operations.refresh('ssh-1');
+    await fixture.operations.refresh('ssh-1');
+    expect(fixture.installer.availableVersion).toHaveBeenCalledOnce();
+    expect(fixture.status('ssh-1')?.latestVersion).toBe('1.2.4');
 
-    expect(fixture.status('ssh-1')).toMatchObject({
-      status: 'failed',
-      version: '1.2.3',
-      error: { code: 'protocol-incompatible' },
-    });
+    await fixture.operations.refresh('ssh-1', { force: true });
+
+    expect(fixture.installer.availableVersion).toHaveBeenCalledTimes(2);
+    expect(fixture.status('ssh-1')?.latestVersion).toBe('1.2.5');
     await fixture.dispose();
   });
 
@@ -82,6 +129,7 @@ function createFixture() {
   };
   const installer = {
     installedVersion: vi.fn(async () => '1.2.3' as string | undefined),
+    availableVersion: vi.fn(async () => '1.2.4'),
     install: vi.fn(async () => {}),
   };
   const daemon = {
@@ -119,6 +167,15 @@ function createFixture() {
       await scope.dispose();
     },
   };
+}
+
+function protocolError(action: 'upgrade-client' | 'upgrade-server'): WorkspaceServerProtocolError {
+  return new WorkspaceServerProtocolError({
+    code: 'protocol-incompatible',
+    action,
+    clientProtocolVersion: '2.0.0',
+    serverProtocolVersion: '1.0.0',
+  });
 }
 
 function handshake(): WireInitializeResult {

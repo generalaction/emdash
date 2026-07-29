@@ -23,7 +23,7 @@ type RemoteMachineServerOperationsDeps = {
   scope: Scope;
   state: RemoteMachineStateModel;
   host: Pick<RemoteHostProbe, 'probe'>;
-  installer: Pick<WorkspaceServerInstaller, 'installedVersion' | 'install'>;
+  installer: Pick<WorkspaceServerInstaller, 'availableVersion' | 'installedVersion' | 'install'>;
   daemon: Pick<RemoteWorkspaceServerDaemon, 'start' | 'stop'>;
   wire: Pick<WireConnectionManager, 'dialOnce' | 'invalidateConnection'>;
   /** Cached provisioned targets; dropped whenever an operation changes daemon state. */
@@ -36,19 +36,31 @@ type PendingOperation = {
   promise: Promise<void>;
 };
 
+type RefreshOptions = {
+  force?: boolean;
+};
+
+type LatestVersionCacheEntry = {
+  version: string;
+  checkedAt: number;
+};
+
 const serverReadyRetrySchedule = retrySchedules.sequence([100, 250, 500, 1_000, 2_000]);
+const latestVersionCacheTtlMs = 5 * 60_000;
 
 export class RemoteMachineServerOperations {
   private readonly operations = new Map<string, PendingOperation>();
+  private readonly latestVersions = new Map<string, LatestVersionCacheEntry>();
   private readonly clock: Clock;
 
   constructor(private readonly deps: RemoteMachineServerOperationsDeps) {
     this.clock = deps.clock ?? systemClock;
   }
 
-  refresh(connectionId: string): Promise<void> {
-    return this.serialized(connectionId, 'refresh', (signal) =>
-      this.refreshUnserialized(connectionId, signal)
+  refresh(connectionId: string, options: RefreshOptions = {}): Promise<void> {
+    const action = options.force ? 'refresh:force' : 'refresh';
+    return this.serialized(connectionId, action, (signal) =>
+      this.refreshUnserialized(connectionId, signal, options)
     );
   }
 
@@ -97,7 +109,11 @@ export class RemoteMachineServerOperations {
       });
       await this.deps.wire.invalidateConnection(connectionId);
       await this.deps.daemon.stop(connectionId, layout, signal);
-      this.deps.state.set(connectionId, { status: 'stopped', version });
+      this.deps.state.set(connectionId, {
+        status: 'stopped',
+        version,
+        ...latestVersionState(this.cachedLatestVersion(connectionId)),
+      });
     });
   }
 
@@ -149,7 +165,11 @@ export class RemoteMachineServerOperations {
     });
   }
 
-  private async refreshUnserialized(connectionId: string, signal: AbortSignal): Promise<void> {
+  private async refreshUnserialized(
+    connectionId: string,
+    signal: AbortSignal,
+    options: RefreshOptions
+  ): Promise<void> {
     // Do not clear the current entry first: every branch below ends with a
     // full set(), and blanking the state would flicker the UI on each refresh.
     try {
@@ -160,19 +180,24 @@ export class RemoteMachineServerOperations {
         this.deps.state.set(connectionId, { status: 'not-installed' });
         return;
       }
+      const latestVersion = await this.resolveLatestVersion(connectionId, signal, options);
 
       try {
         const handshake = await this.deps.wire.dialOnce(
           sshWorkspaceServerTarget(connectionId, layout),
           { signal }
         );
-        this.publishHealthy(connectionId, handshake);
+        this.publishHealthy(connectionId, handshake, latestVersion);
       } catch (error) {
         this.deps.provision.drop(connectionId);
         if (error instanceof WorkspaceServerProtocolError) {
-          this.publishFailure(connectionId, error, version);
+          this.publishFailure(connectionId, error, { version, latestVersion });
         } else {
-          this.deps.state.set(connectionId, { status: 'stopped', version });
+          this.deps.state.set(connectionId, {
+            status: 'stopped',
+            version,
+            ...latestVersionState(latestVersion),
+          });
         }
       }
     } catch (error) {
@@ -221,22 +246,72 @@ export class RemoteMachineServerOperations {
     this.publishHealthy(connectionId, handshake);
   }
 
-  private publishHealthy(connectionId: string, handshake: WireInitializeResult): void {
+  private publishHealthy(
+    connectionId: string,
+    handshake: WireInitializeResult,
+    latestVersion = this.cachedLatestVersion(connectionId)
+  ): void {
     this.deps.state.set(connectionId, {
       status: 'healthy',
       version: handshake.server.appVersion,
+      ...latestVersionState(latestVersion),
       startedAt: handshake.server.startedAt,
     });
   }
 
-  private publishFailure(connectionId: string, error: unknown, version?: string): void {
+  private publishFailure(
+    connectionId: string,
+    error: unknown,
+    metadata: { version?: string; latestVersion?: string } = {}
+  ): void {
     const failure = operationFailure(error);
     if (failure.code === 'not-installed') return;
+    const current = this.deps.state.get(connectionId);
+    const version = metadata.version ?? current?.version;
+    const latestVersion = metadata.latestVersion ?? this.cachedLatestVersion(connectionId);
+    if (isProtocolFailure(failure.code)) {
+      this.deps.state.set(connectionId, {
+        status: 'healthy',
+        ...versionState(version),
+        ...latestVersionState(latestVersion),
+        ...startedAtState(current?.startedAt),
+        error: failure,
+      });
+      return;
+    }
     this.deps.state.set(connectionId, {
       status: 'failed',
-      version,
+      ...versionState(version),
+      ...latestVersionState(latestVersion),
       error: failure,
     });
+  }
+
+  private async resolveLatestVersion(
+    connectionId: string,
+    signal: AbortSignal,
+    options: RefreshOptions
+  ): Promise<string | undefined> {
+    const cached = this.latestVersions.get(connectionId);
+    if (
+      !options.force &&
+      cached !== undefined &&
+      this.clock.now() - cached.checkedAt < latestVersionCacheTtlMs
+    ) {
+      return cached.version;
+    }
+
+    try {
+      const version = await this.deps.installer.availableVersion(connectionId, signal);
+      this.latestVersions.set(connectionId, { version, checkedAt: this.clock.now() });
+      return version;
+    } catch {
+      return cached?.version;
+    }
+  }
+
+  private cachedLatestVersion(connectionId: string): string | undefined {
+    return this.latestVersions.get(connectionId)?.version;
   }
 
   private serialized(
@@ -283,7 +358,7 @@ function operationFailure(error: unknown): { code: string; message: string } {
     return { code: error.code, message: error.message };
   }
   if (error instanceof WorkspaceServerProtocolError) {
-    return { code: 'protocol-incompatible', message: error.message };
+    return { code: `protocol-${error.details.action}`, message: error.message };
   }
   if (error instanceof WorkspaceServerDaemonError) {
     return { code: 'daemon-operation-failed', message: error.message };
@@ -292,4 +367,20 @@ function operationFailure(error: unknown): { code: string; message: string } {
     code: 'connection-failed',
     message: error instanceof Error ? error.message : String(error),
   };
+}
+
+function isProtocolFailure(code: string): boolean {
+  return code === 'protocol-upgrade-client' || code === 'protocol-upgrade-server';
+}
+
+function latestVersionState(latestVersion: string | undefined): { latestVersion?: string } {
+  return latestVersion === undefined ? {} : { latestVersion };
+}
+
+function versionState(version: string | undefined): { version?: string } {
+  return version === undefined ? {} : { version };
+}
+
+function startedAtState(startedAt: number | undefined): { startedAt?: number } {
+  return startedAt === undefined ? {} : { startedAt };
 }

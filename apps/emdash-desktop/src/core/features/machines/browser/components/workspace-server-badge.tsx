@@ -1,5 +1,8 @@
 import { Pill } from '@emdash/ui/react/components';
-import type { RemoteMachineServerStatus } from '@core/services/remote-machine/api';
+import type {
+  RemoteMachineServerState,
+  RemoteMachineServerStatus,
+} from '@core/services/remote-machine/api';
 
 const statusLabels: Record<RemoteMachineServerStatus, string> = {
   'not-installed': 'Not found',
@@ -26,12 +29,44 @@ function variantForStatus(status: RemoteMachineServerStatus): {
   return { variant: 'neutral', pulsing: false };
 }
 
-export function WorkspaceServerBadge({ status }: { status: RemoteMachineServerStatus }) {
+function labelForStatus(
+  status: RemoteMachineServerStatus,
+  error: RemoteMachineServerState['error']
+): string {
+  if (status === 'healthy' && error !== undefined) return 'Running';
+  return statusLabels[status];
+}
+
+function labelForError(code: string): string {
+  switch (code) {
+    case 'protocol-upgrade-client':
+      return 'App update required';
+    case 'protocol-upgrade-server':
+      return 'Incompatible runtime';
+    default:
+      return 'Error';
+  }
+}
+
+export function WorkspaceServerBadge({
+  status,
+  error,
+}: {
+  status: RemoteMachineServerStatus;
+  error?: RemoteMachineServerState['error'];
+}) {
   const { variant, pulsing } = variantForStatus(status);
 
   return (
-    <Pill variant={variant} dot pulsing={pulsing}>
-      {statusLabels[status]}
-    </Pill>
+    <>
+      <Pill variant={variant} dot pulsing={pulsing}>
+        {labelForStatus(status, error)}
+      </Pill>
+      {status !== 'failed' && error !== undefined && (
+        <Pill variant="error" title={error.message}>
+          {labelForError(error.code)}
+        </Pill>
+      )}
+    </>
   );
 }

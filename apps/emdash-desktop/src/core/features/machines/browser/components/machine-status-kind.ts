@@ -5,10 +5,12 @@ import type { RemoteMachineServerStatus } from '@core/services/remote-machine/ap
 export function deriveMachineStatusKind({
   connectionState,
   workspaceServerStatus,
+  workspaceServerError,
   workspaceServerLoading,
 }: {
   connectionState: ConnectionState;
   workspaceServerStatus: RemoteMachineServerStatus | undefined;
+  workspaceServerError?: boolean;
   workspaceServerLoading: boolean;
 }): MachineStatusKind {
   if (connectionState === 'error') return 'error';
@@ -24,6 +26,7 @@ export function deriveMachineStatusKind({
   ) {
     return 'initializing';
   }
+  if (workspaceServerError) return 'error';
   if (workspaceServerStatus === 'healthy') return 'successful';
 
   return 'error';

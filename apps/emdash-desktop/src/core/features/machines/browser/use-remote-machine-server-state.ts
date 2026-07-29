@@ -36,6 +36,7 @@ export function useRemoteMachineServerState({
   stop(): Promise<void>;
   restart(): Promise<void>;
   update(): Promise<void>;
+  refresh(): Promise<void>;
 } {
   const [runtimeState, setRuntimeState] = useState<RuntimeState | null>(null);
   const [modelReady, setModelReady] = useState(false);
@@ -123,6 +124,20 @@ export function useRemoteMachineServerState({
     [machineId]
   );
 
+  const refresh = useCallback(async () => {
+    if (!machineId) return;
+    try {
+      const client = await getDesktopWireClient();
+      await client.remoteMachine.refreshServerState({ connectionId: machineId, force: true });
+    } catch (error) {
+      toast({
+        title: 'Failed to check workspace server updates',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    }
+  }, [machineId]);
+
   return {
     state,
     loading: enabled && connected && (!modelReady || !state),
@@ -131,5 +146,6 @@ export function useRemoteMachineServerState({
     stop: () => runAction('stopServer', 'shut down'),
     restart: () => runAction('restartServer', 'restart'),
     update: () => runAction('updateServer', 'update'),
+    refresh,
   };
 }

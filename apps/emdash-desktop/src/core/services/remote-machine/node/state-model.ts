@@ -24,6 +24,10 @@ export class RemoteMachineStateModel {
     });
   }
 
+  get(connectionId: string): RemoteMachineServerState | undefined {
+    return this.instance.states.runtime.snapshot().data[connectionId];
+  }
+
   remove(connectionId: string): void {
     this.instance.states.runtime.produce((runtime: RemoteMachineServerRuntime) => {
       delete runtime[connectionId];
@@ -37,6 +41,7 @@ export class RemoteMachineStateModel {
       runtime[connectionId] = {
         status: 'stopped',
         version: current.version,
+        latestVersion: current.latestVersion,
       };
     });
   }

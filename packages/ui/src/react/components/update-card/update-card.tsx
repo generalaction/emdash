@@ -7,6 +7,7 @@ import * as styles from './update-card.css';
 
 export type UpdateStatus =
   | { type: 'up-to-date' }
+  | { type: 'update-available'; version: string; onUpdate: () => Promise<void> }
   | {
       type: 'update-download-available';
       version: string;
@@ -44,6 +45,10 @@ export function UpdateCard({
     if (status.type !== 'update-download-available') return;
     await status.onDownload(onProgress);
   });
+  const [updateNow, , isUpdating] = useAsyncAction(async () => {
+    if (status.type !== 'update-available') return;
+    await status.onUpdate();
+  });
   const [installUpdate, , isInstalling] = useAsyncAction(async () => {
     if (status.type !== 'update-install-available') return;
     await status.onInstall();
@@ -65,6 +70,18 @@ export function UpdateCard({
             aria-busy={isCheckingForUpdates}
           >
             {isCheckingForUpdates ? 'Checking...' : 'Check for updates'}
+          </Button>
+        );
+      case 'update-available':
+        return (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={updateNow}
+            disabled={isUpdating}
+            aria-busy={isUpdating}
+          >
+            {isUpdating ? 'Updating...' : 'Update'}
           </Button>
         );
       case 'update-download-available':
@@ -105,6 +122,8 @@ export function UpdateCard({
     switch (status.type) {
       case 'up-to-date':
         return `Current ${appName} version v${currentVersion} is up to date`;
+      case 'update-available':
+        return `Version v${status.version} is available. Update and restart ${appName} to use the new version`;
       case 'update-download-available':
         return `Version v${status.version} is available. Download and restart ${appName} to use the new version`;
       case 'update-install-available':
@@ -116,6 +135,8 @@ export function UpdateCard({
     switch (status.type) {
       case 'up-to-date':
         return 'success';
+      case 'update-available':
+        return 'warning';
       case 'update-download-available':
         return 'warning';
       case 'update-install-available':

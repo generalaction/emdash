@@ -1,6 +1,7 @@
+import { UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
 import { SettingsRow } from '@emdash/ui/react/patterns';
-import { Alert, Button, SplitButton } from '@emdash/ui/react/primitives';
-import { DownloadIcon, LoaderCircleIcon, PlayIcon, RefreshCwIcon } from 'lucide-react';
+import { Button, SplitButton } from '@emdash/ui/react/primitives';
+import { DownloadIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react';
 import type { RemoteMachineServerState } from '@core/services/remote-machine/api';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
@@ -10,6 +11,7 @@ type WorkspaceServerActions = {
   stop(): Promise<void>;
   restart(): Promise<void>;
   update(): Promise<void>;
+  refresh(): Promise<void>;
 };
 
 export function WorkspaceRuntimeRow({
@@ -23,18 +25,15 @@ export function WorkspaceRuntimeRow({
   state: RemoteMachineServerState | undefined;
   actions: WorkspaceServerActions;
 }) {
-  const updateAvailable =
-    state?.version !== undefined &&
-    state.latestVersion !== undefined &&
-    state.version !== state.latestVersion;
-
   return (
     <div className="flex flex-col gap-3">
       <SettingsRow
         label={
           <span className="flex items-center gap-2">
             Workspace Runtime
-            {connected && !loading && state && <WorkspaceServerBadge status={state.status} />}
+            {connected && !loading && state && (
+              <WorkspaceServerBadge status={state.status} error={state.error} />
+            )}
           </span>
         }
         description={
@@ -46,21 +45,37 @@ export function WorkspaceRuntimeRow({
           ) : null
         }
       />
-      {state && updateAvailable && (
-        <Alert.Root status="warning" icon={<RefreshCwIcon />}>
-          <Alert.Title>Update Available</Alert.Title>
-          <div className="flex items-center gap-3">
-            <Alert.Description className="min-w-0 flex-1 tabular-nums">
-              v{state.version} → v{state.latestVersion}
-            </Alert.Description>
-            <Button type="button" variant="primary" size="sm" onClick={() => void actions.update()}>
-              Update
-            </Button>
-          </div>
-        </Alert.Root>
+      {state?.version !== undefined && (
+        <UpdateCard
+          appName="workspace server"
+          currentVersion={state.version}
+          status={workspaceServerUpdateStatus(state, actions)}
+          onCheckForUpdates={actions.refresh}
+          error={state.error}
+        />
       )}
     </div>
   );
+}
+
+function workspaceServerUpdateStatus(
+  state: RemoteMachineServerState,
+  actions: WorkspaceServerActions
+): UpdateStatus {
+  if (
+    state.latestVersion !== undefined &&
+    state.version !== undefined &&
+    state.version !== state.latestVersion &&
+    state.error?.code !== 'protocol-upgrade-client'
+  ) {
+    return {
+      type: 'update-available',
+      version: state.latestVersion,
+      onUpdate: actions.update,
+    };
+  }
+
+  return { type: 'up-to-date' };
 }
 
 function WorkspaceRuntimeDetails({
@@ -96,9 +111,9 @@ function WorkspaceRuntimeDetails({
           {state.version && startedAt && <span aria-hidden>·</span>}
           {startedAt && <span>Started {startedAt}</span>}
           {state.detail && <span>{state.detail}</span>}
-          {state.error && <span className="text-destructive">{state.error.message}</span>}
         </span>
       )}
+      {state.error && <span className="text-destructive">{state.error.message}</span>}
     </span>
   );
 }

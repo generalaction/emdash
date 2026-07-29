@@ -42,7 +42,7 @@ export type CreateRemoteMachineServiceDeps = {
 export interface RemoteMachineService {
   readonly stateModel: RemoteMachineStateModel;
   client(connectionId: string): Promise<WorkspaceServerConnection>;
-  refreshServerState(connectionId: string): Promise<void>;
+  refreshServerState(connectionId: string, options?: { force?: boolean }): Promise<void>;
   installServer(connectionId: string): Promise<void>;
   startServer(connectionId: string): Promise<void>;
   stopServer(connectionId: string): Promise<void>;
@@ -133,7 +133,7 @@ export function createRemoteMachineService(
       const target = await provisioner.ensure(connectionId);
       return wire.client(target);
     },
-    refreshServerState: (connectionId) => serverOperations.refresh(connectionId),
+    refreshServerState: (connectionId, options) => serverOperations.refresh(connectionId, options),
     installServer: (connectionId) => serverOperations.install(connectionId),
     startServer: (connectionId) => serverOperations.start(connectionId),
     stopServer: (connectionId) => serverOperations.stop(connectionId),

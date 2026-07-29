@@ -5,7 +5,8 @@ import type { RemoteMachineService } from './remote-machine-service';
 export function createRemoteMachineWireController(service: RemoteMachineService): Controller {
   return createController(remoteMachineContract, {
     serverStates: service.stateModel.host,
-    refreshServerState: ({ connectionId }) => service.refreshServerState(connectionId),
+    refreshServerState: ({ connectionId, force }) =>
+      service.refreshServerState(connectionId, { force }),
     installServer: ({ connectionId }) => service.installServer(connectionId),
     startServer: ({ connectionId }) => service.startServer(connectionId),
     stopServer: ({ connectionId }) => service.stopServer(connectionId),

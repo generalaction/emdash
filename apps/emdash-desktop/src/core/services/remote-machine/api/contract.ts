@@ -26,10 +26,17 @@ export const remoteMachineServerStateSchema = z.object({
 
 const remoteMachineServerRuntimeSchema = z.record(z.string(), remoteMachineServerStateSchema);
 const connectionInputSchema = z.object({ connectionId: z.string().min(1) });
+const refreshServerStateInputSchema = connectionInputSchema.extend({
+  force: z.boolean().optional(),
+});
 
 export type RemoteMachineServerStatus = z.infer<typeof remoteMachineServerStatusSchema>;
 export type RemoteMachineServerState = z.infer<typeof remoteMachineServerStateSchema>;
 export type RemoteMachineServerRuntime = z.infer<typeof remoteMachineServerRuntimeSchema>;
+
+export function isServerUsable(state: RemoteMachineServerState | undefined): boolean {
+  return state?.status === 'healthy' && state.error === undefined;
+}
 
 export const remoteMachineContract = defineContract({
   serverStates: liveModel({
@@ -38,7 +45,7 @@ export const remoteMachineContract = defineContract({
       runtime: liveState({ data: remoteMachineServerRuntimeSchema }),
     },
   }),
-  refreshServerState: procedure({ input: connectionInputSchema, output: z.void() }),
+  refreshServerState: procedure({ input: refreshServerStateInputSchema, output: z.void() }),
   installServer: procedure({ input: connectionInputSchema, output: z.void() }),
   startServer: procedure({ input: connectionInputSchema, output: z.void() }),
   stopServer: procedure({ input: connectionInputSchema, output: z.void() }),

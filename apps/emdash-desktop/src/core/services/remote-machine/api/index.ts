@@ -4,6 +4,7 @@ export {
   remoteMachineContract,
   remoteMachineServerStateSchema,
   remoteMachineServerStatusSchema,
+  isServerUsable,
   type RemoteMachineServerRuntime,
   type RemoteMachineServerState,
   type RemoteMachineServerStatus,

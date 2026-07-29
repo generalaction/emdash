@@ -15,6 +15,7 @@ import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page
 import { cn } from '@core/primitives/ui/browser/cn';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { toast } from '@core/primitives/ui/browser/use-toast';
+import { isServerUsable } from '@core/services/remote-machine/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';
@@ -93,10 +94,11 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const machineStatus = deriveMachineStatusKind({
     connectionState: state,
     workspaceServerStatus: workspaceServer.state?.status,
+    workspaceServerError: workspaceServer.state?.error !== undefined,
     workspaceServerLoading: workspaceServer.loading,
   });
-  const serverHealthy = workspaceServer.state?.status === 'healthy';
-  const metrics = useMachineMetrics(machine?.id, serverHealthy);
+  const serverUsable = isServerUsable(workspaceServer.state);
+  const metrics = useMachineMetrics(machine?.id, serverUsable);
 
   useEffect(() => {
     setName(machine?.name ?? '');
@@ -324,7 +326,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
             </SeparatedList>
           </SettingsCard>
 
-          {serverHealthy ? (
+          {serverUsable ? (
             <MachineSystemDependenciesCard machineId={machine.id} machinesStore={machinesStore} />
           ) : (
             <SettingsCard>
@@ -340,13 +342,13 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         <MachineWorkspacesList
           machineId={machine.id}
           connectionId={machine.id}
-          enabled={serverHealthy}
+          enabled={serverUsable}
         />
       )}
 
       {section === 'agents' && (
         <SettingsCard>
-          {serverHealthy ? (
+          {serverUsable ? (
             <CliAgentsList connectionId={machine.id} />
           ) : (
             <div className="p-4 text-sm text-foreground-muted">
@@ -357,7 +359,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
       )}
 
       {section === 'mcp' &&
-        (serverHealthy ? (
+        (serverUsable ? (
           <MachineMcpSection connectionId={machine.id} />
         ) : (
           <SettingsCard>
@@ -368,7 +370,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         ))}
 
       {section === 'skills' &&
-        (serverHealthy ? (
+        (serverUsable ? (
           <MachineSkillsSection connectionId={machine.id} />
         ) : (
           <SettingsCard>
