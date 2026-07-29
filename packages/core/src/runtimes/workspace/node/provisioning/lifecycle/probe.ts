@@ -2,10 +2,8 @@ import { access, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   ObservedWorkspaceState,
-  PhaseKind,
   SetupState,
   WorkspaceListEntry,
-  WorkspaceLifecyclePhase,
   WorkspaceRef,
 } from '@runtimes/workspace/api/provisioning/schemas';
 import {
@@ -30,17 +28,6 @@ export async function probeWorkspace(
   return ref.kind === 'worktree'
     ? await probeWorktreeWorkspace(ref, options.signal)
     : await probeDirectoryWorkspace(ref, options.signal);
-}
-
-export function derivePhase(
-  observed: ObservedWorkspaceState,
-  inFlight: PhaseKind | undefined
-): WorkspaceLifecyclePhase {
-  if (inFlight === 'provision') return 'provisioning';
-  if (inFlight === 'setup') return 'setting-up';
-  if (inFlight === 'teardown') return 'tearing-down';
-  if (!observed.directoryExists) return 'unprovisioned';
-  return observed.setup === 'ready' ? 'ready' : 'provisioned';
 }
 
 export async function listRepoWorkspaces(
@@ -165,7 +152,7 @@ async function probeSetupState(
   return stamp.configHash === setupConfigHash ? 'ready' : 'setup-stale';
 }
 
-async function readSetupStamp(
+export async function readSetupStamp(
   workspacePath: string,
   signal: AbortSignal | undefined
 ): Promise<{ configHash?: string } | undefined> {

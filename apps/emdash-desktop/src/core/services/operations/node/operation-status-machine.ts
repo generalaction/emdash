@@ -21,6 +21,9 @@ export type IllegalOperationTransition = {
 const transitions = {
   pending: {
     started: 'running',
+    'run-failed': 'failed',
+    'user-retried': 'pending',
+    'user-abandoned': 'abandoned',
   },
   running: {
     'run-succeeded': 'succeeded',

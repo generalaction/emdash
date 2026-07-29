@@ -2,12 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import {
-  createMachineEffectDriver,
-  createScope,
-  type MachineEffectDriver,
-  type Scope,
-} from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
   createLiveModelHost,
   createLiveJobReplica,
@@ -70,7 +65,6 @@ import {
   createWorkspaceMachine,
   type WorkspaceCommand,
   type WorkspaceMachine,
-  type WorkspaceMachineEffect,
 } from './machine/machine';
 import { nativePathFromWorkspace, workspaceFromNativePath } from './provisioning/paths';
 import { NodeWorkspaceProvisioner, type WorkspaceProvisioner } from './provisioning/provisioner';
@@ -78,7 +72,6 @@ import { WorkspaceTopologyObserver } from './topology-observer';
 
 type WorkspaceRuntimeRecord = {
   machine: WorkspaceMachine;
-  effectDriver: MachineEffectDriver<WorkspaceMachineEffect>;
   state: LiveSource;
   binding: { dispose(): void };
   scope: Scope;
@@ -105,7 +98,6 @@ export class WorkspaceRuntime {
   private readonly now: () => number;
   private readonly onError: (context: string, error: unknown) => void;
   private readonly records = new Map<string, WorkspaceRuntimeRecord>();
-  private readonly operationLane = new Set<string>();
   private readonly activity: WorkspaceActivityIndex;
   private readonly topologyObserver: WorkspaceTopologyObserver;
 
@@ -222,141 +214,174 @@ export class WorkspaceRuntime {
     input: ProvisionWorkspaceInput,
     ctx: LiveJobContext<WorkspaceOperationProgress>
   ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-    return await this.withOperation(input.workspace, 'provision', ctx, async (stage) => {
-      const record = this.recordFor(input.workspace);
-      stage.start('inspect', 'Inspect workspace');
-      await this.inspectAndPublish(record, input.workspace, ctx.signal);
-      stage.done('inspect');
+    return await this.withOperation(
+      input.workspace,
+      (operationId, startedAt) => ({ type: 'Provision', operationId, startedAt }),
+      ctx,
+      async (stage) => {
+        const record = this.recordFor(input.workspace);
+        stage.start('inspect', 'Inspect workspace');
+        await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        stage.done('inspect');
 
-      if (input.lifecycle?.setupPlan && input.lifecycle.setupPlan.steps.length > 0) {
-        stage.start('lifecycle', 'Provision workspace');
-        const result = await this.runLifecyclePhase(
-          {
-            ref: input.lifecycle.ref,
-            context: input.lifecycle.context,
-            plan: input.lifecycle.setupPlan,
-            phase: 'provision',
-          },
-          ctx,
-          stage,
-          'lifecycle'
-        );
-        if (!result.success) return err(result.error);
-        stage.done('lifecycle');
-      } else {
-        stage.skip('lifecycle', 'Provision workspace');
+        if (input.lifecycle?.setupPlan && input.lifecycle.setupPlan.steps.length > 0) {
+          stage.start('lifecycle', 'Provision workspace');
+          const result = await this.runLifecyclePhase(
+            {
+              ref: input.lifecycle.ref,
+              context: input.lifecycle.context,
+              plan: input.lifecycle.setupPlan,
+              phase: 'provision',
+            },
+            ctx,
+            stage,
+            'lifecycle'
+          );
+          if (!result.success) return err(result.error);
+          stage.done('lifecycle');
+        } else {
+          stage.skip('lifecycle', 'Provision workspace');
+        }
+
+        stage.start('refresh', 'Refresh workspace');
+        const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        if (!topology.success) return topology;
+        stage.done('refresh');
+        return ok({
+          workspace: input.workspace,
+          path: nativePathFromWorkspace(input.workspace),
+          topology: topology.data,
+        });
       }
-
-      stage.start('refresh', 'Refresh workspace');
-      const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
-      if (!topology.success) return topology;
-      stage.done('refresh');
-      return ok({
-        workspace: input.workspace,
-        path: nativePathFromWorkspace(input.workspace),
-        topology: topology.data,
-      });
-    });
+    );
   }
 
   async convert(
     input: ConvertWorkspaceInput,
     ctx: LiveJobContext<WorkspaceOperationProgress>
   ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-    return await this.withOperation(input.workspace, 'convert', ctx, async (stage) => {
-      const record = this.recordFor(input.workspace);
-      stage.start('convert', 'Convert workspace');
-      const converted = await this.provisioner.convert(input, { signal: ctx.signal });
-      if (!converted.success) return converted;
-      record.machine.apply({ type: 'TopologyObserved', topology: converted.data });
-      stage.done('convert');
-      return ok({
-        workspace: input.workspace,
-        path: nativePathFromWorkspace(input.workspace),
-        topology: converted.data,
-      });
-    });
+    return await this.withOperation(
+      input.workspace,
+      (operationId, startedAt) => ({ type: 'Convert', operationId, startedAt }),
+      ctx,
+      async (stage) => {
+        const record = this.recordFor(input.workspace);
+        stage.start('convert', 'Convert workspace');
+        const converted = await this.provisioner.convert(input, { signal: ctx.signal });
+        if (!converted.success) return converted;
+        record.machine.apply({ type: 'TopologyObserved', topology: converted.data });
+        stage.done('convert');
+        return ok({
+          workspace: input.workspace,
+          path: nativePathFromWorkspace(input.workspace),
+          topology: converted.data,
+        });
+      }
+    );
   }
 
   async activate(
     input: ActivateWorkspaceInput,
     ctx: LiveJobContext<WorkspaceOperationProgress>
   ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-    return await this.withOperation(input.workspace, 'activate', ctx, async (stage) => {
-      const record = this.recordFor(input.workspace);
-      stage.start('inspect', 'Inspect workspace');
-      const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
-      if (!topology.success) return topology;
-      stage.done('inspect');
+    const preflightRecord = this.recordFor(input.workspace);
+    const preflightTopology = await this.inspectAndPublish(
+      preflightRecord,
+      input.workspace,
+      ctx.signal
+    );
+    if (!preflightTopology.success) return preflightTopology;
 
-      const stateBeforePrepare = record.machine.current();
-      const shouldSkipPrepare =
-        stateBeforePrepare.prepared && stateBeforePrepare.consumers.length > 0;
-      if (!shouldSkipPrepare) {
-        const prepareResult = await this.runTerminalsPrepare(
-          input.workspace,
-          input.automation,
-          ctx,
-          stage
-        );
-        if (!prepareResult.success) return prepareResult;
-        record.machine.apply({ type: 'PrepareCompleted' });
-      } else {
-        stage.skip('script:prepare', 'Run prepare script');
+    return await this.withOperation(
+      input.workspace,
+      (operationId, startedAt) => ({
+        type: 'Activate',
+        operationId,
+        startedAt,
+        consumerId: input.consumerId,
+      }),
+      ctx,
+      async (stage) => {
+        const record = this.recordFor(input.workspace);
+        stage.start('inspect', 'Inspect workspace');
+        const topology = await this.inspectAndPublish(record, input.workspace, ctx.signal);
+        if (!topology.success) return topology;
+        stage.done('inspect');
+
+        const stateBeforePrepare = record.machine.current();
+        const shouldSkipPrepare =
+          stateBeforePrepare.sessionPrepared && stateBeforePrepare.consumers.length > 0;
+        if (!shouldSkipPrepare) {
+          const prepareResult = await this.runTerminalsPrepare(
+            input.workspace,
+            input.automation,
+            ctx,
+            stage
+          );
+          if (!prepareResult.success) return prepareResult;
+          record.machine.apply({ type: 'PrepareCompleted' });
+        } else {
+          stage.skip('script:prepare', 'Run prepare script');
+        }
+
+        const preparedDuringActivation = !stateBeforePrepare.sessionPrepared && !shouldSkipPrepare;
+        record.machine.apply({
+          type: 'ConsumerActivated',
+          consumer: { id: input.consumerId, activatedAt: this.now() },
+        });
+        if (preparedDuringActivation)
+          this.startPostActivationAutomation(input.workspace, input.automation);
+        return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
       }
-
-      const preparedDuringActivation = !stateBeforePrepare.prepared && !shouldSkipPrepare;
-      record.machine.apply({
-        type: 'ConsumerActivated',
-        consumer: { id: input.consumerId, activatedAt: this.now() },
-      });
-      if (preparedDuringActivation)
-        this.startPostActivationAutomation(input.workspace, input.automation);
-      return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
-    });
+    );
   }
 
   async deactivate(
     input: DeactivateWorkspaceInput,
     ctx: LiveJobContext<WorkspaceOperationProgress>
   ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-    return await this.withOperation(input.workspace, 'deactivate', ctx, async (stage) => {
-      const record = this.recordFor(input.workspace);
-      record.machine.apply({ type: 'ConsumerDeactivated', consumerId: input.consumerId });
+    return await this.withOperation(
+      input.workspace,
+      (operationId, startedAt) => ({ type: 'Deactivate', operationId, startedAt }),
+      ctx,
+      async (stage) => {
+        const record = this.recordFor(input.workspace);
+        record.machine.apply({ type: 'ConsumerDeactivated', consumerId: input.consumerId });
 
-      if (record.machine.current().consumers.length === 0 && input.strategy === 'detach') {
-        await this.detachTerminalsScope(input.workspace);
-      }
-
-      if (record.machine.current().consumers.length === 0 && input.strategy === 'stop') {
-        if (
-          input.lifecycle?.deactivationPlan &&
-          input.lifecycle.deactivationPlan.steps.length > 0
-        ) {
-          stage.start('deactivation-plan', 'Run deactivation plan');
-          const result = await this.runLifecyclePhase(
-            {
-              ref: input.lifecycle.ref,
-              context: input.lifecycle.context,
-              plan: input.lifecycle.deactivationPlan,
-              phase: 'setup',
-            },
-            ctx,
-            stage,
-            'deactivation-plan'
-          );
-          if (!result.success) return err(result.error);
-          stage.done('deactivation-plan');
-        } else {
-          stage.skip('deactivation-plan', 'Run deactivation plan');
+        if (record.machine.current().consumers.length === 0 && input.strategy === 'detach') {
+          await this.detachTerminalsScope(input.workspace);
         }
 
-        await this.runTerminalsTeardown(input.workspace, input.automation, ctx, stage);
-        await this.killTerminalsScope(input.workspace);
-      }
+        if (record.machine.current().consumers.length === 0 && input.strategy === 'stop') {
+          if (
+            input.lifecycle?.deactivationPlan &&
+            input.lifecycle.deactivationPlan.steps.length > 0
+          ) {
+            stage.start('deactivation-plan', 'Run deactivation plan');
+            const result = await this.runLifecyclePhase(
+              {
+                ref: input.lifecycle.ref,
+                context: input.lifecycle.context,
+                plan: input.lifecycle.deactivationPlan,
+                phase: 'setup',
+              },
+              ctx,
+              stage,
+              'deactivation-plan'
+            );
+            if (!result.success) return err(result.error);
+            stage.done('deactivation-plan');
+          } else {
+            stage.skip('deactivation-plan', 'Run deactivation plan');
+          }
 
-      return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
-    });
+          await this.runTerminalsTeardown(input.workspace, input.automation, ctx, stage);
+          await this.killTerminalsScope(input.workspace);
+        }
+
+        return ok({ workspace: input.workspace, path: nativePathFromWorkspace(input.workspace) });
+      }
+    );
   }
 
   async teardown(
@@ -365,16 +390,15 @@ export class WorkspaceRuntime {
   ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
     return await this.withOperation(
       input.workspace,
-      'teardown',
+      (operationId, startedAt) => ({
+        type: 'Teardown',
+        operationId,
+        startedAt,
+        force: input.force,
+      }),
       ctx,
       async (stage) => {
         const record = this.recordFor(input.workspace);
-        const idle = record.machine.dispatch(
-          { type: 'RequireIdleForTeardown', force: input.force },
-          undefined
-        );
-        if (!idle.success) return idle;
-
         const teardownPlan =
           input.lifecycle && !input.lifecycle.teardownPlan
             ? compileTeardownFromProbe(
@@ -411,17 +435,7 @@ export class WorkspaceRuntime {
           path: nativePathFromWorkspace(input.workspace),
           topology: topology.data,
         });
-      },
-      input.force
-        ? {
-            beginCommand: (operationId, startedAt) => ({
-              type: 'Teardown',
-              operationId,
-              startedAt,
-              force: true,
-            }),
-          }
-        : undefined
+      }
     );
   }
 
@@ -429,39 +443,44 @@ export class WorkspaceRuntime {
     input: CleanWorkspaceArtifactsInput,
     ctx: LiveJobContext<WorkspaceOperationProgress>
   ): Promise<Result<CleanWorkspaceArtifactsResult, WorkspaceError>> {
-    return await this.withOperation(input.workspace, 'clean-artifacts', ctx, async (stage) => {
-      const workspacePath = nativePathFromWorkspace(input.workspace);
-      stage.start('scan', 'Find ignored artifacts');
-      const artifacts = await listIgnoredArtifacts(workspacePath, ctx.signal);
-      if (!artifacts.success) return err(artifacts.error);
-      const cleanable = artifacts.data.filter(
-        (artifact) => !matchesPreservePatterns(artifact.relativePath, input.preservePatterns)
-      );
-      stage.done('scan');
+    return await this.withOperation(
+      input.workspace,
+      (operationId, startedAt) => ({ type: 'CleanArtifacts', operationId, startedAt }),
+      ctx,
+      async (stage) => {
+        const workspacePath = nativePathFromWorkspace(input.workspace);
+        stage.start('scan', 'Find ignored artifacts');
+        const artifacts = await listIgnoredArtifacts(workspacePath, ctx.signal);
+        if (!artifacts.success) return err(artifacts.error);
+        const cleanable = artifacts.data.filter(
+          (artifact) => !matchesPreservePatterns(artifact.relativePath, input.preservePatterns)
+        );
+        stage.done('scan');
 
-      stage.start('measure', 'Measure ignored artifacts');
-      const measured = await measureArtifacts(workspacePath, cleanable);
-      if (!measured.success) return err(measured.error);
-      stage.done('measure');
+        stage.start('measure', 'Measure ignored artifacts');
+        const measured = await measureArtifacts(workspacePath, cleanable);
+        if (!measured.success) return err(measured.error);
+        stage.done('measure');
 
-      stage.start('delete', 'Delete ignored artifacts');
-      for (let index = 0; index < cleanable.length; index += 1) {
-        const artifact = cleanable[index];
-        if (ctx.signal.aborted) return err({ type: 'cancelled', message: 'Operation cancelled' });
-        await rm(artifact.absolutePath, { recursive: true, force: true });
-        stage.update('delete', {
-          percent: Math.round(((index + 1) / Math.max(cleanable.length, 1)) * 100),
-          message: artifact.relativePath,
+        stage.start('delete', 'Delete ignored artifacts');
+        for (let index = 0; index < cleanable.length; index += 1) {
+          const artifact = cleanable[index];
+          if (ctx.signal.aborted) return err({ type: 'cancelled', message: 'Operation cancelled' });
+          await rm(artifact.absolutePath, { recursive: true, force: true });
+          stage.update('delete', {
+            percent: Math.round(((index + 1) / Math.max(cleanable.length, 1)) * 100),
+            message: artifact.relativePath,
+          });
+        }
+        stage.done('delete');
+
+        return ok({
+          workspace: input.workspace,
+          path: workspacePath,
+          reclaimedBytes: measured.data.bytes,
         });
       }
-      stage.done('delete');
-
-      return ok({
-        workspace: input.workspace,
-        path: workspacePath,
-        reclaimedBytes: measured.data.bytes,
-      });
-    });
+    );
   }
 
   dispose(): void {
@@ -488,8 +507,6 @@ export class WorkspaceRuntime {
     if (existing) return existing;
 
     const machine = createWorkspaceMachine(workspace);
-    const effectDriver = this.createEffectDriver();
-    const unsubscribeEffects = machine.subscribe((batch) => effectDriver.run(batch.effects));
     const cell =
       this.host.get(workspace) ??
       this.host.create(workspace, {
@@ -502,88 +519,31 @@ export class WorkspaceRuntime {
     });
     const record = {
       machine,
-      effectDriver,
       state: cell.states.state,
       binding,
       scope: this.scope.child(`workspace:${key}`),
     };
-    record.scope.add(() => {
-      unsubscribeEffects();
-      effectDriver.dispose();
-    });
     this.records.set(key, record);
     this.topologyObserver.watch(workspace);
     this.syncActivity(workspace);
     return record;
   }
 
-  private createEffectDriver(): MachineEffectDriver<WorkspaceMachineEffect> {
-    return createMachineEffectDriver<WorkspaceMachineEffect>({
-      interpret: (effect) => {
-        switch (effect.type) {
-          case 'probe':
-            void this.reconcile({ workspace: effect.workspace }).catch((error) =>
-              this.onError('workspace effect probe', error)
-            );
-            return;
-          case 'detach-terminal-scope':
-            void this.detachTerminalsScope(effect.workspace).catch((error) =>
-              this.onError('workspace effect detach terminals', error)
-            );
-            return;
-          case 'kill-terminal-scope':
-            void this.killTerminalsScope(effect.workspace).catch((error) =>
-              this.onError('workspace effect kill terminals', error)
-            );
-            return;
-          case 'run-bootstrap-plan':
-          case 'run-script-workflow':
-            this.onError(
-              'workspace effect',
-              new Error(`Workspace effect '${effect.type}' must be run from an operation context`)
-            );
-            return;
-        }
-      },
-      onInterpreterError: ({ effect, error }) =>
-        this.onError(`workspace effect ${effect.type}`, error),
-    });
-  }
-
   private async withOperation<T>(
     workspace: HostFileRef,
-    kind: WorkspaceOperationKind,
+    commandFactory: (operationId: string, startedAt: number) => WorkspaceCommand,
     ctx: LiveJobContext<WorkspaceOperationProgress>,
-    run: (stage: StageReporter) => Promise<Result<T, WorkspaceError>>,
-    options: {
-      beginCommand?: (operationId: string, startedAt: number) => WorkspaceCommand;
-    } = {}
+    run: (stage: StageReporter) => Promise<Result<T, WorkspaceError>>
   ): Promise<Result<T, WorkspaceError>> {
-    const key = resourceKeyFromFileRef(workspace);
-    if (this.operationLane.has(key)) {
-      return err({
-        type: 'operation-in-flight',
-        message: 'Workspace already has an active operation',
-      });
-    }
-    this.operationLane.add(key);
-
     const record = this.recordFor(workspace);
     const startedAt = this.now();
-    const started = record.machine.dispatch(
-      options.beginCommand?.(ctx.jobId, startedAt) ?? {
-        type: 'BeginOperation',
-        kind,
-        operationId: ctx.jobId,
-        startedAt,
-      },
-      undefined
-    );
+    const command = commandFactory(ctx.jobId, startedAt);
+    const started = record.machine.dispatch(command, undefined);
     if (!started.success) {
-      this.operationLane.delete(key);
       return started;
     }
 
+    const kind = operationKindForCommand(command);
     const stage = new StageReporter(kind, ctx.jobId, ctx);
     try {
       const result = await run(stage);
@@ -599,8 +559,6 @@ export class WorkspaceRuntime {
       record.machine.apply({ type: 'OperationFailed', error: workspaceError });
       stage.failCurrent(workspaceError);
       return err(workspaceError);
-    } finally {
-      this.operationLane.delete(key);
     }
   }
 
@@ -810,6 +768,23 @@ function toBootstrapGitIntent(
     fromBranch: git.fromBranch,
     ...(git.pushRemote ? { pushRemote: git.pushRemote } : {}),
   };
+}
+
+function operationKindForCommand(command: WorkspaceCommand): WorkspaceOperationKind {
+  switch (command.type) {
+    case 'Provision':
+      return 'provision';
+    case 'Convert':
+      return 'convert';
+    case 'Activate':
+      return 'activate';
+    case 'Deactivate':
+      return 'deactivate';
+    case 'Teardown':
+      return 'teardown';
+    case 'CleanArtifacts':
+      return 'clean-artifacts';
+  }
 }
 
 class StageReporter {

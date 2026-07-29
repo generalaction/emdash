@@ -10,18 +10,15 @@ import type {
   WorkspaceState,
   WorkspaceTopology,
 } from '@runtimes/workspace/api';
-import type { RunPhaseInput } from '@runtimes/workspace/api/provisioning';
-import type { RunScriptWorkflowInput } from '@services/script-workflows/api';
 
 export type WorkspaceCommand =
   | {
-      type: 'BeginOperation';
-      kind: WorkspaceOperationKind;
+      type: 'Provision';
       operationId: string;
       startedAt: number;
     }
   | {
-      type: 'Provision';
+      type: 'Convert';
       operationId: string;
       startedAt: number;
     }
@@ -43,8 +40,9 @@ export type WorkspaceCommand =
       force: boolean;
     }
   | {
-      type: 'RequireIdleForTeardown';
-      force: boolean;
+      type: 'CleanArtifacts';
+      operationId: string;
+      startedAt: number;
     };
 
 export type WorkspaceEvent =
@@ -74,16 +72,6 @@ export type WorkspaceEvent =
       type: 'PrepareCompleted';
     }
   | {
-      type: 'PlanFinished';
-      operationId: string;
-      result: Result<void, WorkspaceError>;
-    }
-  | {
-      type: 'PrepareFinished';
-      operationId: string;
-      result: Result<void, WorkspaceError>;
-    }
-  | {
       type: 'ConsumerDeactivated';
       consumerId: string;
     }
@@ -95,30 +83,6 @@ export type WorkspaceEvent =
       error: WorkspaceError;
     };
 
-export type WorkspaceMachineEffect =
-  | {
-      type: 'run-bootstrap-plan';
-      operationId: string;
-      input: RunPhaseInput;
-    }
-  | {
-      type: 'run-script-workflow';
-      operationId: string;
-      input: RunScriptWorkflowInput;
-    }
-  | {
-      type: 'probe';
-      workspace: HostFileRef;
-    }
-  | {
-      type: 'kill-terminal-scope';
-      workspace: HostFileRef;
-    }
-  | {
-      type: 'detach-terminal-scope';
-      workspace: HostFileRef;
-    };
-
 export function initialWorkspaceState(
   workspace: HostFileRef,
   topology: WorkspaceTopology = { kind: 'missing' }
@@ -128,12 +92,12 @@ export function initialWorkspaceState(
     phase: deriveWorkspacePhase({
       topology,
       operation: { kind: 'idle' },
-      prepared: false,
+      consumers: [],
     }),
     topology,
     operation: { kind: 'idle' },
     consumers: [],
-    prepared: false,
+    sessionPrepared: false,
     activity: { resources: [] },
   };
 }
@@ -143,92 +107,62 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
     WorkspaceState,
     WorkspaceCommand,
     WorkspaceEvent,
-    WorkspaceMachineEffect,
+    never,
     WorkspaceError,
     void
   >(
     {
       decide(state, command) {
         switch (command.type) {
-          case 'BeginOperation':
-            if (state.operation.kind !== 'idle') {
-              return err({
-                type: 'operation-in-flight',
-                message: `Workspace already has an active ${state.operation.kind} operation`,
-              });
-            }
-            return ok([
-              {
-                type: 'OperationStarted',
-                kind: command.kind,
-                operationId: command.operationId,
-                startedAt: command.startedAt,
-              },
-            ]);
-
           case 'Provision':
+            if (state.operation.kind !== 'idle') return err(operationInFlight(state));
             if (state.phase.kind !== 'unprovisioned') {
               return err(illegalTransition('provision', state.phase.kind));
             }
-            return ok([
-              {
-                type: 'OperationStarted',
-                kind: 'provision',
-                operationId: command.operationId,
-                startedAt: command.startedAt,
-              },
-            ]);
+            return ok([operationStarted('provision', command)]);
+
+          case 'Convert':
+            if (state.operation.kind !== 'idle') return err(operationInFlight(state));
+            return ok([operationStarted('convert', command)]);
 
           case 'Activate':
-            if (state.phase.kind !== 'provisioned' && state.phase.kind !== 'ready') {
-              return err(illegalTransition('activate', state.phase.kind));
-            }
-            return ok([
-              {
-                type: 'OperationStarted',
-                kind: 'activate',
-                operationId: command.operationId,
-                startedAt: command.startedAt,
-              },
-            ]);
-
-          case 'Deactivate':
-            if (state.phase.kind !== 'ready' && state.consumers.length === 0) {
-              return err(illegalTransition('deactivate', state.phase.kind));
-            }
-            return ok([
-              {
-                type: 'OperationStarted',
-                kind: 'deactivate',
-                operationId: command.operationId,
-                startedAt: command.startedAt,
-              },
-            ]);
-
-          case 'Teardown': {
-            const idle = requireIdleForTeardown(state, command.force);
-            if (!idle.success) return idle;
+            if (state.operation.kind !== 'idle') return err(operationInFlight(state));
             if (
               state.phase.kind !== 'provisioned' &&
               state.phase.kind !== 'ready' &&
+              state.phase.kind !== 'active'
+            ) {
+              return err(illegalTransition('activate', state.phase.kind));
+            }
+            return ok([operationStarted('activate', command)]);
+
+          case 'Deactivate':
+            if (state.operation.kind !== 'idle') return err(operationInFlight(state));
+            if (state.consumers.length === 0) {
+              return err(illegalTransition('deactivate', state.phase.kind));
+            }
+            return ok([operationStarted('deactivate', command)]);
+
+          case 'Teardown': {
+            if (state.operation.kind !== 'idle') return err(operationInFlight(state));
+            const idle = requireIdleForTeardown(state, command.force);
+            if (!idle.success) return idle;
+            if (state.phase.kind === 'unprovisioned') return ok([]);
+            if (
+              state.phase.kind !== 'provisioned' &&
+              state.phase.kind !== 'ready' &&
+              state.phase.kind !== 'active' &&
               state.phase.kind !== 'broken' &&
               !command.force
             ) {
               return err(illegalTransition('teardown', state.phase.kind));
             }
-            return ok([
-              {
-                type: 'OperationStarted',
-                kind: 'teardown',
-                operationId: command.operationId,
-                startedAt: command.startedAt,
-              },
-            ]);
+            return ok([operationStarted('teardown', command)]);
           }
 
-          case 'RequireIdleForTeardown': {
-            return requireIdleForTeardown(state, command.force);
-          }
+          case 'CleanArtifacts':
+            if (state.operation.kind !== 'idle') return err(operationInFlight(state));
+            return ok([operationStarted('clean-artifacts', command)]);
         }
       },
       evolve(state, event) {
@@ -236,13 +170,14 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
           case 'OperationStarted': {
             const next = {
               ...state,
-              prepared: event.kind === 'teardown' ? false : state.prepared,
+              sessionPrepared: event.kind === 'teardown' ? false : state.sessionPrepared,
               operation: {
                 kind: event.kind,
                 operationId: event.operationId,
                 startedAt: event.startedAt,
               },
               lastError: undefined,
+              lastFailedOperation: undefined,
             };
             return { state: withDerivedPhase(next) };
           }
@@ -275,47 +210,7 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
           }
 
           case 'PrepareCompleted':
-            return { state: withDerivedPhase({ ...state, prepared: true }) };
-
-          case 'PlanFinished':
-            if (
-              state.operation.kind === 'idle' ||
-              state.operation.operationId !== event.operationId
-            ) {
-              return { state };
-            }
-            return event.result.success
-              ? {
-                  state: withDerivedPhase({
-                    ...state,
-                    operation: { kind: 'idle' },
-                    lastError: undefined,
-                  }),
-                }
-              : {
-                  state: withDerivedPhase({
-                    ...state,
-                    operation: { kind: 'idle' },
-                    lastError: event.result.error,
-                  }),
-                };
-
-          case 'PrepareFinished':
-            if (
-              state.operation.kind !== 'activate' ||
-              state.operation.operationId !== event.operationId
-            ) {
-              return { state };
-            }
-            return event.result.success
-              ? { state: withDerivedPhase({ ...state, prepared: true }) }
-              : {
-                  state: withDerivedPhase({
-                    ...state,
-                    operation: { kind: 'idle' },
-                    lastError: event.result.error,
-                  }),
-                };
+            return { state: withDerivedPhase({ ...state, sessionPrepared: true }) };
 
           case 'ConsumerDeactivated': {
             const consumers = state.consumers.filter(
@@ -324,7 +219,7 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
             const next = {
               ...state,
               consumers,
-              prepared: consumers.length === 0 ? false : state.prepared,
+              sessionPrepared: consumers.length === 0 ? false : state.sessionPrepared,
             };
             return { state: withDerivedPhase(next) };
           }
@@ -335,6 +230,7 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
                 ...state,
                 operation: { kind: 'idle' },
                 lastError: undefined,
+                lastFailedOperation: undefined,
               }),
             };
 
@@ -344,6 +240,8 @@ export function createWorkspaceMachine(workspace: HostFileRef, topology?: Worksp
                 ...state,
                 operation: { kind: 'idle' },
                 lastError: event.error,
+                lastFailedOperation:
+                  state.operation.kind === 'idle' ? undefined : state.operation.kind,
               }),
             };
         }
@@ -363,16 +261,20 @@ function withDerivedPhase(state: WorkspaceState): WorkspaceState {
 function deriveWorkspacePhase(input: {
   topology: WorkspaceTopology;
   operation: WorkspaceState['operation'];
-  prepared: boolean;
+  consumers: WorkspaceConsumer[];
   lastError?: WorkspaceError;
+  lastFailedOperation?: WorkspaceOperationKind;
 }): WorkspacePhase {
-  if (input.lastError && input.topology.kind !== 'missing') {
+  if (
+    input.lastError &&
+    (input.lastFailedOperation === 'provision' || input.lastFailedOperation === 'teardown') &&
+    input.topology.kind !== 'missing'
+  ) {
     return { kind: 'broken', error: input.lastError };
   }
   switch (input.operation.kind) {
     case 'provision':
     case 'convert':
-    case 'reconcile':
       return { kind: 'provisioning', jobId: input.operation.operationId };
     case 'activate':
       return { kind: 'activating', jobId: input.operation.operationId };
@@ -381,12 +283,37 @@ function deriveWorkspacePhase(input: {
     case 'teardown':
       return { kind: 'tearing-down', jobId: input.operation.operationId };
     case 'clean-artifacts':
+      return { kind: 'cleaning', jobId: input.operation.operationId };
     case 'idle':
       break;
   }
   if (input.topology.kind === 'missing') return { kind: 'unprovisioned' };
-  if (input.prepared) return { kind: 'ready', prepared: true };
+  if (input.consumers.length > 0) return { kind: 'active' };
+  if (hasSetupStamp(input.topology)) return { kind: 'ready' };
   return { kind: 'provisioned' };
+}
+
+function operationStarted(
+  kind: WorkspaceOperationKind,
+  command: { operationId: string; startedAt: number }
+): WorkspaceEvent {
+  return {
+    type: 'OperationStarted',
+    kind,
+    operationId: command.operationId,
+    startedAt: command.startedAt,
+  };
+}
+
+function operationInFlight(state: WorkspaceState): WorkspaceError {
+  return {
+    type: 'operation-in-flight',
+    message: `Workspace already has an active ${state.operation.kind} operation`,
+  };
+}
+
+function hasSetupStamp(topology: WorkspaceTopology): boolean {
+  return topology.kind !== 'missing' && topology.setupStamp !== undefined;
 }
 
 function requireIdleForTeardown(

@@ -8,18 +8,24 @@ import { z } from 'zod';
 
 export const workspaceKeySchema = hostFileRefSchema;
 
+export const workspaceSetupStampSchema = z.object({
+  configHash: z.string().optional(),
+});
+
 export const workspaceTopologySchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('missing'),
   }),
   z.object({
     kind: z.literal('directory'),
+    setupStamp: workspaceSetupStampSchema.optional(),
   }),
   z.object({
     kind: z.literal('repository'),
     repositoryRoot: hostFileRefSchema,
     gitDir: hostFileRefSchema.optional(),
     branchName: z.string().optional(),
+    setupStamp: workspaceSetupStampSchema.optional(),
   }),
   z.object({
     kind: z.literal('worktree'),
@@ -27,11 +33,11 @@ export const workspaceTopologySchema = z.discriminatedUnion('kind', [
     gitDir: hostFileRefSchema.optional(),
     commonDir: hostFileRefSchema.optional(),
     branchName: z.string().optional(),
+    setupStamp: workspaceSetupStampSchema.optional(),
   }),
 ]);
 
 export const workspaceOperationKindSchema = z.enum([
-  'reconcile',
   'provision',
   'convert',
   'activate',
@@ -88,14 +94,16 @@ export const workspacePhaseSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('unprovisioned') }),
   z.object({ kind: z.literal('provisioning'), jobId: z.string().min(1) }),
   z.object({ kind: z.literal('provisioned') }),
+  z.object({ kind: z.literal('active') }),
   z.object({
     kind: z.literal('activating'),
     jobId: z.string().min(1),
     consumerId: z.string().min(1).optional(),
   }),
-  z.object({ kind: z.literal('ready'), prepared: z.literal(true) }),
+  z.object({ kind: z.literal('ready') }),
   z.object({ kind: z.literal('deactivating'), jobId: z.string().min(1) }),
   z.object({ kind: z.literal('tearing-down'), jobId: z.string().min(1) }),
+  z.object({ kind: z.literal('cleaning'), jobId: z.string().min(1) }),
   z.object({ kind: z.literal('broken'), error: workspaceErrorSchema }),
 ]);
 
@@ -105,11 +113,12 @@ export const workspaceStateSchema = z.object({
   topology: workspaceTopologySchema,
   operation: workspaceOperationStateSchema,
   consumers: z.array(workspaceConsumerSchema),
-  prepared: z.boolean().default(false),
+  sessionPrepared: z.boolean().default(false),
   activity: z.object({
     resources: z.array(workspaceActivityResourceSchema),
   }),
   lastError: workspaceErrorSchema.optional(),
+  lastFailedOperation: workspaceOperationKindSchema.optional(),
 });
 
 export const legacyWorkspaceAutomationSchema = z.object({

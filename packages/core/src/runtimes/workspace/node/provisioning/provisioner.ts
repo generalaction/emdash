@@ -7,7 +7,7 @@ import type {
   WorkspaceError,
   WorkspaceTopology,
 } from '@runtimes/workspace/api';
-import { runGit } from './lifecycle';
+import { readSetupStamp, runGit } from './lifecycle';
 import { nativePathFromWorkspace, resolveNativePath, workspaceFromNativePath } from './paths';
 
 export type WorkspaceProvisioner = {
@@ -36,12 +36,13 @@ export class NodeWorkspaceProvisioner implements WorkspaceProvisioner {
   ): Promise<Result<WorkspaceTopology, WorkspaceError>> {
     const workspacePath = nativePathFromWorkspace(workspace);
     if (!(await exists(workspacePath))) return ok({ kind: 'missing' });
+    const setupStamp = await readSetupStamp(workspacePath, options.signal);
 
     const toplevel = await runGit(['rev-parse', '--show-toplevel'], {
       cwd: workspacePath,
       signal: options.signal,
     });
-    if (!toplevel.success) return ok({ kind: 'directory' });
+    if (!toplevel.success) return ok({ kind: 'directory', setupStamp });
 
     const gitDir = await runGit(['rev-parse', '--git-dir'], {
       cwd: workspacePath,
@@ -82,6 +83,7 @@ export class NodeWorkspaceProvisioner implements WorkspaceProvisioner {
         gitDir: gitDirRef,
         commonDir: commonDirRef,
         branchName,
+        setupStamp,
       });
     }
 
@@ -90,6 +92,7 @@ export class NodeWorkspaceProvisioner implements WorkspaceProvisioner {
       repositoryRoot,
       gitDir: gitDirRef,
       branchName,
+      setupStamp,
     });
   }
 

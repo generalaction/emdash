@@ -115,9 +115,10 @@ export async function teardownLifecycleWorkspace(
     operation.hostRef === 'local' ? undefined : operation.hostRef
   );
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
+  const force = operation.payload.confirmedAt !== undefined;
   const result = await runRuntimeLiveJob(workspaceContract.teardown, client.teardown, {
     workspace,
-    force: true,
+    force,
     lifecycle: {
       ref: lifecycleRef,
       context: {
@@ -208,10 +209,12 @@ export class WorkspaceInUseError extends Error {
 
 class WorkspaceRuntimeCleanupError extends Error {
   readonly code: string;
+  readonly holders: string[] | undefined;
 
-  constructor(error: { type?: string; message?: string }) {
+  constructor(error: { type?: string; message?: string; holders?: string[] }) {
     super(error.message ?? 'Workspace runtime cleanup failed');
     this.code = error.type ?? 'workspace-runtime-error';
+    this.holders = error.holders;
   }
 }
 
@@ -243,6 +246,10 @@ function workspaceRuntimeError(error: unknown): Error {
         'message' in error && typeof error.message === 'string'
           ? error.message
           : 'Workspace runtime cleanup failed',
+      holders:
+        'holders' in error && Array.isArray(error.holders)
+          ? error.holders.filter((holder): holder is string => typeof holder === 'string')
+          : undefined,
     });
   }
   return error instanceof Error ? error : new Error(String(error));

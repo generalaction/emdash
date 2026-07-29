@@ -35,7 +35,11 @@ import type {
   OperationsNotificationPublisher,
   OperationsSshManager,
 } from './definition';
-import { requireNextOperationStatus, type OperationStatusEvent } from './operation-status-machine';
+import {
+  nextOperationStatus,
+  requireNextOperationStatus,
+  type OperationStatusEvent,
+} from './operation-status-machine';
 
 const RETRY_DELAYS_MS = [1_000, 4_000];
 const RECONCILE_INTERVAL_MS = 10 * 60_000;
@@ -214,11 +218,14 @@ export class OperationsEngine {
     }
     const definition = this.requireDefinition(operation.kind);
     const confirmedAt = this.clock.now();
+    const retryEvent = { type: 'user-retried', confirmedAt } as const;
+    const preflight = nextOperationStatus(operation.status, retryEvent);
+    if (!preflight.success) {
+      return err({ type: preflight.error.type, message: preflight.error.message });
+    }
     const reset = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
-      const status = this.transitionStatus(item.status, {
-        type: 'user-retried',
-        confirmedAt,
-      });
+      const status = this.tryTransitionStatus(item, retryEvent);
+      if (!status) return;
       tx.update(lifecycleOperations)
         .set({
           status,
@@ -259,8 +266,14 @@ export class OperationsEngine {
       return err({ type: 'operation-not-found', message: 'No pending cleanup was found' });
     }
     const definition = this.requireDefinition(operation.kind);
+    const abandonEvent = { type: 'user-abandoned' } as const;
+    const preflight = nextOperationStatus(operation.status, abandonEvent);
+    if (!preflight.success) {
+      return err({ type: preflight.error.type, message: preflight.error.message });
+    }
     const markAbandoned = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
-      const status = this.transitionStatus(item.status, { type: 'user-abandoned' });
+      const status = this.tryTransitionStatus(item, abandonEvent);
+      if (!status) return;
       tx.update(lifecycleOperations)
         .set({ status, finishedAt: this.clock.now(), error: null })
         .where(eq(lifecycleOperations.id, item.id))
@@ -383,7 +396,8 @@ export class OperationsEngine {
     definition: OperationDefinition,
     signal: AbortSignal
   ): Promise<void> {
-    const runningStatus = this.transitionStatus(operation.status, { type: 'started' });
+    const runningStatus = this.tryTransitionStatus(operation, { type: 'started' });
+    if (!runningStatus) return;
     const current = { ...operation, status: 'running' as const };
     await this.db
       .update(lifecycleOperations)
@@ -403,7 +417,7 @@ export class OperationsEngine {
         })
         .where(eq(lifecycleOperations.id, operation.id));
     } else if (result.error.type === 'awaiting-confirmation') {
-      await this.awaitConfirmation(operation, result.error.reason);
+      await this.awaitConfirmation(operation, result.error.reason, result.error.message);
       return;
     } else if (!signal.aborted) {
       const error =
@@ -468,13 +482,15 @@ export class OperationsEngine {
 
   private async awaitConfirmation(
     operation: LifecycleOperationRow,
-    reason: OperationConfirmationReason
+    reason: OperationConfirmationReason,
+    message?: string
   ): Promise<void> {
     await this.db
       .update(lifecycleOperations)
       .set({
         status: this.transitionStatus('running', { type: 'needs-confirmation', reason }),
         attempt: operation.attempt,
+        error: message ?? null,
         payload: { ...operation.payload, confirmationReason: reason },
       })
       .where(eq(lifecycleOperations.id, operation.id));
@@ -500,14 +516,16 @@ export class OperationsEngine {
 
   private async failMissingDefinition(operation: LifecycleOperationRow): Promise<void> {
     const error = `No operation definition is registered for '${operation.kind}'`;
+    const failedStatus = this.tryTransitionStatus(operation, {
+      type: 'run-failed',
+      error,
+      retryable: false,
+    });
+    if (!failedStatus) return;
     await this.db
       .update(lifecycleOperations)
       .set({
-        status: this.transitionStatus(operation.status, {
-          type: 'run-failed',
-          error,
-          retryable: false,
-        }),
+        status: failedStatus,
         error,
       })
       .where(eq(lifecycleOperations.id, operation.id));
@@ -516,6 +534,21 @@ export class OperationsEngine {
 
   private transitionStatus(current: OperationStatus, event: OperationStatusEvent): OperationStatus {
     return requireNextOperationStatus(current, event);
+  }
+
+  private tryTransitionStatus(
+    operation: Pick<LifecycleOperationRow, 'id' | 'kind' | 'status'>,
+    event: OperationStatusEvent
+  ): OperationStatus | undefined {
+    const result = nextOperationStatus(operation.status, event);
+    if (result.success) return result.data;
+    log.warn('illegal lifecycle operation status transition', {
+      operationId: operation.id,
+      kind: operation.kind,
+      current: result.error.current,
+      event: result.error.event,
+    });
+    return undefined;
   }
 
   private buildOperationDraft(input: OperationDraftInput): OperationDraft {
@@ -722,6 +755,7 @@ function toDeletionState(
         ...base,
         status: 'awaiting-confirmation',
         confirmationReason: operation.payload.confirmationReason ?? 'stale',
+        error: operation.error ?? undefined,
       };
     case 'failed':
       return { ...base, status: 'failed', error: operation.error ?? 'Cleanup failed' };

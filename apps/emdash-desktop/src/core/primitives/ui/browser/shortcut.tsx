@@ -58,12 +58,7 @@ function Shortcut({ hotkey, className, variant = 'text', bare = false }: Shortcu
 
   if (bare) {
     return (
-      <KbdGroup
-        data-slot="shortcut"
-        role="img"
-        aria-label={keys.join(' + ')}
-        className={className}
-      >
+      <KbdGroup data-slot="shortcut" role="img" aria-label={keys.join(' + ')} className={className}>
         {keys.map((key, index) => (
           <Kbd key={`${key}-${index}`} aria-hidden="true">
             <ShortcutKey keyName={key} />

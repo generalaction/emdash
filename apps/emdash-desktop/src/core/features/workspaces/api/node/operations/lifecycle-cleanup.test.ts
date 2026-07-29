@@ -1,6 +1,6 @@
 import { hostRef, type HostRef } from '@emdash/core/primitives/host/api';
-import { ok } from '@emdash/shared';
-import { describe, expect, it, vi } from 'vitest';
+import { err, ok } from '@emdash/shared';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import {
   cleanLifecycleWorkspaceArtifacts,
@@ -20,6 +20,10 @@ vi.mock('@core/services/runtime-clients/node/live-job', () => ({
 }));
 
 describe('lifecycle workspace cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('runs remote cleanup operations through the remote runtime host', async () => {
     const remoteHost = hostRef('remote', 'ssh-1');
     const workspaceClient = {
@@ -54,6 +58,69 @@ describe('lifecycle workspace cleanup', () => {
       remoteHost,
       remoteHost,
     ]);
+    expect(mocks.runRuntimeLiveJob.mock.calls[2]?.[2]).toMatchObject({ force: false });
+  });
+
+  it('forces teardown only after the operation has been confirmed', async () => {
+    const workspaceClient = {
+      cleanArtifacts: { id: 'clean-artifacts' },
+      deactivate: { id: 'deactivate' },
+      teardown: { id: 'teardown' },
+    };
+    const dependencies = {
+      projects: { getProject: vi.fn() },
+      runtimes: { client: vi.fn(async () => ok({ workspace: workspaceClient })) },
+      unregisterFileSearchRoot: vi.fn(),
+    } as never;
+    const operation = {
+      ...remoteOperation(),
+      payload: { ...remoteOperation().payload, confirmedAt: 1_000 },
+    };
+
+    await teardownLifecycleWorkspace(dependencies, {} as never, operation, {
+      projectPath: '/remote/repo',
+      workspacePath: '/remote/worktree',
+      workspaceKind: 'byoi' as const,
+      preservePatterns: [],
+    });
+
+    expect(mocks.runRuntimeLiveJob).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ force: true })
+    );
+  });
+
+  it('preserves workspace-busy holders from runtime teardown errors', async () => {
+    const workspaceClient = {
+      cleanArtifacts: { id: 'clean-artifacts' },
+      deactivate: { id: 'deactivate' },
+      teardown: { id: 'teardown' },
+    };
+    const dependencies = {
+      projects: { getProject: vi.fn() },
+      runtimes: { client: vi.fn(async () => ok({ workspace: workspaceClient })) },
+      unregisterFileSearchRoot: vi.fn(),
+    } as never;
+    mocks.runRuntimeLiveJob.mockResolvedValueOnce(
+      err({
+        type: 'workspace-busy',
+        message: 'Workspace has active consumers or resources',
+        holders: ['consumer:task-1'],
+      }) as never
+    );
+
+    await expect(
+      teardownLifecycleWorkspace(dependencies, {} as never, remoteOperation(), {
+        projectPath: '/remote/repo',
+        workspacePath: '/remote/worktree',
+        workspaceKind: 'byoi' as const,
+        preservePatterns: [],
+      })
+    ).rejects.toMatchObject({
+      code: 'workspace-busy',
+      holders: ['consumer:task-1'],
+    });
   });
 });
 

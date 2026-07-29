@@ -303,7 +303,7 @@ function PendingCleanupsSection({
                   {cleanup.branchName ? ` · ${cleanup.branchName}` : ''}
                   {` · Requested ${new Date(cleanup.createdAt).toLocaleString()}`}
                 </div>
-                {cleanup.status === 'failed' && (
+                {cleanup.error && (
                   <div className="mt-0.5 truncate text-foreground-destructive">{cleanup.error}</div>
                 )}
               </div>

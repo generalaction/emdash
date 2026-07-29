@@ -3,24 +3,24 @@ import { hostFileRef, parseAbsolute, type HostFileRef } from '@primitives/path/a
 import { describe, expect, it } from 'vitest';
 import { createWorkspaceMachine } from './machine';
 
-describe('WorkspaceMachine prepared state', () => {
+describe('WorkspaceMachine session prepare state', () => {
   it('tracks prepare completion and clears it on last consumer deactivate', () => {
     const workspace = hostFileRefFromNative('/repo');
     const machine = createWorkspaceMachine(workspace, { kind: 'directory' });
 
     machine.apply({ type: 'PrepareCompleted' });
-    expect(machine.current().prepared).toBe(true);
+    expect(machine.current().sessionPrepared).toBe(true);
 
     machine.apply({ type: 'ConsumerActivated', consumer: { id: 'task-1', activatedAt: 1 } });
     machine.apply({ type: 'ConsumerActivated', consumer: { id: 'task-2', activatedAt: 2 } });
     machine.apply({ type: 'ConsumerDeactivated', consumerId: 'task-1' });
-    expect(machine.current().prepared).toBe(true);
+    expect(machine.current().sessionPrepared).toBe(true);
 
     machine.apply({ type: 'ConsumerDeactivated', consumerId: 'task-2' });
-    expect(machine.current().prepared).toBe(false);
+    expect(machine.current().sessionPrepared).toBe(false);
   });
 
-  it('derives lifecycle phase from topology, operation, and prepared state', () => {
+  it('derives lifecycle phase from topology, operation, and consumers', () => {
     const workspace = hostFileRefFromNative('/repo');
     const machine = createWorkspaceMachine(workspace);
 
@@ -29,8 +29,14 @@ describe('WorkspaceMachine prepared state', () => {
     machine.apply({ type: 'TopologyObserved', topology: { kind: 'directory' } });
     expect(machine.current().phase).toEqual({ kind: 'provisioned' });
 
+    machine.apply({
+      type: 'TopologyObserved',
+      topology: { kind: 'directory', setupStamp: { configHash: 'hash-1' } },
+    });
+    expect(machine.current().phase).toEqual({ kind: 'ready' });
+
     const activated = machine.dispatch(
-      { type: 'BeginOperation', kind: 'activate', operationId: 'activate-1', startedAt: 1 },
+      { type: 'Activate', operationId: 'activate-1', startedAt: 1, consumerId: 'task-1' },
       undefined
     );
     expect(activated.success).toBe(true);
@@ -40,7 +46,10 @@ describe('WorkspaceMachine prepared state', () => {
     expect(machine.current().phase).toEqual({ kind: 'activating', jobId: 'activate-1' });
 
     machine.apply({ type: 'OperationCompleted' });
-    expect(machine.current().phase).toEqual({ kind: 'ready', prepared: true });
+    expect(machine.current().phase).toEqual({ kind: 'ready' });
+
+    machine.apply({ type: 'ConsumerActivated', consumer: { id: 'task-1', activatedAt: 2 } });
+    expect(machine.current().phase).toEqual({ kind: 'active' });
   });
 
   it('validates explicit lifecycle commands against the current phase', () => {
@@ -69,12 +78,44 @@ describe('WorkspaceMachine prepared state', () => {
 
     machine.apply({ type: 'PrepareCompleted' });
     const started = machine.dispatch(
-      { type: 'BeginOperation', kind: 'teardown', operationId: 'teardown-1', startedAt: 1 },
+      { type: 'Teardown', operationId: 'teardown-1', startedAt: 1, force: true },
       undefined
     );
 
     expect(started.success).toBe(true);
-    expect(machine.current().prepared).toBe(false);
+    expect(machine.current().sessionPrepared).toBe(false);
+  });
+
+  it('uses dedicated phases for active cleanup work and durable failures', () => {
+    const workspace = hostFileRefFromNative('/repo');
+    const machine = createWorkspaceMachine(workspace, { kind: 'directory' });
+
+    const cleaning = machine.dispatch(
+      { type: 'CleanArtifacts', operationId: 'clean-1', startedAt: 1 },
+      undefined
+    );
+    expect(cleaning.success).toBe(true);
+    expect(machine.current().phase).toEqual({ kind: 'cleaning', jobId: 'clean-1' });
+
+    machine.apply({ type: 'OperationCompleted' });
+    const activating = machine.dispatch(
+      { type: 'Activate', operationId: 'activate-1', startedAt: 2, consumerId: 'task-1' },
+      undefined
+    );
+    expect(activating.success).toBe(true);
+    machine.apply({ type: 'OperationFailed', error: { type: 'cancelled', message: 'cancelled' } });
+    expect(machine.current().phase).toEqual({ kind: 'provisioned' });
+
+    const teardown = machine.dispatch(
+      { type: 'Teardown', operationId: 'teardown-1', startedAt: 3, force: true },
+      undefined
+    );
+    expect(teardown.success).toBe(true);
+    machine.apply({ type: 'OperationFailed', error: { type: 'io', message: 'failed' } });
+    expect(machine.current().phase).toEqual({
+      kind: 'broken',
+      error: { type: 'io', message: 'failed' },
+    });
   });
 });
 

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { step } from '@runtimes/workspace/api/provisioning/catalog';
 import { runBootstrapPlan } from '@runtimes/workspace/node/provisioning/lifecycle/runner/runner';
 import { describe, expect, it } from 'vitest';
-import { derivePhase, listRepoWorkspaces, probeWorkspace } from './probe';
+import { listRepoWorkspaces, probeWorkspace } from './probe';
 import { createTestRepository, execGit } from './testing/repository';
 
 describe('probeWorkspace', () => {
@@ -23,7 +23,6 @@ describe('probeWorkspace', () => {
         branchCreatedByEmdash: false,
         setup: 'setup-needed',
       });
-      expect(derivePhase(initial, undefined)).toBe('unprovisioned');
 
       const result = await runBootstrapPlan(
         {
@@ -58,7 +57,6 @@ describe('probeWorkspace', () => {
       expect(ready.git).toBe('worktree');
       expect(ready.worktree?.directoryExists).toBe(true);
       expect(ready.setup).toBe('ready');
-      expect(derivePhase(ready, undefined)).toBe('ready');
 
       const list = await listRepoWorkspaces(repo.repoPath);
       expect(list).toEqual(
@@ -94,11 +92,10 @@ describe('probeWorkspace', () => {
 
       const stale = await probeWorkspace({ ...ref, setupConfigHash: 'hash-b' });
       expect(stale.setup).toBe('setup-stale');
-      expect(derivePhase(stale, undefined)).toBe('provisioned');
 
       await execGit(repo.repoPath, ['worktree', 'remove', '--force', ref.path]);
       const removed = await probeWorkspace(ref);
-      expect(derivePhase(removed, undefined)).toBe('unprovisioned');
+      expect(removed.directoryExists).toBe(false);
     } finally {
       await repo.cleanup();
     }
@@ -134,7 +131,6 @@ describe('probeWorkspace', () => {
       const observed = await probeWorkspace(ref);
       expect(observed.git).toBe('none');
       expect(observed.setup).toBe('ready');
-      expect(derivePhase(observed, undefined)).toBe('ready');
     } finally {
       await repo.cleanup();
     }

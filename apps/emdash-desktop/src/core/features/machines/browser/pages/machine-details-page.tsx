@@ -2,16 +2,7 @@ import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
 import { SelectableCard } from '@emdash/ui/react/primitives';
-import {
-  Activity,
-  Brain,
-  EllipsisIcon,
-  Folder,
-  PencilIcon,
-  Settings,
-  Trash2Icon,
-  User,
-} from 'lucide-react';
+import { Activity, Brain, EllipsisIcon, Folder, PencilIcon, Trash2Icon, User } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';

@@ -97,6 +97,52 @@ describe('OperationsEngine', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  it('allows forgetting cleanup that is pending on an offline host', async () => {
+    fixture = await openFixture('empty');
+    const run = vi.fn(async () => ok(undefined));
+    handle = await createTestEngine({ run, ssh: createSshManager(false) });
+
+    await handle.engine.submit(async () =>
+      ok({ outcome: 'enqueue', draft: operationDraft('task-1', 'remote-1') })
+    );
+    await handle.engine.waitForIdle();
+
+    const result = await handle.engine.forgetWithoutCleanup('task', 'task-1');
+    const [row] = await fixture.db.select().from(lifecycleOperations);
+    expect(result.success).toBe(true);
+    expect(row).toMatchObject({ status: 'abandoned', error: null });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('allows retrying cleanup that is pending on an offline host', async () => {
+    fixture = await openFixture('empty');
+    const clock = new ManualClock(1_000);
+    const run = vi.fn(async () => ok(undefined));
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ run, ssh, clock });
+
+    await handle.engine.submit(async () =>
+      ok({ outcome: 'enqueue', draft: operationDraft('task-1', 'remote-1') })
+    );
+    await handle.engine.waitForIdle();
+
+    const result = await handle.engine.retryDelete('task', 'task-1');
+    let [row] = await fixture.db.select().from(lifecycleOperations);
+    expect(result.success).toBe(true);
+    expect(row).toMatchObject({
+      status: 'pending',
+      error: null,
+      payload: { confirmedAt: 1_000 },
+    });
+    expect(run).not.toHaveBeenCalled();
+
+    ssh.connect();
+    await handle.engine.waitForIdle();
+    [row] = await fixture.db.select().from(lifecycleOperations);
+    expect(row).toMatchObject({ status: 'succeeded', attempt: 1 });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it('retries the whole convergent operation after a transient failure', async () => {
     fixture = await openFixture('empty');
     const clock = new ManualClock(1_000);
@@ -148,6 +194,47 @@ describe('OperationsEngine', () => {
       .from(lifecycleOperations)
       .where(eq(lifecycleOperations.id, 'operation-1'));
     expect(row).toMatchObject({ status: 'succeeded', attempt: 2 });
+  });
+
+  it('fails rows with missing definitions and continues draining later rows', async () => {
+    fixture = await openFixture('empty');
+    const run = vi.fn(async () => ok(undefined));
+    handle = await createTestEngine({ run });
+
+    await fixture.db.insert(lifecycleOperations).values([
+      {
+        ...operationDraft('orphan-1'),
+        id: 'operation-orphan',
+        kind: 'missing-operation' as OperationKind,
+        status: 'pending',
+        projectId: null,
+        taskId: null,
+        workspaceId: null,
+        createdAt: 1,
+      },
+      {
+        ...operationDraft('task-1'),
+        id: 'operation-task',
+        status: 'pending',
+        projectId: null,
+        taskId: 'task-1',
+        workspaceId: null,
+        createdAt: 2,
+      },
+    ]);
+
+    handle.engine.poke();
+    await handle.engine.waitForIdle();
+
+    const rows = await fixture.db.select().from(lifecycleOperations);
+    expect(rows.find((row) => row.id === 'operation-orphan')).toMatchObject({
+      status: 'failed',
+      error: "No operation definition is registered for 'missing-operation'",
+    });
+    expect(rows.find((row) => row.id === 'operation-task')).toMatchObject({
+      status: 'succeeded',
+    });
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it('parks confirmation requests without consuming an attempt and resumes after retry', async () => {

@@ -111,7 +111,7 @@ describe('WorkspaceRuntime', () => {
         ],
       });
       const state = runtime.host.get(workspace)?.states.state.snapshot().data;
-      expect(state?.prepared).toBe(true);
+      expect(state?.sessionPrepared).toBe(true);
 
       runtime.dispose();
     } finally {
@@ -140,7 +140,7 @@ describe('WorkspaceRuntime', () => {
       expect(activation.success).toBe(false);
       expect(calls).toHaveLength(1);
       const state = runtime.host.get(workspace)?.states.state.snapshot().data;
-      expect(state?.prepared).toBe(false);
+      expect(state?.sessionPrepared).toBe(false);
       expect(state?.consumers).toEqual([]);
 
       runtime.dispose();
@@ -182,12 +182,12 @@ describe('WorkspaceRuntime', () => {
         { workspace, consumerId: 'task-1', strategy: 'detach', automation },
         jobContext('deactivate-1')
       );
-      expect(runtime.host.get(workspace)?.states.state.snapshot().data.prepared).toBe(true);
+      expect(runtime.host.get(workspace)?.states.state.snapshot().data.sessionPrepared).toBe(true);
       await runtime.deactivate(
         { workspace, consumerId: 'task-2', strategy: 'detach', automation },
         jobContext('deactivate-2')
       );
-      expect(runtime.host.get(workspace)?.states.state.snapshot().data.prepared).toBe(false);
+      expect(runtime.host.get(workspace)?.states.state.snapshot().data.sessionPrepared).toBe(false);
 
       runtime.dispose();
     } finally {

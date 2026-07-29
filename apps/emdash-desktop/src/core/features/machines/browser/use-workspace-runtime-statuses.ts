@@ -155,21 +155,21 @@ function deriveWorkspaceRuntimeStatus(
   state: WorkspaceRuntimeState | undefined,
   hasActiveSessions: boolean
 ): WorkspaceRuntimeStatus {
-  switch (state?.phase.kind) {
+  if (!state) return hasActiveSessions ? 'active' : 'idle';
+  switch (state.phase.kind) {
     case 'provisioning':
     case 'activating':
       return 'setting-up';
     case 'deactivating':
     case 'tearing-down':
+    case 'cleaning':
       return 'tearing-down';
-    case 'ready':
+    case 'active':
       return 'active';
+    case 'ready':
     case 'broken':
     case 'provisioned':
     case 'unprovisioned':
-    case undefined:
-      break;
+      return 'idle';
   }
-  if ((state?.consumers.length ?? 0) > 0 || hasActiveSessions) return 'active';
-  return 'idle';
 }

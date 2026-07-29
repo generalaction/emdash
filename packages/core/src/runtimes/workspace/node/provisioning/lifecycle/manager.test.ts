@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { err } from '@emdash/shared';
 import { step } from '@runtimes/workspace/api/provisioning/catalog';
 import type { BootstrapPlan } from '@runtimes/workspace/api/provisioning/schemas';
 import { compileTeardownFromProbe } from '@runtimes/workspace/api/provisioning/teardown';
@@ -9,31 +8,7 @@ import { probeWorkspace } from './probe';
 import { createTestRepository } from './testing/repository';
 
 describe('WorkspaceLifecycleManager', () => {
-  it('rejects illegal transitions against probed state', async () => {
-    const repo = await createTestRepository();
-    try {
-      const manager = new WorkspaceLifecycleManager();
-      const result = await manager.runPhase(
-        {
-          ref: ref(repo, 'setup-first'),
-          phase: 'setup',
-          plan: { steps: [] },
-          context: context(repo),
-        },
-        jobCtx('setup-first')
-      );
-
-      expect(result).toMatchObject({
-        success: false,
-        error: { type: 'illegal-transition' },
-      });
-      manager.dispose();
-    } finally {
-      await repo.cleanup();
-    }
-  });
-
-  it('provisions a worktree and publishes derived lifecycle state', async () => {
+  it('runs provisioning plans and leaves lifecycle state to probes and the machine', async () => {
     const repo = await createTestRepository();
     try {
       const manager = new WorkspaceLifecycleManager();
@@ -48,29 +23,23 @@ describe('WorkspaceLifecycleManager', () => {
       );
 
       expect(result.success).toBe(true);
-      const refreshed = await manager.refresh(ref(repo, 'feature/provision'));
-      expect(refreshed.success).toBe(true);
-      if (!refreshed.success) throw new Error('expected refresh success');
-      const state = refreshed.data;
-      expect(state).toMatchObject({
-        phase: 'provisioned',
+      const observed = await probeWorkspace(ref(repo, 'feature/provision'));
+      expect(observed).toMatchObject({
         branchName: 'feature/provision',
         branchCreatedByEmdash: true,
+        directoryExists: true,
       });
-      expect(state?.path).toContain('feature-provision');
+      expect(observed.path).toContain('feature-provision');
       manager.dispose();
     } finally {
       await repo.cleanup();
     }
   });
 
-  it('vetoes teardown unless force is set', async () => {
+  it('runs teardown plans; busy checks are owned by WorkspaceMachine', async () => {
     const repo = await createTestRepository();
     try {
-      const beforeTeardown = vi.fn(async () =>
-        err({ type: 'workspace-busy' as const, holders: ['pty'] })
-      );
-      const manager = new WorkspaceLifecycleManager({ hooks: { beforeTeardown } });
+      const manager = new WorkspaceLifecycleManager();
       const branchName = 'feature/teardown';
       const provision = await manager.runPhase(
         {
@@ -85,21 +54,7 @@ describe('WorkspaceLifecycleManager', () => {
 
       const observed = await probeWorkspace(ref(repo, branchName));
       const teardownPlan = compileTeardownFromProbe(observed, ref(repo, branchName));
-      const blocked = await manager.runPhase(
-        {
-          ref: ref(repo, branchName),
-          phase: 'teardown',
-          plan: teardownPlan,
-          context: context(repo),
-        },
-        jobCtx('teardown-blocked')
-      );
-      expect(blocked).toMatchObject({
-        success: false,
-        error: { type: 'workspace-busy', resolutions: ['force'] },
-      });
-
-      const forced = await manager.runPhase(
+      const teardown = await manager.runPhase(
         {
           ref: ref(repo, branchName),
           phase: 'teardown',
@@ -107,21 +62,18 @@ describe('WorkspaceLifecycleManager', () => {
           context: context(repo),
           force: true,
         },
-        jobCtx('teardown-forced')
+        jobCtx('teardown')
       );
-      expect(forced.success).toBe(true);
-      expect(beforeTeardown).toHaveBeenCalledTimes(1);
-      const refreshed = await manager.refresh(ref(repo, branchName));
-      expect(refreshed.success).toBe(true);
-      if (!refreshed.success) throw new Error('expected refresh success');
-      expect(refreshed.data.phase).toBe('unprovisioned');
+      expect(teardown.success).toBe(true);
+      const after = await probeWorkspace(ref(repo, branchName));
+      expect(after.directoryExists).toBe(false);
       manager.dispose();
     } finally {
       await repo.cleanup();
     }
   });
 
-  it('settles failed phases by probing reality and preserving lastError', async () => {
+  it('returns plan failures without publishing competing phase state', async () => {
     const repo = await createTestRepository();
     try {
       const manager = new WorkspaceLifecycleManager();
@@ -150,12 +102,9 @@ describe('WorkspaceLifecycleManager', () => {
       );
 
       expect(result.success).toBe(false);
-      const refreshed = await manager.refresh(ref(repo, branchName));
-      expect(refreshed.success).toBe(true);
-      if (!refreshed.success) throw new Error('expected refresh success');
-      const state = refreshed.data;
-      expect(state).toMatchObject({
-        phase: 'unprovisioned',
+      const observed = await probeWorkspace(ref(repo, branchName));
+      expect(observed).toMatchObject({
+        directoryExists: false,
         branchCreatedByEmdash: true,
       });
       manager.dispose();

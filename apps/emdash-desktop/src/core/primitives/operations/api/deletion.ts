@@ -19,6 +19,7 @@ const deletionBaseSchema = z.object({
   currentStep: z.string().optional(),
   completedSteps: z.number().int().nonnegative().optional(),
   totalSteps: z.number().int().nonnegative().optional(),
+  error: z.string().optional(),
 });
 
 export const deletionStateSchema = z.discriminatedUnion('status', [
@@ -36,6 +37,7 @@ export const deletionStateSchema = z.discriminatedUnion('status', [
       'reconciler-proposed',
       'workspace-busy',
     ]),
+    error: z.string().optional(),
   }),
   deletionBaseSchema.extend({
     status: z.literal('failed'),

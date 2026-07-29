@@ -39,7 +39,11 @@ export async function runOperationActions(
             ? 'operation-timeout'
             : 'operation-failed';
       if (code === 'workspace-busy') {
-        return err({ type: 'awaiting-confirmation', reason: 'workspace-busy' });
+        return err({
+          type: 'awaiting-confirmation',
+          reason: 'workspace-busy',
+          message: workspaceBusyMessage(error),
+        });
       }
       return err({
         type: 'failed',
@@ -53,4 +57,17 @@ export async function runOperationActions(
 
   context.reportProgress({ completedSteps, totalSteps: actions.length });
   return ok(undefined);
+}
+
+function workspaceBusyMessage(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const holders =
+    typeof error === 'object' &&
+    error !== null &&
+    'holders' in error &&
+    Array.isArray(error.holders)
+      ? error.holders.filter((holder): holder is string => typeof holder === 'string')
+      : [];
+  if (holders.length === 0) return error.message;
+  return `${error.message} Active holders: ${holders.join(', ')}`;
 }

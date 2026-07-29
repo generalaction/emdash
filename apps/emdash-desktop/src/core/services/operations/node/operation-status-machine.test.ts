@@ -13,6 +13,17 @@ describe('operation status machine', () => {
     next: OperationStatus;
   }> = [
     { current: 'pending', event: { type: 'started' }, next: 'running' },
+    {
+      current: 'pending',
+      event: { type: 'run-failed', error: 'failed', retryable: false },
+      next: 'failed',
+    },
+    {
+      current: 'pending',
+      event: { type: 'user-retried', confirmedAt: 1_000 },
+      next: 'pending',
+    },
+    { current: 'pending', event: { type: 'user-abandoned' }, next: 'abandoned' },
     { current: 'running', event: { type: 'run-succeeded' }, next: 'succeeded' },
     {
       current: 'running',

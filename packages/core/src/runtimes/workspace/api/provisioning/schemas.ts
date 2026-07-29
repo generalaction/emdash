@@ -119,18 +119,7 @@ export const bootstrapResultSchema = z.object({
   report: z.array(bootstrapStepReportSchema),
 });
 
-export const workspaceLifecyclePhaseSchema = z.enum([
-  'unprovisioned',
-  'provisioning',
-  'provisioned',
-  'setting-up',
-  'ready',
-  'tearing-down',
-]);
-
 export const setupStateSchema = z.enum(['ready', 'setup-needed', 'setup-stale', 'not-applicable']);
-
-export const phaseKindSchema = z.enum(['provision', 'setup', 'teardown']);
 
 export const gitStateSchema = z.enum(['none', 'repo', 'worktree']);
 
@@ -153,20 +142,9 @@ export const workspaceLifecycleKeySchema = z.object({
   path: z.string().min(1),
 });
 
-export const lifecycleStateSchema = z.object({
-  phase: workspaceLifecyclePhaseSchema,
-  setup: setupStateSchema,
-  git: gitStateSchema,
-  branchName: z.string().optional(),
-  branchCreatedByEmdash: z.boolean().optional(),
-  path: z.string(),
-  lastError: bootstrapErrorSchema.optional(),
-  activeJobId: z.string().optional(),
-});
-
 export const runPhaseInputSchema = z.object({
   ref: workspaceRefSchema,
-  phase: phaseKindSchema,
+  phase: z.enum(['provision', 'setup', 'teardown']),
   plan: lenientBootstrapPlanSchema,
   context: bootstrapContextSchema,
   force: z.boolean().optional(),
@@ -228,13 +206,10 @@ export type PlanRejection = z.infer<typeof planRejectionSchema>;
 export type BootstrapProgress = z.infer<typeof bootstrapProgressSchema>;
 export type BootstrapStepReport = z.infer<typeof bootstrapStepReportSchema>;
 export type BootstrapResult = z.infer<typeof bootstrapResultSchema>;
-export type WorkspaceLifecyclePhase = z.infer<typeof workspaceLifecyclePhaseSchema>;
-export type PhaseKind = z.infer<typeof phaseKindSchema>;
 export type SetupState = z.infer<typeof setupStateSchema>;
 export type GitState = z.infer<typeof gitStateSchema>;
 export type WorkspaceRef = z.infer<typeof workspaceRefSchema>;
 export type WorkspaceLifecycleKey = z.infer<typeof workspaceLifecycleKeySchema>;
-export type LifecycleState = z.infer<typeof lifecycleStateSchema>;
 export type RunPhaseInput = z.infer<typeof runPhaseInputSchema>;
 export type StepOutputKey = z.infer<typeof stepOutputKeySchema>;
 export type ObservedWorkspaceState = z.infer<typeof observedWorkspaceStateSchema>;

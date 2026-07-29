@@ -32,6 +32,7 @@ export type OperationRunError =
   | {
       type: 'awaiting-confirmation';
       reason: OperationConfirmationReason;
+      message?: string;
     }
   | {
       type: 'failed';

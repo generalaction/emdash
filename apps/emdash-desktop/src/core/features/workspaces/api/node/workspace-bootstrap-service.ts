@@ -878,7 +878,6 @@ function runtimeOperationToProvisionStep(
   switch (kind) {
     case 'provision':
     case 'convert':
-    case 'reconcile':
     case 'deactivate':
     case 'teardown':
     case 'clean-artifacts':
