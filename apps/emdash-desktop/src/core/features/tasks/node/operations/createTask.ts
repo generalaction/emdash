@@ -7,6 +7,7 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
+import type { OperationClaimResource } from '@core/primitives/operations/api';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -56,11 +57,14 @@ export async function prepareCreateTask(
       : workspaceConfig.git.kind === 'pr-branch'
         ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
         : undefined;
-  const claimConflict = await operations.hasClaimConflict({
-    projectId: params.projectId,
-    workspaceId: wsTarget.kind === 'repository-instance' ? wsTarget.workspaceId : undefined,
-    branchName,
-  });
+  const claimResources: OperationClaimResource[] = [{ kind: 'project', id: params.projectId }];
+  if (wsTarget.kind === 'repository-instance') {
+    claimResources.push({ kind: 'workspace', id: wsTarget.workspaceId });
+  }
+  if (branchName !== undefined) {
+    claimResources.push({ kind: 'branch', projectId: params.projectId, name: branchName });
+  }
+  const claimConflict = await operations.hasClaimConflict(claimResources);
   if (claimConflict) {
     return err({
       type: 'provision-failed',

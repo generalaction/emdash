@@ -11,10 +11,7 @@ import { getPlugin, getPluginMetadata } from '@core/features/agents/api/node/plu
 import { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { buildAutomationDeployment } from '@core/features/automations/node/deployment-builder';
-import {
-  createDeleteAutomationOperationDefinition,
-  submitReconcilerAutomationCleanup,
-} from '@core/features/automations/node/operations/delete-automation-definition';
+import { submitReconcilerAutomationCleanup } from '@core/features/automations/node/operations/delete-automation-definition';
 import { listTombstonedAutomationIds } from '@core/features/automations/node/repo';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
@@ -53,10 +50,7 @@ import {
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
-import {
-  createDeleteProjectOperationDefinition,
-  submitReconcilerProjectCleanup,
-} from '@core/features/projects/node/operations/delete-project-definition';
+import { submitReconcilerProjectCleanup } from '@core/features/projects/node/operations/delete-project-definition';
 import {
   getProjectById,
   getProjectByPath,
@@ -64,10 +58,7 @@ import {
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import {
-  createDeleteTaskOperationDefinition,
-  submitReconcilerTaskCleanup,
-} from '@core/features/tasks/node/operations/delete-task-definition';
+import { submitReconcilerTaskCleanup } from '@core/features/tasks/node/operations/delete-task-definition';
 import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
 import { installTaskTelemetry } from '@core/features/telemetry/node/task-telemetry';
 import { desktopHostEvents } from '@core/features/workbench/node/event-host';
@@ -88,12 +79,11 @@ import {
 } from '@core/features/workspaces/node/lifecycle-participants';
 import { listProjectWorkspaces } from '@core/features/workspaces/node/operations/list-project-workspaces';
 import {
-  createArchiveWorkspaceOperationDefinition,
-  createDeleteWorkspaceOperationDefinition,
   submitReconcilerWorkspaceCleanup,
   type WorkspaceLifecycleDependencies,
 } from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
 import { shouldProposeWorkspaceCleanup } from '@core/features/workspaces/node/operations/workspace-reconciliation-policy';
+import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
@@ -112,13 +102,13 @@ import { setOperationsEngine } from '@main/core/operations/operations-engine-ins
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
-import { createCleanupSessionsOperationDefinition } from '@main/core/runtime/operations/cleanup-sessions-definition';
 import {
   killLifecycleAcpSessions,
   killLifecycleTerminalSessions,
   resolveLifecycleSessionTargets,
   type SessionCleanupDependencies,
 } from '@main/core/runtime/operations/session-cleanup';
+import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { runLocalCommand } from '@main/core/utils/exec';
@@ -576,28 +566,34 @@ export async function bootServices(
         });
       },
     },
-    definitions: [
-      createDeleteTaskOperationDefinition({
+    definitions: createOperationDefinitions({
+      deleteTask: {
         getMementosRuntimeClient,
         lifecycleCleanup,
         lifecycleContext,
         sessionCleanup: lifecycleSessions,
         telemetry: telemetryService,
         unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
-      }),
-      createDeleteAutomationOperationDefinition({ runtimes }),
-      createDeleteWorkspaceOperationDefinition(workspaceLifecycle),
-      createArchiveWorkspaceOperationDefinition(workspaceLifecycle),
-      createDeleteProjectOperationDefinition({
+      },
+      deleteAutomation: { runtimes },
+      workspaceLifecycle,
+      deleteProject: {
         automations: automationsService,
         getMementosRuntimeClient,
         logger: log,
         projects: projectManager,
         pullRequests: pullRequestsRegistration,
         telemetry: telemetryService,
-      }),
-      createCleanupSessionsOperationDefinition({
-        sessionCleanup: sessionCleanupDependencies,
+      },
+      cleanupSessions: {
+        agentStatus: agentStatusService,
+        createSessionIntentStores: createDesktopSessionIntentStores,
+        lifecycle: {
+          resolveTargets: lifecycleSessions.resolve,
+          killAcp: lifecycleSessions.killAcp,
+          killTerminals: lifecycleSessions.killTerminals,
+        },
+        logger: log,
         resolveLifecycleOperationContext: (database, operation) =>
           resolveLifecycleOperationContext(lifecycleContext, database, operation, {
             resolveRuntimeConfig: true,
@@ -618,8 +614,24 @@ export async function bootServices(
           ),
         shouldProposeWorkspaceCleanup,
         getProjectTerminals: (projectId) => projectManager.getProject(projectId)?.terminals,
-      }),
-    ],
+        runtimeSessions: {
+          listAcpConversationIds: async () => {
+            const snapshot = await clients.acp.sessions.state(undefined, 'list').snapshot();
+            return Object.keys(snapshot.data);
+          },
+          listTuiConversationIds: async () => {
+            const tui = await getTuiAgentsRuntimeClient();
+            const snapshot = await tui.sessions.state(undefined, 'list').snapshot();
+            return Object.keys(snapshot.data);
+          },
+          listTerminalSessions: async () => {
+            const terminals = await getTerminalsRuntimeClient();
+            const snapshot = await terminals.sessions.state(undefined, 'list').snapshot();
+            return Object.values(snapshot.data);
+          },
+        },
+      },
+    }),
   });
   setOperationsEngine(operations);
   registerProviderTokenHandlers();

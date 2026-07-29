@@ -5,10 +5,11 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  type DeletionState,
+  type OperationDisplayState,
   operationKinds,
   type OperationKind,
   type OperationTreeList,
+  rollupStatus,
 } from '@core/primitives/operations/api';
 import { lifecycleOperations, operationClaims, projects } from '@core/services/app-db/node/schema';
 import type {
@@ -18,7 +19,6 @@ import type {
   OperationsSshManager,
 } from './definition';
 import { createOperationsEngine, type OperationsEngineHandle } from './factory';
-import { rollupStatus } from './operations-engine';
 
 describe('OperationsEngine', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -608,11 +608,18 @@ describe('OperationsEngine', () => {
   });
 
   it('rolls operation tree status up by severity', () => {
-    expect(rollupStatus([deletionState('cleaning'), deletionState('waiting')])).toBe('cleaning');
-    expect(rollupStatus([deletionState('cleaning'), deletionState('failed')])).toBe('failed');
-    expect(rollupStatus([deletionState('blocked-host-offline'), deletionState('waiting')])).toBe(
-      'blocked-host-offline'
+    expect(
+      rollupStatus([operationDisplayState('cleaning'), operationDisplayState('waiting')])
+    ).toBe('cleaning');
+    expect(rollupStatus([operationDisplayState('cleaning'), operationDisplayState('failed')])).toBe(
+      'failed'
     );
+    expect(
+      rollupStatus([
+        operationDisplayState('blocked-host-offline'),
+        operationDisplayState('waiting'),
+      ])
+    ).toBe('blocked-host-offline');
     expect(rollupStatus([])).toBe('waiting');
   });
 
@@ -703,7 +710,7 @@ function operationRow(entityKey: string, hostRef: string, createdAt: number) {
   };
 }
 
-function deletionState(status: DeletionState['status']): DeletionState {
+function operationDisplayState(status: OperationDisplayState['status']): OperationDisplayState {
   return {
     operationId: `operation-${status}`,
     operationKind: 'delete-task',
@@ -715,7 +722,7 @@ function deletionState(status: DeletionState['status']): DeletionState {
     status,
     ...(status === 'failed' ? { error: 'failed' } : {}),
     ...(status === 'awaiting-confirmation' ? { confirmationReason: 'stale' as const } : {}),
-  } as DeletionState;
+  } as OperationDisplayState;
 }
 
 function createSshManager(initiallyConnected: boolean): OperationsSshManager & {

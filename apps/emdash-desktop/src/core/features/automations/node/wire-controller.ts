@@ -9,7 +9,7 @@ import {
 } from '@core/features/automations/node/runtime-client-resolver';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { AutomationDefinitionError } from '@core/primitives/automations/api';
-import type { DeletionMutationError } from '@core/primitives/operations/api';
+import type { OperationMutationError } from '@core/primitives/operations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationsEngine } from '@core/services/operations/node';
@@ -58,7 +58,7 @@ export function createAutomationsWireController(options: {
 }
 
 function toAutomationDefinitionError(
-  error: DeletionMutationError,
+  error: OperationMutationError,
   automationId: string
 ): AutomationDefinitionError {
   return error.type === 'automation-not-found'

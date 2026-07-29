@@ -7,6 +7,7 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
   nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
@@ -69,23 +70,27 @@ export function createDeleteProjectOperationDefinition(
       if (isOperationStale(operation, clock.now())) {
         return operationNeedsConfirmation('stale');
       }
-      return runOperationActions(runContext, [
-        {
-          id: 'purge-project-row',
-          timeoutMs: PURGE_TIMEOUT_MS,
-          run: async () => {
-            if (!operation.projectId) return;
-            await purgeProjectLocalState(
-              operation.projectId,
-              db,
-              async () => {
-                await db.delete(projects).where(eq(projects.id, operation.projectId!));
-              },
-              dependencies
-            );
+      return runOperationActions(
+        runContext,
+        [
+          {
+            id: 'purge-project-row',
+            timeoutMs: PURGE_TIMEOUT_MS,
+            run: async () => {
+              if (!operation.projectId) return;
+              await purgeProjectLocalState(
+                operation.projectId,
+                db,
+                async () => {
+                  await db.delete(projects).where(eq(projects.id, operation.projectId!));
+                },
+                dependencies
+              );
+            },
           },
-        },
-      ]);
+        ],
+        { classifyError: classifyWorkspaceOperationError }
+      );
     },
     async retry({ operation, db, reset }) {
       const operations = await db

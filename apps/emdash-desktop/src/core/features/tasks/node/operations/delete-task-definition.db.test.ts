@@ -4,7 +4,6 @@ import { createScope } from '@emdash/shared/concurrency';
 import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
 import {
   lifecycleOperations,
   operationClaims,
@@ -16,9 +15,9 @@ import {
 } from '@core/services/app-db/node/schema';
 import {
   createOperationsEngine,
-  type OperationDefinition,
   type OperationsEngineHandle,
 } from '@core/services/operations/node';
+import { testOperationDefinitions } from '@core/services/operations/node/testing/test-definitions';
 import { createDeleteTaskOperationDefinition, enqueueDeleteTask } from './delete-task-definition';
 
 const mocks = vi.hoisted(() => ({
@@ -114,9 +113,7 @@ describe('delete-task operation convergence', () => {
       deletedAt: '2026-07-20T00:00:00.000Z',
     });
     const taskDefinition = createDeleteTaskOperationDefinition(dependencies);
-    const definitions = operationKinds.map((kind) =>
-      kind === 'delete-task' ? taskDefinition : successfulDefinition(kind)
-    );
+    const definitions = testOperationDefinitions({ 'delete-task': taskDefinition });
     handle = await createOperationsEngine({
       scope: createScope({ label: 'delete-task-engine-test' }),
       db: fixture.db,
@@ -190,9 +187,7 @@ describe('delete-task operation convergence', () => {
       },
     ]);
     const taskDefinition = createDeleteTaskOperationDefinition(dependencies);
-    const definitions = operationKinds.map((kind) =>
-      kind === 'delete-task' ? taskDefinition : successfulDefinition(kind)
-    );
+    const definitions = testOperationDefinitions({ 'delete-task': taskDefinition });
     handle = await createOperationsEngine({
       scope: createScope({ label: 'delete-task-shared-workspace-test' }),
       db: fixture.db,
@@ -292,25 +287,5 @@ function operation(overrides: Partial<LifecycleOperationRow> = {}): LifecycleOpe
     createdAt: 0,
     finishedAt: null,
     ...overrides,
-  };
-}
-
-function successfulDefinition(kind: OperationKind): OperationDefinition {
-  return {
-    kind,
-    entityKind:
-      kind === 'delete-project'
-        ? 'project'
-        : kind === 'delete-automation'
-          ? 'automation'
-          : kind === 'delete-workspace' || kind === 'archive-workspace'
-            ? 'workspace'
-            : 'task',
-    async run() {
-      return ok(undefined);
-    },
-    async describe() {
-      return {};
-    },
   };
 }

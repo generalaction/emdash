@@ -3,8 +3,8 @@ import { defineContract, eventStream, fallible, procedure } from '@emdash/wire';
 import z from 'zod';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
-  deletionMutationErrorSchema,
-  deletionMutationResultSchema,
+  operationMutationErrorSchema,
+  operationMutationResultSchema,
 } from '@core/primitives/operations/api';
 import {
   taskLifecycleStatuses,
@@ -102,8 +102,8 @@ export const tasksWireContract = defineContract({
   events: eventStream({ key: z.void(), event: z.custom<TaskEvent>() }),
   delete: fallible({
     input: deleteTaskInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
 });
 

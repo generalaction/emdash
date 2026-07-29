@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type {
-  DeletionState,
+  OperationDisplayState,
   OperationTree,
   OperationTreeList,
 } from '@core/primitives/operations/api';
@@ -306,7 +306,10 @@ function PendingCleanupsSection({
   if (trees.length === 0) return null;
   const attention = trees.some((tree) => treeNeedsAttention(tree));
 
-  const runAction = async (action: 'retry' | 'forget', cleanup: DeletionState): Promise<void> => {
+  const runAction = async (
+    action: 'retry' | 'forget',
+    cleanup: OperationDisplayState
+  ): Promise<void> => {
     setPendingAction(`${action}:${cleanup.operationId}`);
     try {
       await (action === 'retry' ? retry(cleanup.operationId) : forget(cleanup.operationId));
@@ -395,9 +398,9 @@ function OperationCleanupRow({
   rollup,
   indented = false,
 }: {
-  cleanup: DeletionState;
+  cleanup: OperationDisplayState;
   pendingAction: string | null;
-  runAction(action: 'retry' | 'forget', cleanup: DeletionState): Promise<void>;
+  runAction(action: 'retry' | 'forget', cleanup: OperationDisplayState): Promise<void>;
   rollup?: string;
   indented?: boolean;
 }) {
@@ -919,7 +922,7 @@ function pathStateLabel(state: ProjectWorkspacePathState): string {
   }
 }
 
-function cleanupStatusLabel(cleanup: DeletionState): string {
+function cleanupStatusLabel(cleanup: OperationDisplayState): string {
   switch (cleanup.status) {
     case 'blocked-host-offline':
       return 'Host offline';
@@ -936,7 +939,7 @@ function cleanupStatusLabel(cleanup: DeletionState): string {
   }
 }
 
-function cleanupStatusPillClass(cleanup: DeletionState): string {
+function cleanupStatusPillClass(cleanup: OperationDisplayState): string {
   switch (cleanup.status) {
     case 'cleaning':
       return 'border-border text-foreground-muted';
@@ -949,7 +952,7 @@ function cleanupStatusPillClass(cleanup: DeletionState): string {
   }
 }
 
-function cleanupIsActionable(cleanup: DeletionState): boolean {
+function cleanupIsActionable(cleanup: OperationDisplayState): boolean {
   return (
     cleanup.status === 'failed' ||
     cleanup.status === 'awaiting-confirmation' ||

@@ -18,8 +18,8 @@ import {
 import z from 'zod';
 import { workspaceBootstrapProgressSchema } from '@core/features/workspaces/api';
 import {
-  deletionMutationErrorSchema,
-  deletionMutationResultSchema,
+  operationMutationErrorSchema,
+  operationMutationResultSchema,
 } from '@core/primitives/operations/api';
 import type {
   MigrateProjectConfigRequest,
@@ -233,8 +233,8 @@ export const projectsWireContract = defineContract({
   }),
   delete: fallible({
     input: projectIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
 });
 

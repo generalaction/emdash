@@ -1,8 +1,8 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
 import z from 'zod';
 import {
-  deletionMutationErrorSchema,
-  deletionMutationResultSchema,
+  operationMutationErrorSchema,
+  operationMutationResultSchema,
   operationTreeKeySchema,
   operationTreeListSchema,
 } from '@core/primitives/operations/api';
@@ -14,13 +14,13 @@ export const operationIdInputSchema = z.object({
 export const operationsContract = defineContract({
   retry: fallible({
     input: operationIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
   forget: fallible({
     input: operationIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
   operationTrees: liveModel({
     key: operationTreeKeySchema,

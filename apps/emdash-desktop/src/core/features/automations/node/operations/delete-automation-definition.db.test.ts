@@ -4,7 +4,6 @@ import { createScope } from '@emdash/shared/concurrency';
 import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
 import {
   automationRuns,
   automations,
@@ -18,6 +17,7 @@ import {
   type OperationDefinition,
   type OperationsEngineHandle,
 } from '@core/services/operations/node';
+import { testOperationDefinitions } from '@core/services/operations/node/testing/test-definitions';
 import {
   createDeleteAutomationOperationDefinition,
   enqueueDeleteAutomation,
@@ -233,27 +233,5 @@ function runtimeClient() {
 }
 
 function definitions(deleteAutomation: OperationDefinition): OperationDefinition[] {
-  return operationKinds.map((kind) =>
-    kind === 'delete-automation' ? deleteAutomation : successfulDefinition(kind)
-  );
-}
-
-function successfulDefinition(kind: OperationKind): OperationDefinition {
-  return {
-    kind,
-    entityKind:
-      kind === 'delete-project'
-        ? 'project'
-        : kind === 'delete-automation'
-          ? 'automation'
-          : kind === 'delete-workspace' || kind === 'archive-workspace'
-            ? 'workspace'
-            : 'task',
-    async run() {
-      return ok(undefined);
-    },
-    async describe() {
-      return {};
-    },
-  };
+  return testOperationDefinitions({ 'delete-automation': deleteAutomation });
 }

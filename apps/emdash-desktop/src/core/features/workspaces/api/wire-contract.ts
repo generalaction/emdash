@@ -11,8 +11,8 @@ import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/
 import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
 import z from 'zod';
 import {
-  deletionMutationErrorSchema,
-  deletionMutationResultSchema,
+  operationMutationErrorSchema,
+  operationMutationResultSchema,
 } from '@core/primitives/operations/api';
 
 export const workspaceBootstrapStepSchema = z.enum([
@@ -156,13 +156,13 @@ export const workspacesWireContract = defineContract({
   }),
   delete: fallible({
     input: workspaceIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
   archive: fallible({
     input: archiveWorkspaceInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
 });
 

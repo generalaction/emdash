@@ -1,5 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
   cleanLifecycleWorkspaceArtifacts,
   deactivateLifecycleWorkspace,
@@ -127,7 +128,9 @@ export function createDeleteWorkspaceOperationDefinition(
           run: async () => purgeLifecycleWorkspaceRow(dependencies.cleanup, db, operation, context),
         }
       );
-      return runOperationActions(runContext, actions);
+      return runOperationActions(runContext, actions, {
+        classifyError: classifyWorkspaceOperationError,
+      });
     },
     async forget({ operation, db, markAbandoned }) {
       db.transaction((tx) => {
@@ -197,7 +200,9 @@ export function createArchiveWorkspaceOperationDefinition(
         timeoutMs: PURGE_TIMEOUT_MS,
         run: async () => purgeLifecycleWorkspaceRow(dependencies.cleanup, db, operation, context),
       });
-      return runOperationActions(runContext, actions);
+      return runOperationActions(runContext, actions, {
+        classifyError: classifyWorkspaceOperationError,
+      });
     },
   };
 }

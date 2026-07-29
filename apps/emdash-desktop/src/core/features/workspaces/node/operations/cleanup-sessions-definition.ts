@@ -1,5 +1,9 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { decodeTmuxSessionName } from '@emdash/core/services/pty/api';
+import type { SessionIntentStore } from '@emdash/core/services/session-intents/api';
 import { ok } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { reconcilerDedupeStatuses } from '@core/primitives/operations/api';
@@ -7,12 +11,13 @@ import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { ProjectWorkspaceRow, ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
-  lifecycleOperations,
   conversations,
+  lifecycleOperations,
   projects,
   tasks,
   terminals,
   workspaces,
+  type LifecycleOperationRow,
 } from '@core/services/app-db/node/schema';
 import {
   runOperationActions,
@@ -20,17 +25,6 @@ import {
   type OperationReconcileContext,
   type OperationSubmit,
 } from '@core/services/operations/node';
-import type { TerminalsRuntimeClient } from '@core/services/runtime-broker/api/clients';
-import { agentStatusService } from '@main/core/agent-status/agent-status-service';
-import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
-import { log } from '@main/lib/logger';
-import {
-  killLifecycleAcpSessions,
-  killLifecycleTerminalSessions,
-  resolveLifecycleSessionTargets,
-  type LifecycleSessionContext,
-  type SessionCleanupDependencies,
-} from './session-cleanup';
 
 const SESSION_TIMEOUT_MS = 30_000;
 
@@ -43,6 +37,93 @@ export type ReconcilerSessionCleanupInput = {
   tuiConversationIds?: string[];
   terminalSessionIds?: string[];
   tmuxSessionNames?: string[];
+};
+
+export type CleanupSessionsLifecycleContext = {
+  workspace?: { id: string };
+  workspacePath?: string;
+};
+
+export type CleanupSessionsTargets = {
+  acpConversationIds: string[];
+  tuiConversationIds: string[];
+  terminalSessionIds: string[];
+  tmuxSessionNames: string[];
+};
+
+export type CleanupSessionsRuntimeTerminalSession = {
+  key: {
+    id: string;
+    workspace: {
+      path: HostAbsolutePath;
+      host: HostRef;
+    };
+  };
+};
+
+export type CleanupSessionsDependencies = {
+  agentStatus: {
+    resetToIdle(params: { conversationId: string }): Promise<void>;
+  };
+  createSessionIntentStores(): {
+    acp: SessionIntentStore;
+    tuiAgents: SessionIntentStore;
+  };
+  lifecycle: {
+    resolveTargets(
+      db: AppDb,
+      operation: LifecycleOperationRow,
+      context: CleanupSessionsLifecycleContext
+    ): Promise<CleanupSessionsTargets>;
+    killAcp(
+      db: AppDb,
+      operation: LifecycleOperationRow,
+      targets: CleanupSessionsTargets
+    ): Promise<void>;
+    killTerminals(
+      db: AppDb,
+      operation: LifecycleOperationRow,
+      context: CleanupSessionsLifecycleContext,
+      targets: CleanupSessionsTargets
+    ): Promise<void>;
+  };
+  logger: Pick<Logger, 'warn'>;
+  resolveLifecycleOperationContext(
+    db: AppDb,
+    operation: LifecycleOperationRow
+  ): Promise<CleanupSessionsLifecycleContext>;
+  listTombstonedAutomationIds(db: AppDb): Promise<string[]>;
+  submitReconcilerAutomationCleanup(submit: OperationSubmit, automationId: string): Promise<void>;
+  submitReconcilerProjectCleanup(submit: OperationSubmit, projectId: string): Promise<void>;
+  submitReconcilerTaskCleanup(submit: OperationSubmit, taskId: string): Promise<void>;
+  submitReconcilerWorkspaceCleanup(
+    submit: OperationSubmit,
+    input: {
+      projectId: string;
+      workspaceId?: string;
+      workspacePath: string;
+      branchName?: string;
+    }
+  ): Promise<void>;
+  listProjectWorkspaces(projectId: string): Promise<ProjectWorkspacesResult>;
+  shouldProposeWorkspaceCleanup(
+    row: Pick<ProjectWorkspaceRow, 'kind' | 'path' | 'tasks'>,
+    projectPath: string
+  ): boolean;
+  getProjectTerminals(projectId: string):
+    | {
+        killTmuxSessions(input: { sessionNames: string[] }): Promise<unknown>;
+        listTmuxSessions(): Promise<
+          | { success: true; data: Array<{ sessionName: string }> }
+          | { success: false; error: unknown }
+        >;
+      }
+    | undefined;
+  runtimeSessions: {
+    listAcpConversationIds(): Promise<string[]>;
+    listTuiConversationIds(): Promise<string[]>;
+    listTerminalSessions(): Promise<CleanupSessionsRuntimeTerminalSession[]>;
+  };
 };
 
 type TaskOwner = {
@@ -62,35 +143,6 @@ type SessionCandidate = ReconcilerSessionCleanupInput & {
   tmuxSessionNames: string[];
 };
 
-export type CleanupSessionsDependencies = {
-  sessionCleanup: SessionCleanupDependencies;
-  resolveLifecycleOperationContext(
-    db: AppDb,
-    operation: Parameters<typeof resolveLifecycleSessionTargets>[2]
-  ): Promise<LifecycleSessionContext>;
-  listTombstonedAutomationIds(db: AppDb): Promise<string[]>;
-  submitReconcilerAutomationCleanup(submit: OperationSubmit, automationId: string): Promise<void>;
-  submitReconcilerProjectCleanup(submit: OperationSubmit, projectId: string): Promise<void>;
-  submitReconcilerTaskCleanup(submit: OperationSubmit, taskId: string): Promise<void>;
-  submitReconcilerWorkspaceCleanup(
-    submit: OperationSubmit,
-    input: {
-      projectId: string;
-      workspaceId?: string;
-      workspacePath: string;
-      branchName?: string;
-    }
-  ): Promise<void>;
-  listProjectWorkspaces(projectId: string): Promise<ProjectWorkspacesResult>;
-  shouldProposeWorkspaceCleanup(
-    row: Pick<ProjectWorkspaceRow, 'kind' | 'path' | 'tasks'>,
-    projectPath: string
-  ): boolean;
-  getProjectTerminals(
-    projectId: string
-  ): Pick<TerminalsRuntimeClient, 'killTmuxSessions' | 'listTmuxSessions'> | undefined;
-};
-
 export function createCleanupSessionsOperationDefinition(
   dependencies: CleanupSessionsDependencies
 ): OperationDefinition {
@@ -107,19 +159,13 @@ export function createCleanupSessionsOperationDefinition(
     async run(runContext) {
       const { db, operation } = runContext;
       const context = await dependencies.resolveLifecycleOperationContext(db, operation);
-      const targets = await resolveLifecycleSessionTargets(
-        dependencies.sessionCleanup,
-        db,
-        operation,
-        context
-      );
+      const targets = await dependencies.lifecycle.resolveTargets(db, operation, context);
       const actions = [];
       if (targets.acpConversationIds.length > 0) {
         actions.push({
           id: 'kill-acp-sessions',
           timeoutMs: SESSION_TIMEOUT_MS,
-          run: async () =>
-            killLifecycleAcpSessions(dependencies.sessionCleanup, db, operation, targets),
+          run: async () => dependencies.lifecycle.killAcp(db, operation, targets),
         });
       }
       if (
@@ -130,14 +176,7 @@ export function createCleanupSessionsOperationDefinition(
         actions.push({
           id: 'kill-tui-sessions',
           timeoutMs: SESSION_TIMEOUT_MS,
-          run: async () =>
-            killLifecycleTerminalSessions(
-              dependencies.sessionCleanup,
-              db,
-              operation,
-              context,
-              targets
-            ),
+          run: async () => dependencies.lifecycle.killTerminals(db, operation, context, targets),
         });
       }
       return runOperationActions(runContext, actions);
@@ -186,24 +225,19 @@ export async function sweepLifecycleDrift(
     await dependencies.submitReconcilerProjectCleanup(submit, projectId);
   }
 
-  const intentContext = await loadAndPruneSessionIntents(validConversationIds);
+  const intentContext = await loadAndPruneSessionIntents(dependencies, validConversationIds);
   for (const owner of conversationOwners.filter((candidate) => !isOwnerActive(candidate))) {
-    await agentStatusService.resetToIdle({ conversationId: owner.conversationId });
+    await dependencies.agentStatus.resetToIdle({ conversationId: owner.conversationId });
   }
 
-  const [acpClient, tuiClient, terminalsClient] = await Promise.all([
-    dependencies.sessionCleanup.getAcpRuntimeClient(),
-    dependencies.sessionCleanup.getTuiAgentsRuntimeClient(),
-    dependencies.sessionCleanup.getTerminalsRuntimeClient(),
-  ]);
-  const [acpSessions, tuiSessions, terminalSessions] = await Promise.all([
-    acpClient.sessions.state(undefined, 'list').snapshot(),
-    tuiClient.sessions.state(undefined, 'list').snapshot(),
-    terminalsClient.sessions.state(undefined, 'list').snapshot(),
+  const [acpConversationIds, tuiConversationIds, terminalSessions] = await Promise.all([
+    dependencies.runtimeSessions.listAcpConversationIds(),
+    dependencies.runtimeSessions.listTuiConversationIds(),
+    dependencies.runtimeSessions.listTerminalSessions(),
   ]);
   const candidates = new Map<string, SessionCandidate>();
 
-  for (const conversationId of Object.keys(acpSessions.data)) {
+  for (const conversationId of acpConversationIds) {
     if (validConversationIds.has(conversationId)) continue;
     const owner =
       conversationOwnerById.get(conversationId) ??
@@ -212,7 +246,7 @@ export async function sweepLifecycleDrift(
       conversationId
     );
   }
-  for (const conversationId of Object.keys(tuiSessions.data)) {
+  for (const conversationId of tuiConversationIds) {
     if (validConversationIds.has(conversationId)) continue;
     const owner =
       conversationOwnerById.get(conversationId) ??
@@ -221,7 +255,7 @@ export async function sweepLifecycleDrift(
       conversationId
     );
   }
-  for (const session of Object.values(terminalSessions.data)) {
+  for (const session of terminalSessions) {
     if (validTerminalSessionIds.has(session.key.id)) continue;
     const parsed = parsePtySessionId(session.key.id);
     const owner =
@@ -259,7 +293,7 @@ export async function sweepLifecycleDrift(
         candidate.tmuxSessionNames.push(sessionName);
       }
     } catch (error) {
-      log.warn('lifecycle reconciler tmux scan failed', {
+      dependencies.logger.warn('lifecycle reconciler tmux scan failed', {
         projectId: project.id,
         error: String(error),
       });
@@ -282,7 +316,7 @@ export async function sweepLifecycleDrift(
         });
       }
     } catch (error) {
-      log.warn('lifecycle reconciler workspace scan failed', {
+      dependencies.logger.warn('lifecycle reconciler workspace scan failed', {
         projectId: project.id,
         error: String(error),
       });
@@ -448,15 +482,16 @@ async function loadTombstonedProjectIds(db: AppDb): Promise<string[]> {
 }
 
 async function loadAndPruneSessionIntents(
+  dependencies: Pick<CleanupSessionsDependencies, 'createSessionIntentStores' | 'logger'>,
   validConversationIds: Set<string>
 ): Promise<Map<string, string>> {
-  const intentStores = createDesktopSessionIntentStores();
+  const intentStores = dependencies.createSessionIntentStores();
   const stores = [intentStores.acp, intentStores.tuiAgents];
   const context = new Map<string, string>();
   for (const store of stores) {
     const result = await store.list();
     if (!result.success) {
-      log.warn('lifecycle reconciler could not read session intents', {
+      dependencies.logger.warn('lifecycle reconciler could not read session intents', {
         error: result.error.message,
       });
       continue;
@@ -467,7 +502,7 @@ async function loadAndPruneSessionIntents(
       if (!validConversationIds.has(intent.conversationId)) {
         const removed = await store.remove(intent.conversationId);
         if (!removed.success) {
-          log.warn('lifecycle reconciler could not prune session intent', {
+          dependencies.logger.warn('lifecycle reconciler could not prune session intent', {
             conversationId: intent.conversationId,
             error: removed.error.message,
           });

@@ -1,10 +1,10 @@
 import type { Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import type {
-  DeletionEntityKind,
-  DeletionMutationError,
   OperationClaimResource,
+  OperationEntityKind,
   OperationKind,
+  OperationMutationError,
   OperationPayload,
   OperationStatus,
 } from '@core/primitives/operations/api';
@@ -88,7 +88,7 @@ export type OperationDraftInput = Pick<
 export type OperationInsertOptions = {
   dedupeStatuses?: readonly OperationStatus[];
   claims?: readonly OperationClaimResource[];
-  precondition?: (tx: DrizzleTx) => DeletionMutationError | undefined;
+  precondition?: (tx: DrizzleTx) => OperationMutationError | undefined;
   tombstone?: (tx: DrizzleTx) => number;
 };
 
@@ -117,8 +117,8 @@ export type OperationSubmitContext = {
 export type OperationSubmit = (
   prepare: (
     context: OperationSubmitContext
-  ) => Promise<Result<OperationSubmission, DeletionMutationError>>
-) => Promise<Result<{ operationId?: string }, DeletionMutationError>>;
+  ) => Promise<Result<OperationSubmission, OperationMutationError>>
+) => Promise<Result<{ operationId?: string }, OperationMutationError>>;
 
 export type OperationReconcileContext = {
   db: AppDb;
@@ -152,7 +152,7 @@ export type OperationDescribeContext = {
 
 export type OperationDefinition = {
   kind: OperationKind;
-  entityKind: DeletionEntityKind;
+  entityKind: OperationEntityKind;
   run(context: OperationRunContext): Promise<Result<void, OperationRunError>>;
   describe(context: OperationDescribeContext): Promise<OperationDescription>;
   isReady?(context: OperationReadyContext): Promise<boolean>;

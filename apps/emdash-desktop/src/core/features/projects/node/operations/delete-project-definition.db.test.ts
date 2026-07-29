@@ -4,7 +4,6 @@ import { systemClock } from '@emdash/shared/scheduling';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
 import {
   lifecycleOperations,
   operationClaims,
@@ -15,9 +14,9 @@ import {
 } from '@core/services/app-db/node/schema';
 import {
   createOperationsEngine,
-  type OperationDefinition,
   type OperationsEngineHandle,
 } from '@core/services/operations/node';
+import { testOperationDefinitions } from '@core/services/operations/node/testing/test-definitions';
 import {
   createDeleteProjectOperationDefinition,
   enqueueDeleteProject,
@@ -167,9 +166,7 @@ describe('delete-project operation definition', () => {
       },
     ]);
     const definition = createDefinition();
-    const definitions = operationKinds.map((kind) =>
-      kind === 'delete-project' ? definition : successfulDefinition(kind)
-    );
+    const definitions = testOperationDefinitions({ 'delete-project': definition });
     handle = await createOperationsEngine({
       scope: createScope({ label: 'delete-project-shared-workspace-test' }),
       db: fixture.db,
@@ -226,25 +223,5 @@ function operationRow(input: {
     hostRef: 'local',
     payload: { version: '1' as const, source: 'user' as const },
     createdAt: 1,
-  };
-}
-
-function successfulDefinition(kind: OperationKind): OperationDefinition {
-  return {
-    kind,
-    entityKind:
-      kind === 'delete-project'
-        ? 'project'
-        : kind === 'delete-automation'
-          ? 'automation'
-          : kind === 'delete-workspace' || kind === 'archive-workspace'
-            ? 'workspace'
-            : 'task',
-    async run() {
-      return ok(undefined);
-    },
-    async describe() {
-      return {};
-    },
   };
 }

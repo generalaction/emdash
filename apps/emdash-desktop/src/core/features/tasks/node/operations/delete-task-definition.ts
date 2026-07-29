@@ -4,6 +4,7 @@ import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
   deactivateLifecycleWorkspace,
   lifecycleWorkspaceIsDirty,
@@ -194,7 +195,9 @@ export function createDeleteTaskOperationDefinition(
           run: async () => purgeTaskRows(db, operation, context, dependencies),
         });
       }
-      return runOperationActions(runContext, actions);
+      return runOperationActions(runContext, actions, {
+        classifyError: classifyWorkspaceOperationError,
+      });
     },
     async forget({ operation, db, markAbandoned }) {
       db.transaction((tx) => {

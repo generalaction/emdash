@@ -12,9 +12,12 @@ export type OperationActionContext = {
   reportWaiting(waiting: boolean): void;
 };
 
+export type OperationErrorClassifier = (error: unknown) => OperationRunError | undefined;
+
 export async function runOperationActions(
   context: OperationRunContext,
-  actions: OperationAction[]
+  actions: OperationAction[],
+  options: { classifyError?: OperationErrorClassifier } = {}
 ): Promise<Result<void, OperationRunError>> {
   let completedSteps = 0;
   context.reportProgress({ completedSteps, totalSteps: actions.length });
@@ -42,6 +45,8 @@ export async function runOperationActions(
       );
     } catch (error) {
       const timedOut = error instanceof TimeoutError;
+      const classified = options.classifyError?.(error);
+      if (classified) return err(classified);
       const code =
         typeof error === 'object' &&
         error !== null &&
@@ -51,18 +56,11 @@ export async function runOperationActions(
           : timedOut
             ? 'operation-timeout'
             : 'operation-failed';
-      if (code === 'workspace-busy') {
-        return err({
-          type: 'awaiting-confirmation',
-          reason: 'workspace-busy',
-          message: workspaceBusyMessage(error),
-        });
-      }
       return err({
         type: 'failed',
         code,
         message: error instanceof Error ? error.message : String(error),
-        retryable: !timedOut && code !== 'workspace-in-use',
+        retryable: !timedOut,
       });
     }
     completedSteps += 1;
@@ -70,17 +68,4 @@ export async function runOperationActions(
 
   context.reportProgress({ completedSteps, totalSteps: actions.length });
   return ok(undefined);
-}
-
-function workspaceBusyMessage(error: unknown): string | undefined {
-  if (!(error instanceof Error)) return undefined;
-  const holders =
-    typeof error === 'object' &&
-    error !== null &&
-    'holders' in error &&
-    Array.isArray(error.holders)
-      ? error.holders.filter((holder): holder is string => typeof holder === 'string')
-      : [];
-  if (holders.length === 0) return error.message;
-  return `${error.message} Active holders: ${holders.join(', ')}`;
 }

@@ -14,6 +14,7 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
   - system structure and major code ownership boundaries
   - [`core-modules.md`](architecture/core-modules.md) — Core runtime, service, and primitive module types, platform surfaces, dependency rules, and subpath exports
   - [`workspace-server.md`](architecture/workspace-server.md) — protocol versioning, negotiation handshake, and behavior-change rules for the remote workspace daemon
+  - [`state-ownership.md`](architecture/state-ownership.md) — desktop-owned entities, host-owned resources, bindings, and the placement rule for operation behavior
   - [`acp-runtime.md`](architecture/acp-runtime.md) — ACP runtime, session manager, connection pool, cells, live models, and API contract ownership
   - [`git-runtime.md`](architecture/git-runtime.md) — Git contract/runtime ownership, session lifecycle, and nested wire composition
   - [`path-system.md`](architecture/path-system.md) — host-aware path identity, resource URI ownership, and future migration boundaries

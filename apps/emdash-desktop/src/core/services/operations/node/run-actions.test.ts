@@ -48,6 +48,47 @@ describe('runOperationActions', () => {
       error: { type: 'failed', code: 'operation-timeout', retryable: false },
     });
   });
+
+  it('lets callers classify domain-specific errors', async () => {
+    const error = new Error('Domain-specific failure');
+    const result = await runOperationActions(
+      {
+        operation: operation(),
+        db: {} as never,
+        signal: new AbortController().signal,
+        clock: new ManualClock(),
+        reportProgress: vi.fn(),
+      },
+      [
+        {
+          id: 'domain',
+          timeoutMs: 100,
+          run: async () => {
+            throw error;
+          },
+        },
+      ],
+      {
+        classifyError: (caught) =>
+          caught === error
+            ? {
+                type: 'awaiting-confirmation',
+                reason: 'workspace-busy',
+                message: 'Classified',
+              }
+            : undefined,
+      }
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'awaiting-confirmation',
+        reason: 'workspace-busy',
+        message: 'Classified',
+      },
+    });
+  });
 });
 
 function operation(): LifecycleOperationRow {

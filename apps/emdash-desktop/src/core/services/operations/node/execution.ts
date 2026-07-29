@@ -1,0 +1,239 @@
+import { err, type Result } from '@emdash/shared';
+import { log } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
+import { eq, inArray } from 'drizzle-orm';
+import type { OperationKind, OperationStatus } from '@core/primitives/operations/api';
+import type { AppDb } from '@core/services/app-db/node/db';
+import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import type {
+  OperationConfirmationReason,
+  OperationDefinition,
+  OperationProgress,
+  OperationRunError,
+} from './definition';
+import {
+  nextOperationStatus,
+  requireNextOperationStatus,
+  type OperationStatusEvent,
+} from './operation-status-machine';
+
+const RETRY_DELAYS_MS = [1_000, 4_000];
+
+export type OperationExecutionContext = {
+  db: AppDb;
+  clock: Clock;
+  definitions: Map<OperationKind, OperationDefinition>;
+  progress: Map<string, OperationProgress>;
+  hostIsOnline(hostRef: string): boolean;
+  refreshOperationTrees(): Promise<void>;
+  publishPendingCleanup(
+    operation: Pick<LifecycleOperationRow, 'id' | 'payload' | 'hostRef'>,
+    reason: OperationConfirmationReason
+  ): void;
+};
+
+export async function queuedOperations(db: AppDb): Promise<LifecycleOperationRow[]> {
+  return await db
+    .select()
+    .from(lifecycleOperations)
+    .where(inArray(lifecycleOperations.status, ['pending', 'running']))
+    .orderBy(lifecycleOperations.createdAt);
+}
+
+export async function operationIsRunnable(
+  context: Pick<OperationExecutionContext, 'db' | 'definitions' | 'hostIsOnline'>,
+  operation: LifecycleOperationRow
+): Promise<boolean> {
+  const definition = context.definitions.get(operation.kind);
+  if (!definition) return true;
+  if (!context.hostIsOnline(operation.hostRef)) return false;
+  if (definition.isReady && !(await definition.isReady({ operation, db: context.db }))) {
+    return false;
+  }
+  return true;
+}
+
+export async function runQueuedOperation(
+  context: OperationExecutionContext,
+  operation: LifecycleOperationRow,
+  signal: AbortSignal
+): Promise<void> {
+  const definition = context.definitions.get(operation.kind);
+  if (!definition) {
+    await failMissingDefinition(context, operation);
+    return;
+  }
+  if (!context.hostIsOnline(operation.hostRef)) return;
+  if (definition.isReady && !(await definition.isReady({ operation, db: context.db }))) {
+    return;
+  }
+  await runOperation(context, operation, definition, signal);
+}
+
+async function runOperation(
+  context: OperationExecutionContext,
+  operation: LifecycleOperationRow,
+  definition: OperationDefinition,
+  signal: AbortSignal
+): Promise<void> {
+  const runningStatus = tryTransitionStatus(operation, { type: 'started' });
+  if (!runningStatus) return;
+  const current = { ...operation, status: 'running' as const };
+  await context.db
+    .update(lifecycleOperations)
+    .set({ status: runningStatus, attempt: operation.attempt + 1, error: null })
+    .where(eq(lifecycleOperations.id, operation.id));
+  await context.refreshOperationTrees();
+
+  const result = await runWithRetries(context, current, definition, signal);
+  context.progress.delete(operation.id);
+  if (result.success) {
+    await context.db
+      .update(lifecycleOperations)
+      .set({
+        status: transitionStatus(current.status, { type: 'run-succeeded' }),
+        finishedAt: context.clock.now(),
+        error: null,
+      })
+      .where(eq(lifecycleOperations.id, operation.id));
+  } else if (result.error.type === 'awaiting-confirmation') {
+    await awaitConfirmation(context, operation, result.error.reason, result.error.message);
+    return;
+  } else if (!signal.aborted) {
+    const error = result.error.message;
+    await context.db
+      .update(lifecycleOperations)
+      .set({
+        status: transitionStatus(current.status, {
+          type: 'run-failed',
+          error,
+          retryable: result.error.retryable,
+        }),
+        error,
+      })
+      .where(eq(lifecycleOperations.id, operation.id));
+  }
+  await context.refreshOperationTrees();
+}
+
+async function runWithRetries(
+  context: OperationExecutionContext,
+  operation: LifecycleOperationRow,
+  definition: OperationDefinition,
+  signal: AbortSignal
+): Promise<Result<void, OperationRunError>> {
+  let retryIndex = 0;
+  for (;;) {
+    let result: Result<void, OperationRunError>;
+    try {
+      result = await definition.run({
+        operation,
+        db: context.db,
+        signal,
+        clock: context.clock,
+        reportProgress: (progress) => {
+          context.progress.set(operation.id, progress);
+          void context.refreshOperationTrees();
+        },
+      });
+    } catch (error) {
+      result = err({
+        type: 'failed',
+        code: 'operation-failed',
+        message: error instanceof Error ? error.message : String(error),
+        retryable: true,
+      });
+    }
+
+    if (
+      result.success ||
+      result.error.type === 'awaiting-confirmation' ||
+      !result.error.retryable ||
+      retryIndex >= RETRY_DELAYS_MS.length
+    ) {
+      return result;
+    }
+    await context.clock.sleep(RETRY_DELAYS_MS[retryIndex], { signal });
+    retryIndex += 1;
+  }
+}
+
+async function awaitConfirmation(
+  context: OperationExecutionContext,
+  operation: LifecycleOperationRow,
+  reason: OperationConfirmationReason,
+  message?: string
+): Promise<void> {
+  await context.db
+    .update(lifecycleOperations)
+    .set({
+      status: transitionStatus('running', { type: 'needs-confirmation', reason }),
+      attempt: operation.attempt,
+      error: message ?? null,
+      payload: { ...operation.payload, confirmationReason: reason },
+    })
+    .where(eq(lifecycleOperations.id, operation.id));
+  context.publishPendingCleanup(operation, reason);
+  await context.refreshOperationTrees();
+}
+
+async function failMissingDefinition(
+  context: OperationExecutionContext,
+  operation: LifecycleOperationRow
+): Promise<void> {
+  const error = `No operation definition is registered for '${operation.kind}'`;
+  const failedStatus = tryTransitionStatus(operation, {
+    type: 'run-failed',
+    error,
+    retryable: false,
+  });
+  if (!failedStatus) return;
+  await context.db
+    .update(lifecycleOperations)
+    .set({
+      status: failedStatus,
+      error,
+    })
+    .where(eq(lifecycleOperations.id, operation.id));
+  await context.refreshOperationTrees();
+}
+
+export function transitionStatus(
+  current: OperationStatus,
+  event: OperationStatusEvent
+): OperationStatus {
+  return requireNextOperationStatus(current, event);
+}
+
+export function tryTransitionStatus(
+  operation: Pick<LifecycleOperationRow, 'id' | 'kind' | 'status'>,
+  event: OperationStatusEvent
+): OperationStatus | undefined {
+  const result = nextOperationStatus(operation.status, event);
+  if (result.success) return result.data;
+  log.warn('illegal lifecycle operation status transition', {
+    operationId: operation.id,
+    kind: operation.kind,
+    current: result.error.current,
+    event: result.error.event,
+  });
+  return undefined;
+}
+
+export function operationNeedsConfirmation(
+  reason: OperationConfirmationReason
+): Result<void, OperationRunError> {
+  return err({ type: 'awaiting-confirmation', reason });
+}
+
+export function operationFailed(
+  message: string,
+  options: { code?: string; retryable?: boolean } = {}
+): Result<void, OperationRunError> {
+  return err({
+    type: 'failed',
+    code: options.code ?? 'operation-failed',
+    message,
+    retryable: options.retryable ?? true,
+  });
+}
