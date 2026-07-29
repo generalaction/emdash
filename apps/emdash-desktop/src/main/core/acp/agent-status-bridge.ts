@@ -15,6 +15,7 @@ import {
   projectAcpStatusSnapshot,
   type AcpAgentStatusAction,
 } from './agent-status-transition';
+import { deriveAcpSessionTitleAction, type AcpSessionTitleAction } from './session-title-action';
 
 type SessionSummaryList = Record<string, SessionSummary>;
 export type ConversationCreatedSubscription = (
@@ -24,6 +25,10 @@ export type ConversationCreatedSubscription = (
 type AcpAgentStatusRuntime = {
   client: AcpRuntimeClient;
   onStateChanged: WireWorker<AcpApiContract>['onStateChanged'];
+};
+
+type AcpSessionTitleDeps = {
+  renameConversation: (conversationId: string, name: string) => Promise<unknown>;
 };
 
 const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
@@ -36,12 +41,15 @@ class AcpAgentStatusBridge {
   private attaching = false;
   private bootstrapped = false;
   private runtime: AcpAgentStatusRuntime | undefined;
+  private titleDeps: AcpSessionTitleDeps | undefined;
 
   initialize(
     onConversationCreated: ConversationCreatedSubscription,
-    runtime: AcpAgentStatusRuntime
+    runtime: AcpAgentStatusRuntime,
+    deps: AcpSessionTitleDeps
   ): void {
     this.runtime = runtime;
+    this.titleDeps = deps;
     this.conversationCreatedUnsubscribe ??= onConversationCreated((conversation) =>
       this.cacheConversationSnapshot(conversation.id)
     );
@@ -56,6 +64,7 @@ class AcpAgentStatusBridge {
     this.workerStateUnsubscribe?.();
     this.workerStateUnsubscribe = null;
     this.runtime = undefined;
+    this.titleDeps = undefined;
     this.detach();
   }
 
@@ -108,12 +117,17 @@ class AcpAgentStatusBridge {
     const seen = new Set<string>();
     for (const summary of Object.values(nextSummaries)) {
       seen.add(summary.conversationId);
+      const previous = this.summaries.get(summary.conversationId);
       const actions = bootstrap
         ? [projectAcpStatusSnapshot(summary)].filter(
             (action): action is AcpAgentStatusAction => action !== null
           )
-        : deriveAcpAgentStatusActions(this.summaries.get(summary.conversationId), summary);
+        : deriveAcpAgentStatusActions(previous, summary);
       this.applyActions(actions, { cache: bootstrap });
+      if (!bootstrap) {
+        const titleAction = deriveAcpSessionTitleAction(previous, summary);
+        if (titleAction) this.applyTitleAction(titleAction);
+      }
       this.summaries.set(summary.conversationId, summary);
     }
 
@@ -144,6 +158,22 @@ class AcpAgentStatusBridge {
         agentStatusService.resetToIdle({ conversationId: summary.conversationId })
       )
     );
+  }
+
+  private applyTitleAction(action: AcpSessionTitleAction): void {
+    const pending = this.titleDeps?.renameConversation(action.conversationId, action.title);
+    if (!pending) {
+      log.warn('ACP session title bridge missing rename dependency', {
+        conversationId: action.conversationId,
+      });
+      return;
+    }
+    void pending.catch((error) => {
+      log.warn('ACP session title apply failed', {
+        conversationId: action.conversationId,
+        error: String(error),
+      });
+    });
   }
 
   private cacheConversationSnapshot(conversationId: string): void {

@@ -3,6 +3,7 @@ import { conversationEvents } from '@core/features/conversations/api/node/conver
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { conversations } from '@core/services/app-db/node/schema';
+import { conversationWireEvents } from './event-host';
 
 export async function renameConversation(db: AppDb, conversationId: string, name: string) {
   const title = name.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
@@ -23,5 +24,12 @@ export async function renameConversation(db: AppDb, conversationId: string, name
       existing.taskId,
       title
     );
+    conversationWireEvents.emit(undefined, {
+      type: 'changed',
+      conversationId,
+      taskId: existing.taskId,
+      projectId: existing.projectId,
+      changes: { title },
+    });
   }
 }

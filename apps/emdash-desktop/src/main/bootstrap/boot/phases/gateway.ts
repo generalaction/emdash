@@ -1,5 +1,6 @@
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import { conversationWireEvents } from '@core/features/conversations/node/event-host';
+import { renameConversation } from '@core/features/conversations/node/renameConversation';
 import { setSessionId } from '@core/features/conversations/node/set-session-id';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { setAgentStatusConversationEventPublisher } from '@main/core/agent-status/agent-status-service';
@@ -39,6 +40,10 @@ export function installGateway(
     {
       client: runtimes.clients.acp,
       onStateChanged: runtimes.workers.acp.onStateChanged.bind(runtimes.workers.acp),
+    },
+    {
+      renameConversation: (conversationId, name) =>
+        renameConversation(database.db, conversationId, name),
     }
   );
   const publishConversationEvent = (event: Parameters<typeof conversationWireEvents.emit>[1]) =>
