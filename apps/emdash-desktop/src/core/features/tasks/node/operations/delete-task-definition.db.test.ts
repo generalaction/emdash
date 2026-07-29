@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
 import {
   lifecycleOperations,
+  operationClaims,
   projects,
+  sshConnections,
   tasks,
   workspaces,
   type LifecycleOperationRow,
@@ -17,7 +19,7 @@ import {
   type OperationDefinition,
   type OperationsEngineHandle,
 } from '@core/services/operations/node';
-import { createDeleteTaskOperationDefinition } from './delete-task-definition';
+import { createDeleteTaskOperationDefinition, enqueueDeleteTask } from './delete-task-definition';
 
 const mocks = vi.hoisted(() => ({
   deleteBySubject: vi.fn(async () => ({ success: true, data: { deleted: 1 } })),
@@ -147,6 +149,71 @@ describe('delete-task operation convergence', () => {
     expect(intent).toMatchObject({ status: 'succeeded', attempt: 1 });
   });
 
+  it('allows sequential deletes for tasks sharing one workspace', async () => {
+    fixture = await openFixture('empty');
+    await fixture.db.insert(sshConnections).values({
+      id: 'ssh-1',
+      name: 'Remote',
+      host: 'example.com',
+      username: 'dev',
+    });
+    await fixture.db.insert(projects).values({
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      workspaceProvider: 'ssh',
+      sshConnectionId: 'ssh-1',
+    });
+    await fixture.db.insert(workspaces).values({
+      id: 'workspace-1',
+      type: 'project-ssh',
+      kind: 'worktree',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+      path: '/repo/workspace',
+      branchName: 'task-branch',
+    });
+    await fixture.db.insert(tasks).values([
+      {
+        id: 'task-1',
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        name: 'Task 1',
+        status: 'in_progress',
+      },
+      {
+        id: 'task-2',
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+        name: 'Task 2',
+        status: 'in_progress',
+      },
+    ]);
+    const taskDefinition = createDeleteTaskOperationDefinition(dependencies);
+    const definitions = operationKinds.map((kind) =>
+      kind === 'delete-task' ? taskDefinition : successfulDefinition(kind)
+    );
+    handle = await createOperationsEngine({
+      scope: createScope({ label: 'delete-task-shared-workspace-test' }),
+      db: fixture.db,
+      sshManager: {
+        on: vi.fn(),
+        off: vi.fn(),
+        isConnected: () => false,
+      },
+      notifications: { publishPendingCleanup: vi.fn() },
+      definitions,
+    });
+
+    const first = await enqueueDeleteTask(handle.engine, { taskId: 'task-1' });
+    const second = await enqueueDeleteTask(handle.engine, { taskId: 'task-2' });
+    const claims = await fixture.db.select().from(operationClaims);
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    expect(claims.filter((claim) => claim.resourceKey === 'workspace:workspace-1')).toHaveLength(1);
+  });
+
   it('unregisters a remote task workspace root from its runtime host', async () => {
     fixture = await openFixture('empty');
     await fixture.db.insert(projects).values({
@@ -211,6 +278,8 @@ function operation(overrides: Partial<LifecycleOperationRow> = {}): LifecycleOpe
     taskId: 'task-1',
     workspaceId: null,
     entityKey: 'task-1',
+    parentOperationId: null,
+    initiatedBy: null,
     hostRef: 'local',
     payload: {
       version: '1',

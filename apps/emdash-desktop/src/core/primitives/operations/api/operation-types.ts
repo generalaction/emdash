@@ -28,3 +28,8 @@ export const nonTerminalOperationStatuses = [
 ] as const satisfies readonly OperationStatus[];
 
 export type NonTerminalOperationStatus = (typeof nonTerminalOperationStatuses)[number];
+
+export const reconcilerDedupeStatuses = [
+  ...nonTerminalOperationStatuses,
+  'abandoned',
+] as const satisfies readonly OperationStatus[];

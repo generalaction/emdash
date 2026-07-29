@@ -18,8 +18,6 @@ import {
 import z from 'zod';
 import { workspaceBootstrapProgressSchema } from '@core/features/workspaces/api';
 import {
-  deletionListSchema,
-  deletionModelKeySchema,
   deletionMutationErrorSchema,
   deletionMutationResultSchema,
 } from '@core/primitives/operations/api';
@@ -237,22 +235,6 @@ export const projectsWireContract = defineContract({
     input: projectIdInputSchema,
     data: deletionMutationResultSchema,
     error: deletionMutationErrorSchema,
-  }),
-  retryDelete: fallible({
-    input: projectIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
-  }),
-  forgetWithoutCleanup: fallible({
-    input: projectIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
-  }),
-  deletions: liveModel({
-    key: deletionModelKeySchema,
-    states: {
-      list: liveState({ data: deletionListSchema }),
-    },
   }),
 });
 

@@ -148,5 +148,11 @@
     "tag": "0024_short_secret_warriors",
     "when": 1784761208838,
     "hash": "2a8c2f0b2bef76ced749ad2057a7cd484549e7103830011554fad8523ca01cff"
+  },
+  {
+    "idx": 25,
+    "tag": "0025_bored_lyja",
+    "when": 1785359849846,
+    "hash": "a6814b6ae902279c4281b8f6a541cc5556a09abcf8a592155894ec6041b53549"
   }
 ]

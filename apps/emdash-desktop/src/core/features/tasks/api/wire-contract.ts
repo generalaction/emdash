@@ -1,17 +1,8 @@
 import type { Result } from '@emdash/shared';
-import {
-  defineContract,
-  eventStream,
-  fallible,
-  liveModel,
-  liveState,
-  procedure,
-} from '@emdash/wire';
+import { defineContract, eventStream, fallible, procedure } from '@emdash/wire';
 import z from 'zod';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
-  deletionListSchema,
-  deletionModelKeySchema,
   deletionMutationErrorSchema,
   deletionMutationResultSchema,
 } from '@core/primitives/operations/api';
@@ -113,22 +104,6 @@ export const tasksWireContract = defineContract({
     input: deleteTaskInputSchema,
     data: deletionMutationResultSchema,
     error: deletionMutationErrorSchema,
-  }),
-  retryDelete: fallible({
-    input: taskIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
-  }),
-  forgetWithoutCleanup: fallible({
-    input: taskIdInputSchema,
-    data: deletionMutationResultSchema,
-    error: deletionMutationErrorSchema,
-  }),
-  deletions: liveModel({
-    key: deletionModelKeySchema,
-    states: {
-      list: liveState({ data: deletionListSchema }),
-    },
   }),
 });
 

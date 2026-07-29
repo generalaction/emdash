@@ -56,12 +56,12 @@ export async function prepareCreateTask(
       : workspaceConfig.git.kind === 'pr-branch'
         ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
         : undefined;
-  const cleanupReady = await operations.waitForConflictingCleanup({
+  const claimConflict = await operations.hasClaimConflict({
     projectId: params.projectId,
     workspaceId: wsTarget.kind === 'repository-instance' ? wsTarget.workspaceId : undefined,
     branchName,
   });
-  if (!cleanupReady) {
+  if (claimConflict) {
     return err({
       type: 'provision-failed',
       message: 'A previous cleanup for this workspace is waiting for review or connectivity.',

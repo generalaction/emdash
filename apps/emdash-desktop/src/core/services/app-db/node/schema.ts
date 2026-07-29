@@ -230,6 +230,8 @@ export const lifecycleOperations = sqliteTable(
     taskId: text('task_id'),
     workspaceId: text('workspace_id'),
     entityKey: text('entity_key'),
+    parentOperationId: text('parent_operation_id'),
+    initiatedBy: text('initiated_by'),
     hostRef: text('host_ref').notNull(),
     payload: versionedJsonColumn(operationPayload)('payload').$type<OperationPayload>().notNull(),
     attempt: integer('attempt').notNull().default(0),
@@ -241,6 +243,24 @@ export const lifecycleOperations = sqliteTable(
     statusIdx: index('idx_lifecycle_operations_status').on(table.status),
     hostStatusIdx: index('idx_lifecycle_operations_host_status').on(table.hostRef, table.status),
     entityKeyIdx: index('idx_lifecycle_operations_entity_key').on(table.entityKey),
+    parentStatusIdx: index('idx_lifecycle_operations_parent_status').on(
+      table.parentOperationId,
+      table.status
+    ),
+  })
+);
+
+export const operationClaims = sqliteTable(
+  'operation_claims',
+  {
+    operationId: text('operation_id')
+      .notNull()
+      .references(() => lifecycleOperations.id, { onDelete: 'cascade' }),
+    resourceKey: text('resource_key').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.operationId, table.resourceKey] }),
+    resourceIdx: index('idx_operation_claims_resource').on(table.resourceKey),
   })
 );
 
@@ -556,6 +576,7 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type LifecycleOperationRow = Omit<typeof lifecycleOperations.$inferSelect, 'payload'> & {
   payload: OperationPayload;
 };
+export type OperationClaimRow = typeof operationClaims.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

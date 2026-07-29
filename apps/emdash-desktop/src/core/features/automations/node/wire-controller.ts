@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import { createController, type Controller, type LeasedLiveModelProvider } from '@emdash/wire';
+import { createController, type Controller } from '@emdash/wire';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { enqueueDeleteAutomation } from '@core/features/automations/node/operations/delete-automation-definition';
 import { adoptRun } from '@core/features/automations/node/run-adoption';
@@ -36,10 +36,6 @@ export function createAutomationsWireController(options: {
       automationsService.notifyDeleted(automationId);
       return ok(undefined);
     },
-    retryDelete: ({ automationId }) => options.operations.retryDelete('automation', automationId),
-    forgetWithoutCleanup: ({ automationId }) =>
-      options.operations.forgetWithoutCleanup('automation', automationId),
-    deletions: createAutomationDeletionsProvider(options.operations),
     adoptRun: ({ automationId, runId }) => adoptRun(options, automationId, runId),
     getTargetAvailability: ({ projectId }) => automationsService.getTargetAvailability(projectId),
     startRun: async ({ projectId, ...input }) =>
@@ -59,43 +55,6 @@ export function createAutomationsWireController(options: {
         .handle({ automationId })
         .asLiveSource(),
   });
-}
-
-function createAutomationDeletionsProvider(
-  operations: OperationsEngine
-): LeasedLiveModelProvider<typeof automationsContract.deletions> {
-  return {
-    kind: 'leasedLiveModelProvider',
-    contract: automationsContract.deletions,
-    acquireState(key, name) {
-      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
-      let released = false;
-      return {
-        ready: async () => {
-          if (name !== 'list') {
-            throw new Error(`Unknown automation deletion state '${String(name)}'`);
-          }
-          if (released) {
-            throw new Error('Automation deletion state lease was released before ready');
-          }
-          lease ??= operations.acquireDeletionState('automation', key.entityId);
-          if (released) {
-            await lease.release();
-            throw new Error('Automation deletion state lease was released before ready');
-          }
-          return lease.ready();
-        },
-        release: async () => {
-          released = true;
-          await lease?.release();
-        },
-      };
-    },
-    async runMutation() {
-      throw new Error('Automation deletions model does not expose mutations');
-    },
-    async dispose() {},
-  };
 }
 
 function toAutomationDefinitionError(

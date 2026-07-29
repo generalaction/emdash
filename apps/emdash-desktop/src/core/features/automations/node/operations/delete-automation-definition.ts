@@ -8,6 +8,8 @@ import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   nonTerminalOperationStatuses,
+  reconcilerDedupeStatuses,
+  type OperationClaimResource,
   type OperationPayload,
 } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -20,6 +22,7 @@ import {
 import {
   runOperationActions,
   type OperationDefinition,
+  type OperationInsertOptions,
   type OperationSubmit,
   type OperationsEngine,
 } from '@core/services/operations/node';
@@ -34,7 +37,6 @@ const ACTIVE_RUN_STATUSES = [
   'provisioning_workspace',
   'starting_session',
 ] as const;
-const reconcilerDedupeStatuses = [...nonTerminalOperationStatuses, 'abandoned'] as const;
 
 export type DeleteAutomationOperationDependencies = {
   runtimes: Pick<RuntimeBroker, 'client'>;
@@ -150,6 +152,10 @@ export async function enqueueDeleteAutomation(operations: OperationsEngine, auto
       },
       options: {
         dedupeStatuses: nonTerminalOperationStatuses,
+        claims: deleteAutomationClaims(automation.id),
+        precondition: automation.projectId
+          ? (tx) => projectIsActive(tx, automation.projectId!)
+          : undefined,
         tombstone: (tx) =>
           tx
             .update(automations)
@@ -159,6 +165,29 @@ export async function enqueueDeleteAutomation(operations: OperationsEngine, auto
       },
     });
   });
+}
+
+function deleteAutomationClaims(automationId: string): OperationClaimResource[] {
+  return [{ kind: 'automation', id: automationId }];
+}
+
+function projectIsActive(
+  tx: Parameters<NonNullable<OperationInsertOptions['precondition']>>[0],
+  projectId: string
+) {
+  const active =
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+      .limit(1)
+      .get() !== undefined;
+  return active
+    ? undefined
+    : {
+        type: 'project-deleting',
+        message: 'Project is being deleted.',
+      };
 }
 
 export async function submitReconcilerAutomationCleanup(

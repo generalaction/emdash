@@ -78,6 +78,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
 import type { OperationsEngine } from '@core/services/operations/node';
+import { createOperationsWireController } from '@core/services/operations/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
 import { createRemoteMachineWireController } from '@core/services/remote-machine/node/wire-controller';
@@ -248,6 +249,9 @@ export const desktopNodeControllers = {
         desktopDomainContracts.mementos,
         await runtimeClients.getMementosRuntimeClient()
       ),
+  },
+  operations: {
+    create: ({ operations }) => createOperationsWireController(operations),
   },
   notifications: {
     create: ({ notifications }) => createNotificationsWireController(notifications),

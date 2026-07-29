@@ -6,10 +6,10 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getProject: vi.fn(),
   select: vi.fn(),
-  waitForConflictingCleanup: vi.fn(),
+  hasClaimConflict: vi.fn(),
 }));
 const operations = {
-  waitForConflictingCleanup: mocks.waitForConflictingCleanup,
+  hasClaimConflict: mocks.hasClaimConflict,
 } as never;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
 const projects = { getProject: mocks.getProject };
@@ -80,7 +80,7 @@ describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getProject.mockReturnValue({});
-    mocks.waitForConflictingCleanup.mockResolvedValue(true);
+    mocks.hasClaimConflict.mockResolvedValue(false);
     setupTransactionMock();
     setupSelectMock();
   });

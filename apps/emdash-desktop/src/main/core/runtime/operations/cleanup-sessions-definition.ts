@@ -2,7 +2,7 @@ import { decodeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { ok } from '@emdash/shared';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
-import { nonTerminalOperationStatuses } from '@core/primitives/operations/api';
+import { reconcilerDedupeStatuses } from '@core/primitives/operations/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { ProjectWorkspaceRow, ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -33,7 +33,6 @@ import {
 } from './session-cleanup';
 
 const SESSION_TIMEOUT_MS = 30_000;
-const reconcilerDedupeStatuses = [...nonTerminalOperationStatuses, 'abandoned'] as const;
 
 export type ReconcilerSessionCleanupInput = {
   entityId: string;

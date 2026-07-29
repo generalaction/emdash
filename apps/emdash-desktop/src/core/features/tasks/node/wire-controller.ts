@@ -1,6 +1,6 @@
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import type { Contract, ContractImpl, LeasedLiveModelProvider } from '@emdash/wire';
-import { tasksWireContract } from '@core/features/tasks/api';
+import type { Contract, ContractImpl } from '@emdash/wire';
+import type { tasksWireContract } from '@core/features/tasks/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { taskEvents } from '@core/features/tasks/node';
 import { enqueueDeleteTask } from '@core/features/tasks/node/operations/delete-task-definition';
@@ -51,42 +51,6 @@ export function createTasksWireController(options: {
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       events: taskEvents,
       delete: (input) => enqueueDeleteTask(operations, input),
-      retryDelete: (input) => operations.retryDelete('task', input.taskId),
-      forgetWithoutCleanup: (input) => operations.forgetWithoutCleanup('task', input.taskId),
-      deletions: createTaskDeletionsProvider(operations),
-    },
-    async dispose() {},
-  };
-}
-
-function createTaskDeletionsProvider(
-  operations: OperationsEngine
-): LeasedLiveModelProvider<typeof tasksWireContract.deletions> {
-  return {
-    kind: 'leasedLiveModelProvider',
-    contract: tasksWireContract.deletions,
-    acquireState(key, name) {
-      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
-      let released = false;
-      return {
-        ready: async () => {
-          if (name !== 'list') throw new Error(`Unknown task deletion state '${String(name)}'`);
-          if (released) throw new Error('Task deletion state lease was released before ready');
-          lease ??= operations.acquireDeletionState('task', key.entityId);
-          if (released) {
-            await lease.release();
-            throw new Error('Task deletion state lease was released before ready');
-          }
-          return lease.ready();
-        },
-        release: async () => {
-          released = true;
-          await lease?.release();
-        },
-      };
-    },
-    async runMutation() {
-      throw new Error('Task deletions model does not expose mutations');
     },
     async dispose() {},
   };

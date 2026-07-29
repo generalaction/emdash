@@ -59,6 +59,8 @@ function operation(): LifecycleOperationRow {
     taskId: 'task-1',
     workspaceId: null,
     entityKey: 'task-1',
+    parentOperationId: null,
+    initiatedBy: null,
     hostRef: 'local',
     payload: { version: '1', source: 'user' },
     attempt: 1,

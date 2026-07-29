@@ -127,6 +127,8 @@ function operation(hostRef = 'local'): LifecycleOperationRow {
     taskId: null,
     workspaceId: 'workspace-1',
     entityKey: 'workspace-1',
+    parentOperationId: null,
+    initiatedBy: null,
     hostRef,
     payload: {
       version: '1',

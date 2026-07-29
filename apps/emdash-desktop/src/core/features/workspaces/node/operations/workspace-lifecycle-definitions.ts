@@ -13,6 +13,8 @@ import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import {
   nonTerminalOperationStatuses,
+  reconcilerDedupeStatuses,
+  type OperationClaimResource,
   type OperationPayload,
 } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
@@ -39,7 +41,6 @@ const SESSION_TIMEOUT_MS = 30_000;
 const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
 const PURGE_TIMEOUT_MS = 30_000;
 const UNKNOWN_BRANCH_SENTINEL = 'HEAD';
-const reconcilerDedupeStatuses = [...nonTerminalOperationStatuses, 'abandoned'] as const;
 
 export type ArchiveWorkspaceInput = {
   projectId: string;
@@ -222,6 +223,7 @@ export async function enqueueDeleteWorkspace(operations: OperationsEngine, works
       ? await db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
       : [];
     const createdAt = clock.now();
+    const hostRef = workspace.sshConnectionId ?? project?.sshConnectionId ?? 'local';
     return ok({
       outcome: 'enqueue' as const,
       draft: {
@@ -230,7 +232,7 @@ export async function enqueueDeleteWorkspace(operations: OperationsEngine, works
         taskId: task?.id,
         workspaceId,
         entityKey: workspaceId,
-        hostRef: workspace.sshConnectionId ?? project?.sshConnectionId ?? 'local',
+        hostRef,
         payload: {
           version: '1' as const,
           source: 'user' as const,
@@ -243,12 +245,18 @@ export async function enqueueDeleteWorkspace(operations: OperationsEngine, works
       options: {
         dedupeStatuses: nonTerminalOperationStatuses,
         precondition: (tx: DrizzleTx) =>
-          workspaceHasLiveTaskInTransaction(tx, workspaceId)
-            ? {
-                type: 'workspace-in-use',
-                message: 'Workspace is still referenced by an active task.',
-              }
-            : undefined,
+          workspacePrecondition(tx, {
+            projectId: project?.id,
+            workspaceId,
+            requireUnused: true,
+          }),
+        claims: workspaceClaims({
+          projectId: project?.id,
+          workspaceId,
+          branchName: workspace.branchName ?? undefined,
+          hostRef,
+          workspacePath: workspace.path ?? undefined,
+        }),
         tombstone: (tx: DrizzleTx) =>
           tx
             .update(workspaces)
@@ -300,15 +308,19 @@ export async function enqueueDeleteWorkspacePath(
       },
       options: {
         dedupeStatuses: nonTerminalOperationStatuses,
-        precondition: input.workspaceId
-          ? (tx: DrizzleTx) =>
-              workspaceHasLiveTaskInTransaction(tx, input.workspaceId!)
-                ? {
-                    type: 'workspace-in-use',
-                    message: 'Workspace is still referenced by an active task.',
-                  }
-                : undefined
-          : undefined,
+        precondition: (tx: DrizzleTx) =>
+          workspacePrecondition(tx, {
+            projectId: input.projectId,
+            workspaceId: input.workspaceId,
+            requireUnused: input.workspaceId !== undefined,
+          }),
+        claims: workspaceClaims({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+          branchName: input.branchName,
+          hostRef: project.sshConnectionId ?? 'local',
+          workspacePath: input.workspacePath,
+        }),
         tombstone: input.workspaceId
           ? (tx: DrizzleTx) =>
               tx
@@ -369,7 +381,21 @@ export async function enqueueArchiveWorkspace(
           hostLabel: project.name,
         },
       },
-      options: { dedupeStatuses: nonTerminalOperationStatuses },
+      options: {
+        dedupeStatuses: nonTerminalOperationStatuses,
+        precondition: (tx: DrizzleTx) =>
+          workspacePrecondition(tx, {
+            projectId: input.projectId,
+            requireUnused: false,
+          }),
+        claims: workspaceClaims({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+          branchName: input.branchName,
+          hostRef: workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local',
+          workspacePath: input.workspacePath,
+        }),
+      },
     });
   });
 }
@@ -481,6 +507,58 @@ function workspaceHasLiveTaskInTransaction(tx: DrizzleTx, workspaceId: string): 
       .limit(1)
       .get() !== undefined
   );
+}
+
+function projectIsDeletedInTransaction(tx: DrizzleTx, projectId: string): boolean {
+  return (
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+      .limit(1)
+      .get() === undefined
+  );
+}
+
+function workspacePrecondition(
+  tx: DrizzleTx,
+  input: { projectId?: string; workspaceId?: string; requireUnused: boolean }
+) {
+  if (input.projectId && projectIsDeletedInTransaction(tx, input.projectId)) {
+    return {
+      type: 'project-deleting',
+      message: 'Project is being deleted.',
+    };
+  }
+  if (
+    input.requireUnused &&
+    input.workspaceId &&
+    workspaceHasLiveTaskInTransaction(tx, input.workspaceId)
+  ) {
+    return {
+      type: 'workspace-in-use',
+      message: 'Workspace is still referenced by an active task.',
+    };
+  }
+  return undefined;
+}
+
+function workspaceClaims(input: {
+  projectId?: string;
+  workspaceId?: string;
+  branchName?: string;
+  hostRef: string;
+  workspacePath?: string;
+}): OperationClaimResource[] {
+  const claims: OperationClaimResource[] = [];
+  if (input.workspaceId) claims.push({ kind: 'workspace', id: input.workspaceId });
+  if (input.projectId && input.branchName) {
+    claims.push({ kind: 'branch', projectId: input.projectId, name: input.branchName });
+  }
+  if (input.workspacePath) {
+    claims.push({ kind: 'worktree', hostRef: input.hostRef, path: input.workspacePath });
+  }
+  return claims;
 }
 
 async function findWorkspaceOperation(

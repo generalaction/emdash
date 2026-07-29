@@ -4,9 +4,13 @@ import { deferred, ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
-import type { DeletionList } from '@core/primitives/operations/api';
-import { lifecycleOperations } from '@core/services/app-db/node/schema';
+import {
+  type DeletionState,
+  operationKinds,
+  type OperationKind,
+  type OperationTreeList,
+} from '@core/primitives/operations/api';
+import { lifecycleOperations, operationClaims, projects } from '@core/services/app-db/node/schema';
 import type {
   OperationDefinition,
   OperationRunError,
@@ -14,6 +18,7 @@ import type {
   OperationsSshManager,
 } from './definition';
 import { createOperationsEngine, type OperationsEngineHandle } from './factory';
+import { rollupStatus } from './operations-engine';
 
 describe('OperationsEngine', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -69,6 +74,194 @@ describe('OperationsEngine', () => {
     expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(1);
   });
 
+  it('adopts deduplicated related operations under the new parent', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ ssh });
+
+    const child = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('task-1', 'remote-1'),
+        options: { dedupeStatuses: ['pending', 'running', 'awaiting-confirmation', 'failed'] },
+      })
+    );
+    const parent = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: {
+          kind: 'delete-project' as const,
+          entityKey: 'project-1',
+          projectId: 'project-1',
+          hostRef: 'local',
+          payload: { version: '1', source: 'user', entityName: 'Project' },
+        },
+        related: [
+          {
+            draft: operationDraft('task-1', 'remote-1'),
+            options: { dedupeStatuses: ['pending', 'running', 'awaiting-confirmation', 'failed'] },
+          },
+        ],
+      })
+    );
+    await handle.engine.waitForIdle();
+
+    const [childRow] = await fixture.db
+      .select()
+      .from(lifecycleOperations)
+      .where(eq(lifecycleOperations.id, child.success ? child.data.operationId! : ''));
+    expect(childRow.parentOperationId).toBe(parent.success ? parent.data.operationId : undefined);
+  });
+
+  it('rejects conflicting operation claims and frees claims after terminal status', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ ssh });
+
+    const first = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('task-1', 'remote-1'),
+        options: {
+          claims: [{ kind: 'workspace', id: 'workspace-1' }],
+        },
+      })
+    );
+    const conflict = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('task-2', 'remote-1'),
+        options: {
+          claims: [{ kind: 'workspace', id: 'workspace-1' }],
+        },
+      })
+    );
+    expect(first.success).toBe(true);
+    expect(conflict).toEqual(
+      err({
+        type: 'resource-claimed',
+        message: `Resource is already claimed by operation ${
+          first.success ? first.data.operationId : ''
+        }`,
+      })
+    );
+
+    await fixture.db
+      .update(lifecycleOperations)
+      .set({ status: 'abandoned' })
+      .where(eq(lifecycleOperations.id, first.success ? first.data.operationId! : ''));
+    const next = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('task-2', 'remote-1'),
+        options: {
+          claims: [{ kind: 'workspace', id: 'workspace-1' }],
+        },
+      })
+    );
+    expect(next.success).toBe(true);
+    expect(await fixture.db.select().from(operationClaims)).toHaveLength(2);
+  });
+
+  it('rejects claim conflicts before committing tombstones', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ ssh });
+    await fixture.db.insert(projects).values({
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      workspaceProvider: 'local',
+    });
+
+    const first = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('task-1', 'remote-1'),
+        options: {
+          claims: [{ kind: 'project', id: 'project-1' }],
+        },
+      })
+    );
+    const conflict = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('project-1', 'remote-1'),
+        options: {
+          claims: [{ kind: 'project', id: 'project-1' }],
+          tombstone: (tx) =>
+            tx
+              .update(projects)
+              .set({ deletedAt: '2026-07-29T00:00:00.000Z' })
+              .where(eq(projects.id, 'project-1'))
+              .run().changes,
+        },
+      })
+    );
+
+    expect(first.success).toBe(true);
+    expect(conflict.success).toBe(false);
+    const [project] = await fixture.db.select().from(projects);
+    expect(project.deletedAt).toBeNull();
+  });
+
+  it('rolls back parent inserts when a related operation fails admission', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ ssh });
+    await fixture.db.insert(projects).values({
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      workspaceProvider: 'local',
+    });
+    await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: operationDraft('task-1', 'remote-1'),
+        options: {
+          claims: [{ kind: 'workspace', id: 'workspace-1' }],
+        },
+      })
+    );
+
+    const result = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: {
+          kind: 'delete-project' as const,
+          entityKey: 'project-1',
+          projectId: 'project-1',
+          hostRef: 'local',
+          payload: { version: '1', source: 'user', entityName: 'Project' },
+        },
+        options: {
+          claims: [{ kind: 'project', id: 'project-1' }],
+          tombstone: (tx) =>
+            tx
+              .update(projects)
+              .set({ deletedAt: '2026-07-29T00:00:00.000Z' })
+              .where(eq(projects.id, 'project-1'))
+              .run().changes,
+        },
+        related: [
+          {
+            draft: operationDraft('task-2', 'remote-1'),
+            options: {
+              claims: [{ kind: 'workspace', id: 'workspace-1' }],
+            },
+          },
+        ],
+      })
+    );
+
+    expect(result.success).toBe(false);
+    const rows = await fixture.db.select().from(lifecycleOperations);
+    expect(rows.map((row) => row.entityKey)).toEqual(['task-1']);
+    const [project] = await fixture.db.select().from(projects);
+    expect(project.deletedAt).toBeNull();
+  });
+
   it('parks remote work until the SSH host reconnects', async () => {
     fixture = await openFixture('empty');
     const run = vi.fn(async () => ok(undefined));
@@ -81,10 +274,10 @@ describe('OperationsEngine', () => {
     await handle.engine.waitForIdle();
     expect(await operationStatus()).toBe('pending');
     expect(run).not.toHaveBeenCalled();
-    const lease = handle.engine.acquireDeletionState('task', 'task-1');
+    const lease = handle.engine.acquireOperationTreeState();
     const source = await lease.ready();
-    const list = (await source.snapshot()).data as DeletionList;
-    expect(list['task-1']).toMatchObject({
+    const list = (await source.snapshot()).data as OperationTreeList;
+    expect(Object.values(list)[0]?.root).toMatchObject({
       status: 'blocked-host-offline',
       entityName: 'task-1',
       hostRef: 'remote-1',
@@ -102,12 +295,14 @@ describe('OperationsEngine', () => {
     const run = vi.fn(async () => ok(undefined));
     handle = await createTestEngine({ run, ssh: createSshManager(false) });
 
-    await handle.engine.submit(async () =>
+    const submission = await handle.engine.submit(async () =>
       ok({ outcome: 'enqueue', draft: operationDraft('task-1', 'remote-1') })
     );
     await handle.engine.waitForIdle();
 
-    const result = await handle.engine.forgetWithoutCleanup('task', 'task-1');
+    const result = await handle.engine.forget(
+      submission.success ? submission.data.operationId! : ''
+    );
     const [row] = await fixture.db.select().from(lifecycleOperations);
     expect(result.success).toBe(true);
     expect(row).toMatchObject({ status: 'abandoned', error: null });
@@ -121,12 +316,14 @@ describe('OperationsEngine', () => {
     const ssh = createSshManager(false);
     handle = await createTestEngine({ run, ssh, clock });
 
-    await handle.engine.submit(async () =>
+    const submission = await handle.engine.submit(async () =>
       ok({ outcome: 'enqueue', draft: operationDraft('task-1', 'remote-1') })
     );
     await handle.engine.waitForIdle();
 
-    const result = await handle.engine.retryDelete('task', 'task-1');
+    const result = await handle.engine.retry(
+      submission.success ? submission.data.operationId! : ''
+    );
     let [row] = await fixture.db.select().from(lifecycleOperations);
     expect(result.success).toBe(true);
     expect(row).toMatchObject({
@@ -259,7 +456,8 @@ describe('OperationsEngine', () => {
     });
     expect(publishPendingCleanup).toHaveBeenCalledTimes(1);
 
-    await handle.engine.retryDelete('task', 'task-1');
+    const [pendingRow] = await fixture.db.select().from(lifecycleOperations);
+    await handle.engine.retry(pendingRow.id);
     await handle.engine.waitForIdle();
     [row] = await fixture.db.select().from(lifecycleOperations);
     expect(row).toMatchObject({ status: 'succeeded', attempt: 1 });
@@ -285,10 +483,10 @@ describe('OperationsEngine', () => {
     );
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
 
-    const lease = handle.engine.acquireDeletionState('task', 'task-1');
+    const lease = handle.engine.acquireOperationTreeState();
     const source = await lease.ready();
-    const list = (await source.snapshot()).data as DeletionList;
-    expect(list['task-1']).toMatchObject({
+    const list = (await source.snapshot()).data as OperationTreeList;
+    expect(Object.values(list)[0]?.root).toMatchObject({
       status: 'waiting',
       currentStep: 'deactivate-workspace',
     });
@@ -296,6 +494,40 @@ describe('OperationsEngine', () => {
 
     releaseRun.resolve();
     await handle.engine.waitForIdle();
+  });
+
+  it('promotes non-terminal operations with terminal parents to tree roots', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ ssh });
+    await fixture.db.insert(lifecycleOperations).values([
+      {
+        ...operationRow('project-1', 'local', 1),
+        id: 'operation-parent',
+        kind: 'delete-project',
+        status: 'succeeded',
+        projectId: 'project-1',
+        taskId: null,
+      },
+      {
+        ...operationRow('task-1', 'remote-1', 2),
+        id: 'operation-child',
+        parentOperationId: 'operation-parent',
+        projectId: 'project-1',
+      },
+    ]);
+
+    const lease = handle.engine.acquireOperationTreeState('project-1');
+    const source = await lease.ready();
+    const list = (await source.snapshot()).data as OperationTreeList;
+    await lease.release();
+
+    expect(Object.keys(list)).toEqual(['operation-child']);
+    expect(list['operation-child']?.root).toMatchObject({
+      operationId: 'operation-child',
+      entityId: 'task-1',
+      status: 'blocked-host-offline',
+    });
   });
 
   it('runs operations on another host while a host lane is blocked', async () => {
@@ -373,6 +605,15 @@ describe('OperationsEngine', () => {
       entityKey: 'orphan-1',
       status: 'succeeded',
     });
+  });
+
+  it('rolls operation tree status up by severity', () => {
+    expect(rollupStatus([deletionState('cleaning'), deletionState('waiting')])).toBe('cleaning');
+    expect(rollupStatus([deletionState('cleaning'), deletionState('failed')])).toBe('failed');
+    expect(rollupStatus([deletionState('blocked-host-offline'), deletionState('waiting')])).toBe(
+      'blocked-host-offline'
+    );
+    expect(rollupStatus([])).toBe('waiting');
   });
 
   async function createTestEngine(options: {
@@ -460,6 +701,21 @@ function operationRow(entityKey: string, hostRef: string, createdAt: number) {
     workspaceId: null,
     createdAt,
   };
+}
+
+function deletionState(status: DeletionState['status']): DeletionState {
+  return {
+    operationId: `operation-${status}`,
+    operationKind: 'delete-task',
+    entityId: `entity-${status}`,
+    entityKind: 'task',
+    hostRef: 'local',
+    createdAt: 1,
+    attempt: 0,
+    status,
+    ...(status === 'failed' ? { error: 'failed' } : {}),
+    ...(status === 'awaiting-confirmation' ? { confirmationReason: 'stale' as const } : {}),
+  } as DeletionState;
 }
 
 function createSshManager(initiallyConnected: boolean): OperationsSshManager & {

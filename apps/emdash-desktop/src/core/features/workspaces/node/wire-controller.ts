@@ -10,7 +10,6 @@ import {
   type JobInput,
   type JobProgress,
   type JobResult,
-  type LeasedLiveModelProvider,
   type LiveModelProvider,
   type LiveJobClientHandle,
   type LiveJobContext,
@@ -219,10 +218,6 @@ export function createWorkspacesWireController(
         }),
       delete: (input) => enqueueDeleteWorkspace(options.operations, input.workspaceId),
       archive: (input) => enqueueArchiveWorkspace(options.operations, input),
-      retryDelete: (input) => options.operations.retryDelete('workspace', input.workspaceId),
-      forgetWithoutCleanup: (input) =>
-        options.operations.forgetWithoutCleanup('workspace', input.workspaceId),
-      deletions: createWorkspaceDeletionsProvider(options.operations),
     },
     async dispose() {
       unsubscribeProgress();
@@ -362,41 +357,6 @@ function mapWorkspaceResult(
   if (!result.success) return result;
   const { workspace: _, ...data } = result.data;
   return ok({ ...data, workspaceId });
-}
-
-function createWorkspaceDeletionsProvider(
-  operations: OperationsEngine
-): LeasedLiveModelProvider<typeof workspacesWireContract.deletions> {
-  return {
-    kind: 'leasedLiveModelProvider',
-    contract: workspacesWireContract.deletions,
-    acquireState(key, name) {
-      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
-      let released = false;
-      return {
-        ready: async () => {
-          if (name !== 'list') {
-            throw new Error(`Unknown workspace deletion state '${String(name)}'`);
-          }
-          if (released) throw new Error('Workspace deletion state lease was released before ready');
-          lease ??= operations.acquireDeletionState('workspace', key.entityId);
-          if (released) {
-            await lease.release();
-            throw new Error('Workspace deletion state lease was released before ready');
-          }
-          return lease.ready();
-        },
-        release: async () => {
-          released = true;
-          await lease?.release();
-        },
-      };
-    },
-    async runMutation() {
-      throw new Error('Workspace deletions model does not expose mutations');
-    },
-    async dispose() {},
-  };
 }
 
 function createBootstrapProvider(

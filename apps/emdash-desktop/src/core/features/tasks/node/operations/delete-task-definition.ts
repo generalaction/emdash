@@ -2,6 +2,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import {
   deactivateLifecycleWorkspace,
@@ -15,6 +16,7 @@ import type { LifecycleOperationContextDependencies } from '@core/features/works
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import {
   nonTerminalOperationStatuses,
+  reconcilerDedupeStatuses,
   type OperationPayload,
 } from '@core/primitives/operations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -33,6 +35,7 @@ import {
   runOperationActions,
   type OperationActionContext,
   type OperationDefinition,
+  type OperationInsertOptions,
   type OperationSubmit,
   type OperationsEngine,
 } from '@core/services/operations/node';
@@ -41,7 +44,6 @@ import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/cl
 const SESSION_TIMEOUT_MS = 30_000;
 const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
 const PURGE_TIMEOUT_MS = 30_000;
-const reconcilerDedupeStatuses = [...nonTerminalOperationStatuses, 'abandoned'] as const;
 
 export type DeleteTaskInput = {
   taskId: string;
@@ -245,7 +247,21 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
       .from(projects)
       .where(eq(projects.id, task.projectId))
       .limit(1);
+    const otherTaskRows = task.workspaceId
+      ? await db
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.workspaceId, task.workspaceId),
+              ne(tasks.id, task.id),
+              isNull(tasks.deletedAt)
+            )
+          )
+          .limit(1)
+      : [];
     const createdAt = clock.now();
+    const hostRef = workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local';
     return ok({
       outcome: 'enqueue' as const,
       draft: {
@@ -254,7 +270,7 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
         taskId: task.id,
         workspaceId: task.workspaceId,
         entityKey: task.id,
-        hostRef: workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local',
+        hostRef,
         payload: {
           version: '1' as const,
           source: 'user' as const,
@@ -267,6 +283,16 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
       },
       options: {
         dedupeStatuses: nonTerminalOperationStatuses,
+        claims: deleteTaskClaims({
+          projectId: task.projectId,
+          taskId: task.id,
+          workspaceId: task.workspaceId,
+          branchName: workspace?.branchName ?? undefined,
+          hostRef,
+          workspacePath: workspace?.path ?? undefined,
+          workspaceShared: otherTaskRows.length > 0,
+        }),
+        precondition: (tx) => projectIsActive(tx, task.projectId),
         tombstone: (tx) =>
           tx
             .update(tasks)
@@ -276,6 +302,25 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
       },
     });
   });
+}
+
+function projectIsActive(
+  tx: Parameters<NonNullable<OperationInsertOptions['precondition']>>[0],
+  projectId: string
+) {
+  const active =
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+      .limit(1)
+      .get() !== undefined;
+  return active
+    ? undefined
+    : {
+        type: 'project-deleting',
+        message: 'Project is being deleted.',
+      };
 }
 
 export async function submitReconcilerTaskCleanup(

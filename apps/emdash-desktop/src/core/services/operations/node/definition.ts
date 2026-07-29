@@ -3,6 +3,7 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type {
   DeletionEntityKind,
   DeletionMutationError,
+  OperationClaimResource,
   OperationKind,
   OperationPayload,
   OperationStatus,
@@ -59,6 +60,7 @@ export type OperationDraft = Pick<
   | 'taskId'
   | 'workspaceId'
   | 'entityKey'
+  | 'parentOperationId'
   | 'hostRef'
   | 'payload'
   | 'createdAt'
@@ -69,11 +71,15 @@ export type OperationDraftInput = Pick<
   'kind' | 'entityKey' | 'hostRef' | 'payload'
 > &
   Partial<
-    Pick<OperationDraft, 'id' | 'status' | 'projectId' | 'taskId' | 'workspaceId' | 'createdAt'>
+    Pick<
+      OperationDraft,
+      'id' | 'status' | 'projectId' | 'taskId' | 'workspaceId' | 'parentOperationId' | 'createdAt'
+    >
   >;
 
 export type OperationInsertOptions = {
   dedupeStatuses?: readonly OperationStatus[];
+  claims?: readonly OperationClaimResource[];
   precondition?: (tx: DrizzleTx) => DeletionMutationError | undefined;
   tombstone?: (tx: DrizzleTx) => number;
 };

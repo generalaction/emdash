@@ -48,12 +48,6 @@ export const deletionStateSchema = z.discriminatedUnion('status', [
   }),
 ]);
 
-export const deletionListSchema = z.record(z.string(), deletionStateSchema);
-
-export const deletionModelKeySchema = z.object({
-  entityId: z.string().optional(),
-});
-
 export const deletionMutationErrorSchema = z.object({
   type: z.string(),
   message: z.string(),
@@ -65,5 +59,4 @@ export const deletionMutationResultSchema = z.object({
 
 export type DeletionEntityKind = z.infer<typeof deletionEntityKindSchema>;
 export type DeletionState = z.infer<typeof deletionStateSchema>;
-export type DeletionList = z.infer<typeof deletionListSchema>;
 export type DeletionMutationError = z.infer<typeof deletionMutationErrorSchema>;

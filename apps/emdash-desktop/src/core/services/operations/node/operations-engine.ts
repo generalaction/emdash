@@ -12,15 +12,24 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
   nonTerminalOperationStatuses,
   operationKinds,
+  operationClaimResourceKey,
   type DeletionEntityKind,
-  type DeletionList,
   type DeletionMutationError,
   type DeletionState,
+  type OperationClaimResource,
   type OperationKind,
   type OperationStatus,
+  type OperationTree,
+  type OperationTreeKey,
+  type OperationTreeList,
+  type OperationTreeRollupStatus,
 } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
-import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import {
+  lifecycleOperations,
+  operationClaims,
+  type LifecycleOperationRow,
+} from '@core/services/app-db/node/schema';
 import type {
   OperationConfirmationReason,
   OperationDefinition,
@@ -55,15 +64,33 @@ const RECONCILE_SNAPSHOT: IoActivitySnapshot = {
 
 type OperationMutationResult = Result<{ operationId?: string }, DeletionMutationError>;
 
-type DeletionStateKey = {
-  kind: DeletionEntityKind;
-  entityId?: string;
+const ROLLUP_SEVERITY: readonly OperationTreeRollupStatus[] = [
+  'failed',
+  'awaiting-confirmation',
+  'blocked-host-offline',
+  'cleaning',
+  'waiting',
+];
+
+type TerminalChildCounts = {
+  total: number;
+  done: number;
 };
 
 type InsertOperationOutcome =
   | { outcome: 'inserted' }
-  | { outcome: 'duplicate' }
+  | { outcome: 'duplicate'; operationId?: string }
   | { outcome: 'precondition-failed'; error: DeletionMutationError };
+
+class RelatedOperationInsertError extends Error {
+  constructor(
+    readonly error: DeletionMutationError,
+    readonly draft: OperationDraft
+  ) {
+    super(error.message);
+    this.name = 'RelatedOperationInsertError';
+  }
+}
 
 export type OperationsEngineDeps = {
   db: AppDb;
@@ -84,9 +111,9 @@ export class OperationsEngine {
   private readonly queue: DurableQueue;
   private started = false;
   private readonly progress = new Map<string, OperationProgress>();
-  private readonly deletionStateKeys = new Map<string, DeletionStateKey>();
-  private readonly deletionStates: ReturnType<
-    typeof createResourceCache<DeletionStateKey, ComputedLiveState<DeletionList>>
+  private readonly operationTreeKeys = new Map<string, OperationTreeKey>();
+  private readonly operationTrees: ReturnType<
+    typeof createResourceCache<OperationTreeKey, ComputedLiveState<OperationTreeList>>
   >;
 
   constructor(deps: OperationsEngineDeps) {
@@ -103,28 +130,30 @@ export class OperationsEngine {
       isRunnable: (operation) => this.operationIsRunnable(operation),
       run: (operation, signal) => this.runQueuedOperation(operation, signal),
       onError: (error) => log.error('lifecycle operations drain failed', { error }),
-      onPass: () => this.refreshDeletionStates(),
+      onPass: () => this.refreshOperationTrees(),
     });
-    this.deletionStates = createResourceCache<DeletionStateKey, ComputedLiveState<DeletionList>>({
+    this.operationTrees = createResourceCache<
+      OperationTreeKey,
+      ComputedLiveState<OperationTreeList>
+    >({
       scope: this.scope,
-      label: 'deletion-states',
-      key: deletionStateKey,
+      label: 'operation-trees',
+      key: operationTreeKey,
       create: (key, entryScope) => {
-        const keyId = deletionStateKey(key);
-        const state = new ComputedLiveState<DeletionList>({
-          compute: () => this.loadDeletionList(key.kind, key.entityId),
+        const keyId = operationTreeKey(key);
+        const state = new ComputedLiveState<OperationTreeList>({
+          compute: () => this.loadOperationTrees(key.projectId),
           clock: this.clock,
           onError: (error) =>
-            log.warn('lifecycle deletion state refresh failed', {
-              kind: key.kind,
-              entityId: key.entityId,
+            log.warn('lifecycle operation tree refresh failed', {
+              projectId: key.projectId,
               error: String(error),
             }),
         });
-        this.deletionStateKeys.set(keyId, key);
+        this.operationTreeKeys.set(keyId, key);
         entryScope.add(() => {
           state.dispose();
-          this.deletionStateKeys.delete(keyId);
+          this.operationTreeKeys.delete(keyId);
         });
         return state;
       },
@@ -143,7 +172,7 @@ export class OperationsEngine {
       .where(eq(lifecycleOperations.status, 'running'));
 
     const onConnection = (event: { type: string }) => {
-      void this.refreshDeletionStates();
+      void this.refreshOperationTrees();
       if (event.type === 'connected' || event.type === 'reconnected') this.poke();
     };
     this.sshManager.on('connection-event', onConnection);
@@ -178,7 +207,7 @@ export class OperationsEngine {
       void sweeper.sweepNow();
     }
 
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
     this.poke();
   }
 
@@ -191,18 +220,40 @@ export class OperationsEngine {
 
     const submission = prepared.data;
     const draft = this.buildOperationDraft(submission.draft);
-    const insertion = this.db.transaction((tx) => {
-      const primary = this.insertOperation(tx, draft, submission.options);
-      if (primary.outcome !== 'inserted') return primary;
-      for (const related of submission.related ?? []) {
-        this.insertOperation(tx, this.buildOperationDraft(related.draft), related.options);
-      }
-      return primary;
-    });
+    let insertion: InsertOperationOutcome;
+    try {
+      insertion = this.db.transaction((tx) => {
+        const primary = this.insertOperation(tx, draft, submission.options);
+        if (primary.outcome !== 'inserted') return primary;
+        for (const related of submission.related ?? []) {
+          const relatedDraft = this.buildOperationDraft({
+            ...related.draft,
+            parentOperationId: draft.id,
+          });
+          const relatedInsertion = this.insertOperation(tx, relatedDraft, related.options);
+          if (relatedInsertion.outcome === 'duplicate' && relatedInsertion.operationId) {
+            this.adoptOperation(tx, relatedInsertion.operationId, draft.id);
+          } else if (relatedInsertion.outcome === 'precondition-failed') {
+            throw new RelatedOperationInsertError(relatedInsertion.error, relatedDraft);
+          }
+        }
+        return primary;
+      });
+    } catch (error) {
+      if (!(error instanceof RelatedOperationInsertError)) throw error;
+      log.warn('related lifecycle operation insert failed', {
+        kind: error.draft.kind,
+        entityKey: error.draft.entityKey,
+        message: error.error.message,
+      });
+      return err(error.error);
+    }
 
     if (insertion.outcome === 'precondition-failed') return err(insertion.error);
     if (insertion.outcome === 'duplicate') {
-      const existing = await this.latestOperationForDraft(draft, submission.options);
+      const existing = insertion.operationId
+        ? await this.operationById(insertion.operationId)
+        : await this.latestOperationForDraft(draft, submission.options);
       return existing
         ? ok({ operationId: existing.id })
         : err({
@@ -211,7 +262,7 @@ export class OperationsEngine {
           });
     }
 
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
     if (draft.status === 'awaiting-confirmation') {
       this.publishPendingCleanup(draft, draft.payload.confirmationReason ?? 'reconciler-proposed');
     } else {
@@ -220,8 +271,8 @@ export class OperationsEngine {
     return ok({ operationId: draft.id });
   };
 
-  async retryDelete(kind: DeletionEntityKind, entityId: string): Promise<OperationMutationResult> {
-    const operation = await this.latestOperation(kind, entityId);
+  async retry(operationId: string): Promise<OperationMutationResult> {
+    const operation = await this.operationById(operationId);
     if (!operation) {
       return err({ type: 'operation-not-found', message: 'No pending cleanup was found' });
     }
@@ -261,16 +312,13 @@ export class OperationsEngine {
       this.db.transaction((tx) => reset(tx));
     }
 
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
     this.poke();
     return ok({ operationId: operation.id });
   }
 
-  async forgetWithoutCleanup(
-    kind: DeletionEntityKind,
-    entityId: string
-  ): Promise<OperationMutationResult> {
-    const operation = await this.latestOperation(kind, entityId);
+  async forget(operationId: string): Promise<OperationMutationResult> {
+    const operation = await this.operationById(operationId);
     if (!operation) {
       return err({ type: 'operation-not-found', message: 'No pending cleanup was found' });
     }
@@ -300,12 +348,12 @@ export class OperationsEngine {
       this.db.transaction((tx) => markAbandoned(tx));
     }
 
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
     return ok({ operationId: operation.id });
   }
 
-  acquireDeletionState(kind: DeletionEntityKind, entityId?: string): PendingLease<LiveSource> {
-    const lease = this.deletionStates.acquire({ kind, entityId });
+  acquireOperationTreeState(projectId?: string): PendingLease<LiveSource> {
+    const lease = this.operationTrees.acquire({ projectId });
     return {
       ready: async () => (await lease.ready()).prepare(),
       release: lease.release,
@@ -321,32 +369,20 @@ export class OperationsEngine {
     await this.queue.waitForIdle();
   }
 
-  async waitForConflictingCleanup(input: {
+  async hasClaimConflict(input: {
     projectId: string;
     workspaceId?: string;
     branchName?: string;
   }): Promise<boolean> {
-    const operations = await this.db
-      .select()
-      .from(lifecycleOperations)
-      .where(
-        and(
-          eq(lifecycleOperations.projectId, input.projectId),
-          inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-        )
-      );
-    for (const operation of operations) {
-      const definition = this.requireDefinition(operation.kind);
-      if (definition.entityKind === 'project') return false;
-      if (input.workspaceId !== undefined && operation.workspaceId === input.workspaceId) {
-        return false;
-      }
-      if (input.branchName !== undefined) {
-        const description = await definition.describe({ operation, db: this.db });
-        if (description.branchName === input.branchName) return false;
-      }
+    const resources: OperationClaimResource[] = [{ kind: 'project', id: input.projectId }];
+    if (input.workspaceId !== undefined) {
+      resources.push({ kind: 'workspace', id: input.workspaceId });
     }
-    return true;
+    if (input.branchName !== undefined) {
+      resources.push({ kind: 'branch', projectId: input.projectId, name: input.branchName });
+    }
+    const conflict = await this.findClaimConflictByResources(resources);
+    return conflict !== undefined;
   }
 
   private async reconcile(definition: OperationDefinition): Promise<void> {
@@ -403,7 +439,7 @@ export class OperationsEngine {
       .update(lifecycleOperations)
       .set({ status: runningStatus, attempt: operation.attempt + 1, error: null })
       .where(eq(lifecycleOperations.id, operation.id));
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
 
     const result = await this.runWithRetries(current, definition, signal);
     this.progress.delete(operation.id);
@@ -436,7 +472,7 @@ export class OperationsEngine {
         })
         .where(eq(lifecycleOperations.id, operation.id));
     }
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
   }
 
   private async runWithRetries(
@@ -455,7 +491,7 @@ export class OperationsEngine {
           clock: this.clock,
           reportProgress: (progress) => {
             this.progress.set(operation.id, progress);
-            void this.refreshDeletionStates();
+            void this.refreshOperationTrees();
           },
         });
       } catch (error) {
@@ -495,7 +531,7 @@ export class OperationsEngine {
       })
       .where(eq(lifecycleOperations.id, operation.id));
     this.publishPendingCleanup(operation, reason);
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
   }
 
   private publishPendingCleanup(
@@ -529,7 +565,7 @@ export class OperationsEngine {
         error,
       })
       .where(eq(lifecycleOperations.id, operation.id));
-    await this.refreshDeletionStates();
+    await this.refreshOperationTrees();
   }
 
   private transitionStatus(current: OperationStatus, event: OperationStatusEvent): OperationStatus {
@@ -560,6 +596,7 @@ export class OperationsEngine {
       taskId: input.taskId ?? null,
       workspaceId: input.workspaceId ?? null,
       entityKey: input.entityKey,
+      parentOperationId: input.parentOperationId ?? null,
       hostRef: input.hostRef,
       payload: input.payload,
       createdAt: input.createdAt ?? this.clock.now(),
@@ -571,71 +608,135 @@ export class OperationsEngine {
     draft: OperationDraft,
     options: OperationInsertOptions = {}
   ): InsertOperationOutcome {
-    if (
-      options.dedupeStatuses &&
-      draft.entityKey &&
-      this.hasOperation(tx, draft.entityKey, options.dedupeStatuses)
-    ) {
-      return { outcome: 'duplicate' };
+    if (options.dedupeStatuses && draft.entityKey) {
+      const existing = this.operationForEntityKey(tx, draft.entityKey, options.dedupeStatuses);
+      if (existing) return { outcome: 'duplicate', operationId: existing.id };
     }
     const preconditionError = options.precondition?.(tx);
     if (preconditionError) {
       return { outcome: 'precondition-failed', error: preconditionError };
     }
+    const claimResources = options.claims ?? [];
+    const claimConflict = this.findClaimConflict(tx, claimResources);
+    if (claimConflict) {
+      if (claimConflict.kind === draft.kind && claimConflict.entityKey === draft.entityKey) {
+        return { outcome: 'duplicate', operationId: claimConflict.id };
+      }
+      return {
+        outcome: 'precondition-failed',
+        error: {
+          type: 'resource-claimed',
+          message: `Resource is already claimed by operation ${claimConflict.id}`,
+        },
+      };
+    }
     if (options.tombstone && options.tombstone(tx) === 0) {
-      return { outcome: 'duplicate' };
+      return {
+        outcome: 'duplicate',
+        operationId: draft.entityKey
+          ? this.operationForEntityKey(tx, draft.entityKey, nonTerminalOperationStatuses)?.id
+          : undefined,
+      };
     }
     tx.insert(lifecycleOperations).values(draft).run();
+    if (claimResources.length > 0) {
+      tx.insert(operationClaims)
+        .values(
+          claimResources.map((resource) => ({
+            operationId: draft.id,
+            resourceKey: operationClaimResourceKey(resource),
+          }))
+        )
+        .run();
+    }
     return { outcome: 'inserted' };
   }
 
-  private hasOperation(
+  private operationForEntityKey(
     tx: DrizzleTx,
     entityKey: string,
     statuses: readonly OperationStatus[]
-  ): boolean {
-    return (
-      tx
-        .select({ id: lifecycleOperations.id })
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.entityKey, entityKey),
-            inArray(lifecycleOperations.status, [...statuses])
-          )
+  ): Pick<LifecycleOperationRow, 'id'> | undefined {
+    return tx
+      .select({ id: lifecycleOperations.id })
+      .from(lifecycleOperations)
+      .where(
+        and(
+          eq(lifecycleOperations.entityKey, entityKey),
+          inArray(lifecycleOperations.status, [...statuses])
         )
-        .limit(1)
-        .get() !== undefined
-    );
+      )
+      .orderBy(desc(lifecycleOperations.createdAt))
+      .limit(1)
+      .get();
+  }
+
+  private adoptOperation(tx: DrizzleTx, operationId: string, parentOperationId: string): void {
+    tx.update(lifecycleOperations)
+      .set({ parentOperationId })
+      .where(eq(lifecycleOperations.id, operationId))
+      .run();
+  }
+
+  private findClaimConflict(
+    tx: DrizzleTx,
+    resources: readonly OperationClaimResource[]
+  ): Pick<LifecycleOperationRow, 'id' | 'kind' | 'entityKey'> | undefined {
+    const keys = claimResourceKeys(resources);
+    if (keys.length === 0) return undefined;
+    return tx
+      .select({
+        id: lifecycleOperations.id,
+        kind: lifecycleOperations.kind,
+        entityKey: lifecycleOperations.entityKey,
+      })
+      .from(operationClaims)
+      .innerJoin(lifecycleOperations, eq(operationClaims.operationId, lifecycleOperations.id))
+      .where(
+        and(
+          inArray(operationClaims.resourceKey, keys),
+          inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
+        )
+      )
+      .orderBy(lifecycleOperations.createdAt)
+      .limit(1)
+      .get();
+  }
+
+  private async findClaimConflictByResources(
+    resources: readonly OperationClaimResource[]
+  ): Promise<Pick<LifecycleOperationRow, 'id'> | undefined> {
+    const keys = claimResourceKeys(resources);
+    if (keys.length === 0) return undefined;
+    const [conflict] = await this.db
+      .select({ id: lifecycleOperations.id })
+      .from(operationClaims)
+      .innerJoin(lifecycleOperations, eq(operationClaims.operationId, lifecycleOperations.id))
+      .where(
+        and(
+          inArray(operationClaims.resourceKey, keys),
+          inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
+        )
+      )
+      .orderBy(lifecycleOperations.createdAt)
+      .limit(1);
+    return conflict;
   }
 
   private async latestOperationForDraft(
     draft: OperationDraft,
     options: OperationInsertOptions | undefined
   ): Promise<LifecycleOperationRow | undefined> {
-    const definition = this.requireDefinition(draft.kind);
-    return this.latestOperation(
-      definition.entityKind,
-      draft.entityKey ?? '',
-      options?.dedupeStatuses ?? nonTerminalOperationStatuses
-    );
-  }
-
-  private async latestOperation(
-    kind: DeletionEntityKind,
-    entityId: string,
-    statuses: readonly OperationStatus[] = nonTerminalOperationStatuses
-  ): Promise<LifecycleOperationRow | undefined> {
-    const kinds = this.operationKindsForEntity(kind);
-    if (kinds.length === 0) return undefined;
+    if (!draft.entityKey) return undefined;
     const [operation] = await this.db
       .select()
       .from(lifecycleOperations)
       .where(
         and(
-          eq(lifecycleOperations.entityKey, entityId),
-          inArray(lifecycleOperations.kind, kinds),
-          inArray(lifecycleOperations.status, [...statuses])
+          eq(lifecycleOperations.entityKey, draft.entityKey),
+          inArray(lifecycleOperations.status, [
+            ...(options?.dedupeStatuses ?? nonTerminalOperationStatuses),
+          ])
         )
       )
       .orderBy(desc(lifecycleOperations.createdAt))
@@ -643,10 +744,13 @@ export class OperationsEngine {
     return operation;
   }
 
-  private operationKindsForEntity(kind: DeletionEntityKind): OperationKind[] {
-    return [...this.definitions.values()]
-      .filter((definition) => definition.entityKind === kind)
-      .map((definition) => definition.kind);
+  private async operationById(operationId: string): Promise<LifecycleOperationRow | undefined> {
+    const [operation] = await this.db
+      .select()
+      .from(lifecycleOperations)
+      .where(eq(lifecycleOperations.id, operationId))
+      .limit(1);
+    return operation;
   }
 
   private requireDefinition(kind: OperationKind): OperationDefinition {
@@ -655,51 +759,92 @@ export class OperationsEngine {
     return definition;
   }
 
-  private async refreshDeletionStates(): Promise<void> {
-    for (const key of this.deletionStateKeys.values()) {
-      this.deletionStates.peek(key)?.invalidate();
+  private async refreshOperationTrees(): Promise<void> {
+    for (const key of this.operationTreeKeys.values()) {
+      this.operationTrees.peek(key)?.invalidate();
     }
   }
 
-  private async loadDeletionList(
-    kind: DeletionEntityKind,
-    entityId?: string
-  ): Promise<DeletionList> {
-    const kinds = this.operationKindsForEntity(kind);
-    if (kinds.length === 0) return {};
+  private async loadOperationTrees(projectId?: string): Promise<OperationTreeList> {
     const rows = await this.db
       .select()
       .from(lifecycleOperations)
       .where(
         and(
-          inArray(lifecycleOperations.kind, kinds),
           inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses]),
-          entityId === undefined ? undefined : eq(lifecycleOperations.entityKey, entityId)
+          projectId === undefined ? undefined : eq(lifecycleOperations.projectId, projectId)
         )
       );
-    const list: DeletionList = {};
-    for (const row of rows) {
-      const definition = this.requireDefinition(row.kind);
-      let description: OperationDescription = {};
-      try {
-        description = await definition.describe({ operation: row, db: this.db });
-      } catch (error) {
-        log.warn('lifecycle operation description failed', {
-          operationId: row.id,
-          kind: row.kind,
-          error: String(error),
-        });
-      }
-      const entry = toDeletionState(
-        row,
-        definition.entityKind,
-        this.hostIsOnline(row.hostRef),
-        description,
-        this.progress.get(row.id)
+    const terminalChildren = await this.db
+      .select()
+      .from(lifecycleOperations)
+      .where(
+        and(
+          inArray(lifecycleOperations.status, ['succeeded' as const, 'abandoned' as const]),
+          projectId === undefined ? undefined : eq(lifecycleOperations.projectId, projectId)
+        )
       );
-      if (entry) list[entry.entityId] = entry;
+    const activeChildrenByParent = groupByParent(rows);
+    const terminalChildrenByParent = groupTerminalChildrenByParent(terminalChildren);
+    const activeOperationIds = new Set(rows.map((row) => row.id));
+    const list: OperationTreeList = {};
+    for (const row of rows) {
+      if (row.parentOperationId !== null && activeOperationIds.has(row.parentOperationId)) continue;
+      const tree = await this.toOperationTree(
+        row,
+        activeChildrenByParent.get(row.id) ?? [],
+        terminalChildrenByParent.get(row.id) ?? { total: 0, done: 0 }
+      );
+      if (tree) list[row.id] = tree;
     }
     return list;
+  }
+
+  private async toOperationTree(
+    root: LifecycleOperationRow,
+    activeChildren: LifecycleOperationRow[],
+    terminalChildren: TerminalChildCounts
+  ): Promise<OperationTree | undefined> {
+    const rootState = await this.toDeletionState(root);
+    if (!rootState) return undefined;
+    const children = (
+      await Promise.all(activeChildren.map((child) => this.toDeletionState(child)))
+    ).filter((child): child is DeletionState => child !== undefined);
+    const rootForDisplay =
+      children.length > 0 && rootState.status === 'cleaning'
+        ? ({ ...rootState, status: 'waiting' } as DeletionState)
+        : rootState;
+    const nodes = [rootForDisplay, ...children];
+    return {
+      root: rootForDisplay,
+      children,
+      rollup: {
+        total: children.length + terminalChildren.total,
+        done: terminalChildren.done,
+        status: rollupStatus(nodes),
+      },
+    };
+  }
+
+  private async toDeletionState(row: LifecycleOperationRow): Promise<DeletionState | undefined> {
+    const definition = this.requireDefinition(row.kind);
+    let description: OperationDescription = {};
+    try {
+      description = await definition.describe({ operation: row, db: this.db });
+    } catch (error) {
+      log.warn('lifecycle operation description failed', {
+        operationId: row.id,
+        kind: row.kind,
+        error: String(error),
+      });
+    }
+    return toDeletionState(
+      row,
+      definition.entityKind,
+      this.hostIsOnline(row.hostRef),
+      description,
+      this.progress.get(row.id)
+    );
   }
 }
 
@@ -766,8 +911,47 @@ function toDeletionState(
   }
 }
 
-function deletionStateKey(key: DeletionStateKey): string {
-  return `${key.kind}:${key.entityId ?? '*'}`;
+function operationTreeKey(key: OperationTreeKey): string {
+  return key.projectId ?? '*';
+}
+
+function groupByParent(rows: LifecycleOperationRow[]): Map<string, LifecycleOperationRow[]> {
+  const grouped = new Map<string, LifecycleOperationRow[]>();
+  for (const row of rows) {
+    if (row.parentOperationId === null) continue;
+    const existing = grouped.get(row.parentOperationId);
+    if (existing) {
+      existing.push(row);
+    } else {
+      grouped.set(row.parentOperationId, [row]);
+    }
+  }
+  return grouped;
+}
+
+function groupTerminalChildrenByParent(
+  rows: LifecycleOperationRow[]
+): Map<string, TerminalChildCounts> {
+  const grouped = new Map<string, TerminalChildCounts>();
+  for (const row of rows) {
+    if (row.parentOperationId === null) continue;
+    const existing = grouped.get(row.parentOperationId) ?? { total: 0, done: 0 };
+    existing.total += 1;
+    if (row.status === 'succeeded') existing.done += 1;
+    grouped.set(row.parentOperationId, existing);
+  }
+  return grouped;
+}
+
+export function rollupStatus(nodes: readonly DeletionState[]): OperationTreeRollupStatus {
+  for (const status of ROLLUP_SEVERITY) {
+    if (nodes.some((node) => node.status === status)) return status;
+  }
+  return 'waiting';
+}
+
+function claimResourceKeys(resources: readonly OperationClaimResource[]): string[] {
+  return [...new Set(resources.map(operationClaimResourceKey))];
 }
 
 export function operationNeedsConfirmation(

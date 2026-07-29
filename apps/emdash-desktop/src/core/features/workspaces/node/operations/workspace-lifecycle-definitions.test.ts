@@ -97,6 +97,8 @@ function operation(kind: 'delete-workspace' | 'archive-workspace'): LifecycleOpe
     taskId: null,
     workspaceId: 'workspace-1',
     entityKey: 'workspace-1',
+    parentOperationId: null,
+    initiatedBy: null,
     hostRef: 'local',
     payload: { version: '1', source: 'user' },
     attempt: 1,

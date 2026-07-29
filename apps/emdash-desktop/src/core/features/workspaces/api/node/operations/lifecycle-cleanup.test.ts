@@ -133,6 +133,8 @@ function remoteOperation(): LifecycleOperationRow {
     taskId: null,
     workspaceId: null,
     entityKey: 'workspace-1',
+    parentOperationId: null,
+    initiatedBy: null,
     hostRef: 'ssh-1',
     payload: { version: '1', source: 'user', deleteWorktree: true },
     attempt: 1,

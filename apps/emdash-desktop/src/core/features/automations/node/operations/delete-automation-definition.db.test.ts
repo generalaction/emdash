@@ -174,6 +174,8 @@ function operation(overrides: Partial<LifecycleOperationRow> = {}): LifecycleOpe
     taskId: null,
     workspaceId: null,
     entityKey: 'automation-1',
+    parentOperationId: null,
+    initiatedBy: null,
     hostRef: 'ssh-1',
     payload: {
       version: '1',

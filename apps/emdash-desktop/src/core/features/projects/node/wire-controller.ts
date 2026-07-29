@@ -7,7 +7,6 @@ import type {
   Contract,
   ContractImpl,
   GroupMutationEnvelope,
-  LeasedLiveModelProvider,
   LiveModelProvider,
   LiveSource,
 } from '@emdash/wire';
@@ -18,7 +17,6 @@ import {
 } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
-import type { OperationsEngine } from '@core/services/operations/node';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
@@ -84,9 +82,6 @@ export function createProjectsWireController(
         toError: unknownToWorkspaceError,
       },
       delete: (input) => enqueueDeleteProject(operations, input.projectId),
-      retryDelete: (input) => operations.retryDelete('project', input.projectId),
-      forgetWithoutCleanup: (input) => operations.forgetWithoutCleanup('project', input.projectId),
-      deletions: createProjectDeletionsProvider(operations),
     },
     async dispose() {
       creationStates.clear();
@@ -134,41 +129,6 @@ function createDirectoryTreeModelProvider(
         envelope.key
       ) as unknown as Awaited<ReturnType<LiveModelProvider<typeof contract>['runMutation']>>;
     },
-  };
-}
-
-function createProjectDeletionsProvider(
-  operations: OperationsEngine
-): LeasedLiveModelProvider<typeof projectsWireContract.deletions> {
-  return {
-    kind: 'leasedLiveModelProvider',
-    contract: projectsWireContract.deletions,
-    acquireState(key, name) {
-      let lease: ReturnType<OperationsEngine['acquireDeletionState']> | undefined;
-      let released = false;
-      return {
-        ready: async () => {
-          if (name !== 'list') {
-            throw new Error(`Unknown project deletion state '${String(name)}'`);
-          }
-          if (released) throw new Error('Project deletion state lease was released before ready');
-          lease ??= operations.acquireDeletionState('project', key.entityId);
-          if (released) {
-            await lease.release();
-            throw new Error('Project deletion state lease was released before ready');
-          }
-          return lease.ready();
-        },
-        release: async () => {
-          released = true;
-          await lease?.release();
-        },
-      };
-    },
-    async runMutation() {
-      throw new Error('Project deletions model does not expose mutations');
-    },
-    async dispose() {},
   };
 }
 
