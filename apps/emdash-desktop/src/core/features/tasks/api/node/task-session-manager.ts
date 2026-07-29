@@ -1,6 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
+import type {
+  DeactivateWorkspaceInput,
+  TeardownWorkspaceInput,
+} from '@emdash/core/runtimes/workspace/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import {
   runtimeResolveErrorAsError,
@@ -14,7 +18,6 @@ import {
 } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
 import { runWithTimeout } from '@emdash/shared/scheduling';
-import { createLiveJobReplica } from '@emdash/wire';
 import type {
   ProvisionResult,
   TaskProvider,
@@ -23,12 +26,14 @@ import type {
 import { getTaskSessionLeafIds } from '@core/features/tasks/node/session-targets';
 import type { WorkspaceBootstrapResult } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
+import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
 import type { WorkspaceType as SharedWorkspaceType } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   formatProvisionTaskError,
   formatTeardownTaskError,
@@ -171,7 +176,7 @@ async function deactivateWorkspaceConsumer(
   if (!target) return;
   const runtime = await dependencies.runtimes.client(target.host);
   if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-  await runWorkspaceDeactivateJob(runtime.data.workspace.deactivate, {
+  await runWorkspaceDeactivateJob(runtime.data.workspace, {
     workspace: target,
     consumerId: taskId,
     strategy,
@@ -186,7 +191,7 @@ async function deactivateWorkspaceConsumer(
   if (hasConsumers) return;
   if (identity) await dependencies.deactivateWorkspaceParticipants(identity);
   if (teardown) {
-    await runWorkspaceTeardownJob(runtime.data.workspace.teardown, {
+    await runWorkspaceTeardownJob(runtime.data.workspace, {
       workspace: target,
       force: false,
       automation,
@@ -195,37 +200,27 @@ async function deactivateWorkspaceConsumer(
 }
 
 async function runWorkspaceDeactivateJob(
-  handle: Parameters<typeof createLiveJobReplica<typeof workspaceContract.deactivate>>[1],
-  input: Parameters<
-    ReturnType<typeof createLiveJobReplica<typeof workspaceContract.deactivate>>['start']
-  >[0]
+  client: WorkspaceRuntimeClient,
+  input: DeactivateWorkspaceInput
 ): Promise<void> {
-  const jobs = createLiveJobReplica(workspaceContract.deactivate, handle);
-  const lease = await jobs.start(input);
-  try {
-    const job = await lease.ready();
-    await job.result;
-  } finally {
-    await lease.release();
-    await jobs.dispose();
-  }
+  await submitAndFollowWorkspaceOperation(client, {
+    requestId: randomUUID(),
+    kind: 'deactivate',
+    workspace: input.workspace,
+    params: { kind: 'deactivate', input },
+  });
 }
 
 async function runWorkspaceTeardownJob(
-  handle: Parameters<typeof createLiveJobReplica<typeof workspaceContract.teardown>>[1],
-  input: Parameters<
-    ReturnType<typeof createLiveJobReplica<typeof workspaceContract.teardown>>['start']
-  >[0]
+  client: WorkspaceRuntimeClient,
+  input: TeardownWorkspaceInput
 ): Promise<void> {
-  const jobs = createLiveJobReplica(workspaceContract.teardown, handle);
-  const lease = await jobs.start(input);
-  try {
-    const job = await lease.ready();
-    await job.result;
-  } finally {
-    await lease.release();
-    await jobs.dispose();
-  }
+  await submitAndFollowWorkspaceOperation(client, {
+    requestId: randomUUID(),
+    kind: 'teardown',
+    workspace: input.workspace,
+    params: { kind: 'teardown', input },
+  });
 }
 
 export class TaskSessionManager {

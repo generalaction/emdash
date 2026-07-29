@@ -98,6 +98,7 @@ export type OperationsEngineDeps = {
   sshManager: OperationsSshManager;
   notifications: OperationsNotificationPublisher;
   definitions: OperationDefinition[];
+  initiatedBy?: string;
   clock?: Clock;
 };
 
@@ -106,6 +107,7 @@ export class OperationsEngine {
   private readonly scope: Scope;
   private readonly sshManager: OperationsSshManager;
   private readonly notifications: OperationsNotificationPublisher;
+  private readonly initiatedBy: string | undefined;
   private readonly definitions: Map<OperationKind, OperationDefinition>;
   private readonly clock: Clock;
   private readonly queue: DurableQueue;
@@ -121,6 +123,7 @@ export class OperationsEngine {
     this.scope = deps.scope;
     this.sshManager = deps.sshManager;
     this.notifications = deps.notifications;
+    this.initiatedBy = deps.initiatedBy;
     this.clock = deps.clock ?? systemClock;
     this.definitions = definitionMap(deps.definitions);
     this.queue = createDurableQueue({
@@ -597,6 +600,7 @@ export class OperationsEngine {
       workspaceId: input.workspaceId ?? null,
       entityKey: input.entityKey,
       parentOperationId: input.parentOperationId ?? null,
+      initiatedBy: input.initiatedBy ?? this.initiatedBy ?? null,
       hostRef: input.hostRef,
       payload: input.payload,
       createdAt: input.createdAt ?? this.clock.now(),

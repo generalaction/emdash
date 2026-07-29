@@ -48,6 +48,7 @@ export type CreateWireConnectionManagerOptions = {
   idleTtlMs?: number;
   retrySchedule?: RetrySchedule;
   protocolVersion?: string;
+  client?: { id: string; appVersion: string };
   ssh?: WorkspaceServerSshPort;
   openTransport?: (target: WorkspaceServerTarget) => Promise<WireTransport>;
 };
@@ -222,7 +223,8 @@ async function createWorkspaceServerConnection(
       const candidate = await openTransport(target);
       const nextHandshake = await initializeWorkspaceServerTransport(
         candidate,
-        options.protocolVersion
+        options.protocolVersion,
+        options.client
       );
       handshake = nextHandshake;
       return candidate;
@@ -297,7 +299,11 @@ async function dialOnce(
         const candidate = await waitWithSignal(openPromise, timeoutSignal);
         transport = candidate;
         return await waitWithSignal(
-          initializeWorkspaceServerTransport(candidate, managerOptions.protocolVersion),
+          initializeWorkspaceServerTransport(
+            candidate,
+            managerOptions.protocolVersion,
+            managerOptions.client
+          ),
           timeoutSignal
         );
       },

@@ -1,19 +1,11 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
-  createLiveJobReplica,
-  LiveJobFailedError,
   LiveState,
   type Contract,
   type ContractImpl,
-  type JobError,
-  type JobInput,
-  type JobProgress,
-  type JobResult,
   type LiveModelProvider,
-  type LiveJobClientHandle,
   type LiveJobContext,
-  type LiveJobEndpointDef,
   type LiveSource,
 } from '@emdash/wire';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -32,7 +24,6 @@ import {
 import {
   isWorkspacesRuntimeResolveError,
   throwWorkspacesRuntimeResolveError,
-  workspaceRuntimeContract as workspaceContract,
   type WorkspacesHostRuntimesClient,
   type WorkspacesIdentityResolver,
   type WorkspacesRuntimeBroker,
@@ -117,81 +108,6 @@ export function createWorkspacesWireController(
         run: (input, ctx) => runProvisionCloneJob(options, input, ctx),
         toError: unknownToWorkspaceError,
       },
-      activate: job<typeof workspacesWireContract.activate>((input, ctx) =>
-        runWorkspaceRuntimeJob<
-          typeof workspacesWireContract.activate,
-          typeof workspaceContract.activate,
-          typeof input
-        >(
-          options,
-          workspaceContract.activate,
-          input,
-          ctx,
-          (client) => client.workspace.activate,
-          (mapped) => ({
-            workspace: mapped.workspace,
-            consumerId: input.consumerId,
-          })
-        )
-      ),
-      deactivate: job<typeof workspacesWireContract.deactivate>((input, ctx) =>
-        runWorkspaceRuntimeJob<
-          typeof workspacesWireContract.deactivate,
-          typeof workspaceContract.deactivate,
-          typeof input
-        >(
-          options,
-          workspaceContract.deactivate,
-          input,
-          ctx,
-          (client) => client.workspace.deactivate,
-          (mapped) => ({
-            workspace: mapped.workspace,
-            consumerId: input.consumerId,
-            strategy: input.strategy,
-          })
-        )
-      ),
-      teardown: job<typeof workspacesWireContract.teardown>((input, ctx) =>
-        runWorkspaceRuntimeJob<
-          typeof workspacesWireContract.teardown,
-          typeof workspaceContract.teardown,
-          typeof input
-        >(
-          options,
-          workspaceContract.teardown,
-          input,
-          ctx,
-          (client) => client.workspace.teardown,
-          (mapped) => ({
-            workspace: mapped.workspace,
-            force: input.force,
-          })
-        )
-      ),
-      cleanArtifacts: job<typeof workspacesWireContract.cleanArtifacts>((input, ctx) =>
-        runWorkspaceRuntimeJob<
-          typeof workspacesWireContract.cleanArtifacts,
-          typeof workspaceContract.cleanArtifacts,
-          typeof input
-        >(
-          options,
-          workspaceContract.cleanArtifacts,
-          input,
-          ctx,
-          (client) => client.workspace.cleanArtifacts,
-          async (mapped) => {
-            const repository = await requireWorkspaceIdentity(
-              options.workspaceIdentity.resolveProject(mapped.identity.projectId)
-            );
-            return {
-              workspace: mapped.workspace,
-              repoPath: workspaceRef(repository),
-              preservePatterns: input.preservePatterns,
-            };
-          }
-        )
-      ),
       reconcile: async (input, meta) =>
         withWorkspaceRuntime(options, input.workspaceId, async (client, identity) =>
           mapWorkspaceResult(
@@ -242,70 +158,6 @@ function createWorkspaceRuntimeProvider(
       throw new Error('Workspace runtime model has no mutations');
     },
   };
-}
-
-function job<Def extends LiveJobEndpointDef>(
-  run: (
-    input: JobInput<Def>,
-    context: LiveJobContext<JobProgress<Def>>
-  ) => Promise<Result<JobResult<Def>, JobError<Def>>>
-): { run: typeof run } {
-  return { run };
-}
-
-async function runWorkspaceRuntimeJob<
-  TargetDef extends LiveJobEndpointDef,
-  SourceDef extends LiveJobEndpointDef,
-  Input extends { workspaceId: string },
->(
-  options: CreateWorkspacesWireControllerOptions,
-  sourceDefinition: SourceDef,
-  input: Input,
-  context: LiveJobContext<JobProgress<TargetDef>>,
-  handle: (client: WorkspacesHostRuntimesClient) => LiveJobClientHandle<SourceDef>,
-  mapInput: (mapped: {
-    identity: Awaited<ReturnType<WorkspacesIdentityResolver['resolve']>> & {};
-    workspace: ReturnType<typeof hostFileRefFromNativePath>;
-  }) => JobInput<SourceDef> | Promise<JobInput<SourceDef>>
-): Promise<Result<JobResult<TargetDef>, JobError<TargetDef>>> {
-  const result = await withWorkspaceRuntime(
-    options,
-    input.workspaceId,
-    async (client, identity) => {
-      const jobs = createLiveJobReplica(sourceDefinition, handle(client));
-      const lease = await jobs.start(
-        await mapInput({ identity, workspace: workspaceRef(identity) })
-      );
-      try {
-        const job = await lease.ready();
-        const unsubscribe = job.onProgress((progress) =>
-          context.progress(progress as unknown as JobProgress<TargetDef>)
-        );
-        const cancel = () => void job.cancel();
-        context.signal.addEventListener('abort', cancel, { once: true });
-        if (context.signal.aborted) cancel();
-        try {
-          const result = (await job.result) as JobResult<SourceDef> & {
-            workspace?: unknown;
-          };
-          const { workspace: _, ...rest } = result;
-          return ok({ ...rest, workspaceId: input.workspaceId } as JobResult<TargetDef>);
-        } catch (error) {
-          if (error instanceof LiveJobFailedError) {
-            return err(error.error as JobError<TargetDef>);
-          }
-          throw error;
-        } finally {
-          context.signal.removeEventListener('abort', cancel);
-          unsubscribe();
-        }
-      } finally {
-        await lease.release();
-        await jobs.dispose();
-      }
-    }
-  );
-  return result as Result<JobResult<TargetDef>, JobError<TargetDef>>;
 }
 
 async function withWorkspaceRuntime<T, E>(

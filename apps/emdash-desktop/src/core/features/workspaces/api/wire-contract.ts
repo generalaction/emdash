@@ -144,30 +144,6 @@ export const workspacesWireContract = defineContract({
     result: workspaceCloneProvisionResultSchema,
     error: workspaceSliceErrorSchema,
   }),
-  activate: liveJob({
-    input: activateWorkspaceByIdInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceRuntimeOperationResultSchema,
-    error: workspaceSliceErrorSchema,
-  }),
-  deactivate: liveJob({
-    input: deactivateWorkspaceByIdInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceRuntimeOperationResultSchema,
-    error: workspaceSliceErrorSchema,
-  }),
-  teardown: liveJob({
-    input: teardownWorkspaceByIdInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceRuntimeOperationResultSchema,
-    error: workspaceSliceErrorSchema,
-  }),
-  cleanArtifacts: liveJob({
-    input: cleanWorkspaceArtifactsByIdInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceRuntimeCleanResultSchema,
-    error: workspaceSliceErrorSchema,
-  }),
   reconcile: fallible({
     input: workspaceIdInputSchema,
     data: workspaceRuntimeOperationResultSchema,

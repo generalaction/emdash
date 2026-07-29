@@ -6,7 +6,6 @@ import {
   defineSelection,
   ListView,
 } from '@emdash/ui/react/patterns';
-import { createLiveJobReplica } from '@emdash/wire';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   FilterIcon,
@@ -22,8 +21,6 @@ import { makeAutoObservable, observable } from 'mobx';
 import type { ObservableMap } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
-import { workspacesWireContract } from '@core/features/workspaces/api/wire-contract';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
@@ -48,6 +45,7 @@ import type {
 import {
   deleteMachineProjectWorkspaces,
   useLocalWorkspaces,
+  useMachineOperationLog,
   useMachineWorkspaces,
   type MachineProjectWorkspaces,
 } from '../use-machine-workspaces';
@@ -155,6 +153,7 @@ export const MachineWorkspacesList = observer(function MachineWorkspacesList(
     [items]
   );
   const statuses = useWorkspaceRuntimeStatuses(statusInputs);
+  const hostOperations = useMachineOperationLog(machineId);
   const store = useMemo(() => new MachineWorkspacesListStore(), []);
   const view = useMemo(() => createMachineWorkspacesListView(store, statuses), [statuses, store]);
 
@@ -177,7 +176,14 @@ export const MachineWorkspacesList = observer(function MachineWorkspacesList(
               virtualization={{ estimateSize: 48, estimateHeaderSize: 48, overscan: 8 }}
               emptySlot={<WorkspacesEmptyState />}
               renderSection={() => <ProjectSectionHeader view={view} />}
-              renderItem={(item) => <WorkspaceRow view={view} item={item} statuses={statuses} />}
+              renderItem={(item) => (
+                <WorkspaceRow
+                  view={view}
+                  item={item}
+                  statuses={statuses}
+                  hostOperations={hostOperations}
+                />
+              )}
             />
           )}
         </ListView.Body>
@@ -314,15 +320,18 @@ const WorkspaceRow = observer(function WorkspaceRow({
   view,
   item,
   statuses,
+  hostOperations,
 }: {
   view: MachineWorkspacesListView;
   item: MachineWorkspaceItem;
   statuses: ObservableMap<string, WorkspaceRuntimeStatus>;
+  hostOperations: Map<string, string>;
 }) {
   const selection = view.useSelection();
   const id = getItemId(item);
   const selected = selection.isSelected(id);
   const status = workspaceStatus(item.row, statuses);
+  const hostOperation = hostOperations.get(item.row.path);
 
   return (
     <ListView.Row
@@ -349,6 +358,9 @@ const WorkspaceRow = observer(function WorkspaceRow({
         <div className="min-w-0 flex-1">
           <div className="truncate text-foreground">{workspaceLabel(item.row)}</div>
           <div className="truncate text-xs text-foreground-passive">{item.row.path}</div>
+          {hostOperation ? (
+            <div className="truncate text-xs text-foreground-passive">{hostOperation}</div>
+          ) : null}
         </div>
         <TasksPill count={item.row.tasks.length} />
         <StatusPill status={status} />
@@ -591,62 +603,36 @@ function setIdsSelected(
 async function cleanWorkspaceArtifacts(
   items: MachineWorkspaceItem[]
 ): Promise<ProjectWorkspaceActionSummary> {
-  const client = await getWorkspacesWireClient();
-  const jobs = createLiveJobReplica(workspacesWireContract.cleanArtifacts, client.cleanArtifacts);
-  const results: ProjectWorkspaceActionResult[] = [];
-  try {
-    for (const item of items) {
-      if (!item.row.workspaceId) continue;
-      let lease: Awaited<ReturnType<typeof jobs.start>> | null = null;
-      try {
-        lease = await jobs.start({ workspaceId: item.row.workspaceId, preservePatterns: [] });
-        const job = await lease.ready();
-        const result = await job.result;
-        results.push({
-          path: item.row.path,
-          workspaceId: item.row.workspaceId,
-          success: true,
-          reclaimedBytes: result.reclaimedBytes,
-        });
-      } catch (error) {
-        results.push(actionFailure(item.row, 'clean-failed', error));
-      } finally {
-        await lease?.release();
-      }
-    }
-  } finally {
-    await jobs.dispose();
-  }
+  const results: ProjectWorkspaceActionResult[] = items.map((item) => ({
+    path: item.row.path,
+    workspaceId: item.row.workspaceId ?? undefined,
+    success: false,
+    reason: 'clean-failed',
+    message: 'Artifact cleanup is only available through durable workspace cleanup operations.',
+  }));
   return summarizeResults(results);
 }
 
 async function teardownWorkspaces(
   items: MachineWorkspaceItem[]
 ): Promise<ProjectWorkspaceActionSummary> {
-  const client = await getWorkspacesWireClient();
-  const jobs = createLiveJobReplica(workspacesWireContract.teardown, client.teardown);
   const results: ProjectWorkspaceActionResult[] = [];
-  try {
-    for (const item of items) {
-      if (!item.row.workspaceId) continue;
-      let lease: Awaited<ReturnType<typeof jobs.start>> | null = null;
-      try {
-        lease = await jobs.start({ workspaceId: item.row.workspaceId, force: false });
-        const job = await lease.ready();
-        await job.result;
-        results.push({
-          path: item.row.path,
-          workspaceId: item.row.workspaceId,
-          success: true,
-        });
-      } catch (error) {
-        results.push(actionFailure(item.row, 'clean-failed', error));
-      } finally {
-        await lease?.release();
-      }
+  const byProject = new Map<string, MachineWorkspaceItem[]>();
+  for (const item of items) {
+    const existing = byProject.get(item.projectId) ?? [];
+    existing.push(item);
+    byProject.set(item.projectId, existing);
+  }
+  for (const [projectId, projectItems] of byProject) {
+    try {
+      const summary = await deleteMachineProjectWorkspaces({
+        projectId,
+        paths: projectItems.map((item) => item.row.path),
+      });
+      results.push(...summary.results);
+    } catch (error) {
+      results.push(...projectItems.map((item) => actionFailure(item.row, 'clean-failed', error)));
     }
-  } finally {
-    await jobs.dispose();
   }
   return summarizeResults(results);
 }

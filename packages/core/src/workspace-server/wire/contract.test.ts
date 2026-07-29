@@ -34,9 +34,9 @@ describe('workspaceWireContract', () => {
   it('mounts the workspace runtime under the workspace domain', () => {
     expect(workspaceWireContract.workspace.workspace.kind).toBe('liveModel');
     expect(workspaceWireContract.workspace.workspace.id).toBe('workspace.workspace');
-    expect(workspaceWireContract.workspace.activate.kind).toBe('liveJob');
-    expect(workspaceWireContract.workspace.deactivate.kind).toBe('liveJob');
-    expect(workspaceWireContract.workspace.teardown.kind).toBe('liveJob');
+    expect(workspaceWireContract.workspace.submitOperation.kind).toBe('procedure');
+    expect(workspaceWireContract.workspace.cancelOperation.kind).toBe('procedure');
+    expect(workspaceWireContract.workspace.operationLog.kind).toBe('liveModel');
   });
 
   it('mounts port forwards under the portForwards domain', () => {

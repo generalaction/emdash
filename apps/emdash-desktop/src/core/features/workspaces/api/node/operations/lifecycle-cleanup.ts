@@ -1,6 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -8,13 +7,12 @@ import {
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { LifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
+import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { checkoutSelector } from '@core/services/runtime-broker/node/git';
-import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
-import { runInWorkspaceOperationLane } from '@core/services/runtime-clients/node/workspace-operation-lanes';
 
 export type LifecycleCleanupDependencies = {
   projects: Pick<ProjectSessionManager, 'getProject'>;
@@ -44,24 +42,30 @@ export async function deactivateLifecycleWorkspace(
       : [operation.taskId ?? operation.id];
   const resolvedConsumerIds = consumerIds.length > 0 ? consumerIds : [operation.id];
 
-  await runInWorkspaceOperationLane(
-    workspace,
-    options.signal ?? new AbortController().signal,
-    async () => {
-      for (const consumerId of resolvedConsumerIds) {
-        const result = await runRuntimeLiveJob(workspaceContract.deactivate, client.deactivate, {
-          workspace,
-          consumerId,
-          strategy: 'stop',
-          automation: context.automation,
-        });
-        if (!result.success && !isMissingError(result.error)) {
-          throw new Error(result.error.message);
-        }
-      }
-    },
-    { onWaitingChange: options.onWaitingChange }
-  );
+  for (const consumerId of resolvedConsumerIds) {
+    const result = await submitAndFollowWorkspaceOperation(
+      client,
+      {
+        requestId: `${operation.id}:deactivate:${consumerId}`,
+        kind: 'deactivate',
+        workspace,
+        initiatedBy: operation.initiatedBy ? { clientId: operation.initiatedBy } : undefined,
+        params: {
+          kind: 'deactivate',
+          input: {
+            workspace,
+            consumerId,
+            strategy: 'stop',
+            automation: context.automation,
+          },
+        },
+      },
+      { signal: options.signal, onWaitingChange: options.onWaitingChange }
+    );
+    if (!result.success && !isMissingError(result.error)) {
+      throw new Error(result.error.message);
+    }
+  }
 }
 
 export async function cleanLifecycleWorkspaceArtifacts(
@@ -75,25 +79,27 @@ export async function cleanLifecycleWorkspaceArtifacts(
   const projectPath = context.projectPath;
   const workspace = hostFileRefFromNativePath(context.workspacePath, hostId);
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
-  await runInWorkspaceOperationLane(
-    workspace,
-    options.signal ?? new AbortController().signal,
-    async () => {
-      const result = await runRuntimeLiveJob(
-        workspaceContract.cleanArtifacts,
-        client.cleanArtifacts,
-        {
+  const result = await submitAndFollowWorkspaceOperation(
+    client,
+    {
+      requestId: `${operation.id}:clean-artifacts`,
+      kind: 'clean-artifacts',
+      workspace,
+      initiatedBy: operation.initiatedBy ? { clientId: operation.initiatedBy } : undefined,
+      params: {
+        kind: 'clean-artifacts',
+        input: {
           workspace,
           repoPath: hostFileRefFromNativePath(projectPath, hostId),
           preservePatterns: context.preservePatterns,
-        }
-      );
-      if (!result.success && !isMissingError(result.error)) {
-        throw new Error(result.error.message);
-      }
+        },
+      },
     },
-    { onWaitingChange: options.onWaitingChange }
+    { signal: options.signal, onWaitingChange: options.onWaitingChange }
   );
+  if (!result.success && !isMissingError(result.error)) {
+    throw new Error(result.error.message);
+  }
 }
 
 export async function teardownLifecycleWorkspace(
@@ -138,16 +144,25 @@ export async function teardownLifecycleWorkspace(
   );
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
   const force = operation.payload.confirmedAt !== undefined;
-  const result = await runRuntimeLiveJob(workspaceContract.teardown, client.teardown, {
+  const result = await submitAndFollowWorkspaceOperation(client, {
+    requestId: `${operation.id}:teardown`,
+    kind: 'teardown',
     workspace,
-    force,
-    lifecycle: {
-      ref: lifecycleRef,
-      context: {
-        repoPath: context.projectPath,
-        preservePatterns: context.preservePatterns,
+    initiatedBy: operation.initiatedBy ? { clientId: operation.initiatedBy } : undefined,
+    params: {
+      kind: 'teardown',
+      input: {
+        workspace,
+        force,
+        lifecycle: {
+          ref: lifecycleRef,
+          context: {
+            repoPath: context.projectPath,
+            preservePatterns: context.preservePatterns,
+          },
+          deleteBranch: operation.payload.deleteBranch !== false,
+        },
       },
-      deleteBranch: operation.payload.deleteBranch !== false,
     },
   });
   if (!result.success && !isMissingError(result.error)) {

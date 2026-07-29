@@ -110,6 +110,7 @@ import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-servi
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { setOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
+import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
 import { createCleanupSessionsOperationDefinition } from '@main/core/runtime/operations/cleanup-sessions-definition';
 import {
@@ -555,10 +556,12 @@ export async function bootServices(
     lifecycleContext,
     sessions: lifecycleSessions,
   };
+  const desktopClientId = await getDesktopClientId();
   const operations = await createOperationsEngine({
     scope: appScope,
     db,
     sshManager: infrastructure.ssh.manager,
+    initiatedBy: desktopClientId,
     notifications: {
       publishPendingCleanup({ operationId, payload, hostRef, reason }) {
         notificationService.publish({

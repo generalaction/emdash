@@ -1,25 +1,16 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { ok } from '@emdash/shared';
-import type * as WireModule from '@emdash/wire';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskProvider } from '@core/features/projects/api/node/project-provider';
 import { executeTeardown } from '@core/features/tasks/api/node/task-session-manager';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 
-const deactivateStart = vi.hoisted(() => vi.fn());
-const teardownStart = vi.hoisted(() => vi.fn());
-const jobRelease = vi.hoisted(() => vi.fn());
-const jobDispose = vi.hoisted(() => vi.fn());
+const submitAndFollow = vi.hoisted(() => vi.fn());
 const deactivateParticipants = vi.hoisted(() => vi.fn());
 
-vi.mock('@emdash/wire', async (importOriginal) => {
-  const actual = await importOriginal<typeof WireModule>();
+vi.mock('@core/features/workspaces/api/node/workspace-operation-log', () => {
   return {
-    ...actual,
-    createLiveJobReplica: (definition: { id: string }) => ({
-      start: definition.id.includes('teardown') ? teardownStart : deactivateStart,
-      dispose: jobDispose,
-    }),
+    submitAndFollowWorkspaceOperation: submitAndFollow,
   };
 });
 
@@ -70,12 +61,7 @@ function makeTask() {
 describe('executeTeardown', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    const jobLease = {
-      ready: async () => ({ result: Promise.resolve() }),
-      release: jobRelease,
-    };
-    deactivateStart.mockResolvedValue(jobLease);
-    teardownStart.mockResolvedValue(jobLease);
+    submitAndFollow.mockResolvedValue(ok(undefined));
   });
 
   it('maps detach to runtime deactivation without teardown', async () => {
@@ -84,13 +70,23 @@ describe('executeTeardown', () => {
 
     expect(conversations.detachAll).toHaveBeenCalledOnce();
     expect(conversations.destroyAll).not.toHaveBeenCalled();
-    expect(deactivateStart).toHaveBeenCalledWith({
-      workspace: hostFileRefFromNativePath('/repo/task'),
-      consumerId: 'task-1',
-      strategy: 'detach',
-      automation: undefined,
-    });
-    expect(teardownStart).not.toHaveBeenCalled();
+    expect(submitAndFollow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: 'deactivate',
+        workspace: hostFileRefFromNativePath('/repo/task'),
+        params: {
+          kind: 'deactivate',
+          input: {
+            workspace: hostFileRefFromNativePath('/repo/task'),
+            consumerId: 'task-1',
+            strategy: 'detach',
+            automation: undefined,
+          },
+        },
+      })
+    );
+    expect(submitAndFollow).toHaveBeenCalledTimes(1);
   });
 
   it('maps terminate to deactivation followed by runtime teardown', async () => {
@@ -104,17 +100,39 @@ describe('executeTeardown', () => {
     await executeTeardown(dependencies, task, 'workspace-1', 'terminate', undefined, automation);
 
     expect(conversations.destroyAll).toHaveBeenCalledOnce();
-    expect(deactivateStart).toHaveBeenCalledWith({
-      workspace: hostFileRefFromNativePath('/repo/task'),
-      consumerId: 'task-1',
-      strategy: 'stop',
-      automation,
-    });
-    expect(teardownStart).toHaveBeenCalledWith({
-      workspace: hostFileRefFromNativePath('/repo/task'),
-      force: false,
-      automation,
-    });
+    expect(submitAndFollow).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({
+        kind: 'deactivate',
+        workspace: hostFileRefFromNativePath('/repo/task'),
+        params: {
+          kind: 'deactivate',
+          input: {
+            workspace: hostFileRefFromNativePath('/repo/task'),
+            consumerId: 'task-1',
+            strategy: 'stop',
+            automation,
+          },
+        },
+      })
+    );
+    expect(submitAndFollow).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        kind: 'teardown',
+        workspace: hostFileRefFromNativePath('/repo/task'),
+        params: {
+          kind: 'teardown',
+          input: {
+            workspace: hostFileRefFromNativePath('/repo/task'),
+            force: false,
+            automation,
+          },
+        },
+      })
+    );
     expect(deactivateParticipants).toHaveBeenCalledOnce();
   });
 
@@ -123,7 +141,15 @@ describe('executeTeardown', () => {
     await executeTeardown(dependencies, task, 'workspace-1', 'archive');
 
     expect(conversations.destroyAll).toHaveBeenCalledOnce();
-    expect(deactivateStart).toHaveBeenCalledWith(expect.objectContaining({ strategy: 'stop' }));
-    expect(teardownStart).not.toHaveBeenCalled();
+    expect(submitAndFollow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: 'deactivate',
+        params: expect.objectContaining({
+          input: expect.objectContaining({ strategy: 'stop' }),
+        }),
+      })
+    );
+    expect(submitAndFollow).toHaveBeenCalledTimes(1);
   });
 });

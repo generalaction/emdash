@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { ok } from '@emdash/shared';
-import type * as WireModule from '@emdash/wire';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,17 +15,12 @@ const mocks = vi.hoisted(() => ({
   buildTaskFromWorkspace: vi.fn(),
   emitTaskProvisionProgress: vi.fn(),
   resolveWorktreePool: vi.fn(),
-  startWorkspaceJob: vi.fn(),
+  submitAndFollow: vi.fn(),
 }));
 
-vi.mock('@emdash/wire', async (importOriginal) => {
-  const actual = await importOriginal<typeof WireModule>();
+vi.mock('@core/features/workspaces/api/node/workspace-operation-log', () => {
   return {
-    ...actual,
-    createLiveJobReplica: () => ({
-      start: mocks.startWorkspaceJob,
-      dispose: vi.fn(async () => {}),
-    }),
+    submitAndFollowWorkspaceOperation: mocks.submitAndFollow,
   };
 });
 
@@ -79,13 +73,9 @@ describe('WorkspaceBootstrapService', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mocks.resolveWorktreePool.mockResolvedValue(ok('/worktrees'));
-    mocks.startWorkspaceJob.mockImplementation(async (input) => ({
-      ready: vi.fn(async () => ({
-        result: Promise.resolve({ path: input.lifecycle?.ref.path }),
-        onProgress: vi.fn(() => () => {}),
-      })),
-      release: vi.fn(async () => {}),
-    }));
+    mocks.submitAndFollow.mockImplementation(async (_client, request) =>
+      ok({ path: request.params.input.lifecycle?.ref.path })
+    );
 
     fixture = await openFixture('empty');
     svc = new WorkspaceBootstrapService({
@@ -375,14 +365,20 @@ describe('WorkspaceBootstrapService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
-      expect(mocks.startWorkspaceJob).toHaveBeenCalledWith(
+      expect(mocks.submitAndFollow).toHaveBeenCalledWith(
+        expect.anything(),
         expect.objectContaining({
-          lifecycle: expect.objectContaining({
-            context: expect.objectContaining({
-              worktreePoolPath: '/worktrees',
+          params: expect.objectContaining({
+            input: expect.objectContaining({
+              lifecycle: expect.objectContaining({
+                context: expect.objectContaining({
+                  worktreePoolPath: '/worktrees',
+                }),
+              }),
             }),
           }),
-        })
+        }),
+        expect.anything()
       );
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 
@@ -436,8 +432,14 @@ describe('WorkspaceBootstrapService', () => {
       if (!result.success) throw new Error('expected success');
       expect(result.data.path).toBe('/worktrees/task-branch');
       expect(exists).toHaveBeenCalled();
-      expect(mocks.startWorkspaceJob).toHaveBeenCalledWith(
-        expect.objectContaining({ lifecycle: expect.any(Object) })
+      expect(mocks.submitAndFollow).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          params: expect.objectContaining({
+            input: expect.objectContaining({ lifecycle: expect.any(Object) }),
+          }),
+        }),
+        expect.anything()
       );
       expect(mocks.acquireWorkspace).toHaveBeenCalled();
 

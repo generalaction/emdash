@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { clientHelloSchema } from '../versions/schemas';
 
-export const wireInitializeInputSchema = z.object({
-  protocolVersion: z.string(),
-});
+export const wireInitializeInputSchema = clientHelloSchema;
 
 export const wireServerInfoSchema = z.object({
   appVersion: z.string(),

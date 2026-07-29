@@ -60,7 +60,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '5.1.0';
+export const PROTOCOL_VERSION = '7.0.0';
 ```
 
 ### What each component means
@@ -126,6 +126,10 @@ version and stops the reconnect loop; ordinary I/O failures remain retryable.
 ```ts
 {
   protocolVersion: string;  // the client's PROTOCOL_VERSION
+  client: {
+    id: string;             // stable client identity for operation attribution
+    appVersion: string;
+  };
 }
 ```
 
@@ -165,7 +169,7 @@ When majors differ, the fallible `initialize` procedure returns a typed error:
 sequenceDiagram
   participant C as Client
   participant S as WorkspaceServer
-  C->>S: initialize { protocolVersion }
+  C->>S: initialize { protocolVersion, client }
   S->>S: negotiateProtocol(clientVersion, PROTOCOL_VERSION)
   alt same major
     S-->>C: ok { agreedVersion, agreedMinor, server }

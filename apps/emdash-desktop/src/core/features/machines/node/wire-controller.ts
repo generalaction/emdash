@@ -13,6 +13,7 @@ import {
   type HostRuntimesClient,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
+import type { LiveModelProvider } from '@emdash/wire';
 import { createController, type Controller } from '@emdash/wire/api';
 import type { MachinesService } from '@core/features/machines/api/node/machines-service';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
@@ -34,8 +35,21 @@ export function createMachinesWireController(
   service: MachinesService,
   runtimes: RuntimeBroker
 ): Controller {
+  const operationLogProvider: LiveModelProvider<typeof machinesContract.operationLog> = {
+    kind: 'liveModelProvider',
+    contract: machinesContract.operationLog,
+    resolveState: async (key, name) => {
+      const runtime = await resolveMachineRuntime(runtimes, key.machineId);
+      return runtime.workspace.operationLog.state({}, name).asLiveSource();
+    },
+    async runMutation() {
+      throw new Error('Machine operation log has no mutations');
+    },
+  };
+
   return createController(machinesContract, {
     getMachines: () => service.getMachines(),
+    operationLog: operationLogProvider,
     getMachineUsage: () => service.getMachineUsage(),
     getMachineMetrics: async ({ machineId }) => {
       const runtime = await resolveMachineRuntime(runtimes, machineId);

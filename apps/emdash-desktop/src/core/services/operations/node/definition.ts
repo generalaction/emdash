@@ -61,6 +61,7 @@ export type OperationDraft = Pick<
   | 'workspaceId'
   | 'entityKey'
   | 'parentOperationId'
+  | 'initiatedBy'
   | 'hostRef'
   | 'payload'
   | 'createdAt'
@@ -73,7 +74,14 @@ export type OperationDraftInput = Pick<
   Partial<
     Pick<
       OperationDraft,
-      'id' | 'status' | 'projectId' | 'taskId' | 'workspaceId' | 'parentOperationId' | 'createdAt'
+      | 'id'
+      | 'status'
+      | 'projectId'
+      | 'taskId'
+      | 'workspaceId'
+      | 'parentOperationId'
+      | 'initiatedBy'
+      | 'createdAt'
     >
   >;
 

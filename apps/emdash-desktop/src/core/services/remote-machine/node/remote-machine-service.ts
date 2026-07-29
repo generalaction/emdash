@@ -32,6 +32,7 @@ export type CreateRemoteMachineServiceDeps = {
   installBaseUrl?: string;
   installCommand?: string;
   devAutoUpdate?: boolean;
+  client?: { id: string; appVersion: string };
   logger?: RemoteMachineServiceLog;
 };
 
@@ -59,7 +60,7 @@ export function createRemoteMachineService(
   const stateModel = scope.use(new RemoteMachineStateModel());
   const ssh = createWorkspaceServerSshPort(deps.ssh);
   const host = new RemoteHostProbe(ssh);
-  const wire = createWireConnectionManager({ scope, ssh });
+  const wire = createWireConnectionManager({ scope, ssh, client: deps.client });
   const installer = new WorkspaceServerInstaller(ssh, deps.installBaseUrl, deps.installCommand);
   const daemon = new RemoteWorkspaceServerDaemon(ssh);
   const provisioner = new WorkspaceServerProvisioner({

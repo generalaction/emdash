@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { ROOT_RELATIVE_PATH, type HostFileRef } from '@emdash/core/primitives/path/api';
@@ -5,7 +6,6 @@ import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import {
   compileBootstrapPlan,
   normalizeLegacyWorkspaceAutomation,
-  workspaceContract,
   type ActivateWorkspaceInput,
   type BootstrapGitIntent,
   type BootstrapRepositoryInitialize,
@@ -17,7 +17,6 @@ import {
 } from '@emdash/core/runtimes/workspace/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
@@ -50,6 +49,7 @@ import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
+import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import {
   activateWorkspaceParticipants,
   deactivateWorkspaceParticipants,
@@ -68,7 +68,6 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
-import { runInWorkspaceOperationLane } from '@core/services/runtime-clients/node/workspace-operation-lanes';
 import { provisionBYOITask } from '../../node/byoi/provision-byoi-task';
 
 export type WorkspaceBootstrapResult = {
@@ -736,22 +735,17 @@ async function runWorkspaceProvisionJob(
   project: ProjectProvider,
   input: ProvisionWorkspaceInput
 ): Promise<Result<WorkspaceOperationResult, WorkspaceError>> {
-  const jobs = createLiveJobReplica(workspaceContract.provision, project.workspace.provision);
-  const lease = await jobs.start(input);
-  const job = await lease.ready();
-  const unsubscribe = job.onProgress((progress) =>
-    emitRuntimeProgress(task.id, project.projectId, progress)
+  const result = await submitAndFollowWorkspaceOperation(
+    project.workspace,
+    {
+      requestId: randomUUID(),
+      kind: 'provision',
+      workspace: input.workspace,
+      params: { kind: 'provision', input },
+    },
+    { onProgress: (progress) => emitRuntimeProgress(task.id, project.projectId, progress) }
   );
-
-  try {
-    return ok(await job.result);
-  } catch (error) {
-    return err(liveJobErrorToWorkspaceError(error));
-  } finally {
-    unsubscribe();
-    await lease.release();
-    await jobs.dispose();
-  }
+  return result.success ? ok(result.data as WorkspaceOperationResult) : err(result.error);
 }
 
 export async function runCloneRepositoryProvision(
@@ -773,8 +767,7 @@ export async function runCloneRepositoryProvision(
     }
   );
   const workspaceRuntimeClient = await getWorkspaceRuntimeClient();
-  const jobs = createLiveJobReplica(workspaceContract.provision, workspaceRuntimeClient.provision);
-  const lease = await jobs.start({
+  const provisionInput: ProvisionWorkspaceInput = {
     workspace: hostFileRefFromNativePath(compiled.workspacePath),
     lifecycle: {
       ref: { kind: 'directory', path: compiled.workspacePath },
@@ -784,25 +777,24 @@ export async function runCloneRepositoryProvision(
       },
       setupPlan: compiled.plan,
     },
-  });
-  const job = await lease.ready();
-  const unsubscribe = job.onProgress((progress) =>
-    input.onProgress?.(workspaceRuntimeProgressToBootstrapProgress(progress))
+  };
+  const result = await submitAndFollowWorkspaceOperation(
+    workspaceRuntimeClient,
+    {
+      requestId: randomUUID(),
+      kind: 'provision',
+      workspace: provisionInput.workspace,
+      params: { kind: 'provision', input: provisionInput },
+    },
+    {
+      signal: input.signal,
+      onProgress: (progress) =>
+        input.onProgress?.(workspaceRuntimeProgressToBootstrapProgress(progress)),
+    }
   );
-  const cancelRuntimeJob = () => void job.cancel();
-  input.signal?.addEventListener('abort', cancelRuntimeJob, { once: true });
-
-  try {
-    const result = await job.result;
-    return ok({ path: result.path ?? compiled.workspacePath });
-  } catch (error) {
-    return err(liveJobErrorToWorkspaceError(error));
-  } finally {
-    input.signal?.removeEventListener('abort', cancelRuntimeJob);
-    unsubscribe();
-    await lease.release();
-    await jobs.dispose();
-  }
+  return result.success
+    ? ok({ path: (result.data as WorkspaceOperationResult).path ?? compiled.workspacePath })
+    : err(result.error);
 }
 
 async function runWorkspaceActivateJob(
@@ -810,27 +802,15 @@ async function runWorkspaceActivateJob(
   project: ProjectProvider,
   input: ActivateWorkspaceInput
 ): Promise<Result<unknown, WorkspaceError>> {
-  return await runInWorkspaceOperationLane(
-    input.workspace,
-    new AbortController().signal,
-    async () => {
-      const jobs = createLiveJobReplica(workspaceContract.activate, project.workspace.activate);
-      const lease = await jobs.start(input);
-      const job = await lease.ready();
-      const unsubscribe = job.onProgress((progress) =>
-        emitRuntimeProgress(task.id, project.projectId, progress)
-      );
-
-      try {
-        return ok(await job.result);
-      } catch (error) {
-        return err(liveJobErrorToWorkspaceError(error));
-      } finally {
-        unsubscribe();
-        await lease.release();
-        await jobs.dispose();
-      }
-    }
+  return await submitAndFollowWorkspaceOperation(
+    project.workspace,
+    {
+      requestId: randomUUID(),
+      kind: 'activate',
+      workspace: input.workspace,
+      params: { kind: 'activate', input },
+    },
+    { onProgress: (progress) => emitRuntimeProgress(task.id, project.projectId, progress) }
   );
 }
 
@@ -840,21 +820,19 @@ async function runWorkspaceDeactivateJob(
   workspace: ActivateWorkspaceInput['workspace'],
   automation?: ActivateWorkspaceInput['automation']
 ): Promise<void> {
-  await runInWorkspaceOperationLane(workspace, new AbortController().signal, async () => {
-    const jobs = createLiveJobReplica(workspaceContract.deactivate, project.workspace.deactivate);
-    const lease = await jobs.start({
-      workspace,
-      consumerId: task.id,
-      strategy: 'stop',
-      automation,
-    });
-    try {
-      const job = await lease.ready();
-      await job.result;
-    } finally {
-      await lease.release();
-      await jobs.dispose();
-    }
+  await submitAndFollowWorkspaceOperation(project.workspace, {
+    requestId: randomUUID(),
+    kind: 'deactivate',
+    workspace,
+    params: {
+      kind: 'deactivate',
+      input: {
+        workspace,
+        consumerId: task.id,
+        strategy: 'stop',
+        automation,
+      },
+    },
   });
 }
 
@@ -900,27 +878,6 @@ function runtimeOperationToProvisionStep(
     case 'activate':
       return 'initialising-workspace';
   }
-}
-
-function liveJobErrorToWorkspaceError(error: unknown): WorkspaceError {
-  if (error instanceof LiveJobFailedError) {
-    return error.error ?? { type: 'workspace-runtime-failed', message: 'Workspace runtime failed' };
-  }
-  if (error instanceof LiveJobCancelledError) {
-    return { type: 'cancelled', message: 'Workspace runtime job was cancelled' };
-  }
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    typeof (error as { type?: unknown }).type === 'string' &&
-    typeof (error as { message?: unknown }).message === 'string'
-  ) {
-    return error as WorkspaceError;
-  }
-  return {
-    type: 'workspace-runtime-error',
-    message: error instanceof Error ? error.message : String(error),
-  };
 }
 
 function workspaceBootstrapCancelled(error: WorkspaceError): ProvisionWorkspaceError {

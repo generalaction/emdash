@@ -14,6 +14,7 @@ export type CreateOperationsEngineDeps = {
   sshManager: OperationsSshManager;
   notifications: OperationsNotificationPublisher;
   definitions: OperationDefinition[];
+  initiatedBy?: string;
   clock?: Clock;
 };
 

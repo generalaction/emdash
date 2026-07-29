@@ -1,4 +1,12 @@
+import {
+  isTerminalStatus,
+  type WorkspaceOperationRecordMap,
+} from '@emdash/core/runtimes/workspace/api';
+import { createLiveModelReplica } from '@emdash/wire';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { machinesContract } from '@core/features/machines/api';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { Project } from '@core/primitives/projects/api';
 import type {
   GetProjectWorkspaceGitStatsResult,
@@ -106,6 +114,61 @@ export async function deleteMachineProjectWorkspaces({
     projectId,
     paths,
   });
+}
+
+export function useMachineOperationLog(machineId?: string): Map<string, string> {
+  const [records, setRecords] = useState<WorkspaceOperationRecordMap>({});
+
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void (async () => {
+      const client = await getDesktopWireClient();
+      if (disposed) return;
+      const replica = createLiveModelReplica(
+        machinesContract.operationLog,
+        client.machines.operationLog,
+        {
+          onChange: { list: (list: WorkspaceOperationRecordMap) => setRecords(list) },
+        }
+      );
+      const lease = replica.acquire({ machineId });
+      cleanup = () => {
+        void lease.release();
+        void replica.dispose();
+      };
+      const model = await lease.ready();
+      if (disposed) {
+        cleanup();
+        return;
+      }
+      setRecords((await model.states.list.snapshot()).data as WorkspaceOperationRecordMap);
+    })();
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [machineId]);
+
+  return useMemo(() => {
+    const active = new Map<string, string>();
+    for (const record of Object.values(records)) {
+      if (isTerminalStatus(record.status)) continue;
+      active.set(nativePathFromHost(record.workspace.path), hostOperationLabel(record.kind));
+    }
+    return active;
+  }, [records]);
+}
+
+function hostOperationLabel(kind: string): string {
+  switch (kind) {
+    case 'clean-artifacts':
+      return 'Artifact cleanup in progress on this host';
+    case 'teardown':
+      return 'Cleanup in progress on this host';
+    default:
+      return 'Workspace operation in progress on this host';
+  }
 }
 
 async function listProjectWorkspaceGroups(

@@ -23,7 +23,7 @@ describe('serveSocket', () => {
     const handle = await serveTestSocket();
     const connection = await connectToSocket(handle.socketPath);
 
-    const result = await connection.client.initialize({ protocolVersion: PROTOCOL_VERSION });
+    const result = await connection.client.initialize(initializeInput());
 
     expect(result).toMatchObject({
       success: true,
@@ -87,7 +87,7 @@ describe('serveStdio', () => {
     disposers.push(() => transport.close?.());
     const wireClient = createClient(workspaceWireContract, connect(transport));
 
-    const result = await wireClient.initialize({ protocolVersion: PROTOCOL_VERSION });
+    const result = await wireClient.initialize(initializeInput());
 
     expect(result).toMatchObject({
       success: true,
@@ -102,6 +102,13 @@ async function serveTestSocket(): Promise<SocketServeHandle> {
   });
   handles.push(handle);
   return handle;
+}
+
+function initializeInput() {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    client: { id: 'test-client', appVersion: 'test' },
+  };
 }
 
 async function tempSocketPath(): Promise<string> {

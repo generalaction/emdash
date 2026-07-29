@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { app } from 'electron';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { sshConnections } from '@core/services/app-db/node/schema';
@@ -9,6 +10,7 @@ import {
 import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import type { SshService } from '@core/services/ssh/node/ssh-service';
 import { createSshService } from '@main/bootstrap/core/ssh-service-factory';
+import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -30,6 +32,7 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
   });
   void reconnectIntendedSshConnections(database.db, ssh.ssh);
   const remoteMachineSettings = await database.appSettings.get('remoteMachine');
+  const clientId = await getDesktopClientId();
   const remoteMachine = createRemoteMachineService({
     scope: appScope,
     ssh: { manager: ssh.manager, connect: ssh.ssh },
@@ -37,6 +40,7 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     installBaseUrl: remoteMachineSettings.installBaseUrl,
     installCommand: remoteMachineSettings.installCommand ?? undefined,
     devAutoUpdate: process.env['EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE'] === '1',
+    client: { id: clientId, appVersion: app.getVersion() },
     logger: log,
   });
   return { ssh, remoteMachine };

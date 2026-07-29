@@ -240,6 +240,7 @@ function setup(
     await options.disconnectGate?.promise;
   });
   const connections = createLiveModelHost(sshContract.connections);
+  const operationLog = createLiveModelHost(machinesContract.operationLog);
   const instance = connections.create(undefined, { runtime: options.runtime ?? {} });
   const saveMachine = vi.fn(
     async (input: SaveMachineInput): Promise<SshConfig> => ({
@@ -295,6 +296,7 @@ function setup(
   });
   const machinesWire = createTestWire(machinesContract, {
     getMachines: async () => options.saved ?? [],
+    operationLog,
     getMachineUsage: async () => ({}),
     getMachineMetrics: async () => null as never,
     getMachineSystemDependencies: async () => [],

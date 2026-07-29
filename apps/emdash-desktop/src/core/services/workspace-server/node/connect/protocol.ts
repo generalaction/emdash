@@ -17,12 +17,13 @@ export class WorkspaceServerProtocolError extends Error {
 
 export async function initializeWorkspaceServerTransport(
   transport: WireTransport,
-  protocolVersion: string = PROTOCOL_VERSION
+  protocolVersion: string = PROTOCOL_VERSION,
+  client: { id: string; appVersion: string } = { id: 'emdash-desktop', appVersion: '0.0.0' }
 ): Promise<WireInitializeResult> {
   const handshakeConnection = connect(transport);
   const handshakeClient = createClient(workspaceWireContract, handshakeConnection);
   try {
-    const initialized = await handshakeClient.initialize({ protocolVersion });
+    const initialized = await handshakeClient.initialize({ protocolVersion, client });
     if (!initialized.success) throw new WorkspaceServerProtocolError(initialized.error);
     return initialized.data;
   } catch (error) {

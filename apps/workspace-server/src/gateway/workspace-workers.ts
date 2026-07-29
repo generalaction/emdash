@@ -210,9 +210,7 @@ export async function createWorkspaceServerRuntimeHost(
     executable: workspaceWorkerPath('workspace'),
     env,
     dependencies: { terminals, watcher },
-    config: {},
-    // Consumer leases and active operation ownership are currently process-local.
-    // Daemon-level escalation and recovery after workspace-worker death can follow separately.
+    config: { operationRecordsFilePath: paths.workspaceOperationLogFile },
     supervision: { restart: 'never' },
   });
 

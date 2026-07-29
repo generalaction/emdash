@@ -298,8 +298,9 @@ async function startDesktopWorkersWithHost(
           terminals,
           watcher,
         },
-        config: {},
-        // Consumer leases and active operation ownership are currently process-local.
+        config: {
+          operationRecordsFilePath: sessionIntentFilePaths().workspaceOperationLog,
+        },
         supervision: { restart: 'never' },
       });
       return await worker.ready();

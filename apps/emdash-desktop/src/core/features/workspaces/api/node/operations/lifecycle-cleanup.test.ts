@@ -9,14 +9,13 @@ import {
 } from './lifecycle-cleanup';
 
 const mocks = vi.hoisted(() => ({
-  runRuntimeLiveJob: vi.fn(
-    async (_definition: unknown, _handle: unknown, _input: { workspace: { host: HostRef } }) =>
-      ok({})
+  submitAndFollow: vi.fn(async (_client: unknown, _request: { workspace: { host: HostRef } }) =>
+    ok({})
   ),
 }));
 
-vi.mock('@core/services/runtime-clients/node/live-job', () => ({
-  runRuntimeLiveJob: mocks.runRuntimeLiveJob,
+vi.mock('@core/features/workspaces/api/node/workspace-operation-log', () => ({
+  submitAndFollowWorkspaceOperation: mocks.submitAndFollow,
 }));
 
 describe('lifecycle workspace cleanup', () => {
@@ -53,12 +52,15 @@ describe('lifecycle workspace cleanup', () => {
     expect(client).toHaveBeenNthCalledWith(1, remoteHost);
     expect(client).toHaveBeenNthCalledWith(2, remoteHost);
     expect(client).toHaveBeenNthCalledWith(3, remoteHost);
-    expect(mocks.runRuntimeLiveJob.mock.calls.map((call) => call[2].workspace.host)).toEqual([
+    expect(mocks.submitAndFollow.mock.calls.map((call) => call[1].workspace.host)).toEqual([
       remoteHost,
       remoteHost,
       remoteHost,
     ]);
-    expect(mocks.runRuntimeLiveJob.mock.calls[2]?.[2]).toMatchObject({ force: false });
+    expect(mocks.submitAndFollow.mock.calls[2]?.[1]).toMatchObject({
+      kind: 'teardown',
+      params: { input: { force: false } },
+    });
   });
 
   it('forces teardown only after the operation has been confirmed', async () => {
@@ -84,10 +86,14 @@ describe('lifecycle workspace cleanup', () => {
       preservePatterns: [],
     });
 
-    expect(mocks.runRuntimeLiveJob).toHaveBeenLastCalledWith(
+    expect(mocks.submitAndFollow).toHaveBeenLastCalledWith(
       expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ force: true })
+      expect.objectContaining({
+        kind: 'teardown',
+        params: expect.objectContaining({
+          input: expect.objectContaining({ force: true }),
+        }),
+      })
     );
   });
 
@@ -102,7 +108,7 @@ describe('lifecycle workspace cleanup', () => {
       runtimes: { client: vi.fn(async () => ok({ workspace: workspaceClient })) },
       unregisterFileSearchRoot: vi.fn(),
     } as never;
-    mocks.runRuntimeLiveJob.mockResolvedValueOnce(
+    mocks.submitAndFollow.mockResolvedValueOnce(
       err({
         type: 'workspace-busy',
         message: 'Workspace has active consumers or resources',

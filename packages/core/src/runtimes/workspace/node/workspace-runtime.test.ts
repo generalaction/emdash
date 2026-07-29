@@ -14,6 +14,7 @@ import type {
   WorkspaceActivityResource,
   WorkspaceOperationProgress,
 } from '@runtimes/workspace/api';
+import { createMemoryWorkspaceOperationRecordStore } from '@runtimes/workspace/api/operation-records';
 import {
   scriptWorkflowsContract,
   type RunScriptWorkflowInput,
@@ -389,6 +390,175 @@ describe('WorkspaceRuntime', () => {
       await expect(access(path.join(root, 'node_modules', 'pkg', 'index.js'))).rejects.toThrow();
       await expect(access(path.join(root, 'dist', 'bundle.js'))).rejects.toThrow();
       await expect(access(path.join(root, '.env.local'))).resolves.toBeUndefined();
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('persists operation records through start, progress, and terminal success', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 100 });
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 100 });
+
+      const result = await runtime.activate(
+        { workspace, consumerId: 'task-1' },
+        jobContext('activate-record-1')
+      );
+
+      expect(result.success).toBe(true);
+      const record = operationRecords.snapshot().records['activate-record-1'];
+      expect(record).toMatchObject({
+        requestId: 'activate-record-1',
+        kind: 'activate',
+        status: 'succeeded',
+        result: { kind: 'activate' },
+        finishedAt: 100,
+      });
+      expect(record.stages?.kind).toBe('activate');
+      expect(record.stages?.stages.some((stage) => stage.id === 'inspect')).toBe(true);
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('suspends non-resumable records on runtime boot', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 200 });
+      await operationRecords.appendRecord({
+        requestId: 'provision-record-1',
+        kind: 'provision',
+        workspace,
+        params: { kind: 'provision', input: { workspace } },
+        status: 'running',
+      });
+
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 200 });
+      await vi.waitFor(() =>
+        expect(operationRecords.snapshot().records['provision-record-1']).toMatchObject({
+          status: 'suspended',
+          suspendedCause: 'daemon-restart',
+          finishedAt: 200,
+        })
+      );
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('resumes resumable records on runtime boot', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 300 });
+      await operationRecords.appendRecord({
+        requestId: 'teardown-record-1',
+        kind: 'teardown',
+        workspace,
+        params: { kind: 'teardown', input: { workspace, force: true } },
+        status: 'running',
+      });
+
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 300 });
+      await vi.waitFor(() =>
+        expect(operationRecords.snapshot().records['teardown-record-1']).toMatchObject({
+          status: 'succeeded',
+          result: { kind: 'teardown' },
+          finishedAt: 300,
+        })
+      );
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('deduplicates non-terminal records and replaces terminal failures on submit', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 400 });
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 400 });
+
+      await operationRecords.appendRecord({
+        requestId: 'teardown-request-1',
+        kind: 'teardown',
+        workspace,
+        params: { kind: 'teardown', input: { workspace, force: false } },
+        status: 'pending',
+      });
+
+      await expect(
+        runtime.submitOperation({
+          requestId: 'teardown-request-1',
+          kind: 'teardown',
+          workspace,
+          params: { kind: 'teardown', input: { workspace, force: false } },
+        })
+      ).resolves.toEqual({
+        success: true,
+        data: { requestId: 'teardown-request-1', seq: 1, outcome: 'duplicate' },
+      });
+
+      await operationRecords.updateRecord('teardown-request-1', {
+        status: 'failed',
+        error: { type: 'failed', message: 'Failed' },
+        finishedAt: 400,
+      });
+      await expect(
+        runtime.submitOperation({
+          requestId: 'teardown-request-1',
+          kind: 'teardown',
+          workspace,
+          params: { kind: 'teardown', input: { workspace, force: true } },
+        })
+      ).resolves.toEqual({
+        success: true,
+        data: { requestId: 'teardown-request-1', seq: 1, outcome: 'accepted' },
+      });
+      expect(operationRecords.snapshot().records['teardown-request-1']).toMatchObject({
+        attempt: 1,
+        params: { input: { force: true } },
+      });
+
+      runtime.dispose();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('cancels pending submitted operation records', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-workspace-runtime-'));
+    try {
+      const workspace = hostFileRefFromNative(root);
+      const operationRecords = createMemoryWorkspaceOperationRecordStore({ now: () => 500 });
+      const runtime = new WorkspaceRuntime({ operationRecords, now: () => 500 });
+      await operationRecords.appendRecord({
+        requestId: 'teardown-request-2',
+        kind: 'teardown',
+        workspace,
+        params: { kind: 'teardown', input: { workspace, force: true } },
+        status: 'pending',
+      });
+
+      await expect(runtime.cancelOperation('teardown-request-2')).resolves.toEqual({
+        success: true,
+        data: { requestId: 'teardown-request-2', status: 'cancelled' },
+      });
+      expect(operationRecords.snapshot().records['teardown-request-2']).toMatchObject({
+        status: 'cancelled',
+        error: { type: 'cancelled' },
+      });
 
       runtime.dispose();
     } finally {

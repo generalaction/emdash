@@ -1,19 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type {
   GitBranchRef,
   GitRemotesState,
   RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
-import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
-import { createLiveJobReplica, LiveJobFailedError } from '@emdash/wire';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import type { WorkspaceType } from '@core/features/workspaces/api/node/workspace-factory';
+import { submitAndFollowWorkspaceOperation } from '@core/features/workspaces/api/node/workspace-operation-log';
 import {
   hostFileRefFromNativePath,
   nativePathFromHost,
@@ -181,34 +181,35 @@ export class ProjectProvider implements Disposable {
       if (!pool.success) throw new Error(pool.error.message);
 
       const connectionId = this.project.type === 'ssh' ? this.project.connectionId : undefined;
-      const jobs = createLiveJobReplica(workspaceContract.teardown, this.workspace.teardown);
-      const lease = await jobs.start({
-        workspace: hostFileRefFromNativePath(worktreePath, connectionId),
-        force: true,
-        lifecycle: {
-          ref: {
-            kind: 'worktree',
-            repoPath: this.repoPath,
-            path: worktreePath,
-            branchName: taskBranch,
+      const workspace = hostFileRefFromNativePath(worktreePath, connectionId);
+      const result = await submitAndFollowWorkspaceOperation(this.workspace, {
+        requestId: randomUUID(),
+        kind: 'teardown',
+        workspace,
+        params: {
+          kind: 'teardown',
+          input: {
+            workspace,
+            force: true,
+            lifecycle: {
+              ref: {
+                kind: 'worktree',
+                repoPath: this.repoPath,
+                path: worktreePath,
+                branchName: taskBranch,
+              },
+              context: {
+                repoPath: this.repoPath,
+                preservePatterns: [],
+                worktreePoolPath: pool.data,
+              },
+              deleteBranch: false,
+            },
           },
-          context: {
-            repoPath: this.repoPath,
-            preservePatterns: [],
-            worktreePoolPath: pool.data,
-          },
-          deleteBranch: false,
         },
       });
-      try {
-        const job = await lease.ready();
-        await job.result;
-      } catch (error) {
-        if (error instanceof LiveJobFailedError) throw new Error(error.error?.message);
-        throw error;
-      } finally {
-        await lease.release();
-        await jobs.dispose();
+      if (!result.success) {
+        throw new Error(result.error.message);
       }
     }
   }

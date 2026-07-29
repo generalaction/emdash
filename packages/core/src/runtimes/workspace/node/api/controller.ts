@@ -25,40 +25,25 @@ export function createWorkspaceController(
     resolveState: (workspace) => runtime.resolveState(workspace),
     runMutation: (name, envelope) => runtime.host.runMutation(name, envelope),
   };
+  const operationLogProvider: LiveModelProvider<typeof contract.operationLog> = {
+    kind: 'liveModelProvider',
+    contract: contract.operationLog,
+    resolveState: (key, name) => runtime.operationLogHost.get(key)?.states[name],
+    runMutation: (name, envelope) => runtime.operationLogHost.runMutation(name, envelope),
+  };
   return withValidation(
     contract,
     createController(contract, {
       workspace: workspaceProvider,
+      operationLog: operationLogProvider,
       provisionFromIntent: {
         run: (input, ctx) => runtime.provisionFromIntent(input, ctx),
         toError: workspaceJobError,
       },
       reconcile: (input, meta) => runtime.reconcile(input, meta.signal),
       measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
-      provision: {
-        run: (input, ctx) => runtime.provision(input, ctx),
-        toError: workspaceJobError,
-      },
-      convert: {
-        run: (input, ctx) => runtime.convert(input, ctx),
-        toError: workspaceJobError,
-      },
-      activate: {
-        run: (input, ctx) => runtime.activate(input, ctx),
-        toError: workspaceJobError,
-      },
-      deactivate: {
-        run: (input, ctx) => runtime.deactivate(input, ctx),
-        toError: workspaceJobError,
-      },
-      teardown: {
-        run: (input, ctx) => runtime.teardown(input, ctx),
-        toError: workspaceJobError,
-      },
-      cleanArtifacts: {
-        run: (input, ctx) => runtime.cleanArtifacts(input, ctx),
-        toError: workspaceJobError,
-      },
+      submitOperation: (input) => runtime.submitOperation(input),
+      cancelOperation: ({ requestId }) => runtime.cancelOperation(requestId),
     }),
     options.validate ?? 'inputs'
   );

@@ -1,19 +1,19 @@
-import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
 import { workspaceProvisioningDefinitions } from '@services/workspace-provisioning/api';
+import { z } from 'zod';
 import {
-  activateWorkspaceInputSchema,
-  cleanWorkspaceArtifactsInputSchema,
-  cleanWorkspaceArtifactsResultSchema,
-  convertWorkspaceInputSchema,
-  deactivateWorkspaceInputSchema,
+  cancelWorkspaceOperationInputSchema,
+  cancelWorkspaceOperationResultSchema,
+  submitWorkspaceOperationInputSchema,
+  submitWorkspaceOperationOutcomeSchema,
+  workspaceOperationRecordMapSchema,
+} from './operation-records';
+import {
   measureWorkspaceUsageInputSchema,
-  provisionWorkspaceInputSchema,
   reconcileWorkspaceInputSchema,
-  teardownWorkspaceInputSchema,
   workspaceUsageSchema,
   workspaceErrorSchema,
   workspaceKeySchema,
-  workspaceOperationProgressSchema,
   workspaceOperationResultSchema,
   workspaceStateSchema,
 } from './schemas';
@@ -36,41 +36,21 @@ export const workspaceContract = defineContract({
     data: workspaceUsageSchema,
     error: workspaceErrorSchema,
   }),
-  provision: liveJob({
-    input: provisionWorkspaceInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceOperationResultSchema,
+  submitOperation: fallible({
+    input: submitWorkspaceOperationInputSchema,
+    data: submitWorkspaceOperationOutcomeSchema,
     error: workspaceErrorSchema,
   }),
-  convert: liveJob({
-    input: convertWorkspaceInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceOperationResultSchema,
+  cancelOperation: fallible({
+    input: cancelWorkspaceOperationInputSchema,
+    data: cancelWorkspaceOperationResultSchema,
     error: workspaceErrorSchema,
   }),
-  activate: liveJob({
-    input: activateWorkspaceInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceOperationResultSchema,
-    error: workspaceErrorSchema,
-  }),
-  deactivate: liveJob({
-    input: deactivateWorkspaceInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceOperationResultSchema,
-    error: workspaceErrorSchema,
-  }),
-  teardown: liveJob({
-    input: teardownWorkspaceInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: workspaceOperationResultSchema,
-    error: workspaceErrorSchema,
-  }),
-  cleanArtifacts: liveJob({
-    input: cleanWorkspaceArtifactsInputSchema,
-    progress: workspaceOperationProgressSchema,
-    result: cleanWorkspaceArtifactsResultSchema,
-    error: workspaceErrorSchema,
+  operationLog: liveModel({
+    key: z.object({}),
+    states: {
+      list: liveState({ data: workspaceOperationRecordMapSchema }),
+    },
   }),
 });
 
