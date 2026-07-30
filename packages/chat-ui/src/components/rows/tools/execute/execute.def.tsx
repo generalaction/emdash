@@ -40,6 +40,7 @@ let measuredScrollbarH: number | undefined;
 function scrollbarClearance(maxSize: number): number {
   if (typeof document === 'undefined' || !document.body) return maxSize;
   if (measuredScrollbarH === undefined) {
+    // Overlay scrollbars consume no layout height; classic scrollbars do.
     const probe = document.createElement('div');
     Object.assign(probe.style, {
       position: 'absolute',
@@ -109,36 +110,6 @@ function executeLineWidth(text: string, ctx: MeasureCtx): number {
   return measureProseNaturalWidth(block, codeFonts);
 }
 
-function wrapExpandedCommand(
-  lines: ExecuteDisplayLine[],
-  ctx: MeasureCtx,
-  vars: ExecuteVars
-): ExecuteDisplayLine[] {
-  const availableWidth = ctx.width - 2 * vars.border - 2 * vars.linePadX;
-  const charWidth = executeLineWidth('M', ctx);
-  const maxChars = Math.max(1, Math.floor(availableWidth / charWidth));
-
-  return lines.flatMap((line) => {
-    if (line.kind !== 'command' || executeLineWidth(line.text, ctx) <= availableWidth) return line;
-
-    let characters = Array.from(line.text);
-    const wrapped: ExecuteDisplayLine[] = [];
-    while (characters.length > maxChars) {
-      let breakAt = maxChars;
-      for (let index = maxChars - 1; index > 0; index--) {
-        if (/\s/.test(characters[index])) {
-          breakAt = index + 1;
-          break;
-        }
-      }
-      wrapped.push({ kind: 'command', text: characters.slice(0, breakAt).join('') });
-      characters = characters.slice(breakAt);
-    }
-    wrapped.push({ kind: 'command', text: characters.join('') });
-    return wrapped;
-  });
-}
-
 function hasHorizontalOverflow(
   lines: ExecuteDisplayLine[],
   ctx: MeasureCtx,
@@ -163,8 +134,7 @@ function scrollbarSpace(
 
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
-  const sourceLines = executeLines(item, isExpanded);
-  const lines = isExpanded ? wrapExpandedCommand(sourceLines, ctx, vars) : sourceLines;
+  const lines = executeLines(item, isExpanded);
   const { bodyH, contentH } = executeBodyH(
     lines,
     ctx.theme.fonts.code.lineHeight,
@@ -180,11 +150,7 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
-  const lines = createMemo(() => {
-    const sourceLines = executeLines(props.data, isExpanded());
-    const ctx = mCtx();
-    return isExpanded() && ctx ? wrapExpandedCommand(sourceLines, ctx, props.vars) : sourceLines;
-  });
+  const lines = createMemo(() => executeLines(props.data, isExpanded()));
   const codeLineH = createMemo(() => {
     const ctx = mCtx();
     return ctx?.theme.fonts.code.lineHeight ?? 0;
