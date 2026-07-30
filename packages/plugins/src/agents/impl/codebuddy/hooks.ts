@@ -1,4 +1,4 @@
-import type { CanonicalHookEvent } from '@emdash/core/agents/plugins';
+import type { CanonicalHookEvent, HookRegistration, PluginFs } from '@emdash/core/agents/plugins';
 import {
   buildNestedJsonHookConfig,
   defaultHookEventParser,
@@ -6,6 +6,32 @@ import {
 } from '@emdash/core/agents/plugins/helpers';
 
 export const CODEBUDDY_EMDASH_HOOKS_PATH = '.codebuddy/emdash-hooks.json';
+
+function validateEmdashHooksOverlay(content: string | null): void {
+  if (content === null) return;
+
+  let settings: unknown;
+  try {
+    settings = JSON.parse(content);
+  } catch {
+    throw new Error(`Cannot update ${CODEBUDDY_EMDASH_HOOKS_PATH}: file contains invalid JSON`);
+  }
+
+  if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) {
+    throw new Error(`Cannot update ${CODEBUDDY_EMDASH_HOOKS_PATH}: expected a JSON object`);
+  }
+}
+
+function createStrictOverlayFs(fs: PluginFs): PluginFs {
+  return {
+    ...fs,
+    async read(path: string): Promise<string | null> {
+      const content = await fs.read(path);
+      if (path === CODEBUDDY_EMDASH_HOOKS_PATH) validateEmdashHooksOverlay(content);
+      return content;
+    },
+  };
+}
 
 function parseCodeBuddyHookEvent(
   eventType: string,
@@ -30,17 +56,25 @@ function parseCodeBuddyHookEvent(
 }
 
 export function buildCodeBuddyHookConfig() {
+  const hooks = buildNestedJsonHookConfig(CODEBUDDY_EMDASH_HOOKS_PATH, [
+    { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
+    { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
+    { hookKey: 'PreToolUse', command: makeStdinHookCommand('start') },
+    { hookKey: 'PostToolUseFailure', command: makeStdinHookCommand('error') },
+    { hookKey: 'PermissionRequest', command: makeStdinHookCommand('notification') },
+    { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
+    { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
+    { hookKey: 'StopFailure', command: makeStdinHookCommand('error') },
+  ]);
+
   return {
-    ...buildNestedJsonHookConfig(CODEBUDDY_EMDASH_HOOKS_PATH, [
-      { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
-      { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
-      { hookKey: 'PreToolUse', command: makeStdinHookCommand('start') },
-      { hookKey: 'PostToolUseFailure', command: makeStdinHookCommand('error') },
-      { hookKey: 'PermissionRequest', command: makeStdinHookCommand('notification') },
-      { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
-      { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
-      { hookKey: 'StopFailure', command: makeStdinHookCommand('error') },
-    ]),
+    ...hooks,
+    async writeHooks(fs: PluginFs, registrations: HookRegistration[]): Promise<string[]> {
+      return hooks.writeHooks(createStrictOverlayFs(fs), registrations);
+    },
+    async deleteHooks(fs: PluginFs): Promise<void> {
+      return hooks.deleteHooks(createStrictOverlayFs(fs));
+    },
     parseHookEvent: parseCodeBuddyHookEvent,
   };
 }

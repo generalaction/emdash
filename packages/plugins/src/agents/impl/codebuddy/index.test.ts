@@ -208,6 +208,25 @@ describe('codebuddy provider', () => {
   });
 
   it.each([
+    ['malformed JSON', '{ "hooks": {', 'file contains invalid JSON'],
+    ['an empty file', '', 'file contains invalid JSON'],
+    ['a non-object root', '[]', 'expected a JSON object'],
+  ])('does not overwrite an Emdash hooks overlay containing %s', async (_case, content, error) => {
+    const files = new Map([[CODEBUDDY_EMDASH_HOOKS_PATH, content]]);
+    const fs = createMemoryFs(files);
+
+    await expect(provider.behavior.hooks!.writeHooks(fs, [])).rejects.toThrow(
+      `Cannot update ${CODEBUDDY_EMDASH_HOOKS_PATH}: ${error}`
+    );
+    expect(files.get(CODEBUDDY_EMDASH_HOOKS_PATH)).toBe(content);
+
+    await expect(provider.behavior.hooks!.deleteHooks(fs)).rejects.toThrow(
+      `Cannot update ${CODEBUDDY_EMDASH_HOOKS_PATH}: ${error}`
+    );
+    expect(files.get(CODEBUDDY_EMDASH_HOOKS_PATH)).toBe(content);
+  });
+
+  it.each([
     {
       eventType: 'notification',
       body: {
