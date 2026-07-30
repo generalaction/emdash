@@ -123,6 +123,8 @@ export function useMachineOperationLog(machineId?: string): Map<string, Observed
   useEffect(() => {
     let disposed = false;
     let cleanup: (() => void) | undefined;
+    let initialized = false;
+    const terminalRecordIds = new Set<string>();
     void (async () => {
       try {
         const client = await getDesktopWireClient();
@@ -134,7 +136,16 @@ export function useMachineOperationLog(machineId?: string): Map<string, Observed
             onChange: {
               list: (list: WorkspaceOperationRecordMap) => {
                 setRecords(list);
-                void invalidateWorkspaceScanCacheForTerminalRecords(client, list);
+                if (!initialized) {
+                  seedTerminalRecordIds(terminalRecordIds, list);
+                  initialized = true;
+                  return;
+                }
+                void invalidateWorkspaceScanCacheForNewTerminalRecords(
+                  client,
+                  list,
+                  terminalRecordIds
+                );
               },
             },
           }
@@ -154,7 +165,12 @@ export function useMachineOperationLog(machineId?: string): Map<string, Observed
         }
         const snapshot = await model.states.list.snapshot();
         // The replica snapshot currently loses the live-state data generic at this boundary.
-        setRecords(snapshot.data as WorkspaceOperationRecordMap);
+        const snapshotData = snapshot.data as WorkspaceOperationRecordMap;
+        setRecords(snapshotData);
+        if (!initialized) {
+          seedTerminalRecordIds(terminalRecordIds, snapshotData);
+          initialized = true;
+        }
       } catch {
         cleanup?.();
         if (!disposed) setRecords({});
@@ -180,22 +196,37 @@ export function useMachineOperationLog(machineId?: string): Map<string, Observed
   }, [records]);
 }
 
-async function invalidateWorkspaceScanCacheForTerminalRecords(
-  client: Awaited<ReturnType<typeof getDesktopWireClient>>,
+function seedTerminalRecordIds(
+  terminalRecordIds: Set<string>,
   records: WorkspaceOperationRecordMap
+): void {
+  for (const [id, record] of Object.entries(records)) {
+    if (isTerminalWorkspaceCacheRecord(record)) terminalRecordIds.add(id);
+  }
+}
+
+async function invalidateWorkspaceScanCacheForNewTerminalRecords(
+  client: Awaited<ReturnType<typeof getDesktopWireClient>>,
+  records: WorkspaceOperationRecordMap,
+  terminalRecordIds: Set<string>
 ): Promise<void> {
   await Promise.all(
-    Object.values(records).flatMap((record) => {
-      if (
-        !isTerminalStatus(record.status) ||
-        (record.kind !== 'teardown' && record.kind !== 'clean-artifacts')
-      ) {
-        return [];
-      }
+    Object.entries(records).flatMap(([id, record]) => {
+      if (!isTerminalWorkspaceCacheRecord(record) || terminalRecordIds.has(id)) return [];
+      terminalRecordIds.add(id);
       return client.projectWorkspaces.invalidateWorkspaceScanCache({
         path: nativePathFromHost(record.workspace.path),
       });
     })
+  );
+}
+
+function isTerminalWorkspaceCacheRecord(
+  record: WorkspaceOperationRecordMap[string]
+): boolean {
+  return (
+    isTerminalStatus(record.status) &&
+    (record.kind === 'teardown' || record.kind === 'clean-artifacts')
   );
 }
 

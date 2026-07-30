@@ -24,16 +24,16 @@ export type HostResourceRef = z.infer<typeof hostResourceRefSchema>;
 export function hostResourceKey(ref: HostResourceRef): string {
   switch (ref.kind) {
     case 'worktree':
-      return `worktree:${encodePart(ref.hostId)}:${encodePart(ref.path)}`;
+      return `worktree:${encodeResourceKeyPart(ref.hostId)}:${encodeResourceKeyPart(ref.path)}`;
     case 'branch':
-      return `branch:${encodePart(ref.hostId)}:${encodePart(ref.repoPath)}:${encodePart(
-        ref.branchName
-      )}`;
+      return `branch:${encodeResourceKeyPart(ref.hostId)}:${encodeResourceKeyPart(
+        ref.repoPath
+      )}:${encodeResourceKeyPart(ref.branchName)}`;
     case 'repo':
-      return `repo:${encodePart(ref.hostId)}:${encodePart(ref.path)}`;
+      return `repo:${encodeResourceKeyPart(ref.hostId)}:${encodeResourceKeyPart(ref.path)}`;
   }
 }
 
-function encodePart(part: string): string {
+export function encodeResourceKeyPart(part: string): string {
   return encodeURIComponent(part);
 }

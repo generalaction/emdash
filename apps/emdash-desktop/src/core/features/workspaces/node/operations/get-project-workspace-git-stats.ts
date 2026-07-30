@@ -1,3 +1,4 @@
+import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { GitRefsState } from '@emdash/core/runtimes/git/api';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import type {
@@ -31,13 +32,11 @@ export async function getProjectWorkspaceGitStats(
     return { scannedAt: new Date().toISOString(), projectId: input.projectId, results: [] };
   }
 
-  const [project, listed] = await Promise.all([
-    getProjectWorkspaceProject(dependencies.db, input.projectId),
-    getCachedProjectWorkspaces(dependencies, input.projectId),
-  ]);
+  const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
+  const host = projectWorkspaceHost(project);
+  const listed = await getCachedProjectWorkspaces(dependencies, input.projectId, hostRefKey(host));
   const rowsByPath = new Map(listed.rows.map((row) => [row.path, row]));
 
-  const host = projectWorkspaceHost(project);
   const runtime = await dependencies.runtimes.client(host);
   if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
 
@@ -80,22 +79,23 @@ export async function getProjectWorkspaceGitStats(
     }
   );
 
-  const output = {
+  return {
     scannedAt: new Date().toISOString(),
     projectId: input.projectId,
     results,
   };
-  dependencies.workspaceScanCache?.mergeGitStatsResults(input.projectId, output);
-  return output;
 }
 
 function getCachedProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies & { workspaceScanCache?: WorkspaceScanCache },
-  projectId: string
+  projectId: string,
+  hostId: string
 ) {
   return dependencies.workspaceScanCache
-    ? dependencies.workspaceScanCache.getOrRefresh(projectId, () =>
-        listProjectWorkspaces(dependencies, projectId)
+    ? dependencies.workspaceScanCache.getOrRefresh(
+        projectId,
+        () => listProjectWorkspaces(dependencies, projectId),
+        { hostId }
       )
     : listProjectWorkspaces(dependencies, projectId);
 }

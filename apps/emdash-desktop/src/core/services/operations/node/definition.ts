@@ -1,6 +1,6 @@
 import type {
   OperationClaimResource,
-  OperationConfirmationReason as SharedOperationConfirmationReason,
+  OperationConfirmationReason,
   OperationEntityKind,
   OperationMutationError,
   OperationStatus,
@@ -11,8 +11,6 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type { OperationKind, OperationPayload } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
-
-export type OperationConfirmationReason = SharedOperationConfirmationReason;
 
 export type OperationProgress = {
   currentStep?: string;

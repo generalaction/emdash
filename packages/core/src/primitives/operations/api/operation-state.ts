@@ -36,6 +36,9 @@ export const operationDisplayStateSchema = z.discriminatedUnion('status', [
     status: z.literal('waiting'),
   }),
   operationDisplayBaseSchema.extend({
+    status: z.literal('waiting-children'),
+  }),
+  operationDisplayBaseSchema.extend({
     status: z.literal('blocked-host-offline'),
   }),
   operationDisplayBaseSchema.extend({

@@ -27,6 +27,7 @@ import {
   operationNeedsConfirmation,
   runOperationActions,
   type OperationDefinition,
+  type OperationRelatedInsert,
   type OperationSubmit,
   type OperationsEngine,
 } from '@core/services/operations/node';
@@ -171,33 +172,25 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
         ? await db.select().from(workspaces).where(inArray(workspaces.id, workspaceIds))
         : [];
     const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
+    const liveTaskEntityKeys = new Set(taskRows.map((task) => task.id));
+    const orphanedOperationRows = (
+      await db
+        .select()
+        .from(lifecycleOperations)
+        .where(
+          and(
+            eq(lifecycleOperations.projectId, projectId),
+            ne(lifecycleOperations.kind, 'delete-project'),
+            isNull(lifecycleOperations.parentOperationId),
+            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses]),
+            isNotNull(lifecycleOperations.entityKey)
+          )
+        )
+    ).filter((row) => row.entityKey && !liveTaskEntityKeys.has(row.entityKey));
     const claimedWorkspaceIds = new Set<string>();
     const createdAt = clock.now();
-    return ok({
-      outcome: 'enqueue' as const,
-      draft: {
-        kind: 'delete-project' as const,
-        projectId,
-        entityKey: projectId,
-        hostRef: 'local',
-        payload: {
-          version: '2' as const,
-          source: 'user' as const,
-          entityName: project.name,
-        },
-        createdAt,
-      },
-      options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
-        claims: [{ kind: 'project', id: projectId }],
-        tombstone: (tx) =>
-          tx
-            .update(projects)
-            .set({ deletedAt: new Date(createdAt).toISOString() })
-            .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-            .run().changes,
-      },
-      related: taskRows.map((task) => {
+    const related: OperationRelatedInsert[] = [
+      ...taskRows.map((task) => {
         const workspace = task.workspaceId ? workspaceById.get(task.workspaceId) : undefined;
         const hostRef = workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local';
         const workspaceAlreadyClaimed =
@@ -240,6 +233,65 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
           },
         };
       }),
+      ...orphanedOperationRows.map((operation) => ({
+        draft: {
+          kind: operation.kind,
+          projectId,
+          taskId: operation.taskId,
+          workspaceId: operation.workspaceId,
+          entityKey: operation.entityKey!,
+          hostRef: operation.hostRef,
+          payload: operation.payload,
+          createdAt,
+        },
+        options: {
+          dedupeStatuses: nonTerminalOperationStatuses,
+          precondition: (tx) =>
+            tx
+              .select({ id: lifecycleOperations.id })
+              .from(lifecycleOperations)
+              .where(
+                and(
+                  eq(lifecycleOperations.id, operation.id),
+                  isNull(lifecycleOperations.parentOperationId),
+                  inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
+                )
+              )
+              .limit(1)
+              .get()
+              ? undefined
+              : {
+                  type: 'operation-not-found',
+                  message: `Operation ${operation.id} is no longer waiting for project deletion`,
+                },
+        },
+      })),
+    ];
+    return ok({
+      outcome: 'enqueue' as const,
+      draft: {
+        kind: 'delete-project' as const,
+        projectId,
+        entityKey: projectId,
+        hostRef: 'local',
+        payload: {
+          version: '2' as const,
+          source: 'user' as const,
+          entityName: project.name,
+        },
+        createdAt,
+      },
+      options: {
+        dedupeStatuses: nonTerminalOperationStatuses,
+        claims: [{ kind: 'project', id: projectId }],
+        tombstone: (tx) =>
+          tx
+            .update(projects)
+            .set({ deletedAt: new Date(createdAt).toISOString() })
+            .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+            .run().changes,
+      },
+      related,
     });
   });
 }

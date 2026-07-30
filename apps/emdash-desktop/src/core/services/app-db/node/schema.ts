@@ -1,4 +1,7 @@
-import type { OperationStatus } from '@emdash/core/primitives/operations/api';
+import type {
+  OperationConfirmationReason,
+  OperationStatus,
+} from '@emdash/core/primitives/operations/api';
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
@@ -239,9 +242,7 @@ export const lifecycleOperations = sqliteTable(
     hostRef: text('host_ref').notNull(),
     payload: versionedJsonColumn(operationPayload)('payload').$type<OperationPayload>().notNull(),
     confirmedAt: integer('confirmed_at'),
-    confirmationReason: text('confirmation_reason').$type<
-      'stale' | 'workspace-modified' | 'reconciler-proposed' | 'workspace-busy'
-    >(),
+    confirmationReason: text('confirmation_reason').$type<OperationConfirmationReason>(),
     attempt: integer('attempt').notNull().default(0),
     error: text('error'),
     createdAt: integer('created_at').notNull(),

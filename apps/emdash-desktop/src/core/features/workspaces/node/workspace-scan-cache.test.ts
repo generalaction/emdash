@@ -1,6 +1,4 @@
-import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
 import { describe, expect, it, vi } from 'vitest';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import { WorkspaceScanCache } from './workspace-scan-cache';
 
@@ -68,19 +66,17 @@ describe('WorkspaceScanCache', () => {
     expect(cache.get('project-2')?.rows).toMatchObject([{ path: '/repo/a' }]);
   });
 
-  it('evicts terminal host log records across projects by path', () => {
+  it('evicts host resources only from matching host entries', () => {
     const cache = new WorkspaceScanCache();
-    cache.set('project-1', result('project-1', ['/repo/a']));
-    cache.set('project-2', result('project-2', ['/repo/a']));
+    cache.set('local-project', result('local-project', ['/repo/a']), { hostId: 'local' });
+    cache.set('remote-project', result('remote-project', ['/repo/a']), { hostId: 'remote-1' });
+    cache.set('unknown-host-project', result('unknown-host-project', ['/repo/a']));
 
-    cache.evictTerminalRecord({
-      status: 'succeeded',
-      kind: 'teardown',
-      workspace: hostFileRefFromNativePath('/repo/a'),
-    } as WorkspaceOperationRecord);
+    cache.evictResource({ kind: 'worktree', hostId: 'remote-1', path: '/repo/a' });
 
-    expect(cache.get('project-1')?.rows).toEqual([]);
-    expect(cache.get('project-2')?.rows).toEqual([]);
+    expect(cache.get('local-project')?.rows).toMatchObject([{ path: '/repo/a' }]);
+    expect(cache.get('remote-project')?.rows).toEqual([]);
+    expect(cache.get('unknown-host-project')?.rows).toEqual([]);
   });
 });
 

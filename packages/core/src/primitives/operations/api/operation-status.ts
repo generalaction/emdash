@@ -98,5 +98,3 @@ export function requireNextOperationStatus(
   if (!result.success) throw new Error(result.error.message);
   return result.data;
 }
-
-export const allOperationStatuses = operationStatuses;

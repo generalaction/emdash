@@ -1,9 +1,14 @@
+import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { OperationsEngine } from '@core/services/operations/node';
 import { deleteProjectWorkspaces } from './operations/delete-project-workspaces';
 import { getProjectWorkspaceGitStats } from './operations/get-project-workspace-git-stats';
-import type { ListProjectWorkspacesDependencies } from './operations/list-project-workspaces';
-import { listProjectWorkspaces } from './operations/list-project-workspaces';
+import {
+  getProjectWorkspaceProject,
+  listProjectWorkspaces,
+  projectWorkspaceHost,
+  type ListProjectWorkspacesDependencies,
+} from './operations/list-project-workspaces';
 import { measureProjectWorkspaces } from './operations/measure-project-workspaces';
 import type { WorkspaceScanCache } from './workspace-scan-cache';
 
@@ -17,10 +22,14 @@ export function createProjectWorkspaceOperations(
   dependencies: ProjectWorkspaceOperationDependencies
 ) {
   return {
-    listProjectWorkspaces: (projectId: string) =>
-      dependencies.workspaceScanCache.getOrRefresh(projectId, () =>
-        listProjectWorkspaces(dependencies, projectId)
-      ),
+    listProjectWorkspaces: async (projectId: string) => {
+      const project = await getProjectWorkspaceProject(dependencies.db, projectId);
+      return dependencies.workspaceScanCache.getOrRefresh(
+        projectId,
+        () => listProjectWorkspaces(dependencies, projectId),
+        { hostId: hostRefKey(projectWorkspaceHost(project)) }
+      );
+    },
     measureProjectWorkspaces: (input: Parameters<typeof measureProjectWorkspaces>[1]) =>
       measureProjectWorkspaces(dependencies, input),
     getProjectWorkspaceGitStats: (input: Parameters<typeof getProjectWorkspaceGitStats>[1]) =>

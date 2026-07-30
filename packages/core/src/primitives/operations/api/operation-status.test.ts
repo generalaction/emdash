@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allOperationStatuses,
   nextOperationStatus,
+  operationStatuses,
   type OperationStatus,
   type OperationStatusEvent,
 } from './operation-status';
@@ -81,7 +81,7 @@ describe('operation status machine', () => {
     ];
     const allowed = new Set(cases.map(({ current, event }) => `${current}:${event.type}`));
 
-    for (const current of allOperationStatuses) {
+    for (const current of operationStatuses) {
       for (const event of events) {
         if (allowed.has(`${current}:${event.type}`)) continue;
         expect(nextOperationStatus(current, event)).toMatchObject({

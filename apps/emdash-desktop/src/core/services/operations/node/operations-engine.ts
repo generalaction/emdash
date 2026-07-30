@@ -4,6 +4,7 @@ import {
 } from '@emdash/core/primitives/io-activity/api';
 import {
   type OperationClaimResource,
+  type OperationConfirmationReason,
   type OperationMutationError,
   nextOperationStatus,
   requireNextOperationStatus,
@@ -34,7 +35,6 @@ import {
   type InsertOperationOutcome,
 } from './admission';
 import type {
-  OperationConfirmationReason,
   OperationDefinition,
   OperationProgress,
   OperationSubmission,
@@ -47,6 +47,7 @@ import {
   queuedOperations,
   runQueuedOperation,
   settleParentIfChildrenDone,
+  settleWaitingParents,
   tryTransitionStatus,
 } from './execution';
 import { loadOperationTrees, operationTreeKey } from './projection';
@@ -173,6 +174,7 @@ export class OperationsEngine {
         error: null,
       })
       .where(eq(lifecycleOperations.status, 'running'));
+    await settleWaitingParents(this.db);
 
     const onConnection = (event: { type: string }) => {
       void this.refreshOperationTrees();

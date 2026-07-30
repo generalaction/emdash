@@ -406,7 +406,8 @@ function OperationCleanupRow({
 }) {
   const retryKey = `retry:${cleanup.operationId}`;
   const forgetKey = `forget:${cleanup.operationId}`;
-  const actionable = cleanupIsActionable(cleanup);
+  const retryable = cleanupIsRetryable(cleanup);
+  const forgettable = cleanupIsForgettable(cleanup);
   return (
     <div className={cn('flex flex-wrap items-center gap-3 py-1', indented && 'pl-5')}>
       <div className="min-w-0 flex-1">
@@ -435,26 +436,30 @@ function OperationCleanupRow({
           <div className="mt-0.5 truncate text-foreground-destructive">{cleanup.error}</div>
         )}
       </div>
-      {actionable && (
+      {(retryable || forgettable) && (
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={pendingAction !== null}
-            onClick={() => void runAction('retry', cleanup)}
-          >
-            {pendingAction === retryKey && <Spinner className="size-3.5" />}
-            Clean up now
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={pendingAction !== null}
-            onClick={() => void runAction('forget', cleanup)}
-          >
-            {pendingAction === forgetKey && <Spinner className="size-3.5" />}
-            Forget
-          </Button>
+          {retryable && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pendingAction !== null}
+              onClick={() => void runAction('retry', cleanup)}
+            >
+              {pendingAction === retryKey && <Spinner className="size-3.5" />}
+              Clean up now
+            </Button>
+          )}
+          {forgettable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pendingAction !== null}
+              onClick={() => void runAction('forget', cleanup)}
+            >
+              {pendingAction === forgetKey && <Spinner className="size-3.5" />}
+              Forget
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -934,6 +939,8 @@ function cleanupStatusLabel(cleanup: OperationDisplayState): string {
       return 'Failed';
     case 'waiting':
       return 'Waiting for workspace';
+    case 'waiting-children':
+      return 'Waiting for related cleanup';
     case 'cleaning':
       return 'Cleaning';
   }
@@ -944,6 +951,7 @@ function cleanupStatusPillClass(cleanup: OperationDisplayState): string {
     case 'cleaning':
       return 'border-border text-foreground-muted';
     case 'waiting':
+    case 'waiting-children':
     case 'blocked-host-offline':
     case 'awaiting-confirmation':
       return 'border-border-warning text-foreground-warning';
@@ -952,12 +960,16 @@ function cleanupStatusPillClass(cleanup: OperationDisplayState): string {
   }
 }
 
-function cleanupIsActionable(cleanup: OperationDisplayState): boolean {
+function cleanupIsRetryable(cleanup: OperationDisplayState): boolean {
   return (
     cleanup.status === 'failed' ||
     cleanup.status === 'awaiting-confirmation' ||
     cleanup.status === 'blocked-host-offline'
   );
+}
+
+function cleanupIsForgettable(cleanup: OperationDisplayState): boolean {
+  return cleanupIsRetryable(cleanup) || cleanup.status === 'waiting-children';
 }
 
 function treeNeedsAttention(tree: OperationTree): boolean {

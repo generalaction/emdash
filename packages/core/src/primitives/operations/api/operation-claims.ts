@@ -1,4 +1,4 @@
-import { hostResourceKey } from '@primitives/host-resource/api';
+import { encodeResourceKeyPart, hostResourceKey } from '@primitives/host-resource/api';
 import z from 'zod';
 
 export const operationClaimResourceSchema = z.discriminatedUnion('kind', [
@@ -40,15 +40,17 @@ export type OperationClaim = {
 export function operationClaimResourceKey(resource: OperationClaimResource): string {
   switch (resource.kind) {
     case 'project':
-      return `project:${resource.id}`;
+      return `project:${encodeResourceKeyPart(resource.id)}`;
     case 'task':
-      return `task:${resource.id}`;
+      return `task:${encodeResourceKeyPart(resource.id)}`;
     case 'workspace':
-      return `workspace:${resource.id}`;
+      return `workspace:${encodeResourceKeyPart(resource.id)}`;
     case 'automation':
-      return `automation:${resource.id}`;
+      return `automation:${encodeResourceKeyPart(resource.id)}`;
     case 'branch':
-      return `branch:${resource.projectId}:${resource.name}`;
+      return `branch:${encodeResourceKeyPart(resource.projectId)}:${encodeResourceKeyPart(
+        resource.name
+      )}`;
     case 'worktree':
       return hostResourceKey({
         kind: 'worktree',

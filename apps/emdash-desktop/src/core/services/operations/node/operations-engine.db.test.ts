@@ -154,6 +154,45 @@ describe('OperationsEngine', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
+  it('settles waiting parents with terminal children on startup', async () => {
+    fixture = await openFixture('empty');
+    const run = vi.fn(async () => ok(undefined));
+    await fixture.db.insert(lifecycleOperations).values([
+      {
+        id: 'operation-project-1',
+        kind: 'delete-project',
+        status: 'waiting-children',
+        projectId: 'project-1',
+        taskId: null,
+        workspaceId: null,
+        entityKey: 'project-1',
+        parentOperationId: null,
+        initiatedBy: null,
+        hostRef: 'local',
+        payload: { version: '2', source: 'user', entityName: 'Project' },
+        confirmedAt: null,
+        confirmationReason: null,
+        createdAt: 1_000,
+      },
+      {
+        ...operationRow('task-1', 'local', 1_001),
+        id: 'operation-task-1',
+        status: 'succeeded',
+        parentOperationId: 'operation-project-1',
+        finishedAt: 1_002,
+      },
+    ]);
+
+    handle = await createTestEngine({ run });
+    await handle.engine.waitForIdle();
+
+    expect(await operationById('operation-project-1')).toMatchObject({
+      status: 'succeeded',
+      attempt: 1,
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it('applies parent forget policies to child operations', async () => {
     fixture = await openFixture('empty');
     const ssh = createSshManager(false);
@@ -268,6 +307,39 @@ describe('OperationsEngine', () => {
     expect(result.success).toBe(false);
     expect(result.success ? undefined : result.error.type).toBe('invalid-operation-payload');
     expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(0);
+  });
+
+  it('preserves unknown payload fields when reading stored operation rows', async () => {
+    fixture = await openFixture('empty');
+    await fixture.db.insert(lifecycleOperations).values({
+      id: 'operation-task-1',
+      kind: 'delete-task',
+      status: 'pending',
+      projectId: null,
+      taskId: 'task-1',
+      workspaceId: null,
+      entityKey: 'task-1',
+      parentOperationId: null,
+      initiatedBy: null,
+      hostRef: 'local',
+      payload: {
+        version: '2',
+        source: 'user',
+        entityName: 'Task 1',
+        futureField: 'kept',
+      } as never,
+      confirmedAt: null,
+      confirmationReason: null,
+      createdAt: 1_000,
+    });
+
+    const [row] = await fixture.db.select().from(lifecycleOperations);
+
+    expect(row.payload).toMatchObject({
+      version: '2',
+      source: 'user',
+      futureField: 'kept',
+    });
   });
 
   it('rejects claim conflicts before committing tombstones', async () => {

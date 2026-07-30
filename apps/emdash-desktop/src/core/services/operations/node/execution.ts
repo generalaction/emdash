@@ -1,6 +1,7 @@
 import {
   nonTerminalOperationStatuses,
   nextOperationStatus,
+  type OperationConfirmationReason,
   requireNextOperationStatus,
   type OperationStatusEvent,
   type OperationStatus,
@@ -13,7 +14,6 @@ import type { OperationKind } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type {
-  OperationConfirmationReason,
   OperationDefinition,
   OperationProgress,
   OperationRunError,
@@ -154,6 +154,42 @@ export async function settleParentIfChildrenDone(
   if (!settled) return;
   await context.refreshOperationTrees();
   context.poke();
+}
+
+export async function settleWaitingParents(db: AppDb): Promise<number> {
+  return db.transaction((tx) => {
+    const parents = tx
+      .select({ id: lifecycleOperations.id })
+      .from(lifecycleOperations)
+      .where(eq(lifecycleOperations.status, 'waiting-children'))
+      .all();
+    let settledCount = 0;
+    for (const parent of parents) {
+      const [liveChild] = tx
+        .select({ id: lifecycleOperations.id })
+        .from(lifecycleOperations)
+        .where(
+          and(
+            eq(lifecycleOperations.parentOperationId, parent.id),
+            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
+          )
+        )
+        .limit(1)
+        .all();
+      if (liveChild) continue;
+      const status = requireNextOperationStatus('waiting-children', {
+        type: 'children-settled',
+      });
+      settledCount += tx
+        .update(lifecycleOperations)
+        .set({ status })
+        .where(
+          and(eq(lifecycleOperations.id, parent.id), eq(lifecycleOperations.status, 'waiting-children'))
+        )
+        .run().changes;
+    }
+    return settledCount;
+  });
 }
 
 async function runWithRetries(

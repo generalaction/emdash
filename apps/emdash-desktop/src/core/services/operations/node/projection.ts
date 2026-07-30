@@ -159,7 +159,7 @@ function operationDisplayStateFromRow(
   };
   switch (operation.status) {
     case 'waiting-children':
-      return { ...base, status: 'waiting' };
+      return { ...base, status: 'waiting-children' };
     case 'pending':
       return { ...base, status: hostOnline ? 'cleaning' : 'blocked-host-offline' };
     case 'running':
@@ -202,7 +202,7 @@ function groupTerminalChildrenByParent(
     if (row.parentOperationId === null) continue;
     const existing = grouped.get(row.parentOperationId) ?? { total: 0, done: 0 };
     existing.total += 1;
-    if (row.status === 'succeeded') existing.done += 1;
+    if (row.status === 'succeeded' || row.status === 'abandoned') existing.done += 1;
     grouped.set(row.parentOperationId, existing);
   }
   return grouped;

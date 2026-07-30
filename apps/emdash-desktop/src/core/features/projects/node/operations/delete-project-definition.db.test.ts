@@ -1,6 +1,7 @@
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { openFixture } from '@tooling/utils/db';
+import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   lifecycleOperations,
@@ -91,6 +92,69 @@ describe('delete-project operation definition', () => {
     expect(result.success).toBe(true);
     expect(operations.filter((operation) => operation.kind === 'delete-task')).toHaveLength(2);
     expect(claims.filter((claim) => claim.resourceKey === 'workspace:workspace-1')).toHaveLength(1);
+  });
+
+  it('adopts in-flight cleanup operations for tombstoned project tasks', async () => {
+    fixture = await openFixture('empty');
+    await fixture.db.insert(projects).values({
+      id: 'project-1',
+      name: 'Project',
+      path: '/repo',
+      workspaceProvider: 'local',
+    });
+    await fixture.db.insert(tasks).values({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Task 1',
+      status: 'in_progress',
+      deletedAt: new Date(1_000).toISOString(),
+    });
+    await fixture.db.insert(lifecycleOperations).values({
+      id: 'operation-task-1',
+      kind: 'delete-task',
+      status: 'pending',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: null,
+      entityKey: 'task-1',
+      parentOperationId: null,
+      initiatedBy: null,
+      hostRef: 'remote-1',
+      payload: { version: '2', source: 'user', entityName: 'Task 1' },
+      confirmedAt: null,
+      confirmationReason: null,
+      createdAt: 1_000,
+    });
+    const definition = createDefinition();
+    const definitions = testOperationDefinitions({ 'delete-project': definition });
+    handle = await createOperationsEngine({
+      scope: createScope({ label: 'delete-project-adopt-inflight-test' }),
+      db: fixture.db,
+      sshManager: {
+        on: vi.fn(),
+        off: vi.fn(),
+        isConnected: () => false,
+      },
+      notifications: { publishPendingCleanup: vi.fn() },
+      definitions,
+    });
+
+    const result = await enqueueDeleteProject(handle.engine, 'project-1');
+
+    expect(result.success).toBe(true);
+    const parentId = result.success ? result.data.operationId! : '';
+    await expect(
+      fixture.db
+        .select()
+        .from(lifecycleOperations)
+        .where(eq(lifecycleOperations.id, 'operation-task-1'))
+    ).resolves.toMatchObject([{ parentOperationId: parentId }]);
+    await expect(
+      fixture.db
+        .select()
+        .from(lifecycleOperations)
+        .where(eq(lifecycleOperations.id, parentId))
+    ).resolves.toMatchObject([{ status: 'waiting-children' }]);
   });
 });
 

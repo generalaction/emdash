@@ -1,4 +1,4 @@
-import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import { hostRefKey, sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -29,10 +29,12 @@ export async function measureProjectWorkspaces(
     return { scannedAt: new Date().toISOString(), projectId: input.projectId, results: [] };
   }
 
-  const [project, listed] = await Promise.all([
-    getProjectWorkspaceProject(dependencies.db, input.projectId),
-    getCachedProjectWorkspaces(dependencies, input.projectId),
-  ]);
+  const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
+  const listed = await getCachedProjectWorkspaces(
+    dependencies,
+    input.projectId,
+    hostRefKey(projectWorkspaceHost(project))
+  );
   const rowsByPath = new Map(listed.rows.map((row) => [row.path, row]));
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
     const row = rowsByPath.get(targetPath);
@@ -57,11 +59,14 @@ export async function measureProjectWorkspaces(
 
 function getCachedProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies & { workspaceScanCache?: WorkspaceScanCache },
-  projectId: string
+  projectId: string,
+  hostId: string
 ) {
   return dependencies.workspaceScanCache
-    ? dependencies.workspaceScanCache.getOrRefresh(projectId, () =>
-        listProjectWorkspaces(dependencies, projectId)
+    ? dependencies.workspaceScanCache.getOrRefresh(
+        projectId,
+        () => listProjectWorkspaces(dependencies, projectId),
+        { hostId }
       )
     : listProjectWorkspaces(dependencies, projectId);
 }

@@ -1,11 +1,6 @@
 import { type HostResourceRef } from '@emdash/core/primitives/host-resource/api';
-import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { Observed } from '@emdash/core/primitives/lib/api';
-import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type {
-  GetProjectWorkspaceGitStatsResult,
-  ProjectWorkspaceGitStatsResult,
   ProjectWorkspaceRow,
   ProjectWorkspacesResult,
   ProjectWorkspaceUsageResult,
@@ -16,7 +11,7 @@ const DEFAULT_MAX_AGE_MS = 30_000;
 type WorkspaceScanCacheEntry = {
   result: Observed<ProjectWorkspacesResult>;
   refreshing?: Promise<void>;
-  gitStatsByPath: Map<string, Observed<ProjectWorkspaceGitStatsResult>>;
+  hostId?: string;
 };
 
 export class WorkspaceScanCache {
@@ -25,14 +20,18 @@ export class WorkspaceScanCache {
   async getOrRefresh(
     projectId: string,
     refresh: () => Promise<ProjectWorkspacesResult>,
-    options: { maxAgeMs?: number } = {}
+    options: { maxAgeMs?: number; hostId?: string } = {}
   ): Promise<ProjectWorkspacesResult> {
     const entry = this.entries.get(projectId);
     if (!entry) {
-      return this.set(projectId, await refresh());
+      return this.set(projectId, await refresh(), { hostId: options.hostId });
     }
+    if (options.hostId && entry.hostId && entry.hostId !== options.hostId) {
+      return this.set(projectId, await refresh(), { hostId: options.hostId });
+    }
+    if (options.hostId && !entry.hostId) entry.hostId = options.hostId;
     if (this.isStale(projectId, options.maxAgeMs)) {
-      this.refreshInBackground(projectId, refresh);
+      this.refreshInBackground(projectId, refresh, options.hostId);
     }
     return this.snapshot(entry);
   }
@@ -42,11 +41,15 @@ export class WorkspaceScanCache {
     return entry ? this.snapshot(entry) : undefined;
   }
 
-  set(projectId: string, result: ProjectWorkspacesResult): ProjectWorkspacesResult {
+  set(
+    projectId: string,
+    result: ProjectWorkspacesResult,
+    options: { hostId?: string } = {}
+  ): ProjectWorkspacesResult {
     const previous = this.entries.get(projectId);
     const entry: WorkspaceScanCacheEntry = {
       result: { value: this.cloneResult(result), observedAt: Date.now(), source: 'probe' },
-      gitStatsByPath: previous?.gitStatsByPath ?? new Map(),
+      hostId: options.hostId ?? previous?.hostId,
     };
     this.entries.set(projectId, entry);
     return this.snapshot(entry);
@@ -84,19 +87,6 @@ export class WorkspaceScanCache {
     };
   }
 
-  mergeGitStatsResults(projectId: string, result: GetProjectWorkspaceGitStatsResult): void {
-    const entry = this.entries.get(projectId);
-    if (!entry) return;
-    const observedAt = Date.now();
-    for (const item of result.results) {
-      entry.gitStatsByPath.set(item.path, {
-        value: item,
-        observedAt,
-        source: 'operation-result',
-      });
-    }
-  }
-
   evict(projectId: string, path?: string): void {
     if (!path) {
       this.entries.delete(projectId);
@@ -105,7 +95,6 @@ export class WorkspaceScanCache {
     const entry = this.entries.get(projectId);
     if (!entry) return;
     const rows = entry.result.value.rows.filter((row) => row.path !== path);
-    entry.gitStatsByPath.delete(path);
     entry.result = {
       ...entry.result,
       value: {
@@ -124,32 +113,23 @@ export class WorkspaceScanCache {
   }
 
   evictResource(resource: HostResourceRef): void {
-    if (resource.kind === 'worktree') this.evictPath(resource.path);
-  }
-
-  evictTerminalRecord(record: WorkspaceOperationRecord): void {
-    if (
-      record.status !== 'succeeded' ||
-      (record.kind !== 'teardown' && record.kind !== 'clean-artifacts')
-    ) {
-      return;
+    if (resource.kind !== 'worktree') return;
+    for (const [projectId, entry] of this.entries) {
+      if (entry.hostId && entry.hostId !== resource.hostId) continue;
+      this.evict(projectId, resource.path);
     }
-    this.evictResource({
-      kind: 'worktree',
-      hostId: hostRefKey(record.workspace.host),
-      path: nativePathFromHost(record.workspace.path),
-    });
   }
 
   private refreshInBackground(
     projectId: string,
-    refresh: () => Promise<ProjectWorkspacesResult>
+    refresh: () => Promise<ProjectWorkspacesResult>,
+    hostId: string | undefined
   ): void {
     const entry = this.entries.get(projectId);
     if (!entry || entry.refreshing) return;
     entry.refreshing = refresh()
       .then((result) => {
-        this.set(projectId, result);
+        this.set(projectId, result, { hostId });
       })
       .finally(() => {
         const latest = this.entries.get(projectId);

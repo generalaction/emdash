@@ -1,3 +1,4 @@
+import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type {
   ProjectWorkspaceActionResult,
@@ -9,6 +10,7 @@ import type { WorkspaceScanCache } from '../workspace-scan-cache';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
+  projectWorkspaceHost,
   type ListProjectWorkspacesDependencies,
 } from './list-project-workspaces';
 import { enqueueDeleteWorkspacePath } from './workspace-lifecycle-definitions';
@@ -26,12 +28,12 @@ export async function deleteProjectWorkspaces(
 ): Promise<ProjectWorkspaceActionSummary> {
   if (input.paths.length === 0) return { succeededCount: 0, failedCount: 0, results: [] };
 
-  const [project, rows] = await Promise.all([
-    getProjectWorkspaceProject(dependencies.db, input.projectId),
-    dependencies.workspaceScanCache.getOrRefresh(input.projectId, () =>
-      listProjectWorkspaces(dependencies, input.projectId)
-    ),
-  ]);
+  const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
+  const rows = await dependencies.workspaceScanCache.getOrRefresh(
+    input.projectId,
+    () => listProjectWorkspaces(dependencies, input.projectId),
+    { hostId: hostRefKey(projectWorkspaceHost(project)) }
+  );
   const rowsByPath = new Map(rows.rows.map((row) => [row.path, row]));
   const results: ProjectWorkspaceActionResult[] = [];
 

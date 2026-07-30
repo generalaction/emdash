@@ -13,19 +13,30 @@ const commonPayloadShape = {
   hostLabel: z.string().optional(),
 };
 
-export function defineOperationKindPayloadSchema<TShape extends z.ZodRawShape>(shape: TShape) {
-  const v2Schema = z.strictObject({
+type OperationPayloadSchemaOptions = {
+  unknownKeys?: 'strict' | 'passthrough';
+};
+
+export function defineOperationKindPayloadSchema<TShape extends z.ZodRawShape>(
+  shape: TShape,
+  options: OperationPayloadSchemaOptions = {}
+) {
+  const object = <T extends z.ZodRawShape>(schemaShape: T) =>
+    options.unknownKeys === 'passthrough'
+      ? z.object(schemaShape).passthrough()
+      : z.strictObject(schemaShape);
+  const v2Shape = {
     version: z.literal('2'),
     source: commonPayloadShape.source,
     ...shape,
+  };
+  const v2Schema = object(v2Shape);
+  const v1Schema = object({
+    ...v2Shape,
+    version: z.literal('1'),
+    confirmationReason: confirmationReasonSchema,
+    confirmedAt: z.number().int().nonnegative().optional(),
   });
-  const v1Schema = v2Schema
-    .extend({
-      version: z.literal('1'),
-      confirmationReason: confirmationReasonSchema,
-      confirmedAt: z.number().int().nonnegative().optional(),
-    })
-    .strict();
   return defineVersionedSchema()
     .initial('1', v1Schema)
     .version('2', v2Schema, (previous) => {
@@ -47,6 +58,8 @@ const operationPayloadShape = {
   tmuxSessionNames: z.array(z.string()).optional(),
 };
 
-export const operationPayload = defineOperationKindPayloadSchema(operationPayloadShape);
+export const operationPayload = defineOperationKindPayloadSchema(operationPayloadShape, {
+  unknownKeys: 'passthrough',
+});
 
 export type OperationPayload = typeof operationPayload.Type;
