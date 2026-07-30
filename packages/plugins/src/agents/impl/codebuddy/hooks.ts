@@ -5,29 +5,29 @@ import {
   makeStdinHookCommand,
 } from '@emdash/core/agents/plugins/helpers';
 
-export const CODEBUDDY_EMDASH_HOOKS_PATH = '.codebuddy/emdash-hooks.json';
+export const CODEBUDDY_SETTINGS_PATH = '.codebuddy/settings.local.json';
 
-function validateEmdashHooksOverlay(content: string | null): void {
+function validateCodeBuddySettings(content: string | null): void {
   if (content === null) return;
 
   let settings: unknown;
   try {
     settings = JSON.parse(content);
   } catch {
-    throw new Error(`Cannot update ${CODEBUDDY_EMDASH_HOOKS_PATH}: file contains invalid JSON`);
+    throw new Error(`Cannot update ${CODEBUDDY_SETTINGS_PATH}: file contains invalid JSON`);
   }
 
   if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) {
-    throw new Error(`Cannot update ${CODEBUDDY_EMDASH_HOOKS_PATH}: expected a JSON object`);
+    throw new Error(`Cannot update ${CODEBUDDY_SETTINGS_PATH}: expected a JSON object`);
   }
 }
 
-function createStrictOverlayFs(fs: PluginFs): PluginFs {
+function createStrictCodeBuddySettingsFs(fs: PluginFs): PluginFs {
   return {
     ...fs,
     async read(path: string): Promise<string | null> {
       const content = await fs.read(path);
-      if (path === CODEBUDDY_EMDASH_HOOKS_PATH) validateEmdashHooksOverlay(content);
+      if (path === CODEBUDDY_SETTINGS_PATH) validateCodeBuddySettings(content);
       return content;
     },
   };
@@ -56,7 +56,7 @@ function parseCodeBuddyHookEvent(
 }
 
 export function buildCodeBuddyHookConfig() {
-  const hooks = buildNestedJsonHookConfig(CODEBUDDY_EMDASH_HOOKS_PATH, [
+  const hooks = buildNestedJsonHookConfig(CODEBUDDY_SETTINGS_PATH, [
     { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
     { hookKey: 'UserPromptSubmit', command: makeStdinHookCommand('start') },
     { hookKey: 'PreToolUse', command: makeStdinHookCommand('start') },
@@ -70,10 +70,10 @@ export function buildCodeBuddyHookConfig() {
   return {
     ...hooks,
     async writeHooks(fs: PluginFs, registrations: HookRegistration[]): Promise<string[]> {
-      return hooks.writeHooks(createStrictOverlayFs(fs), registrations);
+      return hooks.writeHooks(createStrictCodeBuddySettingsFs(fs), registrations);
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
-      return hooks.deleteHooks(createStrictOverlayFs(fs));
+      return hooks.deleteHooks(createStrictCodeBuddySettingsFs(fs));
     },
     parseHookEvent: parseCodeBuddyHookEvent,
   };

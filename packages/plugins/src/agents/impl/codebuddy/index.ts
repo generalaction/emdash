@@ -5,7 +5,7 @@ import {
   npmDependency,
 } from '@emdash/core/agents/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
-import { CODEBUDDY_EMDASH_HOOKS_PATH, buildCodeBuddyHookConfig } from './hooks';
+import { buildCodeBuddyHookConfig } from './hooks';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -56,25 +56,14 @@ export const provider = registerPluginBehavior(plugin, {
   })),
   hooks: buildCodeBuddyHookConfig(),
   prompt: {
-    buildCommand: (ctx) => {
-      if (
-        ctx.hooksEnabled &&
-        ctx.extraArgs?.some((arg) => arg === '--settings' || arg.startsWith('--settings='))
-      ) {
-        throw new Error(
-          'CodeBuddy additional parameters cannot include --settings while Emdash hooks are enabled; use CodeBuddy user, project, or local settings instead.'
-        );
-      }
-
-      return buildStandardCommand(ctx, {
-        defaultArgs: ctx.hooksEnabled ? ['--settings', CODEBUDDY_EMDASH_HOOKS_PATH] : undefined,
+    buildCommand: (ctx) =>
+      buildStandardCommand(ctx, {
         autoApproveFlag: '--dangerously-skip-permissions',
         initialPromptFlag: '',
         modelFlag: '--model',
         resumeFlag: '--resume',
         sessionIdFlag: '--session-id',
-      });
-    },
+      }),
   },
   mcp: createMcpAdapter({
     configPath: '.codebuddy/.mcp.json',
