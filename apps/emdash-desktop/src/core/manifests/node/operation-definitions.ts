@@ -1,22 +1,22 @@
 import {
-  createDeleteAutomationOperationDefinition,
+  deleteAutomationOperationContribution,
   type DeleteAutomationOperationDependencies,
 } from '@core/features/automations/node/operations/delete-automation-definition';
 import {
-  createDeleteProjectOperationDefinition,
+  deleteProjectOperationContribution,
   type DeleteProjectOperationDependencies,
 } from '@core/features/projects/node/operations/delete-project-definition';
 import {
-  createDeleteTaskOperationDefinition,
+  deleteTaskOperationContribution,
   type DeleteTaskOperationDependencies,
 } from '@core/features/tasks/node/operations/delete-task-definition';
 import {
-  createCleanupSessionsOperationDefinition,
+  cleanupSessionsOperationContribution,
   type CleanupSessionsDependencies,
 } from '@core/features/workspaces/node/operations/cleanup-sessions-definition';
 import {
-  createArchiveWorkspaceOperationDefinition,
-  createDeleteWorkspaceOperationDefinition,
+  archiveWorkspaceOperationContribution,
+  deleteWorkspaceOperationContribution,
   type WorkspaceLifecycleDependencies,
 } from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
 import type { OperationDefinition } from '@core/services/operations/node';
@@ -33,11 +33,22 @@ export function createOperationDefinitions(
   options: OperationDefinitionOptions
 ): OperationDefinition[] {
   return [
-    createDeleteTaskOperationDefinition(options.deleteTask),
-    createDeleteAutomationOperationDefinition(options.deleteAutomation),
-    createDeleteWorkspaceOperationDefinition(options.workspaceLifecycle),
-    createArchiveWorkspaceOperationDefinition(options.workspaceLifecycle),
-    createDeleteProjectOperationDefinition(options.deleteProject),
-    createCleanupSessionsOperationDefinition(options.cleanupSessions),
+    createDefinition(deleteTaskOperationContribution, options.deleteTask),
+    createDefinition(deleteAutomationOperationContribution, options.deleteAutomation),
+    createDefinition(deleteWorkspaceOperationContribution, options.workspaceLifecycle),
+    createDefinition(archiveWorkspaceOperationContribution, options.workspaceLifecycle),
+    createDefinition(deleteProjectOperationContribution, options.deleteProject),
+    createDefinition(cleanupSessionsOperationContribution, options.cleanupSessions),
   ];
+}
+
+function createDefinition<TDeps>(
+  contribution: {
+    payload: OperationDefinition['payloadSchema'];
+    create(dependencies: TDeps): OperationDefinition;
+  },
+  dependencies: TDeps
+): OperationDefinition {
+  const definition = contribution.create(dependencies);
+  return { ...definition, payloadSchema: contribution.payload };
 }

@@ -157,10 +157,8 @@ describe('delete-automation operation convergence', () => {
       status: 'awaiting-confirmation',
       entityKey: 'automation-1',
       hostRef: 'ssh-1',
-      payload: expect.objectContaining({
-        source: 'reconciler',
-        confirmationReason: 'reconciler-proposed',
-      }),
+      confirmationReason: 'reconciler-proposed',
+      payload: expect.objectContaining({ source: 'reconciler' }),
     });
   });
 });
@@ -175,14 +173,17 @@ function operation(overrides: Partial<LifecycleOperationRow> = {}): LifecycleOpe
     workspaceId: null,
     entityKey: 'automation-1',
     parentOperationId: null,
+    parentForgetPolicy: null,
     initiatedBy: null,
     hostRef: 'ssh-1',
     payload: {
-      version: '1',
+      version: '2',
       source: 'user',
       entityName: 'Nightly review',
     },
     attempt: 0,
+    confirmedAt: null,
+    confirmationReason: null,
     error: null,
     createdAt: 0,
     finishedAt: null,

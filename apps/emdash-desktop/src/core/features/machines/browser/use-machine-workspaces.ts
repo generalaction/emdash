@@ -130,7 +130,12 @@ export function useMachineOperationLog(machineId?: string): Map<string, string> 
           machinesContract.operationLog,
           client.machines.operationLog,
           {
-            onChange: { list: (list: WorkspaceOperationRecordMap) => setRecords(list) },
+            onChange: {
+              list: (list: WorkspaceOperationRecordMap) => {
+                setRecords(list);
+                void invalidateWorkspaceScanCacheForTerminalRecords(client, list);
+              },
+            },
           }
         );
         const lease = replica.acquire({ machineId });
@@ -168,6 +173,25 @@ export function useMachineOperationLog(machineId?: string): Map<string, string> 
     }
     return active;
   }, [records]);
+}
+
+async function invalidateWorkspaceScanCacheForTerminalRecords(
+  client: Awaited<ReturnType<typeof getDesktopWireClient>>,
+  records: WorkspaceOperationRecordMap
+): Promise<void> {
+  await Promise.all(
+    Object.values(records).flatMap((record) => {
+      if (
+        !isTerminalStatus(record.status) ||
+        (record.kind !== 'teardown' && record.kind !== 'clean-artifacts')
+      ) {
+        return [];
+      }
+      return client.projectWorkspaces.invalidateWorkspaceScanCache({
+        path: nativePathFromHost(record.workspace.path),
+      });
+    })
+  );
 }
 
 function hostOperationLabel(kind: string): string {

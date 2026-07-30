@@ -7,7 +7,7 @@ import { createResourceCache, type Scope } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   operationKinds,
   type OperationClaimResource,
@@ -41,6 +41,7 @@ import {
   operationIsRunnable,
   queuedOperations,
   runQueuedOperation,
+  settleParentIfChildrenDone,
   tryTransitionStatus,
 } from './execution';
 import { nextOperationStatus, requireNextOperationStatus } from './operation-status-machine';
@@ -115,6 +116,7 @@ export class OperationsEngine {
             hostIsOnline: (hostRef) => this.hostIsOnline(hostRef),
             refreshOperationTrees: () => this.refreshOperationTrees(),
             publishPendingCleanup: (item, reason) => this.publishPendingCleanup(item, reason),
+            poke: () => this.poke(),
           },
           operation,
           signal
@@ -216,11 +218,17 @@ export class OperationsEngine {
     }
 
     const submission = prepared.data;
+    const hasRelatedOperations = (submission.related?.length ?? 0) > 0;
     const draft = buildOperationDraft({
-      input: submission.draft,
+      input: {
+        ...submission.draft,
+        status: submission.draft.status ?? (hasRelatedOperations ? 'waiting-children' : undefined),
+      },
       initiatedBy: this.initiatedBy,
       now: this.clock.now(),
     });
+    const payloadError = this.validatePayload(draft);
+    if (payloadError) return err(payloadError);
     let insertion: InsertOperationOutcome;
     try {
       insertion = this.db.transaction((tx) => {
@@ -235,9 +243,18 @@ export class OperationsEngine {
             initiatedBy: this.initiatedBy,
             now: this.clock.now(),
           });
-          const relatedInsertion = insertOperation(tx, relatedDraft, related.options);
+          const relatedPayloadError = this.validatePayload(relatedDraft);
+          if (relatedPayloadError) {
+            throw new RelatedOperationInsertError(relatedPayloadError, relatedDraft);
+          }
+          const parentForgetPolicy = related.propagation?.onParentForget ?? 'abandon-children';
+          const relatedOptions = {
+            ...related.options,
+            parentForgetPolicy,
+          };
+          const relatedInsertion = insertOperation(tx, relatedDraft, relatedOptions);
           if (relatedInsertion.outcome === 'duplicate' && relatedInsertion.operationId) {
-            adoptOperation(tx, relatedInsertion.operationId, draft.id);
+            adoptOperation(tx, relatedInsertion.operationId, draft.id, parentForgetPolicy);
           } else if (relatedInsertion.outcome === 'precondition-failed') {
             throw new RelatedOperationInsertError(relatedInsertion.error, relatedDraft);
           }
@@ -269,7 +286,7 @@ export class OperationsEngine {
 
     await this.refreshOperationTrees();
     if (draft.status === 'awaiting-confirmation') {
-      this.publishPendingCleanup(draft, draft.payload.confirmationReason ?? 'reconciler-proposed');
+      this.publishPendingCleanup(draft, draft.confirmationReason ?? 'reconciler-proposed');
     } else {
       this.poke();
     }
@@ -289,6 +306,7 @@ export class OperationsEngine {
       return err({ type: preflight.error.type, message: preflight.error.message });
     }
     const reset = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
+      if (item.id === operation.id) resetRetryableChildren(tx, operation.id, reset);
       const status = tryTransitionStatus(item, retryEvent);
       if (!status) return;
       tx.update(lifecycleOperations)
@@ -296,11 +314,8 @@ export class OperationsEngine {
           status,
           error: null,
           finishedAt: null,
-          payload: {
-            ...item.payload,
-            confirmedAt,
-            confirmationReason: undefined,
-          },
+          confirmedAt,
+          confirmationReason: null,
         })
         .where(eq(lifecycleOperations.id, item.id))
         .run();
@@ -334,6 +349,7 @@ export class OperationsEngine {
       return err({ type: preflight.error.type, message: preflight.error.message });
     }
     const markAbandoned = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
+      if (item.id === operation.id) applyParentForgetPolicy(tx, operation.id, markAbandoned);
       const status = tryTransitionStatus(item, abandonEvent);
       if (!status) return;
       tx.update(lifecycleOperations)
@@ -353,6 +369,14 @@ export class OperationsEngine {
       this.db.transaction((tx) => markAbandoned(tx));
     }
 
+    await settleParentIfChildrenDone(
+      {
+        db: this.db,
+        refreshOperationTrees: () => this.refreshOperationTrees(),
+        poke: () => this.poke(),
+      },
+      operation
+    );
     await this.refreshOperationTrees();
     return ok({ operationId: operation.id });
   }
@@ -418,6 +442,22 @@ export class OperationsEngine {
     return definition;
   }
 
+  private validatePayload(
+    operation: Pick<LifecycleOperationRow, 'kind' | 'payload'>
+  ): OperationMutationError | undefined {
+    const schema = this.definitions.get(operation.kind)?.payloadSchema;
+    if (!schema) return undefined;
+    const parsed = schema.safeParse(operation.payload);
+    if (parsed.status === 'ok') return undefined;
+    return {
+      type: 'invalid-operation-payload',
+      message:
+        parsed.status === 'invalid'
+          ? parsed.reason
+          : `Operation payload for ${operation.kind} uses unsupported version '${parsed.version}'`,
+    };
+  }
+
   private async refreshOperationTrees(): Promise<void> {
     for (const key of this.operationTreeKeys.values()) {
       this.operationTrees.peek(key)?.invalidate();
@@ -446,4 +486,55 @@ export function enqueueSubmission(
   submission: Omit<Extract<OperationSubmission, { outcome: 'enqueue' }>, 'outcome'>
 ): Result<OperationSubmission, OperationMutationError> {
   return ok({ outcome: 'enqueue', ...submission });
+}
+
+function resetRetryableChildren(
+  tx: DrizzleTx,
+  parentOperationId: string,
+  reset: (tx: DrizzleTx, item: LifecycleOperationRow) => void
+): void {
+  const children = tx
+    .select()
+    .from(lifecycleOperations)
+    .where(
+      and(
+        eq(lifecycleOperations.parentOperationId, parentOperationId),
+        inArray(lifecycleOperations.status, ['awaiting-confirmation' as const, 'failed' as const])
+      )
+    )
+    .all();
+  for (const child of children) reset(tx, child);
+}
+
+function applyParentForgetPolicy(
+  tx: DrizzleTx,
+  parentOperationId: string,
+  markAbandoned: (tx: DrizzleTx, item: LifecycleOperationRow) => void
+): void {
+  const children = tx
+    .select()
+    .from(lifecycleOperations)
+    .where(
+      and(
+        eq(lifecycleOperations.parentOperationId, parentOperationId),
+        inArray(lifecycleOperations.status, [
+          'pending' as const,
+          'waiting-children' as const,
+          'running' as const,
+          'awaiting-confirmation' as const,
+          'failed' as const,
+        ])
+      )
+    )
+    .all();
+  for (const child of children) {
+    if (child.parentForgetPolicy === 'orphan-children') {
+      tx.update(lifecycleOperations)
+        .set({ parentOperationId: null, parentForgetPolicy: null })
+        .where(eq(lifecycleOperations.id, child.id))
+        .run();
+    } else {
+      markAbandoned(tx, child);
+    }
+  }
 }

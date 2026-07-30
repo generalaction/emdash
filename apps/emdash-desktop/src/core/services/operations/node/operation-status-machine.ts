@@ -4,6 +4,7 @@ import type { OperationConfirmationReason } from './definition';
 
 export type OperationStatusEvent =
   | { type: 'started' }
+  | { type: 'children-settled' }
   | { type: 'run-succeeded' }
   | { type: 'run-failed'; error: string; retryable: boolean }
   | { type: 'needs-confirmation'; reason: OperationConfirmationReason }
@@ -23,6 +24,10 @@ const transitions = {
     started: 'running',
     'run-failed': 'failed',
     'user-retried': 'pending',
+    'user-abandoned': 'abandoned',
+  },
+  'waiting-children': {
+    'children-settled': 'pending',
     'user-abandoned': 'abandoned',
   },
   running: {

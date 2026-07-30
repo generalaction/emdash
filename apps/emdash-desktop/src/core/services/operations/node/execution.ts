@@ -1,8 +1,12 @@
 import { err, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import { eq, inArray } from 'drizzle-orm';
-import type { OperationKind, OperationStatus } from '@core/primitives/operations/api';
+import { and, eq, inArray } from 'drizzle-orm';
+import {
+  nonTerminalOperationStatuses,
+  type OperationKind,
+  type OperationStatus,
+} from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type {
@@ -30,6 +34,7 @@ export type OperationExecutionContext = {
     operation: Pick<LifecycleOperationRow, 'id' | 'payload' | 'hostRef'>,
     reason: OperationConfirmationReason
   ): void;
+  poke(): void;
 };
 
 export async function queuedOperations(db: AppDb): Promise<LifecycleOperationRow[]> {
@@ -96,6 +101,7 @@ async function runOperation(
         error: null,
       })
       .where(eq(lifecycleOperations.id, operation.id));
+    await settleParentIfChildrenDone(context, operation);
   } else if (result.error.type === 'awaiting-confirmation') {
     await awaitConfirmation(context, operation, result.error.reason, result.error.message);
     return;
@@ -114,6 +120,42 @@ async function runOperation(
       .where(eq(lifecycleOperations.id, operation.id));
   }
   await context.refreshOperationTrees();
+}
+
+export async function settleParentIfChildrenDone(
+  context: Pick<OperationExecutionContext, 'db' | 'refreshOperationTrees' | 'poke'>,
+  child: LifecycleOperationRow
+): Promise<void> {
+  if (!child.parentOperationId) return;
+  const settled = context.db.transaction((tx) => {
+    const [liveChild] = tx
+      .select({ id: lifecycleOperations.id })
+      .from(lifecycleOperations)
+      .where(
+        and(
+          eq(lifecycleOperations.parentOperationId, child.parentOperationId!),
+          inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
+        )
+      )
+      .limit(1)
+      .all();
+    if (liveChild) return false;
+    const status = requireNextOperationStatus('waiting-children', { type: 'children-settled' });
+    const changes = tx
+      .update(lifecycleOperations)
+      .set({ status })
+      .where(
+        and(
+          eq(lifecycleOperations.id, child.parentOperationId!),
+          eq(lifecycleOperations.status, 'waiting-children')
+        )
+      )
+      .run().changes;
+    return changes > 0;
+  });
+  if (!settled) return;
+  await context.refreshOperationTrees();
+  context.poke();
 }
 
 async function runWithRetries(
@@ -170,7 +212,7 @@ async function awaitConfirmation(
       status: transitionStatus('running', { type: 'needs-confirmation', reason }),
       attempt: operation.attempt,
       error: message ?? null,
-      payload: { ...operation.payload, confirmationReason: reason },
+      confirmationReason: reason,
     })
     .where(eq(lifecycleOperations.id, operation.id));
   context.publishPendingCleanup(operation, reason);

@@ -231,9 +231,16 @@ export const lifecycleOperations = sqliteTable(
     workspaceId: text('workspace_id'),
     entityKey: text('entity_key'),
     parentOperationId: text('parent_operation_id'),
+    parentForgetPolicy: text('parent_forget_policy').$type<
+      'abandon-children' | 'orphan-children'
+    >(),
     initiatedBy: text('initiated_by'),
     hostRef: text('host_ref').notNull(),
     payload: versionedJsonColumn(operationPayload)('payload').$type<OperationPayload>().notNull(),
+    confirmedAt: integer('confirmed_at'),
+    confirmationReason: text('confirmation_reason').$type<
+      'stale' | 'workspace-modified' | 'reconciler-proposed' | 'workspace-busy'
+    >(),
     attempt: integer('attempt').notNull().default(0),
     error: text('error'),
     createdAt: integer('created_at').notNull(),

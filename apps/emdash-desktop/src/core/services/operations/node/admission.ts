@@ -48,6 +48,8 @@ export function buildOperationDraft(options: {
     initiatedBy: input.initiatedBy ?? options.initiatedBy ?? null,
     hostRef: input.hostRef,
     payload: input.payload,
+    confirmedAt: input.confirmedAt ?? null,
+    confirmationReason: input.confirmationReason ?? null,
     createdAt: input.createdAt ?? options.now,
   };
 }
@@ -87,7 +89,12 @@ export function insertOperation(
         : undefined,
     };
   }
-  tx.insert(lifecycleOperations).values(draft).run();
+  tx.insert(lifecycleOperations)
+    .values({
+      ...draft,
+      parentForgetPolicy: options.parentForgetPolicy ?? null,
+    })
+    .run();
   if (claimResources.length > 0) {
     tx.insert(operationClaims)
       .values(
@@ -123,10 +130,11 @@ export function operationForEntityKey(
 export function adoptOperation(
   tx: DrizzleTx,
   operationId: string,
-  parentOperationId: string
+  parentOperationId: string,
+  parentForgetPolicy?: OperationInsertOptions['parentForgetPolicy']
 ): void {
   tx.update(lifecycleOperations)
-    .set({ parentOperationId })
+    .set({ parentOperationId, parentForgetPolicy: parentForgetPolicy ?? null })
     .where(eq(lifecycleOperations.id, operationId))
     .run();
 }

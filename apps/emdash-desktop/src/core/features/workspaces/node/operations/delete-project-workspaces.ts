@@ -5,6 +5,7 @@ import type {
   ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
 import type { OperationsEngine } from '@core/services/operations/node';
+import type { WorkspaceScanCache } from '../workspace-scan-cache';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
@@ -16,6 +17,7 @@ export async function deleteProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies & {
     operations: OperationsEngine;
     taskService: Pick<TaskService, 'deleteTask'>;
+    workspaceScanCache: WorkspaceScanCache;
   },
   input: {
     projectId: string;
@@ -26,7 +28,9 @@ export async function deleteProjectWorkspaces(
 
   const [project, rows] = await Promise.all([
     getProjectWorkspaceProject(dependencies.db, input.projectId),
-    listProjectWorkspaces(dependencies, input.projectId),
+    dependencies.workspaceScanCache.getOrRefresh(input.projectId, () =>
+      listProjectWorkspaces(dependencies, input.projectId)
+    ),
   ]);
   const rowsByPath = new Map(rows.rows.map((row) => [row.path, row]));
   const results: ProjectWorkspaceActionResult[] = [];
@@ -42,7 +46,14 @@ export async function deleteProjectWorkspaces(
       });
       continue;
     }
-    results.push(await deleteProjectWorkspaceRow(dependencies, input.projectId, project.path, row));
+    const result = await deleteProjectWorkspaceRow(
+      dependencies,
+      input.projectId,
+      project.path,
+      row
+    );
+    if (result.success) dependencies.workspaceScanCache.evict(input.projectId, row.path);
+    results.push(result);
   }
 
   const succeededCount = results.filter((result) => result.success).length;

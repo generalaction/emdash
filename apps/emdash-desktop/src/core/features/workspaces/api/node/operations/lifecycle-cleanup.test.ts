@@ -81,7 +81,7 @@ describe('lifecycle workspace cleanup', () => {
     } as never;
     const operation = {
       ...remoteOperation(),
-      payload: { ...remoteOperation().payload, confirmedAt: 1_000 },
+      confirmedAt: 1_000,
     };
 
     await teardownLifecycleWorkspace(dependencies, {} as never, operation, {
@@ -145,10 +145,13 @@ function remoteOperation(): LifecycleOperationRow {
     workspaceId: null,
     entityKey: 'workspace-1',
     parentOperationId: null,
+    parentForgetPolicy: null,
     initiatedBy: null,
     hostRef: 'ssh-1',
-    payload: { version: '1', source: 'user', deleteWorktree: true },
+    payload: { version: '2', source: 'user', deleteWorktree: true },
     attempt: 1,
+    confirmedAt: null,
+    confirmationReason: null,
     error: null,
     createdAt: 0,
     finishedAt: null,

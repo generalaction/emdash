@@ -4,7 +4,9 @@ import { deferred, ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import z from 'zod';
 import {
+  defineOperationKindPayloadSchema,
   type OperationDisplayState,
   operationKinds,
   type OperationKind,
@@ -94,7 +96,7 @@ describe('OperationsEngine', () => {
           entityKey: 'project-1',
           projectId: 'project-1',
           hostRef: 'local',
-          payload: { version: '1', source: 'user', entityName: 'Project' },
+          payload: { version: '2', source: 'user', entityName: 'Project' },
         },
         related: [
           {
@@ -111,6 +113,82 @@ describe('OperationsEngine', () => {
       .from(lifecycleOperations)
       .where(eq(lifecycleOperations.id, child.success ? child.data.operationId! : ''));
     expect(childRow.parentOperationId).toBe(parent.success ? parent.data.operationId : undefined);
+  });
+
+  it('keeps parents in waiting-children until child operations settle', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    const run = vi.fn(async () => ok(undefined));
+    handle = await createTestEngine({ run, ssh });
+
+    const parent = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: {
+          kind: 'delete-project' as const,
+          entityKey: 'project-1',
+          projectId: 'project-1',
+          hostRef: 'local',
+          payload: { version: '2', source: 'user', entityName: 'Project' },
+        },
+        related: [
+          {
+            draft: operationDraft('task-1', 'remote-1'),
+          },
+        ],
+      })
+    );
+    await handle.engine.waitForIdle();
+
+    const parentId = parent.success ? parent.data.operationId! : '';
+    expect(await operationById(parentId)).toMatchObject({ status: 'waiting-children' });
+    expect(run).not.toHaveBeenCalled();
+
+    ssh.connect();
+    await handle.engine.waitForIdle();
+
+    expect(await operationById(parentId)).toMatchObject({ status: 'succeeded' });
+    expect(await operationStatusByEntityKey('task-1')).toBe('succeeded');
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies parent forget policies to child operations', async () => {
+    fixture = await openFixture('empty');
+    const ssh = createSshManager(false);
+    handle = await createTestEngine({ ssh });
+
+    const parent = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: {
+          kind: 'delete-project' as const,
+          entityKey: 'project-1',
+          projectId: 'project-1',
+          hostRef: 'local',
+          payload: { version: '2', source: 'user', entityName: 'Project' },
+        },
+        related: [
+          {
+            draft: operationDraft('task-abandon', 'remote-1'),
+            propagation: { onParentForget: 'abandon-children' as const },
+          },
+          {
+            draft: operationDraft('task-orphan', 'remote-1'),
+            propagation: { onParentForget: 'orphan-children' as const },
+          },
+        ],
+      })
+    );
+    const parentId = parent.success ? parent.data.operationId! : '';
+
+    await handle.engine.forget(parentId);
+
+    expect(await operationStatusByEntityKey('task-abandon')).toBe('abandoned');
+    expect(await operationByEntityKey('task-orphan')).toMatchObject({
+      status: 'pending',
+      parentOperationId: null,
+      parentForgetPolicy: null,
+    });
   });
 
   it('rejects conflicting operation claims and frees claims after terminal status', async () => {
@@ -161,6 +239,33 @@ describe('OperationsEngine', () => {
     );
     expect(next.success).toBe(true);
     expect(await fixture.db.select().from(operationClaims)).toHaveLength(2);
+  });
+
+  it('rejects payload fields that do not belong to the operation kind', async () => {
+    fixture = await openFixture('empty');
+    handle = await createTestEngine({});
+
+    const result = await handle.engine.submit(async () =>
+      ok({
+        outcome: 'enqueue',
+        draft: {
+          kind: 'delete-project' as const,
+          projectId: 'project-1',
+          entityKey: 'project-1',
+          hostRef: 'local',
+          payload: {
+            version: '2' as const,
+            source: 'user' as const,
+            entityName: 'Project',
+            deleteWorktree: true,
+          },
+        },
+      })
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.success ? undefined : result.error.type).toBe('invalid-operation-payload');
+    expect(await fixture.db.select().from(lifecycleOperations)).toHaveLength(0);
   });
 
   it('rejects claim conflicts before committing tombstones', async () => {
@@ -233,7 +338,7 @@ describe('OperationsEngine', () => {
           entityKey: 'project-1',
           projectId: 'project-1',
           hostRef: 'local',
-          payload: { version: '1', source: 'user', entityName: 'Project' },
+          payload: { version: '2', source: 'user', entityName: 'Project' },
         },
         options: {
           claims: [{ kind: 'project', id: 'project-1' }],
@@ -329,7 +434,8 @@ describe('OperationsEngine', () => {
     expect(row).toMatchObject({
       status: 'pending',
       error: null,
-      payload: { confirmedAt: 1_000 },
+      confirmedAt: 1_000,
+      confirmationReason: null,
     });
     expect(run).not.toHaveBeenCalled();
 
@@ -452,7 +558,7 @@ describe('OperationsEngine', () => {
     expect(row).toMatchObject({
       status: 'awaiting-confirmation',
       attempt: 0,
-      payload: { confirmationReason: 'workspace-modified' },
+      confirmationReason: 'workspace-modified',
     });
     expect(publishPendingCleanup).toHaveBeenCalledTimes(1);
 
@@ -460,7 +566,7 @@ describe('OperationsEngine', () => {
     await handle.engine.retry(pendingRow.id);
     await handle.engine.waitForIdle();
     [row] = await fixture.db.select().from(lifecycleOperations);
-    expect(row).toMatchObject({ status: 'succeeded', attempt: 1 });
+    expect(row).toMatchObject({ status: 'succeeded', attempt: 1, confirmedAt: expect.any(Number) });
   });
 
   it('projects running operations with waiting progress as waiting cleanups', async () => {
@@ -589,7 +695,7 @@ describe('OperationsEngine', () => {
             kind: 'cleanup-sessions',
             entityKey: 'orphan-1',
             hostRef: 'local',
-            payload: { version: '1', source: 'reconciler' },
+            payload: { version: '2', source: 'reconciler' },
           },
         })
       );
@@ -657,6 +763,14 @@ describe('OperationsEngine', () => {
     return row;
   }
 
+  async function operationById(operationId: string) {
+    const [row] = await fixture.db
+      .select()
+      .from(lifecycleOperations)
+      .where(eq(lifecycleOperations.id, operationId));
+    return row;
+  }
+
   async function operationStatusByEntityKey(entityKey: string) {
     return (await operationByEntityKey(entityKey))?.status;
   }
@@ -669,6 +783,7 @@ function definition(
 ): OperationDefinition {
   return {
     kind,
+    payloadSchema: kind === 'delete-project' ? deleteProjectPayloadSchema : undefined,
     entityKind:
       kind === 'delete-project'
         ? 'project'
@@ -685,6 +800,11 @@ function definition(
   };
 }
 
+const deleteProjectPayloadSchema = defineOperationKindPayloadSchema({
+  entityName: z.string().optional(),
+  hostLabel: z.string().optional(),
+});
+
 function operationDraft(entityKey: string, hostRef = 'local') {
   return {
     kind: 'delete-task' as const,
@@ -692,7 +812,7 @@ function operationDraft(entityKey: string, hostRef = 'local') {
     hostRef,
     taskId: entityKey,
     payload: {
-      version: '1' as const,
+      version: '2' as const,
       source: 'user' as const,
       entityName: entityKey,
     },

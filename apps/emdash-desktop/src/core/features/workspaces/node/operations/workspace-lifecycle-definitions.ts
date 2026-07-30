@@ -1,5 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import z from 'zod';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
   cleanLifecycleWorkspaceArtifacts,
@@ -13,6 +14,7 @@ import {
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import {
+  defineOperationKindPayloadSchema,
   nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
   type OperationClaimResource,
@@ -26,6 +28,7 @@ import {
   workspaces,
   type LifecycleOperationRow,
 } from '@core/services/app-db/node/schema';
+import { defineOperationContribution } from '@core/services/operations/api';
 import {
   isOperationStale,
   isResumedOperation,
@@ -42,6 +45,26 @@ const SESSION_TIMEOUT_MS = 30_000;
 const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
 const PURGE_TIMEOUT_MS = 30_000;
 const UNKNOWN_BRANCH_SENTINEL = 'HEAD';
+const workspaceLifecycleOperationPayload = defineOperationKindPayloadSchema({
+  entityName: z.string().optional(),
+  hostLabel: z.string().optional(),
+  workspacePath: z.string().optional(),
+  branchName: z.string().optional(),
+  deleteWorktree: z.boolean().optional(),
+  deleteBranch: z.boolean().optional(),
+});
+
+export const deleteWorkspaceOperationContribution = defineOperationContribution({
+  kind: 'delete-workspace',
+  payload: workspaceLifecycleOperationPayload,
+  create: createDeleteWorkspaceOperationDefinition,
+});
+
+export const archiveWorkspaceOperationContribution = defineOperationContribution({
+  kind: 'archive-workspace',
+  payload: workspaceLifecycleOperationPayload,
+  create: createArchiveWorkspaceOperationDefinition,
+});
 
 export type ArchiveWorkspaceInput = {
   projectId: string;
@@ -108,7 +131,7 @@ export function createDeleteWorkspaceOperationDefinition(
       }
       if (
         isResumedOperation(operation, clock.now()) &&
-        !operation.payload.confirmedAt &&
+        operation.confirmedAt === null &&
         (await lifecycleWorkspaceIsDirty(dependencies.cleanup, operation, context))
       ) {
         return operationNeedsConfirmation('workspace-modified');
@@ -165,7 +188,7 @@ export function createArchiveWorkspaceOperationDefinition(
       if (
         context.workspacePath &&
         isResumedOperation(operation, clock.now()) &&
-        !operation.payload.confirmedAt &&
+        operation.confirmedAt === null &&
         (await lifecycleWorkspaceIsDirty(dependencies.cleanup, operation, context))
       ) {
         return operationNeedsConfirmation('workspace-modified');
@@ -239,7 +262,7 @@ export async function enqueueDeleteWorkspace(operations: OperationsEngine, works
         entityKey: workspaceId,
         hostRef,
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'user' as const,
           entityName: workspace.path ?? undefined,
           deleteWorktree: true,
@@ -300,7 +323,7 @@ export async function enqueueDeleteWorkspacePath(
         entityKey,
         hostRef: project.sshConnectionId ?? 'local',
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'user' as const,
           entityName: input.workspacePath,
           workspacePath: input.workspacePath,
@@ -378,7 +401,7 @@ export async function enqueueArchiveWorkspace(
         entityKey,
         hostRef: workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local',
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'user' as const,
           entityName: input.workspacePath,
           workspacePath: input.workspacePath,
@@ -421,7 +444,7 @@ export async function submitReconcilerWorkspaceCleanup(
     if (!project) return ok({ outcome: 'existing' as const });
     const createdAt = clock.now();
     const payload: OperationPayload = {
-      version: '1',
+      version: '2',
       source: 'reconciler',
       entityName: input.workspacePath,
       workspacePath: input.workspacePath,
@@ -429,7 +452,6 @@ export async function submitReconcilerWorkspaceCleanup(
       hostLabel: project.name,
       deleteWorktree: true,
       deleteBranch: false,
-      confirmationReason: 'reconciler-proposed',
     };
     return ok({
       outcome: 'enqueue' as const,
@@ -441,6 +463,7 @@ export async function submitReconcilerWorkspaceCleanup(
         entityKey,
         hostRef: project.sshConnectionId ?? 'local',
         payload,
+        confirmationReason: 'reconciler-proposed',
         createdAt,
       },
       options: {

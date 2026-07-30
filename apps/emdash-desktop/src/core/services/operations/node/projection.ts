@@ -92,13 +92,9 @@ async function toOperationTree(options: {
       )
     )
   ).filter((child): child is OperationDisplayState => child !== undefined);
-  const rootForDisplay =
-    children.length > 0 && rootState.status === 'cleaning'
-      ? ({ ...rootState, status: 'waiting' } as OperationDisplayState)
-      : rootState;
-  const nodes = [rootForDisplay, ...children];
+  const nodes = [rootState, ...children];
   return {
-    root: rootForDisplay,
+    root: rootState,
     children,
     rollup: {
       total: children.length + options.terminalChildren.total,
@@ -162,6 +158,8 @@ function operationDisplayStateFromRow(
     totalSteps: progress?.totalSteps,
   };
   switch (operation.status) {
+    case 'waiting-children':
+      return { ...base, status: 'waiting' };
     case 'pending':
       return { ...base, status: hostOnline ? 'cleaning' : 'blocked-host-offline' };
     case 'running':
@@ -171,7 +169,7 @@ function operationDisplayStateFromRow(
       return {
         ...base,
         status: 'awaiting-confirmation',
-        confirmationReason: operation.payload.confirmationReason ?? 'stale',
+        confirmationReason: operation.confirmationReason ?? 'stale',
         error: operation.error ?? undefined,
       };
     case 'failed':

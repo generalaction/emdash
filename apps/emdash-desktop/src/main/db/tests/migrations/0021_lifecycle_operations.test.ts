@@ -52,7 +52,7 @@ describe('0021_lifecycle_operations', () => {
       entityKey: task?.id,
       hostRef: 'local',
       payload: {
-        version: '1',
+        version: '2',
         source: 'user',
         entityName: task?.name,
       },
@@ -67,7 +67,7 @@ describe('0021_lifecycle_operations', () => {
       hostRef: 'local',
       entityKey: task?.id,
       payload: {
-        version: '1',
+        version: '2',
         source: 'user',
         entityName: task?.name,
       },

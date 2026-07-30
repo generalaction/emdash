@@ -59,7 +59,7 @@ describe('0025_operation_hierarchy_claims', () => {
         projectId: project!.id,
         entityKey: project!.id,
         hostRef: 'local',
-        payload: { version: '1', source: 'user', entityName: project!.name },
+        payload: { version: '2', source: 'user', entityName: project!.name },
         createdAt: Date.now(),
       },
       {
@@ -71,7 +71,7 @@ describe('0025_operation_hierarchy_claims', () => {
         entityKey: task!.id,
         parentOperationId: 'operation-parent',
         hostRef: 'local',
-        payload: { version: '1', source: 'user', entityName: task!.name },
+        payload: { version: '2', source: 'user', entityName: task!.name },
         createdAt: Date.now(),
       },
     ]);

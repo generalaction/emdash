@@ -6,7 +6,9 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import z from 'zod';
 import {
+  defineOperationKindPayloadSchema,
   nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
   type OperationClaimResource,
@@ -19,6 +21,7 @@ import {
   lifecycleOperations,
   projects,
 } from '@core/services/app-db/node/schema';
+import { defineOperationContribution } from '@core/services/operations/api';
 import {
   runOperationActions,
   type OperationDefinition,
@@ -31,6 +34,17 @@ import { listTombstonedAutomationIds, purgeAutomationRows } from '../repo';
 const RUNTIME_TIMEOUT_MS = 30_000;
 const PURGE_TIMEOUT_MS = 30_000;
 const LIST_RUNS_LIMIT = 200;
+const deleteAutomationOperationPayload = defineOperationKindPayloadSchema({
+  entityName: z.string().optional(),
+  hostLabel: z.string().optional(),
+});
+
+export const deleteAutomationOperationContribution = defineOperationContribution({
+  kind: 'delete-automation',
+  payload: deleteAutomationOperationPayload,
+  create: createDeleteAutomationOperationDefinition,
+});
+
 const ACTIVE_RUN_STATUSES = [
   'scheduled',
   'queued',
@@ -143,7 +157,7 @@ export async function enqueueDeleteAutomation(operations: OperationsEngine, auto
         entityKey: automation.id,
         hostRef: project?.sshConnectionId ?? 'local',
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'user' as const,
           entityName: automation.name,
           hostLabel: project?.sshConnectionId ? project.name : undefined,
@@ -229,11 +243,10 @@ export async function submitReconcilerAutomationCleanup(
       : [];
     const createdAt = clock.now();
     const payload: OperationPayload = {
-      version: '1',
+      version: '2',
       source: 'reconciler',
       entityName: automation.name,
       hostLabel: project?.name,
-      confirmationReason: 'reconciler-proposed',
     };
     return ok({
       outcome: 'enqueue' as const,
@@ -244,6 +257,7 @@ export async function submitReconcilerAutomationCleanup(
         entityKey: automation.id,
         hostRef: project?.sshConnectionId ?? 'local',
         payload,
+        confirmationReason: 'reconciler-proposed',
         createdAt,
       },
       options: {

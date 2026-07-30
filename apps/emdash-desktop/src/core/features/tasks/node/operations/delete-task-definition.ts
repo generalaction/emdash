@@ -2,6 +2,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import z from 'zod';
 import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
@@ -16,6 +17,7 @@ import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import {
+  defineOperationKindPayloadSchema,
   nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
   type OperationPayload,
@@ -29,6 +31,7 @@ import {
   workspaces,
   type LifecycleOperationRow,
 } from '@core/services/app-db/node/schema';
+import { defineOperationContribution } from '@core/services/operations/api';
 import {
   isOperationStale,
   isResumedOperation,
@@ -45,6 +48,20 @@ import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/cl
 const SESSION_TIMEOUT_MS = 30_000;
 const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
 const PURGE_TIMEOUT_MS = 30_000;
+const deleteTaskOperationPayload = defineOperationKindPayloadSchema({
+  entityName: z.string().optional(),
+  hostLabel: z.string().optional(),
+  workspacePath: z.string().optional(),
+  branchName: z.string().optional(),
+  deleteWorktree: z.boolean().optional(),
+  deleteBranch: z.boolean().optional(),
+});
+
+export const deleteTaskOperationContribution = defineOperationContribution({
+  kind: 'delete-task',
+  payload: deleteTaskOperationPayload,
+  create: createDeleteTaskOperationDefinition,
+});
 
 export type DeleteTaskInput = {
   taskId: string;
@@ -144,7 +161,7 @@ export function createDeleteTaskOperationDefinition(
         context.task &&
         shouldTeardown &&
         isResumedOperation(operation, clock.now()) &&
-        !operation.payload.confirmedAt &&
+        operation.confirmedAt === null &&
         (await lifecycleWorkspaceIsDirty(dependencies.lifecycleCleanup, operation, context))
       ) {
         return operationNeedsConfirmation('workspace-modified');
@@ -275,7 +292,7 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
         entityKey: task.id,
         hostRef,
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'user' as const,
           entityName: task.name,
           hostLabel: project?.sshConnectionId ? project.name : undefined,
@@ -356,13 +373,12 @@ export async function submitReconcilerTaskCleanup(
       .limit(1);
     const createdAt = clock.now();
     const payload: OperationPayload = {
-      version: '1',
+      version: '2',
       source: 'reconciler',
       entityName: task.name,
       hostLabel: project?.name,
       deleteWorktree: true,
       deleteBranch: false,
-      confirmationReason: 'reconciler-proposed',
     };
     return ok({
       outcome: 'enqueue' as const,
@@ -375,6 +391,7 @@ export async function submitReconcilerTaskCleanup(
         entityKey: task.id,
         hostRef: workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local',
         payload,
+        confirmationReason: 'reconciler-proposed',
         createdAt,
       },
       options: {

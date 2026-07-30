@@ -135,7 +135,7 @@ describe('delete-task operation convergence', () => {
           taskId: 'task-1',
           entityKey: 'task-1',
           hostRef: 'local',
-          payload: { version: '1', source: 'user', deleteWorktree: true },
+          payload: { version: '2', source: 'user', deleteWorktree: true },
         },
       })
     );
@@ -240,7 +240,7 @@ describe('delete-task operation convergence', () => {
           workspaceId: 'workspace-1',
           hostRef: 'ssh-1',
           payload: {
-            version: '1',
+            version: '2',
             source: 'user',
             workspacePath: '/repo/workspace',
             deleteWorktree: true,
@@ -274,15 +274,18 @@ function operation(overrides: Partial<LifecycleOperationRow> = {}): LifecycleOpe
     workspaceId: null,
     entityKey: 'task-1',
     parentOperationId: null,
+    parentForgetPolicy: null,
     initiatedBy: null,
     hostRef: 'local',
     payload: {
-      version: '1',
+      version: '2',
       source: 'user',
       deleteWorktree: true,
       deleteBranch: false,
     },
     attempt: 0,
+    confirmedAt: null,
+    confirmationReason: null,
     error: null,
     createdAt: 0,
     finishedAt: null,

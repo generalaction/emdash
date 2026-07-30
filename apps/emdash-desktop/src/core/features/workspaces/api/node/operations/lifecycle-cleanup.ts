@@ -143,7 +143,7 @@ export async function teardownLifecycleWorkspace(
     operation.hostRef === 'local' ? undefined : operation.hostRef
   );
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
-  const force = operation.payload.confirmedAt !== undefined;
+  const force = operation.confirmedAt !== null;
   const result = await submitAndFollowWorkspaceOperation(client, {
     requestId: `${operation.id}:teardown`,
     kind: 'teardown',

@@ -34,4 +34,8 @@ export const projectWorkspacesContract = defineContract({
     input: z.object({ projectId: z.string(), paths: z.array(z.string()) }),
     output: z.custom<ProjectWorkspaceActionSummary>(),
   }),
+  invalidateWorkspaceScanCache: procedure({
+    input: z.object({ projectId: z.string().optional(), path: z.string().optional() }),
+    output: z.void(),
+  }),
 });

@@ -31,5 +31,7 @@ export function createProjectWorkspacesWireController(
     getProjectWorkspaceGitStats: (input) =>
       projectWorkspaceOperations.getProjectWorkspaceGitStats(input),
     deleteProjectWorkspaces: (input) => projectWorkspaceOperations.deleteProjectWorkspaces(input),
+    invalidateWorkspaceScanCache: (input) =>
+      projectWorkspaceOperations.invalidateWorkspaceScanCache(input),
   });
 }

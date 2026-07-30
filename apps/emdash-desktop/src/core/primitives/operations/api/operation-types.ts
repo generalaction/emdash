@@ -11,6 +11,7 @@ export type OperationKind = (typeof operationKinds)[number];
 
 export const operationStatuses = [
   'pending',
+  'waiting-children',
   'running',
   'awaiting-confirmation',
   'succeeded',
@@ -22,6 +23,7 @@ export type OperationStatus = (typeof operationStatuses)[number];
 
 export const nonTerminalOperationStatuses = [
   'pending',
+  'waiting-children',
   'running',
   'awaiting-confirmation',
   'failed',

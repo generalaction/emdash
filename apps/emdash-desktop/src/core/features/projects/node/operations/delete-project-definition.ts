@@ -1,6 +1,7 @@
 import { ok, err } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { and, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
+import z from 'zod';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
@@ -9,6 +10,7 @@ import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-clai
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
+  defineOperationKindPayloadSchema,
   nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
 } from '@core/primitives/operations/api';
@@ -19,6 +21,7 @@ import {
   tasks,
   workspaces,
 } from '@core/services/app-db/node/schema';
+import { defineOperationContribution } from '@core/services/operations/api';
 import {
   isOperationStale,
   operationNeedsConfirmation,
@@ -30,6 +33,16 @@ import {
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 const PURGE_TIMEOUT_MS = 30_000;
+const deleteProjectOperationPayload = defineOperationKindPayloadSchema({
+  entityName: z.string().optional(),
+  hostLabel: z.string().optional(),
+});
+
+export const deleteProjectOperationContribution = defineOperationContribution({
+  kind: 'delete-project',
+  payload: deleteProjectOperationPayload,
+  create: createDeleteProjectOperationDefinition,
+});
 
 export type DeleteProjectOperationDependencies = {
   automations: Pick<AutomationsService, 'removeProjectDeployments'>;
@@ -51,19 +64,6 @@ export function createDeleteProjectOperationDefinition(
         ? await db.select().from(projects).where(eq(projects.id, operation.projectId)).limit(1)
         : [];
       return { entityName: project?.name };
-    },
-    async isReady({ operation, db }) {
-      const [child] = await db
-        .select({ id: lifecycleOperations.id })
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.parentOperationId, operation.id),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-          )
-        )
-        .limit(1);
-      return !child;
     },
     async run(runContext) {
       const { operation, clock, db } = runContext;
@@ -92,42 +92,18 @@ export function createDeleteProjectOperationDefinition(
         { classifyError: classifyWorkspaceOperationError }
       );
     },
-    async retry({ operation, db, reset }) {
-      const operations = await db
-        .select()
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.parentOperationId, operation.id),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-          )
-        );
-      db.transaction((tx) => {
-        reset(tx);
-        for (const item of operations) reset(tx, item);
-      });
-    },
     async forget({ operation, db, markAbandoned }) {
       if (!operation.projectId) {
         db.transaction((tx) => markAbandoned(tx));
         return;
       }
       const projectId = operation.projectId;
-      const operations = await db
-        .select()
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.parentOperationId, operation.id),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-          )
-        );
       await purgeProjectLocalState(
         projectId,
         db,
         async () => {
           db.transaction((tx) => {
-            for (const item of operations) markAbandoned(tx, item);
+            markAbandoned(tx);
             const workspaceRows = tx
               .select({ id: tasks.workspaceId })
               .from(tasks)
@@ -205,7 +181,7 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
         entityKey: projectId,
         hostRef: 'local',
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'user' as const,
           entityName: project.name,
         },
@@ -236,7 +212,7 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
             entityKey: task.id,
             hostRef,
             payload: {
-              version: '1' as const,
+              version: '2' as const,
               source: 'user' as const,
               entityName: task.name,
               hostLabel: project.name,
@@ -300,11 +276,11 @@ export async function submitReconcilerProjectCleanup(
         entityKey: projectId,
         hostRef: 'local',
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'reconciler' as const,
           entityName: project.name,
-          confirmationReason: 'reconciler-proposed' as const,
         },
+        confirmationReason: 'reconciler-proposed' as const,
       },
       options: { dedupeStatuses: reconcilerDedupeStatuses },
     });

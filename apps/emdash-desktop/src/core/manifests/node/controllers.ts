@@ -71,6 +71,7 @@ import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@core/features/workspaces/node/wire-controller';
+import { WorkspaceScanCache } from '@core/features/workspaces/node/workspace-scan-cache';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -93,6 +94,8 @@ import {
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/controller';
+
+const workspaceScanCache = new WorkspaceScanCache();
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;
@@ -197,6 +200,7 @@ export const desktopNodeControllers = {
         runtimes,
         taskService,
         taskSessions,
+        workspaceScanCache,
       }),
   },
   promptLibrary: {

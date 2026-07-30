@@ -10,6 +10,7 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
+import type { WorkspaceScanCache } from '../workspace-scan-cache';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
@@ -21,7 +22,7 @@ import {
 const MEASURE_CONCURRENCY = 4;
 
 export async function measureProjectWorkspaces(
-  dependencies: ListProjectWorkspacesDependencies,
+  dependencies: ListProjectWorkspacesDependencies & { workspaceScanCache?: WorkspaceScanCache },
   input: MeasureProjectWorkspacesInput
 ): Promise<MeasureProjectWorkspacesResult> {
   if (input.paths.length === 0) {
@@ -30,7 +31,7 @@ export async function measureProjectWorkspaces(
 
   const [project, listed] = await Promise.all([
     getProjectWorkspaceProject(dependencies.db, input.projectId),
-    listProjectWorkspaces(dependencies, input.projectId),
+    getCachedProjectWorkspaces(dependencies, input.projectId),
   ]);
   const rowsByPath = new Map(listed.rows.map((row) => [row.path, row]));
   const results = await mapWithConcurrency(input.paths, MEASURE_CONCURRENCY, async (targetPath) => {
@@ -45,11 +46,24 @@ export async function measureProjectWorkspaces(
     return await measureRow(dependencies, project, row);
   });
 
-  return {
+  const output = {
     scannedAt: new Date().toISOString(),
     projectId: input.projectId,
     results,
   };
+  dependencies.workspaceScanCache?.mergeUsageResults(input.projectId, results);
+  return output;
+}
+
+function getCachedProjectWorkspaces(
+  dependencies: ListProjectWorkspacesDependencies & { workspaceScanCache?: WorkspaceScanCache },
+  projectId: string
+) {
+  return dependencies.workspaceScanCache
+    ? dependencies.workspaceScanCache.getOrRefresh(projectId, () =>
+        listProjectWorkspaces(dependencies, projectId)
+      )
+    : listProjectWorkspaces(dependencies, projectId);
 }
 
 async function measureRow(

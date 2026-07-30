@@ -12,6 +12,7 @@ import {
   gitErrorMessage,
   repositorySelector,
 } from '@core/services/runtime-broker/node/git';
+import type { WorkspaceScanCache } from '../workspace-scan-cache';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
@@ -23,7 +24,7 @@ import {
 const GIT_STATS_CONCURRENCY = 4;
 
 export async function getProjectWorkspaceGitStats(
-  dependencies: ListProjectWorkspacesDependencies,
+  dependencies: ListProjectWorkspacesDependencies & { workspaceScanCache?: WorkspaceScanCache },
   input: GetProjectWorkspaceGitStatsInput
 ): Promise<GetProjectWorkspaceGitStatsResult> {
   if (input.paths.length === 0) {
@@ -32,7 +33,7 @@ export async function getProjectWorkspaceGitStats(
 
   const [project, listed] = await Promise.all([
     getProjectWorkspaceProject(dependencies.db, input.projectId),
-    listProjectWorkspaces(dependencies, input.projectId),
+    getCachedProjectWorkspaces(dependencies, input.projectId),
   ]);
   const rowsByPath = new Map(listed.rows.map((row) => [row.path, row]));
 
@@ -79,11 +80,24 @@ export async function getProjectWorkspaceGitStats(
     }
   );
 
-  return {
+  const output = {
     scannedAt: new Date().toISOString(),
     projectId: input.projectId,
     results,
   };
+  dependencies.workspaceScanCache?.mergeGitStatsResults(input.projectId, output);
+  return output;
+}
+
+function getCachedProjectWorkspaces(
+  dependencies: ListProjectWorkspacesDependencies & { workspaceScanCache?: WorkspaceScanCache },
+  projectId: string
+) {
+  return dependencies.workspaceScanCache
+    ? dependencies.workspaceScanCache.getOrRefresh(projectId, () =>
+        listProjectWorkspaces(dependencies, projectId)
+      )
+    : listProjectWorkspaces(dependencies, projectId);
 }
 
 async function getRefsSafe(

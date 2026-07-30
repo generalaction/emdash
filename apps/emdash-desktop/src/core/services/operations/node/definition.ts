@@ -1,3 +1,4 @@
+import type { VersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import type { Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import type {
@@ -64,6 +65,8 @@ export type OperationDraft = Pick<
   | 'initiatedBy'
   | 'hostRef'
   | 'payload'
+  | 'confirmedAt'
+  | 'confirmationReason'
   | 'createdAt'
 >;
 
@@ -81,6 +84,8 @@ export type OperationDraftInput = Pick<
       | 'workspaceId'
       | 'parentOperationId'
       | 'initiatedBy'
+      | 'confirmedAt'
+      | 'confirmationReason'
       | 'createdAt'
     >
   >;
@@ -90,11 +95,19 @@ export type OperationInsertOptions = {
   claims?: readonly OperationClaimResource[];
   precondition?: (tx: DrizzleTx) => OperationMutationError | undefined;
   tombstone?: (tx: DrizzleTx) => number;
+  parentForgetPolicy?: OperationParentForgetPolicy;
+};
+
+export type OperationParentForgetPolicy = 'abandon-children' | 'orphan-children';
+
+export type OperationPropagation = {
+  onParentForget?: OperationParentForgetPolicy;
 };
 
 export type OperationRelatedInsert = {
   draft: OperationDraftInput;
   options?: OperationInsertOptions;
+  propagation?: OperationPropagation;
 };
 
 export type OperationSubmission =
@@ -153,6 +166,7 @@ export type OperationDescribeContext = {
 export type OperationDefinition = {
   kind: OperationKind;
   entityKind: OperationEntityKind;
+  payloadSchema?: VersionedSchema<unknown>;
   run(context: OperationRunContext): Promise<Result<void, OperationRunError>>;
   describe(context: OperationDescribeContext): Promise<OperationDescription>;
   isReady?(context: OperationReadyContext): Promise<boolean>;

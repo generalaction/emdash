@@ -5,8 +5,12 @@ import type { SessionIntentStore } from '@emdash/core/services/session-intents/a
 import { ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import z from 'zod';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
-import { reconcilerDedupeStatuses } from '@core/primitives/operations/api';
+import {
+  defineOperationKindPayloadSchema,
+  reconcilerDedupeStatuses,
+} from '@core/primitives/operations/api';
 import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { ProjectWorkspaceRow, ProjectWorkspacesResult } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -19,6 +23,7 @@ import {
   workspaces,
   type LifecycleOperationRow,
 } from '@core/services/app-db/node/schema';
+import { defineOperationContribution } from '@core/services/operations/api';
 import {
   runOperationActions,
   type OperationDefinition,
@@ -27,6 +32,21 @@ import {
 } from '@core/services/operations/node';
 
 const SESSION_TIMEOUT_MS = 30_000;
+const cleanupSessionsOperationPayload = defineOperationKindPayloadSchema({
+  entityName: z.string().optional(),
+  hostLabel: z.string().optional(),
+  workspacePath: z.string().optional(),
+  acpConversationIds: z.array(z.string()).optional(),
+  tuiConversationIds: z.array(z.string()).optional(),
+  terminalSessionIds: z.array(z.string()).optional(),
+  tmuxSessionNames: z.array(z.string()).optional(),
+});
+
+export const cleanupSessionsOperationContribution = defineOperationContribution({
+  kind: 'cleanup-sessions',
+  payload: cleanupSessionsOperationPayload,
+  create: createCleanupSessionsOperationDefinition,
+});
 
 export type ReconcilerSessionCleanupInput = {
   entityId: string;
@@ -349,7 +369,7 @@ async function submitReconcilerSessionCleanup(
         entityKey: input.entityId,
         hostRef: input.hostRef ?? 'local',
         payload: {
-          version: '1' as const,
+          version: '2' as const,
           source: 'reconciler' as const,
           entityName: 'Orphaned session',
           workspacePath: input.workspacePath,

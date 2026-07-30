@@ -14,6 +14,16 @@ describe('operation status machine', () => {
   }> = [
     { current: 'pending', event: { type: 'started' }, next: 'running' },
     {
+      current: 'waiting-children',
+      event: { type: 'children-settled' },
+      next: 'pending',
+    },
+    {
+      current: 'waiting-children',
+      event: { type: 'user-abandoned' },
+      next: 'abandoned',
+    },
+    {
       current: 'pending',
       event: { type: 'run-failed', error: 'failed', retryable: false },
       next: 'failed',
@@ -61,6 +71,7 @@ describe('operation status machine', () => {
   it('rejects every transition outside the table', () => {
     const events: OperationStatusEvent[] = [
       { type: 'started' },
+      { type: 'children-settled' },
       { type: 'run-succeeded' },
       { type: 'run-failed', error: 'failed', retryable: false },
       { type: 'needs-confirmation', reason: 'workspace-modified' },
