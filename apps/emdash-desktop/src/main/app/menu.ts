@@ -1,5 +1,4 @@
 import { app, clipboard, Menu, shell } from 'electron';
-import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
 import {
@@ -9,6 +8,7 @@ import {
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
   menuRedoChannel,
+  menuReloadChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
 import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
@@ -137,9 +137,12 @@ export function setupApplicationMenu(): void {
           label: 'Reload',
           accelerator: 'CmdOrCtrl+R',
           click: () => {
-            if (!browserWebContentsRegistry.reloadActiveBrowser()) {
-              getMainWindow()?.webContents.reload();
+            const win = getMainWindow();
+            if (!win || win.webContents.isLoading()) {
+              win?.webContents.reload();
+              return;
             }
+            events.emit(menuReloadChannel, undefined);
           },
         },
         { role: 'forceReload' as const },

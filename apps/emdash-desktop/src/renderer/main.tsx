@@ -20,8 +20,11 @@ import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
+import { wireMenuReload } from './app/menu-reload';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
+
+wireMenuReload();
 
 async function bootstrap() {
   // Wire invalidation bridges so FS and git events flow into the model registry.

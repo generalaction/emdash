@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   buildFromTemplate: vi.fn((template: Electron.MenuItemConstructorOptions[]) => ({ template })),
-  reloadActiveBrowser: vi.fn(),
+  eventEmit: vi.fn(),
+  isMainWindowLoading: vi.fn(),
   reloadMainWindow: vi.fn(),
   setApplicationMenu: vi.fn(),
 }));
@@ -22,12 +23,8 @@ vi.mock('electron', () => ({
   shell: { openExternal: vi.fn() },
 }));
 
-vi.mock('@main/core/browser/browser-webcontents-registry', () => ({
-  browserWebContentsRegistry: { reloadActiveBrowser: mocks.reloadActiveBrowser },
-}));
-
 vi.mock('@main/lib/events', () => ({
-  events: { emit: vi.fn() },
+  events: { emit: mocks.eventEmit },
 }));
 
 vi.mock('@main/lib/telemetry', () => ({
@@ -35,7 +32,12 @@ vi.mock('@main/lib/telemetry', () => ({
 }));
 
 vi.mock('./window', () => ({
-  getMainWindow: () => ({ webContents: { reload: mocks.reloadMainWindow } }),
+  getMainWindow: () => ({
+    webContents: {
+      isLoading: mocks.isMainWindowLoading,
+      reload: mocks.reloadMainWindow,
+    },
+  }),
 }));
 
 const { setupApplicationMenu } = await import('./menu');
@@ -55,22 +57,24 @@ function clickReloadMenuItem(): void {
 describe('application menu reload', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isMainWindowLoading.mockReturnValue(false);
   });
 
-  it('reloads the active embedded browser without reloading Emdash', () => {
-    mocks.reloadActiveBrowser.mockReturnValue(true);
-
+  it('delegates reload to the renderer so it can use the current active tab', () => {
     clickReloadMenuItem();
 
-    expect(mocks.reloadActiveBrowser).toHaveBeenCalledOnce();
-    expect(mocks.reloadMainWindow).not.toHaveBeenCalled();
+    expect(mocks.eventEmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'menu:reload' }),
+      undefined
+    );
   });
 
-  it('keeps app reload as the fallback when no browser tab is active', () => {
-    mocks.reloadActiveBrowser.mockReturnValue(false);
+  it('reloads the main window directly while the renderer is still loading', () => {
+    mocks.isMainWindowLoading.mockReturnValue(true);
 
     clickReloadMenuItem();
 
     expect(mocks.reloadMainWindow).toHaveBeenCalledOnce();
+    expect(mocks.eventEmit).not.toHaveBeenCalled();
   });
 });

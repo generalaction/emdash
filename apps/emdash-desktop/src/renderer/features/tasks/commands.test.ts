@@ -38,6 +38,7 @@ vi.mock('@renderer/features/conversations/conversation-title-utils', () => ({
 
 const mocks = vi.hoisted(() => ({
   focusUrl: vi.fn(),
+  getBrowserControls: vi.fn(),
   getRegisteredTaskData: vi.fn(),
   getTaskGitWorktreeStore: vi.fn(),
   getTaskManagerStore: vi.fn(),
@@ -59,16 +60,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
   browserControlsRegistry: {
-    get: vi.fn(() => ({
-      adapter: {
-        canGoBack: () => true,
-        canGoForward: () => true,
-        goBack: mocks.goBack,
-        goForward: mocks.goForward,
-        reload: mocks.reload,
-      },
-      focusUrl: mocks.focusUrl,
-    })),
+    get: mocks.getBrowserControls,
   },
 }));
 
@@ -138,6 +130,16 @@ function activeBrowserTab() {
 describe('createTaskCommandProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getBrowserControls.mockReturnValue({
+      adapter: {
+        canGoBack: () => true,
+        canGoForward: () => true,
+        goBack: mocks.goBack,
+        goForward: mocks.goForward,
+        reload: mocks.reload,
+      },
+      focusUrl: mocks.focusUrl,
+    });
     mocks.getTaskStore.mockReturnValue({
       state: 'provisioned',
       setPinned: vi.fn(),
@@ -324,6 +326,22 @@ describe('createTaskCommandProvider', () => {
     expect(mocks.focusUrl).toHaveBeenCalledWith();
     expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
     expect(mocks.writeText).toHaveBeenCalledWith('https://example.com/');
+  });
+
+  it('disables browser reload until the active browser adapter is ready', () => {
+    const taskView = mocks.getTaskView();
+    taskView.activePane.resolvedTabs = [activeBrowserTab()];
+    mocks.getTaskView.mockReturnValue(taskView);
+    mocks.getBrowserControls.mockReturnValue({ adapter: null, focusUrl: mocks.focusUrl });
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const reloadCommand = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserReload');
+    reloadCommand?.execute();
+
+    expect(reloadCommand?.enabled).toBe(false);
+    expect(mocks.reload).not.toHaveBeenCalled();
   });
 
   it('navigates browser history through the browser controls registry', () => {
