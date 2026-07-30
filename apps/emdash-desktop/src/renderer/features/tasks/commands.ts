@@ -279,7 +279,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           enabled: activeBrowserResource != null,
           execute() {
             if (!activeBrowserResource) return;
-            browserControlsRegistry.get(activeBrowserResource.browserId)?.reload();
+            browserControlsRegistry.reload(activeBrowserResource.browserId);
           },
         },
         {

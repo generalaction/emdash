@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openExternal: vi.fn(),
   reload: vi.fn(),
+  reloadBrowser: vi.fn(),
   showModal: vi.fn(),
   toast: vi.fn(),
   visibleTaskEntries: [
@@ -61,6 +62,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
   browserControlsRegistry: {
     get: mocks.getBrowserControls,
+    reload: mocks.reloadBrowser,
   },
 }));
 
@@ -123,7 +125,7 @@ function activeBrowserTab() {
     isActive: true,
     isPreview: false,
     state: { initialUrl: 'example.com', session },
-    resource: { session },
+    resource: { browserId: session.browserId, session },
   };
 }
 
@@ -341,34 +343,7 @@ describe('createTaskCommandProvider', () => {
     reloadCommand?.execute();
 
     expect(reloadCommand?.enabled).toBe(true);
-    expect(mocks.reload).toHaveBeenCalledOnce();
-  });
-
-  it('resolves the latest browser controls when a retained reload command executes', () => {
-    const taskView = mocks.getTaskView();
-    taskView.activePane.resolvedTabs = [activeBrowserTab()];
-    mocks.getTaskView.mockReturnValue(taskView);
-    const staleReload = vi.fn();
-    const readyReload = vi.fn();
-    mocks.getBrowserControls.mockReturnValue({
-      adapter: null,
-      focusUrl: mocks.focusUrl,
-      reload: staleReload,
-    });
-    const provider = createTaskCommandProvider('project-1', 'task-1');
-    const reloadCommand = provider
-      .getCommands()
-      .find((candidate) => candidate.id === 'task.browserReload');
-    mocks.getBrowserControls.mockReturnValue({
-      adapter: null,
-      focusUrl: mocks.focusUrl,
-      reload: readyReload,
-    });
-
-    reloadCommand?.execute();
-
-    expect(staleReload).not.toHaveBeenCalled();
-    expect(readyReload).toHaveBeenCalledOnce();
+    expect(mocks.reloadBrowser).toHaveBeenCalledWith('browser-1');
   });
 
   it('navigates browser history through the browser controls registry', () => {
