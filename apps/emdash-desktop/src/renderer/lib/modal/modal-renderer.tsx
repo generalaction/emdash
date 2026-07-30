@@ -33,8 +33,8 @@ export const ModalRenderer = observer(function ModalRenderer() {
   // oxlint-disable-next-line typescript/no-explicit-any
   const Component = entry?.component as React.ComponentType<any> | undefined;
 
-  // Preserve the last rendered content and entry config so the close animation plays with the
-  // correct dimensions and full content rather than collapsing while the popup fades out.
+  // Preserve the last rendered content and entry config until Base UI unmounts the closed popup,
+  // rather than briefly collapsing it while the close lifecycle completes.
   // oxlint-disable-next-line typescript/no-explicit-any
   const lastComponentRef = useRef<React.ComponentType<any> | null>(null);
   const lastArgsRef = useRef<Record<string, unknown> | null>(null);
@@ -124,7 +124,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
   return (
     <Dialog open={modalStore.isOpen} onOpenChange={handleOpenChange}>
       <DialogPortal>
-        <DialogOverlay />
+        <DialogOverlay className="data-closed:animate-none" />
         <DialogPrimitive.Popup
           ref={popupRef}
           finalFocus={false}
@@ -141,7 +141,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
             }
           }}
           className={cn(
-            'fixed left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-xl bg-background-quaternary text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+            'fixed left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-xl bg-background-quaternary text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95',
             POSITION_CLASSES[displayEntry?.position ?? 'center'],
             SIZE_CLASSES[displayEntry?.size ?? 'md']
           )}
