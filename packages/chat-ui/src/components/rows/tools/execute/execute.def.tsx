@@ -35,6 +35,27 @@ const EXECUTE_VARS: ExecuteVars = {
   expandedMaxLines: 16,
 };
 
+let measuredScrollbarH: number | undefined;
+
+function scrollbarClearance(maxSize: number): number {
+  if (typeof document === 'undefined' || !document.body) return maxSize;
+  if (measuredScrollbarH === undefined) {
+    const probe = document.createElement('div');
+    Object.assign(probe.style, {
+      position: 'absolute',
+      visibility: 'hidden',
+      width: '100px',
+      height: '100px',
+      overflow: 'scroll',
+      scrollbarWidth: 'thin',
+    });
+    document.body.appendChild(probe);
+    measuredScrollbarH = probe.offsetHeight - probe.clientHeight;
+    probe.remove();
+  }
+  return Math.min(measuredScrollbarH, maxSize);
+}
+
 /** 3 borders: top card edge + header-separator + bottom card edge. */
 function chromeY(vars: ExecuteVars): number {
   return 3 * vars.border;
@@ -135,7 +156,9 @@ function scrollbarSpace(
   hasVerticalOverflow: boolean
 ): number {
   const verticalScrollbarW = hasVerticalOverflow ? vars.scrollbarSize : 0;
-  return hasHorizontalOverflow(lines, ctx, vars, verticalScrollbarW) ? vars.scrollbarSize : 0;
+  return hasHorizontalOverflow(lines, ctx, vars, verticalScrollbarW)
+    ? scrollbarClearance(vars.scrollbarSize)
+    : 0;
 }
 
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
@@ -207,7 +230,8 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
           contentH={bodyGeometry().contentH}
           codeLineH={codeLineH()}
           linePadX={props.vars.linePadX}
-          scrollbarH={showScrollbar() ? props.vars.scrollbarSize : 0}
+          scrollbarSize={showScrollbar() ? props.vars.scrollbarSize : 0}
+          scrollbarH={showScrollbar() ? scrollbarClearance(props.vars.scrollbarSize) : 0}
           expanded={isExpanded()}
         />
       </Show>
