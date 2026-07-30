@@ -37,7 +37,7 @@ describe('ModalRenderer', () => {
     host.remove();
   });
 
-  it('does not wait for a close animation when removing a modal', async () => {
+  it('force-unmounts a closed modal when its exit animation stalls', async () => {
     await act(async () => {
       root.render(<ModalRenderer />);
       modalStore.setModal('testModal', { label: 'Create task' });
@@ -45,22 +45,14 @@ describe('ModalRenderer', () => {
 
     const popup = document.querySelector<HTMLElement>('[data-slot="dialog-content"]');
     expect(popup).not.toBeNull();
-    expect(popup?.classList).not.toContain('data-closed:animate-out');
-    expect(
-      document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')?.classList
-    ).toContain('data-closed:animate-none');
 
-    const getAnimations = vi.fn(() =>
-      popup?.classList.contains('data-closed:animate-out')
-        ? [
-            {
-              finished: new Promise<Animation>(() => {}),
-              pending: false,
-              playState: 'running',
-            } as Animation,
-          ]
-        : []
-    );
+    const getAnimations = vi.fn(() => [
+      {
+        finished: new Promise<Animation>(() => {}),
+        pending: false,
+        playState: 'running',
+      } as Animation,
+    ]);
     Object.defineProperty(popup, 'getAnimations', { configurable: true, value: getAnimations });
 
     await act(async () => {
@@ -70,7 +62,44 @@ describe('ModalRenderer', () => {
 
     expect(modalStore.isOpen).toBe(false);
     expect(getAnimations).toHaveBeenCalled();
+    expect(document.querySelector('[data-slot="dialog-content"]')).not.toBeNull();
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 200));
+    });
+
     expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull();
     expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull();
+  });
+
+  it('does not let a stale close fallback unmount a reopened modal', async () => {
+    await act(async () => {
+      root.render(<ModalRenderer />);
+      modalStore.setModal('testModal', { label: 'First task' });
+    });
+
+    const popup = document.querySelector<HTMLElement>('[data-slot="dialog-content"]')!;
+    Object.defineProperty(popup, 'getAnimations', {
+      configurable: true,
+      value: () => [
+        {
+          finished: new Promise<Animation>(() => {}),
+          pending: false,
+          playState: 'running',
+        } as Animation,
+      ],
+    });
+
+    await act(async () => {
+      modalStore.closeModal('completed');
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      modalStore.setModal('testModal', { label: 'Second task' });
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+    });
+
+    expect(modalStore.isOpen).toBe(true);
+    expect(document.querySelector('[data-slot="dialog-content"]')?.textContent).toContain(
+      'Second task'
+    );
   });
 });
