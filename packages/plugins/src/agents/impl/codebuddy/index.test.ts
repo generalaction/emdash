@@ -1,5 +1,7 @@
 import type { CommandContext, PluginFs } from '@emdash/core/agents/plugins';
+import { buildNestedEntry, makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
 import { describe, expect, it } from 'vitest';
+import { CODEBUDDY_SETTINGS_PATH } from './hooks';
 import { provider } from './index';
 
 const baseContext: CommandContext = {
@@ -42,6 +44,11 @@ describe('codebuddy provider', () => {
     });
     expect(provider.capabilities.acp.kind).toBe('supported');
     expect(provider.capabilities.autoApprove.kind).toBe('supported');
+    expect(provider.capabilities.hooks).toEqual({
+      kind: 'config',
+      scope: 'workspace',
+      supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use-failure'],
+    });
     expect(provider.capabilities.mcp).toEqual({
       kind: 'supported',
       scope: 'global',
@@ -129,5 +136,135 @@ describe('codebuddy provider', () => {
         },
       },
     });
+  });
+
+  it('installs lifecycle hooks in CodeBuddy project-local settings', async () => {
+    const files = new Map<string, string>([
+      [
+        CODEBUDDY_SETTINGS_PATH,
+        JSON.stringify({
+          language: 'English',
+          hooks: {
+            Notification: [{ hooks: [{ type: 'command', command: 'notify-user' }] }],
+          },
+        }),
+      ],
+    ]);
+    const fs = createMemoryFs(files);
+
+    await provider.behavior.hooks!.writeHooks(fs, []);
+    await provider.behavior.hooks!.writeHooks(fs, []);
+
+    const settings = JSON.parse(files.get(CODEBUDDY_SETTINGS_PATH)!);
+    expect(settings.language).toBe('English');
+    expect(settings.hooks.SessionStart).toEqual([
+      buildNestedEntry(makeStdinHookCommand('session')),
+    ]);
+    expect(settings.hooks.UserPromptSubmit).toEqual([
+      buildNestedEntry(makeStdinHookCommand('start')),
+    ]);
+    expect(settings.hooks.PostToolUseFailure).toEqual([
+      buildNestedEntry(makeStdinHookCommand('error')),
+    ]);
+    expect(settings.hooks.PermissionRequest).toEqual([
+      buildNestedEntry(makeStdinHookCommand('notification')),
+    ]);
+    expect(settings.hooks.Notification).toEqual([
+      { hooks: [{ type: 'command', command: 'notify-user' }] },
+      buildNestedEntry(makeStdinHookCommand('notification')),
+    ]);
+    expect(settings.hooks.Stop).toEqual([buildNestedEntry(makeStdinHookCommand('stop'))]);
+    expect(settings.hooks.SessionEnd).toBeUndefined();
+
+    await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(true);
+
+    await provider.behavior.hooks!.deleteHooks(fs);
+
+    const cleanedSettings = JSON.parse(files.get(CODEBUDDY_SETTINGS_PATH)!);
+    expect(cleanedSettings.language).toBe('English');
+    expect(cleanedSettings.hooks.Notification).toEqual([
+      { hooks: [{ type: 'command', command: 'notify-user' }] },
+    ]);
+    expect(JSON.stringify(cleanedSettings)).not.toContain('EMDASH_HOOK_PORT');
+    await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(false);
+  });
+
+  it.each([
+    {
+      eventType: 'notification',
+      body: {
+        hook_event_name: 'PermissionRequest',
+        tool_name: 'Bash',
+      },
+      expected: {
+        kind: 'status',
+        type: 'notification',
+        notificationType: 'permission_prompt',
+        title: 'Permission Required',
+        message: 'CodeBuddy Code is requesting permission to use Bash.',
+      },
+    },
+    {
+      eventType: 'notification',
+      body: {
+        hook_event_name: 'Notification',
+        notification_type: 'idle_prompt',
+        message: 'CodeBuddy is waiting for input',
+      },
+      expected: {
+        kind: 'status',
+        type: 'notification',
+        notificationType: 'idle_prompt',
+        lastAssistantMessage: undefined,
+        title: undefined,
+        message: 'CodeBuddy is waiting for input',
+      },
+    },
+    {
+      eventType: 'session',
+      body: {
+        hook_event_name: 'SessionStart',
+        session_id: 'codebuddy-session-id',
+      },
+      expected: {
+        kind: 'session',
+        providerSessionId: 'codebuddy-session-id',
+      },
+    },
+    {
+      eventType: 'start',
+      body: { hook_event_name: 'PreToolUse' },
+      expected: {
+        kind: 'status',
+        type: 'start',
+        lastAssistantMessage: undefined,
+        title: undefined,
+        message: undefined,
+      },
+    },
+    {
+      eventType: 'error',
+      body: { hook_event_name: 'PostToolUseFailure', message: 'Tool failed' },
+      expected: {
+        kind: 'status',
+        type: 'error',
+        lastAssistantMessage: undefined,
+        title: undefined,
+        message: 'Tool failed',
+      },
+    },
+    {
+      eventType: 'stop',
+      body: { hook_event_name: 'Stop', last_assistant_message: 'Done' },
+      expected: {
+        kind: 'status',
+        type: 'stop',
+        lastAssistantMessage: 'Done',
+        title: undefined,
+        message: undefined,
+      },
+    },
+  ])('normalizes $body.hook_event_name hook payloads', ({ eventType, body, expected }) => {
+    expect(provider.behavior.hooks!.parseHookEvent!(eventType, body)).toEqual(expected);
   });
 });
