@@ -123,7 +123,7 @@ export class LocalConversationProvider implements ConversationProvider {
         host: { kind: 'local', homedir: homedir() },
         force: conversation.autoApprove === true,
       });
-      await ensureHooksInstalled({
+      const hooksEnabled = await ensureHooksInstalled({
         providerId: conversation.providerId,
         taskPath: this.taskPath,
       });
@@ -154,6 +154,7 @@ export class LocalConversationProvider implements ConversationProvider {
       const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,
         extraArgs: parseExtraArgs(providerConfig?.extraArgs),
+        hooksEnabled,
         autoApprove: conversation.autoApprove ?? false,
         initialPrompt: agentSession.isResuming ? undefined : effectiveInitialPrompt,
         sessionId: agentSession.sessionId,

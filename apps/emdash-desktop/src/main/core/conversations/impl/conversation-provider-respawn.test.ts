@@ -351,6 +351,7 @@ describe('conversation provider respawn state', () => {
       kind: 'workspace',
       path: '/tmp/task-1',
     });
+    expect(buildCommandMock).toHaveBeenCalledWith(expect.objectContaining({ hooksEnabled: true }));
   });
 
   it('starts a local conversation fresh after a resumed session exits', async () => {

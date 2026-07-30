@@ -1,12 +1,13 @@
 import type { CommandContext, PluginFs } from '@emdash/core/agents/plugins';
 import { buildNestedEntry, makeStdinHookCommand } from '@emdash/core/agents/plugins/helpers';
 import { describe, expect, it } from 'vitest';
-import { CODEBUDDY_SETTINGS_PATH } from './hooks';
+import { CODEBUDDY_EMDASH_HOOKS_PATH } from './hooks';
 import { provider } from './index';
 
 const baseContext: CommandContext = {
   cli: 'codebuddy',
   autoApprove: false,
+  hooksEnabled: true,
   initialPrompt: undefined,
   sessionId: '550e8400-e29b-41d4-a716-446655440000',
   providerSessionId: undefined,
@@ -80,6 +81,8 @@ describe('codebuddy provider', () => {
     ).toEqual({
       command: 'codebuddy',
       args: [
+        '--settings',
+        CODEBUDDY_EMDASH_HOOKS_PATH,
         '--session-id',
         '550e8400-e29b-41d4-a716-446655440000',
         '--dangerously-skip-permissions',
@@ -101,9 +104,34 @@ describe('codebuddy provider', () => {
       })
     ).toEqual({
       command: 'cbc',
-      args: ['--resume', '550e8400-e29b-41d4-a716-446655440000', '--dangerously-skip-permissions'],
+      args: [
+        '--settings',
+        CODEBUDDY_EMDASH_HOOKS_PATH,
+        '--resume',
+        '550e8400-e29b-41d4-a716-446655440000',
+        '--dangerously-skip-permissions',
+      ],
       env: {},
     });
+  });
+
+  it('does not reference hook settings when provisioning failed', () => {
+    expect(build({ hooksEnabled: false }).args).not.toContain('--settings');
+  });
+
+  it.each([['--settings', 'custom.json'], ['--settings=custom.json']])(
+    'rejects a conflicting %s additional parameter when hooks are enabled',
+    (...extraArgs) => {
+      expect(() => build({ extraArgs })).toThrow(
+        'CodeBuddy additional parameters cannot include --settings while Emdash hooks are enabled'
+      );
+    }
+  );
+
+  it('allows custom hook settings when hook provisioning failed', () => {
+    expect(build({ hooksEnabled: false, extraArgs: ['--settings', 'custom.json'] }).args).toContain(
+      'custom.json'
+    );
   });
 
   it('writes stdio and HTTP MCP servers using CodeBuddy native transport fields', async () => {
@@ -138,25 +166,18 @@ describe('codebuddy provider', () => {
     });
   });
 
-  it('installs lifecycle hooks in CodeBuddy project-local settings', async () => {
-    const files = new Map<string, string>([
-      [
-        CODEBUDDY_SETTINGS_PATH,
-        JSON.stringify({
-          language: 'English',
-          hooks: {
-            Notification: [{ hooks: [{ type: 'command', command: 'notify-user' }] }],
-          },
-        }),
-      ],
-    ]);
+  it('installs lifecycle hooks in a dedicated Emdash settings overlay', async () => {
+    const userSettings = '{ "language": "English",';
+    const files = new Map<string, string>([['.codebuddy/settings.local.json', userSettings]]);
     const fs = createMemoryFs(files);
 
-    await provider.behavior.hooks!.writeHooks(fs, []);
+    await expect(provider.behavior.hooks!.writeHooks(fs, [])).resolves.toEqual([
+      CODEBUDDY_EMDASH_HOOKS_PATH,
+    ]);
     await provider.behavior.hooks!.writeHooks(fs, []);
 
-    const settings = JSON.parse(files.get(CODEBUDDY_SETTINGS_PATH)!);
-    expect(settings.language).toBe('English');
+    expect(files.get('.codebuddy/settings.local.json')).toBe(userSettings);
+    const settings = JSON.parse(files.get(CODEBUDDY_EMDASH_HOOKS_PATH)!);
     expect(settings.hooks.SessionStart).toEqual([
       buildNestedEntry(makeStdinHookCommand('session')),
     ]);
@@ -170,7 +191,6 @@ describe('codebuddy provider', () => {
       buildNestedEntry(makeStdinHookCommand('notification')),
     ]);
     expect(settings.hooks.Notification).toEqual([
-      { hooks: [{ type: 'command', command: 'notify-user' }] },
       buildNestedEntry(makeStdinHookCommand('notification')),
     ]);
     expect(settings.hooks.Stop).toEqual([buildNestedEntry(makeStdinHookCommand('stop'))]);
@@ -180,32 +200,11 @@ describe('codebuddy provider', () => {
 
     await provider.behavior.hooks!.deleteHooks(fs);
 
-    const cleanedSettings = JSON.parse(files.get(CODEBUDDY_SETTINGS_PATH)!);
-    expect(cleanedSettings.language).toBe('English');
-    expect(cleanedSettings.hooks.Notification).toEqual([
-      { hooks: [{ type: 'command', command: 'notify-user' }] },
-    ]);
+    expect(files.get('.codebuddy/settings.local.json')).toBe(userSettings);
+    const cleanedSettings = JSON.parse(files.get(CODEBUDDY_EMDASH_HOOKS_PATH)!);
+    expect(cleanedSettings.hooks.Notification).toEqual([]);
     expect(JSON.stringify(cleanedSettings)).not.toContain('EMDASH_HOOK_PORT');
     await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(false);
-  });
-
-  it.each([
-    ['malformed JSON', '{ "language": "English",', 'file contains invalid JSON'],
-    ['an empty file', '', 'file contains invalid JSON'],
-    ['a non-object root', '[]', 'expected a JSON object'],
-  ])('does not overwrite CodeBuddy settings containing %s', async (_case, content, error) => {
-    const files = new Map([[CODEBUDDY_SETTINGS_PATH, content]]);
-    const fs = createMemoryFs(files);
-
-    await expect(provider.behavior.hooks!.writeHooks(fs, [])).rejects.toThrow(
-      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: ${error}`
-    );
-    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(content);
-
-    await expect(provider.behavior.hooks!.deleteHooks(fs)).rejects.toThrow(
-      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: ${error}`
-    );
-    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(content);
   });
 
   it.each([

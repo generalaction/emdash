@@ -4,6 +4,8 @@ import z from 'zod';
 export type CommandContext = {
   cli: string; // absolute path to the cli binary
   extraArgs?: string[]; // user-configured in settings
+  /** Whether provider lifecycle hooks were provisioned successfully for this spawn. */
+  hooksEnabled?: boolean;
   autoApprove: boolean;
   initialPrompt?: string;
   /** Emdash conversation UUID — used as the session token for providers that track their
