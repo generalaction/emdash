@@ -239,8 +239,9 @@ export const BrowserPane = observer(function BrowserPane({
     return browserControlsRegistry.register(sessionBrowserId, {
       adapter,
       focusUrl: () => focusUrlRef.current(),
+      reload,
     });
-  }, [adapter, sessionBrowserId]);
+  }, [adapter, reload, sessionBrowserId]);
 
   if (!session) {
     return (

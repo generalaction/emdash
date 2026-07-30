@@ -56,9 +56,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       ) as ResolvedTab<BrowserTabResource> | undefined;
       const activeBrowserResource = activeBrowserTab?.resource as BrowserTabResource | undefined;
       const activeBrowserSession = activeBrowserResource?.session ?? null;
-      const activeBrowserAdapter = activeBrowserResource
-        ? (browserControlsRegistry.get(activeBrowserResource.browserId)?.adapter ?? null)
-        : null;
 
       const newConversationDef = taskDef('task.newConversation');
       const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
@@ -279,9 +276,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           label: browserReloadDef.label,
           description: browserReloadDef.description,
           group: browserReloadDef.group,
-          enabled: activeBrowserAdapter != null,
+          enabled: activeBrowserResource != null,
           execute() {
-            activeBrowserAdapter?.reload();
+            if (!activeBrowserResource) return;
+            browserControlsRegistry.get(activeBrowserResource.browserId)?.reload();
           },
         },
         {
