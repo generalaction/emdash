@@ -37,7 +37,6 @@ export type ExecuteBodyProps = {
   codeLineH: number;
   linePadX: number;
   scrollbarH: number;
-  scrollbarGap: number;
   expanded: boolean;
 };
 
@@ -87,7 +86,6 @@ export function ExecuteBody(props: ExecuteBodyProps) {
       class={executeBody}
       style={{
         height: `${props.bodyH}px`,
-        'padding-bottom': `${props.scrollbarH + props.scrollbarGap}px`,
         '--execute-scrollbar-size': `${props.scrollbarH}px`,
         'overflow-x': 'auto',
         'overflow-y': props.expanded && overflows() ? 'auto' : 'hidden',

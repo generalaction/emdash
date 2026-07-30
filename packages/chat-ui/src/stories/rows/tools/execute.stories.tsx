@@ -153,6 +153,45 @@ export const LongCommand: Story = {
   ),
 };
 
+/** Completed commands stay compact regardless of command length or captured output. */
+export const CommandLengths: Story = {
+  render: () => (
+    <ChatHost
+      items={[
+        {
+          kind: 'execute',
+          id: 'ex-length-short',
+          command: 'git status',
+          outputText: 'On branch main\nnothing to commit, working tree clean',
+          status: 'done',
+          startedAt: Date.now() - 900,
+          durationMs: 900,
+        },
+        {
+          kind: 'execute',
+          id: 'ex-length-medium',
+          command: 'git diff .gitignore',
+          outputText: 'diff --git a/.gitignore b/.gitignore',
+          status: 'done',
+          startedAt: Date.now() - 1200,
+          durationMs: 1200,
+        },
+        {
+          kind: 'execute',
+          id: 'ex-length-long',
+          command:
+            'find . -type f -name "*.ts" | xargs grep -l "import.*from.*solid-js" --color=never',
+          outputText: 'packages/chat-ui/src/index.tsx',
+          status: 'done',
+          startedAt: Date.now() - 1800,
+          durationMs: 1800,
+        },
+      ]}
+      height={280}
+    />
+  ),
+};
+
 /**
  * Multi-line command — exercises:
  *  - Collapsed cap (3 lines with fade overlay).
