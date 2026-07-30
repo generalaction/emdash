@@ -128,12 +128,28 @@ function hasHorizontalOverflow(
   return lines.some((line) => executeLineWidth(line.text, ctx) > availableWidth);
 }
 
+function scrollbarSpace(
+  lines: ExecuteDisplayLine[],
+  ctx: MeasureCtx,
+  vars: ExecuteVars,
+  hasVerticalOverflow: boolean
+): number {
+  const verticalScrollbarW = hasVerticalOverflow ? vars.scrollbarSize : 0;
+  return hasHorizontalOverflow(lines, ctx, vars, verticalScrollbarW) ? vars.scrollbarSize : 0;
+}
+
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
   const sourceLines = executeLines(item, isExpanded);
   const lines = isExpanded ? wrapExpandedCommand(sourceLines, ctx, vars) : sourceLines;
-  const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, isExpanded, vars);
-  return vars.rowH + bodyH + chromeY(vars);
+  const { bodyH, contentH } = executeBodyH(
+    lines,
+    ctx.theme.fonts.code.lineHeight,
+    isExpanded,
+    vars
+  );
+  const hasVerticalOverflow = isExpanded && contentH > bodyH;
+  return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, hasVerticalOverflow) + chromeY(vars);
 }
 
 function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: ExecuteVars }) {
@@ -208,7 +224,7 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
     // Use the collapsed line cap and current width for stable initial geometry.
     const lines = executeLines(item, false);
     const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, false, vars);
-    return vars.rowH + bodyH + chromeY(vars);
+    return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, false) + chromeY(vars);
   },
 
   measure(item, ctx, vars): number {
