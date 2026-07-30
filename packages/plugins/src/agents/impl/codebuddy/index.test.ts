@@ -189,6 +189,22 @@ describe('codebuddy provider', () => {
     await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(false);
   });
 
+  it('does not overwrite malformed CodeBuddy settings during installation or removal', async () => {
+    const malformedSettings = '{ "language": "English",';
+    const files = new Map([[CODEBUDDY_SETTINGS_PATH, malformedSettings]]);
+    const fs = createMemoryFs(files);
+
+    await expect(provider.behavior.hooks!.writeHooks(fs, [])).rejects.toThrow(
+      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file contains invalid JSON`
+    );
+    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(malformedSettings);
+
+    await expect(provider.behavior.hooks!.deleteHooks(fs)).rejects.toThrow(
+      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file contains invalid JSON`
+    );
+    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(malformedSettings);
+  });
+
   it.each([
     {
       eventType: 'notification',
