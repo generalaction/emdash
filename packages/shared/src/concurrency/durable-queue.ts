@@ -1,4 +1,5 @@
-import { ConcurrencyLimiter, type Scope } from '@emdash/shared/concurrency';
+import { ConcurrencyLimiter } from './concurrency-limiter';
+import type { Scope } from './scope';
 
 export type DurableQueue = {
   poke(): void;

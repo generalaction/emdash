@@ -1,3 +1,7 @@
+import {
+  nonTerminalOperationStatuses,
+  type OperationClaimResource,
+} from '@emdash/core/primitives/operations/api';
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import z from 'zod';
@@ -15,9 +19,7 @@ import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import {
   defineOperationKindPayloadSchema,
-  nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
-  type OperationClaimResource,
   type OperationPayload,
 } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';

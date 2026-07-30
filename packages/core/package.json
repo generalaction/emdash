@@ -21,6 +21,10 @@
       "types": "./dist/primitives-host-api.d.mts",
       "default": "./dist/primitives-host-api.mjs"
     },
+    "./primitives/host-resource/api": {
+      "types": "./dist/primitives-host-resource-api.d.mts",
+      "default": "./dist/primitives-host-resource-api.mjs"
+    },
     "./primitives/lib/api": {
       "types": "./dist/primitives-lib-api.d.mts",
       "default": "./dist/primitives-lib-api.mjs"
@@ -80,6 +84,10 @@
     "./primitives/versioned-schema/api": {
       "types": "./dist/primitives-versioned-schema-api.d.mts",
       "default": "./dist/primitives-versioned-schema-api.mjs"
+    },
+    "./primitives/operations/api": {
+      "types": "./dist/primitives-operations-api.d.mts",
+      "default": "./dist/primitives-operations-api.mjs"
     },
     "./primitives/runtime-resolution/api": {
       "types": "./dist/primitives-runtime-resolution-api.d.mts",

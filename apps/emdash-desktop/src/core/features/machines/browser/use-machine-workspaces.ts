@@ -1,3 +1,4 @@
+import type { Observed } from '@emdash/core/primitives/lib/api';
 import {
   isTerminalStatus,
   type WorkspaceOperationRecordMap,
@@ -116,7 +117,7 @@ export async function deleteMachineProjectWorkspaces({
   });
 }
 
-export function useMachineOperationLog(machineId?: string): Map<string, string> {
+export function useMachineOperationLog(machineId?: string): Map<string, Observed<string>> {
   const [records, setRecords] = useState<WorkspaceOperationRecordMap>({});
 
   useEffect(() => {
@@ -166,10 +167,14 @@ export function useMachineOperationLog(machineId?: string): Map<string, string> 
   }, [machineId]);
 
   return useMemo(() => {
-    const active = new Map<string, string>();
+    const active = new Map<string, Observed<string>>();
     for (const record of Object.values(records)) {
       if (isTerminalStatus(record.status)) continue;
-      active.set(nativePathFromHost(record.workspace.path), hostOperationLabel(record.kind));
+      active.set(nativePathFromHost(record.workspace.path), {
+        value: hostOperationLabel(record.kind),
+        observedAt: record.updatedAt,
+        source: 'log-event',
+      });
     }
     return active;
   }, [records]);

@@ -1,4 +1,8 @@
 import {
+  operationMutationErrorSchema,
+  operationMutationResultSchema,
+} from '@emdash/core/primitives/operations/api';
+import {
   bootstrapRepositoryInitializeSchema,
   cleanWorkspaceArtifactsResultSchema,
   workspaceOperationResultSchema,
@@ -10,10 +14,6 @@ import {
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
 import z from 'zod';
-import {
-  operationMutationErrorSchema,
-  operationMutationResultSchema,
-} from '@core/primitives/operations/api';
 
 export const workspaceBootstrapStepSchema = z.enum([
   'resolving-worktree',

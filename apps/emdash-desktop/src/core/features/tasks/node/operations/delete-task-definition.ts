@@ -1,4 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import { nonTerminalOperationStatuses } from '@emdash/core/primitives/operations/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
@@ -18,7 +19,6 @@ import type { LifecycleOperationContextDependencies } from '@core/features/works
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import {
   defineOperationKindPayloadSchema,
-  nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
   type OperationPayload,
 } from '@core/primitives/operations/api';

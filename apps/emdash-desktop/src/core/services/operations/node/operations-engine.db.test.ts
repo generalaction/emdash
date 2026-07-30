@@ -1,3 +1,8 @@
+import {
+  rollupStatus,
+  type OperationDisplayState,
+  type OperationTreeList,
+} from '@emdash/core/primitives/operations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred, ManualClock } from '@emdash/shared/testing';
@@ -7,11 +12,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import z from 'zod';
 import {
   defineOperationKindPayloadSchema,
-  type OperationDisplayState,
   operationKinds,
   type OperationKind,
-  type OperationTreeList,
-  rollupStatus,
 } from '@core/primitives/operations/api';
 import { lifecycleOperations, operationClaims, projects } from '@core/services/app-db/node/schema';
 import type {

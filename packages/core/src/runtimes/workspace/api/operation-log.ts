@@ -17,6 +17,11 @@ export type SubmitAndFollowWorkspaceOperationOptions = {
   onWaitingChange?: (waiting: boolean) => void;
 };
 
+/**
+ * Host workspace mutations should flow through this helper from operation
+ * definitions, bootstrap, or session managers. It submits to the host-owned log
+ * and follows the durable record instead of bypassing the execution authority.
+ */
 export async function submitAndFollowWorkspaceOperation(
   client: ContractClient<WorkspaceContract>,
   request: SubmitWorkspaceOperationInput,

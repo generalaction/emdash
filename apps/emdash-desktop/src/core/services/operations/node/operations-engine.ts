@@ -2,20 +2,26 @@ import {
   createIdleSweeper,
   type IoActivitySnapshot,
 } from '@emdash/core/primitives/io-activity/api';
+import {
+  type OperationClaimResource,
+  type OperationMutationError,
+  nextOperationStatus,
+  requireNextOperationStatus,
+  type OperationTreeKey,
+  type OperationTreeList,
+} from '@emdash/core/primitives/operations/api';
 import { err, ok, type PendingLease, type Result } from '@emdash/shared';
-import { createResourceCache, type Scope } from '@emdash/shared/concurrency';
+import {
+  createDurableQueue,
+  createResourceCache,
+  type DurableQueue,
+  type Scope,
+} from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { ComputedLiveState, type LiveSource } from '@emdash/wire';
 import { and, eq, inArray } from 'drizzle-orm';
-import {
-  operationKinds,
-  type OperationClaimResource,
-  type OperationKind,
-  type OperationMutationError,
-  type OperationTreeKey,
-  type OperationTreeList,
-} from '@core/primitives/operations/api';
+import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import {
@@ -36,7 +42,6 @@ import type {
   OperationsNotificationPublisher,
   OperationsSshManager,
 } from './definition';
-import { createDurableQueue, type DurableQueue } from './durable-queue';
 import {
   operationIsRunnable,
   queuedOperations,
@@ -44,7 +49,6 @@ import {
   settleParentIfChildrenDone,
   tryTransitionStatus,
 } from './execution';
-import { nextOperationStatus, requireNextOperationStatus } from './operation-status-machine';
 import { loadOperationTrees, operationTreeKey } from './projection';
 
 const RECONCILE_INTERVAL_MS = 10 * 60_000;

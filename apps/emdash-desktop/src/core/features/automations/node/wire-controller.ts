@@ -1,3 +1,4 @@
+import type { OperationMutationError } from '@emdash/core/primitives/operations/api';
 import { err, ok } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
@@ -9,7 +10,6 @@ import {
 } from '@core/features/automations/node/runtime-client-resolver';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { AutomationDefinitionError } from '@core/primitives/automations/api';
-import type { OperationMutationError } from '@core/primitives/operations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationsEngine } from '@core/services/operations/node';

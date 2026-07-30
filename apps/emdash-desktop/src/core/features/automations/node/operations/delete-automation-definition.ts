@@ -1,5 +1,9 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import {
+  nonTerminalOperationStatuses,
+  type OperationClaimResource,
+} from '@emdash/core/primitives/operations/api';
+import {
   runtimeResolveErrorAsError,
   type HostRuntimesClient,
   type RuntimeBroker,
@@ -9,9 +13,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import z from 'zod';
 import {
   defineOperationKindPayloadSchema,
-  nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
-  type OperationClaimResource,
   type OperationPayload,
 } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';

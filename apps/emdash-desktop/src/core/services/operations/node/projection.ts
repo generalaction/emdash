@@ -1,5 +1,3 @@
-import { log } from '@emdash/shared/logger';
-import { and, eq, inArray } from 'drizzle-orm';
 import {
   nonTerminalOperationStatuses,
   rollupStatus,
@@ -8,7 +6,9 @@ import {
   type OperationTree,
   type OperationTreeKey,
   type OperationTreeList,
-} from '@core/primitives/operations/api';
+} from '@emdash/core/primitives/operations/api';
+import { log } from '@emdash/shared/logger';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type { OperationDefinition, OperationDescription, OperationProgress } from './definition';

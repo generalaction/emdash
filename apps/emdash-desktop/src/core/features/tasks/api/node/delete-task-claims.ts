@@ -1,4 +1,4 @@
-import type { OperationClaimResource } from '@core/primitives/operations/api';
+import type { OperationClaimResource } from '@emdash/core/primitives/operations/api';
 
 export function deleteTaskClaims(input: {
   projectId: string;

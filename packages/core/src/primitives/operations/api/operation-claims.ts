@@ -1,3 +1,4 @@
+import { hostResourceKey } from '@primitives/host-resource/api';
 import z from 'zod';
 
 export const operationClaimResourceSchema = z.discriminatedUnion('kind', [
@@ -49,6 +50,10 @@ export function operationClaimResourceKey(resource: OperationClaimResource): str
     case 'branch':
       return `branch:${resource.projectId}:${resource.name}`;
     case 'worktree':
-      return `worktree:${resource.hostRef}:${resource.path}`;
+      return hostResourceKey({
+        kind: 'worktree',
+        hostId: resource.hostRef,
+        path: resource.path,
+      });
   }
 }

@@ -176,6 +176,8 @@ export async function purgeLifecycleWorkspaceRow(
   operation: LifecycleOperationRow,
   context: LifecycleOperationContext
 ): Promise<void> {
+  // Workspace rows are desktop references to host-owned resources. Drop them
+  // only after an operation terminal path has released the reference.
   if (!operation.workspaceId) return;
   if (!(await lifecycleWorkspaceIsUnused(db, operation.workspaceId))) return;
   if (context.workspacePath) {

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { OperationStatus } from '@core/primitives/operations/api';
 import {
   allOperationStatuses,
   nextOperationStatus,
+  type OperationStatus,
   type OperationStatusEvent,
-} from './operation-status-machine';
+} from './operation-status';
 
 describe('operation status machine', () => {
   const cases: Array<{

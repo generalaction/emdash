@@ -1,3 +1,4 @@
+import { nonTerminalOperationStatuses } from '@emdash/core/primitives/operations/api';
 import { ok, err } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { and, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
@@ -11,7 +12,6 @@ import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
   defineOperationKindPayloadSchema,
-  nonTerminalOperationStatuses,
   reconcilerDedupeStatuses,
 } from '@core/primitives/operations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';

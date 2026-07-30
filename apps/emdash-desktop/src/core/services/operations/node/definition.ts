@@ -1,22 +1,18 @@
+import type {
+  OperationClaimResource,
+  OperationConfirmationReason as SharedOperationConfirmationReason,
+  OperationEntityKind,
+  OperationMutationError,
+  OperationStatus,
+} from '@emdash/core/primitives/operations/api';
 import type { VersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import type { Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
-import type {
-  OperationClaimResource,
-  OperationEntityKind,
-  OperationKind,
-  OperationMutationError,
-  OperationPayload,
-  OperationStatus,
-} from '@core/primitives/operations/api';
+import type { OperationKind, OperationPayload } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
 
-export type OperationConfirmationReason =
-  | 'stale'
-  | 'workspace-modified'
-  | 'reconciler-proposed'
-  | 'workspace-busy';
+export type OperationConfirmationReason = SharedOperationConfirmationReason;
 
 export type OperationProgress = {
   currentStep?: string;

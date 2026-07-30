@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { desc, and, eq, inArray } from 'drizzle-orm';
 import {
   nonTerminalOperationStatuses,
   operationClaimResourceKey,
   type OperationClaimResource,
   type OperationMutationError,
   type OperationStatus,
-} from '@core/primitives/operations/api';
+} from '@emdash/core/primitives/operations/api';
+import { desc, and, eq, inArray } from 'drizzle-orm';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import {
   lifecycleOperations,

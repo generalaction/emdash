@@ -1,6 +1,27 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { operationStatuses, type OperationStatus } from '@core/primitives/operations/api';
-import type { OperationConfirmationReason } from './definition';
+import type { OperationConfirmationReason } from './operation-state';
+
+export const operationStatuses = [
+  'pending',
+  'waiting-children',
+  'running',
+  'awaiting-confirmation',
+  'succeeded',
+  'failed',
+  'abandoned',
+] as const;
+
+export type OperationStatus = (typeof operationStatuses)[number];
+
+export const nonTerminalOperationStatuses = [
+  'pending',
+  'waiting-children',
+  'running',
+  'awaiting-confirmation',
+  'failed',
+] as const satisfies readonly OperationStatus[];
+
+export type NonTerminalOperationStatus = (typeof nonTerminalOperationStatuses)[number];
 
 export type OperationStatusEvent =
   | { type: 'started' }

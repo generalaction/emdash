@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     'primitives-path-api': 'src/primitives/path/api/index.ts',
     'primitives-host-api': 'src/primitives/host/api/index.ts',
+    'primitives-host-resource-api': 'src/primitives/host-resource/api/index.ts',
     'primitives-lib-api': 'src/primitives/lib/api/index.ts',
     'primitives-concurrency-api': 'src/primitives/concurrency/api/index.ts',
     'primitives-workflow-api': 'src/primitives/workflow/api/index.ts',
@@ -19,6 +20,7 @@ export default defineConfig({
     'primitives-agent-env-api': 'src/primitives/agent-env/api/index.ts',
     'primitives-plugin-fs-api': 'src/primitives/plugin-fs/api/index.ts',
     'primitives-versioned-schema-api': 'src/primitives/versioned-schema/api/index.ts',
+    'primitives-operations-api': 'src/primitives/operations/api/index.ts',
     'primitives-runtime-resolution-api': 'src/primitives/runtime-resolution/api/index.ts',
     'primitives-sqlite-store-api': 'src/primitives/sqlite-store/api/index.ts',
     'primitives-sqlite-store-codegen': 'src/primitives/sqlite-store/codegen/index.ts',

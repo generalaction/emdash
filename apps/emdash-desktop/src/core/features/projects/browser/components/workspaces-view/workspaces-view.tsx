@@ -1,3 +1,8 @@
+import type {
+  OperationDisplayState,
+  OperationTree,
+  OperationTreeList,
+} from '@emdash/core/primitives/operations/api';
 import {
   compareDates,
   compareNumbers,
@@ -16,11 +21,6 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import type {
-  OperationDisplayState,
-  OperationTree,
-  OperationTreeList,
-} from '@core/primitives/operations/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/ui/browser/cn';

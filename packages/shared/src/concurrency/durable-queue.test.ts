@@ -1,7 +1,7 @@
-import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDurableQueue } from './durable-queue';
+import { createScope } from './scope';
 
 type TestRow = {
   id: string;

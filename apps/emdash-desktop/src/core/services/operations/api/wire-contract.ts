@@ -1,11 +1,11 @@
-import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
-import z from 'zod';
 import {
   operationMutationErrorSchema,
   operationMutationResultSchema,
   operationTreeKeySchema,
   operationTreeListSchema,
-} from '@core/primitives/operations/api';
+} from '@emdash/core/primitives/operations/api';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
+import z from 'zod';
 
 export const operationIdInputSchema = z.object({
   operationId: z.string(),

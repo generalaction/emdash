@@ -52,3 +52,10 @@ execution authority for those resources.
   safely resume after restart, suspend it and require an explicit retry.
 - Contribute behavior through manifests and definitions. Keep shared vocabulary, such as
   statuses and claim resource keys, centrally owned and mechanically reviewable.
+
+## Enforcement
+
+Enforce host-resource mutation through capabilities, not narrow lint rules. The workspace
+runtime contract exposes the host operation log as the mutation path; direct convenience
+mutations should not be added around it. Add targeted lint only after a real regression,
+because preemptive function-level rules tend to become allowlist maintenance.

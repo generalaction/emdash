@@ -1,4 +1,8 @@
 import {
+  operationMutationErrorSchema,
+  operationMutationResultSchema,
+} from '@emdash/core/primitives/operations/api';
+import {
   hostAbsolutePathSchema,
   portableRelativePathSchema,
 } from '@emdash/core/primitives/path/api';
@@ -17,10 +21,6 @@ import {
 } from '@emdash/wire';
 import z from 'zod';
 import { workspaceBootstrapProgressSchema } from '@core/features/workspaces/api';
-import {
-  operationMutationErrorSchema,
-  operationMutationResultSchema,
-} from '@core/primitives/operations/api';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,

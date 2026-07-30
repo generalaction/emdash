@@ -1,5 +1,6 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
 import type { KeyValueStore } from '@primitives/kv/api';
+import { operationInitiatorSchema } from '@primitives/operations/api';
 import { z } from 'zod';
 import {
   activateWorkspaceInputSchema,
@@ -29,10 +30,7 @@ export const workspaceOperationRecordStatusSchema = z.enum([
   'suspended',
 ]);
 
-export const workspaceOperationRecordInitiatorSchema = z.object({
-  clientId: z.string().min(1),
-  label: z.string().min(1).optional(),
-});
+export const workspaceOperationRecordInitiatorSchema = operationInitiatorSchema;
 
 export const workspaceOperationRecordParamsSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('provision'), input: provisionWorkspaceInputSchema }),

@@ -1,12 +1,15 @@
+import {
+  nonTerminalOperationStatuses,
+  nextOperationStatus,
+  requireNextOperationStatus,
+  type OperationStatusEvent,
+  type OperationStatus,
+} from '@emdash/core/primitives/operations/api';
 import { err, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, inArray } from 'drizzle-orm';
-import {
-  nonTerminalOperationStatuses,
-  type OperationKind,
-  type OperationStatus,
-} from '@core/primitives/operations/api';
+import type { OperationKind } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
 import type {
@@ -15,11 +18,6 @@ import type {
   OperationProgress,
   OperationRunError,
 } from './definition';
-import {
-  nextOperationStatus,
-  requireNextOperationStatus,
-  type OperationStatusEvent,
-} from './operation-status-machine';
 
 const RETRY_DELAYS_MS = [1_000, 4_000];
 

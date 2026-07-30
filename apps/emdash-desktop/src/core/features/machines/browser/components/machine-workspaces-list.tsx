@@ -1,3 +1,4 @@
+import type { Observed } from '@emdash/core/primitives/lib/api';
 import {
   createListView,
   createTextMatcher,
@@ -325,13 +326,13 @@ const WorkspaceRow = observer(function WorkspaceRow({
   view: MachineWorkspacesListView;
   item: MachineWorkspaceItem;
   statuses: ObservableMap<string, WorkspaceRuntimeStatus>;
-  hostOperations: Map<string, string>;
+  hostOperations: Map<string, Observed<string>>;
 }) {
   const selection = view.useSelection();
   const id = getItemId(item);
   const selected = selection.isSelected(id);
   const status = workspaceStatus(item.row, statuses);
-  const hostOperation = hostOperations.get(item.row.path);
+  const hostOperation = hostOperations.get(item.row.path)?.value;
 
   return (
     <ListView.Row

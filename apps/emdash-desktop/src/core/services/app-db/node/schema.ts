@@ -1,3 +1,4 @@
+import type { OperationStatus } from '@emdash/core/primitives/operations/api';
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
@@ -17,7 +18,7 @@ import {
 import { conversationConfig } from '@core/primitives/conversations/api';
 import { linkedIssue } from '@core/primitives/linked-issues/api';
 import { operationPayload, type OperationPayload } from '@core/primitives/operations/api';
-import type { OperationKind, OperationStatus } from '@core/primitives/operations/api';
+import type { OperationKind } from '@core/primitives/operations/api';
 import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { OperationClaimResource } from '@emdash/core/primitives/operations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/api/node';
@@ -7,7 +8,6 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
-import type { OperationClaimResource } from '@core/primitives/operations/api';
 import type {
   CreateTaskError,
   CreateTaskParams,

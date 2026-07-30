@@ -1,3 +1,6 @@
+import { type HostResourceRef } from '@emdash/core/primitives/host-resource/api';
+import { hostRefKey } from '@emdash/core/primitives/host/api';
+import type { Observed } from '@emdash/core/primitives/lib/api';
 import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type {
@@ -11,10 +14,9 @@ import type {
 const DEFAULT_MAX_AGE_MS = 30_000;
 
 type WorkspaceScanCacheEntry = {
-  result: ProjectWorkspacesResult;
-  cachedAt: number;
+  result: Observed<ProjectWorkspacesResult>;
   refreshing?: Promise<void>;
-  gitStatsByPath: Map<string, ProjectWorkspaceGitStatsResult>;
+  gitStatsByPath: Map<string, Observed<ProjectWorkspaceGitStatsResult>>;
 };
 
 export class WorkspaceScanCache {
@@ -43,8 +45,7 @@ export class WorkspaceScanCache {
   set(projectId: string, result: ProjectWorkspacesResult): ProjectWorkspacesResult {
     const previous = this.entries.get(projectId);
     const entry: WorkspaceScanCacheEntry = {
-      result: this.cloneResult(result),
-      cachedAt: Date.now(),
+      result: { value: this.cloneResult(result), observedAt: Date.now(), source: 'probe' },
       gitStatsByPath: previous?.gitStatsByPath ?? new Map(),
     };
     this.entries.set(projectId, entry);
@@ -53,7 +54,7 @@ export class WorkspaceScanCache {
 
   isStale(projectId: string, maxAgeMs = DEFAULT_MAX_AGE_MS): boolean {
     const entry = this.entries.get(projectId);
-    return !entry || Date.now() - entry.cachedAt > maxAgeMs;
+    return !entry || Date.now() - entry.result.observedAt > maxAgeMs;
   }
 
   mergeUsageResults(projectId: string, results: readonly ProjectWorkspaceUsageResult[]): void {
@@ -68,23 +69,31 @@ export class WorkspaceScanCache {
         .map((result) => [result.path, result.usage])
     );
     if (usageByPath.size === 0) return;
-    const rows = entry.result.rows.map((row): ProjectWorkspaceRow => {
+    const rows = entry.result.value.rows.map((row): ProjectWorkspaceRow => {
       const usage = usageByPath.get(row.path);
       return usage ? { ...row, usage } : row;
     });
     entry.result = {
       ...entry.result,
-      rows,
-      totalBytes: rows.reduce((sum, row) => sum + (row.usage?.totalBytes ?? 0), 0),
-      artifactBytes: rows.reduce((sum, row) => sum + (row.usage?.artifactBytes ?? 0), 0),
+      value: {
+        ...entry.result.value,
+        rows,
+        totalBytes: rows.reduce((sum, row) => sum + (row.usage?.totalBytes ?? 0), 0),
+        artifactBytes: rows.reduce((sum, row) => sum + (row.usage?.artifactBytes ?? 0), 0),
+      },
     };
   }
 
   mergeGitStatsResults(projectId: string, result: GetProjectWorkspaceGitStatsResult): void {
     const entry = this.entries.get(projectId);
     if (!entry) return;
+    const observedAt = Date.now();
     for (const item of result.results) {
-      entry.gitStatsByPath.set(item.path, item);
+      entry.gitStatsByPath.set(item.path, {
+        value: item,
+        observedAt,
+        source: 'operation-result',
+      });
     }
   }
 
@@ -95,13 +104,16 @@ export class WorkspaceScanCache {
     }
     const entry = this.entries.get(projectId);
     if (!entry) return;
-    const rows = entry.result.rows.filter((row) => row.path !== path);
+    const rows = entry.result.value.rows.filter((row) => row.path !== path);
     entry.gitStatsByPath.delete(path);
     entry.result = {
       ...entry.result,
-      rows,
-      totalBytes: rows.reduce((sum, row) => sum + (row.usage?.totalBytes ?? 0), 0),
-      artifactBytes: rows.reduce((sum, row) => sum + (row.usage?.artifactBytes ?? 0), 0),
+      value: {
+        ...entry.result.value,
+        rows,
+        totalBytes: rows.reduce((sum, row) => sum + (row.usage?.totalBytes ?? 0), 0),
+        artifactBytes: rows.reduce((sum, row) => sum + (row.usage?.artifactBytes ?? 0), 0),
+      },
     };
   }
 
@@ -111,6 +123,10 @@ export class WorkspaceScanCache {
     }
   }
 
+  evictResource(resource: HostResourceRef): void {
+    if (resource.kind === 'worktree') this.evictPath(resource.path);
+  }
+
   evictTerminalRecord(record: WorkspaceOperationRecord): void {
     if (
       record.status !== 'succeeded' ||
@@ -118,7 +134,11 @@ export class WorkspaceScanCache {
     ) {
       return;
     }
-    this.evictPath(nativePathFromHost(record.workspace.path));
+    this.evictResource({
+      kind: 'worktree',
+      hostId: hostRefKey(record.workspace.host),
+      path: nativePathFromHost(record.workspace.path),
+    });
   }
 
   private refreshInBackground(
@@ -138,7 +158,7 @@ export class WorkspaceScanCache {
   }
 
   private snapshot(entry: WorkspaceScanCacheEntry): ProjectWorkspacesResult {
-    return this.cloneResult(entry.result);
+    return this.cloneResult(entry.result.value);
   }
 
   private cloneResult(result: ProjectWorkspacesResult): ProjectWorkspacesResult {

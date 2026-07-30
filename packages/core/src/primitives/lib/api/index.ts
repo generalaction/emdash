@@ -10,3 +10,9 @@ export {
 } from './exclusion-policy';
 export { KeyedMutex } from './keyed-mutex';
 export { consoleLogger, noopLogger, type Logger } from './logger';
+
+export type Observed<T> = {
+  value: T;
+  observedAt: number;
+  source: 'probe' | 'operation-result' | 'log-event';
+};

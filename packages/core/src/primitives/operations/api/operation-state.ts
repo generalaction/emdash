@@ -1,11 +1,17 @@
 import z from 'zod';
-import { operationKinds } from './operation-types';
+
+export const operationConfirmationReasonSchema = z.enum([
+  'stale',
+  'workspace-modified',
+  'reconciler-proposed',
+  'workspace-busy',
+]);
 
 export const operationEntityKindSchema = z.enum(['task', 'automation', 'workspace', 'project']);
 
 const operationDisplayBaseSchema = z.object({
   operationId: z.string(),
-  operationKind: z.enum(operationKinds),
+  operationKind: z.string(),
   entityId: z.string(),
   entityKind: operationEntityKindSchema,
   projectId: z.string().optional(),
@@ -34,12 +40,7 @@ export const operationDisplayStateSchema = z.discriminatedUnion('status', [
   }),
   operationDisplayBaseSchema.extend({
     status: z.literal('awaiting-confirmation'),
-    confirmationReason: z.enum([
-      'stale',
-      'workspace-modified',
-      'reconciler-proposed',
-      'workspace-busy',
-    ]),
+    confirmationReason: operationConfirmationReasonSchema,
     error: z.string().optional(),
   }),
   operationDisplayBaseSchema.extend({
@@ -57,6 +58,7 @@ export const operationMutationResultSchema = z.object({
   operationId: z.string().optional(),
 });
 
+export type OperationConfirmationReason = z.infer<typeof operationConfirmationReasonSchema>;
 export type OperationEntityKind = z.infer<typeof operationEntityKindSchema>;
 export type OperationDisplayState = z.infer<typeof operationDisplayStateSchema>;
 export type OperationMutationError = z.infer<typeof operationMutationErrorSchema>;
