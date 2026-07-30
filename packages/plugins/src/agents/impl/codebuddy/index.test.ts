@@ -189,49 +189,23 @@ describe('codebuddy provider', () => {
     await expect(provider.behavior.hooks!.getHooksInstalled(fs)).resolves.toBe(false);
   });
 
-  it('does not overwrite malformed CodeBuddy settings during installation or removal', async () => {
-    const malformedSettings = '{ "language": "English",';
-    const files = new Map([[CODEBUDDY_SETTINGS_PATH, malformedSettings]]);
+  it.each([
+    ['malformed JSON', '{ "language": "English",', 'file contains invalid JSON'],
+    ['an empty file', '', 'file contains invalid JSON'],
+    ['a non-object root', '[]', 'expected a JSON object'],
+  ])('does not overwrite CodeBuddy settings containing %s', async (_case, content, error) => {
+    const files = new Map([[CODEBUDDY_SETTINGS_PATH, content]]);
     const fs = createMemoryFs(files);
 
     await expect(provider.behavior.hooks!.writeHooks(fs, [])).rejects.toThrow(
-      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file contains invalid JSON`
+      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: ${error}`
     );
-    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(malformedSettings);
+    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(content);
 
     await expect(provider.behavior.hooks!.deleteHooks(fs)).rejects.toThrow(
-      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file contains invalid JSON`
+      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: ${error}`
     );
-    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(malformedSettings);
-  });
-
-  it('does not overwrite CodeBuddy settings changed during hook installation', async () => {
-    const originalSettings = JSON.stringify({ language: 'English' });
-    const changedSettings = '{ "language": "German",';
-    const files = new Map([[CODEBUDDY_SETTINGS_PATH, originalSettings]]);
-    const fs = createMemoryFs(files);
-    const read = fs.read;
-    let settingsReads = 0;
-    let settingsWrites = 0;
-
-    fs.read = async (path) => {
-      const content = await read(path);
-      if (path === CODEBUDDY_SETTINGS_PATH && ++settingsReads === 1) {
-        files.set(path, changedSettings);
-      }
-      return content;
-    };
-    fs.write = async (path, content) => {
-      settingsWrites++;
-      files.set(path, content);
-    };
-
-    await expect(provider.behavior.hooks!.writeHooks(fs, [])).rejects.toThrow(
-      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file changed while hooks were being updated`
-    );
-    expect(settingsReads).toBe(2);
-    expect(settingsWrites).toBe(0);
-    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(changedSettings);
+    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(content);
   });
 
   it.each([

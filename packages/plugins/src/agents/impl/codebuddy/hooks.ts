@@ -8,7 +8,7 @@ import {
 export const CODEBUDDY_SETTINGS_PATH = '.codebuddy/settings.local.json';
 
 function validateCodeBuddySettings(content: string | null): void {
-  if (!content) return;
+  if (content === null) return;
 
   let settings: unknown;
   try {
@@ -22,31 +22,15 @@ function validateCodeBuddySettings(content: string | null): void {
   }
 }
 
-function createCodeBuddySettingsFs(fs: PluginFs): PluginFs {
-  let settingsSnapshot: string | null | undefined;
-
+function createStrictCodeBuddySettingsFs(fs: PluginFs): PluginFs {
   return {
     ...fs,
     async read(path: string): Promise<string | null> {
       const content = await fs.read(path);
       if (path === CODEBUDDY_SETTINGS_PATH) {
         validateCodeBuddySettings(content);
-        settingsSnapshot = content;
       }
       return content;
-    },
-    async write(path: string, content: string): Promise<void> {
-      if (path === CODEBUDDY_SETTINGS_PATH && settingsSnapshot !== undefined) {
-        const current = await fs.read(path);
-        if (current !== settingsSnapshot) {
-          throw new Error(
-            `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file changed while hooks were being updated`
-          );
-        }
-      }
-
-      await fs.write(path, content);
-      if (path === CODEBUDDY_SETTINGS_PATH) settingsSnapshot = content;
     },
   };
 }
@@ -88,10 +72,10 @@ export function buildCodeBuddyHookConfig() {
   return {
     ...hooks,
     async writeHooks(fs: PluginFs, registrations: HookRegistration[]): Promise<string[]> {
-      return hooks.writeHooks(createCodeBuddySettingsFs(fs), registrations);
+      return hooks.writeHooks(createStrictCodeBuddySettingsFs(fs), registrations);
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
-      return hooks.deleteHooks(createCodeBuddySettingsFs(fs));
+      return hooks.deleteHooks(createStrictCodeBuddySettingsFs(fs));
     },
     parseHookEvent: parseCodeBuddyHookEvent,
   };
