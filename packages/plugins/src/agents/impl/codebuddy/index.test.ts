@@ -205,6 +205,35 @@ describe('codebuddy provider', () => {
     expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(malformedSettings);
   });
 
+  it('does not overwrite CodeBuddy settings changed during hook installation', async () => {
+    const originalSettings = JSON.stringify({ language: 'English' });
+    const changedSettings = '{ "language": "German",';
+    const files = new Map([[CODEBUDDY_SETTINGS_PATH, originalSettings]]);
+    const fs = createMemoryFs(files);
+    const read = fs.read;
+    let settingsReads = 0;
+    let settingsWrites = 0;
+
+    fs.read = async (path) => {
+      const content = await read(path);
+      if (path === CODEBUDDY_SETTINGS_PATH && ++settingsReads === 1) {
+        files.set(path, changedSettings);
+      }
+      return content;
+    };
+    fs.write = async (path, content) => {
+      settingsWrites++;
+      files.set(path, content);
+    };
+
+    await expect(provider.behavior.hooks!.writeHooks(fs, [])).rejects.toThrow(
+      `Cannot update ${CODEBUDDY_SETTINGS_PATH}: file changed while hooks were being updated`
+    );
+    expect(settingsReads).toBe(2);
+    expect(settingsWrites).toBe(0);
+    expect(files.get(CODEBUDDY_SETTINGS_PATH)).toBe(changedSettings);
+  });
+
   it.each([
     {
       eventType: 'notification',
