@@ -1,4 +1,5 @@
 import { app, clipboard, Menu, shell } from 'electron';
+import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
 import {
@@ -132,7 +133,15 @@ export function setupApplicationMenu(): void {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' as const },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            if (!browserWebContentsRegistry.reloadActiveBrowser()) {
+              getMainWindow()?.webContents.reload();
+            }
+          },
+        },
         { role: 'forceReload' as const },
         { role: 'toggleDevTools' as const },
         { type: 'separator' as const },

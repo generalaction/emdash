@@ -159,6 +159,14 @@ export class BrowserWebContentsRegistry {
     return this.activeBrowserId;
   }
 
+  reloadActiveBrowser(): boolean {
+    if (!this.activeBrowserId) return false;
+    const webContents = this.webContentsByBrowserId.get(this.activeBrowserId);
+    if (!webContents || webContents.isDestroyed()) return false;
+    webContents.reload();
+    return true;
+  }
+
   openDevTools(browserId: string): boolean {
     const webContents = this.webContentsByBrowserId.get(browserId);
     if (!webContents || webContents.isDestroyed()) return false;

@@ -47,6 +47,7 @@ function fakeWebContents(partition: string = PROFILE_PARTITION): FakeWebContents
     getUserAgent: () => 'base-ua',
     setUserAgent: vi.fn(),
     openDevTools: vi.fn(),
+    reload: vi.fn(),
     setWindowOpenHandler(handler: FakeWebContents['windowOpenHandler']) {
       fake.windowOpenHandler = handler;
     },
@@ -107,6 +108,28 @@ describe('BrowserWebContentsRegistry', () => {
     expect(registry.openDevTools('browser-1')).toBe(true);
     expect(first.openDevTools).toHaveBeenCalled();
     expect(registry.getActiveBrowser()).toBe('browser-2');
+  });
+
+  it('reloads only the active browser webContents', () => {
+    const registry = new BrowserWebContentsRegistry();
+    registry.registerSession({ browserId: 'browser-1', partition: PROFILE_PARTITION });
+    registry.registerSession({ browserId: 'browser-2', partition: PROFILE_PARTITION });
+
+    const first = fakeWebContents();
+    const second = fakeWebContents();
+    registry.handleWebviewAttached(first);
+    registry.handleWebviewAttached(second);
+    registry.bindWebContents('browser-1', first);
+    registry.bindWebContents('browser-2', second);
+
+    registry.setActiveBrowser('browser-1');
+
+    expect(registry.reloadActiveBrowser()).toBe(true);
+    expect(first.reload).toHaveBeenCalledOnce();
+    expect(second.reload).not.toHaveBeenCalled();
+
+    registry.setActiveBrowser(null);
+    expect(registry.reloadActiveBrowser()).toBe(false);
   });
 
   it('rejects binding for unknown browsers, unattached or already-bound webContents', () => {
