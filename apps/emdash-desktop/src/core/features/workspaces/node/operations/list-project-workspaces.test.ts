@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 
 const select = vi.fn();
 
@@ -165,6 +165,147 @@ describe('listProjectWorkspaces', () => {
         canDelete: false,
       }),
     ]);
+  });
+
+  it('marks DB-linked workspaces with missing paths as path-gone', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-project-workspaces-'));
+    const missingPath = path.join(root, 'missing-worktree');
+    try {
+      const client = vi.fn(async () => ({
+        success: true,
+        data: {
+          files: {
+            fs: {
+              exists: vi.fn(
+                async ({ root: target }: { root: ReturnType<typeof hostPathFromNative> }) => ({
+                  success: true,
+                  data: nativePathFromHost(target) !== missingPath,
+                })
+              ),
+            },
+          },
+          git: {
+            repository: {
+              listWorktrees: vi.fn(async () => ({
+                success: true,
+                data: [
+                  {
+                    worktreePath: hostPathFromNative(root),
+                    isMain: true,
+                    head: { kind: 'branch', name: 'main' },
+                  },
+                ],
+              })),
+            },
+          },
+        },
+      }));
+      const missingDependencies = {
+        ...dependencies,
+        runtimes: { client } as never,
+      };
+      select
+        .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: root }]))
+        .mockReturnValueOnce(
+          workspaceRows([
+            {
+              id: 'workspace-1',
+              type: 'local',
+              kind: 'worktree',
+              location: 'local',
+              sshConnectionId: null,
+              path: missingPath,
+              branchName: 'feature/missing',
+              config: null,
+            },
+          ])
+        )
+        .mockReturnValueOnce(
+          taskRows([
+            {
+              taskId: 'task-1',
+              name: 'Missing task',
+              status: 'in_progress',
+              archivedAt: null,
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              lastInteractedAt: null,
+              workspaceId: 'workspace-1',
+            },
+          ])
+        );
+
+      const { listProjectWorkspaces } = await import('./list-project-workspaces');
+      const result = await listProjectWorkspaces(missingDependencies, 'project-1');
+
+      expect(result.rows.find((row) => row.path === missingPath)).toMatchObject({
+        pathState: 'missing',
+        pathIssue: { kind: 'path-gone' },
+      });
+    } finally {
+      select.mockReset();
+      vi.resetModules();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('marks git-prunable worktrees with the git reason', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'emdash-project-workspaces-'));
+    const stalePath = path.join(root, 'stale-worktree');
+    const reason = 'gitdir file points to non-existent location';
+    try {
+      const client = vi.fn(async () => ({
+        success: true,
+        data: {
+          files: {
+            fs: {
+              exists: vi.fn(async () => ({ success: true, data: true })),
+            },
+          },
+          git: {
+            repository: {
+              listWorktrees: vi.fn(async () => ({
+                success: true,
+                data: [
+                  {
+                    worktreePath: hostPathFromNative(root),
+                    isMain: true,
+                    head: { kind: 'branch', name: 'main' },
+                  },
+                  {
+                    worktreePath: hostPathFromNative(stalePath),
+                    isMain: false,
+                    head: { kind: 'branch', name: 'feature/stale' },
+                    prunable: true,
+                    prunableReason: reason,
+                  },
+                ],
+              })),
+            },
+          },
+        },
+      }));
+      const prunableDependencies = {
+        ...dependencies,
+        runtimes: { client } as never,
+      };
+      select
+        .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: root }]))
+        .mockReturnValueOnce(workspaceRows([]))
+        .mockReturnValueOnce(taskRows([]));
+
+      const { listProjectWorkspaces } = await import('./list-project-workspaces');
+      const result = await listProjectWorkspaces(prunableDependencies, 'project-1');
+
+      expect(result.rows.find((row) => row.path === stalePath)).toMatchObject({
+        kind: 'candidate',
+        pathState: 'missing',
+        pathIssue: { kind: 'prunable', reason },
+      });
+    } finally {
+      select.mockReset();
+      vi.resetModules();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

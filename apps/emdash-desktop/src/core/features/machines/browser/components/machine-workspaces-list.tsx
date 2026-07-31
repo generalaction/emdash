@@ -53,6 +53,7 @@ import {
 import {
   useWorkspaceRuntimeStatuses,
   type WorkspaceRuntimeStatus,
+  type WorkspaceRuntimeStatusDetails,
 } from '../use-workspace-runtime-statuses';
 import { workspaceStatus } from '../workspace-runtime-status';
 import { formatBytes } from './machine-resources';
@@ -81,7 +82,7 @@ class MachineWorkspacesListStore {
 
 function createMachineWorkspacesListView(
   store: MachineWorkspacesListStore,
-  statuses: ObservableMap<string, WorkspaceRuntimeStatus>
+  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>
 ) {
   const matcher = createTextMatcher<MachineWorkspaceItem>((item) => [
     item.projectName,
@@ -249,6 +250,7 @@ const MachineWorkspacesHeader = observer(function MachineWorkspacesHeader({
             <DropdownMenuRadioItem value="setting-up">Setting up...</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="tearing-down">Tearing Down...</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="error">Error</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -325,7 +327,7 @@ const WorkspaceRow = observer(function WorkspaceRow({
 }: {
   view: MachineWorkspacesListView;
   item: MachineWorkspaceItem;
-  statuses: ObservableMap<string, WorkspaceRuntimeStatus>;
+  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>;
   hostOperations: Map<string, Observed<string>>;
 }) {
   const selection = view.useSelection();
@@ -556,7 +558,8 @@ function StatusPill({ status }: { status: WorkspaceRuntimeStatus }) {
         status === 'active' && 'border-border-success text-foreground-success',
         status === 'idle' && 'border-border/70 text-foreground-muted',
         status === 'setting-up' && 'animate-pulse border-border-info text-foreground-info',
-        status === 'tearing-down' && 'animate-pulse border-border-warning text-foreground-warning'
+        status === 'tearing-down' && 'animate-pulse border-border-warning text-foreground-warning',
+        status === 'error' && 'border-border-destructive text-foreground-destructive'
       )}
     >
       {statusLabel(status)}
@@ -731,6 +734,8 @@ function statusLabel(status: WorkspaceRuntimeStatus): string {
       return 'Active';
     case 'tearing-down':
       return 'Tearing Down...';
+    case 'error':
+      return 'Error';
   }
 }
 

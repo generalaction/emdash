@@ -8,7 +8,13 @@ import {
   type WorkspaceRuntimeState,
 } from '@core/features/workspaces/api/wire-contract';
 
-export type WorkspaceRuntimeStatus = 'idle' | 'setting-up' | 'active' | 'tearing-down';
+export type WorkspaceRuntimeStatus = 'idle' | 'setting-up' | 'active' | 'tearing-down' | 'error';
+export type WorkspacePhaseKind = WorkspaceRuntimeState['phase']['kind'];
+export type WorkspaceRuntimeStatusDetails = {
+  status: WorkspaceRuntimeStatus;
+  phase?: WorkspacePhaseKind;
+  errorMessage?: string;
+};
 
 export type WorkspaceRuntimeStatusInput = {
   workspaceId: string | null;
@@ -21,7 +27,7 @@ type RuntimeReplica = ReturnType<
 type RuntimeModel = OptimisticLiveModel<typeof workspacesWireContract.runtime>;
 
 class WorkspaceRuntimeStatusesStore {
-  readonly statuses = observable.map<string, WorkspaceRuntimeStatus>();
+  readonly statuses = observable.map<string, WorkspaceRuntimeStatusDetails>();
   private readonly models = new Map<string, RuntimeModel>();
   private readonly reactions = new Map<string, () => void>();
   private readonly fallbacks = new Map<string, WorkspaceRuntimeStatus>();
@@ -40,7 +46,10 @@ class WorkspaceRuntimeStatusesStore {
       const fallback = input.hasActiveSessions ? 'active' : 'idle';
       this.fallbacks.set(input.workspaceId, fallback);
       if (!this.statuses.has(input.workspaceId)) {
-        this.statuses.set(input.workspaceId, fallback);
+        this.statuses.set(
+          input.workspaceId,
+          deriveWorkspaceRuntimeStatus(undefined, fallback === 'active')
+        );
       }
     }
 
@@ -110,7 +119,10 @@ class WorkspaceRuntimeStatusesStore {
       });
     } catch {
       if (this.models.get(workspaceId) === model) {
-        this.statuses.set(workspaceId, this.fallbacks.get(workspaceId) ?? 'idle');
+        this.statuses.set(
+          workspaceId,
+          deriveWorkspaceRuntimeStatus(undefined, this.fallbacks.get(workspaceId) === 'active')
+        );
       }
     }
   }
@@ -154,22 +166,27 @@ export function useWorkspaceRuntimeStatuses(inputs: WorkspaceRuntimeStatusInput[
 function deriveWorkspaceRuntimeStatus(
   state: WorkspaceRuntimeState | undefined,
   hasActiveSessions: boolean
-): WorkspaceRuntimeStatus {
-  if (!state) return hasActiveSessions ? 'active' : 'idle';
+): WorkspaceRuntimeStatusDetails {
+  if (!state) return { status: hasActiveSessions ? 'active' : 'idle' };
   switch (state.phase.kind) {
     case 'provisioning':
     case 'activating':
-      return 'setting-up';
+      return { status: 'setting-up', phase: state.phase.kind };
     case 'deactivating':
     case 'tearing-down':
     case 'cleaning':
-      return 'tearing-down';
+      return { status: 'tearing-down', phase: state.phase.kind };
     case 'active':
-      return 'active';
-    case 'ready':
+      return { status: 'active', phase: state.phase.kind };
     case 'broken':
+      return {
+        status: 'error',
+        phase: state.phase.kind,
+        errorMessage: state.lastError?.message ?? state.phase.error.message,
+      };
+    case 'ready':
     case 'provisioned':
     case 'unprovisioned':
-      return 'idle';
+      return { status: 'idle', phase: state.phase.kind };
   }
 }

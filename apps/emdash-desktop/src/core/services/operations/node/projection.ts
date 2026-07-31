@@ -161,10 +161,10 @@ function operationDisplayStateFromRow(
     case 'waiting-children':
       return { ...base, status: 'waiting-children' };
     case 'pending':
-      return { ...base, status: hostOnline ? 'cleaning' : 'blocked-host-offline' };
+      return { ...base, status: hostOnline ? 'queued' : 'blocked-host-offline' };
     case 'running':
       if (progress?.waiting) return { ...base, status: 'waiting' };
-      return { ...base, status: 'cleaning' };
+      return { ...base, status: 'running' };
     case 'awaiting-confirmation':
       return {
         ...base,

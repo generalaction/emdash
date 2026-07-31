@@ -190,7 +190,7 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
     const claimedWorkspaceIds = new Set<string>();
     const createdAt = clock.now();
     const related: OperationRelatedInsert[] = [
-      ...taskRows.map((task) => {
+      ...taskRows.map<OperationRelatedInsert>((task) => {
         const workspace = task.workspaceId ? workspaceById.get(task.workspaceId) : undefined;
         const hostRef = workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local';
         const workspaceAlreadyClaimed =
@@ -233,7 +233,7 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
           },
         };
       }),
-      ...orphanedOperationRows.map((operation) => ({
+      ...orphanedOperationRows.map<OperationRelatedInsert>((operation) => ({
         draft: {
           kind: operation.kind,
           projectId,

@@ -8,6 +8,11 @@ export type ProjectWorkspacePathState =
   | 'no-path'
   | 'error';
 
+export type ProjectWorkspacePathIssue = {
+  kind: 'path-gone' | 'prunable';
+  reason?: string;
+};
+
 export type ProjectWorkspaceTask = {
   taskId: string;
   name: string;
@@ -32,6 +37,7 @@ export type ProjectWorkspaceRow = {
   tasks: ProjectWorkspaceTask[];
   usage: ProjectWorkspaceUsage | null;
   pathState: ProjectWorkspacePathState;
+  pathIssue?: ProjectWorkspacePathIssue;
   canCleanArtifacts: boolean;
   canDelete: boolean;
   hasActiveSessions: boolean;

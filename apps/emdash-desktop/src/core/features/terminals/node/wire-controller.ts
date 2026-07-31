@@ -41,9 +41,9 @@ import {
 import { terminalsRuntimeContract } from '@core/features/terminals/api/runtime-adapter';
 import { getTaskEnvVars } from '@core/features/workspaces/api/node/workspace-env';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
-import { makePtySessionId } from '@core/primitives/pty/api';
+import { makePtySessionId, parsePtySessionId } from '@core/primitives/pty/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
-import type { Terminal } from '@core/primitives/terminals/api';
+import { lifecycleScriptNodeIdFromTerminalId, type Terminal } from '@core/primitives/terminals/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
@@ -527,8 +527,14 @@ function workspaceRef(identity: WorkspaceIdentity): HostFileRef {
 function toTerminalKey(identity: WorkspaceIdentity, terminalId: string): TerminalKey {
   return {
     workspace: workspaceRef(identity),
-    id: terminalId,
+    id: runtimeTerminalId(terminalId),
   };
+}
+
+function runtimeTerminalId(terminalId: string): string {
+  const parsed = parsePtySessionId(terminalId);
+  if (!parsed) return terminalId;
+  return lifecycleScriptNodeIdFromTerminalId(parsed.leafId) ?? terminalId;
 }
 
 function mapTerminalRowToTerminal(row: typeof terminals.$inferSelect): Terminal {

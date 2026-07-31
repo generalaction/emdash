@@ -51,6 +51,7 @@ import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { LifecycleScriptPill } from './components/lifecycle-script-pill';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
@@ -310,6 +311,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2">
+          <LifecycleScriptPill />
           <PreviewServerPills />
           <OpenInMenu
             path={workspace.path}

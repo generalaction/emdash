@@ -30,7 +30,10 @@ const operationDisplayBaseSchema = z.object({
 
 export const operationDisplayStateSchema = z.discriminatedUnion('status', [
   operationDisplayBaseSchema.extend({
-    status: z.literal('cleaning'),
+    status: z.literal('queued'),
+  }),
+  operationDisplayBaseSchema.extend({
+    status: z.literal('running'),
   }),
   operationDisplayBaseSchema.extend({
     status: z.literal('waiting'),

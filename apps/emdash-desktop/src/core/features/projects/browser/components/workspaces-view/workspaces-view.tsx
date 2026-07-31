@@ -1,8 +1,3 @@
-import type {
-  OperationDisplayState,
-  OperationTree,
-  OperationTreeList,
-} from '@emdash/core/primitives/operations/api';
 import {
   compareDates,
   compareNumbers,
@@ -14,7 +9,6 @@ import {
   defineSort,
   ListView,
 } from '@emdash/ui/react/patterns';
-import { createLiveModelReplica } from '@emdash/wire';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
@@ -42,7 +36,8 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import { operationsContract } from '@core/services/operations/api';
+import { OperationTreesPanel } from '@core/services/operations/browser/operation-trees-panel';
+import { useOperationTrees } from '@core/services/operations/browser/use-operation-trees';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { formatBytes } from '@renderer/utils/formatBytes';
 
@@ -193,62 +188,6 @@ function createProjectWorkspacesListView(store: ProjectWorkspacesStore) {
 
 type ProjectWorkspacesListView = ReturnType<typeof createProjectWorkspacesListView>;
 
-function useOperationTrees(projectId: string): {
-  trees: OperationTree[];
-  retry(operationId: string): Promise<void>;
-  forget(operationId: string): Promise<void>;
-} {
-  const [treeList, setTreeList] = useState<OperationTreeList>({});
-
-  useEffect(() => {
-    let disposed = false;
-    let cleanup: (() => void) | undefined;
-    void (async () => {
-      const client = await getDesktopWireClient();
-      if (disposed) return;
-      const replica = createLiveModelReplica(
-        operationsContract.operationTrees,
-        client.operations.operationTrees,
-        {
-          onChange: { list: (list: OperationTreeList) => setTreeList(list) },
-        }
-      );
-      const lease = replica.acquire({ projectId });
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      const model = await lease.ready();
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      setTreeList((await model.states.list.snapshot()).data as OperationTreeList);
-    })();
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [projectId]);
-
-  const trees = useMemo(
-    () => Object.values(treeList).sort((left, right) => left.root.createdAt - right.root.createdAt),
-    [treeList]
-  );
-
-  const retry = useCallback(async (operationId: string) => {
-    const result = await (await getDesktopWireClient()).operations.retry({ operationId });
-    if (!result.success) throw new Error(result.error.message);
-  }, []);
-
-  const forget = useCallback(async (operationId: string) => {
-    const result = await (await getDesktopWireClient()).operations.forget({ operationId });
-    if (!result.success) throw new Error(result.error.message);
-  }, []);
-
-  return { trees, retry, forget };
-}
-
 export const WorkspacesView = observer(function WorkspacesView({
   projectId,
 }: {
@@ -256,7 +195,11 @@ export const WorkspacesView = observer(function WorkspacesView({
 }) {
   const store = useMemo(() => new ProjectWorkspacesStore(projectId), [projectId]);
   const view = useMemo(() => createProjectWorkspacesListView(store), [store]);
-  const operationTrees = useOperationTrees(projectId);
+  const getOperationsClient = useCallback(
+    async () => (await getDesktopWireClient()).operations,
+    []
+  );
+  const operationTrees = useOperationTrees(projectId, getOperationsClient);
 
   useEffect(() => {
     void store.load();
@@ -268,7 +211,7 @@ export const WorkspacesView = observer(function WorkspacesView({
         <div className="relative flex h-full min-h-0 w-full flex-col">
           <WorkspacesHeader store={store} view={view} />
           <WorkspaceWarnings warnings={store.warnings} />
-          <PendingCleanupsSection {...operationTrees} />
+          <OperationTreesPanel {...operationTrees} className="mx-4 mt-4" />
           <ListView.Body className="min-h-0 flex-1">
             {store.status === 'loading' && store.rows.length === 0 ? (
               <WorkspacesLoadingState />
@@ -292,179 +235,6 @@ export const WorkspacesView = observer(function WorkspacesView({
     </TooltipProvider>
   );
 });
-
-function PendingCleanupsSection({
-  trees,
-  retry,
-  forget,
-}: {
-  trees: OperationTree[];
-  retry(operationId: string): Promise<void>;
-  forget(operationId: string): Promise<void>;
-}) {
-  const [pendingAction, setPendingAction] = useState<string | null>(null);
-  if (trees.length === 0) return null;
-  const attention = trees.some((tree) => treeNeedsAttention(tree));
-
-  const runAction = async (
-    action: 'retry' | 'forget',
-    cleanup: OperationDisplayState
-  ): Promise<void> => {
-    setPendingAction(`${action}:${cleanup.operationId}`);
-    try {
-      await (action === 'retry' ? retry(cleanup.operationId) : forget(cleanup.operationId));
-      toast({
-        title: action === 'retry' ? 'Cleanup resumed' : 'Cleanup forgotten',
-        description:
-          action === 'retry'
-            ? 'The cleanup will continue in the background.'
-            : 'Emdash removed its records without deleting files on the host.',
-      });
-    } catch (error) {
-      toast({
-        title: action === 'retry' ? 'Could not resume cleanup' : 'Could not forget cleanup',
-        description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setPendingAction(null);
-    }
-  };
-
-  return (
-    <section
-      className={cn(
-        'mx-4 mt-4 overflow-hidden rounded-md border',
-        attention
-          ? 'border-border-warning bg-background-warning/30'
-          : 'border-border bg-background-secondary/40'
-      )}
-    >
-      <div
-        className={cn(
-          'flex items-start gap-2 border-b px-3 py-2',
-          attention ? 'border-border-warning/50' : 'border-border'
-        )}
-      >
-        <AlertTriangle
-          className={cn(
-            'mt-0.5 size-4 shrink-0',
-            attention ? 'text-foreground-warning' : 'text-foreground-muted'
-          )}
-        />
-        <div>
-          <h2 className="text-sm font-medium text-foreground">Workspace operations</h2>
-          <p className="text-xs text-foreground-muted">
-            Cleanup operations currently running or waiting for attention.
-          </p>
-        </div>
-      </div>
-      <div
-        className={cn(
-          'max-h-72 divide-y overflow-y-auto',
-          attention ? 'divide-border-warning/40' : 'divide-border'
-        )}
-      >
-        {trees.map((tree) => {
-          return (
-            <div key={tree.root.operationId} className="space-y-1 px-3 py-2 text-xs">
-              <OperationCleanupRow
-                cleanup={tree.root}
-                pendingAction={pendingAction}
-                rollup={treeProgressLabel(tree)}
-                runAction={runAction}
-              />
-              {tree.children.map((child) => (
-                <OperationCleanupRow
-                  key={child.operationId}
-                  cleanup={child}
-                  pendingAction={pendingAction}
-                  runAction={runAction}
-                  indented
-                />
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function OperationCleanupRow({
-  cleanup,
-  pendingAction,
-  runAction,
-  rollup,
-  indented = false,
-}: {
-  cleanup: OperationDisplayState;
-  pendingAction: string | null;
-  runAction(action: 'retry' | 'forget', cleanup: OperationDisplayState): Promise<void>;
-  rollup?: string;
-  indented?: boolean;
-}) {
-  const retryKey = `retry:${cleanup.operationId}`;
-  const forgetKey = `forget:${cleanup.operationId}`;
-  const retryable = cleanupIsRetryable(cleanup);
-  const forgettable = cleanupIsForgettable(cleanup);
-  return (
-    <div className={cn('flex flex-wrap items-center gap-3 py-1', indented && 'pl-5')}>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-medium text-foreground">
-            {cleanup.entityName ?? cleanup.entityId}
-          </span>
-          <span
-            className={cn(
-              'rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase',
-              cleanupStatusPillClass(cleanup)
-            )}
-          >
-            {cleanupStatusLabel(cleanup)}
-          </span>
-          {rollup && <span className="text-foreground-muted">{rollup}</span>}
-          <span className="text-foreground-muted">{cleanup.hostLabel ?? cleanup.hostRef}</span>
-        </div>
-        <div className="mt-0.5 truncate text-foreground-muted">
-          {cleanup.workspacePath ?? 'No workspace path'}
-          {cleanup.branchName ? ` · ${cleanup.branchName}` : ''}
-          {cleanup.currentStep ? ` · ${cleanup.currentStep}` : ''}
-          {` · Requested ${new Date(cleanup.createdAt).toLocaleString()}`}
-        </div>
-        {cleanup.error && (
-          <div className="mt-0.5 truncate text-foreground-destructive">{cleanup.error}</div>
-        )}
-      </div>
-      {(retryable || forgettable) && (
-        <div className="flex shrink-0 items-center gap-2">
-          {retryable && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pendingAction !== null}
-              onClick={() => void runAction('retry', cleanup)}
-            >
-              {pendingAction === retryKey && <Spinner className="size-3.5" />}
-              Clean up now
-            </Button>
-          )}
-          {forgettable && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pendingAction !== null}
-              onClick={() => void runAction('forget', cleanup)}
-            >
-              {pendingAction === forgetKey && <Spinner className="size-3.5" />}
-              Forget
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const WorkspacesHeader = observer(function WorkspacesHeader({
   store,
@@ -925,65 +695,6 @@ function pathStateLabel(state: ProjectWorkspacePathState): string {
     case 'error':
       return 'Scan error';
   }
-}
-
-function cleanupStatusLabel(cleanup: OperationDisplayState): string {
-  switch (cleanup.status) {
-    case 'blocked-host-offline':
-      return 'Host offline';
-    case 'awaiting-confirmation':
-      if (cleanup.confirmationReason === 'workspace-modified') return 'Workspace modified';
-      if (cleanup.confirmationReason === 'workspace-busy') return 'Workspace busy';
-      return 'Needs review';
-    case 'failed':
-      return 'Failed';
-    case 'waiting':
-      return 'Waiting for workspace';
-    case 'waiting-children':
-      return 'Waiting for related cleanup';
-    case 'cleaning':
-      return 'Cleaning';
-  }
-}
-
-function cleanupStatusPillClass(cleanup: OperationDisplayState): string {
-  switch (cleanup.status) {
-    case 'cleaning':
-      return 'border-border text-foreground-muted';
-    case 'waiting':
-    case 'waiting-children':
-    case 'blocked-host-offline':
-    case 'awaiting-confirmation':
-      return 'border-border-warning text-foreground-warning';
-    case 'failed':
-      return 'border-border-destructive text-foreground-destructive';
-  }
-}
-
-function cleanupIsRetryable(cleanup: OperationDisplayState): boolean {
-  return (
-    cleanup.status === 'failed' ||
-    cleanup.status === 'awaiting-confirmation' ||
-    cleanup.status === 'blocked-host-offline'
-  );
-}
-
-function cleanupIsForgettable(cleanup: OperationDisplayState): boolean {
-  return cleanupIsRetryable(cleanup) || cleanup.status === 'waiting-children';
-}
-
-function treeNeedsAttention(tree: OperationTree): boolean {
-  return (
-    tree.rollup.status === 'failed' ||
-    tree.rollup.status === 'awaiting-confirmation' ||
-    tree.rollup.status === 'blocked-host-offline' ||
-    tree.rollup.status === 'waiting'
-  );
-}
-
-function treeProgressLabel(tree: OperationTree): string | undefined {
-  if (tree.rollup.total === 0) return undefined;
-  return `${tree.rollup.done}/${tree.rollup.total} complete`;
 }
 
 function usageErrorMessage(error: unknown): string {

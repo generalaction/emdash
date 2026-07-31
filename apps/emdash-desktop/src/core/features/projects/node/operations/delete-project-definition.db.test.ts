@@ -150,10 +150,7 @@ describe('delete-project operation definition', () => {
         .where(eq(lifecycleOperations.id, 'operation-task-1'))
     ).resolves.toMatchObject([{ parentOperationId: parentId }]);
     await expect(
-      fixture.db
-        .select()
-        .from(lifecycleOperations)
-        .where(eq(lifecycleOperations.id, parentId))
+      fixture.db.select().from(lifecycleOperations).where(eq(lifecycleOperations.id, parentId))
     ).resolves.toMatchObject([{ status: 'waiting-children' }]);
   });
 });

@@ -788,10 +788,10 @@ describe('OperationsEngine', () => {
   });
 
   it('rolls operation tree status up by severity', () => {
-    expect(
-      rollupStatus([operationDisplayState('cleaning'), operationDisplayState('waiting')])
-    ).toBe('cleaning');
-    expect(rollupStatus([operationDisplayState('cleaning'), operationDisplayState('failed')])).toBe(
+    expect(rollupStatus([operationDisplayState('running'), operationDisplayState('queued')])).toBe(
+      'running'
+    );
+    expect(rollupStatus([operationDisplayState('running'), operationDisplayState('failed')])).toBe(
       'failed'
     );
     expect(
@@ -800,7 +800,7 @@ describe('OperationsEngine', () => {
         operationDisplayState('waiting'),
       ])
     ).toBe('blocked-host-offline');
-    expect(rollupStatus([])).toBe('waiting');
+    expect(rollupStatus([])).toBe('queued');
   });
 
   async function createTestEngine(options: {

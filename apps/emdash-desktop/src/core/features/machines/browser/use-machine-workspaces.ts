@@ -1,7 +1,9 @@
 import type { Observed } from '@emdash/core/primitives/lib/api';
 import {
   isTerminalStatus,
+  type WorkspaceOperationRecord,
   type WorkspaceOperationRecordMap,
+  type WorkspaceOperationRecordStatus,
 } from '@emdash/core/runtimes/workspace/api';
 import { createLiveModelReplica } from '@emdash/wire';
 import { useQuery } from '@tanstack/react-query';
@@ -18,12 +20,23 @@ import type {
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 
+const OPERATION_PANEL_STATUS_RANK: Record<WorkspaceOperationRecordStatus, number> = {
+  running: 0,
+  pending: 1,
+  failed: 2,
+  rejected: 3,
+  suspended: 4,
+  cancelled: 5,
+  succeeded: 6,
+};
+
 export interface MachineProjectWorkspaces {
   project: {
     id: string;
     name: string;
   };
   workspaces: ProjectWorkspaceRow[];
+  warnings: string[];
 }
 
 export function useMachineWorkspaces(machineId: string | undefined, enabled: boolean) {
@@ -117,7 +130,11 @@ export async function deleteMachineProjectWorkspaces({
   });
 }
 
-export function useMachineOperationLog(machineId?: string): Map<string, Observed<string>> {
+export async function getMachineOperationsClient() {
+  return (await getDesktopWireClient()).operations;
+}
+
+export function useWorkspaceOperationRecords(machineId?: string): WorkspaceOperationRecordMap {
   const [records, setRecords] = useState<WorkspaceOperationRecordMap>({});
 
   useEffect(() => {
@@ -182,18 +199,88 @@ export function useMachineOperationLog(machineId?: string): Map<string, Observed
     };
   }, [machineId]);
 
-  return useMemo(() => {
-    const active = new Map<string, Observed<string>>();
-    for (const record of Object.values(records)) {
-      if (isTerminalStatus(record.status)) continue;
-      active.set(nativePathFromHost(record.workspace.path), {
-        value: hostOperationLabel(record.kind),
-        observedAt: record.updatedAt,
-        source: 'log-event',
-      });
+  return records;
+}
+
+export function useMachineOperationLog(machineId?: string): Map<string, Observed<string>> {
+  const records = useWorkspaceOperationRecords(machineId);
+  return useMemo(() => activeOperationLabelsByPath(records), [records]);
+}
+
+export function operationChecklistByPath(
+  records: WorkspaceOperationRecordMap
+): Map<string, WorkspaceOperationRecord> {
+  const selected = new Map<string, WorkspaceOperationRecord>();
+  for (const record of Object.values(records)) {
+    const terminal = isTerminalStatus(record.status);
+    if (terminal && record.status !== 'failed') continue;
+
+    const path = nativePathFromHost(record.workspace.path);
+    const existing = selected.get(path);
+    if (!existing || shouldReplaceChecklistRecord(existing, record)) {
+      selected.set(path, record);
     }
-    return active;
-  }, [records]);
+  }
+  return selected;
+}
+
+/**
+ * Panel view of the host operation log: every record the host retains, so the
+ * panel's lifetime follows host retention (terminal records are pruned after 24
+ * hours). Callers pass the workspace paths they own so one project's page never
+ * shows another project's operations.
+ */
+export function workspaceOperationPanelRecords(
+  records: WorkspaceOperationRecordMap,
+  options: { paths: ReadonlySet<string> }
+): WorkspaceOperationRecord[] {
+  const visible: WorkspaceOperationRecord[] = [];
+  for (const record of Object.values(records)) {
+    if (!options.paths.has(nativePathFromHost(record.workspace.path))) continue;
+    visible.push(record);
+  }
+  return visible.sort(compareOperationPanelRecords);
+}
+
+function compareOperationPanelRecords(
+  left: WorkspaceOperationRecord,
+  right: WorkspaceOperationRecord
+): number {
+  const byStatus =
+    OPERATION_PANEL_STATUS_RANK[left.status] - OPERATION_PANEL_STATUS_RANK[right.status];
+  if (byStatus !== 0) return byStatus;
+  if (!isTerminalStatus(left.status) && !isTerminalStatus(right.status))
+    return left.seq - right.seq;
+  return settledAt(right) - settledAt(left);
+}
+
+function settledAt(record: WorkspaceOperationRecord): number {
+  return record.finishedAt ?? record.updatedAt;
+}
+
+function activeOperationLabelsByPath(
+  records: WorkspaceOperationRecordMap
+): Map<string, Observed<string>> {
+  const active = new Map<string, Observed<string>>();
+  for (const record of Object.values(records)) {
+    if (isTerminalStatus(record.status)) continue;
+    active.set(nativePathFromHost(record.workspace.path), {
+      value: hostOperationLabel(record.kind),
+      observedAt: record.updatedAt,
+      source: 'log-event',
+    });
+  }
+  return active;
+}
+
+function shouldReplaceChecklistRecord(
+  existing: WorkspaceOperationRecord,
+  candidate: WorkspaceOperationRecord
+): boolean {
+  const existingTerminal = isTerminalStatus(existing.status);
+  const candidateTerminal = isTerminalStatus(candidate.status);
+  if (existingTerminal !== candidateTerminal) return existingTerminal;
+  return candidate.updatedAt > existing.updatedAt;
 }
 
 function seedTerminalRecordIds(
@@ -221,9 +308,7 @@ async function invalidateWorkspaceScanCacheForNewTerminalRecords(
   );
 }
 
-function isTerminalWorkspaceCacheRecord(
-  record: WorkspaceOperationRecordMap[string]
-): boolean {
+function isTerminalWorkspaceCacheRecord(record: WorkspaceOperationRecordMap[string]): boolean {
   return (
     isTerminalStatus(record.status) &&
     (record.kind === 'teardown' || record.kind === 'clean-artifacts')
@@ -252,7 +337,7 @@ async function listProjectWorkspaceGroups(
       const listed = await client.projectWorkspaces.listProjectWorkspaces({
         projectId: project.id,
       });
-      if (!measure) return { project, workspaces: listed.rows };
+      if (!measure) return { project, workspaces: listed.rows, warnings: listed.warnings };
 
       const measured = await client.projectWorkspaces.measureProjectWorkspaces({
         projectId: project.id,
@@ -265,6 +350,7 @@ async function listProjectWorkspaceGroups(
       );
       return {
         project,
+        warnings: listed.warnings,
         workspaces: listed.rows.map((row) => ({
           ...row,
           usage: usageByPath.get(row.path) ?? row.usage,

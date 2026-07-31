@@ -63,6 +63,7 @@ type RowCandidate = {
   branch?: string;
   isMain: boolean;
   prunable: boolean;
+  prunableReason?: string;
   workspace: WorkspaceRow | undefined;
   tasks: ProjectWorkspaceTask[];
 };
@@ -104,6 +105,7 @@ export async function listProjectWorkspaces(
       branch: branch ?? workspaceBranch(workspace),
       isMain: worktree.isMain,
       prunable: worktree.prunable ?? false,
+      ...(worktree.prunableReason ? { prunableReason: worktree.prunableReason } : {}),
       workspace,
       tasks: workspace ? (tasksByWorkspaceId.get(workspace.id) ?? []) : [],
     });
@@ -220,6 +222,10 @@ async function buildCandidateRow(
     return {
       ...base,
       pathState: 'missing',
+      pathIssue: {
+        kind: exists ? 'prunable' : 'path-gone',
+        ...(candidate.prunableReason ? { reason: candidate.prunableReason } : {}),
+      },
       canDelete: candidate.kind !== 'root' && !remote && !byoi,
     };
   }

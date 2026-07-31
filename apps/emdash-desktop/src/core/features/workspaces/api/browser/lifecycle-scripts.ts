@@ -137,6 +137,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       activeTabId: observable,
       tabs: computed,
       activeTab: computed,
+      runningScript: computed,
+      failedScript: computed,
       setNextTabActive: action,
       setPreviousTabActive: action,
       setTabActiveIndex: action,
@@ -175,6 +177,14 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
 
   get activeTab(): LifecycleScriptStore | undefined {
     return this.activeTabId ? this.scripts.get(this.activeTabId) : undefined;
+  }
+
+  get runningScript(): LifecycleScriptStore | undefined {
+    return this.tabs.find((script) => script.status === 'running' || script.status === 'pending');
+  }
+
+  get failedScript(): LifecycleScriptStore | undefined {
+    return this.tabs.find((script) => script.status === 'failed');
   }
 
   setActiveTab(id: string): void {

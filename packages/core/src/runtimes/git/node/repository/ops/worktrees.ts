@@ -15,6 +15,7 @@ export function parseWorktreeList(
     detached: boolean;
     locked: boolean;
     prunable: boolean;
+    prunableReason: string;
   }> = {};
 
   const flush = () => {
@@ -25,6 +26,7 @@ export function parseWorktreeList(
       head: toWorktreeHead(current),
       ...(current.locked ? { locked: true } : {}),
       ...(current.prunable ? { prunable: true } : {}),
+      ...(current.prunableReason ? { prunableReason: current.prunableReason } : {}),
     });
     current = {};
   };
@@ -40,7 +42,11 @@ export function parseWorktreeList(
       current.branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
     } else if (line === 'detached') current.detached = true;
     else if (line === 'locked' || line.startsWith('locked ')) current.locked = true;
-    else if (line === 'prunable' || line.startsWith('prunable ')) current.prunable = true;
+    else if (line === 'prunable' || line.startsWith('prunable ')) {
+      current.prunable = true;
+      const reason = line.slice('prunable'.length).trim();
+      if (reason) current.prunableReason = reason;
+    }
   }
   flush();
 

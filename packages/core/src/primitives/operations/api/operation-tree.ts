@@ -6,7 +6,8 @@ export const operationTreeKeySchema = z.object({
 });
 
 export const operationTreeRollupStatusSchema = z.enum([
-  'cleaning',
+  'queued',
+  'running',
   'waiting',
   'blocked-host-offline',
   'awaiting-confirmation',
@@ -34,13 +35,14 @@ const ROLLUP_SEVERITY: readonly OperationTreeRollupStatus[] = [
   'failed',
   'awaiting-confirmation',
   'blocked-host-offline',
-  'cleaning',
+  'running',
   'waiting',
+  'queued',
 ];
 
 export function rollupStatus(nodes: readonly OperationDisplayState[]): OperationTreeRollupStatus {
   for (const status of ROLLUP_SEVERITY) {
     if (nodes.some((node) => node.status === status)) return status;
   }
-  return 'waiting';
+  return 'queued';
 }

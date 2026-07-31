@@ -24,3 +24,8 @@ export const LIFECYCLE_SCRIPT_TERMINAL_ID_PREFIX = 'script-lifecycle-';
 export function createLifecycleScriptTerminalId(type: 'prepare' | 'setup' | 'run' | 'teardown') {
   return `${LIFECYCLE_SCRIPT_TERMINAL_ID_PREFIX}${type}`;
 }
+
+export function lifecycleScriptNodeIdFromTerminalId(leafId: string): string | null {
+  if (!leafId.startsWith(LIFECYCLE_SCRIPT_TERMINAL_ID_PREFIX)) return null;
+  return leafId.slice(LIFECYCLE_SCRIPT_TERMINAL_ID_PREFIX.length);
+}

@@ -14,6 +14,7 @@ export const worktreeSummarySchema = z.object({
   head: worktreeHeadSummarySchema,
   locked: z.boolean().optional(),
   prunable: z.boolean().optional(),
+  prunableReason: z.string().optional(),
 });
 export type WorktreeSummary = z.infer<typeof worktreeSummarySchema>;
 

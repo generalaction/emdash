@@ -13,11 +13,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { OperationKind } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
-import type {
-  OperationDefinition,
-  OperationProgress,
-  OperationRunError,
-} from './definition';
+import type { OperationDefinition, OperationProgress, OperationRunError } from './definition';
 
 const RETRY_DELAYS_MS = [1_000, 4_000];
 
@@ -184,7 +180,10 @@ export async function settleWaitingParents(db: AppDb): Promise<number> {
         .update(lifecycleOperations)
         .set({ status })
         .where(
-          and(eq(lifecycleOperations.id, parent.id), eq(lifecycleOperations.status, 'waiting-children'))
+          and(
+            eq(lifecycleOperations.id, parent.id),
+            eq(lifecycleOperations.status, 'waiting-children')
+          )
         )
         .run().changes;
     }

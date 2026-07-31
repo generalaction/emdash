@@ -1,3 +1,5 @@
+import type { OperationDisplayState, OperationTree } from '@emdash/core/primitives/operations/api';
+import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
 import {
   ColumnList,
   ColumnListCell,
@@ -6,29 +8,58 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
-import { EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@core/primitives/ui/browser/tooltip';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import type {
   ProjectWorkspaceGitStats,
+  ProjectWorkspacePathIssue,
   ProjectWorkspaceRow,
   ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
 import {
+  OperationTreesPanel,
+  operationKindLabel,
+  operationWorkspacePaths,
+  relativeQueuedTime,
+} from '@core/services/operations/browser/operation-trees-panel';
+import { useOperationTrees } from '@core/services/operations/browser/use-operation-trees';
+import { GitStatsCell } from '../components/git-stats-cell';
+import { RepositoryHeader } from '../components/local-workspace-header';
+import {
+  OperationStageChecklist,
+  workspaceOperationKindLabel,
+} from '../components/operation-stage-checklist';
+import { basename, formatBytes } from '../components/workspace-format';
+import { WorkspaceOperationsPanel } from '../components/workspace-operations-panel';
+import {
   deleteMachineProjectWorkspaces,
+  getMachineOperationsClient,
+  operationChecklistByPath,
   useProjectWorkspaceGitStats,
   useProjectWorkspaceUsage,
   useLocalWorkspaces,
+  useWorkspaceOperationRecords,
   type MachineProjectWorkspaces,
 } from '../use-machine-workspaces';
 import { useWorkspaceRuntimeStatuses } from '../use-workspace-runtime-statuses';
-import { aggregateWorkspaceStatus, workspaceStatus } from '../workspace-runtime-status';
+import {
+  aggregateWorkspaceStatus,
+  workspacePhase,
+  workspacePhaseLabel,
+  workspaceRuntimeErrorMessage,
+  workspaceStatus,
+} from '../workspace-runtime-status';
 
 type WorkspaceDetailListItem = {
   id: string;
@@ -43,6 +74,21 @@ type WorkspaceDetailListItem = {
   activeTaskCount: number;
   loadingGitStats: boolean;
   loadingUsage: boolean;
+  operation?: WorkspaceOperationLink;
+  runtimePhase?: WorkspaceRuntimePhaseDisplay;
+  pathIssue?: ProjectWorkspacePathIssue;
+  hostOperation?: WorkspaceOperationRecord;
+};
+
+type WorkspaceOperationLink = {
+  node: OperationDisplayState;
+  root: OperationDisplayState;
+};
+
+type WorkspaceRuntimePhaseDisplay = {
+  label: string;
+  errorMessage?: string;
+  tone: 'muted' | 'error';
 };
 
 const EMPTY_WORKSPACE_GROUPS: MachineProjectWorkspaces[] = [];
@@ -56,7 +102,24 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
   {
     id: 'name',
     width: 'minmax(0, 1fr)',
-    cell: (item) => <ColumnListCell primary={item.name} secondary={item.path} />,
+    cell: (item) => (
+      <ColumnListCell
+        primary={
+          <span className="inline-flex min-w-0 items-center gap-2">
+            <span className="truncate">{item.name}</span>
+            {item.pathIssue && <PathIssueChip issue={item.pathIssue} path={item.path} />}
+            {item.runtimePhase && (
+              <RuntimePhaseLabel phase={item.runtimePhase} operation={item.hostOperation} />
+            )}
+            {!item.runtimePhase && item.hostOperation && (
+              <HostOperationChip operation={item.hostOperation} />
+            )}
+            {item.operation && <OperationChip operation={item.operation} />}
+          </span>
+        }
+        secondary={item.path}
+      />
+    ),
   },
   {
     id: 'git',
@@ -105,6 +168,8 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
   const queryClient = useQueryClient();
   const openConfirm = useOpenModal('confirmActionModal');
   const workspaceQuery = useLocalWorkspaces(true);
+  const operationTrees = useOperationTrees(detailId, getMachineOperationsClient);
+  const hostOperationRecords = useWorkspaceOperationRecords();
   const groups = workspaceQuery.data ?? EMPTY_WORKSPACE_GROUPS;
   const group = groups.find((candidate) => candidate.project.id === detailId);
   const rows = useMemo(() => group?.workspaces ?? [], [group]);
@@ -129,20 +194,21 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
     [gitStatsQuery.data]
   );
   const rowStatuses = rows.map((row) => workspaceStatus(row, statuses));
+  const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
   const rootRow = rows.find((row) => row.kind === 'root') ?? rows[0];
-  const repositoryItem =
-    group && rootRow
-      ? buildRepositoryItem({
-          group,
-          rootRow,
-          rows,
-          status: aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus,
-          usageByPath,
-          gitStatsByPath,
-          loadingUsage: usageQuery.isLoading || usageQuery.isFetching,
-          loadingGitStats: gitStatsQuery.isLoading || gitStatsQuery.isFetching,
-        })
-      : null;
+  const busyPaths = useMemo(
+    () => operationWorkspacePaths(operationTrees.trees),
+    [operationTrees.trees]
+  );
+  const operationByPath = useMemo(
+    () => operationLinkByPath(operationTrees.trees),
+    [operationTrees.trees]
+  );
+  const hostOperationByPath = useMemo(
+    () => operationChecklistByPath(hostOperationRecords),
+    [hostOperationRecords]
+  );
+  const workspacePaths = useMemo(() => new Set(rows.map((row) => row.path)), [rows]);
   const worktreeItems = rows
     .filter((row) => row !== rootRow)
     .map((row) =>
@@ -153,16 +219,26 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
         gitStatsByPath,
         loadingUsage: usageQuery.isLoading || usageQuery.isFetching,
         loadingGitStats: gitStatsQuery.isLoading || gitStatsQuery.isFetching,
+        operation: operationByPath.get(row.path),
+        hostOperation: hostOperationByPath.get(row.path),
+        runtimePhase: runtimePhaseDisplay(
+          workspacePhase(row, statuses),
+          workspaceRuntimeErrorMessage(row, statuses)
+        ),
       })
     );
 
   const handleDelete = useCallback(async () => {
     if (!group) return;
-    const deletableRows = group.workspaces.filter((row) => row.canDelete);
+    const allDeletableRows = group.workspaces.filter((row) => row.canDelete);
+    const deletableRows = allDeletableRows.filter((row) => !busyPaths.has(row.path));
     if (deletableRows.length === 0) {
+      const blockedByOperations = allDeletableRows.length > 0;
       toast({
-        title: 'No deletable workspaces',
-        description: 'Repository roots cannot be deleted from this view.',
+        title: blockedByOperations ? 'Cleanup already in progress' : 'No deletable workspaces',
+        description: blockedByOperations
+          ? 'Cleanup already in progress for these workspaces.'
+          : 'Repository roots cannot be deleted from this view.',
       });
       return;
     }
@@ -203,47 +279,50 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
         variant: 'destructive',
       });
     }
-  }, [closeDetail, group, openConfirm, queryClient]);
+  }, [busyPaths, closeDetail, group, openConfirm, queryClient]);
 
   if (workspaceQuery.isLoading) return <DetailLoadingState />;
   if (workspaceQuery.isError) return <DetailErrorState error={workspaceQuery.error} />;
-  if (!group || !repositoryItem) return <DetailMissingState />;
+  if (!group || !rootRow) return <DetailMissingState />;
 
   return (
-    <div className="flex min-h-0 flex-col gap-6 pb-4">
-      <div className="flex justify-end">
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <Button type="button" variant="ghost" size="sm" icon aria-label="Workspace actions">
-              <EllipsisIcon aria-hidden />
-            </Button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end">
-            <DropdownMenu.Item variant="destructive" onClick={() => void handleDelete()}>
-              <Trash2Icon aria-hidden />
-              Delete
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
+    <TooltipProvider delay={150}>
+      <div className="flex min-h-0 flex-col gap-6 pb-4">
+        <RepositoryHeader
+          project={group.project}
+          rootRow={rootRow}
+          rows={rows}
+          status={aggregateStatus}
+          usage={usageByPath.get(rootRow.path)}
+          gitStats={gitStatsByPath.get(rootRow.path)}
+          loadingUsage={
+            (usageQuery.isLoading || usageQuery.isFetching) && rootRow.pathState === 'measured'
+          }
+          loadingGitStats={
+            (gitStatsQuery.isLoading || gitStatsQuery.isFetching) &&
+            rootRow.pathState === 'measured'
+          }
+          operationTrees={operationTrees.trees}
+          warnings={group.warnings}
+          onDelete={() => void handleDelete()}
+        />
+
+        <WorkspaceOperationsPanel records={hostOperationRecords} paths={workspacePaths} />
+
+        {operationTrees.trees.length > 0 && (
+          <OperationTreesPanel {...operationTrees} className="mx-0" />
+        )}
+
+        <WorkspaceSection label="Worktrees">
+          <ColumnList
+            items={worktreeItems}
+            columns={DETAIL_COLUMNS}
+            getItemKey={(item) => item.id}
+            emptySlot={<WorktreesEmptyState />}
+          />
+        </WorkspaceSection>
       </div>
-
-      <WorkspaceSection label="Repository">
-        <ColumnList
-          items={[repositoryItem]}
-          columns={DETAIL_COLUMNS}
-          getItemKey={(item) => item.id}
-        />
-      </WorkspaceSection>
-
-      <WorkspaceSection label="Worktrees">
-        <ColumnList
-          items={worktreeItems}
-          columns={DETAIL_COLUMNS}
-          getItemKey={(item) => item.id}
-          emptySlot={<WorktreesEmptyState />}
-        />
-      </WorkspaceSection>
-    </div>
+    </TooltipProvider>
   );
 });
 
@@ -258,41 +337,6 @@ function WorkspaceSection({ label, children }: { label: string; children: ReactN
   );
 }
 
-function buildRepositoryItem({
-  group,
-  rootRow,
-  rows,
-  status,
-  usageByPath,
-  gitStatsByPath,
-  loadingUsage,
-  loadingGitStats,
-}: {
-  group: MachineProjectWorkspaces;
-  rootRow: ProjectWorkspaceRow;
-  rows: readonly ProjectWorkspaceRow[];
-  status: WorkspaceIconStatus;
-  usageByPath: Map<string, ProjectWorkspaceUsage>;
-  gitStatsByPath: Map<string, ProjectWorkspaceGitStats>;
-  loadingUsage: boolean;
-  loadingGitStats: boolean;
-}): WorkspaceDetailListItem {
-  return {
-    id: `${group.project.id}:repository`,
-    name: group.project.name,
-    path: rootRow.path,
-    iconType: 'repository',
-    status,
-    branch: rootRow.branch,
-    gitStats: gitStatsByPath.get(rootRow.path),
-    usage: usageByPath.get(rootRow.path),
-    linkedTaskCount: rows.reduce((count, row) => count + row.tasks.length, 0),
-    activeTaskCount: rows.reduce((count, row) => count + activeTaskCount(row), 0),
-    loadingUsage: loadingUsage && rootRow.pathState === 'measured',
-    loadingGitStats: loadingGitStats && rootRow.pathState === 'measured',
-  };
-}
-
 function buildWorktreeItem({
   row,
   status,
@@ -300,6 +344,9 @@ function buildWorktreeItem({
   gitStatsByPath,
   loadingUsage,
   loadingGitStats,
+  operation,
+  runtimePhase,
+  hostOperation,
 }: {
   row: ProjectWorkspaceRow;
   status: WorkspaceIconStatus;
@@ -307,6 +354,9 @@ function buildWorktreeItem({
   gitStatsByPath: Map<string, ProjectWorkspaceGitStats>;
   loadingUsage: boolean;
   loadingGitStats: boolean;
+  operation: WorkspaceOperationLink | undefined;
+  runtimePhase: WorkspaceRuntimePhaseDisplay | undefined;
+  hostOperation: WorkspaceOperationRecord | undefined;
 }): WorkspaceDetailListItem {
   return {
     id: row.workspaceId ?? row.path,
@@ -321,32 +371,164 @@ function buildWorktreeItem({
     activeTaskCount: activeTaskCount(row),
     loadingUsage: loadingUsage && row.pathState === 'measured',
     loadingGitStats: loadingGitStats && row.pathState === 'measured',
+    operation,
+    runtimePhase,
+    ...(hostOperation ? { hostOperation } : {}),
+    ...(row.pathIssue ? { pathIssue: row.pathIssue } : {}),
   };
 }
 
-function GitStatsCell({
-  stats,
-  loading,
-}: {
-  stats: ProjectWorkspaceGitStats | undefined;
-  loading: boolean;
-}) {
-  if (stats) {
-    const hasStats = stats.added > 0 || stats.removed > 0 || stats.ahead > 0 || stats.behind > 0;
-    if (!hasStats) return '-';
+function PathIssueChip({ issue, path }: { issue: ProjectWorkspacePathIssue; path: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className={pathIssueChipClass(issue)}>
+          {issue.kind === 'prunable' ? 'Stale git record' : 'Missing'}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-80 text-xs">{pathIssueMessage(issue, path)}</TooltipContent>
+    </Tooltip>
+  );
+}
 
-    return (
-      <span className="inline-flex gap-1">
-        {stats.added > 0 && <span className="text-foreground-diff-added">+{stats.added}</span>}
-        {stats.removed > 0 && (
-          <span className="text-foreground-diff-deleted">-{stats.removed}</span>
-        )}
-        {stats.ahead > 0 && <span>↑{stats.ahead}</span>}
-        {stats.behind > 0 && <span>↓{stats.behind}</span>}
-      </span>
-    );
+function pathIssueChipClass(issue: ProjectWorkspacePathIssue): string {
+  const base = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
+  if (issue.kind === 'prunable') return `${base} border-border-warning text-foreground-warning`;
+  return `${base} border-border-destructive text-foreground-destructive`;
+}
+
+function pathIssueMessage(issue: ProjectWorkspacePathIssue, path: string): string {
+  if (issue.reason) return issue.reason;
+  if (issue.kind === 'prunable') return 'Git reports this worktree as prunable.';
+  return `Directory not found at ${path}.`;
+}
+
+function RuntimePhaseLabel({
+  phase,
+  operation,
+}: {
+  phase: WorkspaceRuntimePhaseDisplay;
+  operation?: WorkspaceOperationRecord;
+}) {
+  const label = (
+    <span
+      className={
+        phase.tone === 'error'
+          ? 'shrink-0 text-xs text-foreground-destructive'
+          : 'shrink-0 text-xs text-foreground-muted'
+      }
+    >
+      {phase.label}
+    </span>
+  );
+  if (!phase.errorMessage && !operation) return label;
+  return (
+    <Tooltip>
+      <TooltipTrigger>{label}</TooltipTrigger>
+      <TooltipContent className="max-w-96 text-xs">
+        {operation ? <OperationStageChecklist record={operation} /> : phase.errorMessage}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function HostOperationChip({ operation }: { operation: WorkspaceOperationRecord }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-muted uppercase">
+          {workspaceOperationKindLabel(operation.kind)}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-96 text-xs">
+        <OperationStageChecklist record={operation} />
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function runtimePhaseDisplay(
+  phase: ReturnType<typeof workspacePhase>,
+  errorMessage: string | undefined
+): WorkspaceRuntimePhaseDisplay | undefined {
+  if (
+    phase === undefined ||
+    phase === 'ready' ||
+    phase === 'active' ||
+    phase === 'provisioned' ||
+    phase === 'unprovisioned'
+  ) {
+    return undefined;
   }
-  return loading ? 'Loading...' : '-';
+  return {
+    label: workspacePhaseLabel(phase),
+    errorMessage,
+    tone: phase === 'broken' ? 'error' : 'muted',
+  };
+}
+
+function OperationChip({ operation }: { operation: WorkspaceOperationLink }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className={operationChipClass(operation.node)}>
+          {operationChipLabel(operation.node)}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-70 text-xs">{operationTooltip(operation)}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function operationLinkByPath(trees: readonly OperationTree[]): Map<string, WorkspaceOperationLink> {
+  const links = new Map<string, WorkspaceOperationLink>();
+  for (const tree of trees) {
+    for (const node of [tree.root, ...tree.children]) {
+      if (node.workspacePath) links.set(node.workspacePath, { node, root: tree.root });
+    }
+  }
+  return links;
+}
+
+function operationChipLabel(operation: OperationDisplayState): string {
+  switch (operation.status) {
+    case 'queued':
+      return 'Queued';
+    case 'running':
+      return 'In progress';
+    case 'waiting':
+    case 'waiting-children':
+      return 'Waiting';
+    case 'blocked-host-offline':
+    case 'awaiting-confirmation':
+    case 'failed':
+      return 'Needs attention';
+  }
+}
+
+function operationChipClass(operation: OperationDisplayState): string {
+  const base = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
+  switch (operation.status) {
+    case 'running':
+      return `${base} animate-pulse border-border-warning text-foreground-warning`;
+    case 'queued':
+      return `${base} border-border text-foreground-muted`;
+    case 'waiting':
+    case 'waiting-children':
+      return `${base} border-border text-foreground-muted`;
+    case 'blocked-host-offline':
+    case 'awaiting-confirmation':
+      return `${base} border-border-warning text-foreground-warning`;
+    case 'failed':
+      return `${base} border-border-destructive text-foreground-destructive`;
+  }
+}
+
+function operationTooltip(operation: WorkspaceOperationLink): string {
+  const rootName = operation.root.entityName ?? operation.root.entityId;
+  return `Part of ${operationKindLabel(operation.root.operationKind)} "${rootName}", ${relativeQueuedTime(
+    operation.root.createdAt
+  )}`;
 }
 
 function usageResultsToMap(
@@ -384,24 +566,8 @@ function activeTaskCount(row: ProjectWorkspaceRow): number {
     .length;
 }
 
-function basename(value: string): string {
-  const normalized = value.replace(/\\/gu, '/').replace(/\/+$/u, '');
-  return normalized.split('/').at(-1) ?? value;
-}
-
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = bytes;
-  let index = 0;
-  while (size >= 1024 && index < units.length - 1) {
-    size /= 1024;
-    index += 1;
-  }
-  return `${size.toFixed(1)} ${units[index]}`;
 }
 
 function DetailLoadingState() {
