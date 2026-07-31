@@ -901,6 +901,11 @@ async function settleStartFailureSessions(
     const copied = copyCanonicalAttempt(candidate);
     return copied && attemptMatchesExactAuthority(copied, input) ? [copied] : [];
   });
+  const expectedIdentityWasReported = reported.some(
+    (attempt) =>
+      attempt.attemptId === input.sessionIdentity.attemptId &&
+      attempt.conversationId === input.sessionIdentity.conversationId
+  );
   const terminal = reported.filter(isTerminalAttempt);
   const unsettled = reported.filter((attempt) => !isTerminalAttempt(attempt));
   if (failure.quiescent) {
@@ -938,13 +943,21 @@ async function settleStartFailureSessions(
     );
     return attempt ? [attempt] : [];
   });
+  const retainedAttempts =
+    identities.length > CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS && !expectedIdentityWasReported
+      ? recoveredAttempts.filter(
+          (attempt) =>
+            attempt.attemptId !== input.sessionIdentity.attemptId ||
+            attempt.conversationId !== input.sessionIdentity.conversationId
+        )
+      : recoveredAttempts;
   return {
     quiescent:
       session.startFailureAuthorityComplete &&
       identities.length <= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS &&
       settled.length === identities.length &&
       settled.every(({ acknowledged }) => acknowledged),
-    attempts: recoveredAttempts,
+    attempts: retainedAttempts,
   };
 }
 
@@ -1268,11 +1281,15 @@ function stabilizeStartFailure(
           return salvaged ? [salvaged] : [];
         })
       : [];
+    const reportedIdentityCount = new Set(
+      attempts.map((attempt) => `${attempt.attemptId}\u0000${attempt.conversationId}`)
+    ).size;
     const complete =
       rawAttempts === undefined ||
       (Array.isArray(rawAttempts) &&
         rawAttempts.length <= CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS &&
         attempts.length === rawAttempts.length &&
+        reportedIdentityCount === attempts.length &&
         allAttemptsCanonical);
     const allReportedTerminal = attempts.every(isTerminalAttempt);
     const quiescent =

@@ -689,6 +689,114 @@ describe('NativeBrowserE2EAttestationService', () => {
     });
   });
 
+  it('retains every reported actual identity when recovery also knows the preallocated identity', async () => {
+    const cancelPrompt = vi.fn(async () => ok(undefined));
+    const harness = makeHarness('passed', {
+      outerSessionDriver: recoveryDriver(cancelPrompt),
+      startExactSession: vi.fn<NativeBrowserE2EAttestationDependencies['startExactSession']>(
+        async (startInput) =>
+          err({
+            kind: 'create-failed',
+            message: 'Exact start allocated the maximum reported actual identities.',
+            quiescent: false,
+            recoveryRequired: true,
+            sessionAttempts: Array.from({ length: 64 }, (_, index) => ({
+              attemptId: `actual-browser-attempt-${index}`,
+              conversationId: `actual-browser-conversation-${index}`,
+              purpose: 'browser-verification' as const,
+              phaseId: startInput.phase.id,
+              verificationRunId: startInput.verificationRunId,
+              target: startInput.target,
+              status: 'running' as const,
+              checkpointBefore: startInput.checkpointCommit,
+              startedAt: '2026-07-12T01:02:02.000Z',
+            })),
+          })
+      ),
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(cancelPrompt).toHaveBeenCalledTimes(65);
+    expect(cancelPrompt).toHaveBeenCalledWith('browser-conversation-1');
+    for (let index = 0; index < 64; index += 1) {
+      expect(cancelPrompt).toHaveBeenCalledWith(`actual-browser-conversation-${index}`);
+    }
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'session-authority-invalid',
+        quiescent: false,
+        recoveryRequired: true,
+      },
+    });
+    if (result.success) throw new Error('Expected recovery-required native authority.');
+    expect(result.error.sessionAttempts).toHaveLength(64);
+    expect(result.error.sessionAttempts).not.toContainEqual(
+      expect.objectContaining({ attemptId: 'browser-attempt-1' })
+    );
+    for (let index = 0; index < 64; index += 1) {
+      expect(result.error.sessionAttempts).toContainEqual(
+        expect.objectContaining({
+          attemptId: `actual-browser-attempt-${index}`,
+          conversationId: `actual-browser-conversation-${index}`,
+          status: 'cancelled',
+        })
+      );
+    }
+  });
+
+  it('treats duplicate reported start identities as incomplete authority', async () => {
+    const cancelPrompt = vi.fn(async () => ok(undefined));
+    const harness = makeHarness('passed', {
+      outerSessionDriver: recoveryDriver(cancelPrompt),
+      startExactSession: vi.fn<NativeBrowserE2EAttestationDependencies['startExactSession']>(
+        async (startInput) => {
+          const duplicate = {
+            attemptId: 'duplicate-browser-attempt',
+            conversationId: 'duplicate-browser-conversation',
+            purpose: 'browser-verification' as const,
+            phaseId: startInput.phase.id,
+            verificationRunId: startInput.verificationRunId,
+            target: startInput.target,
+            status: 'failed' as const,
+            checkpointBefore: startInput.checkpointCommit,
+            startedAt: '2026-07-12T01:02:01.000Z',
+            finishedAt: '2026-07-12T01:02:02.000Z',
+            error: 'Start failed after allocating an identity.',
+          };
+          return err({
+            kind: 'create-failed',
+            message: 'Exact start returned duplicate terminal authority.',
+            quiescent: true,
+            recoveryRequired: false,
+            sessionAttempts: [duplicate, duplicate],
+          });
+        }
+      ),
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(cancelPrompt).toHaveBeenCalledTimes(2);
+    expect(cancelPrompt).toHaveBeenCalledWith('browser-conversation-1');
+    expect(cancelPrompt).toHaveBeenCalledWith('duplicate-browser-conversation');
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'session-authority-invalid',
+        quiescent: false,
+        recoveryRequired: true,
+        sessionAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            attemptId: 'duplicate-browser-attempt',
+            status: 'cancelled',
+          }),
+        ]),
+      },
+    });
+  });
+
   it('cancels every terminal-shaped actual identity from an explicitly nonquiescent start', async () => {
     const cancelPrompt = vi.fn(async () => ok(undefined));
     const harness = makeHarness('passed', {
