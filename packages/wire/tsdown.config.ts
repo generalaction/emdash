@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     live: 'src/live/index.ts',
+    state: 'src/state/index.ts',
     api: 'src/api/index.ts',
     component: 'src/component/index.ts',
     observability: 'src/observability/index.ts',

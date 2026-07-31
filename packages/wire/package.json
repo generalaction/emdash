@@ -12,7 +12,8 @@
   ],
   "type": "module",
   "sideEffects": [
-    "./src/live/state/immer-setup.ts"
+    "./src/live/state/immer-setup.ts",
+    "./src/state/live-immer.ts"
   ],
   "exports": {
     ".": {
@@ -22,6 +23,10 @@
     "./live": {
       "types": "./dist/live.d.mts",
       "default": "./dist/live.mjs"
+    },
+    "./state": {
+      "types": "./dist/state.d.mts",
+      "default": "./dist/state.mjs"
     },
     "./api": {
       "types": "./dist/api.d.mts",
