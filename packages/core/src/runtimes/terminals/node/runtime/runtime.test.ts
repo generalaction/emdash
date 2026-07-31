@@ -146,7 +146,7 @@ describe('TerminalsRuntime', () => {
       success: true,
       data: { completedNodes: ['setup'] },
     });
-    expect(runtime.workflowsHost.get({ workspace })?.states.state.snapshot().data).toMatchObject({
+    expect(await workflowState(runtime, workspace)).toMatchObject({
       workflowId: 'job-1',
       kind: 'manual:setup',
       phase: 'succeeded',
@@ -223,8 +223,8 @@ describe('TerminalsRuntime', () => {
 
     spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
 
-    await waitFor(() => Object.keys(devServers(runtime)).length === 1);
-    expect(devServers(runtime)).toEqual({
+    await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
+    expect(await devServers(runtime)).toEqual({
       [`${workspaceKey(workspace)}:run:http::5173`]: {
         key: { workspace, id: 'run' },
         protocol: 'http:',
@@ -237,7 +237,7 @@ describe('TerminalsRuntime', () => {
 
     spawner.processes[0]!.exit({ exitCode: 0, signal: null });
     await run;
-    await waitFor(() => Object.keys(devServers(runtime)).length === 0);
+    await waitFor(async () => Object.keys(await devServers(runtime)).length === 0);
     await scope.dispose();
   });
 
@@ -260,11 +260,11 @@ describe('TerminalsRuntime', () => {
     );
     await waitFor(() => spawner.processes.length === 1);
     spawner.processes[0]!.emit('ready at http://localhost:5173/app\n');
-    await waitFor(() => Object.keys(devServers(runtime)).length === 1);
+    await waitFor(async () => Object.keys(await devServers(runtime)).length === 1);
 
     await runtime.killScope(workspace);
 
-    await waitFor(() => Object.keys(devServers(runtime)).length === 0);
+    await waitFor(async () => Object.keys(await devServers(runtime)).length === 0);
     await run;
     await scope.dispose();
   });
@@ -571,17 +571,33 @@ function fakeExec(): IExecutionContext & { exec: ReturnType<typeof vi.fn> } {
   };
 }
 
-function devServers(runtime: TerminalsRuntime) {
-  return runtime.devServersHost.get(undefined)?.states.list.snapshot().data ?? {};
+async function workflowState(runtime: TerminalsRuntime, workspace: HostFileRef) {
+  const lease = runtime.workflowsHost.acquireState({ workspace }, 'state');
+  try {
+    const source = await lease.ready();
+    return (await source.snapshot()).data;
+  } finally {
+    await lease.release();
+  }
+}
+
+async function devServers(runtime: TerminalsRuntime) {
+  const lease = runtime.devServersHost.acquireState(undefined, 'list');
+  try {
+    const source = await lease.ready();
+    return (await source.snapshot()).data as Record<string, unknown>;
+  } finally {
+    await lease.release();
+  }
 }
 
 function workspaceKey(workspace: HostFileRef): string {
   return resourceKeyFromFileRef(workspace);
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
+async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
   for (let i = 0; i < 50; i += 1) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   throw new Error('Timed out waiting for predicate');

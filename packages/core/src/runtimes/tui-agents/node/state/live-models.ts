@@ -1,29 +1,67 @@
-import { createLiveModelHost, type LiveInstance, type LiveModelHost } from '@emdash/wire';
+import { cell, expose, peek, produce, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
 import {
   tuiAgentsContract,
   type TuiAgentStateList,
   type TuiSessionList,
 } from '@runtimes/tui-agents/api';
 
-export type TuiSessionsLiveHost = LiveModelHost<typeof tuiAgentsContract.sessions>;
-export type TuiAgentStatesLiveHost = LiveModelHost<typeof tuiAgentsContract.agentStates>;
-export type TuiSessionsListModel = LiveInstance<typeof tuiAgentsContract.sessions>;
-export type TuiAgentStatesListModel = LiveInstance<typeof tuiAgentsContract.agentStates>;
+type CompatCell<T> = Cell<T> & {
+  replace(next: T): void;
+  produce(mutator: (draft: T) => void): void;
+  snapshot(): { data: T };
+};
+
+export type TuiSessionsListModel = { states: { list: CompatCell<TuiSessionList> } };
+export type TuiAgentStatesListModel = { states: { list: CompatCell<TuiAgentStateList> } };
+export type TuiSessionsLiveHost = LeasedLiveModelProvider<typeof tuiAgentsContract.sessions> & {
+  model: TuiSessionsListModel;
+  get(key: unknown): TuiSessionsListModel | undefined;
+};
+export type TuiAgentStatesLiveHost = LeasedLiveModelProvider<
+  typeof tuiAgentsContract.agentStates
+> & {
+  model: TuiAgentStatesListModel;
+  get(key: unknown): TuiAgentStatesListModel | undefined;
+};
 
 export function createTuiSessionsLiveHost(): TuiSessionsLiveHost {
-  return createLiveModelHost(tuiAgentsContract.sessions);
+  const model = { states: { list: compatCell({} satisfies TuiSessionList) } };
+  return Object.assign(
+    expose(tuiAgentsContract.sessions, { list: model.states.list }, { publish: { list: 'diff' } }),
+    { model, get: () => model }
+  );
 }
 
 export function createTuiAgentStatesLiveHost(): TuiAgentStatesLiveHost {
-  return createLiveModelHost(tuiAgentsContract.agentStates);
+  const model = { states: { list: compatCell({} satisfies TuiAgentStateList) } };
+  return Object.assign(
+    expose(
+      tuiAgentsContract.agentStates,
+      { list: model.states.list },
+      { publish: { list: 'diff' } }
+    ),
+    { model, get: () => model }
+  );
 }
 
 export function createTuiSessionsListModel(host: TuiSessionsLiveHost): TuiSessionsListModel {
-  return host.create(undefined, { list: {} satisfies TuiSessionList });
+  return host.model;
 }
 
 export function createTuiAgentStatesListModel(
   host: TuiAgentStatesLiveHost
 ): TuiAgentStatesListModel {
-  return host.create(undefined, { list: {} satisfies TuiAgentStateList });
+  return host.model;
+}
+
+function compatCell<T>(initial: T): CompatCell<T> {
+  const state = cell(initial) as CompatCell<T>;
+  state.replace = (next) => {
+    state.set(next);
+  };
+  state.produce = (mutator) => {
+    state.set(produce(peek(state), mutator));
+  };
+  state.snapshot = () => ({ data: peek(state) });
+  return state;
 }

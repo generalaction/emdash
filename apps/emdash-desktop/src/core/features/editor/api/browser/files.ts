@@ -1,5 +1,6 @@
 import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope } from '@emdash/shared/concurrency';
+import { observe, pin, remote } from '@emdash/wire/state';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
   hostPathFromNative,
@@ -30,21 +31,26 @@ export async function watchFileContent(
 ): Promise<() => void> {
   if (typeof window === 'undefined') return () => {};
   const client = await getEditorClient();
-  const replica = createLiveModelReplica(editorContract.content, client.content);
-  const lease = replica.acquire(editorRelativeFilePath(workspaceId, filePath));
-  const model = await lease.ready();
-  const unsubscribe = model.states.content.onChange(onChange);
-  onChange(model.states.content.current());
+  const scope = createScope({ label: `watch-file-content:${workspaceId}:${filePath}` });
+  const contentRemote = remote(editorContract.content, client.content, { scope, lingerMs: 0 });
+  const model = contentRemote(editorRelativeFilePath(workspaceId, filePath));
+  pin(scope, [model.states.content]);
+  observe(
+    model.states.content,
+    (current) => {
+      if (current.value) onChange(current.value);
+    },
+    { scope }
+  );
   let disposed = false;
   return () => {
     if (disposed) return;
     disposed = true;
-    unsubscribe();
     void (async () => {
       try {
-        await lease.release();
+        await contentRemote.dispose();
       } finally {
-        await replica.dispose();
+        await scope.dispose();
       }
     })();
   };

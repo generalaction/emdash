@@ -1,10 +1,5 @@
 import { type Result } from '@emdash/shared';
-import {
-  ComputedLiveState,
-  type LiveCursor,
-  type LiveSource,
-  type ResourceMutationContext,
-} from '@emdash/wire';
+import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire';
 import { type FileContentModel, type FsError, type filesContract } from '@runtimes/files/api';
 import type { ContentIdentity } from '@runtimes/files/node/allocation/identity';
 import { writeFileContent } from '@runtimes/files/node/fs/write-file';
@@ -24,7 +19,7 @@ export type ContentResourceOptions = {
 export class ContentResource {
   readonly identity: ContentIdentity;
 
-  private readonly computed: ComputedLiveState<FileContentModel>;
+  private readonly computed: Query<FileContentModel>;
   private readonly root: RootResource;
   private readonly unsubscribeRoot: () => void;
   private disposed = false;
@@ -33,30 +28,32 @@ export class ContentResource {
     this.identity = options.identity;
     this.root = options.root;
     const reader = new ContentReader(options.root.paths, options.maxBytes);
-    this.computed = new ComputedLiveState({
-      compute: () => reader.read(options.identity.path),
+    this.computed = query({
+      fetch: async () => reader.read(options.identity.path),
       debounceMs: CONTENT_DEBOUNCE_MS,
-      revalidateIntervalMs: CONTENT_REVALIDATE_MS,
+      revalidateEveryMs: CONTENT_REVALIDATE_MS,
       onError: (error) => options.onError?.(`files content ${options.identity.contentId}`, error),
     });
     this.unsubscribeRoot = options.root.subscribe((changes) => this.onRootChanges(changes));
   }
 
-  state(): Promise<LiveSource> {
+  state(): Query<FileContentModel> {
     this.assertActive();
-    return this.computed.prepare();
+    return this.computed;
   }
 
   invalidate(): void {
     this.computed.invalidate();
   }
 
-  refresh(options?: { mutationId?: string }): Promise<LiveCursor> {
-    return this.computed.refresh(options);
+  refresh(options?: { mutationId?: string }): Promise<Revision> {
+    return this.computed.refresh({
+      mutationIds: options?.mutationId ? [options.mutationId] : undefined,
+    });
   }
 
   async write(
-    context: ResourceMutationContext<typeof filesContract.content, ContentResource, 'write'>
+    context: ExposedMutationContext<typeof filesContract.content, 'write'>
   ): Promise<Result<void, FsError>> {
     this.assertActive();
     const result = await writeFileContent(
@@ -66,7 +63,7 @@ export class ContentResource {
       context.input.precondition
     );
     if (result.success)
-      await context.settle('content', this.refresh({ mutationId: context.mutationId }));
+      await context.observed('content', this.refresh({ mutationId: context.mutationId }));
     return result;
   }
 

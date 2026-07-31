@@ -1,5 +1,7 @@
 import type { ScriptWorkflowState } from '@emdash/core/runtimes/terminals/api';
-import { createLiveJobReplica, createLiveModelReplica, ReplicaLog } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { createLiveJobReplica, ReplicaLog } from '@emdash/wire';
+import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { watchFileContent } from '@core/features/editor/api/browser/files';
@@ -122,7 +124,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private _refreshSeq = 0;
   private readonly _unsubscribes: Array<() => void> = [];
   private readonly outputAvailable: boolean;
-  private workflowReplica: { dispose(): Promise<void> | void } | null = null;
+  private workflowScope: Scope | null = null;
+  private workflowRemote: RemoteModel<typeof terminalsContract.workflows> | null = null;
   scripts = observable.map<string, LifecycleScriptStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
@@ -302,8 +305,9 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     this._disposed = true;
     this._refreshSeq++;
     for (const unsubscribe of this._unsubscribes) unsubscribe();
-    void this.workflowReplica?.dispose();
-    this.workflowReplica = null;
+    void this.workflowRemote?.dispose();
+    this.workflowScope = null;
+    this.workflowRemote = null;
     for (const script of this.scripts.values()) {
       script.dispose();
     }
@@ -318,20 +322,20 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     void (async () => {
       const client = await getTerminalsClient();
       if (this._disposed) return;
-      const replica = createLiveModelReplica(terminalsContract.workflows, client.workflows, {
-        onChange: {
-          state: (state: ScriptWorkflowState | null) => this.handleWorkflowState(state),
+      const scope = createScope({ label: `lifecycle-workflow:${this.workspaceId}` });
+      const workflows = remote(terminalsContract.workflows, client.workflows, { scope });
+      const model = workflows({ workspaceId: this.workspaceId });
+      pin(scope, [model.states.state]);
+      observe(
+        model.states.state,
+        (current) => {
+          if (current.value !== undefined) this.handleWorkflowState(current.value);
         },
-      });
-      const lease = replica.acquire({ workspaceId: this.workspaceId });
-      this.workflowReplica = {
-        dispose: async () => {
-          await lease.release();
-          await replica.dispose();
-        },
-      };
-      await lease.ready();
-      if (this._disposed) void this.workflowReplica.dispose();
+        { scope }
+      );
+      this.workflowScope = scope;
+      this.workflowRemote = workflows;
+      if (this._disposed) void workflows.dispose();
     })();
   }
 

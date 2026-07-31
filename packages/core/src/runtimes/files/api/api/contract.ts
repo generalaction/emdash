@@ -11,14 +11,6 @@ import {
 } from '@emdash/wire';
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { fileContentModelSchema } from '@runtimes/files/api/content/state';
-import {
-  optimisticCreateDirectory,
-  optimisticCreateFile,
-  optimisticCopy,
-  optimisticDelete,
-  optimisticMove,
-  optimisticRename,
-} from '@runtimes/files/api/tree/optimistic';
 import { fileTreeModelSchema } from '@runtimes/files/api/tree/state';
 import { z } from 'zod';
 import { fsErrorSchema } from './errors';
@@ -124,66 +116,48 @@ export const filesContract = defineContract({
           data: z.void(),
           error: fsErrorSchema,
         }),
-        createFile: mutation(
-          {
-            input: z.object({ path: portableRelativePathSchema }),
-            data: z.void(),
-            error: fsErrorSchema,
-          },
-          optimisticCreateFile
-        ),
-        createDirectory: mutation(
-          {
-            input: z.object({ path: portableRelativePathSchema }),
-            data: z.void(),
-            error: fsErrorSchema,
-          },
-          optimisticCreateDirectory
-        ),
-        delete: mutation(
-          {
-            input: z.object({
-              path: portableRelativePathSchema,
-              recursive: z.boolean().optional(),
-            }),
-            data: z.void(),
-            error: fsErrorSchema,
-          },
-          optimisticDelete
-        ),
-        rename: mutation(
-          {
-            input: z.object({
-              from: portableRelativePathSchema,
-              to: portableRelativePathSchema,
-            }),
-            data: z.void(),
-            error: fsErrorSchema,
-          },
-          optimisticRename
-        ),
-        move: mutation(
-          {
-            input: z.object({
-              from: portableRelativePathSchema,
-              to: portableRelativePathSchema,
-            }),
-            data: z.void(),
-            error: fsErrorSchema,
-          },
-          optimisticMove
-        ),
-        copy: mutation(
-          {
-            input: z.object({
-              from: portableRelativePathSchema,
-              to: portableRelativePathSchema,
-            }),
-            data: z.void(),
-            error: fsErrorSchema,
-          },
-          optimisticCopy
-        ),
+        createFile: mutation({
+          input: z.object({ path: portableRelativePathSchema }),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
+        createDirectory: mutation({
+          input: z.object({ path: portableRelativePathSchema }),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
+        delete: mutation({
+          input: z.object({
+            path: portableRelativePathSchema,
+            recursive: z.boolean().optional(),
+          }),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
+        rename: mutation({
+          input: z.object({
+            from: portableRelativePathSchema,
+            to: portableRelativePathSchema,
+          }),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
+        move: mutation({
+          input: z.object({
+            from: portableRelativePathSchema,
+            to: portableRelativePathSchema,
+          }),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
+        copy: mutation({
+          input: z.object({
+            from: portableRelativePathSchema,
+            to: portableRelativePathSchema,
+          }),
+          data: z.void(),
+          error: fsErrorSchema,
+        }),
         refresh: mutation({
           input: z.void().optional(),
           data: z.void(),

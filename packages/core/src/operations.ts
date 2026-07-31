@@ -1,42 +1,31 @@
-import { VersionedSchema } from "@primitives/versioned-schema/api";
-import z from "zod";
+import type { VersionedSchema } from '@primitives/versioned-schema/api';
+import type z from 'zod';
 
-type Ref<T extends string, TRef> = {
-    kind: T;
-    ref: TRef;
-}
-
-
-export function defineResource<T extends string, TRef>(spec: {
-    name: T;
-    key: (ref: TRef) => string;
-    parent?: (ref: TRef) => any;
+export function defineResource<T extends string, TRef>(_spec: {
+  name: T;
+  key: (ref: TRef) => string;
+  parent?: (ref: TRef) => unknown;
 }) {
-    return {
-
-    }
-
+  return {};
 }
 
-
-export function defineOperation<T extends string, TInput, TResult, TError, TState>(spec: {
-    name: T;
-    input: VersionedSchema<TInput>
-    result: z.ZodType<TResult>
-    error: z.ZodType<TError>
-    key: (input: TInput) => string;
-    liveModel?: any // LiveModel
-    claims?: (input: TInput) => any[]
-    conflictPolicy: ConflictPolicy
-
+export function defineOperation<T extends string, TInput, TResult, TError, _TState>(_spec: {
+  name: T;
+  input: VersionedSchema<TInput>;
+  result: z.ZodType<TResult>;
+  error: z.ZodType<TError>;
+  key: (input: TInput) => string;
+  liveModel?: unknown; // LiveModel
+  claims?: (input: TInput) => unknown[];
+  conflictPolicy: ConflictPolicy;
 }) {
-    return {}
+  return {};
 }
 
-type ConflictPolicyBuilder = {}
+type ConflictPolicyBuilder = {};
 
-type ConflictPolicy = {}
+type ConflictPolicy = {};
 
-export function defineConflictPolicy(build: (on: ConflictPolicyBuilder) => void) {
-    return {}
+export function defineConflictPolicy(_build: (on: ConflictPolicyBuilder) => void) {
+  return {};
 }

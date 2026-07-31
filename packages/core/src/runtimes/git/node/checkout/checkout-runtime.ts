@@ -1,8 +1,10 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
 import {
-  createResourceLiveModelHost,
+  expose,
+  type LeasedLiveModelProvider,
   type LiveJobContext,
-  type ResourceLiveModelHost,
+  type Query,
 } from '@emdash/wire';
 import type { PortableRelativePath } from '@primitives/path/api';
 import {
@@ -10,6 +12,8 @@ import {
   gitContract,
   type gitCheckoutContract,
   type CheckoutSelector,
+  type CheckoutHeadState,
+  type CheckoutStatusState,
   type GitCommandError,
   type GitLogOptions,
   type GitSyncProgress,
@@ -26,15 +30,16 @@ import type { CheckoutResource } from './checkout-resource';
 type CheckoutModel = typeof gitCheckoutContract.model;
 type FileDiffModel = typeof gitCheckoutContract.fileDiff;
 type FileContentModel = typeof gitCheckoutContract.content;
+type CheckoutStateName = 'status' | 'head';
 
 export class GitCheckoutRuntime {
-  readonly model: ResourceLiveModelHost<CheckoutModel>;
-  readonly fileDiffModel: ResourceLiveModelHost<FileDiffModel>;
-  readonly fileContentModel: ResourceLiveModelHost<FileContentModel>;
+  readonly model: LeasedLiveModelProvider<CheckoutModel>;
+  readonly fileDiffModel: LeasedLiveModelProvider<FileDiffModel>;
+  readonly fileContentModel: LeasedLiveModelProvider<FileContentModel>;
 
-  private readonly modelHosts = new Map<string, ResourceLiveModelHost<CheckoutModel>>();
-  private readonly fileDiffHosts = new Map<string, ResourceLiveModelHost<FileDiffModel>>();
-  private readonly fileContentHosts = new Map<string, ResourceLiveModelHost<FileContentModel>>();
+  private readonly modelHosts = new Map<string, LeasedLiveModelProvider<CheckoutModel>>();
+  private readonly fileDiffHosts = new Map<string, LeasedLiveModelProvider<FileDiffModel>>();
+  private readonly fileContentHosts = new Map<string, LeasedLiveModelProvider<FileContentModel>>();
 
   constructor(private readonly allocations: GitAllocationGraph) {
     this.model = this.modelHost(gitContract.checkout.model);
@@ -45,41 +50,53 @@ export class GitCheckoutRuntime {
   modelHost(contract: CheckoutModel = gitContract.checkout.model) {
     const existing = this.modelHosts.get(contract.id);
     if (existing) return existing;
-    const host = createResourceLiveModelHost(contract, {
-      acquire: (key) => this.allocations.acquireCheckout(key),
-      states: {
-        status: ({ resource }) => resource.state('status'),
-        head: ({ resource }) => resource.state('head'),
+    const host = expose(
+      contract,
+      {
+        status: (key, scope) => this.checkoutState<CheckoutStatusState>(key, 'status', scope),
+        head: (key, scope) => this.checkoutState<CheckoutHeadState>(key, 'head', scope),
       },
-      mutations: {
-        stage: (context) => context.resource.stage(context),
-        unstage: (context) => context.resource.unstage(context),
-        stageAll: (context) => context.resource.stageAll(context),
-        unstageAll: (context) => context.resource.unstageAll(context),
-        revert: (context) => context.resource.revert(context),
-        revertAll: (context) => context.resource.revertAll(context),
-        clean: (context) => context.resource.clean(context),
-        stageHunk: (context) => context.resource.stageHunk(context),
-        unstageHunk: (context) => context.resource.unstageHunk(context),
-        discardHunk: (context) => context.resource.discardHunk(context),
-        commit: (context) => context.resource.commit(context),
-        switch: (context) => context.resource.switch(context),
-        reset: (context) => context.resource.reset(context),
-        merge: (context) => context.resource.merge(context),
-        mergeContinue: (context) => context.resource.mergeContinue(context),
-        mergeAbort: (context) => context.resource.mergeAbort(context),
-        rebase: (context) => context.resource.rebase(context),
-        rebaseContinue: (context) => context.resource.rebaseContinue(context),
-        rebaseAbort: (context) => context.resource.rebaseAbort(context),
-        rebaseSkip: (context) => context.resource.rebaseSkip(context),
-        cherryPick: (context) => context.resource.cherryPick(context),
-        revertCommit: (context) => context.resource.revertCommit(context),
-        stashPush: (context) => context.resource.stashPush(context),
-        stashApply: (context) => context.resource.stashApply(context),
-        stashPop: (context) => context.resource.stashPop(context),
-      },
-      toMutationError: (_name, error) => expectedGitCommandError(error),
-    });
+      {
+        mutations: {
+          stage: (context) => this.run(context.key, (resource) => resource.stage(context)),
+          unstage: (context) => this.run(context.key, (resource) => resource.unstage(context)),
+          stageAll: (context) => this.run(context.key, (resource) => resource.stageAll(context)),
+          unstageAll: (context) =>
+            this.run(context.key, (resource) => resource.unstageAll(context)),
+          revert: (context) => this.run(context.key, (resource) => resource.revert(context)),
+          revertAll: (context) => this.run(context.key, (resource) => resource.revertAll(context)),
+          clean: (context) => this.run(context.key, (resource) => resource.clean(context)),
+          stageHunk: (context) => this.run(context.key, (resource) => resource.stageHunk(context)),
+          unstageHunk: (context) =>
+            this.run(context.key, (resource) => resource.unstageHunk(context)),
+          discardHunk: (context) =>
+            this.run(context.key, (resource) => resource.discardHunk(context)),
+          commit: (context) => this.run(context.key, (resource) => resource.commit(context)),
+          switch: (context) => this.run(context.key, (resource) => resource.switch(context)),
+          reset: (context) => this.run(context.key, (resource) => resource.reset(context)),
+          merge: (context) => this.run(context.key, (resource) => resource.merge(context)),
+          mergeContinue: (context) =>
+            this.run(context.key, (resource) => resource.mergeContinue(context)),
+          mergeAbort: (context) =>
+            this.run(context.key, (resource) => resource.mergeAbort(context)),
+          rebase: (context) => this.run(context.key, (resource) => resource.rebase(context)),
+          rebaseContinue: (context) =>
+            this.run(context.key, (resource) => resource.rebaseContinue(context)),
+          rebaseAbort: (context) =>
+            this.run(context.key, (resource) => resource.rebaseAbort(context)),
+          rebaseSkip: (context) =>
+            this.run(context.key, (resource) => resource.rebaseSkip(context)),
+          cherryPick: (context) =>
+            this.run(context.key, (resource) => resource.cherryPick(context)),
+          revertCommit: (context) =>
+            this.run(context.key, (resource) => resource.revertCommit(context)),
+          stashPush: (context) => this.run(context.key, (resource) => resource.stashPush(context)),
+          stashApply: (context) =>
+            this.run(context.key, (resource) => resource.stashApply(context)),
+          stashPop: (context) => this.run(context.key, (resource) => resource.stashPop(context)),
+        },
+      }
+    );
     this.modelHosts.set(contract.id, host);
     return host;
   }
@@ -87,14 +104,18 @@ export class GitCheckoutRuntime {
   fileDiffHost(contract: FileDiffModel = gitContract.checkout.fileDiff) {
     const existing = this.fileDiffHosts.get(contract.id);
     if (existing) return existing;
-    const host = createResourceLiveModelHost(contract, {
-      acquire: (key) => this.allocations.acquireCheckout(key),
-      states: {
-        staleness: ({ resource, key }) =>
-          resource.acquireFileDiffStaleness({
+    const host = expose(contract, {
+      staleness: async (key, scope) => {
+        const lease = this.allocations.acquireCheckout(key);
+        scope.add(() => lease.release());
+        const checkout = await lease.ready();
+        return checkout.fileDiffStaleness(
+          {
             filePath: key.filePath,
             target: key.target,
-          }),
+          },
+          scope
+        );
       },
     });
     this.fileDiffHosts.set(contract.id, host);
@@ -104,11 +125,12 @@ export class GitCheckoutRuntime {
   fileContentHost(contract: FileContentModel = gitContract.checkout.content) {
     const existing = this.fileContentHosts.get(contract.id);
     if (existing) return existing;
-    const host = createResourceLiveModelHost(contract, {
-      acquire: (key) => this.allocations.acquireCheckout(key),
-      states: {
-        content: ({ resource, key }) =>
-          resource.acquireFileContent({ path: key.path, source: key.source }),
+    const host = expose(contract, {
+      content: async (key, scope) => {
+        const lease = this.allocations.acquireCheckout(key);
+        scope.add(() => lease.release());
+        const checkout = await lease.ready();
+        return checkout.fileContent({ path: key.path, source: key.source }, scope);
       },
     });
     this.fileContentHosts.set(contract.id, host);
@@ -212,6 +234,22 @@ export class GitCheckoutRuntime {
       selector,
       async (resource): Promise<Result<T, never>> => ok(await read(resource))
     );
+  }
+
+  private async checkoutState<T>(
+    selector: CheckoutSelector,
+    name: CheckoutStateName,
+    scope: Scope
+  ): Promise<Query<T>> {
+    const lease = this.allocations.acquireCheckout(selector);
+    scope.add(() => lease.release());
+    const checkout = await lease.ready();
+    switch (name) {
+      case 'status':
+        return checkout.state('status') as unknown as Query<T>;
+      case 'head':
+        return checkout.state('head') as unknown as Query<T>;
+    }
   }
 
   private async run<T, E>(

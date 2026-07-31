@@ -1,5 +1,5 @@
-import type { PendingLease } from '@emdash/shared';
-import { LiveState, type LiveSource } from '@emdash/wire';
+import type { Scope } from '@emdash/shared/concurrency';
+import { cell, type Cell } from '@emdash/wire';
 import type { PortableRelativePath } from '@primitives/path/api';
 import type {
   BoundFileDiffKey,
@@ -14,7 +14,7 @@ export type FileDiffRegistryOptions = Readonly<{
 type Entry = {
   readonly relativePath: PortableRelativePath;
   readonly target: NormalizedDiffTarget;
-  readonly state: LiveState<{ revision: number; lastReason?: FileDiffStalenessReason }>;
+  readonly state: Cell<{ revision: number; lastReason?: FileDiffStalenessReason }>;
   leases: number;
   lastUsed: number;
 };
@@ -31,7 +31,10 @@ export class FileDiffRegistry {
     this.maxEntries = Math.max(1, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
   }
 
-  acquire(key: BoundFileDiffKey): PendingLease<LiveSource> {
+  state(
+    key: BoundFileDiffKey,
+    scope: Scope
+  ): Cell<{ revision: number; lastReason?: FileDiffStalenessReason }> {
     if (this.disposed) throw new Error('FileDiffRegistry is disposed');
     const relativePath = key.filePath;
     const id = entryId(relativePath, key.target);
@@ -40,7 +43,7 @@ export class FileDiffRegistry {
       entry = {
         relativePath,
         target: key.target,
-        state: new LiveState({ revision: 0 }),
+        state: cell({ revision: 0 }),
         leases: 0,
         lastUsed: Date.now(),
       };
@@ -50,17 +53,8 @@ export class FileDiffRegistry {
     entry.lastUsed = Date.now();
     this.evictIdleEntries();
 
-    let released = false;
-    return {
-      ready: async () => entry.state,
-      release: async () => {
-        if (released) return;
-        released = true;
-        entry.leases = Math.max(0, entry.leases - 1);
-        entry.lastUsed = Date.now();
-        this.evictIdleEntries();
-      },
-    };
+    scope.add(() => this.release(entry));
+    return entry.state;
   }
 
   bump(paths: 'all' | readonly PortableRelativePath[], reason: FileDiffStalenessReason): void {
@@ -69,18 +63,23 @@ export class FileDiffRegistry {
     for (const entry of this.entries.values()) {
       if (selected && !selected.has(entry.relativePath)) continue;
       if (reason === 'ref-changed' && !dependsOnMutableRef(entry.target)) continue;
-      entry.state.produce((draft) => {
-        draft.revision += 1;
-        draft.lastReason = reason;
-      });
+      entry.state.update((previous) => ({
+        revision: previous.revision + 1,
+        lastReason: reason,
+      }));
     }
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const entry of this.entries.values()) entry.state.dispose();
     this.entries.clear();
+  }
+
+  private release(entry: Entry): void {
+    entry.leases = Math.max(0, entry.leases - 1);
+    entry.lastUsed = Date.now();
+    this.evictIdleEntries();
   }
 
   private evictIdleEntries(): void {
@@ -88,10 +87,9 @@ export class FileDiffRegistry {
     const idle = [...this.entries.entries()]
       .filter(([, entry]) => entry.leases === 0)
       .sort((left, right) => left[1].lastUsed - right[1].lastUsed);
-    for (const [id, entry] of idle) {
+    for (const [id] of idle) {
       if (this.entries.size <= this.maxEntries) break;
       this.entries.delete(id);
-      entry.state.dispose();
     }
   }
 }

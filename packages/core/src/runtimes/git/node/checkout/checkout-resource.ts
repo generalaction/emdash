@@ -1,11 +1,7 @@
 import path from 'node:path';
-import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
-import {
-  ComputedLiveState,
-  type LiveCursor,
-  type LiveSource,
-  type ResourceMutationContext,
-} from '@emdash/wire';
+import type { Result, Unsubscribe } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
+import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire';
 import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
 import {
   type gitCheckoutContract,
@@ -40,9 +36,8 @@ const REVALIDATE_INTERVAL_MS = 5 * 60_000;
 type CheckoutModel = typeof gitCheckoutContract.model;
 type CheckoutStateName = Extract<keyof CheckoutModel['states'], string>;
 type CheckoutMutationName = Extract<keyof CheckoutModel['mutations'], string>;
-type CheckoutMutationContext<Name extends CheckoutMutationName> = ResourceMutationContext<
+type CheckoutMutationContext<Name extends CheckoutMutationName> = ExposedMutationContext<
   CheckoutModel,
-  CheckoutResource,
   Name
 >;
 
@@ -63,8 +58,8 @@ export class CheckoutResource {
 
   private readonly commands: GitCheckout;
   private readonly states: {
-    status: ComputedLiveState<CheckoutStatusState>;
-    head: ComputedLiveState<CheckoutHeadState>;
+    status: Query<CheckoutStatusState>;
+    head: Query<CheckoutHeadState>;
   };
   private readonly fileDiffs: FileDiffRegistry;
   private readonly fileContents: GitFileContentRegistry;
@@ -113,26 +108,28 @@ export class CheckoutResource {
     this.unregister = this.repository.registerCheckout(this);
   }
 
-  state(name: CheckoutStateName): Promise<LiveSource> {
-    return this.states[name].prepare();
+  state(name: 'status'): Query<CheckoutStatusState>;
+  state(name: 'head'): Query<CheckoutHeadState>;
+  state(name: CheckoutStateName) {
+    return this.states[name];
   }
 
-  refresh(name: CheckoutStateName, mutationId?: string): Promise<LiveCursor> {
-    return this.states[name].refresh({ mutationId });
+  refresh(name: CheckoutStateName, mutationId?: string): Promise<Revision> {
+    return this.states[name].refresh({ mutationIds: mutationId ? [mutationId] : undefined });
   }
 
   invalidate(name: CheckoutStateName): void {
     this.states[name].invalidate();
   }
 
-  acquireFileDiffStaleness(key: BoundFileDiffKey): PendingLease<LiveSource> {
+  fileDiffStaleness(key: BoundFileDiffKey, scope: Scope) {
     this.assertActive();
-    return this.fileDiffs.acquire(key);
+    return this.fileDiffs.state(key, scope);
   }
 
-  acquireFileContent(key: BoundGitFileContentKey): PendingLease<LiveSource> {
+  fileContent(key: BoundGitFileContentKey, scope: Scope) {
     this.assertActive();
-    return this.fileContents.acquire(key);
+    return this.fileContents.state(key, scope);
   }
 
   getFileDiff(filePath: string, target?: DiffTarget): Promise<Result<FileDiff, GitCommandError>> {
@@ -416,7 +413,7 @@ export class CheckoutResource {
       | CheckoutMutationContext<'unstageAll'>,
     paths: 'all' | readonly PortableRelativePath[]
   ): Promise<void> {
-    await context.settle('status', this.refresh('status', context.mutationId));
+    await context.observed('status', this.refresh('status', context.mutationId));
     this.fileDiffs.bump(paths, 'index-changed');
     this.fileContents.invalidate(paths, 'index');
   }
@@ -463,11 +460,11 @@ export class CheckoutResource {
     this.fileDiffs.bump('all', 'content-changed');
   }
 
-  private computed<T>(name: string, compute: () => Promise<T>): ComputedLiveState<T> {
-    return new ComputedLiveState({
-      compute: () => this.repository.execute(compute),
+  private computed<T>(name: string, compute: () => Promise<T>): Query<T> {
+    return query({
+      fetch: async () => this.repository.execute(compute),
       debounceMs: WATCH_DEBOUNCE_MS,
-      revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
+      revalidateEveryMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`${name} ${this.identity.checkoutRoot}`, error),
     });
   }

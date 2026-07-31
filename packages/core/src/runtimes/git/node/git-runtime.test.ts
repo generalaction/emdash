@@ -294,7 +294,9 @@ describe('GitRuntime', () => {
         linkedCheckoutLease.ready(),
       ]);
 
-      expect(linkedRepository).toBe(mainRepository);
+      expect(await linkedRepository.snapshot()).toMatchObject({
+        data: (await mainRepository.snapshot()).data,
+      });
 
       await linkedCheckoutLease.release();
       await linkedRepositoryLease.release();

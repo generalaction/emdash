@@ -4,13 +4,9 @@ export * from './replica';
 export {
   ComputedLiveState,
   LiveState,
-  bindMachineToLiveState,
-  type BindMachineToLiveStateOptions,
   type ComputedLiveStateOptions,
   type LiveChangeMeta,
   type LiveStateProduceOptions,
-  type MachineLiveStateBinding,
-  type MachineStateSource,
   type Mutator,
 } from './state';
 export { LiveLog, type LiveLogOptions } from './log';

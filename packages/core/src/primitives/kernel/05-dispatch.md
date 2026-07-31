@@ -66,38 +66,26 @@ state).
 ```ts
 export interface DispatchPassReport {
   started: string[];                                    // operation ids
-  /** Contention: blocked by the matrix or by fairness barriers. */
   skipped: Array<{
     id: string;
     blockedBy: string[];                                // running holder ids (matrix)
     barredOn: string[];                                 // keys barred by older waiters
-  }>;
-  /** Not contention: eligible work the system chose not to start yet.
-   *  Reported so these operations never display as "waiting on nothing". */
-  deferred: Array<{
-    id: string;
-    reason: 'capacity' | 'host-offline' | 'backoff';
   }>;
 }
 
 export function dispatchPass(
   pending: readonly PendingOperation[],   // { id, seq, claims, ancestors: Set<id>, start() }
   running: RunningClaims,
-  gate?: (op: PendingOperation) => DeferReason | undefined  // notBefore + adapter availability;
-                                                            // a gated skip plants no barriers
-                                                            // (not contention) but IS reported
+  gate?: (op: PendingOperation) => boolean   // notBefore + adapter availability; a gated
+                                             // skip plants no barriers (not contention)
 ): DispatchPassReport {
   // Fairness barriers: once an older operation is skipped, its keys bar
   // incompatible younger requests, so exclusive work cannot starve.
   const barred = new Map<string, ClaimMode[]>();
-  const report: DispatchPassReport = { started: [], skipped: [], deferred: [] };
+  const report: DispatchPassReport = { started: [], skipped: [] };
 
   for (const op of [...pending].sort((a, b) => a.seq - b.seq)) {
-    const deferral = gate?.(op);                        // ineligible, not contending
-    if (deferral) {
-      report.deferred.push({ id: op.id, reason: deferral });
-      continue;
-    }
+    if (gate && !gate(op)) continue;                    // ineligible, not contending
     const barredOn = op.claims
       .filter((c) => (barred.get(c.key) ?? []).some((m) => !modesCompatible(m, c.mode)))
       .map((c) => c.key);
@@ -111,10 +99,6 @@ export function dispatchPass(
       report.skipped.push({ id: op.id, blockedBy, barredOn });
       continue;
     }
-    // Capacity check (see §capacity-limits) sits here — after contention, so a
-    // read that would also be matrix-blocked reports its real blocker; a pure
-    // capacity skip lands in deferred with reason 'capacity' and, like the
-    // gate, plants no barriers.
     running.acquire(op.id, op.claims);
     op.start(); // engine runs the handler; on settle: release(op.id) + re-poke
     report.started.push(op.id);
@@ -217,23 +201,18 @@ worktree activity without enumerating a single worktree.
 A queued-behind operation's stored status is `pending` — there is no
 `waiting-for-resource` status ([03 §statuses](./03-operations.md#statuses)).
 The UI derives the explanation from the **pass report**, which is why the
-report exists: it covers *every* reason an operation didn't start — matrix
-blockers (`blockedBy`, with the holding operation ids for display labels),
-fairness barriers (`barredOn`), and non-contention deferrals (`deferred`:
-capacity, offline host, retry backoff). Deriving from claims alone would
-show a barrier-blocked or capacity-limited operation as "waiting on
-nothing".
+report exists: it covers *both* reasons an operation didn't start — matrix
+blockers (`blockedBy`, with the holding operation ids for display labels)
+and fairness barriers (`barredOn`). Deriving from claims alone would show a
+barrier-blocked operation as "waiting on nothing".
 
 ```ts
-// "Waiting for 2 operations on feat-x" / "Queued — host busy" — derived
-// from the latest pass report, never stored.
+// "Waiting for 2 operations on feat-x" — derived from the latest pass
+// report, never stored.
 export function waitingOn(
   opId: string,
   report: DispatchPassReport
-):
-  | { kind: 'contention'; blockedBy: string[]; barredOn: string[] }
-  | { kind: 'deferred'; reason: 'capacity' | 'host-offline' | 'backoff' }
-  | undefined;
+): { blockedBy: string[]; barredOn: string[] } | undefined;
 ```
 
 Derived-not-stored is what keeps cancellation trivial (§below) and avoids a
@@ -265,61 +244,13 @@ Each plane dispatches against its own running set:
 
 - The **desktop** dispatcher additionally gates on host *availability*: an
   operation whose work targets an offline host is skipped (without barring —
-  offline is not contention; reported as `deferred` with `'host-offline'`)
-  and re-poked when the host connects.
+  offline is not contention) and re-poked when the host connects.
 - The **host** dispatcher gates purely on claims; by the time work reaches
   the host log, the desktop has already sequenced intent.
 
 Since desktop claims describe desktop-visible intent and the host is the
 physical truth, host-side handler guards remain the final arbiter regardless
 of what either dispatcher decided.
-
-## Capacity limits
-
-Claims answer *correctness* — which operations may overlap. They do not
-answer *load*: fifty shared-mode scans of fifty different worktrees are
-mutually compatible and would all start in one pass, storming the host with
-fifty concurrent `git status` processes. Capacity is a separate, explicit
-gate at dispatch:
-
-```ts
-export interface DispatchLimits {
-  /** Max running operations whose explicit claims are all shared (the
-   *  read class). Mutations are never capacity-limited — they are few,
-   *  user-initiated, and already serialized by claims. */
-  maxConcurrentReads?: number;
-
-  /** Same cap, grouped per host so one busy host cannot starve others.
-   *  hostOf extracts the grouping key from the operation's claims. */
-  maxConcurrentReadsPerHost?: number;
-  hostOf?: (op: PendingOperation) => string | undefined;
-}
-```
-
-The rules that keep this from corrupting the fairness story:
-
-- **Class is derived from explicit claim modes**, not declared per
-  definition: an operation whose explicit (non-implicit) claims are all
-  `shared` is in the read class; anything holding an explicit `exclusive`
-  is not. Deriving it keeps definitions honest — you cannot claim
-  exclusively and dodge into the read lane.
-- **A capacity skip plants no fairness barriers.** Barriers exist for
-  *contention* (an older operation blocked by incompatible modes); a
-  capacity skip is the system saying "not yet, too busy", and barring its
-  keys would freeze unrelated work behind a full read lane. Same treatment
-  as the availability gate above — and like it, the skip is *visible*: it
-  lands in the pass report's `deferred` list with reason `'capacity'`, so
-  the display never shows a full read lane as "waiting on nothing".
-- **FIFO within the class by `seq`** — capacity admits the oldest eligible
-  reads first, so a burst cannot starve an earlier read.
-
-Capacity here is the middle layer of a three-layer throttling story:
-wire-level demand gating decides *whether* a read is wanted at all
-([09](./09-querying-and-display.md#reactive-queries-fetch-through-operations)),
-dispatch capacity bounds *how many* run system-wide, and handler-internal
-fan-out bounds parallelism *inside* one operation
-([06 §concurrency](./06-execution-and-handlers.md#concurrency-inside-vs-across-operations)).
-None of the three substitutes for another.
 
 ## Shared modes are day-one, not a later phase
 

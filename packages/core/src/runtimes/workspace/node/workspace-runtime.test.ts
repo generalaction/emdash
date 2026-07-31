@@ -13,6 +13,7 @@ import { step } from '@runtimes/workspace/api';
 import type {
   WorkspaceActivityResource,
   WorkspaceOperationProgress,
+  WorkspaceState,
 } from '@runtimes/workspace/api';
 import { createMemoryWorkspaceOperationRecordStore } from '@runtimes/workspace/api/operation-records';
 import {
@@ -42,9 +43,9 @@ describe('WorkspaceRuntime', () => {
 
       expect(result.success).toBe(true);
       expect(progress.some((entry) => entry.kind === 'activate')).toBe(true);
-      const state = runtime.host.get(workspace)?.states.state.snapshot().data;
-      expect(state?.topology.kind).toBe('directory');
-      expect(state?.consumers).toEqual([{ id: 'task-1', activatedAt: expect.any(Number) }]);
+      const state = await workspaceState(runtime, workspace);
+      expect(state.topology.kind).toBe('directory');
+      expect(state.consumers).toEqual([{ id: 'task-1', activatedAt: expect.any(Number) }]);
 
       runtime.dispose();
     } finally {
@@ -125,7 +126,7 @@ describe('WorkspaceRuntime', () => {
       if (!activationResult.success) {
         expect(activationResult.error.type).toBe('cancelled');
       }
-      expect(runtime.host.get(workspace)?.states.state.snapshot().data.operation.kind).toBe('idle');
+      expect((await workspaceState(runtime, workspace)).operation.kind).toBe('idle');
 
       runtime.dispose();
     } finally {
@@ -174,8 +175,8 @@ describe('WorkspaceRuntime', () => {
           { id: 'run', command: 'pnpm dev', dependsOn: ['setup'], lifecycle: 'background' },
         ],
       });
-      const state = runtime.host.get(workspace)?.states.state.snapshot().data;
-      expect(state?.sessionPrepared).toBe(true);
+      const state = await workspaceState(runtime, workspace);
+      expect(state.sessionPrepared).toBe(true);
 
       runtime.dispose();
     } finally {
@@ -203,9 +204,9 @@ describe('WorkspaceRuntime', () => {
 
       expect(activation.success).toBe(false);
       expect(calls).toHaveLength(1);
-      const state = runtime.host.get(workspace)?.states.state.snapshot().data;
-      expect(state?.sessionPrepared).toBe(false);
-      expect(state?.consumers).toEqual([]);
+      const state = await workspaceState(runtime, workspace);
+      expect(state.sessionPrepared).toBe(false);
+      expect(state.consumers).toEqual([]);
 
       runtime.dispose();
     } finally {
@@ -246,12 +247,12 @@ describe('WorkspaceRuntime', () => {
         { workspace, consumerId: 'task-1', strategy: 'detach', automation },
         jobContext('deactivate-1')
       );
-      expect(runtime.host.get(workspace)?.states.state.snapshot().data.sessionPrepared).toBe(true);
+      expect((await workspaceState(runtime, workspace)).sessionPrepared).toBe(true);
       await runtime.deactivate(
         { workspace, consumerId: 'task-2', strategy: 'detach', automation },
         jobContext('deactivate-2')
       );
-      expect(runtime.host.get(workspace)?.states.state.snapshot().data.sessionPrepared).toBe(false);
+      expect((await workspaceState(runtime, workspace)).sessionPrepared).toBe(false);
 
       runtime.dispose();
     } finally {
@@ -340,8 +341,8 @@ describe('WorkspaceRuntime', () => {
         .filter((stageEntry) => stageEntry.id === 'lifecycle')
         .at(-1);
       expect(lifecycleStage?.status).toBe('done');
-      const state = runtime.host.get(workspace)?.states.state.snapshot().data;
-      expect(state?.topology.kind).toBe('directory');
+      const state = await workspaceState(runtime, workspace);
+      expect(state.topology.kind).toBe('directory');
 
       runtime.dispose();
     } finally {
@@ -653,6 +654,19 @@ describe('WorkspaceRuntime', () => {
     }
   });
 });
+
+async function workspaceState(
+  runtime: WorkspaceRuntime,
+  workspace: HostFileRef
+): Promise<WorkspaceState> {
+  const lease = runtime.host.acquireState(workspace, 'state');
+  try {
+    const source = await lease.ready();
+    return (await source.snapshot()).data as WorkspaceState;
+  } finally {
+    await lease.release();
+  }
+}
 
 function jobContext(
   jobId: string,

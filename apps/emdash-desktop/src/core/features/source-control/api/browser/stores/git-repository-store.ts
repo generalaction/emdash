@@ -7,8 +7,8 @@ import {
   type LocalBranch,
   type RemoteBranch,
 } from '@emdash/core/runtimes/git/api';
-import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import {
@@ -29,14 +29,18 @@ import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client'
 import { sourceControlContract } from '../..';
 
 type RepositoryModel = typeof sourceControlContract.repository.model;
+type RepositoryRemote = RemoteModel<RepositoryModel>;
+type RepositoryRemoteMember = ReturnType<RepositoryRemote>;
 
 export class GitRepositoryStore {
-  private replica: LiveModelReplica<RepositoryModel> | null = null;
-  private model: ReplicaInstance<RepositoryModel> | null = null;
-  private releaseModel: (() => Promise<void>) | null = null;
+  private remote: RepositoryRemote | null = null;
+  private model: RepositoryRemoteMember | null = null;
+  private remoteScope: Scope | null = null;
   private startPromise: Promise<void> | null = null;
   private started = false;
   private loadError: string | null = null;
+  private refsState: GitRefsState | null = null;
+  private remotesData: GitRemotesState | null = null;
 
   readonly providerRepositoryInfo: Resource<ProviderRepositoryResult>;
   readonly gitDefaultBranchInfo: Resource<Awaited<ReturnType<typeof loadDefaultBranch>>>;
@@ -69,10 +73,18 @@ export class GitRepositoryStore {
     );
     makeObservable<
       GitRepositoryStore,
-      'model' | 'loadError' | 'configuredRemotes' | 'defaultBranchPreference' | 'gitDefaultBranch'
+      | 'model'
+      | 'loadError'
+      | 'refsState'
+      | 'remotesData'
+      | 'configuredRemotes'
+      | 'defaultBranchPreference'
+      | 'gitDefaultBranch'
     >(this, {
       model: observable.ref,
       loadError: observable,
+      refsState: observable.ref,
+      remotesData: observable.ref,
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
@@ -107,19 +119,21 @@ export class GitRepositoryStore {
   }
 
   async retry(): Promise<void> {
-    const release = this.releaseModel;
-    const replica = this.replica;
+    const scope = this.remoteScope;
+    const remote = this.remote;
     runInAction(() => {
-      this.releaseModel = null;
-      this.replica = null;
+      this.remoteScope = null;
+      this.remote = null;
       this.model = null;
       this.startPromise = null;
       this.loadError = null;
+      this.refsState = null;
+      this.remotesData = null;
     });
     try {
-      await release?.();
+      await remote?.dispose();
     } finally {
-      await replica?.dispose();
+      await scope?.dispose();
     }
     this.providerRepositoryInfo.invalidate();
     this.gitDefaultBranchInfo.invalidate();
@@ -146,16 +160,18 @@ export class GitRepositoryStore {
     this.gitDefaultBranchInfo.dispose();
     this.settingsDisposer?.();
     this.settingsDisposer = null;
-    const release = this.releaseModel;
-    const replica = this.replica;
-    this.releaseModel = null;
-    this.replica = null;
+    const scope = this.remoteScope;
+    const remote = this.remote;
+    this.remoteScope = null;
+    this.remote = null;
     this.model = null;
+    this.refsState = null;
+    this.remotesData = null;
     void (async () => {
       try {
-        await release?.();
+        await remote?.dispose();
       } finally {
-        await replica?.dispose();
+        await scope?.dispose();
       }
     })();
   }
@@ -285,11 +301,11 @@ export class GitRepositoryStore {
   }
 
   private get refs(): GitRefsState | null {
-    return this.model?.states.refs.current() ?? null;
+    return this.refsState;
   }
 
   private get remotesState(): GitRemotesState | null {
-    return this.model?.states.remotes.current() ?? null;
+    return this.remotesData;
   }
 
   private get configuredRemotes(): ConfiguredRemotes {
@@ -314,41 +330,39 @@ export class GitRepositoryStore {
     return this.startPromise;
   }
 
-  private async requireModel(): Promise<ReplicaInstance<RepositoryModel>> {
+  private async requireModel(): Promise<RepositoryRemoteMember> {
     await this.ensureStarted();
     if (!this.model) throw new Error(this.loadError ?? 'Git repository is unavailable');
     return this.model;
   }
 
   private async bindRuntime(): Promise<void> {
+    const scope = createScope({ label: `git-repository-store:${this.projectId}` });
     try {
       const client = await getSourceControlClient();
-      const replica = createLiveModelReplica(
-        sourceControlContract.repository.model,
-        client.repository.model,
-        {
-          stores: {
-            refs: createImmutableMobxStore,
-            remotes: createImmutableMobxStore,
-            stashes: createImmutableMobxStore,
-            worktrees: createImmutableMobxStore,
-          },
-        }
-      );
-      const lease = replica.acquire(repositorySelector(this.projectId));
-      const model = await lease.ready();
+      const gitRemote = remote(sourceControlContract.repository.model, client.repository.model, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const model = gitRemote(repositorySelector(this.projectId));
+      pin(scope, Object.values(model.states));
+      await waitForRepositoryModel(model, scope, (refs, remotes) => {
+        this.refsState = refs;
+        this.remotesData = remotes;
+      });
       if (!this.started) {
-        await lease.release();
-        await replica.dispose();
+        await gitRemote.dispose();
+        await scope.dispose();
         return;
       }
       runInAction(() => {
-        this.replica = replica;
-        this.releaseModel = () => lease.release();
+        this.remote = gitRemote;
+        this.remoteScope = scope;
         this.model = model;
         this.loadError = null;
       });
     } catch (error) {
+      await scope.dispose();
       runInAction(() => {
         this.loadError = error instanceof Error ? error.message : String(error);
       });
@@ -363,4 +377,55 @@ async function loadDefaultBranch(projectId: string, remote: string) {
     remote,
   });
   return result.success ? { success: true as const, data: result.data } : result;
+}
+
+function waitForRepositoryModel(
+  model: RepositoryRemoteMember,
+  scope: Scope,
+  setData: (refs: GitRefsState, remotes: GitRemotesState) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    let refs: GitRefsState | undefined;
+    let remotes: GitRemotesState | undefined;
+    const publish = () => {
+      if (!refs || !remotes) return;
+      setData(refs, remotes);
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    observe(
+      model.states.refs,
+      (current) => {
+        runInAction(() => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          refs = current.value;
+          publish();
+        });
+      },
+      { scope }
+    );
+    observe(
+      model.states.remotes,
+      (current) => {
+        runInAction(() => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          remotes = current.value;
+          publish();
+        });
+      },
+      { scope }
+    );
+  });
 }

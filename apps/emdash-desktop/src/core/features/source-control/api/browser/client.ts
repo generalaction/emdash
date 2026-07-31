@@ -1,9 +1,9 @@
 import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { CheckoutHeadState } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import {
   createLiveJobReplica,
-  createLiveModelReplica,
   LiveJobFailedError,
   type JobError,
   type JobInput,
@@ -12,6 +12,7 @@ import {
   type LiveJobClientHandle,
   type LiveJobEndpointDef,
 } from '@emdash/wire';
+import { observe, pin, remote } from '@emdash/wire/state';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import type {
   InitializeRepositoryResult,
@@ -61,17 +62,30 @@ export function gitFilePath(relativePath: string): PortableRelativePath {
 
 export async function readCheckoutHead(workspaceId: string): Promise<CheckoutHeadState> {
   const client = await getSourceControlClient();
-  const replica = createLiveModelReplica(
-    sourceControlContract.checkout.model,
-    client.checkout.model
-  );
-  const lease = replica.acquire(checkoutSelector(workspaceId));
+  const scope = createScope({ label: `read-checkout-head:${workspaceId}` });
+  const checkoutRemote = remote(sourceControlContract.checkout.model, client.checkout.model, {
+    scope,
+    lingerMs: 0,
+  });
   try {
-    const model = await lease.ready();
-    return model.states.head.current();
+    const model = checkoutRemote(checkoutSelector(workspaceId));
+    pin(scope, [model.states.head]);
+    return await new Promise((resolve, reject) => {
+      observe(
+        model.states.head,
+        (current) => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (current.value) resolve(current.value);
+        },
+        { scope }
+      );
+    });
   } finally {
-    await lease.release();
-    await replica.dispose();
+    await checkoutRemote.dispose();
+    await scope.dispose();
   }
 }
 

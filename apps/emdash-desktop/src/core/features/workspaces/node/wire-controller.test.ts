@@ -1,6 +1,6 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LeasedLiveModelProvider, LiveModelProvider, LiveSource } from '@emdash/wire';
 import { describe, expect, it, vi } from 'vitest';
 import type { workspacesWireContract } from '../api';
 import type { WorkspacesIdentityResolver, WorkspacesRuntimeBroker } from '../api/runtime-adapter';
@@ -92,6 +92,70 @@ describe('createWorkspacesWireController', () => {
     await expect(
       controller.impl.reconcile?.({ workspaceId: 'workspace-1' }, {} as never)
     ).resolves.toEqual(err(resolveError));
+    await controller.dispose();
+  });
+
+  it('publishes bootstrap state through the exposed provider', async () => {
+    const provisionTask = vi.fn(async () =>
+      ok({
+        workspaceId: 'workspace-1',
+        path: '/repo/worktree',
+      })
+    );
+    const controller = createWorkspacesWireController({
+      db: {} as never,
+      getWorkspaceRuntimeClient: vi.fn(),
+      operations: {} as never,
+      provisionTask,
+      onTaskProvisionProgress: () => () => {},
+      onTaskWorkspaceReady: () => () => {},
+      runtimes: { client: vi.fn() } as unknown as WorkspacesRuntimeBroker,
+      workspaceIdentity: {
+        resolve: vi.fn(),
+        resolveProject: vi.fn(),
+        findByPath: vi.fn(),
+      } as WorkspacesIdentityResolver,
+    });
+
+    const bootstrap = controller.impl.bootstrap as LeasedLiveModelProvider<
+      typeof workspacesWireContract.bootstrap
+    >;
+    const lease = bootstrap.acquireState({ workspaceId: 'workspace-1' }, 'state');
+    const source = await lease.ready();
+    expect(await source.snapshot()).toMatchObject({
+      data: { status: 'unprovisioned' },
+    });
+
+    await expect(
+      (
+        controller.impl.provision as unknown as {
+          run(
+            input: { workspaceId: string; taskId?: string },
+            ctx: { progress: (progress: unknown) => void; signal: AbortSignal }
+          ): Promise<unknown>;
+        }
+      ).run({ workspaceId: 'workspace-1', taskId: 'task-1' }, {
+        progress: vi.fn(),
+        signal: new AbortController().signal,
+      } as never)
+    ).resolves.toEqual(
+      ok({
+        workspaceId: 'workspace-1',
+        path: '/repo/worktree',
+      })
+    );
+
+    expect(await source.snapshot()).toMatchObject({
+      data: {
+        status: 'ready',
+        result: {
+          workspaceId: 'workspace-1',
+          path: '/repo/worktree',
+        },
+      },
+    });
+
+    await lease.release();
     await controller.dispose();
   });
 });

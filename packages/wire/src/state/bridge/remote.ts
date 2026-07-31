@@ -12,8 +12,12 @@ import { cell, family, peek, type Cell, type Family, type Readable } from '../co
 
 type StateName<Group extends LiveModelDef> = Extract<keyof LiveModelStates<Group>, string>;
 
+export type RemoteState<T> = Readable<T | undefined> & {
+  refresh(): Promise<void>;
+};
+
 type RemoteStates<Group extends LiveModelDef> = {
-  [Name in StateName<Group>]: Readable<LiveStateData<LiveModelStates<Group>[Name]> | undefined>;
+  [Name in StateName<Group>]: RemoteState<LiveStateData<LiveModelStates<Group>[Name]>>;
 };
 
 type RemoteMember<Group extends LiveModelDef> = {
@@ -44,7 +48,7 @@ export function remote<Group extends LiveModelDef>(
 
   const members: RemoteModel<Group> = family(
     (key: LiveModelKey<Group>, scope) => {
-      const stateCells: Record<string, Cell<unknown>> = {};
+      const stateCells: Record<string, Cell<unknown> & { refresh?: () => Promise<void> }> = {};
       const mutations: Record<string, unknown> = {};
       let observedStates = 0;
       let releaseMember: (() => void) | undefined;
@@ -62,6 +66,14 @@ export function remote<Group extends LiveModelDef>(
           name: `${contract.id}.${name}`,
           onObservedChange: handleObservedChange,
         });
+        stateCells[name].refresh = async () => {
+          const instance = (await readyInstance) as ReplicaInstance<Group>;
+          await (
+            instance.states[name as keyof typeof instance.states] as {
+              refresh(): Promise<void>;
+            }
+          ).refresh();
+        };
         stateCells[name].set(undefined, { status: 'loading', notify: false });
       }
       const lease = replica.acquire(key);

@@ -9,63 +9,86 @@ export function optimisticCreateFile(
   context: TreeRecipeContext,
   input: { path: PortableRelativePath }
 ) {
-  context.produce('tree', (model) => {
-    insertEntry(model as FileTreeModel, {
-      path: input.path,
-      kind: 'file',
-      childrenLoaded: false,
-      children: [],
-    });
-  });
+  context.produce('tree', (model) => reduceCreateFile(model as FileTreeModel, input));
   return ok<void>();
+}
+
+export function reduceCreateFile(
+  model: FileTreeModel,
+  input: { path: PortableRelativePath }
+): void {
+  insertEntry(model, {
+    path: input.path,
+    kind: 'file',
+    childrenLoaded: false,
+    children: [],
+  });
 }
 
 export function optimisticCreateDirectory(
   context: TreeRecipeContext,
   input: { path: PortableRelativePath }
 ) {
-  context.produce('tree', (model) => {
-    insertEntry(model as FileTreeModel, {
-      path: input.path,
-      kind: 'directory',
-      childrenLoaded: false,
-      children: [],
-      hasChildren: false,
-    });
-  });
+  context.produce('tree', (model) => reduceCreateDirectory(model as FileTreeModel, input));
   return ok<void>();
+}
+
+export function reduceCreateDirectory(
+  model: FileTreeModel,
+  input: { path: PortableRelativePath }
+): void {
+  insertEntry(model, {
+    path: input.path,
+    kind: 'directory',
+    childrenLoaded: false,
+    children: [],
+    hasChildren: false,
+  });
 }
 
 export function optimisticDelete(
   context: TreeRecipeContext,
   input: { path: PortableRelativePath }
 ) {
-  context.produce('tree', (model) => {
-    removeSubtree(model as FileTreeModel, input.path);
-  });
+  context.produce('tree', (model) => reduceDelete(model as FileTreeModel, input));
   return ok<void>();
+}
+
+export function reduceDelete(model: FileTreeModel, input: { path: PortableRelativePath }): void {
+  removeSubtree(model, input.path);
 }
 
 export function optimisticRename(
   context: TreeRecipeContext,
   input: { from: PortableRelativePath; to: PortableRelativePath }
 ) {
-  context.produce('tree', (model) => {
-    relocateSubtree(model as FileTreeModel, input.from, input.to);
-  });
+  context.produce('tree', (model) => reduceRename(model as FileTreeModel, input));
   return ok<void>();
 }
 
+export function reduceRename(
+  model: FileTreeModel,
+  input: { from: PortableRelativePath; to: PortableRelativePath }
+): void {
+  relocateSubtree(model, input.from, input.to);
+}
+
 export const optimisticMove = optimisticRename;
+export const reduceMove = reduceRename;
 
 export function optimisticCopy(
   context: TreeRecipeContext,
   input: { from: PortableRelativePath; to: PortableRelativePath }
 ) {
-  context.produce('tree', (model) => {
-    copyEntry(model as FileTreeModel, input.from, input.to);
-  });
+  context.produce('tree', (model) => reduceCopy(model as FileTreeModel, input));
   return ok<void>();
+}
+
+export function reduceCopy(
+  model: FileTreeModel,
+  input: { from: PortableRelativePath; to: PortableRelativePath }
+): void {
+  copyEntry(model, input.from, input.to);
 }
 
 function insertEntry(

@@ -12,7 +12,6 @@ import type { Lease, Result, Serializable } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { bindMachineToLiveState, type MachineLiveStateBinding } from '@emdash/wire';
 import {
   compileIdlePolicy,
   createIdleSweeper,
@@ -87,7 +86,7 @@ interface SessionRecord {
   connectionLease: Lease<PooledAcpProcess>;
   cell: SessionCell;
   live: SessionLiveModels;
-  machineStateBinding: MachineLiveStateBinding;
+  machineStateBinding: { dispose(): void };
   lastSynced: {
     config?: SessionConfigState;
     usage?: SessionUsage | null;
@@ -547,11 +546,11 @@ export class SessionManager implements InboundRouter {
       callbacks,
     });
     const live = createSessionLiveModels(this.sessionHost, input.conversationId, cell.sessionState);
-    const machineStateBinding = bindMachineToLiveState({
-      machine: cell.machine,
-      liveState: live.states.state,
-      project: projectSessionState,
-    });
+    const syncMachineState = () =>
+      live.states.state.set(projectSessionState(cell.machine.current()));
+    syncMachineState();
+    const unsubscribeMachine = cell.machine.subscribe(syncMachineState);
+    const machineStateBinding = { dispose: unsubscribeMachine };
     Object.assign(record, {
       input,
       processKey: connection.key,

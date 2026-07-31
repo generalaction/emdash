@@ -51,19 +51,6 @@ export function defineOperation<TName extends string, TInput, TResult, TError>(s
    */
   describe?: (input: TInput) => string;
 
-  /**
-   * Storage lifetime (01 §durability-is-a-per-definition-property).
-   * 'durable' records survive restarts, recover at boot, and form history;
-   * 'ephemeral' records live in engine memory and vanish on crash.
-   * Default: 'durable' (the safe choice); observational definitions opt
-   * into 'ephemeral'. Invariant, validated by the completeness lint with
-   * representative inputs (claims are input-dependent): a definition whose
-   * claims include an explicit exclusive MUST be durable. Both tiers share
-   * one conflict domain — this field never affects admission or dispatch,
-   * only where the record lives.
-   */
-  durability?: 'durable' | 'ephemeral';
-
   /** Retry policy for handler failures. Default: no retries. */
   retry?: RetryPolicy; // { maxAttempts: number; backoff: BackoffSpec }
 }): OperationDefinition<TName, TInput, TResult, TError>;
@@ -144,16 +131,6 @@ key author:
   ago". Where that is not acceptable, the escape hatch is an epoch in the
   key (`git-stats:${worktreeKey}:${epoch}`), rolling the epoch when
   freshness demands it — a deliberate, visible opt-out of coalescing.
-  The read-coalescer facade mechanizes this as `minFresh`
-  ([09 §queries-fetch-through-operations](./09-querying-and-display.md#reactive-queries-fetch-through-operations)).
-- **Shared fate on durable dedupe.** Deduped submitters share one work
-  item *including its cancellation*: if the user and an automation both
-  submitted `teardown:worktree-X` and one cancels, the other's handle
-  resolves `{ kind: 'cancelled' }`. This is the correct reading of "work is
-  identified by its key" (two controllers wanting a Kubernetes object
-  deleted share the deletion's fate), not a bug to engineer around.
-  Ephemeral reads have the opposite lifetime semantics — demand, not
-  intent ([06 §cancellation](./06-execution-and-handlers.md#cancellation)).
 
 ## The record
 
@@ -214,13 +191,6 @@ Notes on the deliberate shapes:
   refreshes, never into the record.
 - `seq` comes from the store (SQLite rowid / host log counter). It is the
   total order dispatch fairness relies on; it never travels across planes.
-  The engine composes durable and ephemeral stores over **one seq
-  sequence**, so fairness ordering spans both tiers.
-- **Ephemeral records have this exact shape.** The durability tier changes
-  which store holds the record, never the record itself — same statuses,
-  same claims rows (in the memory store's index), same journal semantics.
-  One record vocabulary is what keeps admission and dispatch
-  tier-blind.
 
 ## Statuses
 
@@ -303,13 +273,6 @@ BullMQ/Kubernetes lineage:
 
 - **A parent enters `waiting-children`** when its own work is done but
   children are non-terminal. It settles when the last child settles.
-  **Only durable children gate this** — ephemeral children (spawned scans)
-  never hold a parent in `waiting-children` and never feed its propagation
-  policy. They are observation, not intent, and a crash vaporizes them; if
-  they gated settlement, a crash would settle the parent vacuously as if
-  they had succeeded. A parent that needs an ephemeral child's outcome
-  awaits it in code via `ctx.run`
-  ([06](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers)).
 - **Propagation is declared, not implied.** The parent's submission declares
   what child failure means: `fail-parent` (any child failure fails the
   parent), `tolerate` (parent succeeds with a partial outcome summary), or

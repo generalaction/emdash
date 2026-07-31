@@ -22,6 +22,20 @@ const contract = liveModel({
   },
 });
 
+const transcriptContract = liveModel({
+  key: z.void(),
+  states: {
+    transcript: liveState({
+      data: z.object({
+        turn: z.object({
+          messages: z.array(z.object({ text: z.string() })),
+        }),
+      }),
+    }),
+  },
+  mutations: {},
+});
+
 describe('state expose bridge', () => {
   it('accepts typed live models with mutations without casts', () => {
     expectTypeOf(contract).toMatchTypeOf<LiveModelDef>();
@@ -48,6 +62,31 @@ describe('state expose bridge', () => {
     await clock.advanceBy(0);
     const source = await readySource;
     expect((await source.snapshot()).data).toEqual({ count: 1 });
+
+    await lease.release();
+    await provider.dispose();
+  });
+
+  it('waits for an async state resolver before resolving an acquired live source', async () => {
+    const resolved = deferred<ReturnType<typeof cell<{ count: number }>>>();
+    const provider = expose(contract, {
+      value: () => resolved.promise,
+    });
+    const lease = provider.acquireState({ id: 'one' }, 'value');
+    let ready = false;
+    const readySource = lease.ready().then((source) => {
+      ready = true;
+      return source;
+    });
+
+    await settleAsync();
+    expect(ready).toBe(false);
+
+    const state = cell({ count: 4 });
+    resolved.resolve(state);
+    const source = await readySource;
+
+    expect((await source.snapshot()).data).toEqual({ count: 4 });
 
     await lease.release();
     await provider.dispose();
@@ -278,6 +317,39 @@ describe('state expose bridge', () => {
     await clock.advanceBy(5);
     expect(disposed).toBe(1);
 
+    await provider.dispose();
+  });
+
+  it('can publish structural diffs instead of whole-value replacements', async () => {
+    const state = cell({
+      turn: {
+        messages: [{ text: 'hello' }],
+      },
+    });
+    const provider = expose(
+      transcriptContract,
+      { transcript: state },
+      { publish: { transcript: 'diff' } }
+    );
+    const lease = provider.acquireState(undefined, 'transcript');
+    const source = await lease.ready();
+    const updates: unknown[] = [];
+    const unsubscribe = await source.subscribe((update) => updates.push(update));
+
+    state.set({
+      turn: {
+        messages: [{ text: 'hello world' }],
+      },
+    });
+    flushStateTurn();
+
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({
+      delta: [{ op: 'replace', path: ['turn', 'messages', 0, 'text'], value: 'hello world' }],
+    });
+
+    unsubscribe();
+    await lease.release();
     await provider.dispose();
   });
 });

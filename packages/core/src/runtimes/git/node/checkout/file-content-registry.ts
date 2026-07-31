@@ -1,5 +1,5 @@
-import type { PendingLease } from '@emdash/shared';
-import { ComputedLiveState, type LiveSource } from '@emdash/wire';
+import type { Scope } from '@emdash/shared/concurrency';
+import { query, type Query } from '@emdash/wire';
 import type { PortableRelativePath } from '@primitives/path/api';
 import type { BoundGitFileContentKey, GitFileContentState, GitFileSource } from '@runtimes/git/api';
 import type { GitCheckout } from './git-checkout';
@@ -15,7 +15,7 @@ export type GitFileContentRegistryOptions = Readonly<{
 
 type Entry = {
   readonly key: BoundGitFileContentKey;
-  readonly state: ComputedLiveState<GitFileContentState>;
+  readonly state: Query<GitFileContentState>;
   leases: number;
   lastUsed: number;
 };
@@ -34,7 +34,7 @@ export class GitFileContentRegistry {
     this.maxEntries = Math.max(1, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
   }
 
-  acquire(key: BoundGitFileContentKey): PendingLease<LiveSource> {
+  state(key: BoundGitFileContentKey, scope: Scope): Query<GitFileContentState> {
     this.assertActive();
     const id = JSON.stringify([key.path, key.source]);
     let entry = this.entries.get(id);
@@ -46,17 +46,8 @@ export class GitFileContentRegistry {
     entry.lastUsed = Date.now();
     this.evictIdleEntries();
 
-    let released = false;
-    return {
-      ready: () => entry.state.prepare(),
-      release: async () => {
-        if (released) return;
-        released = true;
-        entry.leases = Math.max(0, entry.leases - 1);
-        entry.lastUsed = Date.now();
-        this.evictIdleEntries();
-      },
-    };
+    scope.add(() => this.release(entry));
+    return entry.state;
   }
 
   invalidate(paths: 'all' | readonly PortableRelativePath[], reason: ContentInvalidation): void {
@@ -79,10 +70,10 @@ export class GitFileContentRegistry {
   private createEntry(key: BoundGitFileContentKey): Entry {
     return {
       key,
-      state: new ComputedLiveState({
-        compute: () => this.options.execute(() => this.options.commands.getFileContent(key)),
+      state: query({
+        fetch: async () => this.options.execute(() => this.options.commands.getFileContent(key)),
         debounceMs: CONTENT_DEBOUNCE_MS,
-        revalidateIntervalMs: isImmutableSource(key.source) ? undefined : CONTENT_REVALIDATE_MS,
+        revalidateEveryMs: isImmutableSource(key.source) ? undefined : CONTENT_REVALIDATE_MS,
         onError: (error) =>
           this.options.onError?.(`git content ${key.path} ${key.source.kind}`, error),
       }),
@@ -101,6 +92,12 @@ export class GitFileContentRegistry {
       this.entries.delete(id);
       entry.state.dispose();
     }
+  }
+
+  private release(entry: Entry): void {
+    entry.leases = Math.max(0, entry.leases - 1);
+    entry.lastUsed = Date.now();
+    this.evictIdleEntries();
   }
 
   private assertActive(): void {

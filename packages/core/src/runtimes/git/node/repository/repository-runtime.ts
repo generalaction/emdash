@@ -1,8 +1,10 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { Scope } from '@emdash/shared/concurrency';
 import {
-  createResourceLiveModelHost,
+  expose,
+  type LeasedLiveModelProvider,
   type LiveJobContext,
-  type ResourceLiveModelHost,
+  type Query,
 } from '@emdash/wire';
 import type { PortableRelativePath } from '@primitives/path/api';
 import {
@@ -11,7 +13,11 @@ import {
   type FetchJobInput,
   type FetchPrForReviewJobInput,
   type GitCommandError,
+  type GitRefsState,
+  type GitRemotesState,
+  type GitStashesState,
   type GitTransferProgress,
+  type GitWorktreesState,
   type PublishBranchJobInput,
   type RepositorySelector,
 } from '@runtimes/git/api';
@@ -20,11 +26,12 @@ import { expectedGitCommandError } from '@runtimes/git/node/api/errors';
 import type { RepositoryResource } from './repository-resource';
 
 type RepositoryModel = typeof gitRepositoryContract.model;
+type RepositoryStateName = 'refs' | 'remotes' | 'stashes' | 'worktrees';
 
 export class GitRepositoryRuntime {
-  readonly model: ResourceLiveModelHost<RepositoryModel>;
+  readonly model: LeasedLiveModelProvider<RepositoryModel>;
 
-  private readonly modelHosts = new Map<string, ResourceLiveModelHost<RepositoryModel>>();
+  private readonly modelHosts = new Map<string, LeasedLiveModelProvider<RepositoryModel>>();
 
   constructor(private readonly allocations: GitAllocationGraph) {
     this.model = this.modelHost(gitContract.repository.model);
@@ -33,33 +40,45 @@ export class GitRepositoryRuntime {
   modelHost(contract: RepositoryModel = gitContract.repository.model) {
     const existing = this.modelHosts.get(contract.id);
     if (existing) return existing;
-    const host = createResourceLiveModelHost(contract, {
-      acquire: (key) => this.allocations.acquireRepository(key),
-      states: {
-        refs: ({ resource }) => resource.state('refs'),
-        remotes: ({ resource }) => resource.state('remotes'),
-        stashes: ({ resource }) => resource.state('stashes'),
-        worktrees: ({ resource }) => resource.state('worktrees'),
+    const host = expose(
+      contract,
+      {
+        refs: (key, scope) => this.repositoryState<GitRefsState>(key, 'refs', scope),
+        remotes: (key, scope) => this.repositoryState<GitRemotesState>(key, 'remotes', scope),
+        stashes: (key, scope) => this.repositoryState<GitStashesState>(key, 'stashes', scope),
+        worktrees: (key, scope) => this.repositoryState<GitWorktreesState>(key, 'worktrees', scope),
       },
-      mutations: {
-        createBranch: (context) => context.resource.createBranch(context),
-        deleteBranch: (context) => context.resource.deleteBranch(context),
-        renameBranch: (context) => context.resource.renameBranch(context),
-        setUpstream: (context) => context.resource.setUpstream(context),
-        setBranchBase: (context) => context.resource.setBranchBase(context),
-        createTag: (context) => context.resource.createTag(context),
-        deleteTag: (context) => context.resource.deleteTag(context),
-        addRemote: (context) => context.resource.addRemote(context),
-        setRemoteUrl: (context) => context.resource.setRemoteUrl(context),
-        removeRemote: (context) => context.resource.removeRemote(context),
-        stashDrop: (context) => context.resource.stashDrop(context),
-        addWorktree: (context) => context.resource.addWorktree(context),
-        removeWorktree: (context) => context.resource.removeWorktree(context),
-        moveWorktree: (context) => context.resource.moveWorktree(context),
-        pruneWorktrees: (context) => context.resource.pruneWorktrees(context),
-      },
-      toMutationError: (_name, error) => expectedGitCommandError(error),
-    });
+      {
+        mutations: {
+          createBranch: (context) =>
+            this.run(context.key, (resource) => resource.createBranch(context)),
+          deleteBranch: (context) =>
+            this.run(context.key, (resource) => resource.deleteBranch(context)),
+          renameBranch: (context) =>
+            this.run(context.key, (resource) => resource.renameBranch(context)),
+          setUpstream: (context) =>
+            this.run(context.key, (resource) => resource.setUpstream(context)),
+          setBranchBase: (context) =>
+            this.run(context.key, (resource) => resource.setBranchBase(context)),
+          createTag: (context) => this.run(context.key, (resource) => resource.createTag(context)),
+          deleteTag: (context) => this.run(context.key, (resource) => resource.deleteTag(context)),
+          addRemote: (context) => this.run(context.key, (resource) => resource.addRemote(context)),
+          setRemoteUrl: (context) =>
+            this.run(context.key, (resource) => resource.setRemoteUrl(context)),
+          removeRemote: (context) =>
+            this.run(context.key, (resource) => resource.removeRemote(context)),
+          stashDrop: (context) => this.run(context.key, (resource) => resource.stashDrop(context)),
+          addWorktree: (context) =>
+            this.run(context.key, (resource) => resource.addWorktree(context)),
+          removeWorktree: (context) =>
+            this.run(context.key, (resource) => resource.removeWorktree(context)),
+          moveWorktree: (context) =>
+            this.run(context.key, (resource) => resource.moveWorktree(context)),
+          pruneWorktrees: (context) =>
+            this.run(context.key, (resource) => resource.pruneWorktrees(context)),
+        },
+      }
+    );
     this.modelHosts.set(contract.id, host);
     return host;
   }
@@ -127,6 +146,26 @@ export class GitRepositoryRuntime {
       selector,
       async (resource): Promise<Result<T, never>> => ok(await read(resource))
     );
+  }
+
+  private async repositoryState<T>(
+    selector: RepositorySelector,
+    name: RepositoryStateName,
+    scope: Scope
+  ): Promise<Query<T>> {
+    const lease = this.allocations.acquireRepository(selector);
+    scope.add(() => lease.release());
+    const repository = await lease.ready();
+    switch (name) {
+      case 'refs':
+        return repository.state('refs') as unknown as Query<T>;
+      case 'remotes':
+        return repository.state('remotes') as unknown as Query<T>;
+      case 'stashes':
+        return repository.state('stashes') as unknown as Query<T>;
+      case 'worktrees':
+        return repository.state('worktrees') as unknown as Query<T>;
+    }
   }
 
   private async run<T, E>(

@@ -1,5 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { ComputedLiveState, type LiveSource, type ResourceMutationContext } from '@emdash/wire';
+import { query, type ExposedMutationContext, type Query } from '@emdash/wire';
 import type { KeyedMutex } from '@primitives/lib/api';
 import type { PortableRelativePath } from '@primitives/path/api';
 import {
@@ -23,9 +23,8 @@ const REVALIDATE_INTERVAL_MS = 5 * 60_000;
 type RepositoryModel = typeof gitRepositoryContract.model;
 type RepositoryStateName = Extract<keyof RepositoryModel['states'], string>;
 type RepositoryMutationName = Extract<keyof RepositoryModel['mutations'], string>;
-type RepositoryMutationContext<Name extends RepositoryMutationName> = ResourceMutationContext<
+type RepositoryMutationContext<Name extends RepositoryMutationName> = ExposedMutationContext<
   RepositoryModel,
-  RepositoryResource,
   Name
 >;
 
@@ -44,10 +43,10 @@ export class RepositoryResource {
   private readonly commands: GitRepository;
   private readonly lane = new RepositoryFamilyLane();
   private readonly states: {
-    refs: ComputedLiveState<GitRefsState>;
-    remotes: ComputedLiveState<GitRemotesState>;
-    stashes: ComputedLiveState<GitStashesState>;
-    worktrees: ComputedLiveState<GitWorktreesState>;
+    refs: Query<GitRefsState>;
+    remotes: Query<GitRemotesState>;
+    stashes: Query<GitStashesState>;
+    worktrees: Query<GitWorktreesState>;
   };
   private readonly checkouts = new Map<CheckoutId, CheckoutResource>();
   private readonly commonDirWatch: WatchHandle;
@@ -85,8 +84,12 @@ export class RepositoryResource {
     );
   }
 
-  state(name: RepositoryStateName): Promise<LiveSource> {
-    return this.states[name].prepare();
+  state(name: 'refs'): Query<GitRefsState>;
+  state(name: 'remotes'): Query<GitRemotesState>;
+  state(name: 'stashes'): Query<GitStashesState>;
+  state(name: 'worktrees'): Query<GitWorktreesState>;
+  state(name: RepositoryStateName) {
+    return this.states[name];
   }
 
   invalidate(name: RepositoryStateName): void {
@@ -335,11 +338,11 @@ export class RepositoryResource {
     };
   }
 
-  private computed<T>(name: string, compute: () => Promise<T>): ComputedLiveState<T> {
-    return new ComputedLiveState({
-      compute: () => this.lane.run(compute),
+  private computed<T>(name: string, compute: () => Promise<T>): Query<T> {
+    return query({
+      fetch: async () => this.lane.run(compute),
       debounceMs: WATCH_DEBOUNCE_MS,
-      revalidateIntervalMs: REVALIDATE_INTERVAL_MS,
+      revalidateEveryMs: REVALIDATE_INTERVAL_MS,
       onError: (error) => this.onError(`${name} ${this.identity.gitCommonDir}`, error),
     });
   }

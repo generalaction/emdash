@@ -7,10 +7,10 @@ references — every component is a small application of the rules defined here.
 
 Three nouns carry the whole system:
 
-- An **operation** is a finite unit of work with a typed input, a typed
-  result or error, and a terminal state it always reaches. "Tear down this
-  workspace." "Prune this repo's stale worktree records." "Scan this
-  worktree's git status."
+- An **operation** is a finite, durable unit of work with a typed input, a
+  typed result or error, and a terminal state it always reaches — even across
+  process restarts. "Tear down this workspace." "Prune this repo's stale
+  worktree records." "Scan this worktree's git status."
 - A **resource** is a named thing operations act on, arranged in an ownership
   hierarchy: host → repo → worktree → branch on the host side; project → task
   on the desktop side. Resources are identity + hierarchy, nothing more — the
@@ -47,48 +47,6 @@ intent *coalesces into* whatever durable work already exists instead of
 duplicating it. The kernel gets workflow-resume semantics from durable
 identity, not from deterministic replay
 ([07 §non-goals](./07-engine-and-stores.md#non-goals)).
-
-### Durability is a per-definition property
-
-Not every operation needs to survive a restart — and pretending otherwise
-would flood the log. The tier follows from what the operation does to the
-world:
-
-- **Durable** operations record *intent to change reality*: teardown,
-  provision, prune, delete. Their records live in the plane's SQLite store,
-  survive crashes, recover at boot, and form the audit history.
-- **Ephemeral** operations record *observation in progress*: scans,
-  measures, probes. Their records live in engine memory, vanish on crash —
-  correctly, because their consumers' promises died with the process and
-  demand-driven refetch recreates whatever is still wanted — and never
-  appear in history.
-
-The enforceable invariant: **anything claiming `mutates` must be durable.**
-The definition default is durable (the safe choice); observational
-definitions opt into ephemeral
-([03 §defineOperation](./03-operations.md#defineoperation)). Because claims
-are input-dependent, the invariant is checked by the completeness lint with
-representative inputs ([07 §testing](./07-engine-and-stores.md#testing)),
-alongside the conflict-table lint.
-
-What does *not* tier is coordination. Both kinds are admitted into the
-**same conflict domain**, dispatched by the same pass, and visible in the
-same active queries — an ephemeral scan still queues a durable teardown and
-is still rejected by a pending one. Splitting reads into a separate system
-would forfeit exactly the race-class guarantees the kernel exists for; the
-tier splits *storage lifetime*, never the conflict brain
-([07 §two stores](./07-engine-and-stores.md#the-store-port)).
-
-The tier is one of three deliberate read/write asymmetries, all the same
-fact viewed from different angles — mutations are edge-triggered *intent*,
-reads are level-triggered *demand*:
-
-1. **Durability** — intent must survive; observation may evaporate.
-2. **Freshness** — coalesced reads may return slightly-stale answers under
-   a stated contract ([03 §key conventions](./03-operations.md#key-conventions-and-coalescer-contracts)).
-3. **Lifetime** — cancelling deduped intent is shared fate; deduped reads
-   are demand-counted or simply abandoned
-   ([06 §cancellation](./06-execution-and-handlers.md#cancellation)).
 
 ## 2. The two planes
 
@@ -246,10 +204,9 @@ because they have different lifetimes and different consumers:
 
 The outcome summary is the **one durably versioned shape** on this path: it
 gets a light versioned envelope, while a definition's `result` and `error`
-payloads are persisted as plain, unversioned JSON and validated through the
-definition's zod schemas at read time — small *verdicts*, not bulk data.
-The rationale, the verdict-not-payload rule, and the degradation contract
-live in [03 §the record](./03-operations.md#the-record).
+payloads stay plain zod and are delivered to the awaiting handle only. The
+rationale and the promotion path for definitions that need more live in
+[03 §the record](./03-operations.md#the-record).
 
 ## 7. Operations vs sessions
 

@@ -5,15 +5,17 @@ import { err, ok, type Result } from '@emdash/shared';
 import { createKeyedLanes, createScope, type Scope } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import {
-  createLiveModelHost,
   createLiveJobReplica,
+  cell,
+  expose,
+  fromMachine,
   LiveJobCancelledError,
   LiveJobFailedError,
+  type Cell,
+  type LeasedLiveModelProvider,
   type LiveJobContext,
-  type LiveModelHost,
-  type LiveSource,
+  type MachineStateBinding,
 } from '@emdash/wire';
-import { bindMachineToLiveState } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
 import {
@@ -31,6 +33,7 @@ import {
   type WorkspaceOperationProgress,
   type WorkspaceOperationResult,
   type WorkspaceOperationStage,
+  type WorkspaceState,
   type WorkspaceTopology,
   type WorkspaceUsage,
   workspaceContract,
@@ -78,8 +81,8 @@ import { WorkspaceTopologyObserver } from './topology-observer';
 
 type WorkspaceRuntimeRecord = {
   machine: WorkspaceMachine;
-  state: LiveSource;
-  binding: { dispose(): void };
+  state: Cell<WorkspaceState>;
+  binding: MachineStateBinding<WorkspaceState>;
   scope: Scope;
   currentOperation?: RuntimeOperation;
 };
@@ -109,8 +112,8 @@ export type WorkspaceRuntimeOptions = {
 };
 
 export class WorkspaceRuntime {
-  readonly host: LiveModelHost<typeof workspaceContract.workspace>;
-  readonly operationLogHost: LiveModelHost<typeof workspaceContract.operationLog>;
+  readonly host: LeasedLiveModelProvider<typeof workspaceContract.workspace>;
+  readonly operationLogHost: LeasedLiveModelProvider<typeof workspaceContract.operationLog>;
 
   private readonly lifecycle: WorkspaceLifecycleManager;
   private readonly provisioner: WorkspaceProvisioner;
@@ -127,11 +130,19 @@ export class WorkspaceRuntime {
   private readonly operationLogPublishLanes = createKeyedLanes();
   private readonly rehydration: Promise<void>;
   private readonly operationControllers = new Map<string, AbortController>();
+  private readonly operationLog = cell<WorkspaceOperationRecordMap>({});
 
   constructor(options: WorkspaceRuntimeOptions = {}) {
-    this.host = createLiveModelHost(workspaceContract.workspace);
-    this.operationLogHost = createLiveModelHost(workspaceContract.operationLog);
-    this.operationLogHost.create({}, { list: {} });
+    this.host = expose(workspaceContract.workspace, {
+      state: (workspace) => this.recordFor(workspace).state,
+    });
+    this.operationLogHost = expose(
+      workspaceContract.operationLog,
+      {
+        list: this.operationLog,
+      },
+      { publish: { list: 'diff' } }
+    );
     this.lifecycle = options.lifecycle ?? new WorkspaceLifecycleManager();
     this.provisioner = options.provisioner ?? new NodeWorkspaceProvisioner();
     this.terminals = options.terminals;
@@ -626,21 +637,15 @@ export class WorkspaceRuntime {
 
   dispose(): void {
     for (const record of this.records.values()) {
-      record.binding.dispose();
       void record.scope.dispose();
       record.machine.dispose();
     }
     this.records.clear();
-    this.host.dispose();
-    this.operationLogHost.dispose();
+    void this.host.dispose();
+    void this.operationLogHost.dispose();
     this.lifecycle.dispose();
     this.activity.dispose();
     void this.topologyObserver.dispose();
-  }
-
-  /** Ensures a workspace state exists so a fresh daemon can restore a live-topic attachment. */
-  resolveState(workspace: HostFileRef): LiveSource {
-    return this.recordFor(workspace).state;
   }
 
   private recordFor(workspace: HostFileRef): WorkspaceRuntimeRecord {
@@ -649,21 +654,17 @@ export class WorkspaceRuntime {
     if (existing) return existing;
 
     const machine = createWorkspaceMachine(workspace);
-    const cell =
-      this.host.get(workspace) ??
-      this.host.create(workspace, {
-        state: machine.current(),
-      });
-    const binding = bindMachineToLiveState({
+    const recordScope = this.scope.child(`workspace:${key}`);
+    const binding = fromMachine({
+      scope: recordScope,
       machine,
-      liveState: cell.states.state,
       project: (state) => state,
     });
     const record = {
       machine,
-      state: cell.states.state,
+      state: binding.state,
       binding,
-      scope: this.scope.child(`workspace:${key}`),
+      scope: recordScope,
     };
     this.records.set(key, record);
     this.topologyObserver.watch(workspace);
@@ -920,7 +921,7 @@ export class WorkspaceRuntime {
         for (const record of listed.data) {
           list[record.requestId] = record;
         }
-        this.operationLogHost.get({})?.states.list.replace(list);
+        this.operationLog.set(list);
       },
       (error) => this.onError('workspace operation log publish', error)
     );

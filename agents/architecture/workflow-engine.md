@@ -162,8 +162,8 @@ const unsubscribe = workflow.data.machine.subscribe((batch) => {
 });
 ```
 
-When a persistent live state is useful, use `bindMachineToLiveState()` from `@emdash/wire` at the
-Wire boundary and keep the workflow primitive transport-free.
+When a persistent live state is useful, adapt the machine with `fromMachine()` and publish it with
+`expose()` at the Wire boundary while keeping the workflow primitive transport-free.
 
 ## Current Consumer
 

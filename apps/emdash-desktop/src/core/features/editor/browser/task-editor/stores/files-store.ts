@@ -1,10 +1,25 @@
 import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@emdash/core/primitives/lib/api';
 import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
+import {
+  reduceCopy,
+  reduceCreateDirectory,
+  reduceCreateFile,
+  reduceDelete,
+  reduceMove,
+  reduceRename,
+} from '@emdash/core/runtimes/files/api/tree/optimistic';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
-import { createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  observe,
+  optimistic,
+  pin,
+  remote,
+  type OptimisticView,
+  type RemoteModel,
+} from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import {
@@ -28,6 +43,8 @@ import {
 import { editorContract, type EditorFileTreeModel } from '../../../api';
 
 type TreeModel = typeof editorContract.tree.model;
+type TreeRemote = RemoteModel<TreeModel>;
+type TreeRemoteMember = ReturnType<TreeRemote>;
 export type TreeMutationError =
   | FsError
   | {
@@ -49,8 +66,11 @@ type ViewData = {
 
 export class FilesStore {
   private readonly root: HostAbsolutePath;
-  private replica: LiveModelReplica<TreeModel> | null = null;
-  private optimistic: OptimisticLiveModel<TreeModel> | null = null;
+  private treeRemote: TreeRemote | null = null;
+  private treeModel: TreeRemoteMember | null = null;
+  private treeScope: Scope | null = null;
+  private optimistic: OptimisticView<EditorFileTreeModel> | null = null;
+  private treeData: EditorFileTreeModel | null = null;
   private startPromise: Promise<void> | null = null;
   private started = false;
   private syncError: string | null = null;
@@ -68,8 +88,9 @@ export class FilesStore {
     private readonly workspacePath: string
   ) {
     this.root = hostPathFromNative(workspacePath);
-    makeObservable<FilesStore, 'optimistic' | 'syncError' | 'viewData'>(this, {
+    makeObservable<FilesStore, 'optimistic' | 'treeData' | 'syncError' | 'viewData'>(this, {
       optimistic: observable.ref,
+      treeData: observable.ref,
       syncError: observable,
       viewData: computed,
       pendingPaths: computed,
@@ -119,8 +140,8 @@ export class FilesStore {
   }
 
   async resync(): Promise<void> {
-    const optimistic = await this.requireOptimistic();
-    await optimistic.refreshState('tree');
+    const model = await this.requireModel();
+    await model.states.tree.refresh();
   }
 
   dispose(): void {
@@ -167,14 +188,14 @@ export class FilesStore {
   }
 
   async registerDir(dirPath: string, force = false): Promise<void> {
-    const optimistic = await this.requireOptimistic();
+    const model = await this.requireModel();
     const absolute = this.resolveWorkspacePath(dirPath);
     if (this.pendingPathSet.has(absolute)) return;
     if (!force && this.loadedPaths.has(absolute)) return;
     runInAction(() => this.pendingPathSet.add(absolute));
     try {
-      if (force) await optimistic.refreshState('tree');
-      const invocation = await optimistic.mutations.expand({ path: this.relative(absolute) });
+      if (force) await model.states.tree.refresh();
+      const invocation = await model.mutations.expand({ path: this.relative(absolute) });
       if (invocation.result.success) await invocation.settled;
     } finally {
       runInAction(() => this.pendingPathSet.delete(absolute));
@@ -183,10 +204,10 @@ export class FilesStore {
 
   async revealFile(filePath: string): Promise<Result<string[], TreeMutationError>> {
     try {
-      const optimistic = await this.requireOptimistic();
+      const model = await this.requireModel();
       const absolute = this.resolveWorkspacePath(filePath);
       const relative = this.relative(absolute);
-      const invocation = await optimistic.mutations.reveal({ path: relative });
+      const invocation = await model.mutations.reveal({ path: relative });
       if (!invocation.result.success) {
         return invocation.result;
       }
@@ -203,36 +224,30 @@ export class FilesStore {
   }
 
   createFile(path: string): Promise<Result<void, TreeMutationError>> {
-    return this.runTreeMutation((optimistic) =>
-      optimistic.mutations.createFile({ path: this.relative(this.resolveWorkspacePath(path)) })
-    );
+    const input = { path: this.relative(this.resolveWorkspacePath(path)) };
+    return this.runTreeMutation((model) => model.mutations.createFile, input, reduceCreateFile);
   }
 
   createDirectory(path: string): Promise<Result<void, TreeMutationError>> {
-    return this.runTreeMutation((optimistic) =>
-      optimistic.mutations.createDirectory({ path: this.relative(this.resolveWorkspacePath(path)) })
+    const input = { path: this.relative(this.resolveWorkspacePath(path)) };
+    return this.runTreeMutation(
+      (model) => model.mutations.createDirectory,
+      input,
+      reduceCreateDirectory
     );
   }
 
   deleteEntry(path: string, recursive = false): Promise<Result<void, TreeMutationError>> {
-    return this.runTreeMutation((optimistic) =>
-      optimistic.mutations.delete({
-        path: this.relative(this.resolveWorkspacePath(path)),
-        recursive,
-      })
-    );
+    const input = { path: this.relative(this.resolveWorkspacePath(path)), recursive };
+    return this.runTreeMutation((model) => model.mutations.delete, input, reduceDelete);
   }
 
   rename(path: string, nextName: string): Promise<Result<void, TreeMutationError>> {
     const absolute = this.resolveWorkspacePath(path);
     const parent = parentPathFromPath(absolute) ?? this.rootPath;
     const nextPath = normalizeFileTreePath(`${parent}/${nextName}`);
-    return this.runTreeMutation((optimistic) =>
-      optimistic.mutations.rename({
-        from: this.relative(absolute),
-        to: this.relative(nextPath),
-      })
-    );
+    const input = { from: this.relative(absolute), to: this.relative(nextPath) };
+    return this.runTreeMutation((model) => model.mutations.rename, input, reduceRename);
   }
 
   move(
@@ -243,12 +258,8 @@ export class FilesStore {
     const source = this.resolveWorkspacePath(sourcePath);
     const targetDir = this.resolveWorkspacePath(targetDirPath);
     const target = normalizeFileTreePath(`${targetDir}/${newName ?? basenameFromPath(source)}`);
-    return this.runTreeMutation((optimistic) =>
-      optimistic.mutations.move({
-        from: this.relative(source),
-        to: this.relative(target),
-      })
-    );
+    const input = { from: this.relative(source), to: this.relative(target) };
+    return this.runTreeMutation((model) => model.mutations.move, input, reduceMove);
   }
 
   copy(
@@ -259,16 +270,12 @@ export class FilesStore {
     const source = this.resolveWorkspacePath(sourcePath);
     const targetDir = this.resolveWorkspacePath(targetDirPath);
     const target = normalizeFileTreePath(`${targetDir}/${newName ?? basenameFromPath(source)}`);
-    return this.runTreeMutation((optimistic) =>
-      optimistic.mutations.copy({
-        from: this.relative(source),
-        to: this.relative(target),
-      })
-    );
+    const input = { from: this.relative(source), to: this.relative(target) };
+    return this.runTreeMutation((model) => model.mutations.copy, input, reduceCopy);
   }
 
   refresh(): Promise<Result<void, TreeMutationError>> {
-    return this.runTreeMutation((optimistic) => optimistic.mutations.refresh(undefined));
+    return this.runTreeMutation((model) => model.mutations.refresh, undefined);
   }
 
   addOptimisticNodes(nodes: Array<{ path: string; type: 'file' | 'directory' }>): string[] {
@@ -316,7 +323,7 @@ export class FilesStore {
   }
 
   private get tree(): EditorFileTreeModel | null {
-    return this.optimistic?.values.tree ?? null;
+    return this.treeData;
   }
 
   private get viewData(): ViewData {
@@ -362,10 +369,10 @@ export class FilesStore {
     return this.startPromise;
   }
 
-  private async requireOptimistic(): Promise<OptimisticLiveModel<TreeModel>> {
+  private async requireModel(): Promise<TreeRemoteMember> {
     await this.ensureStarted();
-    if (!this.optimistic) throw new Error(this.syncError ?? 'File tree is unavailable');
-    return this.optimistic;
+    if (!this.treeModel) throw new Error(this.syncError ?? 'File tree is unavailable');
+    return this.treeModel;
   }
 
   private async bindRuntime(version: number): Promise<void> {
@@ -390,28 +397,52 @@ export class FilesStore {
       }
 
       const client = await getEditorClient();
-      const replica = createLiveModelReplica(editorContract.tree.model, client.tree.model);
-      const optimistic = new OptimisticLiveModel(
-        editorContract.tree.model,
-        {
-          workspaceId: this.workspaceId,
-          sessionId: this.workspaceId,
-          exclusions: this.exclusions, // already canonical
-        },
-        replica
-      );
-      await optimistic.ready;
+      const scope = createScope({ label: `files-store:${this.workspaceId}` });
+      const treeRemote = remote(editorContract.tree.model, client.tree.model, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const model = treeRemote({
+        workspaceId: this.workspaceId,
+        sessionId: this.workspaceId,
+        exclusions: this.exclusions,
+      });
+      pin(scope, [model.states.tree]);
+      const view = optimistic(model.states.tree);
+      await new Promise<void>((resolve, reject) => {
+        let resolved = false;
+        observe(
+          view,
+          (current) => {
+            runInAction(() => {
+              if (current.status === 'error') {
+                reject(current.error);
+                return;
+              }
+              if (!current.value) return;
+              this.treeData = current.value;
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            });
+          },
+          { scope }
+        );
+      });
       if (!this.started || version !== this.bindVersion) {
-        await optimistic.dispose();
-        await replica.dispose();
+        await treeRemote.dispose();
+        await scope.dispose();
         return;
       }
       runInAction(() => {
-        this.replica = replica;
-        this.optimistic = optimistic;
+        this.treeScope = scope;
+        this.treeRemote = treeRemote;
+        this.treeModel = model;
+        this.optimistic = view;
         this.syncError = null;
       });
-      const expanded = await optimistic.mutations.expand({ path: portablePath('') });
+      const expanded = await model.mutations.expand({ path: portablePath('') });
       if (expanded.result.success) await expanded.settled;
       else this.setError(expanded.result.error);
     } catch (error) {
@@ -422,18 +453,26 @@ export class FilesStore {
     }
   }
 
-  private async runTreeMutation(
-    run: (optimistic: OptimisticLiveModel<TreeModel>) => Promise<{
+  private async runTreeMutation<Input>(
+    mutation: (model: TreeRemoteMember) => (
+      input: Input,
+      options?: { mutationId?: string }
+    ) => Promise<{
       result: Result<unknown, TreeMutationError>;
       settled: Promise<void>;
-    }>
+    }>,
+    input: Input,
+    recipe?: (draft: EditorFileTreeModel, input: Input) => void
   ): Promise<Result<void, TreeMutationError>> {
     try {
-      const optimistic = await this.requireOptimistic();
-      const invocation = await run(optimistic);
-      if (!invocation.result.success) {
-        return invocation.result;
+      const model = await this.requireModel();
+      const run = mutation(model);
+      if (recipe && this.optimistic) {
+        const result = await this.optimistic.run(run, input, recipe);
+        return result.success ? ok<void>() : result;
       }
+      const invocation = await run(input);
+      if (!invocation.result.success) return invocation.result;
       await invocation.settled;
       return ok<void>();
     } catch (error) {
@@ -470,19 +509,22 @@ export class FilesStore {
   }
 
   private disposeRuntime(): void {
-    const optimistic = this.optimistic;
-    const replica = this.replica;
+    const remote = this.treeRemote;
+    const scope = this.treeScope;
     runInAction(() => {
       this.optimistic = null;
-      this.replica = null;
+      this.treeData = null;
+      this.treeModel = null;
+      this.treeRemote = null;
+      this.treeScope = null;
       this.syncError = null;
       this.startPromise = null;
     });
     void (async () => {
       try {
-        await optimistic?.dispose();
+        await remote?.dispose();
       } finally {
-        await replica?.dispose();
+        await scope?.dispose();
       }
     })();
   }

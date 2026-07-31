@@ -1,6 +1,14 @@
 import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { type GitFileContentState, type GitFileSource } from '@emdash/core/runtimes/git/api';
-import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  observe,
+  pin,
+  remote,
+  snapshot,
+  type Readable,
+  type RemoteModel,
+} from '@emdash/wire/state';
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
@@ -40,7 +48,7 @@ interface DiskModelEntry {
   workspaceId: string;
   filePath: string;
   language: string;
-  content: ReplicaInstance<FilesContentModel>;
+  content: FilesContentMember;
   releaseContent: () => Promise<void>;
   unsubscribeContent: () => void;
 }
@@ -65,6 +73,17 @@ export type ModelStatus = 'loading' | 'ready' | 'error' | 'too-large';
 
 type FilesContentModel = typeof editorContract.content;
 type GitContentModel = typeof sourceControlContract.checkout.content;
+type FilesContentRemote = RemoteModel<FilesContentModel>;
+type FilesContentMember = ReturnType<FilesContentRemote>;
+type GitContentRemote = RemoteModel<GitContentModel>;
+type FilesContentRemoteBinding = {
+  remote: FilesContentRemote;
+  scope: Scope;
+};
+type GitContentRemoteBinding = {
+  remote: GitContentRemote;
+  scope: Scope;
+};
 
 type WorkspaceRoot = {
   projectId: string;
@@ -105,8 +124,8 @@ export class MonacoModelRegistry {
   /** Local runtime roots supplied by WorkspaceStore; Monaco URI roots are not filesystem paths. */
   private workspaceRoots = new Map<string, WorkspaceRoot>();
 
-  private filesContentReplicaPromise: Promise<LiveModelReplica<FilesContentModel>> | null = null;
-  private gitContentReplicaPromise: Promise<LiveModelReplica<GitContentModel>> | null = null;
+  private filesContentRemotePromise: Promise<FilesContentRemoteBinding> | null = null;
+  private gitContentRemotePromise: Promise<GitContentRemoteBinding> | null = null;
 
   /**
    * Diff editor view states keyed by `${originalUri}::${modifiedUri}`.
@@ -291,32 +310,33 @@ export class MonacoModelRegistry {
 
     this.modelStatus.set(diskUri, 'loading');
     const key = this.runtimePath(projectId, workspaceId, filePath);
-    const replica = await this.getFilesContentReplica();
-    const lease = replica.acquire(key);
-    let contentModel: ReplicaInstance<FilesContentModel>;
+    const binding = await this.getFilesContentRemote();
+    const contentScope = binding.scope.child(`disk:${diskUri}`);
+    const contentModel = binding.remote(key);
+    pin(contentScope, [contentModel.states.content]);
+    let content: EditorFileContentModel;
     try {
-      contentModel = await lease.ready();
+      content = await waitForRemoteValue(contentModel.states.content, contentScope);
     } catch (err) {
-      await lease.release();
+      await contentScope.dispose();
       this.modelStatus.set(diskUri, 'error');
       throw err;
     }
 
-    const content = contentModel.states.content.current();
     if (content.kind === 'unavailable') {
-      await lease.release();
+      await contentScope.dispose();
       this.modelStatus.set(diskUri, 'error');
       throw new Error(
         `registerModel(disk): content unavailable for ${filePath}: ${JSON.stringify(content.error)}`
       );
     }
     if (content.kind === 'binary') {
-      await lease.release();
+      await contentScope.dispose();
       this.modelStatus.set(diskUri, 'error');
       throw new Error(`registerModel(disk): binary content for ${filePath}`);
     }
     if (content.truncated) {
-      await lease.release();
+      await contentScope.dispose();
       runInAction(() => {
         this.modelStatus.set(diskUri, 'too-large');
         this.modelTotalSizes.set(diskUri, content.byteSize);
@@ -338,14 +358,20 @@ export class MonacoModelRegistry {
       filePath,
       language,
       content: contentModel,
-      releaseContent: () => lease.release(),
+      releaseContent: () => contentScope.dispose(),
       unsubscribeContent: () => {},
     };
     this.modelMap.set(diskUri, entry);
-    entry.unsubscribeContent = contentModel.states.content.onChange((value) => {
-      const current = this.modelMap.get(diskUri);
-      if (current?.type === 'disk') this.applyDiskUpdate(diskUri, current, value);
-    });
+    observe(
+      contentModel.states.content,
+      (snapshot) => {
+        if (!snapshot.value) return;
+        const current = this.modelMap.get(diskUri);
+        if (current?.type === 'disk') this.applyDiskUpdate(diskUri, current, snapshot.value);
+      },
+      { scope: contentScope }
+    );
+    entry.unsubscribeContent = () => {};
 
     this.modelStatus.set(diskUri, 'ready');
 
@@ -375,23 +401,24 @@ export class MonacoModelRegistry {
 
     this.modelStatus.set(gitUri, 'loading');
     const path = this.runtimePath(projectId, workspaceId, filePath);
-    const replica = await this.getGitContentReplica();
-    const lease = replica.acquire({
+    const binding = await this.getGitContentRemote();
+    const contentScope = binding.scope.child(`git:${gitUri}`);
+    const contentModel = binding.remote({
       workspaceId,
       path: path.relative,
       source: this.gitSource(ref),
     });
-    let contentModel: ReplicaInstance<GitContentModel>;
+    pin(contentScope, [contentModel.states.content]);
+    let content: GitFileContentState;
     try {
-      contentModel = await lease.ready();
+      content = await waitForRemoteValue(contentModel.states.content, contentScope);
     } catch (error) {
-      await lease.release();
+      await contentScope.dispose();
       this.modelStatus.set(gitUri, 'error');
       throw error;
     }
-    const content = contentModel.states.content.current();
     if (content.kind === 'unavailable') {
-      await lease.release();
+      await contentScope.dispose();
       this.modelStatus.set(gitUri, 'error');
       throw new Error(
         `registerModel(git): content unavailable for ${filePath}: ${JSON.stringify(content.error)}`
@@ -411,20 +438,26 @@ export class MonacoModelRegistry {
       filePath,
       language,
       ref,
-      releaseContent: () => lease.release(),
+      releaseContent: () => contentScope.dispose(),
       unsubscribeContent: () => {},
     };
     this.modelMap.set(gitUri, entry);
-    entry.unsubscribeContent = contentModel.states.content.onChange((value) => {
-      const current = this.modelMap.get(gitUri);
-      if (current?.type !== 'git') return;
-      if (value.kind === 'unavailable') {
-        this.modelStatus.set(gitUri, 'error');
-        return;
-      }
-      current.model.setValue(this.gitContentText(value));
-      this.modelStatus.set(gitUri, 'ready');
-    });
+    observe(
+      contentModel.states.content,
+      (snapshot) => {
+        if (!snapshot.value) return;
+        const current = this.modelMap.get(gitUri);
+        if (current?.type !== 'git') return;
+        if (snapshot.value.kind === 'unavailable') {
+          this.modelStatus.set(gitUri, 'error');
+          return;
+        }
+        current.model.setValue(this.gitContentText(snapshot.value));
+        this.modelStatus.set(gitUri, 'ready');
+      },
+      { scope: contentScope }
+    );
+    entry.unsubscribeContent = () => {};
 
     this.modelStatus.set(gitUri, 'ready');
 
@@ -654,13 +687,19 @@ export class MonacoModelRegistry {
     this.modelMap.clear();
     await Promise.all(releases);
 
-    const filesReplica = this.filesContentReplicaPromise;
-    const gitReplica = this.gitContentReplicaPromise;
-    this.filesContentReplicaPromise = null;
-    this.gitContentReplicaPromise = null;
+    const filesRemote = this.filesContentRemotePromise;
+    const gitRemote = this.gitContentRemotePromise;
+    this.filesContentRemotePromise = null;
+    this.gitContentRemotePromise = null;
     await Promise.all([
-      filesReplica?.then((replica) => replica.dispose()),
-      gitReplica?.then((replica) => replica.dispose()),
+      filesRemote?.then(async ({ remote, scope }) => {
+        await remote.dispose();
+        await scope.dispose();
+      }),
+      gitRemote?.then(async ({ remote, scope }) => {
+        await remote.dispose();
+        await scope.dispose();
+      }),
     ]);
   }
 
@@ -1005,18 +1044,29 @@ export class MonacoModelRegistry {
   // Runtime bindings
   // ---------------------------------------------------------------------------
 
-  private async getFilesContentReplica(): Promise<LiveModelReplica<FilesContentModel>> {
-    this.filesContentReplicaPromise ??= getEditorClient().then((client) =>
-      createLiveModelReplica(editorContract.content, client.content)
-    );
-    return this.filesContentReplicaPromise;
+  private async getFilesContentRemote(): Promise<FilesContentRemoteBinding> {
+    this.filesContentRemotePromise ??= getEditorClient().then((client) => {
+      const scope = createScope({ label: 'monaco-files-content' });
+      return {
+        remote: remote(editorContract.content, client.content, { scope, lingerMs: 15_000 }),
+        scope,
+      };
+    });
+    return this.filesContentRemotePromise;
   }
 
-  private async getGitContentReplica(): Promise<LiveModelReplica<GitContentModel>> {
-    this.gitContentReplicaPromise ??= getSourceControlClient().then((client) =>
-      createLiveModelReplica(sourceControlContract.checkout.content, client.checkout.content)
-    );
-    return this.gitContentReplicaPromise;
+  private async getGitContentRemote(): Promise<GitContentRemoteBinding> {
+    this.gitContentRemotePromise ??= getSourceControlClient().then((client) => {
+      const scope = createScope({ label: 'monaco-git-content' });
+      return {
+        remote: remote(sourceControlContract.checkout.content, client.checkout.content, {
+          scope,
+          lingerMs: 15_000,
+        }),
+        scope,
+      };
+    });
+    return this.gitContentRemotePromise;
   }
 
   private runtimePath(
@@ -1046,7 +1096,8 @@ export class MonacoModelRegistry {
 
   private diskEtag(entry: ModelEntry | undefined): string | undefined {
     if (entry?.type !== 'disk') return undefined;
-    const content = entry.content.states.content.current();
+    const content = snapshot(entry.content.states.content).value;
+    if (!content) return undefined;
     return content.kind === 'text' ? content.etag : undefined;
   }
 
@@ -1105,6 +1156,22 @@ export class MonacoModelRegistry {
       this.pendingConflicts.add(bufferUri);
     }
   }
+}
+
+function waitForRemoteValue<T>(source: Readable<T | undefined>, scope: Scope): Promise<T> {
+  return new Promise((resolve, reject) => {
+    observe(
+      source,
+      (current) => {
+        if (current.status === 'error') {
+          reject(current.error);
+          return;
+        }
+        if (current.value !== undefined) resolve(current.value);
+      },
+      { scope }
+    );
+  });
 }
 
 export const modelRegistry = new MonacoModelRegistry();

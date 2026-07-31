@@ -6,8 +6,8 @@ import {
   type GitChangeStatus,
 } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
-import { createLiveModelReplica, type LiveModelReplica, type ReplicaInstance } from '@emdash/wire';
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { editorFilePath } from '@core/features/editor/api/browser/files';
@@ -23,14 +23,18 @@ import { sourceControlContract } from '../../api';
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 const MAX_UNTRACKED_STAT_BYTES = 2 * 1024 * 1024;
 type CheckoutModel = typeof sourceControlContract.checkout.model;
+type CheckoutRemote = RemoteModel<CheckoutModel>;
+type CheckoutRemoteMember = ReturnType<CheckoutRemote>;
 
 export class GitCheckoutStore {
-  private replica: LiveModelReplica<CheckoutModel> | null = null;
-  private model: ReplicaInstance<CheckoutModel> | null = null;
-  private releaseModel: (() => Promise<void>) | null = null;
+  private remote: CheckoutRemote | null = null;
+  private model: CheckoutRemoteMember | null = null;
+  private remoteScope: Scope | null = null;
   private startPromise: Promise<void> | null = null;
   private started = false;
   private syncError: string | null = null;
+  private statusData: CheckoutStatusState | null = null;
+  private headData: CheckoutHeadState | null = null;
   private changesRequest = 0;
   private stagedChanges: GitChange[] = [];
   private unstagedChanges: GitChange[] = [];
@@ -43,10 +47,18 @@ export class GitCheckoutStore {
   ) {
     makeObservable<
       GitCheckoutStore,
-      'model' | 'syncError' | 'stagedChanges' | 'unstagedChanges' | 'revision'
+      | 'model'
+      | 'syncError'
+      | 'statusData'
+      | 'headData'
+      | 'stagedChanges'
+      | 'unstagedChanges'
+      | 'revision'
     >(this, {
       model: observable.ref,
       syncError: observable,
+      statusData: observable.ref,
+      headData: observable.ref,
       stagedChanges: observable.ref,
       unstagedChanges: observable.ref,
       revision: observable,
@@ -85,21 +97,23 @@ export class GitCheckoutStore {
 
   async retry(): Promise<void> {
     this.changesRequest += 1;
-    const release = this.releaseModel;
-    const replica = this.replica;
+    const scope = this.remoteScope;
+    const remote = this.remote;
     runInAction(() => {
-      this.releaseModel = null;
-      this.replica = null;
+      this.remoteScope = null;
+      this.remote = null;
       this.model = null;
       this.startPromise = null;
       this.syncError = null;
+      this.statusData = null;
+      this.headData = null;
       this.stagedChanges = [];
       this.unstagedChanges = [];
     });
     try {
-      await release?.();
+      await remote?.dispose();
     } finally {
-      await replica?.dispose();
+      await scope?.dispose();
     }
     if (this.started) await this.ensureStarted();
   }
@@ -107,16 +121,18 @@ export class GitCheckoutStore {
   dispose(): void {
     this.started = false;
     this.changesRequest += 1;
-    const release = this.releaseModel;
-    const replica = this.replica;
-    this.releaseModel = null;
-    this.replica = null;
+    const scope = this.remoteScope;
+    const remote = this.remote;
+    this.remoteScope = null;
+    this.remote = null;
     this.model = null;
+    this.statusData = null;
+    this.headData = null;
     void (async () => {
       try {
-        await release?.();
+        await remote?.dispose();
       } finally {
-        await replica?.dispose();
+        await scope?.dispose();
       }
     })();
   }
@@ -265,11 +281,11 @@ export class GitCheckoutStore {
   }
 
   private get status(): CheckoutStatusState | null {
-    return this.model?.states.status.current() ?? null;
+    return this.statusData;
   }
 
   private get head(): CheckoutHeadState | null {
-    return this.model?.states.head.current() ?? null;
+    return this.headData;
   }
 
   private ensureStarted(): Promise<void> {
@@ -277,53 +293,46 @@ export class GitCheckoutStore {
     return this.startPromise;
   }
 
-  private async requireModel(): Promise<ReplicaInstance<CheckoutModel>> {
+  private async requireModel(): Promise<CheckoutRemoteMember> {
     await this.ensureStarted();
     if (!this.model) throw new Error(this.syncError ?? 'Git checkout is unavailable');
     return this.model;
   }
 
   private async bindRuntime(): Promise<void> {
+    const scope = createScope({ label: `git-checkout-store:${this.workspaceId}` });
     try {
       const client = await getSourceControlClient();
-      const replica = createLiveModelReplica(
-        sourceControlContract.checkout.model,
-        client.checkout.model,
-        {
-          stores: {
-            status: createImmutableMobxStore,
-            head: createImmutableMobxStore,
-          },
-          onChange: {
-            status: () => {
-              runInAction(() => {
-                this.revision += 1;
-              });
-              void this.refreshChanges();
-            },
-            head: () => {
-              runInAction(() => {
-                this.revision += 1;
-              });
-            },
-          },
-        }
-      );
-      const lease = replica.acquire(checkoutSelector(this.workspaceId));
-      const model = await lease.ready();
+      const checkoutRemote = remote(sourceControlContract.checkout.model, client.checkout.model, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const model = checkoutRemote(checkoutSelector(this.workspaceId));
+      pin(scope, Object.values(model.states));
+      await waitForCheckoutModel(model, scope, {
+        setStatus: (status) => {
+          this.statusData = status;
+          this.revision += 1;
+          void this.refreshChanges();
+        },
+        setHead: (head) => {
+          this.headData = head;
+          this.revision += 1;
+        },
+      });
       if (!this.started) {
-        await lease.release();
-        await replica.dispose();
+        await checkoutRemote.dispose();
+        await scope.dispose();
         return;
       }
       runInAction(() => {
-        this.replica = replica;
-        this.releaseModel = () => lease.release();
+        this.remote = checkoutRemote;
+        this.remoteScope = scope;
         this.model = model;
         this.syncError = null;
       });
-      await this.refreshChanges();
     } catch (error) {
+      await scope.dispose();
       runInAction(() => {
         this.syncError = error instanceof Error ? error.message : String(error);
       });
@@ -394,6 +403,59 @@ function completeChanges(
     });
   }
   return [...byPath.values()];
+}
+
+function waitForCheckoutModel(
+  model: CheckoutRemoteMember,
+  scope: Scope,
+  handlers: {
+    setStatus(status: CheckoutStatusState): void;
+    setHead(head: CheckoutHeadState): void;
+  }
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    let hasStatus = false;
+    let hasHead = false;
+    const publishReady = () => {
+      if (!hasStatus || !hasHead || resolved) return;
+      resolved = true;
+      resolve();
+    };
+
+    observe(
+      model.states.status,
+      (current) => {
+        runInAction(() => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          handlers.setStatus(current.value);
+          hasStatus = true;
+          publishReady();
+        });
+      },
+      { scope }
+    );
+    observe(
+      model.states.head,
+      (current) => {
+        runInAction(() => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          handlers.setHead(current.value);
+          hasHead = true;
+          publishReady();
+        });
+      },
+      { scope }
+    );
+  });
 }
 
 function changeStatus(entry: FileGitStatus): GitChangeStatus {

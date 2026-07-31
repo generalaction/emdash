@@ -3,12 +3,15 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import {
-  bindMachineToLiveState,
-  createLiveModelHost,
+  cell,
+  expose,
+  family,
   LiveLog,
+  peek,
   type LiveJobContext,
-  type LiveModelHost,
+  type LeasedLiveModelProvider,
   type LiveSource,
+  type Cell,
 } from '@emdash/wire';
 import type { IExecutionContext } from '@primitives/exec/api';
 import {
@@ -75,15 +78,9 @@ const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const OUTPUT_TAIL_CAP = 16 * 1024;
 
-type WorkflowCell = ReturnType<
-  LiveModelHost<typeof terminalsContract.workflows>['create']
->['states']['state'];
-type SessionsCell = ReturnType<
-  LiveModelHost<typeof terminalsContract.sessions>['create']
->['states']['list'];
-type DevServersCell = ReturnType<
-  LiveModelHost<typeof terminalsContract.devServers>['create']
->['states']['list'];
+type WorkflowCell = Cell<ScriptWorkflowState | null>;
+type SessionsCell = Cell<Record<string, TerminalSessionState>>;
+type DevServersCell = Cell<Record<string, TerminalDevServer>>;
 
 type ActiveWorkflow = {
   scopeKey: string;
@@ -135,9 +132,31 @@ export type TerminalsRuntimeLifecycleOptions = {
 };
 
 export class TerminalsRuntime {
-  readonly workflowsHost = createLiveModelHost(terminalsContract.workflows);
-  readonly sessionsHost = createLiveModelHost(terminalsContract.sessions);
-  readonly devServersHost = createLiveModelHost(terminalsContract.devServers);
+  private readonly workflowStates = family<{ workspace: HostFileRef }, WorkflowCell>(
+    () => cell<ScriptWorkflowState | null>(null),
+    { name: 'terminal-workflow-states' }
+  );
+  private readonly sessionsList: SessionsCell = cell({});
+  private readonly devServersList: DevServersCell = cell({});
+  readonly workflowsHost: LeasedLiveModelProvider<typeof terminalsContract.workflows> = expose(
+    terminalsContract.workflows,
+    {
+      state: (key, scope) => {
+        scope.add(this.workflowStates.retain(key));
+        return this.workflowStates(key);
+      },
+    }
+  );
+  readonly sessionsHost: LeasedLiveModelProvider<typeof terminalsContract.sessions> = expose(
+    terminalsContract.sessions,
+    { list: this.sessionsList },
+    { publish: { list: 'diff' } }
+  );
+  readonly devServersHost: LeasedLiveModelProvider<typeof terminalsContract.devServers> = expose(
+    terminalsContract.devServers,
+    { list: this.devServersList },
+    { publish: { list: 'diff' } }
+  );
 
   private readonly registry: PtyRegistry;
   private readonly exec: IExecutionContext | undefined;
@@ -153,8 +172,6 @@ export class TerminalsRuntime {
   private readonly idleSweeper: IdleSweeper;
   private readonly logs = new Map<string, LiveLog>();
   private readonly activity = new Map<string, IoActivityTracker>();
-  private readonly sessionsList: SessionsCell;
-  private readonly devServersList: DevServersCell;
   private readonly activeWorkflows = new Map<string, ActiveWorkflow>();
   private readonly workflowBindings = new Map<string, { sync(): void; dispose(): void }>();
   private readonly workflowRuns = new Map<string, WorkflowRunContext>();
@@ -182,13 +199,11 @@ export class TerminalsRuntime {
       options.lifecycle?.backgroundScript ?? { kind: 'always' }
     );
     this.completableScriptIdlePolicy = compileIdlePolicy({ kind: 'until-complete' });
-    this.sessionsList = this.sessionsHost.create(undefined, { list: {} }).states.list;
-    this.devServersList = this.devServersHost.create(undefined, { list: {} }).states.list;
     this.idleSweeper = createIdleSweeper<string>({
       ...(this.clock ? { clock: this.clock } : {}),
       scope: this.scope,
       intervalMs: options.lifecycle?.sweepIntervalMs ?? 60_000,
-      entries: () => Object.keys(this.sessionsList.snapshot().data),
+      entries: () => Object.keys(peek(this.sessionsList)),
       snapshot: (sessionKey) => this.lifecycleSnapshot(sessionKey),
       policy: (sessionKey) => this.policyForSession(sessionKey),
       deactivate: async (sessionKey) => {
@@ -298,11 +313,13 @@ export class TerminalsRuntime {
     if (!this.registry.resize(sessionKey, cols, rows)) {
       return err({ type: 'not-found', message: `Terminal session '${key.id}' is not running` });
     }
-    this.sessionsList.produce((draft) => {
-      const session = draft[sessionKey];
-      if (!session) return;
-      session.cols = cols;
-      session.rows = rows;
+    this.sessionsList.update((previous) => {
+      const session = previous[sessionKey];
+      if (!session) return previous;
+      return {
+        ...previous,
+        [sessionKey]: { ...session, cols, rows },
+      };
     });
     return ok(undefined);
   }
@@ -337,7 +354,7 @@ export class TerminalsRuntime {
 
   async killScope(workspace: HostFileRef): Promise<Result<void, TerminalError>> {
     const prefix = `${scopeKeyFor(workspace)}:`;
-    for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
+    for (const [key] of Object.entries(peek(this.sessionsList))) {
       if (!key.startsWith(prefix)) continue;
       this.registry.kill(key);
       this.closePreviewSource(key);
@@ -348,7 +365,7 @@ export class TerminalsRuntime {
 
   detachScope(workspace: HostFileRef): Result<void, TerminalError> {
     const prefix = `${scopeKeyFor(workspace)}:`;
-    for (const [key] of Object.entries(this.sessionsList.snapshot().data)) {
+    for (const [key] of Object.entries(peek(this.sessionsList))) {
       if (!key.startsWith(prefix)) continue;
       this.registry.kill(key);
       this.closePreviewSource(key);
@@ -365,9 +382,10 @@ export class TerminalsRuntime {
     this.logs.clear();
     for (const source of this.previewSources.values()) source.dispose();
     this.previewSources.clear();
-    this.workflowsHost.dispose();
-    this.sessionsHost.dispose();
-    this.devServersHost.dispose();
+    void this.workflowsHost.dispose();
+    void this.sessionsHost.dispose();
+    void this.devServersHost.dispose();
+    void this.workflowStates.dispose();
   }
 
   private async spawnInteractiveTerminal(
@@ -609,13 +627,14 @@ export class TerminalsRuntime {
   }
 
   private bindWorkflow(workspace: HostFileRef, workflow: Workflow, run: WorkflowRunContext): void {
-    const state = workflowStateFor(this.ensureWorkflowCell(workspace), workflow, run);
-    this.ensureWorkflowCell(workspace).replace(state);
-    const binding = bindMachineToLiveState({
-      machine: workflow.machine,
-      liveState: this.ensureWorkflowCell(workspace),
-      project: (workflowState) => projectWorkflowState(workflowState, run),
-    });
+    const workflowCell = this.ensureWorkflowCell(workspace);
+    const sync = () => workflowCell.set(projectWorkflowState(workflow.machine.current(), run));
+    sync();
+    const unsubscribe = workflow.machine.subscribe(() => sync());
+    const binding = {
+      sync,
+      dispose: unsubscribe,
+    };
     this.workflowBindings.set(run.workflowId, binding);
   }
 
@@ -625,10 +644,7 @@ export class TerminalsRuntime {
 
   private ensureWorkflowCell(workspace: HostFileRef): WorkflowCell {
     const key = { workspace };
-    return (
-      this.workflowsHost.get(key)?.states.state ??
-      this.workflowsHost.create(key, { state: null }).states.state
-    );
+    return this.workflowStates(key);
   }
 
   private publishFailedWorkflow(
@@ -637,7 +653,7 @@ export class TerminalsRuntime {
     error: TerminalError
   ): void {
     run.finishedAt = this.now();
-    this.ensureWorkflowCell(input.workspace).replace({
+    this.ensureWorkflowCell(input.workspace).set({
       workflowId: run.workflowId,
       kind: input.kind,
       phase: 'failed',
@@ -671,20 +687,24 @@ export class TerminalsRuntime {
   }
 
   private syncSession(key: string, session: PtySession | null): void {
-    this.sessionsList.produce((draft) => {
+    this.sessionsList.update((previous) => {
       if (!session) {
         this.closePreviewSource(key);
-        const existing = draft[key];
-        if (existing) {
-          existing.status = 'exited';
-          existing.exitedAt = existing.exitedAt ?? this.now();
-        }
-        return;
+        const existing = previous[key];
+        if (!existing) return previous;
+        return {
+          ...previous,
+          [key]: {
+            ...existing,
+            status: 'exited',
+            exitedAt: existing.exitedAt ?? this.now(),
+          },
+        };
       }
       const terminalKey = this.sessionKeys.get(key);
-      if (!terminalKey) return;
+      if (!terminalKey) return previous;
       const exit = session.exitStatus ?? undefined;
-      const existing = draft[key];
+      const existing = previous[key];
       const activity = this.activity.get(key)?.snapshot();
       const state: TerminalSessionState = {
         key: terminalKey,
@@ -707,7 +727,10 @@ export class TerminalsRuntime {
               }
             : undefined,
       };
-      draft[key] = state;
+      return {
+        ...previous,
+        [key]: state,
+      };
     });
   }
 
@@ -721,7 +744,7 @@ export class TerminalsRuntime {
   }
 
   private lifecycleSnapshot(sessionKey: string): IoActivitySnapshot | null {
-    const session = this.sessionsList.snapshot().data[sessionKey];
+    const session = peek(this.sessionsList)[sessionKey];
     if (!session || session.status !== 'running') return null;
     return {
       running: session.status === 'running',
@@ -798,38 +821,23 @@ export class TerminalsRuntime {
       urlPath: server.urlPath,
       detectedAt: this.now(),
     };
-    this.devServersList.produce((draft) => {
-      draft[id] = record;
-    });
+    this.devServersList.update((previous) => ({
+      ...previous,
+      [id]: record,
+    }));
   }
 
   private removeDevServer(sessionKey: string, server: DetectedPreviewUrl): void {
     const id = devServerKeyFor(sessionKey, server);
-    this.devServersList.produce((draft) => {
-      delete draft[id];
-    });
+    this.devServersList.update((previous) => omitKey(previous, id));
   }
 
   private pruneDevServersForSession(sessionKey: string): void {
     const prefix = `${sessionKey}:`;
-    this.devServersList.produce((draft) => {
-      for (const id of Object.keys(draft)) {
-        if (id.startsWith(prefix)) delete draft[id];
-      }
-    });
+    this.devServersList.update((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(prefix)))
+    );
   }
-}
-
-function workflowStateFor(
-  cell: WorkflowCell,
-  workflow: Workflow,
-  run: WorkflowRunContext
-): ScriptWorkflowState {
-  const current = cell.snapshot().data;
-  return projectWorkflowState(workflow.machine.current(), {
-    ...run,
-    finishedAt: current?.finishedAt ?? run.finishedAt,
-  });
 }
 
 function projectWorkflowState(state: WorkflowState, run: WorkflowRunContext): ScriptWorkflowState {
@@ -905,6 +913,12 @@ function sessionKeyFor(key: TerminalKey): string {
 
 function devServerKeyFor(sessionKey: string, server: DetectedPreviewUrl): string {
   return `${sessionKey}:${server.protocol}:${server.port}`;
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const { [key]: _removed, ...rest } = record;
+  return rest;
 }
 
 function exitWithoutTail(exit: TerminalExit | undefined): TerminalSessionState['exit'] {
