@@ -40,6 +40,7 @@ export class FileTreeRuntime {
           copy: (context) => this.run(context.key, (resource) => resource.copy(context)),
           refresh: (context) => this.run(context.key, (resource) => resource.refresh(context)),
         },
+        publish: { tree: 'diff' },
       }
     );
     this.hosts.set(contract.id, host);

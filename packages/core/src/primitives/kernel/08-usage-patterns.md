@@ -190,6 +190,107 @@ What it does not give you: execution-time atomicity. Children settle
 independently; a failed teardown leaves a failed row to retry or dismiss,
 never an automatic un-delete of the project.
 
+## The compiled command
+
+*Turning a user command into the batch above.* The batch does not spring
+from UI code assembling members inline; each user command gets a **command
+compiler** — one pure function per command that turns intent plus an
+entity snapshot into a plan value:
+
+```ts
+// workspaces/operations/commands.ts — pure, colocated with the definitions
+export interface OperationPlan {
+  members: BatchMember[];   // exactly the submitBatch argument
+  options: BatchOptions;    // initiator, propagation
+}
+
+export function compileDeleteProject(
+  cmd: { projectId: string },
+  snapshot: { project: ProjectRow; workspaces: WorkspaceRow[] }
+): OperationPlan {
+  return {
+    members: [
+      { definition: deleteProject, input: { projectId: cmd.projectId } },
+      ...snapshot.workspaces.map((wt) => ({
+        definition: teardownWorkspace,
+        input: teardownInputFor(wt),
+        parent: 0,
+        adoptExisting: true,
+      })),
+    ],
+    options: {
+      initiator: { kind: 'user', action: 'delete-project' },
+      propagation: 'tolerate',
+    },
+  };
+}
+```
+
+The load-bearing decisions:
+
+- **The plan is the batch — there is no plan entity.** The compiled value
+  becomes records at admission, and the records (via `parentId`) *are* the
+  durable form of the plan. Terraform's plan/apply split, with the
+  operation log itself as the state file. Never store a plan table.
+- **Pure over a snapshot, guarded at execution.** The compiler takes
+  observed state as an argument — no IO — so it unit-tests with literal
+  snapshots. Staleness is fine by construction: if a workspace vanished
+  between snapshot and execution, the teardown's physical guard returns
+  "already gone" as success ([01 §4](./01-concepts.md#4-claims-are-advisory-handlers-hold-the-guard)).
+  The compiler does not need to be right; the handlers need to be honest.
+- **Compilation feeds the outbox transaction.** The desktop command handler
+  runs the compiler, then commits the entity mutation and `submitBatch` in
+  one transaction ([04 §where admission runs](./04-admission-and-conflicts.md#where-admission-runs-per-plane)).
+  Compilation stays pure; the transaction is the only effectful line.
+- **Deterministic keys make compilation idempotent.** Each member's key
+  derives from its resource, so re-running the same command coalesces into
+  the same records via dedupe and adoption — a double-submitted command is
+  free, not duplicated.
+- **Compilation is what makes preview possible.** Because the plan exists
+  as data before admission, the confirmation UI renders it with the same
+  tree components that later render the live records
+  ([09 §preview](./09-querying-and-display.md#previewing-plans-before-admission)).
+
+### Binding time: compiled batches vs `ctx.run`
+
+The compiled command and the imperative coordinator (§below) look like two
+competing planners; they are the **same act — producing child submissions —
+at different binding times**. A plan is nothing but a set of child
+operations plus a coordination policy, and the only real question is when
+the fan-out becomes knowable:
+
+- **Early binding** (compiled batch): the fan-out is fully determined by
+  the command input plus a snapshot. You get atomic admission, complete
+  preview, and `waiting-children` settlement.
+- **Late binding** (`ctx.run`): the fan-out depends on results that do not
+  exist yet (open a PR against whatever branch the push produced). The
+  plan cannot exist as data before execution because its inputs don't.
+
+The two are not in tension because both routes converge on identical
+artifacts — the same records, the same `parentId` tree, the same keys,
+admitted through the same `admit`, displayed through the same folds. The
+frontend cannot tell which style produced a tree, and that is the design
+working.
+
+The deeper unity: **an imperative coordinator is a compiler interleaved
+with execution.** The weak determinism rule
+([06 §ctx.run](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers))
+— child keys derive deterministically from the parent's input — is
+precisely the compiler's purity requirement relocated into code: the
+*identity* of every step is compiled purely even when the *selection* of
+steps is dynamic. That is why crash-resume works: re-running the handler
+re-compiles the same plan prefix and coalesces into existing records by
+key.
+
+The decision rule compresses to one line: **compile everything a snapshot
+can tell you; write code only for what execution must discover.** And its
+smell test: if you find yourself wanting all-or-nothing admission across
+imperative steps, the fan-out was actually static and should have been
+compiled. Composition is free in both directions — a compiled batch member
+may be an imperative coordinator, and a `ctx.run` child may be a definition
+that elsewhere ships in compiled batches — so choosing wrong costs a
+refactor, never an architecture.
+
 ## The imperative coordinator
 
 *Sequenced, branching multi-step work* — where the declarative batch's

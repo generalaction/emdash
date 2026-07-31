@@ -12,6 +12,7 @@ export {
   observe,
   peek,
   read,
+  revisionOf,
   snapshot,
   type Cell,
   type Readable,

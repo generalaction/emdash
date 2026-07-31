@@ -135,12 +135,13 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
    composition, the store port, registration, recovery, testing, and the
    migration plan.
 8. [08-usage-patterns.md](./08-usage-patterns.md) — the cookbook: worked
-   patterns for destructive operations, shared scans, coordinators
-   (declarative and imperative), supersession, queueing, and cross-plane
-   submission.
+   patterns for destructive operations, shared scans, compiled commands,
+   coordinators (declarative and imperative, and when to bind the plan
+   early vs late), supersession, queueing, and cross-plane submission.
 9. [09-querying-and-display.md](./09-querying-and-display.md) — the read
-   path: CQRS framing, `engine.query()`, the pure display folds, wire
-   exposure, and retention.
+   path: CQRS framing, `engine.query()`, the pure display folds, plan
+   preview before admission, wire exposure, reactive queries fetching
+   through read operations, and retention.
 
 ## Design lineage
 

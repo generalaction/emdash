@@ -89,7 +89,8 @@ Two caveats on the sharper verbs:
   supersedes instantly: `pending → superseded`, nothing to abort.)
 - **`queue` is safe from deadlock** by construction — a queued operation
   holds durable claims but no runtime resources, and dispatch acquires
-  atomically (no hold-and-wait, see [05](./05-dispatch.md#why-queueing-cannot-deadlock)).
+  atomically (no hold-and-wait, see
+  [05](./05-dispatch.md#why-queueing-cannot-deadlock--and-where-the-proof-stops)).
   What `queue` costs is a user-visible waiting state, which must be *derived*
   for display, never stored.
 

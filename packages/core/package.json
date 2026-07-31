@@ -189,6 +189,10 @@
       "types": "./dist/runtimes-files-api.d.mts",
       "default": "./dist/runtimes-files-api.mjs"
     },
+    "./runtimes/files/api/tree/optimistic": {
+      "types": "./dist/runtimes-files-api-tree-optimistic.d.mts",
+      "default": "./dist/runtimes-files-api-tree-optimistic.mjs"
+    },
     "./runtimes/files/node": {
       "types": "./dist/runtimes-files-node.d.mts",
       "default": "./dist/runtimes-files-node.mjs"

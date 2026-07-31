@@ -15,9 +15,10 @@ describe('createWorkspaceController', () => {
     const controller = createWorkspaceController(runtime, { validate: 'full' });
 
     try {
-      const source = controller.resolveLive(
+      const lease = controller.acquireLive(
         encodeTopic(workspaceContract.workspace.states.state.id, workspace)
       );
+      const source = await lease?.ready();
 
       expect(source?.snapshot()).toMatchObject({
         data: {
@@ -26,6 +27,7 @@ describe('createWorkspaceController', () => {
           operation: { kind: 'idle' },
         },
       });
+      await lease?.release();
     } finally {
       await controller.dispose?.();
       runtime.dispose();

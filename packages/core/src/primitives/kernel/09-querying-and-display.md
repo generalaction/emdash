@@ -27,13 +27,7 @@ side's own needs:
    09:15 → pending (retry 1) 09:17 → succeeded 09:19`) is a straight read
    of journal rows. The relational claims table
    ([02](./02-resources-and-claims.md#claims-are-data)) is what makes
-   resource-centric filters indexed lookups. **Tier visibility**: `query`
-   reads the union of both durability tiers, so *active* views (`active:
-   true`, resource filters) see ephemeral scans alongside durable
-   teardowns — "what is touching this worktree right now" must be complete.
-   *History* is durable-only: settled ephemeral records are dropped after a
-   short linger and never appear in retention-window views
-   ([07 §two tiers](./07-engine-and-stores.md#two-tiers-one-conflict-domain)).
+   resource-centric filters indexed lookups.
 2. **Live progress** (ephemeral). The per-operation `OperationProgress`
    stream renders the stage checklist
    ([06 §stages](./06-execution-and-handlers.md#stages-and-progress));
@@ -119,6 +113,41 @@ unit-testable with literals, no store, no engine. App code composes them —
 piped through `activityFeed`, with labels joined from entity tables and
 `definition.describe(input)` for titles.
 
+## Previewing plans before admission
+
+Compiled commands ([08 §the-compiled-command](./08-usage-patterns.md#the-compiled-command))
+produce an `OperationPlan` as pure data *before* anything is admitted —
+which is what makes confirmation surfaces ("this will tear down 3
+workspaces and delete 2 branches") a display fold, not a feature:
+
+```ts
+/** Pure fold over a not-yet-submitted plan: the same tree shape the live
+ *  folds produce, with every node in a synthetic 'proposed' state and
+ *  labels from definition.describe(input). */
+export function planPreview(plan: OperationPlan): OperationTreeNode[];
+```
+
+Two rules keep preview honest and cheap:
+
+- **Key correlation upgrades preview in place.** A preview node's identity
+  is its member's `key` — the same key the admitted record will carry. On
+  confirm, the UI submits the identical plan and each `proposed` node
+  upgrades to the live record with the matching key; preview → `pending` →
+  `running` → settled is *one tree whose nodes change status*, not two
+  screens. (Dedupe and adoption make this exact: a member that coalesces
+  into existing work upgrades to that existing record.)
+- **Preview only what is bound.** An imperative coordinator's future is
+  not data yet ([08 §binding time](./08-usage-patterns.md#binding-time-compiled-batches-vs-ctxrun)),
+  so its preview shows what *is* static — the root operation, its
+  `describe(input)`, and any steps whose inputs derive from the parent's
+  input alone — and renders the dynamic remainder as exactly that ("then:
+  open PR — depends on push result"). Never fabricate a full DAG for
+  display; that is rebuilding the workflow engine the coordinator replaced
+  with code. If a real screen ever needs richer previews, the smallest
+  sound addition is an optional, explicitly non-binding `outline(input)`
+  on the definition — display-only, never consulted by execution — named
+  here so it gets designed deliberately rather than improvised.
+
 ## Wire exposure
 
 Read models cross process boundaries with the existing wire live-state
@@ -156,7 +185,7 @@ read model (cache)            (last known answer + provenance timestamp)
 read-coalescer facade         (freshness contract, demand counting)
         │ submits
         ▼
-ephemeral read operation      (claims, dedupe, capacity, progress)
+read operation                (claims, dedupe, ordering, progress)
 ```
 
 Four rules keep the layering honest:
@@ -168,13 +197,12 @@ Four rules keep the layering honest:
    standing claim"). The query triggers *finite* read operations and is
    re-poked by settlement — level-triggered demand, edge-triggered
    fetches.
-2. **Expensive fetches are ephemeral read operations.** Anything passing
+2. **Expensive fetches are read operations.** Anything passing
    the conversion test ([02](./02-resources-and-claims.md#what-to-model--and-what-not-to))
-   is submitted as an ephemeral `reads(...)` operation and inherits
-   coalescing (two surfaces mounting → one probe), claim-ordering against
-   mutations (no scanning a half-torn-down path), and capacity limits
-   ([05 §capacity](./05-dispatch.md#capacity-limits)) — the layer where
-   "don't storm the host" is enforced once, instead of per-query-site.
+   is submitted as a `reads(...)` operation and inherits
+   coalescing (two surfaces mounting → one probe) and claim-ordering
+   against mutations (no scanning a half-torn-down path)
+   ([08 §observational](./08-usage-patterns.md#the-observational-operation)).
    Cheap pure reads stay ordinary function calls; the kernel is not a
    general RPC wrapper.
 3. **Freshness is the facade's contract, stated once.** The coalescer owns
@@ -184,16 +212,17 @@ Four rules keep the layering honest:
    is its implementation detail, not something query sites hand-roll.
 4. **Demand drop is not cancellation.** When the last watcher leaves, the
    facade stops *submitting* refreshes — that is where nearly all the
-   saving lives. An already-in-flight probe is abandoned, not aborted
-   ([06 §ephemeral reads](./06-execution-and-handlers.md#ephemeral-reads-abandonment-not-cancellation));
-   its result still lands in the read model for the next arrival. A short
-   demand *linger* (keep refreshing briefly after the last unsubscribe)
-   absorbs navigation flapping.
+   saving lives. An already-in-flight probe is left to finish rather than
+   cancelled (reads are short by the conversion test, and a coalesced
+   operation may have other interested consumers); its result still lands
+   in the read model for the next arrival. A short demand *linger* (keep
+   refreshing briefly after the last unsubscribe) absorbs navigation
+   flapping.
 
 The facade itself — demand leases bound to `Scope`, linger windows,
 `minFresh` policy — is an app-edge component built *on* the kernel, named
-here so it is designed deliberately: the kernel ships handles and
-ephemeral operations; the facade ships when the first wire query migrates
+here so it is designed deliberately: the kernel ships definitions and
+handles; the facade ships when the first wire query migrates
 ([07 §migration](./07-engine-and-stores.md#migration) step 3).
 
 ## Retention

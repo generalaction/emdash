@@ -1,9 +1,13 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
-  LiveState,
+  cell,
+  expose,
+  family,
   type Contract,
   type ContractImpl,
+  type Cell,
+  type LeasedLiveModelProvider,
   type LiveModelProvider,
   type LiveJobContext,
   type LiveSource,
@@ -33,7 +37,7 @@ import {
 } from '@core/features/workspaces/api/runtime-adapter';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
@@ -42,7 +46,7 @@ import {
 } from './operations/workspace-lifecycle-definitions';
 
 type BootstrapKey = { workspaceId: string };
-type BootstrapState = LiveState<WorkspaceBootstrapState>;
+type BootstrapState = Cell<WorkspaceBootstrapState>;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
 
@@ -79,29 +83,35 @@ type ActiveProvisionJob = {
   progress(progress: WorkspaceBootstrapProgress): void;
 };
 
-const bootstrapStates = new Map<string, BootstrapState>();
-const activeProvisionJobs = new Map<string, ActiveProvisionJob>();
+type BootstrapProvider = {
+  provider: LeasedLiveModelProvider<typeof workspacesWireContract.bootstrap>;
+  publish(workspaceId: string, next: WorkspaceBootstrapState): void;
+  retain(workspaceId: string): () => void;
+  dispose(): Promise<void>;
+};
 
 export function createWorkspacesWireController(
   options: CreateWorkspacesWireControllerOptions
 ): WorkspacesWireController {
+  const bootstrap = createBootstrapProvider();
+  const activeProvisionJobs = new Map<string, ActiveProvisionJob>();
   const unsubscribeProgress = options.onTaskProvisionProgress((progress) => {
-    void publishTaskProgress(options.db, progress.taskId, {
+    void publishTaskProgress(options.db, activeProvisionJobs, bootstrap, progress.taskId, {
       step: progress.step,
       message: progress.message,
       operation: progress.operation,
     });
   });
   const unsubscribeReady = options.onTaskWorkspaceReady((taskId, result) => {
-    void publishTaskReady(options.db, taskId, result);
+    void publishTaskReady(options.db, bootstrap, taskId, result);
   });
 
   return {
     impl: {
       runtime: createWorkspaceRuntimeProvider(options),
-      bootstrap: createBootstrapProvider(options.db),
+      bootstrap: bootstrap.provider,
       provision: {
-        run: (input, ctx) => runProvisionJob(options, input, ctx),
+        run: (input, ctx) => runProvisionJob(options, bootstrap, activeProvisionJobs, input, ctx),
         toError: unknownToWorkspaceError,
       },
       provisionClone: {
@@ -138,8 +148,8 @@ export function createWorkspacesWireController(
     async dispose() {
       unsubscribeProgress();
       unsubscribeReady();
-      bootstrapStates.clear();
       activeProvisionJobs.clear();
+      await bootstrap.dispose();
     },
   };
 }
@@ -211,53 +221,69 @@ function mapWorkspaceResult(
   return ok({ ...data, workspaceId });
 }
 
-function createBootstrapProvider(
-  db: AppDb
-): LiveModelProvider<typeof workspacesWireContract.bootstrap> {
-  return {
-    kind: 'liveModelProvider',
-    contract: workspacesWireContract.bootstrap,
-    async resolveState(key, name) {
-      if (name !== 'state') throw new Error(`Unknown bootstrap state '${String(name)}'`);
-      return await ensureBootstrapState(db, key);
+function createBootstrapProvider(): BootstrapProvider {
+  const states = family<BootstrapKey, BootstrapState>(
+    () => cell<WorkspaceBootstrapState>({ status: 'unprovisioned' }),
+    { name: 'workspace-bootstrap' }
+  );
+  const provider = expose(workspacesWireContract.bootstrap, {
+    state: (key, scope) => {
+      const release = states.retain(key);
+      scope.add(release);
+      return states(key);
     },
-    async runMutation() {
-      throw new Error('Workspace bootstrap model does not expose mutations');
+  });
+  return {
+    provider,
+    publish(workspaceId, next) {
+      states({ workspaceId }).set(next);
+    },
+    retain(workspaceId) {
+      return states.retain({ workspaceId });
+    },
+    async dispose() {
+      await provider.dispose();
+      await states.dispose();
     },
   };
 }
 
 async function runProvisionJob(
   options: CreateWorkspacesWireControllerOptions,
+  bootstrap: BootstrapProvider,
+  activeProvisionJobs: Map<string, ActiveProvisionJob>,
   input: { workspaceId: string; taskId?: string },
   ctx: LiveJobContext<WorkspaceBootstrapProgress>
 ): Promise<Result<WorkspaceProvisionResult, WorkspaceSliceError>> {
-  const taskId = input.taskId ?? (await resolveTaskIdForWorkspace(options.db, input.workspaceId));
-  if (!taskId) {
-    const error = workspaceError(
-      'missing-task',
-      `No task is linked to workspace ${input.workspaceId}`
-    );
-    publishBootstrapState(input.workspaceId, { status: 'error', error });
-    return { success: false, error };
-  }
-
-  activeProvisionJobs.set(taskId, {
-    workspaceId: input.workspaceId,
-    progress: ctx.progress,
-  });
-  publishBootstrapState(input.workspaceId, { status: 'provisioning' });
-
+  const releaseBootstrap = bootstrap.retain(input.workspaceId);
+  let taskId: string | undefined;
   try {
+    taskId = input.taskId ?? (await resolveTaskIdForWorkspace(options.db, input.workspaceId));
+    if (!taskId) {
+      const error = workspaceError(
+        'missing-task',
+        `No task is linked to workspace ${input.workspaceId}`
+      );
+      bootstrap.publish(input.workspaceId, { status: 'error', error });
+      return { success: false, error };
+    }
+
+    activeProvisionJobs.set(taskId, {
+      workspaceId: input.workspaceId,
+      progress: ctx.progress,
+    });
+    bootstrap.publish(input.workspaceId, { status: 'provisioning' });
+
     const result = await options.provisionTask(taskId);
     if (!result.success) {
-      publishBootstrapState(input.workspaceId, { status: 'error', error: result.error });
+      bootstrap.publish(input.workspaceId, { status: 'error', error: result.error });
       return result;
     }
-    publishBootstrapState(input.workspaceId, { status: 'ready', result: result.data });
+    bootstrap.publish(input.workspaceId, { status: 'ready', result: result.data });
     return result;
   } finally {
-    activeProvisionJobs.delete(taskId);
+    if (taskId) activeProvisionJobs.delete(taskId);
+    releaseBootstrap();
   }
 }
 
@@ -277,6 +303,8 @@ async function runProvisionCloneJob(
 
 async function publishTaskProgress(
   db: AppDb,
+  activeProvisionJobs: Map<string, ActiveProvisionJob>,
+  bootstrap: BootstrapProvider,
   taskId: string,
   progress: WorkspaceBootstrapProgress
 ): Promise<void> {
@@ -284,49 +312,18 @@ async function publishTaskProgress(
   const workspaceId = active?.workspaceId ?? (await resolveWorkspaceIdForTask(db, taskId));
   if (!workspaceId) return;
   active?.progress(progress);
-  publishBootstrapState(workspaceId, { status: 'provisioning', progress });
+  bootstrap.publish(workspaceId, { status: 'provisioning', progress });
 }
 
 async function publishTaskReady(
   db: AppDb,
+  bootstrap: BootstrapProvider,
   taskId: string,
   result: WorkspaceProvisionResult
 ): Promise<void> {
   const workspaceId = result.workspaceId || (await resolveWorkspaceIdForTask(db, taskId));
   if (!workspaceId) return;
-  publishBootstrapState(workspaceId, { status: 'ready', result });
-}
-
-async function ensureBootstrapState(db: AppDb, key: BootstrapKey): Promise<BootstrapState> {
-  const existing = bootstrapStates.get(key.workspaceId);
-  if (existing) return existing;
-
-  const state = new LiveState<WorkspaceBootstrapState>(
-    await hydrateBootstrapState(db, key.workspaceId)
-  );
-  bootstrapStates.set(key.workspaceId, state);
-  return state;
-}
-
-async function hydrateBootstrapState(
-  db: AppDb,
-  workspaceId: string
-): Promise<WorkspaceBootstrapState> {
-  const [workspace] = await db
-    .select({ id: workspaces.id })
-    .from(workspaces)
-    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
-    .limit(1);
-  return workspace ? { status: 'unprovisioned' } : { status: 'unprovisioned' };
-}
-
-function publishBootstrapState(workspaceId: string, next: WorkspaceBootstrapState): void {
-  const existing = bootstrapStates.get(workspaceId);
-  if (existing) {
-    existing.replace(next);
-    return;
-  }
-  bootstrapStates.set(workspaceId, new LiveState(next));
+  bootstrap.publish(workspaceId, { status: 'ready', result });
 }
 
 async function resolveTaskIdForWorkspace(

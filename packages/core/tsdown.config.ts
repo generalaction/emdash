@@ -47,6 +47,7 @@ export default defineConfig({
     'runtimes-git-api': 'src/runtimes/git/api/index.ts',
     'runtimes-git-node': 'src/runtimes/git/node/index.ts',
     'runtimes-files-api': 'src/runtimes/files/api/index.ts',
+    'runtimes-files-api-tree-optimistic': 'src/runtimes/files/api/tree/optimistic.ts',
     'runtimes-files-node': 'src/runtimes/files/node/index.ts',
     'runtimes-file-search-api': 'src/runtimes/file-search/api/index.ts',
     'runtimes-file-search-node': 'src/runtimes/file-search/node/index.ts',

@@ -1,6 +1,7 @@
 import { ok, toPendingLease } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveModel, liveState, mutation } from '../../api';
 import { LiveState } from '../../live/state/server';
@@ -82,7 +83,7 @@ describe('state bridge round trip', () => {
     await provider.dispose();
   });
 
-  it('resyncs a remote member after a generation gap and marks seed data stale until catch-up', async () => {
+  it('resyncs a remote member after a generation gap as live authoritative data', async () => {
     const key = { id: 'one' };
     const clock = createManualClock();
     const authoritative = new LiveState({ count: 1 }, 1);
@@ -118,17 +119,55 @@ describe('state bridge round trip', () => {
       draft.count = 3;
     });
     await waitForValue(() => snapshot(member.states.value).value?.count, 3);
-    expect(snapshot(member.states.value).status).toBe('stale');
+    expect(snapshot(member.states.value).status).toBe('live');
 
     authoritative.produce((draft) => {
       draft.count = 4;
     });
     await waitForValue(() => snapshot(member.states.value).value?.count, 4);
     expect(snapshot(member.states.value).status).toBe('live');
-    expect(recorded.snapshots.map((current) => current.status)).toContain('stale');
+    expect(recorded.snapshots.map((current) => current.status)).not.toContain('stale');
 
     await recorded.dispose();
     await model.dispose();
+    await wire.dispose();
+  });
+
+  it('releases remote replica leases when the parent scope is disposed', async () => {
+    const key = { id: 'one' };
+    const parentScope = createScope();
+    const authoritative = new LiveState({ count: 1 });
+    const release = vi.fn(async () => {});
+    const provider = {
+      kind: 'leasedLiveModelProvider',
+      contract: api.counter,
+      acquireState() {
+        return toPendingLease(
+          Promise.resolve({
+            value: authoritative,
+            release,
+          })
+        );
+      },
+      async runMutation() {
+        throw new Error('not used');
+      },
+      async dispose() {},
+    } as const;
+    const wire = createTestWire(api, { counter: provider });
+    const model = remote(api.counter, wire.client.counter, {
+      scope: parentScope,
+      lingerMs: 5,
+    });
+    const member = model(key);
+    const recorded = recordSnapshots(member.states.value);
+
+    await waitForValue(() => snapshot(member.states.value).value?.count, 1);
+    await parentScope.dispose();
+
+    expect(release).toHaveBeenCalled();
+
+    await recorded.dispose();
     await wire.dispose();
   });
 });

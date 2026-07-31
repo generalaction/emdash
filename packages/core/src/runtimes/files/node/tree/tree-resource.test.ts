@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { deferred } from '@emdash/shared/testing';
+import { snapshot } from '@emdash/wire';
 import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '@primitives/path/api';
 import type { FileTreeModel } from '@runtimes/files/api';
 import { resolveRootIdentity, treeIdentity } from '@runtimes/files/node/allocation/identity';
@@ -134,15 +135,11 @@ describe('TreeResource', () => {
     await diagnostic.expandPath(ROOT_RELATIVE_PATH);
     const settled: string[] = [];
 
-    const result = await tree.createFile({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: { path: portable('new.ts') },
-      mutationId: 'create-file-test',
-      settle: async (name) => {
+    const result = await tree.createFile(
+      treeContext(tree, { path: portable('new.ts') }, 'create-file-test', async (name) => {
         settled.push(String(name));
-      },
-    });
+      })
+    );
 
     expect(result.success).toBe(true);
     expect(settled).toEqual(['tree']);
@@ -161,13 +158,9 @@ describe('TreeResource', () => {
 
     expect(diagnostic.current().entries.src?.childrenLoaded).toBe(false);
 
-    const result = await tree.createFile({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: { path: portable('src/new.ts') },
-      mutationId: 'create-file-unloaded-parent-test',
-      settle: async () => {},
-    });
+    const result = await tree.createFile(
+      treeContext(tree, { path: portable('src/new.ts') }, 'create-file-unloaded-parent-test')
+    );
 
     expect(result.success).toBe(true);
     expect(diagnostic.current().entries.src).toMatchObject({
@@ -192,13 +185,9 @@ describe('TreeResource', () => {
     await diagnostic.expandPath(ROOT_RELATIVE_PATH);
     await diagnostic.expandPath(portable('src'));
 
-    const result = await tree.delete({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: { path: portable('src'), recursive: true },
-      mutationId: 'delete-test',
-      settle: async () => {},
-    });
+    const result = await tree.delete(
+      treeContext(tree, { path: portable('src'), recursive: true }, 'delete-test')
+    );
 
     expect(result.success).toBe(true);
     expect(diagnostic.current().entries.src).toBeUndefined();
@@ -216,13 +205,9 @@ describe('TreeResource', () => {
     await diagnostic.expandPath(portable('src'));
     await diagnostic.expandPath(portable('dest'));
 
-    const result = await tree.move({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: { from: portable('src/app.ts'), to: portable('dest/app.ts') },
-      mutationId: 'move-test',
-      settle: async () => {},
-    });
+    const result = await tree.move(
+      treeContext(tree, { from: portable('src/app.ts'), to: portable('dest/app.ts') }, 'move-test')
+    );
 
     expect(result.success).toBe(true);
     expect(diagnostic.current().entries['src/app.ts']).toBeUndefined();
@@ -246,13 +231,13 @@ describe('TreeResource', () => {
 
     expect(diagnostic.current().entries.dest?.childrenLoaded).toBe(false);
 
-    const result = await tree.move({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: { from: portable('src/app.ts'), to: portable('dest/app.ts') },
-      mutationId: 'move-to-collapsed-test',
-      settle: async () => {},
-    });
+    const result = await tree.move(
+      treeContext(
+        tree,
+        { from: portable('src/app.ts'), to: portable('dest/app.ts') },
+        'move-to-collapsed-test'
+      )
+    );
 
     expect(result.success).toBe(true);
     expect(diagnostic.current().entries['src/app.ts']).toBeUndefined();
@@ -276,13 +261,13 @@ describe('TreeResource', () => {
     await diagnostic.expandPath(portable('src'));
     await diagnostic.expandPath(portable('dest'));
 
-    const result = await tree.copy({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: { from: portable('src/app.ts'), to: portable('dest/app copy.ts') },
-      mutationId: 'copy-test',
-      settle: async () => {},
-    });
+    const result = await tree.copy(
+      treeContext(
+        tree,
+        { from: portable('src/app.ts'), to: portable('dest/app copy.ts') },
+        'copy-test'
+      )
+    );
 
     expect(result.success).toBe(true);
     expect(diagnostic.current().entries['src/app.ts']).toBeDefined();
@@ -304,15 +289,11 @@ describe('TreeResource', () => {
     await writeFile(path.join(rootPath, 'src', 'new.ts'), '');
 
     const settled: string[] = [];
-    const result = await tree.refresh({
-      resource: tree,
-      key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
-      input: undefined,
-      mutationId: 'refresh-test',
-      settle: async (name) => {
+    const result = await tree.refresh(
+      treeContext(tree, undefined, 'refresh-test', async (name) => {
         settled.push(String(name));
-      },
-    });
+      })
+    );
 
     expect(result.success).toBe(true);
     expect(settled).toEqual(['tree']);
@@ -321,6 +302,23 @@ describe('TreeResource', () => {
       path: 'src/new.ts',
       parentPath: 'src',
     });
+  });
+
+  it('reveals an already visible file without publishing a new tree revision', async () => {
+    const { rootPath, tree } = await createHarness();
+    await mkdir(path.join(rootPath, 'src'), { recursive: true });
+    await writeFile(path.join(rootPath, 'src', 'app.ts'), '');
+    const diagnostic = tree as unknown as DiagnosticTreeResource;
+    await diagnostic.expandPath(ROOT_RELATIVE_PATH);
+    await diagnostic.expandPath(portable('src'));
+    const before = snapshot(tree.source()).revision;
+
+    const result = await tree.reveal(
+      treeContext(tree, { path: portable('src/app.ts') }, 'reveal-visible-test')
+    );
+
+    expect(result.success).toBe(true);
+    expect(snapshot(tree.source()).revision).toBe(before);
   });
 });
 
@@ -367,6 +365,22 @@ class ManualWatcher implements IWatchService {
 
 function portable(path: string): PortableRelativePath {
   return path as PortableRelativePath;
+}
+
+function treeContext<Input>(
+  tree: TreeResource,
+  input: Input,
+  mutationId: string,
+  onObserved: (name: 'tree') => void | Promise<void> = () => {}
+) {
+  return {
+    key: { root: tree.identity.root.root, sessionId: tree.identity.sessionId },
+    input,
+    mutationId,
+    observed: async (name: 'tree', _revision: unknown) => {
+      await onObserved(name);
+    },
+  };
 }
 
 async function createHarness(options: { exclusions?: string[] } = {}): Promise<{

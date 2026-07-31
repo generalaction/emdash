@@ -2,6 +2,7 @@ import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
 import {
   cell,
+  revisionOf,
   snapshot,
   type Cell,
   type ExposedMutationContext,
@@ -35,14 +36,7 @@ import { classifyTreeChanges } from './watch-classifier';
 
 type TreeModel = typeof filesContract.tree.model;
 type TreeMutationName = Extract<keyof TreeModel['mutations'], string>;
-type TreeMutationContext<Name extends TreeMutationName> = Omit<
-  ExposedMutationContext<TreeModel, Name>,
-  'observed'
-> & {
-  resource?: TreeResource;
-  observed?: ExposedMutationContext<TreeModel, Name>['observed'];
-  settle?(name: 'tree', revision: Revision | Promise<Revision>): Promise<void>;
-};
+type TreeMutationContext<Name extends TreeMutationName> = ExposedMutationContext<TreeModel, Name>;
 type ExpansionDepth = 1 | 2;
 
 export type TreeResourceOptions = {
@@ -86,7 +80,7 @@ export class TreeResource {
         normalizeExpansionDepth(context.input.depth)
       );
       if (!result.success) return result;
-      await observeTree(context, result.data);
+      await context.observed('tree', result.data);
       return ok<void>();
     });
   }
@@ -106,7 +100,7 @@ export class TreeResource {
         };
       }
       if (!entry.childrenLoaded && entry.children.length === 0) {
-        await observeTree(context, this.state.set(this.current()));
+        await context.observed('tree', revisionOf(this.state));
         return ok<void>();
       }
       removeDescendants(model, entry.path);
@@ -114,7 +108,7 @@ export class TreeResource {
       entry.childrenLoaded = false;
       entry.hasChildren = undefined;
       const revision = this.state.set(model, { mutationIds: [context.mutationId] });
-      await observeTree(context, revision);
+      await context.observed('tree', revision);
       return ok<void>();
     });
   }
@@ -124,8 +118,9 @@ export class TreeResource {
       const validated = this.options.root.paths.resolveEntry(context.input.path);
       if (!validated.success) return validated;
       const target = validated.data.path;
-      let revision = this.state.set(this.current());
+      let revision = revisionOf(this.state);
       for (const ancestor of ancestorPaths(target)) {
+        if (this.directoryChildrenLoaded(ancestor)) continue;
         const expanded = await this.expandPath(ancestor, context.mutationId);
         if (!expanded.success) return expanded;
         revision = expanded.data;
@@ -135,15 +130,16 @@ export class TreeResource {
         return { success: false, error: { type: 'not-found', path: target } };
       }
       if (isExpandableFileEntry(targetEntry)) {
-        const expanded = await this.expandPath(
-          target,
-          context.mutationId,
-          normalizeExpansionDepth(context.input.depth)
-        );
+        const depth = normalizeExpansionDepth(context.input.depth);
+        if (depth === 1 && this.directoryChildrenLoaded(target)) {
+          await context.observed('tree', revision);
+          return ok<void>();
+        }
+        const expanded = await this.expandPath(target, context.mutationId, depth);
         if (!expanded.success) return expanded;
         revision = expanded.data;
       }
-      await observeTree(context, revision);
+      await context.observed('tree', revision);
       return ok<void>();
     });
   }
@@ -155,7 +151,7 @@ export class TreeResource {
       this.options.root.publishKnownChanges(changes.data);
       const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
       if (!reconciled.success) return reconciled;
-      await observeTree(context, reconciled.data);
+      await context.observed('tree', reconciled.data);
       return ok<void>();
     });
   }
@@ -167,7 +163,7 @@ export class TreeResource {
       this.options.root.publishKnownChanges(changes.data);
       const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
       if (!reconciled.success) return reconciled;
-      await observeTree(context, reconciled.data);
+      await context.observed('tree', reconciled.data);
       return ok<void>();
     });
   }
@@ -179,7 +175,7 @@ export class TreeResource {
       this.options.root.publishKnownChanges(changes.data);
       const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
       if (!reconciled.success) return reconciled;
-      await observeTree(context, reconciled.data);
+      await context.observed('tree', reconciled.data);
       return ok<void>();
     });
   }
@@ -191,7 +187,7 @@ export class TreeResource {
       this.options.root.publishKnownChanges(changes.data);
       const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
       if (!reconciled.success) return reconciled;
-      await observeTree(context, reconciled.data);
+      await context.observed('tree', reconciled.data);
       return ok<void>();
     });
   }
@@ -203,7 +199,7 @@ export class TreeResource {
       this.options.root.publishKnownChanges(changes.data);
       const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
       if (!reconciled.success) return reconciled;
-      await observeTree(context, reconciled.data);
+      await context.observed('tree', reconciled.data);
       return ok<void>();
     });
   }
@@ -215,7 +211,7 @@ export class TreeResource {
       this.options.root.publishKnownChanges(changes.data);
       const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
       if (!reconciled.success) return reconciled;
-      await observeTree(context, reconciled.data);
+      await context.observed('tree', reconciled.data);
       return ok<void>();
     });
   }
@@ -223,7 +219,7 @@ export class TreeResource {
   refresh(context: TreeMutationContext<'refresh'>): Promise<Result<void, FsError>> {
     return this.run(async () => {
       const revision = await this.resync(this.current(), [context.mutationId]);
-      await observeTree(context, revision);
+      await context.observed('tree', revision);
       return ok<void>();
     });
   }
@@ -298,11 +294,8 @@ export class TreeResource {
       reconcileDirectory(model, parentPath, children.data);
       changed = true;
     }
-    return ok(
-      this.state.set(changed ? model : this.current(), {
-        mutationIds: [context.mutationId],
-      })
-    );
+    if (!changed) return ok(revisionOf(this.state));
+    return ok(this.state.set(model, { mutationIds: [context.mutationId] }));
   }
 
   private onRootChanges(changes: RootChange[]): void {
@@ -405,6 +398,11 @@ export class TreeResource {
 
   private current(): FileTreeModel {
     return structuredClone(snapshot(this.state).value);
+  }
+
+  private directoryChildrenLoaded(entryPath: PortableRelativePath): boolean {
+    const entry = snapshot(this.state).value.entries[entryPath];
+    return !!entry && isExpandableFileEntry(entry) && entry.childrenLoaded;
   }
 
   private run<T>(work: () => Promise<T>): Promise<T> {
@@ -516,12 +514,4 @@ function removeSubtree(model: FileTreeModel, entryPath: PortableRelativePath): v
 
 function depth(entryPath: PortableRelativePath): number {
   return entryPath === '' ? 0 : entryPath.split('/').length;
-}
-
-function observeTree<Name extends TreeMutationName>(
-  context: TreeMutationContext<Name>,
-  revision: Revision | Promise<Revision>
-): Promise<void> {
-  if (context.observed) return context.observed('tree', revision);
-  return context.settle?.('tree', revision) ?? Promise.resolve();
 }

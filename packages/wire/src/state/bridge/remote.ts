@@ -1,4 +1,4 @@
-import type { Scope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { LiveModelClientHandle, MutationCallOptions } from '../../api/client';
 import type { LiveModelDef, LiveModelKey, LiveModelStates, LiveStateData } from '../../api/define';
@@ -41,14 +41,19 @@ export function remote<Group extends LiveModelDef>(
   client: LiveModelClientHandle<Group>,
   options: RemoteOptions<Group> = {}
 ): RemoteModel<Group> {
+  const scope = options.scope
+    ? options.scope.child(`remote:${contract.id}`)
+    : createScope({ label: `remote:${contract.id}` });
   const replica = createLiveModelReplica(contract, client, {
     ...options,
     retentionMs: options.lingerMs ?? options.retentionMs,
   });
+  scope.add(() => replica.dispose());
 
   const members: RemoteModel<Group> = family(
     (key: LiveModelKey<Group>, scope) => {
-      const stateCells: Record<string, Cell<unknown> & { refresh?: () => Promise<void> }> = {};
+      const stateCells: Record<string, Cell<unknown>> = {};
+      const remoteStates: Record<string, RemoteState<unknown>> = {};
       const mutations: Record<string, unknown> = {};
       let observedStates = 0;
       let releaseMember: (() => void) | undefined;
@@ -61,23 +66,24 @@ export function remote<Group extends LiveModelDef>(
           releaseMember = undefined;
         }
       };
+      const lease = replica.acquire(key);
+      const readyInstance = lease.ready();
       for (const name of Object.keys(contract.states)) {
-        stateCells[name] = cell<unknown>(undefined, {
+        const state = cell<unknown>(undefined, {
           name: `${contract.id}.${name}`,
           onObservedChange: handleObservedChange,
         });
-        stateCells[name].refresh = async () => {
+        state.set(undefined, { status: 'loading', notify: false });
+        stateCells[name] = state;
+        remoteStates[name] = withRefresh(state, async () => {
           const instance = (await readyInstance) as ReplicaInstance<Group>;
           await (
             instance.states[name as keyof typeof instance.states] as {
               refresh(): Promise<void>;
             }
           ).refresh();
-        };
-        stateCells[name].set(undefined, { status: 'loading', notify: false });
+        });
       }
-      const lease = replica.acquire(key);
-      const readyInstance = lease.ready();
       scope.add(() => lease.release());
       for (const name of Object.keys(contract.mutations)) {
         mutations[name] = async (input: unknown, options: MutationCallOptions = {}) => {
@@ -112,7 +118,7 @@ export function remote<Group extends LiveModelDef>(
             scope.add(
               replicaState.onChange((value, meta) => {
                 target.set(value, {
-                  status: meta.kind === 'seed' ? 'stale' : 'live',
+                  status: 'live',
                   generation: replicaState.cursor?.generation,
                   mutationIds: meta.kind === 'update' ? meta.mutationIds : undefined,
                 });
@@ -130,14 +136,14 @@ export function remote<Group extends LiveModelDef>(
         });
 
       return {
-        states: stateCells as unknown as RemoteStates<Group>,
+        states: remoteStates as unknown as RemoteStates<Group>,
         mutations: mutations as ReplicaMutations<Group>,
       };
     },
     {
       lingerMs: options.lingerMs,
       clock: options.clock,
-      scope: options.scope,
+      scope,
       name: `remote:${contract.id}`,
     }
   );
@@ -148,4 +154,8 @@ export function remote<Group extends LiveModelDef>(
     await replica.dispose();
   };
   return members;
+}
+
+function withRefresh<T>(state: Cell<T | undefined>, refresh: () => Promise<void>): RemoteState<T> {
+  return Object.assign(state, { refresh }) as RemoteState<T>;
 }

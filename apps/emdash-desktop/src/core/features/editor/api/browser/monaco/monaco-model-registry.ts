@@ -50,7 +50,6 @@ interface DiskModelEntry {
   language: string;
   content: FilesContentMember;
   releaseContent: () => Promise<void>;
-  unsubscribeContent: () => void;
 }
 
 interface GitModelEntry {
@@ -64,7 +63,6 @@ interface GitModelEntry {
   /** The git ref — HEAD for the current commit; structured ref for PR/merge-target diffs. */
   ref: GitRef;
   releaseContent: () => Promise<void>;
-  unsubscribeContent: () => void;
 }
 
 type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
@@ -359,7 +357,6 @@ export class MonacoModelRegistry {
       language,
       content: contentModel,
       releaseContent: () => contentScope.dispose(),
-      unsubscribeContent: () => {},
     };
     this.modelMap.set(diskUri, entry);
     observe(
@@ -371,8 +368,6 @@ export class MonacoModelRegistry {
       },
       { scope: contentScope }
     );
-    entry.unsubscribeContent = () => {};
-
     this.modelStatus.set(diskUri, 'ready');
 
     return uri;
@@ -439,7 +434,6 @@ export class MonacoModelRegistry {
       language,
       ref,
       releaseContent: () => contentScope.dispose(),
-      unsubscribeContent: () => {},
     };
     this.modelMap.set(gitUri, entry);
     observe(
@@ -457,8 +451,6 @@ export class MonacoModelRegistry {
       },
       { scope: contentScope }
     );
-    entry.unsubscribeContent = () => {};
-
     this.modelStatus.set(gitUri, 'ready');
 
     return uri;
@@ -624,7 +616,6 @@ export class MonacoModelRegistry {
       const e = this.modelMap.get(uri);
       if (!e || e.refs > 0) return;
       if (e.type === 'disk' || e.type === 'git') {
-        e.unsubscribeContent();
         void e.releaseContent();
       }
       if (!e.model.isDisposed()) e.model.dispose();
@@ -679,7 +670,6 @@ export class MonacoModelRegistry {
     const releases: Promise<void>[] = [];
     for (const entry of this.modelMap.values()) {
       if (entry.type === 'disk' || entry.type === 'git') {
-        entry.unsubscribeContent();
         releases.push(entry.releaseContent());
       }
       if (!entry.model.isDisposed()) entry.model.dispose();

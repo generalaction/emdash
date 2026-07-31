@@ -1,7 +1,17 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it } from 'vitest';
 import { recordSnapshots } from '../testing';
-import { batch, cell, derived, flushStateTurn, observe, peek, read, snapshot } from './index';
+import {
+  batch,
+  cell,
+  derived,
+  flushStateTurn,
+  observe,
+  peek,
+  read,
+  revisionOf,
+  snapshot,
+} from './index';
 
 describe('state kernel', () => {
   it('publishes a diamond derived graph once per turn without glitches', async () => {
@@ -130,5 +140,17 @@ describe('state kernel', () => {
     expect(recorded.snapshots.map((current) => current.value)).toEqual([11, 22]);
     expect(recorded.snapshots.at(-1)?.mutationIds).toEqual(['outer', 'inner']);
     await recorded.dispose();
+  });
+
+  it('returns the current revision without publishing', () => {
+    const source = cell(1);
+
+    const initial = revisionOf(source);
+    const committed = source.set(2, { mutationIds: ['m1'] });
+    const current = revisionOf(source);
+
+    expect(initial.revision).toBe(0);
+    expect(current).toEqual(committed);
+    expect(snapshot(source).revision).toBe(committed.revision);
   });
 });

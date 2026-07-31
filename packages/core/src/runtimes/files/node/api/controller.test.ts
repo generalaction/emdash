@@ -10,6 +10,7 @@ import {
   memoryTransportPair,
   serve,
   streamTransport,
+  type LiveUpdate,
 } from '@emdash/wire';
 import type { PortableRelativePath } from '@primitives/path/api';
 import { filesContract } from '@runtimes/files/api';
@@ -35,6 +36,7 @@ describe('createFilesController', () => {
     const runtime = new FilesRuntime({ watcher, idleTtlMs: 10_000 });
     const connection = makeClient(runtime);
     const key = { root: rootRef, sessionId: 'session-1' };
+    let detachTree: (() => void) | undefined;
 
     try {
       await expect(connection.api.getHomeDir()).resolves.toEqual(
@@ -67,6 +69,9 @@ describe('createFilesController', () => {
           },
         },
       });
+      const treeState = connection.api.tree.model.state(key, 'tree');
+      const treeUpdates: LiveUpdate[] = [];
+      detachTree = await treeState.attach((update) => treeUpdates.push(update));
       await expect(
         connection.api.content
           .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
@@ -87,6 +92,20 @@ describe('createFilesController', () => {
           snapshot.data.entries['src/foo/baar.ts']?.kind === 'file'
         );
       });
+      expect(treeUpdates).toContainEqual(
+        expect.objectContaining({
+          delta: expect.arrayContaining([
+            expect.objectContaining({ path: ['entries', 'src/foo/bar.ts'] }),
+          ]),
+        })
+      );
+      expect(
+        treeUpdates.every(
+          (update) =>
+            Array.isArray(update.delta) &&
+            !update.delta.some((patch) => Array.isArray(patch.path) && patch.path.length === 0)
+        )
+      ).toBe(true);
       await expect(
         connection.api.content
           .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
@@ -196,6 +215,7 @@ describe('createFilesController', () => {
         expect(Buffer.from(await download.data.bytes()).toString('utf8')).toBe('newer external\n');
       }
     } finally {
+      detachTree?.();
       connection.dispose();
       await runtime.dispose();
     }

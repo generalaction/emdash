@@ -2,8 +2,6 @@ import {
   assignDraft,
   cell,
   expose,
-  peek,
-  produce,
   LiveState,
   type Cell,
   type LeasedLiveModelProvider,
@@ -161,9 +159,11 @@ function compatCell<T>(initial: T): CompatCell<T> {
     state.set(next);
   };
   state.produce = (mutator) => {
-    const next = produce(peek(state), mutator);
-    set(next);
+    const previousSequence = liveState.cursor.sequence;
     liveState.produce(mutator);
+    if (liveState.cursor.sequence !== previousSequence) {
+      set(liveState.snapshot().data);
+    }
   };
   state.snapshot = () => liveState.snapshot();
   state.subscribe = (cb) => liveState.subscribe(cb);

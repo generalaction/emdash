@@ -229,6 +229,17 @@ export function snapshot<T>(node: Readable<T>): Snapshot<T> {
   return node.__stateNode.currentSnapshot() as Snapshot<T>;
 }
 
+export function revisionOf(node: Readable<unknown>): Revision {
+  const state = node.__stateNode;
+  const current = state.currentSnapshot();
+  return {
+    nodeId: state.id,
+    revision: current.revision,
+    generation: current.generation,
+    mutationIds: current.mutationIds,
+  };
+}
+
 export function withCollector<T>(work: () => T): { value: T; collector: Collector } {
   const previous = currentCollector;
   const collector: Collector = {

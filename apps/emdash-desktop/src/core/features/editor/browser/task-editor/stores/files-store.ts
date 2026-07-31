@@ -376,6 +376,8 @@ export class FilesStore {
   }
 
   private async bindRuntime(version: number): Promise<void> {
+    let scope: Scope | null = null;
+    let treeRemote: TreeRemote | null = null;
     try {
       // Before the first bind, fetch the settings snapshot so we start with the
       // user's treeExclude rather than defaults. This eliminates the double-bind
@@ -397,9 +399,10 @@ export class FilesStore {
       }
 
       const client = await getEditorClient();
-      const scope = createScope({ label: `files-store:${this.workspaceId}` });
-      const treeRemote = remote(editorContract.tree.model, client.tree.model, {
-        scope,
+      const runtimeScope = createScope({ label: `files-store:${this.workspaceId}` });
+      scope = runtimeScope;
+      treeRemote = remote(editorContract.tree.model, client.tree.model, {
+        scope: runtimeScope,
         lingerMs: 15_000,
       });
       const model = treeRemote({
@@ -407,7 +410,7 @@ export class FilesStore {
         sessionId: this.workspaceId,
         exclusions: this.exclusions,
       });
-      pin(scope, [model.states.tree]);
+      pin(runtimeScope, [model.states.tree]);
       const view = optimistic(model.states.tree);
       await new Promise<void>((resolve, reject) => {
         let resolved = false;
@@ -427,7 +430,7 @@ export class FilesStore {
               }
             });
           },
-          { scope }
+          { scope: runtimeScope }
         );
       });
       if (!this.started || version !== this.bindVersion) {
@@ -436,16 +439,23 @@ export class FilesStore {
         return;
       }
       runInAction(() => {
-        this.treeScope = scope;
+        this.treeScope = runtimeScope;
         this.treeRemote = treeRemote;
         this.treeModel = model;
         this.optimistic = view;
         this.syncError = null;
       });
+      scope = null;
+      treeRemote = null;
       const expanded = await model.mutations.expand({ path: portablePath('') });
       if (expanded.result.success) await expanded.settled;
       else this.setError(expanded.result.error);
     } catch (error) {
+      try {
+        await treeRemote?.dispose();
+      } finally {
+        await scope?.dispose();
+      }
       if (version !== this.bindVersion) return;
       runInAction(() => {
         this.syncError = error instanceof Error ? error.message : String(error);

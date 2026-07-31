@@ -189,7 +189,11 @@ with the claim-discipline that accompanies it.
 ## Two coordinator styles
 
 Both produce the same records and the same operation tree; they differ in
-how the parent expresses its plan. Choose by shape of the work:
+how the parent expresses its plan — the same act at different **binding
+times** (the fan-out is knowable from a snapshot at submission, or only
+from results during execution; see
+[08 §binding time](./08-usage-patterns.md#binding-time-compiled-batches-vs-ctxrun)
+for the decision rule). Choose by shape of the work:
 
 | | Declarative (`submitBatch`) | Imperative (`ctx.run`) |
 |---|---|---|
