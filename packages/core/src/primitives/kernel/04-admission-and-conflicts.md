@@ -34,7 +34,8 @@ export type ConflictResolution = 'dedupe' | 'reject' | 'supersede' | 'queue';
 export const workspaceConflicts = defineConflictPolicy((on) => {
   // incoming            existing (non-terminal)
   on(teardownWorkspace,  provisionWorkspace).supersede();
-  on(teardownWorkspace,  scanWorkspace).queue();       // run after scans drain
+  on(teardownWorkspace,  scanWorkspace).queue();       // destruction drains in-flight reads
+  on(scanWorkspace,      teardownWorkspace).reject();  // scanning a dying path is senseless
   on(provisionWorkspace, teardownWorkspace).reject();  // can't provision what's dying
   on(pruneRepoWorktrees, teardownWorkspace).queue();   // prune waits for teardowns
   on(teardownWorkspace,  pruneRepoWorktrees).queue();  // and vice versa
@@ -50,7 +51,12 @@ Design points, each settled deliberately:
 - **Directional.** `on(incoming, existing)` — the pair
   `(teardown, provision)` and `(provision, teardown)` are different rows,
   because the right verb usually differs (newer destruction supersedes older
-  creation; newer creation is rejected by pending destruction).
+  creation; newer creation is rejected by pending destruction). The scan
+  pair shows the same asymmetry: a teardown arriving over running scans
+  *queues* (let reads finish, then destroy), while a scan arriving over a
+  pending teardown is *rejected* (reading a dying path is pointless — the UI
+  renders "being removed" instead of a git error from a half-deleted
+  directory).
 - **Central, not per-definition.** One module per domain
   (`workspace-conflicts.ts`) aggregated through the contributions manifest.
   This resolves the circular-import problem (definitions never import each

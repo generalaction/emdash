@@ -177,6 +177,36 @@ const pruneRepoWorktrees = defineOperation({
 Neither side knows the other's members. That single property is why the
 hierarchy exists.
 
+### Claims are on keys, not on existing things
+
+A claim needs no existing resource behind it — it is a reservation on a
+*key*. This is what makes **creative operations** work: provisioning a
+workspace claims the branch and worktree it is about to create.
+
+```ts
+// Provision claims resources that do not exist yet:
+claims: (i) => [
+  ...branchResource.mutates({ hostId: i.hostId, repoPath: i.repoPath, branchName: i.branchName }),
+  ...worktreeResource.mutates({ hostId: i.hostId, path: i.worktreePath, repoPath: i.repoPath }),
+]
+```
+
+Note what this does *not* claim: the repo, exclusively. Creating a branch is
+not "a mutation on the repo" — it is a mutation of a branch, a child
+resource; the repo receives only the implicit `intent-exclusive`, so
+isolated creations across a repo run fully in parallel while a repo-wide
+operation still excludes them all. And the `exclusive` on the
+not-yet-existing branch key gives the one collision that does matter for
+free: two operations creating the *same* branch name conflict at admission.
+
+This is exactly how databases treat inserts — `intent-exclusive` on the
+table, `exclusive` on the new row's key, never `exclusive` on the table.
+The database refinement for phantoms (key-range locks, so a scan cannot
+miss an in-flight insert) is not needed here: a subtree-wide operation
+takes `exclusive` on the parent, which already conflicts with the creator's
+`intent-exclusive` — the intent mode on the parent *is* the phantom
+protection.
+
 ### The modelling cost
 
 To plant an intent on the repo, a worktree ref must *carry* its repo path:
@@ -214,6 +244,31 @@ without preventing anything. Keep the tree shallow — the four host levels
 plus the two desktop levels cover every operation currently known — and
 resist deep nesting: every level adds an implicit claim to every descendant
 operation.
+
+The same restraint applies to *reads*. A read becomes a `reads` operation
+only if it is:
+
+- **(a) expensive** enough that it is already hand-deduped or cached
+  (git-stats scans, worktree listing probes, disk measures), or
+- **(b) racing mutations** in a way that produces real bugs (a scan reading
+  a worktree mid-teardown), or
+- **(c) long enough** that ordering and progress are user-visible (pushes,
+  measurements).
+
+Cheap reads — a `stat()` call, a Monaco file read, a config lookup — stay
+plain function calls below the claims layer. Wrapping them in durable rows
+is the micro-operation anti-pattern
+([08](./08-usage-patterns.md#anti-patterns)).
+
+One matrix subtlety to internalize before choosing claim scope: a
+parent-level read (`repoResource.reads`) deliberately blocks descendant
+*mutations* (`shared` × `intent-exclusive` ✗) — that is what makes
+consistent whole-subtree snapshots expressible
+([08 §consistent measurement](./08-usage-patterns.md#the-consistent-subtree-read)).
+If you want a repo-level read that does *not* hold up teardowns — a cheap
+background poll, say — the answer is never a new mode: claim the specific
+children it reads, or don't be an operation at all. Fix the tree or the
+scope, not the matrix.
 
 ## Testing obligations
 

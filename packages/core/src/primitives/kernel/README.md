@@ -91,7 +91,7 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
 | `RunningClaims` / `dispatchPass` | Matrix-gated dispatch with fairness barriers; degenerates to keyed lanes when every claim is exclusive | [05](./05-dispatch.md) |
 | `createOperationHandler` | Execution SPI: `run(ctx)` with `ctx.stage()`, progress reporting, and cancellation via `AbortSignal` | [06](./06-execution-and-handlers.md#createoperationhandler) |
 | `OperationProgress` | The live stage/progress shape; streamed via a `ProgressSink`, never persisted (records keep a compact terminal summary) | [06](./06-execution-and-handlers.md#stages-and-progress) |
-| `OperationStore` | The persistence port; implemented by desktop SQLite, host KV, and the in-memory test store | [07](./07-engine-and-stores.md#the-store-port) |
+| `OperationStore` | The persistence port; one SQLite implementation shared by both planes, plus the in-memory test store | [07](./07-engine-and-stores.md#the-store-port) |
 | `createOperationEngine` | Composition root: admission + dispatch + execution + retry + recovery over a store and a registry | [07](./07-engine-and-stores.md#the-engine) |
 
 ## What the kernel is not
@@ -99,8 +99,8 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
 - **Not a transport.** Wire contracts, live-model plumbing, and
   desktop-to-host submission stay at the app edges. The kernel defines the
   *shapes* that travel (records, progress), not how they travel.
-- **Not a persistence layer.** It defines the `OperationStore` port; SQLite
-  and KV adapters live with their owners.
+- **Not a persistence layer.** It defines the `OperationStore` port; the
+  shared SQLite adapter lives with its owners.
 - **Not the physical truth.** Claims are advisory coordination of *intent*.
   The final guard is always the handler re-checking reality (does the
   worktree still exist? is the branch merged?) before acting. Probing and

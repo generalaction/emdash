@@ -19,7 +19,12 @@ export function defineOperation<TName extends string, TInput, TResult, TError>(s
    */
   input: VersionedSchema<TInput>;
 
-  /** Terminal payloads. Plain zod — they are written once, at settlement. */
+  /**
+   * Terminal payloads. Plain zod, deliberately *not* versioned: they are
+   * delivered to the awaiting handle, not durably stored — anything worth
+   * remembering goes into the versioned outcome summary via ctx.fact()
+   * (see §the-record for the rationale and the promotion path).
+   */
   result: z.ZodType<TResult>;
   error: z.ZodType<TError>;
 
@@ -130,6 +135,18 @@ Notes on the deliberate shapes:
 - `outcome` is the *only* stage data that persists — the compact terminal
   summary. Live stage streams are ephemeral
   ([06 §stages](./06-execution-and-handlers.md#stages-and-progress)).
+- `outcome` is also the **one durably versioned shape** on the settlement
+  path: it carries a light versioned envelope (one shared version map, not
+  one per definition), while `result`/`error` stay plain zod. The asymmetry
+  with `input` is principled: a stored *input* is **executed** by future
+  code — an upgrade function must produce something the new handler can act
+  on, so versioning is a correctness requirement. A stored *outcome* is only
+  ever **displayed or inspected** — an unparseable three-versions-old
+  summary can render as "completed (details unavailable)" with zero harm.
+  Handlers route anything durable through `ctx.fact()`; if a specific
+  definition ever genuinely needs its full result durable and upgradeable,
+  promote that one definition's `result` to a `VersionedSchema` — nothing
+  blocks it.
 - `seq` comes from the store (SQLite rowid / host log counter). It is the
   total order dispatch fairness relies on; it never travels across planes.
 

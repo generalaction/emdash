@@ -44,21 +44,32 @@ export interface OperationStoreTx {
 }
 ```
 
-Three implementations, one contract test suite run against all of them:
+Two implementations, one contract test suite run against both:
 
 - **`testing/memory-store.ts`** — a `Map` plus a counter. The reference
   implementation; every kernel test runs against it.
-- **Desktop SQLite store** — Drizzle over the operations tables; `seq` is
-  the rowid; `transaction` is the DB transaction shared with entity
-  mutations (the outbox property from
-  [01 §2](./01-concepts.md#2-the-two-planes)).
-- **Host KV store** — the workspace server's JSON store behind its write
-  lock; `transaction` serializes on that lock.
+- **`SqliteOperationStore`** — one implementation, built on the existing
+  `core/src/primitives/sqlite-store/` primitive, used by **both planes**.
+  There is no separate host KV store: the workspace server runtime can take
+  the same SQLite dependency, and a second persistence format would buy
+  nothing but a second set of bugs.
 
-The contract tests (insert assigns monotonic seq; CAS transition rejects
-wrong `from`; transactions are serialized; non-terminal listing is
-consistent within a tx) are what make "same kernel, different stores" a
-tested property instead of a hope.
+The two planes construct the SQLite store differently, and that difference
+lives in adapter construction, not in the port:
+
+- The **desktop** store attaches to the app database and must accept an
+  *external* transaction handle — admission joins the caller's Drizzle
+  transaction so the entity mutation and the operation land atomically (the
+  outbox property from [01 §2](./01-concepts.md#the-desktop-ledgers-dual-role)).
+- The **workspace server** store owns its own database file and its own
+  transactions.
+
+The port itself is justified by purity and testability, not by backend
+plurality — it is what lets every engine test run against memory with a
+fake clock. The contract tests (insert assigns monotonic seq; CAS
+transition rejects wrong `from`; transactions are serialized; non-terminal
+listing is consistent within a tx) are what make "same kernel, different
+stores" a tested property instead of a hope.
 
 ## The registry
 
@@ -197,16 +208,22 @@ The kernel tests in four tiers, mirroring `wire/src/state/`:
    default-reject, and batch member ordering; `dispatchPass` properties
    (no hold-and-wait, drain/progress, lanes-equivalence for exclusive-only
    workloads, starvation-freedom under adversarial scan streams).
-2. **Store contract tests** — one suite, three implementations (§the store
+2. **Store contract tests** — one suite, two implementations (§the store
    port).
 3. **Engine tests** — memory store + fake clock: full lifecycles, retries
    with backoff timing, cancellation at each status, supersession of running
    work, parent/child settlement and adoption, recovery from every
    crash-point (kill between admission and dispatch, mid-handler, between
-   settlement and parent update).
-4. **Adapter tests** — desktop store over real SQLite (existing `main-db`
-   Vitest project), host store over the KV harness, bridge handler over the
-   wire test harness.
+   settlement and parent update). Because shared modes ship day one, the
+   shared-mode interleavings are first-class scenarios here, not follow-ups:
+   scan×teardown (teardown queues behind running scans; a new scan is
+   rejected by the pending teardown; the fairness barrier drains in `seq`
+   order) and measure×provision (repo-level read waits for descendant
+   mutations, blocks new ones, coexists with descendant reads).
+4. **Adapter tests** — the SQLite store over real SQLite in both
+   constructions (desktop: joining an external transaction; server: owning
+   its transactions — the existing `main-db` Vitest project hosts the
+   former), and the bridge handler over the wire test harness.
 
 The scripted-handler harness (`testing/harness.ts`) makes tier 3 ergonomic:
 handlers whose stages, failures, and durations are declared per test, plus
@@ -214,28 +231,40 @@ assertion helpers over records and progress streams.
 
 ## Migration
 
-The order that keeps every commit shippable:
+The order that keeps every commit shippable. Shared modes are not a
+separate phase — the conflict table is authored with `queue` rows and the
+read paths become operations as part of the adapter steps
+([05 §day-one](./05-dispatch.md#shared-modes-are-day-one-not-a-later-phase)):
 
 1. **Land the kernel** (pure layers + engine + memory store) with tiers 1–3
-   green. Zero app integration; purely additive.
+   green — including the shared-mode interleaving scenarios. Zero app
+   integration; purely additive.
 2. **Desktop adapter**: implement the SQLite store (schema gains `claims`
    and `outcome` columns via a generated Drizzle migration), swap the
    internals of the desktop operations service to `createOperationEngine`
    behind its existing wire surface, and migrate desktop definitions
-   (project/task deletion trees) to `defineOperation`. All operations claim
-   `mutates(...)` — lanes-equivalent behavior, no observable change.
-3. **Host adapter**: implement the KV store, express host work
-   (provision/teardown/prune/scan) as handlers with `ctx.stage` (the
-   bootstrap-plan workflow maps step-per-stage), bridge progress onto wire
+   (project/task deletion trees) to `defineOperation`. The conflict table
+   ships complete from the start — `queue`, `supersede`, and `reject` rows
+   included.
+3. **Host adapter**: construct the same SQLite store for the workspace
+   server, express host work as handlers with `ctx.stage` — the destructive
+   paths (provision/teardown/prune, with the bootstrap-plan workflow mapping
+   step-per-stage) *and* the read paths (git-stats scans, worktree probes,
+   disk measures as `reads(...)` operations) — bridge progress onto wire
    live state, and replace the desktop's submit-and-follow internals with
-   the bridge-handler pattern.
-4. **Turn on the matrix**: scans become `reads(...)`; repo-wide prune and
-   host drain become expressible; the `queue` verb enters the conflict
-   table.
-5. **Delete the superseded**: the old engine internals, the host log's
-   bespoke record/status shapes, the stage-lifting adapters, and every
-   per-feature exclusivity check.
+   the bridge-handler pattern. This is deliberately the largest step: the
+   read paths are where the shared-mode wins live
+   ([08 §observational](./08-usage-patterns.md#the-observational-operation)),
+   and migrating them later would mean touching every read path twice.
+4. **Delete the superseded**: the old engine internals, the host log's
+   bespoke record/status shapes, the stage-lifting adapters, the scan
+   cache's in-flight dedupe, and every per-feature exclusivity check. The
+   migration is not done until this list is empty — two coexisting systems
+   indefinitely is the failure mode.
 
-Steps 1 and 4 are low-risk and pure-core; 2 and 3 are the high-risk ones
-(database migration, host log format) and each warrants its own PR with the
-kernel already proven against the memory store.
+Step 1 is low-risk and pure-core; 2 and 3 are the high-risk ones (database
+migration, host runtime storage) and each warrants its own PR with the
+kernel already proven against the memory store. Validation gate between 2
+and 3: the first migrated vertical slice (teardown end to end) must come
+out visibly simpler than what it replaced — if it does not, stop and
+reassess with one slice's sunk cost, not ten.

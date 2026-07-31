@@ -106,6 +106,43 @@ per-operation (probe-then-act for teardown, marker files for provisioning,
 `--force-with-lease` semantics for git pushes). What the kernel provides is
 the *slot* where such code runs and the guarantee it will re-run on retry.
 
+## Stages vs operations: where the line is
+
+Stages exist for exactly two purposes: **observability** (the checklist —
+what is this operation doing, what failed) and **structuring compensation**
+inside a handler. They have no identity in the log, no claims, no
+independent retry or cancellation, and they do not survive restart — after
+a crash the whole operation re-runs and the handler's idempotency skips
+completed work. The crispest form of the rule: **operations are the
+durability and claim boundaries; stages are neither.**
+
+Four questions decide whether a candidate step is a stage or its own
+operation:
+
+| Question | Yes → operation | No → stage |
+|---|---|---|
+| Should *other* work legitimately interleave between this step and the next? | operation | stage |
+| Does this step contend on **different resources** than its siblings, held for a **long time**? | operation (split, so claims stay narrow) | stage |
+| Is this step too expensive to redo if the process dies right after it? | operation (its record is the checkpoint) | stage |
+| Does anyone need to retry, cancel, or dedupe this step *independently*? | operation | stage |
+
+Worked both ways: workspace provisioning — create branch, create worktree,
+run setup scripts — is correctly **one operation with three stages**: every
+step targets the same branch/worktree pair, so splitting adds durability
+boundaries without releasing anything anyone else wants. Project deletion is
+correctly a **coordinator with child operations**: one big operation
+claiming every worktree would hold worktree #1's claim hostage while
+worktrees #2–10 tear down; children each claim one worktree for exactly
+their own duration.
+
+The second row is the claim-scope guard, and it cuts both ways. An
+operation holds *all* its claims for its *full* duration — so the
+per-definition review question is: *is every claim a resource this handler
+actually touches exclusively, for roughly the whole duration?* If a claim
+is needed for only the first tenth of a long handler (a repo-level step
+before long setup scripts), that is the signal to split. The claim-holding
+profile, not the step count, decides.
+
 ## Stages and progress
 
 Progress is live and ephemeral; only the terminal summary persists

@@ -179,18 +179,24 @@ Since desktop claims describe desktop-visible intent and the host is the
 physical truth, host-side handler guards remain the final arbiter regardless
 of what either dispatcher decided.
 
-## Adoption path: start with lanes-equivalent behavior
+## Shared modes are day-one, not a later phase
 
-The schema (claims with modes) and the dispatcher are decoupled on purpose.
-The migration can ship in two steps:
+Earlier drafts staged the rollout — ship exclusive-only (lanes-equivalent)
+first, turn on shared modes later. That staging is dropped: the dispatcher
+is the same ~60 lines either way, and the shared-mode semantics are where
+the real wins live (the scan×teardown race class, deduped reads, consistent
+subtree snapshots — see
+[08 §observational](./08-usage-patterns.md#the-observational-operation)).
+Deferring them would mean migrating the read paths twice.
 
-1. All operations claim `mutates(...)` (single `exclusive` + intents), and
-   `dispatchPass` behaves exactly like today's keyed lanes — observable
-   behavior unchanged, but claims are stored, displayed, and tested.
-2. Shared-mode operations (scans as `reads(...)`) and coarse operations
-   (repo prune) turn on the matrix's real power — a dispatcher-only change,
-   touching no schema, no admission code, and no handlers.
+What survives from the staging idea is the **test**, demoted from rollout
+gate to permanent sanity check: for exclusive-only workloads, `dispatchPass`
+and a reference `KeyedLanes` implementation must produce identical start
+orders. This pins down the degenerate case (matrix-gated dispatch *is*
+lanes when every claim is `exclusive`) so the generalization can never
+regress the simple workloads.
 
-The lanes-equivalence of step 1 is itself a property test: for exclusive-only
-workloads, `dispatchPass` and a reference `KeyedLanes` implementation must
-produce identical start orders.
+The cost of leaning in is carried by the test suite, not the code: the
+interesting interleavings from day one are scan×teardown and
+measure×provision, and the engine tests must cover them explicitly
+([07 §testing](./07-engine-and-stores.md#testing)).

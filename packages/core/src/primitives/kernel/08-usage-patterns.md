@@ -33,27 +33,127 @@ Checklist for any new destructive operation:
 - The conflict table gets rows for every definition this can collide with —
   the default is `reject`, so forgetting a row fails loudly, not wrongly.
 
-## The observational operation
+## The creative operation
 
-*Finite work that only reads: scans, measurements, git-stats collection.*
+*Finite work that brings a resource into existence.* Claims are on keys,
+not on existing things ([02](./02-resources-and-claims.md#claims-are-on-keys-not-on-existing-things)),
+so provisioning claims the branch and worktree it is *about to create*:
 
 ```ts
-const scanWorkspace = defineOperation({
-  name: 'scan-workspace',
+const provisionWorkspace = defineOperation({
+  name: 'provision-workspace',
   // ...
-  key: (i) => `scan:${worktreeKey(i)}`,
-  claims: (i) => worktreeResource.reads(i),      // shared — scans coexist
+  key: (i) => `provision:${worktreeKey(i)}`,
+  claims: (i) => [
+    ...branchResource.mutates({ hostId: i.hostId, repoPath: i.repoPath, branchName: i.branchName }),
+    ...worktreeResource.mutates({ hostId: i.hostId, path: i.worktreePath, repoPath: i.repoPath }),
+  ],
 });
 ```
 
-Use an operation (rather than a plain function call) when the read is
-expensive enough to dedupe, worth showing progress for, or must be ordered
-against mutations. The `shared` claims give you all three: concurrent scans
-coexist, identical scans dedupe on key, and the conflict table's
-`on(teardown, scan).queue()` row sequences destruction behind in-flight
-reads. Cheap reads that need none of this should stay plain function calls
-— not everything deserves a durable row
-([02 §what-to-model](./02-resources-and-claims.md#what-to-model--and-what-not-to)).
+Never claim the container exclusively "to be safe": the repo receives only
+the implicit `intent-exclusive`, so isolated creations run in parallel
+across a repo, while two operations creating the *same* branch name still
+conflict at admission via the `exclusive` on the shared branch key.
+
+## The observational operation
+
+*Finite work that only reads: scans, measurements, git-stats collection.*
+Today these are unmanaged reads, and the workspace scan cache hand-rolls
+their in-flight dedupe; as operations they inherit dedupe, ordering,
+progress, and history from the kernel:
+
+```ts
+const scanWorkspaceGitStats = defineOperation({
+  name: 'scan-workspace-git-stats',
+  input: gitStatsInputSchema,
+  result: gitStatsResultSchema,
+  error: gitStatsErrorSchema,
+  key: (i) => `git-stats:${worktreeKey(i)}`,
+  claims: (i) => worktreeResource.reads(i),      // shared + intent-shared ancestors
+});
+```
+
+What each kernel property does for this one definition:
+
+- **Dedupe on key**: two UI surfaces mounting simultaneously (workspaces
+  list + detail page) submit the same scan and get the *same handle* — the
+  scan cache's in-flight-collapse code path is deleted, not reimplemented.
+  The cache itself shrinks to what it should be: a result cache, poked by
+  scan settlement.
+- **Shared×shared**: scans of the same worktree coexist with disk-usage
+  measures of it, and with each other across worktrees — no lane
+  serialization tax.
+- **The conflict rows kill a race class at the source**:
+
+```ts
+on(teardownWorkspace,      scanWorkspaceGitStats).queue();   // destruction drains in-flight reads
+on(scanWorkspaceGitStats,  teardownWorkspace).reject();      // scanning a dying path is senseless
+```
+
+The `reject` row is what eliminates the phantom-path family (git errors
+from half-deleted directories, "worktree missing" artifacts): once a
+teardown is admitted, every new scan of that path is refused with a typed
+conflict naming the teardown, which the UI renders as "being removed". The
+`queue` row means a running scan finishes cleanly before the directory
+vanishes. Previously neither direction was coordinated at all, and the
+symptoms were patched downstream per display surface.
+
+Convert a read only when it earns the row — the (a)/(b)/(c) test in
+[02 §what-to-model](./02-resources-and-claims.md#what-to-model--and-what-not-to).
+Cheap reads stay plain function calls.
+
+## The consistent subtree read
+
+*A read of a whole subtree that must be internally consistent.* Measuring a
+repo's total disk usage while provisions and teardowns mutate its worktrees
+yields numbers that never added up; a `shared` claim on the *parent* fixes
+it in one line:
+
+```ts
+const measureRepoUsage = defineOperation({
+  name: 'measure-repo-usage',
+  // ...
+  key: (i) => `measure:${repoKey(i)}`,
+  claims: (i) => repoResource.reads(i),          // shared on the repo itself
+});
+```
+
+Check the matrix on what this coexists with: worktree scans hold
+`intent-shared` on the repo — `shared × intent-shared` ✓, so reads-below
+continue during the measurement. Worktree teardowns hold `intent-exclusive`
+— `shared × intent-exclusive` ✗, so the measure waits for in-flight
+mutations to drain and blocks new ones for its (short) duration. The
+result is a consistent snapshot with a derivable waiting state ("Measuring —
+waiting for 1 teardown"). This sentence — *let reads-below continue, hold
+mutations-below* — is inexpressible with lanes or exclusive-only claims at
+any key granularity; it is the graded-gating payoff of the full matrix.
+
+## The mixed-mode operation
+
+*Work that mutates one resource while only reading another.* Pushing a
+branch (the create-PR flow) is the textbook case:
+
+```ts
+const pushBranch = defineOperation({
+  name: 'push-branch',
+  // ...
+  key: (i) => `push:${branchKey(i)}`,
+  claims: (i) => [
+    ...branchResource.mutates(i),                // exclusive on the branch ref
+    ...worktreeResource.reads(i),                // shared on the worktree
+  ],
+});
+```
+
+Three interleavings that were previously "hope git and timing cooperate"
+become specified: a teardown (claiming the worktree and the branch)
+conflicts on both keys and the table's `queue` row keeps the user's
+delete-task click from yanking the branch out from under an in-flight push;
+status scans of the same worktree run *during* the push
+(`shared × shared` ✓) so the UI keeps updating while a slow remote grinds;
+and two pushes of the same branch dedupe on key while pushes of different
+branches in the same repo coexist.
 
 ## The coordinator (parent/child tree)
 

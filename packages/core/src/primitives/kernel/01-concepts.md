@@ -53,6 +53,30 @@ record is the execution ("this is happening now, here are the stages").
 Desktop-only operations (pure DB work) and host-initiated operations
 (reconciler proposals) each live in one plane only.
 
+### The desktop ledger's dual role
+
+Named precisely, the desktop ledger plays **two roles with one mechanism**:
+
+- For desktop-executed operations (DB deletions, coordinators) it is a
+  genuine operation log — the work happens where the log lives.
+- For host-bound operations it is a **transactional outbox**: intent written
+  atomically with the entity mutation, delivered to another system later.
+  It is a *richer* outbox than the textbook pattern — a classic outbox row
+  is a fire-and-forget message, while these records track the remote
+  execution's full lifecycle (status, progress, result) back into the intent
+  record; the literature name is closer to a durable request/reply or saga
+  log.
+
+The distinction is deliberately *not* reified into two systems. It is
+captured by **execution locality**, derivable from the definition's handler
+in a given plane: a record is *local* (its handler executes here) or
+*forwarded* (its handler is a [bridge](./07-engine-and-stores.md#cross-plane-composition)
+that submits to a host and follows). Locality is never stored — it would
+only drift. The one behavioral difference it implies lives in dispatch: a
+forwarded record whose target host is offline is *undeliverable*, not
+*contending* — it is skipped without planting fairness barriers
+([05 §per-plane gating](./05-dispatch.md#per-plane-gating)).
+
 ## 3. Ownership taxonomy
 
 Which plane owns an entity decides where its operations are admitted:
@@ -152,6 +176,12 @@ because they have different lifetimes and different consumers:
   which stage failed, which completed, and optional structured facts — enough
   for history views, error surfaces, and retry decisions, without turning the
   operations table into a time-series store.
+
+The outcome summary is the **one durably versioned shape** on this path: it
+gets a light versioned envelope, while a definition's `result` and `error`
+payloads stay plain zod and are delivered to the awaiting handle only. The
+rationale and the promotion path for definitions that need more live in
+[03 §the record](./03-operations.md#the-record).
 
 ## 7. Operations vs sessions
 
