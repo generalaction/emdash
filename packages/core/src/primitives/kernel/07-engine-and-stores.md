@@ -111,6 +111,12 @@ The engine composes both stores and routes by the definition's
   child pointing at a vanished parent would be a permanent orphan.
   Ephemeral children under durable parents are fine — a coordinator may
   `ctx.run` a scan. Validated at submission.
+- **Ephemeral children never gate `waiting-children`.** Parent settlement
+  and propagation count durable children only
+  ([03 §trees](./03-operations.md#operation-trees)); otherwise a crash that
+  vaporizes ephemeral children would settle the parent vacuously as if
+  they had succeeded. Awaiting an ephemeral child's outcome is `ctx.run`'s
+  job, inside a still-`running` parent.
 
 The two planes construct the SQLite store differently, and that difference
 lives in adapter construction, not in the port:
@@ -364,7 +370,9 @@ The kernel tests in four tiers, mirroring `wire/src/state/`:
    properties (no hold-and-wait for queued work, drain/progress,
    lanes-equivalence for exclusive-only workloads, starvation-freedom under
    adversarial scan streams) plus **pass-report assertions** (a skipped
-   operation's report names its blockers or barred keys) and **ancestor
+   operation's report names its blockers or barred keys; capacity, offline-
+   host, and backoff skips appear in `deferred` with their reason — nothing
+   pending is ever absent from the report) and **ancestor
    exemption at dispatch** (a running parent's claims never block its
    children).
 2. **Store contract tests** — one suite, two implementations (§the store
@@ -393,8 +401,10 @@ The kernel tests in four tiers, mirroring `wire/src/state/`:
    **crash semantics per tier** (restart the engine: durable records
    recover, ephemeral records are gone and a re-submission starts fresh),
    **ephemeral cancel is a no-op** (handle resolves with the completed
-   result), and **no-durable-child-under-ephemeral-parent** rejected at
-   submission. Capacity limits likewise: reads capped at N start in `seq`
+   result), **no-durable-child-under-ephemeral-parent** rejected at
+   submission, and **ephemeral children never gate `waiting-children`**
+   (a parent with only ephemeral spawns settles immediately; crash before
+   their settlement changes nothing). Capacity limits likewise: reads capped at N start in `seq`
    order as slots free, a capacity skip plants no fairness barriers
    (an unrelated exclusive still starts), per-host caps isolate a busy
    host, and the **combined scenario** — a burst of ephemeral scans under a

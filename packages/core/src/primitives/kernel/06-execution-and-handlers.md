@@ -205,6 +205,14 @@ like any declarative parent, and its declared propagation policy governs
 settlement from there. `ctx.run` children, by construction, are settled
 before the handler returns.
 
+One tier rule applies to both styles: **only durable children gate
+`waiting-children`** ([03 §trees](./03-operations.md#operation-trees)). A
+spawned ephemeral scan never holds its parent open and never feeds the
+propagation policy — crash and no-crash behavior stay identical, since a
+crash vaporizes ephemeral records. If the parent's logic *depends* on an
+ephemeral child's result, that is `ctx.run` (awaited in code, while the
+parent is still `running`), not `ctx.spawn`.
+
 Stages exist for exactly two purposes: **observability** (the checklist —
 what is this operation doing, what failed) and **structuring compensation**
 inside a handler. They have no identity in the log, no claims, no

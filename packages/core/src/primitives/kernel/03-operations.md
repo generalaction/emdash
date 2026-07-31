@@ -303,6 +303,13 @@ BullMQ/Kubernetes lineage:
 
 - **A parent enters `waiting-children`** when its own work is done but
   children are non-terminal. It settles when the last child settles.
+  **Only durable children gate this** — ephemeral children (spawned scans)
+  never hold a parent in `waiting-children` and never feed its propagation
+  policy. They are observation, not intent, and a crash vaporizes them; if
+  they gated settlement, a crash would settle the parent vacuously as if
+  they had succeeded. A parent that needs an ephemeral child's outcome
+  awaits it in code via `ctx.run`
+  ([06](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers)).
 - **Propagation is declared, not implied.** The parent's submission declares
   what child failure means: `fail-parent` (any child failure fails the
   parent), `tolerate` (parent succeeds with a partial outcome summary), or
