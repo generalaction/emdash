@@ -10,6 +10,7 @@ import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
 import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { LIBSECRET_PASSWORD_STORE, shouldForceLibsecretBackend } from './app/linux-secret-storage';
 import { setupApplicationMenu } from './app/menu';
+import { registerProcessCrashLogging } from './app/process-crash-logging';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { registerQuitHandler } from './app/shutdown';
 import { applyNativeTheme, createMainWindow } from './app/window';
@@ -72,6 +73,7 @@ registerAppScheme();
 
 initializeFileLogger();
 registerProcessErrorLogging(log);
+registerProcessCrashLogging(app, log);
 registerRendererLogHandler(ipcMain);
 
 app.on('second-instance', () => {
