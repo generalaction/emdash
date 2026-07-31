@@ -11,6 +11,7 @@ export async function opencodeAuthStatus(ctx: AgentAuthContext): Promise<AgentAu
   try {
     const { stdout, stderr } = await ctx.exec(ctx.cli, ['auth', 'list'], {
       timeout: AUTH_STATUS_TIMEOUT_MS,
+      windowsScript: 'trusted',
     });
     return statusFromAuthListOutput(`${stdout}\n${stderr}`);
   } catch (error) {
