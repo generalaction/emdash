@@ -240,6 +240,20 @@ describe('useInitialConversationState', () => {
     expect(latestState?.prompt).toBe('A long task description');
   });
 
+  it.each([null, 42, { text: 'not a string' }])(
+    'ignores a persisted non-string prompt: %j',
+    async (persistedValue) => {
+      dom.window.localStorage.setItem(
+        'initial-conversation:draft:project-1',
+        JSON.stringify(persistedValue)
+      );
+
+      await renderProbe('project-1', { persistPromptPerProject: true });
+
+      expect(latestState?.prompt).toBe('');
+    }
+  );
+
   it('keeps persisted prompts isolated by project', async () => {
     await renderProbe('project-1', { persistPromptPerProject: true });
     await setPrompt('Project one draft');

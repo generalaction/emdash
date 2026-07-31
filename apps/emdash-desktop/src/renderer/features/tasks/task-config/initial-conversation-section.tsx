@@ -44,6 +44,7 @@ export type InitialConversationState = {
   projectId?: string;
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
+  clearPrompt: () => void;
   issueContext: string | null;
   setIssueContext: (ctx: string | null) => void;
   autoApprove: boolean;
@@ -74,7 +75,9 @@ function readPromptDraft(projectId: string | undefined, persist: boolean): strin
   if (!projectId || !persist) return '';
   try {
     const draft = localStorage.getItem(initialConversationDraftKey(projectId));
-    return draft === null ? '' : (JSON.parse(draft) as string);
+    if (draft === null) return '';
+    const parsed: unknown = JSON.parse(draft);
+    return typeof parsed === 'string' ? parsed : '';
   } catch {
     return '';
   }
@@ -114,6 +117,16 @@ export function useInitialConversationState(
     },
     [persistPromptPerProject, projectId]
   );
+  const clearPrompt = useCallback(() => {
+    if (projectId && persistPromptPerProject) {
+      try {
+        localStorage.removeItem(initialConversationDraftKey(projectId));
+      } catch {
+        // Ignore storage failures; the in-memory draft can still be cleared.
+      }
+    }
+    setPromptState('');
+  }, [persistPromptPerProject, projectId]);
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
     'initial-conversation:auto-approve-enabled',
@@ -159,6 +172,7 @@ export function useInitialConversationState(
     projectId,
     prompt,
     setPrompt,
+    clearPrompt,
     issueContext,
     setIssueContext,
     autoApprove,

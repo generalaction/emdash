@@ -15,6 +15,7 @@ function makeInitialConversationState(
     setProvider: () => {},
     prompt: 'Check this',
     setPrompt: () => {},
+    clearPrompt: () => {},
     issueContext: null,
     setIssueContext: () => {},
     autoApprove,
