@@ -63,6 +63,21 @@ export type InitialConversationState = {
 
 interface InitialConversationStateOptions {
   resetPromptOnProjectChange?: boolean;
+  persistPromptPerProject?: boolean;
+}
+
+function initialConversationDraftKey(projectId: string): string {
+  return `initial-conversation:draft:${projectId}`;
+}
+
+function readPromptDraft(projectId: string | undefined, persist: boolean): string {
+  if (!projectId || !persist) return '';
+  try {
+    const draft = localStorage.getItem(initialConversationDraftKey(projectId));
+    return draft === null ? '' : (JSON.parse(draft) as string);
+  } catch {
+    return '';
+  }
 }
 
 export function useInitialConversationState(
@@ -71,11 +86,34 @@ export function useInitialConversationState(
   autoApproveByDefault = false,
   options: InitialConversationStateOptions = {}
 ): InitialConversationState {
-  const { resetPromptOnProjectChange = true } = options;
+  const { resetPromptOnProjectChange = true, persistPromptPerProject = false } = options;
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const { data: agents } = useAgents();
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPromptState] = useState(() =>
+    readPromptDraft(projectId, persistPromptPerProject)
+  );
+  const setPrompt = useCallback<Dispatch<SetStateAction<string>>>(
+    (value) => {
+      setPromptState((current) => {
+        const next = typeof value === 'function' ? value(current) : value;
+        if (projectId && persistPromptPerProject) {
+          try {
+            const key = initialConversationDraftKey(projectId);
+            if (next) {
+              localStorage.setItem(key, JSON.stringify(next));
+            } else {
+              localStorage.removeItem(key);
+            }
+          } catch {
+            // Ignore storage failures; the in-memory draft still works.
+          }
+        }
+        return next;
+      });
+    },
+    [persistPromptPerProject, projectId]
+  );
   const [issueContext, setIssueContext] = useState<string | null>(null);
   const [autoApprovePreference, setAutoApprovePreference] = useLocalStorage(
     'initial-conversation:auto-approve-enabled',
@@ -98,7 +136,7 @@ export function useInitialConversationState(
     setPrevProjectId(projectId);
     setProviderOverride(null);
     if (resetPromptOnProjectChange) {
-      setPrompt('');
+      setPromptState(readPromptDraft(projectId, persistPromptPerProject));
     }
     setIssueContext(null);
     setIssueContextEditorOpen(false);

@@ -29,6 +29,8 @@ export function useCreateTaskCallback({
     if (!taskManager) return;
 
     const id = crypto.randomUUID();
+    const initialConversationConfig = buildInitialConversation(initialConversation);
+    initialConversation.setPrompt('');
     void taskManager
       .createTask({
         id,
@@ -38,7 +40,7 @@ export function useCreateTaskCallback({
           name: state.taskName.effectiveTaskName,
           linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
           initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-          initialConversation: buildInitialConversation(initialConversation),
+          initialConversation: initialConversationConfig,
         },
         workspaceConfig: state.workspaceConfig.resolvedConfig,
       })
