@@ -75,13 +75,42 @@ cascade).
 
 Two implementations, one contract test suite run against both:
 
-- **`testing/memory-store.ts`** — a `Map` plus a counter. The reference
-  implementation; every kernel test runs against it.
+- **`MemoryOperationStore`** — a `Map` plus a counter. It plays two roles:
+  the reference implementation every kernel test runs against, *and* the
+  production backing for the **ephemeral tier**
+  ([01 §durability](./01-concepts.md#durability-is-a-per-definition-property)).
+  It is not a test double that happens to ship; it is the correct store for
+  records that are supposed to die with the process.
 - **`SqliteOperationStore`** — one implementation, built on the existing
-  `core/src/primitives/sqlite-store/` primitive, used by **both planes**.
-  There is no separate host KV store: the workspace server runtime can take
-  the same SQLite dependency, and a second persistence format would buy
-  nothing but a second set of bugs.
+  `core/src/primitives/sqlite-store/` primitive, used by **both planes**
+  for the durable tier. There is no separate host KV store: the workspace
+  server runtime can take the same SQLite dependency, and a second
+  persistence format would buy nothing but a second set of bugs.
+
+### Two tiers, one conflict domain
+
+The engine composes both stores and routes by the definition's
+`durability`; everything that *decides* reads the union:
+
+- **Writes route**: a durable definition's records go to SQLite, an
+  ephemeral definition's to memory. `seq` is allocated from one shared
+  monotonic sequence so fairness ordering spans tiers.
+- **Reads union**: `listNonTerminal`, `listPending`, and
+  `listNonTerminalClaimsOnKeys` merge both stores — admission and dispatch
+  are tier-blind by construction. An ephemeral scan queues behind a durable
+  teardown and vice versa; splitting the conflict domain would forfeit the
+  race-class guarantees.
+- **Recovery is durable-only.** `recover()` never sees ephemeral records —
+  they died with the process, correctly, and demand-driven refetch
+  recreates what is still wanted.
+- **History is durable-only.** Terminal ephemeral records are dropped after
+  handle resolution and a short linger for late `query` reads; they never
+  appear in retention-window history ([09 §visibility](./09-querying-and-display.md#the-read-sources)).
+- **No durable child under an ephemeral parent.** A durable record's
+  `parentId` must reference a durable record (or nothing): a surviving
+  child pointing at a vanished parent would be a permanent orphan.
+  Ephemeral children under durable parents are fine — a coordinator may
+  `ctx.run` a scan. Validated at submission.
 
 The two planes construct the SQLite store differently, and that difference
 lives in adapter construction, not in the port:
@@ -120,18 +149,25 @@ Each feature slice exports its contribution
 `workspaceConflicts`); a per-plane manifest aggregates them. The engine
 validates at construction: unique definition names, handlers matching known
 definitions, no conflicting policy rows. Registration bugs are startup
-errors, never runtime surprises.
+errors, never runtime surprises. The input-dependent invariants — conflict
+table completeness and the durability invariant (no ephemeral definition
+with an explicit exclusive claim,
+[03 §defineOperation](./03-operations.md#defineoperation)) — are checked by
+the completeness lint with representative inputs (§testing).
 
 ## The engine
 
 ```ts
 export function createOperationEngine(deps: {
-  store: OperationStore;
+  store: OperationStore;                // durable tier (SQLite in production)
+  ephemeralStore?: OperationStore;      // ephemeral tier; defaults to a fresh memory store
   registry: OperationRegistry;
   progress: ProgressSink;
   clock?: Clock;                        // Date.now + timers; fake in tests
   /** Desktop only: gate dispatch on target-host availability (05 §per-plane). */
   hostAvailability?: HostAvailability;
+  /** Read-class concurrency caps + hostOf grouping (05 §capacity-limits). */
+  limits?: DispatchLimits;
 }): OperationEngine;
 
 export interface OperationEngine {
@@ -214,7 +250,8 @@ plus a poke:
 
 1. **Reset interrupted work**: every `running` record → `pending`,
    `attempt` preserved (a process death consumes no attempt). Handlers'
-   idempotency (physical guards) makes the re-dispatch safe.
+   idempotency (physical guards) makes the re-dispatch safe. Durable tier
+   only — the ephemeral store starts empty by construction.
 2. **Settle orphaned parents**: `waiting-children` records whose children
    are all terminal settle now (their settlement was lost in the crash).
 3. **Expire stale intent** (desktop, policy-driven): pending records past a
@@ -350,10 +387,22 @@ The kernel tests in four tiers, mirroring `wire/src/state/`:
    scans; a new scan is rejected by the pending teardown; the fairness
    barrier drains in `seq` order) and measure×provision (repo-level read
    waits for descendant mutations, blocks new ones, coexists with
-   descendant reads). With `ctx.run` in scope: the **crash-resume
-   orchestration test** (kill a coordinator between steps; on re-run the
-   first child dedupes with its persisted result and the flow completes)
-   and **cancellation cascading through an await**.
+   descendant reads). The durability tier gets its own scenarios:
+   **cross-tier admission** (an ephemeral scan queues a durable teardown
+   and is rejected by a pending one — the union read proven, not assumed),
+   **crash semantics per tier** (restart the engine: durable records
+   recover, ephemeral records are gone and a re-submission starts fresh),
+   **ephemeral cancel is a no-op** (handle resolves with the completed
+   result), and **no-durable-child-under-ephemeral-parent** rejected at
+   submission. Capacity limits likewise: reads capped at N start in `seq`
+   order as slots free, a capacity skip plants no fairness barriers
+   (an unrelated exclusive still starts), per-host caps isolate a busy
+   host, and the **combined scenario** — a burst of ephemeral scans under a
+   read cap while a durable teardown is admitted mid-burst — exercises
+   barriers, capacity, and tiers together. With `ctx.run` in scope: the
+   **crash-resume orchestration test** (kill a coordinator between steps;
+   on re-run the first child dedupes with its persisted result and the
+   flow completes) and **cancellation cascading through an await**.
 4. **Adapter tests** — the SQLite store over real SQLite in both
    constructions (desktop: joining an external transaction; server: owning
    its transactions — the existing `main-db` Vitest project hosts the
@@ -365,7 +414,9 @@ assertion helpers over records and progress streams. `testing/` also ships
 the **conflict-table completeness lint**: given every registered definition
 and representative inputs (claim shapes are input-dependent), assert that
 every pair of definitions whose claims can collide has an explicit policy
-row — turning default-reject surprises in production into red CI.
+row — turning default-reject surprises in production into red CI. The same
+lint checks the **durability invariant**: an ephemeral definition whose
+representative claims include an explicit exclusive is a red build.
 
 ## Migration
 
@@ -390,7 +441,7 @@ read paths become operations as part of the adapter steps
    server, express host work as handlers with `ctx.stage` — the destructive
    paths (provision/teardown/prune, with the bootstrap-plan workflow mapping
    step-per-stage) *and* the read paths (git-stats scans, worktree probes,
-   disk measures as `reads(...)` operations) — bridge progress onto wire
+   disk measures as ephemeral `reads(...)` operations) — bridge progress onto wire
    live state, and replace the desktop's submit-and-follow internals with
    the bridge-handler pattern. This is deliberately the largest step: the
    read paths are where the shared-mode wins live

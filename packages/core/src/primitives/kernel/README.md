@@ -10,10 +10,11 @@
 > until the migration described in [07-engine-and-stores.md](./07-engine-and-stores.md#migration)
 > replaces it plane by plane.
 
-The operations kernel is a small set of pure primitives for **durable,
-conflict-aware, observable work on named resources**. It answers, with one
-shared mechanism, the questions that today are answered by several disparate
-ones:
+The operations kernel is a small set of pure primitives for
+**conflict-aware, observable work on named resources** — durable where the
+work records intent (mutations), ephemeral where it records observation
+(reads). It answers, with one shared mechanism, the questions that today
+are answered by several disparate ones:
 
 - *May this work exist?* — admission: dedupe, reject, supersede, or queue an
   incoming operation against everything already in the log.
@@ -21,7 +22,7 @@ ones:
   currently running set, replacing per-key serial lanes.
 - *What is this work doing?* — execution: handlers report stages and progress
   through one uniform live channel instead of ad-hoc status lifting.
-- *What happened?* — records: every operation leaves a durable, queryable row
+- *What happened?* — records: every mutation leaves a durable, queryable row
   with its trigger, claims, attempts, and terminal outcome. The audit log is a
   side effect, not a second system.
 
@@ -84,15 +85,15 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
 | `ClaimMode` / matrix | Four descriptive modes (`shared`, `exclusive`, `intent-shared`, `intent-exclusive`) and one compatibility table shared by admission and dispatch | [02](./02-resources-and-claims.md#modes) |
 | `defineResource` | Declares a claimable resource with a parent link; `reads()`/`mutates()` expand to the full MGL claim set including ancestor intents | [02](./02-resources-and-claims.md#defineresource) |
 | `ResourceClaim` | Plain data: `{ resource, key, mode, implicit }` — frozen at admission, read by dispatch and the UI | [02](./02-resources-and-claims.md#claims-are-data) |
-| `defineOperation` | The SPI: name, versioned input, typed result/error, dedupe key, claims. One definition object used for submission, conflicts, and registration | [03](./03-operations.md#defineoperation) |
-| `OperationRecord` | The durable row: input, claims, status, parent, initiator, attempts, terminal outcome summary | [03](./03-operations.md#the-record) |
+| `defineOperation` | The SPI: name, versioned input, typed result/error, dedupe key, claims, durability tier. One definition object used for submission, conflicts, and registration | [03](./03-operations.md#defineoperation) |
+| `OperationRecord` | The record: input, claims, status, parent, initiator, attempts, terminal outcome summary — same shape in both durability tiers | [03](./03-operations.md#the-record) |
 | `defineConflictPolicy` | Central table of resolutions (`dedupe`/`reject`/`supersede`/`queue`) between definition pairs whose claims collide | [04](./04-admission-and-conflicts.md#the-policy-table) |
 | `admit` | Pure admission decision against the non-terminal set; each plane wraps it in its own transaction | [04](./04-admission-and-conflicts.md#admit) |
-| `RunningClaims` / `dispatchPass` | Matrix-gated dispatch with fairness barriers; degenerates to keyed lanes when every claim is exclusive | [05](./05-dispatch.md) |
+| `RunningClaims` / `dispatchPass` | Matrix-gated dispatch with fairness barriers and read-class capacity limits; degenerates to keyed lanes when every claim is exclusive | [05](./05-dispatch.md) |
 | `createOperationHandler` | Execution SPI: `run(ctx)` with `ctx.stage()`, progress reporting, and cancellation via `AbortSignal` | [06](./06-execution-and-handlers.md#createoperationhandler) |
 | `ctx.run` / `ctx.spawn` | Child operations from inside handlers; `ctx.run` awaits the typed result, making imperative coordinators durable via key-dedupe rather than replay | [06](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers) |
 | `OperationProgress` | The live stage/progress shape; streamed via a `ProgressSink`, never persisted (records keep a compact terminal summary) | [06](./06-execution-and-handlers.md#stages-and-progress) |
-| `OperationStore` | The persistence port; one SQLite implementation shared by both planes, plus the in-memory test store | [07](./07-engine-and-stores.md#the-store-port) |
+| `OperationStore` | The persistence port; one SQLite implementation shared by both planes for durable records, with the memory store doubling as the production ephemeral tier | [07](./07-engine-and-stores.md#the-store-port) |
 | Transition journal | `operation_transitions` rows appended with every CAS — the operation timeline for display/debugging and the poke source for read models | [07](./07-engine-and-stores.md#the-transition-journal) |
 | `createOperationEngine` | Composition root: admission + dispatch + execution + retry + recovery over a store and a registry | [07](./07-engine-and-stores.md#the-engine) |
 | `engine.query()` / folds | The read path: filter-shaped queries over records and claims, plus pure display folds (`displayStatus`, `activityFeed`, `operationTreeView`, `provenanceChain`) | [09](./09-querying-and-display.md) |
@@ -128,7 +129,7 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
 4. [04-admission-and-conflicts.md](./04-admission-and-conflicts.md) — the
    conflict policy table and the pure admission function.
 5. [05-dispatch.md](./05-dispatch.md) — matrix-gated dispatch: the algorithm,
-   fairness, restart, and when to use it vs plain lanes.
+   fairness, capacity limits, restart, and when to use it vs plain lanes.
 6. [06-execution-and-handlers.md](./06-execution-and-handlers.md) — handlers,
    stages, progress, retries, cancellation, and physical guards.
 7. [07-engine-and-stores.md](./07-engine-and-stores.md) — the engine
@@ -140,7 +141,8 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
    submission.
 9. [09-querying-and-display.md](./09-querying-and-display.md) — the read
    path: CQRS framing, `engine.query()`, the pure display folds, wire
-   exposure, and retention.
+   exposure, reactive queries fetching through ephemeral read operations,
+   and retention.
 
 ## Design lineage
 

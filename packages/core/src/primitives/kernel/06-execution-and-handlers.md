@@ -359,6 +359,25 @@ retry: { maxAttempts: 3, backoff: { kind: 'exponential', baseMs: 2_000, maxMs: 6
   `pending` with `attempt` preserved but do **not** consume an attempt —
   the process dying is not evidence the work is broken.
 
+## Concurrency: inside vs across operations
+
+Two different questions, two different owners:
+
+- **Inside one operation** — how many worktrees does a repo-wide scan probe
+  at once — is a handler implementation detail, expressed as ordinary
+  bounded fan-out (`mapWithConcurrency`, a semaphore) in handler code. The
+  kernel neither sees nor configures it.
+- **Across operations** — how many read operations run system-wide, or
+  against one host — is dispatch's job, configured as engine capacity
+  limits ([05 §capacity](./05-dispatch.md#capacity-limits)). A handler
+  cannot bound this from inside, because the storm comes from *many*
+  well-behaved handlers starting at once.
+
+The failure mode this split prevents: pushing system-level throttling into
+handlers (every handler grows its own semaphore against a shared global)
+or kernel-level knowledge into handlers' internals (per-definition
+parallelism declarations that fragment tuning across fifty files).
+
 ## Cancellation
 
 One mechanism end to end: an abort request transitions the record and fires
@@ -398,6 +417,30 @@ teardown indistinguishable from a user abort.
   non-terminal children; `ctx.run` awaits inside it reject with the abort.
 - Stages interrupted by an abort surface as `failed` with an abort message
   in the final progress publish, then the stream ends.
+
+### Ephemeral reads: abandonment, not cancellation
+
+Durable dedupe means shared fate on cancel
+([03 §key conventions](./03-operations.md#key-conventions-and-coalescer-contracts))
+— correct for intent, wrong for demand. A coalesced read has N interested
+consumers; letting any one of them abort it would yank the answer from the
+other N−1. The correct semantics are **ref-counted demand**: the operation
+should stop only when the *last* consumer leaves.
+
+The v1 posture keeps the kernel out of that business:
+**`handle.cancel()` on an ephemeral operation is a no-op** — the read runs
+to completion (reads are short by the conversion test in
+[02](./02-resources-and-claims.md#what-to-model--and-what-not-to)), the
+result lands in the read model, and a departed consumer simply never looks
+at it. Abandonment, not cancellation. The waste is bounded by the same
+capacity limits that bound everything else
+([05 §capacity](./05-dispatch.md#capacity-limits)).
+
+Demand counting is real, but it belongs to the **read-coalescer facade**
+above the kernel ([09](./09-querying-and-display.md#reactive-queries-fetch-through-operations)),
+which owns wire demand lifecycles and can stop *submitting* refreshes the
+moment demand drops to zero — the biggest saving, captured without
+teaching the kernel about subscribers.
 
 ## Where handlers live and run
 

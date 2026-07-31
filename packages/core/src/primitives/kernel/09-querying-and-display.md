@@ -27,7 +27,13 @@ side's own needs:
    09:15 → pending (retry 1) 09:17 → succeeded 09:19`) is a straight read
    of journal rows. The relational claims table
    ([02](./02-resources-and-claims.md#claims-are-data)) is what makes
-   resource-centric filters indexed lookups.
+   resource-centric filters indexed lookups. **Tier visibility**: `query`
+   reads the union of both durability tiers, so *active* views (`active:
+   true`, resource filters) see ephemeral scans alongside durable
+   teardowns — "what is touching this worktree right now" must be complete.
+   *History* is durable-only: settled ephemeral records are dropped after a
+   short linger and never appear in retention-window views
+   ([07 §two tiers](./07-engine-and-stores.md#two-tiers-one-conflict-domain)).
 2. **Live progress** (ephemeral). The per-operation `OperationProgress`
    stream renders the stage checklist
    ([06 §stages](./06-execution-and-handlers.md#stages-and-progress));
@@ -131,6 +137,64 @@ machinery — the kernel adds no transport:
   ([06 §follow](./06-execution-and-handlers.md#follow-semantics)) and joins
   the durable read model only in the renderer — mixing the two server-side
   would put ephemeral data in durable payloads.
+
+## Reactive queries fetch through operations
+
+The section above covers queries *about operations*. This one covers the
+inverse dependency: wire state queries *about the world* (workspace lists,
+git stats, disk usage) whose answers are produced by probing hosts. Those
+probes are exactly the reads the kernel coordinates — so the reactive read
+path layers onto operations instead of bypassing them:
+
+```text
+wire live-state family        (demand: who is watching, keyed by scope)
+        │ demand appears / poke arrives
+        ▼
+read model (cache)            (last known answer + provenance timestamp)
+        │ stale or missing
+        ▼
+read-coalescer facade         (freshness contract, demand counting)
+        │ submits
+        ▼
+ephemeral read operation      (claims, dedupe, capacity, progress)
+```
+
+Four rules keep the layering honest:
+
+1. **Standing queries hold nothing.** A subscription's lifetime is demand,
+   not work; a claim held for as long as a screen is open would block
+   mutations indefinitely
+   ([08 §anti-patterns](./08-usage-patterns.md#anti-patterns), "the
+   standing claim"). The query triggers *finite* read operations and is
+   re-poked by settlement — level-triggered demand, edge-triggered
+   fetches.
+2. **Expensive fetches are ephemeral read operations.** Anything passing
+   the conversion test ([02](./02-resources-and-claims.md#what-to-model--and-what-not-to))
+   is submitted as an ephemeral `reads(...)` operation and inherits
+   coalescing (two surfaces mounting → one probe), claim-ordering against
+   mutations (no scanning a half-torn-down path), and capacity limits
+   ([05 §capacity](./05-dispatch.md#capacity-limits)) — the layer where
+   "don't storm the host" is enforced once, instead of per-query-site.
+   Cheap pure reads stay ordinary function calls; the kernel is not a
+   general RPC wrapper.
+3. **Freshness is the facade's contract, stated once.** The coalescer owns
+   the staleness decision (`minFresh`: serve the cached answer if newer
+   than N, else attach to the in-flight probe, else submit) — the epoch
+   escape hatch from [03 §key conventions](./03-operations.md#key-conventions-and-coalescer-contracts)
+   is its implementation detail, not something query sites hand-roll.
+4. **Demand drop is not cancellation.** When the last watcher leaves, the
+   facade stops *submitting* refreshes — that is where nearly all the
+   saving lives. An already-in-flight probe is abandoned, not aborted
+   ([06 §ephemeral reads](./06-execution-and-handlers.md#ephemeral-reads-abandonment-not-cancellation));
+   its result still lands in the read model for the next arrival. A short
+   demand *linger* (keep refreshing briefly after the last unsubscribe)
+   absorbs navigation flapping.
+
+The facade itself — demand leases bound to `Scope`, linger windows,
+`minFresh` policy — is an app-edge component built *on* the kernel, named
+here so it is designed deliberately: the kernel ships handles and
+ephemeral operations; the facade ships when the first wire query migrates
+([07 §migration](./07-engine-and-stores.md#migration) step 3).
 
 ## Retention
 

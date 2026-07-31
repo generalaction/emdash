@@ -71,6 +71,7 @@ const scanWorkspaceGitStats = defineOperation({
   error: gitStatsErrorSchema,
   key: (i) => `git-stats:${worktreeKey(i)}`,
   claims: (i) => worktreeResource.reads(i),      // shared + intent-shared ancestors
+  durability: 'ephemeral',                       // observation, not intent (01 §durability)
 });
 ```
 
@@ -98,6 +99,14 @@ conflict naming the teardown, which the UI renders as "being removed". The
 `queue` row means a running scan finishes cleanly before the directory
 vanishes. Previously neither direction was coordinated at all, and the
 symptoms were patched downstream per display surface.
+
+Ephemeral durability completes the picture: the scan participates fully in
+the conflict domain while it exists, but its record lives in memory, writes
+no SQLite rows per keystroke-driven refresh, and vanishes on crash — where
+demand-driven refetch simply resubmits it
+([07 §two tiers](./07-engine-and-stores.md#two-tiers-one-conflict-domain)).
+Cancellation of a coalesced scan is abandonment, not shared-fate abort
+([06 §ephemeral reads](./06-execution-and-handlers.md#ephemeral-reads-abandonment-not-cancellation)).
 
 Convert a read only when it earns the row — the (a)/(b)/(c) test in
 [02 §what-to-model](./02-resources-and-claims.md#what-to-model--and-what-not-to).
@@ -403,3 +412,12 @@ Recognize these before they ship:
   ([06](./06-execution-and-handlers.md#facts-are-write-only)); decisions
   come from physical guards and settled child results. If a step is worth
   remembering, it is a child operation.
+- **The standing claim** — a wire query, subscription, or session holding a
+  claim for its own lifetime "so nothing changes underneath it". Claims
+  belong to *finite work*; a subscriber that claims for as long as someone
+  watches a screen blocks every mutation indefinitely. Standing consumers
+  hold *nothing*: they trigger finite read operations on demand and get
+  change notification from settlement pokes
+  ([09 §queries-fetch-through-operations](./09-querying-and-display.md#reactive-queries-fetch-through-operations)).
+  If a running consumer must block destruction, that is a usage hold owned
+  by its supervisor (the spawn pattern above), never a claim.

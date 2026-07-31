@@ -252,6 +252,51 @@ Since desktop claims describe desktop-visible intent and the host is the
 physical truth, host-side handler guards remain the final arbiter regardless
 of what either dispatcher decided.
 
+## Capacity limits
+
+Claims answer *correctness* — which operations may overlap. They do not
+answer *load*: fifty shared-mode scans of fifty different worktrees are
+mutually compatible and would all start in one pass, storming the host with
+fifty concurrent `git status` processes. Capacity is a separate, explicit
+gate at dispatch:
+
+```ts
+export interface DispatchLimits {
+  /** Max running operations whose explicit claims are all shared (the
+   *  read class). Mutations are never capacity-limited — they are few,
+   *  user-initiated, and already serialized by claims. */
+  maxConcurrentReads?: number;
+
+  /** Same cap, grouped per host so one busy host cannot starve others.
+   *  hostOf extracts the grouping key from the operation's claims. */
+  maxConcurrentReadsPerHost?: number;
+  hostOf?: (op: PendingOperation) => string | undefined;
+}
+```
+
+The rules that keep this from corrupting the fairness story:
+
+- **Class is derived from explicit claim modes**, not declared per
+  definition: an operation whose explicit (non-implicit) claims are all
+  `shared` is in the read class; anything holding an explicit `exclusive`
+  is not. Deriving it keeps definitions honest — you cannot claim
+  exclusively and dodge into the read lane.
+- **A capacity skip plants no fairness barriers.** Barriers exist for
+  *contention* (an older operation blocked by incompatible modes); a
+  capacity skip is the system saying "not yet, too busy", and barring its
+  keys would freeze unrelated work behind a full read lane. Same treatment
+  as the availability gate above.
+- **FIFO within the class by `seq`** — capacity admits the oldest eligible
+  reads first, so a burst cannot starve an earlier read.
+
+Capacity here is the middle layer of a three-layer throttling story:
+wire-level demand gating decides *whether* a read is wanted at all
+([09](./09-querying-and-display.md#reactive-queries-fetch-through-operations)),
+dispatch capacity bounds *how many* run system-wide, and handler-internal
+fan-out bounds parallelism *inside* one operation
+([06 §concurrency](./06-execution-and-handlers.md#concurrency-inside-vs-across-operations)).
+None of the three substitutes for another.
+
 ## Shared modes are day-one, not a later phase
 
 Earlier drafts staged the rollout — ship exclusive-only (lanes-equivalent)
