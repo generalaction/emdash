@@ -21,6 +21,7 @@ export async function commandAuthStatus(
   try {
     const { stdout, stderr } = await ctx.exec(ctx.cli, args, {
       timeout: options.timeout ?? 5000,
+      windowsScript: 'trusted',
     });
     const output = `${stdout}\n${stderr}`;
     if (options.unauthenticatedPattern?.test(output)) {

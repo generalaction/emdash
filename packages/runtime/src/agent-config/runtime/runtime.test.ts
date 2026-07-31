@@ -200,6 +200,7 @@ describe('AgentConfigRuntime', () => {
       cwd: '/home/ada',
       cols: 120,
       rows: 30,
+      windowsScript: 'trusted',
     });
 
     ptySpawner.processes[0]?.emitData('Open https://example.com/login\n');

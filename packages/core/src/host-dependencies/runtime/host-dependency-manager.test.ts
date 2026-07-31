@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '../../exec/execution-context';
 import { HostDependencyManager } from './host-dependency-manager';
 import type { InstallMethodDetector } from './method-detection';
+import { resolveAllCommandPaths, resolveCommandPath } from './probe';
 import type { DependencyDescriptor, Provenance } from './types';
 
 const TEST_DEPENDENCIES: DependencyDescriptor[] = [
@@ -114,6 +115,22 @@ const availableCtx = makeCtx(async (command, args = []) => {
     return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
   }
   throw new Error('missing');
+});
+
+describe('Windows command probing', () => {
+  it('prefers an executable npm shim over its extensionless POSIX sibling', async () => {
+    const ctx = makeCtx(async () => ({
+      stdout: ['C:\\stale\\codex', 'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd'].join('\n'),
+      stderr: '',
+    }));
+
+    await expect(resolveCommandPath('codex', ctx, 'windows')).resolves.toBe(
+      'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd'
+    );
+    await expect(resolveAllCommandPaths('codex', ctx, 'windows')).resolves.toEqual([
+      'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd',
+    ]);
+  });
 });
 
 describe('HostDependencyManager install', () => {

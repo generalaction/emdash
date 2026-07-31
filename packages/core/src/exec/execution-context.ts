@@ -11,6 +11,7 @@ export type ExecContextOptions = {
   timeout?: number;
   maxBuffer?: number;
   signal?: AbortSignal;
+  windowsScript?: 'trusted';
 };
 
 /**

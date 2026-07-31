@@ -117,6 +117,7 @@ describe('TuiAgentsRuntime', () => {
           PROVIDER_VAR: '1',
         }),
       });
+      expect(harness.spawner.processes[0]?.spec.windowsScript).toBeUndefined();
       detach();
     } finally {
       wire.dispose();

@@ -24,6 +24,7 @@ export interface PtySpawnSpec extends PtyDimensions {
   args: string[];
   cwd: string;
   env: Record<string, string>;
+  windowsScript?: 'trusted';
 }
 
 export interface PtySpawner {

@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { ExecContextOptions, IExecutionContext } from './execution-context';
 import type { ExecResult } from './types';
+import { resolveWindowsScriptCommand } from './windows-script-command';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,12 +20,20 @@ export class NodeExecutionContext implements IExecutionContext {
   private readonly env: NodeJS.ProcessEnv | undefined;
 
   exec(command: string, args: string[] = [], opts: ExecContextOptions = {}): Promise<ExecResult> {
-    return execFileAsync(command, args, {
+    const resolved = resolveWindowsScriptCommand(
+      command,
+      args,
+      this.env ?? process.env,
+      process.platform,
+      opts.windowsScript === 'trusted'
+    );
+    return execFileAsync(resolved.command, resolved.args, {
       cwd: this.root || undefined,
       env: this.env,
       timeout: opts.timeout,
       maxBuffer: opts.maxBuffer,
       signal: this.signal(opts.signal),
+      windowsVerbatimArguments: resolved.windowsVerbatimArguments,
     }) as Promise<ExecResult>;
   }
 
