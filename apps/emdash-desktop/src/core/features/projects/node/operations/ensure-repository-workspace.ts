@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, workspaces } from '@core/services/app-db/node/schema';
 
 /**
@@ -35,7 +36,7 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
   const legacyType = project.type === 'ssh' ? 'project-ssh' : 'local';
   const key = computeWorkspaceKey(legacyType, project.path, sshConnectionId ?? undefined);
 
-  return db.transaction((tx) => {
+  const resolvedId = db.transaction((tx) => {
     // Re-check inside the transaction to avoid races.
     const [current] = tx
       .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
@@ -84,4 +85,6 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
 
     return resolvedId;
   });
+  appDbPokes.projects.poke({ projectId: project.id });
+  return resolvedId;
 }

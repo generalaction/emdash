@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 
 export async function setTaskPinned(db: AppDb, taskId: string, isPinned: boolean): Promise<void> {
@@ -17,4 +18,5 @@ export async function setTaskPinned(db: AppDb, taskId: string, isPinned: boolean
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)));
+  appDbPokes.tasks.poke({ projectId: row.projectId, taskId });
 }

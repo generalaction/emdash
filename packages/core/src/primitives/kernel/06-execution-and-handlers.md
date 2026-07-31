@@ -23,9 +23,10 @@ export interface HandlerContext<TInput> {
   attempt: number;
 
   /**
-   * Fired on cancellation and supersession. Handlers must observe it at
-   * every await point that can be long (script execution, network); the
-   * engine passes it into exec/fetch primitives that accept signals.
+   * Fired on cancellation, supersession, and graceful shutdown, with the
+   * cause attached (see §abort-reasons). Handlers must observe it at every
+   * await point that can be long (script execution, network); the engine
+   * passes it into exec/fetch primitives that accept signals.
    */
   signal: AbortSignal;
 
@@ -37,12 +38,27 @@ export interface HandlerContext<TInput> {
   stage<T>(id: string, label: string, work: (stage: StageContext) => Promise<T>): Promise<T>;
 
   /**
+   * Submit a child operation and await its typed result (see §ctx.run).
+   * parentId and the operation initiator are set automatically.
+   */
+  run<D extends AnyOperationDefinition>(
+    definition: D,
+    input: InputOf<D>
+  ): Promise<Result<ResultOf<D>, OperationFailure<ErrorOf<D>>>>;
+
+  /** Submit a child operation without awaiting it (fire-and-track). */
+  spawn<D extends AnyOperationDefinition>(definition: D, input: InputOf<D>): Promise<{ id: string }>;
+
+  /**
    * Terminal escape hatches, expressed as returns rather than throws:
    * reject = "reality disagrees with this intent; retrying cannot help".
    */
   reject(error: ErrorOf<D>): never;
 
-  /** Attach structured facts to the terminal outcome summary. */
+  /**
+   * Attach structured facts to the terminal outcome summary. Write-only:
+   * handlers never read facts back (see §facts-are-write-only).
+   */
   fact(key: string, value: unknown): void;
 }
 
@@ -93,7 +109,21 @@ The `reject`/`throw` split is the retryability contract from
 [03 §statuses](./03-operations.md#statuses), expressed at the API level so
 handler authors are forced to decide which failure they have. A thrown
 error is wrapped into an `OperationErrorSummary`; a rejected error is
-validated against `definition.error` and typed end to end on the handle.
+validated against `definition.error`, **persisted on the record**
+([03 §the-record](./03-operations.md#the-record)), and typed end to end on
+the handle. A returned result is likewise persisted before the terminal
+transition — settlement writes payload and status in one store write.
+
+### Unparseable stored input
+
+Before invoking the handler, the engine parses the stored input through
+`definition.input`. If parsing fails — `invalid` data, `needs-context`, or
+a `future-version` the current schema doesn't know — the operation goes
+directly to **`failed` with a parse-error summary, non-retryable, handler
+never invoked**. On a single-instance plane there is no newer app coming
+along to rescue a `future-version` row; leaving it `pending` "for later" is
+a stuck row holding claims forever. Failing loudly puts it in the error
+surfaces where a human can resubmit the intent.
 
 ### Physical guards and probing are handler-internal
 
@@ -106,7 +136,74 @@ per-operation (probe-then-act for teardown, marker files for provisioning,
 `--force-with-lease` semantics for git pushes). What the kernel provides is
 the *slot* where such code runs and the guarantee it will re-run on retry.
 
-## Stages vs operations: where the line is
+## `ctx.run` and `ctx.spawn`: operations from inside handlers
+
+A handler may submit child operations. `ctx.spawn` submits and returns the
+child's id; `ctx.run` submits and **awaits the typed result**. Both set
+`parentId` and the `{ kind: 'operation' }` initiator automatically, and
+both go through ordinary admission — dedupe, conflicts, the ancestor
+exemption all apply.
+
+`ctx.run` is what makes **imperative coordinators** possible: a handler
+that sequences steps, branches on their results, and reads as a plain
+async function:
+
+```ts
+const shipTaskHandler = createOperationHandler(shipTask, async (ctx) => {
+  const pushed = await ctx.run(pushBranch, { worktree: ctx.input.worktree });
+  if (!pushed.ok) ctx.reject({ code: 'push-failed', cause: pushed.error });
+
+  const pr = await ctx.run(createPullRequest, {
+    branch: pushed.value.remoteBranch,
+    title: ctx.input.title,
+  });
+  if (!pr.ok) ctx.reject({ code: 'pr-failed', cause: pr.error });
+  return { prUrl: pr.value.url };
+});
+```
+
+Two contracts make this durable **without deterministic replay**:
+
+- **The re-entrancy contract.** If the process crashes mid-coordinator, the
+  parent record resets to `pending` and the handler re-runs *from the top*.
+  Each `ctx.run` re-submits its child — and dedupes by key. A child that
+  already settled returns its **persisted typed result instantly** (this is
+  why results are stored, [03 §the-record](./03-operations.md#the-record));
+  a child still running is awaited; a child never submitted is created. The
+  coordinator "resumes" by re-walking its own code and coalescing into the
+  durable work that already exists
+  ([01 §identity](./01-concepts.md#durable-identity-is-the-unifying-mechanism)).
+- **The weak determinism rule.** Child *keys* must derive deterministically
+  from the parent's input — never from clocks, randomness, or mutable
+  state read at runtime. This is the only determinism the kernel asks for,
+  and violating it degrades safely: a drifting key spawns *duplicate
+  visible work* (a second operation in the log, admission-checked like any
+  other), never corruption or silent divergence. Contrast with replay-based
+  engines, where nondeterminism corrupts history invisibly.
+
+A parent blocked in `ctx.run` remains `running` and **keeps its claims** —
+this is the deliberate hold-and-wait reintroduction documented in
+[05 §deadlock](./05-dispatch.md#why-queueing-cannot-deadlock--and-where-the-proof-stops),
+with the claim-discipline that accompanies it.
+
+## Two coordinator styles
+
+Both produce the same records and the same operation tree; they differ in
+how the parent expresses its plan. Choose by shape of the work:
+
+| | Declarative (`submitBatch`) | Imperative (`ctx.run`) |
+|---|---|---|
+| Fan-out is | static, known at submission | dynamic, discovered step by step |
+| Sequencing | none — children run per dispatch | explicit `await` order, branching |
+| Parent settles via | `waiting-children` + propagation policy | its own return value |
+| Failure handling | declared (`fail-parent` / `tolerate`) | ordinary code on typed results |
+| Best for | delete project → N teardowns | push → PR → notify pipelines |
+
+The styles converge underneath: a parent whose handler returns while
+`ctx.spawn`-ed children are still non-terminal enters `waiting-children`
+like any declarative parent, and its declared propagation policy governs
+settlement from there. `ctx.run` children, by construction, are settled
+before the handler returns.
 
 Stages exist for exactly two purposes: **observability** (the checklist —
 what is this operation doing, what failed) and **structuring compensation**
@@ -196,6 +293,20 @@ The kernel stops at the sink. At the app edges:
 There is no per-definition progress schema. Uniformity here is what makes
 "every operation gets a checklist for free" true.
 
+### `follow()` semantics
+
+`handle.follow()` subscribes to the operation's progress stream, and its
+edge cases are specified because the UI's most common subscribe is
+mid-run:
+
+- Subscribing to a **running** operation delivers the latest progress
+  snapshot immediately (the engine keeps the last-published
+  `OperationProgress` per running operation), then live updates.
+- Subscribing to a **terminal** record delivers nothing and ends at once —
+  history views read the durable `outcome`, not the stream.
+- The stream ends when the operation settles; the terminal status arrives
+  via the handle/record, not as a progress event.
+
 ### Stage-derived outcome
 
 When the handler settles, the engine compresses the final stage states into
@@ -211,6 +322,24 @@ outcome: {
 
 History views and error surfaces read this; nothing ever needs the full
 stage stream after settlement.
+
+### Facts are write-only
+
+Handlers **never read their own prior attempts' facts** — `ctx.fact` is an
+append-only channel into the outcome summary, not a checkpoint store. A
+retry or crash-recovery re-run makes its decisions from **physical guards
+and child results**, never from what a previous attempt recorded about
+itself.
+
+This is the anti-replay guardrail. Branching on prior-attempt state is
+checkpointing without determinism guarantees — the unsound middle ground
+between this kernel's reality-guarded model (re-check the world, redo
+cheaply, dedupe children by key) and a true replay engine's (deterministic
+code, recorded effects). Systems in that middle ground resume from a
+recorded state whose preconditions may no longer hold. If a handler is
+tempted to read its own facts, the step it wants to skip should be a child
+operation — settled children *are* the durable, typed memory of completed
+work.
 
 ## Retries
 
@@ -232,18 +361,43 @@ retry: { maxAttempts: 3, backoff: { kind: 'exponential', baseMs: 2_000, maxMs: 6
 
 ## Cancellation
 
-One mechanism end to end: `handle.cancel()` (or a supersede verb, or parent
-cancellation cascading down) transitions the record and fires the handler's
-`AbortSignal`.
+One mechanism end to end: an abort request transitions the record and fires
+the handler's `AbortSignal` — but three distinct causes share the
+mechanism, and each must settle to a *different* status.
 
-- `pending` → `cancelled` directly; nothing is running, nothing to unwind.
-- `running` → signal fires; the handler is expected to stop at its next
-  await point and throw the abort. The engine maps an abort-caused failure
-  to `cancelled`, not `failed`. A handler that ignores its signal delays
-  cancellation until it settles — the engine never hard-kills mid-handler,
-  because half-applied external effects are worse than slow cancellation.
-- Stages interrupted by cancellation surface as `failed` with an abort
-  message in the final progress publish, then the stream ends.
+### Abort reasons
+
+```ts
+export type AbortReason = 'cancel' | 'supersede' | 'shutdown';
+```
+
+The reason is attached when the signal fires, and settlement maps it:
+
+| Reason | Fired by | Interrupted `running` record settles as |
+|---|---|---|
+| `'cancel'` | `handle.cancel()`, parent cancellation cascading down | `cancelled` |
+| `'supersede'` | admission superseding a running incumbent ([04](./04-admission-and-conflicts.md#the-verbs)) | `superseded` |
+| `'shutdown'` | `engine.shutdown()` ([07](./07-engine-and-stores.md#lifecycle)) | back to `pending`, attempt preserved — the work is *not* over |
+
+Statuses must record what actually happened; before reasons existed, all
+three causes would have collapsed into `cancelled`, making a quit-during-
+teardown indistinguishable from a user abort.
+
+### Mechanics
+
+- `pending` → for `'cancel'` and `'supersede'`, settle directly
+  (`cancelled` / `superseded`); nothing is running, nothing to unwind.
+  Shutdown leaves pending rows untouched.
+- `running` → signal fires with its reason; the handler is expected to stop
+  at its next await point and throw the abort. The engine maps the
+  abort-caused failure per the table above. A handler that ignores its
+  signal delays the outcome until it settles — the engine never hard-kills
+  mid-handler, because half-applied external effects are worse than slow
+  cancellation.
+- A parent aborted with `'cancel'` cascades the same reason to its
+  non-terminal children; `ctx.run` awaits inside it reject with the abort.
+- Stages interrupted by an abort surface as `failed` with an abort message
+  in the final progress publish, then the stream ends.
 
 ## Where handlers live and run
 

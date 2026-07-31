@@ -6,6 +6,8 @@ export type LiveStateProduceOptions = {
   mutationIds?: string[];
 };
 
+export type Mutator<T> = (draft: T) => void;
+
 /**
  * Transport-agnostic live model.
  *

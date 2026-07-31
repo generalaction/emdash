@@ -13,7 +13,6 @@ Run them from the repository root:
 
 ```bash
 pnpm --filter @emdash/wire run example:live-state
-pnpm --filter @emdash/wire run example:batched-state
 pnpm --filter @emdash/wire run example:live-log
 pnpm --filter @emdash/wire run example:live-job
 pnpm --filter @emdash/wire run example:mailbox
@@ -36,8 +35,6 @@ Examples:
 
 - `live-state/` demonstrates `LiveState`, the package-local protocol follower,
   cursors, mutation IDs, and resync after a generation change.
-- `batched-state/` demonstrates `BatchedLiveState` coalescing multiple queued
-  mutators into one emitted update.
 - `live-log/` demonstrates `LiveLog` and the package-local protocol follower
   with retained tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and

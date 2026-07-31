@@ -12,6 +12,7 @@ import {
 } from '@core/primitives/conversations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { conversations } from '@core/services/app-db/node/schema';
 import { launchTuiConversation } from './launch-tui-conversation';
 
@@ -111,6 +112,7 @@ export async function createConversation(
 
   conversationEvents._emit('conversation:created', conversation);
   conversationWireEvents.emit(undefined, { type: 'created', conversation });
+  appDbPokes.conversations.poke({ projectId: params.projectId, taskId: params.taskId });
   telemetry.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

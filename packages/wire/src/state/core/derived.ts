@@ -120,7 +120,8 @@ class DerivedNode<T> extends StateNode<T | undefined> implements Readable<T | un
     const ids = new Set<string>();
     for (const [dependency, dependencySnapshot] of collector.dependencies) {
       const previousRevision = this.dependencyRevisions.get(dependency);
-      if (previousRevision !== undefined && previousRevision >= dependencySnapshot.revision) continue;
+      if (previousRevision !== undefined && previousRevision >= dependencySnapshot.revision)
+        continue;
       for (const id of dependencySnapshot.mutationIds ?? []) ids.add(id);
     }
     return ids.size > 0 ? [...ids] : undefined;

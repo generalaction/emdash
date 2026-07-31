@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import type { RenameTaskError, RenameTaskSuccess } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 
 export async function renameTask(
@@ -24,5 +25,6 @@ export async function renameTask(
     .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId), isNull(tasks.deletedAt)))
     .returning();
 
+  appDbPokes.tasks.poke({ projectId, taskId });
   return ok({ task: mapTaskRowToTask(updatedRow ?? { ...row, name: newName }) });
 }

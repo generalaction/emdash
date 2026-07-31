@@ -21,59 +21,89 @@ Two pieces of state, one pass function.
 
 ### `RunningClaims`
 
-A multiset of `(key, mode)` counts for everything currently running. A
-multiset because claims stack: two scans each hold `shared` on the same
-worktree, and every worktree operation stacks an implicit intent on the repo
-and host.
+Held claims are tracked **per operation**, with an aggregate index derived
+from the per-operation map — not as a bare multiset. Two consumers require
+the operation-level granularity: claim release at `waiting-children`
+(release *this parent's* claims, §below) and the ancestor exemption
+(compatibility checks that skip *specific holders*). The aggregate still
+behaves as a multiset — claims stack: two scans each hold `shared` on the
+same worktree, and every worktree operation stacks an implicit intent on
+the repo and host.
 
 ```ts
 class RunningClaims {
-  private held = new Map<string, Map<ClaimMode, number>>(); // key → mode → count
+  private byOperation = new Map<string, ResourceClaim[]>();          // opId → claims
+  private held = new Map<string, Map<ClaimMode, Set<string>>>();     // key → mode → holder opIds
 
-  compatible(claims: ResourceClaim[]): boolean {
+  /** Compatible with everything running, ignoring the given holders
+   *  (the requesting operation's ancestor chain). */
+  compatible(claims: ResourceClaim[], ignoring: ReadonlySet<string>): boolean {
     return claims.every((c) => {
       const modes = this.held.get(c.key);
       if (!modes) return true;
-      for (const [heldMode, count] of modes) {
-        if (count > 0 && !modesCompatible(heldMode, c.mode)) return false;
+      for (const [heldMode, holders] of modes) {
+        if (!modesCompatible(heldMode, c.mode) && holdersBeside(holders, ignoring)) {
+          return false;
+        }
       }
       return true;
     });
   }
 
-  acquire(claims: ResourceClaim[]): void; // increment counts
-  release(claims: ResourceClaim[]): void; // decrement, delete at zero
+  acquire(operationId: string, claims: ResourceClaim[]): void;
+  release(operationId: string): void;   // waiting-children and settlement both use this
 }
 ```
 
 ### `dispatchPass`
 
-Runs on every poke — operation admitted, operation settled, host reconnected:
+Runs on every poke — operation admitted, operation settled, host
+reconnected. It returns a **pass report** rather than dispatching silently:
+the report is what `waitingOn` and the tests read
+([09](./09-querying-and-display.md) consumes it for derived scheduling
+state).
 
 ```ts
+export interface DispatchPassReport {
+  started: string[];                                    // operation ids
+  skipped: Array<{
+    id: string;
+    blockedBy: string[];                                // running holder ids (matrix)
+    barredOn: string[];                                 // keys barred by older waiters
+  }>;
+}
+
 export function dispatchPass(
-  pending: readonly PendingOperation[], // { seq, claims, start() }
-  running: RunningClaims
-): void {
+  pending: readonly PendingOperation[],   // { id, seq, claims, ancestors: Set<id>, start() }
+  running: RunningClaims,
+  gate?: (op: PendingOperation) => boolean   // notBefore + adapter availability; a gated
+                                             // skip plants no barriers (not contention)
+): DispatchPassReport {
   // Fairness barriers: once an older operation is skipped, its keys bar
   // incompatible younger requests, so exclusive work cannot starve.
   const barred = new Map<string, ClaimMode[]>();
+  const report: DispatchPassReport = { started: [], skipped: [] };
 
   for (const op of [...pending].sort((a, b) => a.seq - b.seq)) {
-    const blockedByBarrier = op.claims.some((c) =>
-      (barred.get(c.key) ?? []).some((m) => !modesCompatible(m, c.mode))
-    );
-    if (blockedByBarrier || !running.compatible(op.claims)) {
+    if (gate && !gate(op)) continue;                    // ineligible, not contending
+    const barredOn = op.claims
+      .filter((c) => (barred.get(c.key) ?? []).some((m) => !modesCompatible(m, c.mode)))
+      .map((c) => c.key);
+    const blockedBy = running.blockers(op.claims, op.ancestors); // holder ids, exemption applied
+    if (barredOn.length > 0 || blockedBy.length > 0) {
       for (const c of op.claims) {
         const modes = barred.get(c.key) ?? [];
         modes.push(c.mode);
         barred.set(c.key, modes);
       }
+      report.skipped.push({ id: op.id, blockedBy, barredOn });
       continue;
     }
-    running.acquire(op.claims);
-    op.start(); // engine runs the handler; on settle: release(claims) + re-poke
+    running.acquire(op.id, op.claims);
+    op.start(); // engine runs the handler; on settle: release(op.id) + re-poke
+    report.started.push(op.id);
   }
+  return report;
 }
 ```
 
@@ -95,19 +125,53 @@ is a fair readers–writer lock generalized to arbitrary keys and modes:
 provable by induction on `seq`: the oldest waiting operation's blockers are
 all running (finite) or younger (barred), so it eventually starts.
 
-## Why queueing cannot deadlock
+## Ancestor exemption and claim release
+
+Two rules make coordinator trees dispatchable; both exist because without
+them the docs' own canonical example deadlocks
+([04 §ancestor exemption](./04-admission-and-conflicts.md#the-ancestor-exemption)):
+
+- **Ancestor exemption at dispatch.** A pending operation's compatibility
+  check ignores claims held by its own ancestor chain (`op.ancestors`,
+  resolved by the engine from `parentId` links). A running project-delete
+  parent's claims never block its own teardown children. Siblings are *not*
+  exempt from each other.
+- **Claim release at `waiting-children`.** When a parent's handler returns
+  and the parent transitions `running → waiting-children`, the engine calls
+  `running.release(parentId)`: its own work is done, so it stops occupying
+  the running set — otherwise it would block work it is waiting for. The
+  parent remains in the **non-terminal set for admission**, so external
+  newcomers still see its intent and consult the policy table against it.
+
+## Why queueing cannot deadlock — and where the proof stops
 
 Deadlock needs hold-and-wait: holding one resource while blocking on
-another. Dispatch never creates that condition — an operation acquires its
-*entire* claim set's right-to-run atomically at start, or acquires nothing
-and keeps waiting while holding no runtime resources. The Coffman conditions
-never assemble. This is precisely why the `queue` admission verb (banned in
-earlier designs that contemplated lock-style wait queues) became safe to
-offer.
+another. Dispatch never creates that condition for *queued* operations — an
+operation acquires its *entire* claim set's right-to-run atomically at
+start, or acquires nothing and keeps waiting while holding no runtime
+resources. The Coffman conditions never assemble. This is precisely why the
+`queue` admission verb (banned in earlier designs that contemplated
+lock-style wait queues) became safe to offer.
 
 The proof obligation ships as a property test: a waiting operation's
 runtime footprint is empty, and any finite set of admitted operations fully
 drains.
+
+**The proof's domain ends at awaiting parents.** An imperative coordinator
+blocked in `ctx.run`
+([06](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers))
+is still `running` and still holds its claims while waiting on its children
+— genuine hold-and-wait, reintroduced deliberately. The ancestor exemption
+makes parent-child cycles impossible, but *cross-tree* cycles become
+constructible: two awaiting parents whose claims each block the other's
+subtree. The v1 posture is discipline, not machinery: **awaiting
+coordinators claim only what their subtree exclusively owns** — typically
+the desktop entity being coordinated, never broad host resources
+([08 §anti-patterns](./08-usage-patterns.md#anti-patterns)). Wait-for-graph
+cycle detection over `RunningClaims` + `blockedBy` is the named future
+backstop if the discipline ever proves insufficient; it is not built until
+a real cycle is seen. Do not quote the no-hold-and-wait proof outside its
+domain.
 
 ## A worked example
 
@@ -136,17 +200,26 @@ worktree activity without enumerating a single worktree.
 
 A queued-behind operation's stored status is `pending` — there is no
 `waiting-for-resource` status ([03 §statuses](./03-operations.md#statuses)).
-The UI derives the explanation on demand by intersecting the pending
-operation's claims with `RunningClaims`:
+The UI derives the explanation from the **pass report**, which is why the
+report exists: it covers *both* reasons an operation didn't start — matrix
+blockers (`blockedBy`, with the holding operation ids for display labels)
+and fairness barriers (`barredOn`). Deriving from claims alone would show a
+barrier-blocked operation as "waiting on nothing".
 
 ```ts
-// "Waiting for 2 operations on feat-x" — derived, never stored.
-export function waitingOn(op: PendingOperation, running: RunningClaims): BlockingClaim[];
+// "Waiting for 2 operations on feat-x" — derived from the latest pass
+// report, never stored.
+export function waitingOn(
+  opId: string,
+  report: DispatchPassReport
+): { blockedBy: string[]; barredOn: string[] } | undefined;
 ```
 
 Derived-not-stored is what keeps cancellation trivial (§below) and avoids a
-whole class of stale-status bugs: the moment the blocker settles, the
-explanation is simply no longer derivable.
+whole class of stale-status bugs: the moment the blocker settles, the next
+pass's report simply no longer lists the operation as skipped. The report
+also gives tests direct assertions on *why* something didn't start, instead
+of inferring it from absence.
 
 ## Cancellation and supersession while waiting
 

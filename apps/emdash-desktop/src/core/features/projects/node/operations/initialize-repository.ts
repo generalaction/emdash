@@ -6,6 +6,7 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { InitializeRepositoryResult } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 import { ensureProjectRepository } from './create-project-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
@@ -82,5 +83,6 @@ export async function initializeRepository(
     });
   }
 
+  appDbPokes.projects.poke({ projectId });
   return ok(project);
 }

@@ -7,6 +7,7 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { conversations } from '@core/services/app-db/node/schema';
 
 export async function deleteConversation(
@@ -41,6 +42,7 @@ export async function deleteConversation(
     );
 
   conversationEvents._emit('conversation:deleted', conversationId);
+  appDbPokes.conversations.poke({ projectId, taskId });
 
   if (convRow?.type === 'acp') {
     telemetry.capture('conversation_deleted', {

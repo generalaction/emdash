@@ -2,7 +2,7 @@
 
 > **Status: implemented in parallel to `wire/src/live/`.** The primitives in
 > this folder are available as `@emdash/wire/state`, but no legacy consumer has
-> been refactored yet and no `live/` implementation has been deleted. See
+> been refactored yet and only obsolete unused live helpers have been deleted. See
 > [05-migration.md](./05-migration.md) for the replacement plan.
 
 This folder holds the reactive state kernel for wire: a small set of
@@ -12,7 +12,7 @@ the other side.
 
 It replaces the *value-reactivity* portion of `wire/src/live/` (the four ad-hoc
 "a value that changes" flavors: `LiveState` used directly by features,
-`ComputedLiveState`, `BatchedLiveState`, `bindMachineToLiveState`) and the
+`ComputedLiveState`, deleted `BatchedLiveState`, `bindMachineToLiveState`) and the
 hand-written provider/lease boilerplate around them. It does **not** replace
 the wire protocol (`live/protocol/`), the replica transport, live logs, event
 streams, or live jobs — those stay. See

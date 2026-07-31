@@ -1,5 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 
 export async function updateProjectConnection(
@@ -18,4 +19,5 @@ export async function updateProjectConnection(
     .update(projects)
     .set({ sshConnectionId: connectionId, updatedAt: new Date().toISOString() })
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)));
+  appDbPokes.projects.poke({ projectId });
 }

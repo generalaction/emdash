@@ -15,6 +15,7 @@ import type {
   ProjectPathInspection,
 } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { ensureProjectRepository } from './create-project-utils';
@@ -134,6 +135,7 @@ async function createProjectOnHost(
   }
 
   projectEvents._emit('project:created', project);
+  appDbPokes.projects.poke({ projectId: project.id });
 
   return ok(project);
 }

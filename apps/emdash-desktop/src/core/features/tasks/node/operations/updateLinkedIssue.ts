@@ -4,6 +4,7 @@ import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 
 export async function updateLinkedIssue(
@@ -35,5 +36,6 @@ export async function updateLinkedIssue(
     });
   }
 
+  if (updatedRow) appDbPokes.tasks.poke({ projectId: existingRow.projectId, taskId });
   return updatedRow ? mapTaskRowToTask(updatedRow) : undefined;
 }

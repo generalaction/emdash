@@ -15,6 +15,7 @@ import {
   reconcilerDedupeStatuses,
 } from '@core/primitives/operations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
   lifecycleOperations,
   projects,
@@ -134,7 +135,7 @@ export function createDeleteProjectOperationDefinition(
 }
 
 export async function enqueueDeleteProject(operations: OperationsEngine, projectId: string) {
-  return operations.submit(async ({ db, clock }) => {
+  const result = await operations.submit(async ({ db, clock }) => {
     const [project] = await db
       .select()
       .from(projects)
@@ -294,6 +295,11 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
       related,
     });
   });
+  if (result.success) {
+    appDbPokes.projects.poke({ projectId });
+    appDbPokes.tasks.poke({ projectId });
+  }
+  return result;
 }
 
 export async function submitReconcilerProjectCleanup(
@@ -337,6 +343,8 @@ export async function submitReconcilerProjectCleanup(
       options: { dedupeStatuses: reconcilerDedupeStatuses },
     });
   });
+  appDbPokes.projects.poke({ projectId });
+  appDbPokes.tasks.poke({ projectId });
 }
 
 async function purgeProjectLocalState(

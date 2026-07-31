@@ -21,13 +21,7 @@ import type { LiveCursor, LiveCursorEntry, LiveSource } from '../../live/protoco
 import type { LeasedLiveModelProvider } from '../../live/replica/leased-provider';
 import { LiveState } from '../../live/state/server';
 import type { WireInstrumentation } from '../../observability';
-import {
-  observe,
-  snapshot,
-  type Readable,
-  type Revision,
-  type Snapshot,
-} from '../core';
+import { observe, snapshot, type Readable, type Revision, type Snapshot } from '../core';
 
 type StateName<Group extends LiveModelDef> = Extract<keyof LiveModelStates<Group>, string>;
 type MutationName<Group extends LiveModelDef> = Extract<keyof LiveModelMutations<Group>, string>;
@@ -142,7 +136,8 @@ export function expose<Group extends LiveModelDef>(
       if (disposed) return;
       disposed = true;
       mutationCache?.clear();
-      for (const record of records.values()) rejectRecord(record, new Error('Exposed state disposed'));
+      for (const record of records.values())
+        rejectRecord(record, new Error('Exposed state disposed'));
       records.clear();
       await scope.dispose();
     },
@@ -251,6 +246,7 @@ export function expose<Group extends LiveModelDef>(
       waiters: [],
     };
     records.set(stateId, record);
+    scheduleDisposeRecord(record);
     observe(
       node,
       (current) => {
@@ -308,12 +304,12 @@ export function expose<Group extends LiveModelDef>(
 
   function releaseRecord(record: StateRecord): void {
     record.retainCount = Math.max(0, record.retainCount - 1);
+    scheduleDisposeRecord(record);
+  }
+
+  function scheduleDisposeRecord(record: StateRecord): void {
     if (record.retainCount > 0) return;
     record.disposeTimer?.dispose();
-    if (lingerMs <= 0) {
-      void disposeRecord(record);
-      return;
-    }
     record.disposeTimer = clock.schedule(
       lingerMs,
       () => {

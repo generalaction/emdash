@@ -21,7 +21,10 @@ type RemoteMember<Group extends LiveModelDef> = {
   mutations: ReplicaMutations<Group>;
 };
 
-export type RemoteModel<Group extends LiveModelDef> = Family<LiveModelKey<Group>, RemoteMember<Group>>;
+export type RemoteModel<Group extends LiveModelDef> = Family<
+  LiveModelKey<Group>,
+  RemoteMember<Group>
+>;
 
 export type RemoteOptions<Group extends LiveModelDef> = LiveModelReplicaOptions<Group> & {
   scope?: Scope;

@@ -20,10 +20,11 @@ export function defineOperation<TName extends string, TInput, TResult, TError>(s
   input: VersionedSchema<TInput>;
 
   /**
-   * Terminal payloads. Plain zod, deliberately *not* versioned: they are
-   * delivered to the awaiting handle, not durably stored — anything worth
-   * remembering goes into the versioned outcome summary via ctx.fact()
-   * (see §the-record for the rationale and the promotion path).
+   * Terminal payloads. Persisted on the record as loose JSON and validated
+   * against these schemas at read time; deliberately *not* versioned — a
+   * parse failure after an app upgrade degrades to status + the versioned
+   * outcome summary (see §the-record for the rationale and the
+   * verdict-not-payload rule that keeps these small).
    */
   result: z.ZodType<TResult>;
   error: z.ZodType<TError>;
@@ -42,6 +43,13 @@ export function defineOperation<TName extends string, TInput, TResult, TError>(s
    * at admission and frozen on the record.
    */
   claims: (input: TInput) => ResourceClaim[];
+
+  /**
+   * Optional pure display label ('Tear down feat-x'). Keeps input parsing
+   * out of UI code — display surfaces call definition.describe(input)
+   * instead of reaching into per-kind payload shapes.
+   */
+  describe?: (input: TInput) => string;
 
   /** Retry policy for handler failures. Default: no retries. */
   retry?: RetryPolicy; // { maxAttempts: number; backoff: BackoffSpec }
@@ -89,12 +97,40 @@ Every record has both, and they answer different questions:
   on it among non-terminal records. After the work settles, the same key may
   be submitted again (you can tear down, re-provision, and tear down the
   same path).
-- **`id`** is *record identity* — a unique ULID per admission, used for
-  parenting, progress streams, cancellation, and history.
+- **`id`** is *record identity* — an opaque unique string per admission
+  (a UUID is sufficient; ordering lives in `seq`), used for parenting,
+  progress streams, cancellation, and history.
 
-The key convention matters for dedupe correctness: it must include
-everything that distinguishes distinct work (host, path) and exclude
-anything incidental (timestamps, initiators, retry counts).
+## Key conventions and coalescer contracts
+
+Because dedupe, supersede, and adoption are all coalescing on `key`
+([01 §identity](./01-concepts.md#durable-identity-is-the-unifying-mechanism)),
+key design is the load-bearing wall every one of those guarantees routes
+through. The conventions:
+
+- **Derive keys from the resource key plus a verb prefix**
+  (`teardown:${worktreeKey}`, `git-stats:${worktreeKey}`). The resource key
+  carries everything that distinguishes distinct work (host, path); the
+  prefix separates different work on the same resource.
+- **Never include clocks or randomness.** A timestamp in a key silently
+  disables every coalescing behavior; randomness turns dedupe into a no-op.
+  Likewise exclude anything incidental — initiators, retry counts.
+
+Two contracts follow from coalescing, and both must be understood by every
+key author:
+
+- **Winner's input.** A deduped submitter attaches to the *first*
+  submission's record — the work runs with the winner's input, not the
+  newcomer's. Therefore the key must encode everything that distinguishes
+  materially different work: if two inputs would produce different effects,
+  they must produce different keys. (Equal keys with differing incidental
+  input is by design, and pinned by test.)
+- **Read freshness.** A coalesced read (a scan deduping into an in-flight
+  scan) reflects state **no older than the coalesced operation's start** —
+  a caller who needs "state as of *now*" may receive "state as of a moment
+  ago". Where that is not acceptable, the escape hatch is an epoch in the
+  key (`git-stats:${worktreeKey}:${epoch}`), rolling the epoch when
+  freshness demands it — a deliberate, visible opt-out of coalescing.
 
 ## The record
 
@@ -102,21 +138,24 @@ The durable shape both planes' stores must hold:
 
 ```ts
 export interface OperationRecord {
-  id: string;                   // ULID, unique per admission
+  id: string;                   // opaque unique string per admission (seq carries order)
   seq: number;                  // monotonic per store — dispatch fairness order
   name: string;                 // definition name
   key: string;                  // work identity (dedupe)
   input: unknown;               // versioned JSON; parse via definition.input
-  claims: ResourceClaim[];      // frozen at admission
+  claims: ResourceClaim[];      // hydrated by join from operation_claims (02)
 
   status: OperationStatus;
   attempt: number;              // 0-based; incremented per handler retry
+  notBefore?: number;           // retry eligibility — dispatch skips until then
 
   parentId?: string;            // operation tree (see below)
   initiator: OperationInitiator;// who/what asked — user action, automation,
                                 // reconciler proposal, parent operation
 
-  error?: OperationErrorSummary;       // present in failed/rejected
+  result?: unknown;             // persisted on succeeded; validate via definition.result
+  rejectedError?: unknown;      // persisted on rejected; validate via definition.error
+  error?: OperationErrorSummary;       // present in failed (and wraps aborts)
   outcome?: OperationOutcomeSummary;   // compact terminal summary:
                                        // { failedStage?, completedStages, facts? }
 
@@ -135,18 +174,21 @@ Notes on the deliberate shapes:
 - `outcome` is the *only* stage data that persists — the compact terminal
   summary. Live stage streams are ephemeral
   ([06 §stages](./06-execution-and-handlers.md#stages-and-progress)).
-- `outcome` is also the **one durably versioned shape** on the settlement
-  path: it carries a light versioned envelope (one shared version map, not
-  one per definition), while `result`/`error` stay plain zod. The asymmetry
-  with `input` is principled: a stored *input* is **executed** by future
-  code — an upgrade function must produce something the new handler can act
-  on, so versioning is a correctness requirement. A stored *outcome* is only
-  ever **displayed or inspected** — an unparseable three-versions-old
-  summary can render as "completed (details unavailable)" with zero harm.
-  Handlers route anything durable through `ctx.fact()`; if a specific
-  definition ever genuinely needs its full result durable and upgradeable,
-  promote that one definition's `result` to a `VersionedSchema` — nothing
-  blocks it.
+- **`result` and `rejectedError` are persisted, loose, and unversioned;
+  `outcome` is the one versioned shape.** The persisted payloads are stored
+  as raw JSON and validated against `definition.result` / `definition.error`
+  at read time. The load-bearing consumer is a crashed imperative
+  coordinator resuming via `ctx.run`
+  ([06 §ctx.run](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers)):
+  dedupe returns the settled child, and the parent's code needs the *typed*
+  value — routing it through facts would recreate an untyped result store.
+  They stay unversioned because a stored *input* is **executed** by future
+  code (versioning is a correctness requirement), while a stale result that
+  no longer parses degrades to status + the versioned `outcome` with zero
+  harm. What keeps them small is the **verdict-not-payload rule**: results
+  are verdicts (`{ removed: true }`, `{ prUrl }`); bulk observation data
+  (scan output, measurements) goes to the read model the operation
+  refreshes, never into the record.
 - `seq` comes from the store (SQLite rowid / host log counter). It is the
   total order dispatch fairness relies on; it never travels across planes.
 
@@ -159,11 +201,16 @@ One closed status machine, shared by both planes:
                         │
  submit ──► pending ────┼──► running ──► succeeded (terminal)
                         │      │  ▲
-                        │      │  └── pending      (retry with backoff, attempt++)
+                        │      │  └── pending      (retry with backoff / crash reset /
+                        │      │                     graceful shutdown — attempt++ only
+                        │      │                     on retry, never on reset)
                         │      ├──► failed         (terminal — attempts exhausted)
                         │      ├──► rejected       (terminal — physical guard refused;
                         │      │                     retrying cannot help)
-                        │      └──► cancelled      (terminal — user/parent abort)
+                        │      ├──► cancelled      (terminal — chosen abort, reason
+                        │      │                     'cancel': user or parent cascade)
+                        │      └──► superseded     (terminal — aborted with reason
+                        │                            'supersede'; see 04 §the-verbs)
                         │
                         └──► cancelled (terminal — cancelled while waiting: row
                                         settles without ever running)
@@ -172,6 +219,13 @@ One closed status machine, shared by both planes:
                (own work done; settles when all children settle, per its
                 propagation policy)
 ```
+
+Note that `running → pending` is one edge serving three causes — retry with
+backoff, crash reset at recovery, and graceful shutdown — distinguished by
+the transition's recorded cause ([07 §store port](./07-engine-and-stores.md#the-store-port)),
+and that `running → superseded` exists so an aborted incumbent's terminal
+status records *what actually happened* (it was superseded), never a
+generic `cancelled` ([06 §abort reasons](./06-execution-and-handlers.md#abort-reasons)).
 
 - **Terminal set**: `succeeded`, `failed`, `rejected`, `cancelled`,
   `superseded`. Terminal records release their claims by definition — the

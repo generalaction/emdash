@@ -4,7 +4,6 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
-import { taskEvents } from '@core/features/tasks/node';
 import type {
   WorkspaceBootstrapService,
   WorkspaceBootstrapResult,
@@ -24,6 +23,7 @@ import type {
 } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import { archiveTask } from '../../node/operations/archiveTask';
@@ -85,11 +85,10 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return result;
   }
 
-  /** Fires the task:created hook and event. Call this after committing a task insert
+  /** Fires the task:created hook. Call this after committing a task insert
    *  that was performed outside of `createTask` (e.g. inside an external transaction). */
   notifyTaskCreated(task: Task, params: CreateTaskParams): void {
     this._hooks.callHookBackground('task:created', task, params);
-    taskEvents.emit(undefined, { type: 'created', task });
   }
 
   /**
@@ -164,6 +163,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       .update(tasks)
       .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: data.workspaceId })
       .where(eq(tasks.id, taskId));
+    appDbPokes.tasks.poke({ projectId: task.projectId, taskId });
 
     // BYOI: persist the provider data (remote workspace ID, connection details) returned by
     // the provision script so it can be reused on the next session.
@@ -175,6 +175,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(eq(workspaces.id, data.workspaceId));
+      appDbPokes.workspaces.poke({
+        projectId: task.projectId,
+        taskId,
+        workspaceId: data.workspaceId,
+      });
     }
   }
 
@@ -201,7 +206,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   notifyTaskDeleted(taskId: string, projectId: string): void {
     this._hooks.callHookBackground('task:deleted', taskId, projectId);
-    taskEvents.emit(undefined, { type: 'deleted', taskId, projectId });
   }
 
   async deleteTasks(
@@ -272,6 +276,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     if (!row) return null;
 
     const task: Task = { ...mapTaskRowToTask(row), prs: [], conversations: {} };
+    appDbPokes.tasks.poke({ projectId: row.projectId, taskId });
     this._hooks.callHookBackground('task:updated', task);
     return task;
   }

@@ -110,12 +110,14 @@ export type LiveModelMutationHandler<
   InputSchema extends z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny,
   ErrorSchema extends z.ZodTypeAny,
-> = (
-  ctx: LiveModelMutationCtx<LiveModelDef>,
-  input: LiveMutationInput<z.infer<InputSchema>>
-) =>
-  | Promise<Result<z.infer<DataSchema>, z.infer<ErrorSchema>>>
-  | Result<z.infer<DataSchema>, z.infer<ErrorSchema>>;
+> = {
+  bivarianceHack(
+    ctx: LiveModelMutationCtx<LiveModelDef>,
+    input: LiveMutationInput<z.infer<InputSchema>>
+  ):
+    | Promise<Result<z.infer<DataSchema>, z.infer<ErrorSchema>>>
+    | Result<z.infer<DataSchema>, z.infer<ErrorSchema>>;
+}['bivarianceHack'];
 
 export type LiveModelDef<
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,

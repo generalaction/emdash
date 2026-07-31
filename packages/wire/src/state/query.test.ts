@@ -7,6 +7,89 @@ import { query } from './query';
 import { createRecordingLane, recordSnapshots, settleAsync } from './testing';
 
 describe('state query', () => {
+  it('coalesces multiple pokes inside the debounce window into one fetch', async () => {
+    const clock = createManualClock();
+    const channel = pokeChannel('query-debounce');
+    let source = 1;
+    let fetchCount = 0;
+    const model = query({
+      fetch: async () => {
+        fetchCount += 1;
+        return source;
+      },
+      pokes: [channel.subscription()],
+      debounceMs: 5,
+      clock,
+    });
+    const recorded = recordSnapshots(model);
+
+    await clock.advanceBy(5);
+    await settleAsync();
+    expect(snapshot(model).value).toBe(1);
+    expect(fetchCount).toBe(1);
+
+    source = 2;
+    channel.poke();
+    await clock.advanceBy(2);
+    channel.poke();
+    await clock.advanceBy(2);
+    channel.poke();
+    await clock.advanceBy(5);
+    await settleAsync();
+
+    expect(snapshot(model).value).toBe(2);
+    expect(fetchCount).toBe(2);
+    expect(recorded.snapshots.map((current) => current.value)).toEqual([undefined, 1, 1, 2]);
+    expect(recorded.snapshots.map((current) => current.status)).toEqual([
+      'loading',
+      'live',
+      'stale',
+      'live',
+    ]);
+    await recorded.dispose();
+  });
+
+  it('does not publish when a refresh returns an equal value', async () => {
+    const model = query({
+      fetch: async () => ({ count: 1 }),
+      debounceMs: 0,
+    });
+    const recorded = recordSnapshots(model);
+
+    await model.refresh();
+    await settleAsync();
+    const revision = snapshot(model).revision;
+
+    await model.refresh();
+    await settleAsync();
+
+    expect(snapshot(model).revision).toBe(revision);
+    expect(recorded.snapshots.map((current) => current.value)).toEqual([undefined, { count: 1 }]);
+    await recorded.dispose();
+  });
+
+  it('tags a refreshed snapshot with mutation ids', async () => {
+    let source = 1;
+    const model = query({
+      fetch: async () => source,
+      debounceMs: 0,
+    });
+    const recorded = recordSnapshots(model);
+
+    await model.refresh();
+    source = 2;
+    await model.refresh({ mutationIds: ['m2'] });
+    await settleAsync();
+
+    expect(snapshot(model)).toMatchObject({ value: 2, mutationIds: ['m2'] });
+    expect(recorded.snapshots.map((current) => current.mutationIds)).toEqual([
+      undefined,
+      undefined,
+      ['m2'],
+    ]);
+    await recorded.dispose();
+  });
+
   it('keeps settled writes when an older in-flight fetch resolves', async () => {
     const clock = createManualClock();
     const pending = deferred<number>();

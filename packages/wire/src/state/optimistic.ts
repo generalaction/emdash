@@ -95,14 +95,19 @@ export function optimistic<T>(
   view.run = async (mutation, input, recipe) => {
     const mutationId = crypto.randomUUID();
     const handle = view.apply((draft) => recipe(draft, input), { mutationId });
-    const invocation = await mutation(input, { mutationId });
-    if (!invocation.result.success) {
+    try {
+      const invocation = await mutation(input, { mutationId });
+      if (!invocation.result.success) {
+        handle.drop();
+        return err(invocation.result.error);
+      }
+      await invocation.settled;
       handle.drop();
-      return err(invocation.result.error);
+      return ok(invocation.result.data);
+    } catch (error) {
+      handle.drop();
+      throw error;
     }
-    await invocation.settled;
-    remove(mutationId);
-    return ok(invocation.result.data);
   };
 
   return view;

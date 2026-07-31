@@ -90,29 +90,5 @@ authoritative.
 
 These waiters are used by mutation settling; see [mutations](./mutations.md).
 
-## BatchedLiveState
-
-`BatchedLiveState<T>` wraps a `LiveState<T>` and coalesces queued mutators
-into one `produce()` call:
-
-```ts
-const batched = new BatchedLiveState(server, microtaskScheduler, {
-  instrumentation,
-  logger,
-});
-
-batched.enqueue((draft) => {
-  draft.count += 1;
-});
-batched.enqueue((draft) => {
-  draft.updatedAt = Date.now();
-});
-```
-
-The default scheduler is `microtaskScheduler`. Use `timerScheduler(ms)` for a
-time-windowed trailing debounce. If the combined batch throws, server state is
-unchanged, the batch is dropped, and `batchDropped` instrumentation/logging is
-emitted.
-
 See [../../examples/live-state/client.ts](../../examples/live-state/client.ts)
-and [../../examples/batched-state/client.ts](../../examples/batched-state/client.ts).
+for an end-to-end example.

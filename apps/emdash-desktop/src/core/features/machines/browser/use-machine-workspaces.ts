@@ -62,9 +62,8 @@ export function useLocalWorkspaces(enabled: boolean) {
     queryKey: ['machineWorkspaces', 'local'],
     queryFn: async (): Promise<MachineProjectWorkspaces[]> => {
       const client = await getDesktopWireClient();
-      const projects = (await client.projects.getProjects()).filter(
-        (project) => project.type === 'local'
-      );
+      const projectList = await client.projects.projectList.state(undefined, 'list').snapshot();
+      const projects = projectList.data.projects.filter((project) => project.type === 'local');
       // The local workspaces view does not show disk usage, so skip the
       // expensive per-file measurement scan and only run the cheap listing.
       return await listProjectWorkspaceGroups(projects, { measure: false });

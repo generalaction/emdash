@@ -15,6 +15,7 @@ import type {
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import type { ConversationRow, TaskRow } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
@@ -208,8 +209,13 @@ export function finalizeCreateTask(
       type: 'created',
       conversation: initialConversation,
     });
+    appDbPokes.conversations.poke({
+      projectId: prepared.params.projectId,
+      taskId: prepared.params.id,
+    });
   }
 
+  appDbPokes.tasks.poke({ projectId: prepared.params.projectId, taskId: prepared.params.id });
   return { task: { ...task, workspaceId: prepared.workspaceId }, initialConversation };
 }
 

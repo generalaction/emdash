@@ -50,7 +50,6 @@ Hooks currently cover:
 - live topic attach/detach.
 - live model/log resync reasons.
 - mutation dedupe hits.
-- dropped `BatchedLiveState` batches.
 - scope cleanup errors.
 - transport connect/disconnect events.
 

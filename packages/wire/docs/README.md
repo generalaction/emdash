@@ -78,7 +78,7 @@ live, and worker surfaces.
     reconnecting, and logging transports.
 - Live:
   - [Live models and protocol](./live/live-state.md): snapshots, updates,
-    cursors, `LiveState`, replicas, and `BatchedLiveState`.
+    cursors, `LiveState`, and replicas.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
   - [Event streams](./live/event-stream.md): keyed fire-and-forget events with

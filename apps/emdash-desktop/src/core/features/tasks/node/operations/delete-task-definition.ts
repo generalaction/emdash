@@ -24,6 +24,7 @@ import {
 } from '@core/primitives/operations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
   lifecycleOperations,
   projects,
@@ -235,7 +236,8 @@ export function createDeleteTaskOperationDefinition(
 }
 
 export async function enqueueDeleteTask(operations: OperationsEngine, input: DeleteTaskInput) {
-  return operations.submit(async ({ db, clock }) => {
+  let projectId: string | undefined;
+  const result = await operations.submit(async ({ db, clock }) => {
     const [task] = await db
       .select()
       .from(tasks)
@@ -258,6 +260,7 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
         ? ok({ outcome: 'existing' as const, operationId: existing.id })
         : err({ type: 'task-not-found', message: `Task ${input.taskId} was not found` });
     }
+    projectId = task.projectId;
 
     const [workspace] = task.workspaceId
       ? await db.select().from(workspaces).where(eq(workspaces.id, task.workspaceId)).limit(1)
@@ -322,6 +325,8 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
       },
     });
   });
+  if (result.success) appDbPokes.tasks.poke({ projectId, taskId: input.taskId });
+  return result;
 }
 
 function projectIsActive(
@@ -347,6 +352,7 @@ export async function submitReconcilerTaskCleanup(
   submit: OperationSubmit,
   taskId: string
 ): Promise<void> {
+  let projectId: string | undefined;
   await submit(async ({ db, clock }) => {
     const [existing] = await db
       .select({ id: lifecycleOperations.id })
@@ -363,6 +369,7 @@ export async function submitReconcilerTaskCleanup(
 
     const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!task) return ok({ outcome: 'existing' as const });
+    projectId = task.projectId;
     const [workspace] = task.workspaceId
       ? await db.select().from(workspaces).where(eq(workspaces.id, task.workspaceId)).limit(1)
       : [];
@@ -406,6 +413,7 @@ export async function submitReconcilerTaskCleanup(
       },
     });
   });
+  appDbPokes.tasks.poke({ projectId, taskId });
 }
 
 async function purgeTaskRows(

@@ -1,17 +1,17 @@
+import { ok } from '@emdash/shared';
+import { cell } from '@emdash/wire/state';
+import { expose } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import { runInAction } from 'mobx';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { tasksWireContract } from '@core/features/tasks/api';
 import { TaskManagerStore } from '@core/features/tasks/api/browser/stores/task-manager';
 import { createUnprovisionedTask } from '@core/features/tasks/api/browser/stores/task-store';
-import { taskSubject } from '@core/features/tasks/contributions/subject';
-import type { Task } from '@core/primitives/tasks/api';
-
-let taskDeletedHandler:
-  | ((event: { type: 'deleted'; taskId: string; projectId: string }) => void)
-  | undefined;
+import type { Task, TaskListData, TaskStatsData } from '@core/primitives/tasks/api';
 
 const mocks = vi.hoisted(() => ({
-  archiveTask: vi.fn(),
+  archiveMutation: vi.fn(),
   deleteBySubject: vi.fn(),
   deleteTasks: vi.fn(),
   getProjectManagerStore: vi.fn(),
@@ -21,6 +21,10 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   teardownTask: vi.fn(),
 }));
+
+let taskListState: ReturnType<typeof cell<TaskListData>>;
+let taskStatsState: ReturnType<typeof cell<TaskStatsData>>;
+let wire: ReturnType<typeof createTaskWire> | undefined;
 
 vi.mock('@core/manifests/browser/task-scoped-stores', () => ({
   taskStoreContributions: [],
@@ -40,23 +44,7 @@ vi.mock('@core/features/conversations/browser/acp/acp-chat-panel', () => ({
 
 vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   getDesktopWireClient: async () => ({
-    tasks: {
-      archiveTask: mocks.archiveTask,
-      deleteTasks: mocks.deleteTasks,
-      getTasks: mocks.getTasks,
-      teardownTask: mocks.teardownTask,
-      events: {
-        subscribe: async (
-          _key: undefined,
-          observer: {
-            onEvent: (event: { type: 'deleted'; taskId: string; projectId: string }) => void;
-          }
-        ) => {
-          taskDeletedHandler = observer.onEvent;
-          return vi.fn();
-        },
-      },
-    },
+    tasks: wire!.client,
   }),
 }));
 
@@ -111,11 +99,52 @@ function makeTaskManager(): TaskManagerStore {
   } as never);
 }
 
+function createTaskWire() {
+  const taskListProvider = expose(
+    tasksWireContract.taskList,
+    { list: taskListState },
+    {
+      mutations: {
+        async archive(context) {
+          mocks.archiveMutation(context.input);
+          const revision = taskListState.update(
+            (previous) => ({
+              tasks: previous.tasks.map((task) =>
+                task.id === context.input.taskId
+                  ? { ...task, archivedAt: '2026-01-02T00:00:00.000Z' }
+                  : task
+              ),
+            }),
+            { mutationIds: [context.mutationId] }
+          );
+          await context.observed('list', revision);
+          return ok<void>();
+        },
+      },
+    }
+  );
+  const taskStatsProvider = expose(tasksWireContract.taskStats, { stats: taskStatsState });
+  return createTestWire(tasksWireContract, {
+    createTask: vi.fn(),
+    getDeletePreflight: vi.fn(),
+    deleteTask: vi.fn(),
+    deleteTasks: (input: { projectId: string; taskIds: string[]; options?: unknown }) =>
+      mocks.deleteTasks(input),
+    getProjectWorkspaces: vi.fn(async () => []),
+    teardownTask: mocks.teardownTask,
+    generateTaskName: vi.fn(async () => 'Task'),
+    taskList: taskListProvider,
+    taskStats: taskStatsProvider,
+    delete: vi.fn(),
+  } as never);
+}
+
 describe('TaskManagerStore lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    taskDeletedHandler = undefined;
-    mocks.archiveTask.mockResolvedValue(undefined);
+    taskListState = cell({ tasks: [] });
+    taskStatsState = cell({ byWorkspaceId: {} });
+    wire = createTaskWire();
     mocks.deleteBySubject.mockResolvedValue(undefined);
     mocks.deleteTasks.mockResolvedValue(undefined);
     mocks.getTasks.mockResolvedValue([]);
@@ -123,37 +152,58 @@ describe('TaskManagerStore lifecycle', () => {
     mocks.mountProject.mockResolvedValue(undefined);
   });
 
+  afterEach(async () => {
+    await wire?.dispose();
+    wire = undefined;
+  });
+
   it('archives without owning conversation, terminal, or workspace stores', async () => {
     const manager = makeTaskManager();
     const task = makeTask();
+    taskListState.set({ tasks: [{ ...task, workspaceId: undefined }] });
     const store = createUnprovisionedTask(task);
     store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1');
     manager.tasks.set(task.id, store);
 
     await manager.archiveTask(task.id);
 
-    expect(mocks.archiveTask).toHaveBeenCalledWith({
-      projectId: 'project-1',
-      taskId: 'task-1',
-    });
+    expect(mocks.archiveMutation).toHaveBeenCalledWith({ taskId: 'task-1' });
     expect(store.state).toBe('unprovisioned');
     expect(store.workspaceId).toBeNull();
     expect(mocks.navigate).toHaveBeenCalledWith(projectViewDef({ projectId: 'project-1' }));
     manager.dispose();
   });
 
-  it('deletes task mementos after a backend deletion event', async () => {
+  it('deletes tasks through the operation result without event confirmations', async () => {
     const manager = makeTaskManager();
     runInAction(() => {
       manager.tasks.set('task-1', createUnprovisionedTask(makeTask()));
     });
 
-    await vi.waitFor(() => expect(taskDeletedHandler).toBeTypeOf('function'));
-    taskDeletedHandler?.({ type: 'deleted', taskId: 'task-1', projectId: 'project-1' });
-    await vi.waitFor(() =>
-      expect(mocks.deleteBySubject).toHaveBeenCalledWith(taskSubject({ taskId: 'task-1' }))
-    );
+    await manager.deleteTasks(['task-1']);
+
+    expect(mocks.deleteTasks).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      taskIds: ['task-1'],
+      options: undefined,
+    });
     expect(manager.tasks.has('task-1')).toBe(false);
+    manager.dispose();
+  });
+
+  it('rolls back failed deletes without disposing the restored task store', async () => {
+    const manager = makeTaskManager();
+    const store = createUnprovisionedTask(makeTask());
+    const dispose = vi.spyOn(store, 'dispose');
+    mocks.deleteTasks.mockRejectedValueOnce(new Error('delete failed'));
+    runInAction(() => {
+      manager.tasks.set('task-1', store);
+    });
+
+    await expect(manager.deleteTasks(['task-1'])).rejects.toThrow('delete failed');
+
+    expect(manager.tasks.get('task-1')).toBe(store);
+    expect(dispose).not.toHaveBeenCalled();
     manager.dispose();
   });
 });

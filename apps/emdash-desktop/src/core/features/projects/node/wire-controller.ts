@@ -10,13 +10,16 @@ import type {
   LiveModelProvider,
   LiveSource,
 } from '@emdash/wire';
+import { expose, query } from '@emdash/wire/state';
 import {
   projectsWireContract,
+  type ProjectListData,
   type ProjectCreationState,
   type ProjectHostParams,
 } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
@@ -41,6 +44,7 @@ export function createProjectsWireController(
 ): ProjectsWireController {
   const { operations } = dependencies;
   const projectOperations = createProjectOperations(dependencies);
+  const projectList = createProjectListProvider(projectOperations);
   return {
     impl: {
       createProject: (input) => projectOperations.createProject(input),
@@ -48,7 +52,6 @@ export function createProjectsWireController(
       initializeRepository: ({ projectId }) => projectOperations.initializeRepository(projectId),
       resolveRepositoryDestination: (input) =>
         projectOperations.resolveRepositoryDestination(input),
-      getProjects: () => projectOperations.getProjects(),
       deleteProject: ({ projectId }) => projectOperations.deleteProject(projectId),
       getProjectSettingsPage: ({ projectId }) =>
         projectOperations.getProjectSettingsPage(projectId),
@@ -74,6 +77,7 @@ export function createProjectsWireController(
         return runtime.files.mutations.createDirectory({ root, path });
       },
       events: projectEvents,
+      projectList,
       creation: createCreationProvider(),
       directoryTree: createDirectoryTreeModelProvider(dependencies),
       create: {
@@ -85,8 +89,18 @@ export function createProjectsWireController(
     },
     async dispose() {
       creationStates.clear();
+      await projectList.dispose();
     },
   };
+}
+
+function createProjectListProvider(projectOperations: ReturnType<typeof createProjectOperations>) {
+  return expose(projectsWireContract.projectList, {
+    list: query<ProjectListData>({
+      fetch: async () => ({ projects: await projectOperations.getProjects() }),
+      pokes: [appDbPokes.projects.subscription()],
+    }),
+  });
 }
 
 function createDirectoryTreeModelProvider(

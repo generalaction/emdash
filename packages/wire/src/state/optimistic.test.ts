@@ -6,15 +6,47 @@ import { optimistic } from './optimistic';
 import { recordSnapshots, settleAsync } from './testing';
 
 describe('optimistic state', () => {
+  it('composes overlapping patches in submission order', async () => {
+    const base = cell({ count: 1, label: 'a' });
+    const view = optimistic(base);
+    const recorded = recordSnapshots(view);
+
+    view.apply(
+      (draft) => {
+        draft.count += 1;
+        draft.label += 'b';
+      },
+      { mutationId: 'm1' }
+    );
+    view.apply(
+      (draft) => {
+        draft.count *= 10;
+        draft.label += 'c';
+      },
+      { mutationId: 'm2' }
+    );
+    flushStateTurn();
+
+    expect(snapshot(view).value).toEqual({ count: 20, label: 'abc' });
+    expect(recorded.snapshots.map((current) => current.value)).toEqual([
+      { count: 1, label: 'a' },
+      { count: 20, label: 'abc' },
+    ]);
+    await recorded.dispose();
+  });
+
   it('rolls back an unapplied patch when its ttl expires', async () => {
     const clock = createManualClock();
     const base = cell({ count: 1 });
     const view = optimistic(base, { clock, ttlMs: 10 });
     const recorded = recordSnapshots(view);
 
-    view.apply((draft) => {
-      draft.count += 1;
-    }, { mutationId: 'm1' });
+    view.apply(
+      (draft) => {
+        draft.count += 1;
+      },
+      { mutationId: 'm1' }
+    );
     flushStateTurn();
     await clock.advanceBy(10);
     flushStateTurn();
@@ -41,6 +73,28 @@ describe('optimistic state', () => {
     flushStateTurn();
 
     expect(result).toEqual(err('nope'));
+    expect(recorded.snapshots.map((current) => current.value?.count)).toEqual([1, 2, 1]);
+    await recorded.dispose();
+  });
+
+  it('drops a patch when the mutation throws', async () => {
+    const base = cell({ count: 1 });
+    const view = optimistic(base);
+    const recorded = recordSnapshots(view);
+
+    await expect(
+      view.run(
+        async () => {
+          throw new Error('boom');
+        },
+        undefined,
+        (draft) => {
+          draft.count += 1;
+        }
+      )
+    ).rejects.toThrow('boom');
+    flushStateTurn();
+
     expect(recorded.snapshots.map((current) => current.value?.count)).toEqual([1, 2, 1]);
     await recorded.dispose();
   });
@@ -80,9 +134,12 @@ describe('optimistic state', () => {
     const view = optimistic(base);
     const recorded = recordSnapshots(view);
 
-    view.apply((draft) => {
-      draft.count += 1;
-    }, { mutationId: 'm1' });
+    view.apply(
+      (draft) => {
+        draft.count += 1;
+      },
+      { mutationId: 'm1' }
+    );
     flushStateTurn();
     base.set({ count: 1 }, { generation: 2 });
     flushStateTurn();

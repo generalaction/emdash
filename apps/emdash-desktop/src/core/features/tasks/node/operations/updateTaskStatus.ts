@@ -2,6 +2,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { type TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
 
 export async function updateTaskStatus(
@@ -27,6 +28,7 @@ export async function updateTaskStatus(
     })
     .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)));
 
+  appDbPokes.tasks.poke({ projectId: row.projectId, taskId });
   telemetry.capture('task_status_changed', {
     from_status: row.status as TaskLifecycleStatus,
     to_status: status,

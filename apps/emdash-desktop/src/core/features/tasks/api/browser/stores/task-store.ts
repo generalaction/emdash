@@ -1,6 +1,6 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, type Result } from '@emdash/shared';
-import { makeAutoObservable, observable, runInAction } from 'mobx';
+import { makeAutoObservable, observable } from 'mobx';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
 import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { taskStoreContributions } from '@core/manifests/browser/task-scoped-stores';
@@ -24,8 +24,15 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
+
+export type TaskStoreMutations = {
+  rename(task: Task, name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>>;
+  updateStatus(task: Task, status: TaskLifecycleStatus): Promise<void>;
+  setPinned(task: Task, isPinned: boolean): Promise<void>;
+  updateLinkedIssue(task: Task, issue?: LinkedIssue): Promise<void>;
+  convertAutomationTask(task: Task): Promise<void>;
+};
 
 export class TaskStore implements TaskState {
   state: 'unregistered' | 'unprovisioned' | 'provisioned';
@@ -59,7 +66,8 @@ export class TaskStore implements TaskState {
     state: TaskStore['state'],
     phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null = null,
     projectId: string = 'projectId' in data ? data.projectId : '',
-    projectStores: ScopedStoreLookup = unavailableProjectStores
+    projectStores: ScopedStoreLookup = unavailableProjectStores,
+    private readonly mutations: TaskStoreMutations = unavailableMutations
   ) {
     this.state = state;
     this.data = data;
@@ -156,23 +164,7 @@ export class TaskStore implements TaskState {
     const task = registeredTaskData(this);
     if (!task) return err({ type: 'task-not-found', taskId: this.data.id });
     try {
-      const result = await (
-        await getDesktopWireClient()
-      ).tasks.renameTask({
-        projectId: task.projectId,
-        taskId: task.id,
-        newName: name,
-      });
-      if (!result.success) {
-        return result;
-      }
-      runInAction(() => {
-        const current = registeredTaskData(this);
-        if (current) {
-          current.name = name;
-        }
-      });
-      return result;
+      return await this.mutations.rename(task, name);
     } catch (e) {
       log.error(e);
       throw e;
@@ -180,25 +172,11 @@ export class TaskStore implements TaskState {
   }
 
   async updateStatus(status: TaskLifecycleStatus): Promise<void> {
-    const previousStatus = this.data.status;
-    const previousStatusChangedAt = this.data.statusChangedAt;
-    const nextChangedAt = new Date().toISOString();
-    runInAction(() => {
-      this.data.status = status;
-      this.data.statusChangedAt = nextChangedAt;
-    });
+    const task = registeredTaskData(this);
+    if (!task) return;
     try {
-      await (
-        await getDesktopWireClient()
-      ).tasks.updateTaskStatus({
-        taskId: this.data.id,
-        status,
-      });
+      await this.mutations.updateStatus(task, status);
     } catch (e) {
-      runInAction(() => {
-        this.data.status = previousStatus;
-        this.data.statusChangedAt = previousStatusChangedAt;
-      });
       log.error(e);
       throw e;
     }
@@ -208,16 +186,9 @@ export class TaskStore implements TaskState {
     if (this.state === 'unregistered') return;
     const task = registeredTaskData(this);
     if (!task) return;
-    const previous = task.isPinned;
-    runInAction(() => {
-      task.isPinned = isPinned;
-    });
     try {
-      await (await getDesktopWireClient()).tasks.setTaskPinned({ taskId: task.id, isPinned });
+      await this.mutations.setPinned(task, isPinned);
     } catch (e) {
-      runInAction(() => {
-        task.isPinned = previous;
-      });
       log.error(e);
       throw e;
     }
@@ -227,22 +198,10 @@ export class TaskStore implements TaskState {
     if (this.state === 'unregistered') return;
     const task = registeredTaskData(this);
     if (!task) return;
-    const previousIssue = task.linkedIssue;
     try {
-      await (
-        await getDesktopWireClient()
-      ).tasks.updateLinkedIssue({
-        taskId: task.id,
-        issue,
-      });
-      runInAction(() => {
-        task.linkedIssue = issue;
-      });
+      await this.mutations.updateLinkedIssue(task, issue);
     } catch (e) {
-      runInAction(() => {
-        task.linkedIssue = previousIssue;
-      });
-      console.error(e);
+      log.error(e);
       throw e;
     }
   }
@@ -251,16 +210,10 @@ export class TaskStore implements TaskState {
     if (this.state === 'unregistered') return;
     const task = registeredTaskData(this);
     if (!task || task.type !== 'automation-run') return;
-    runInAction(() => {
-      task.type = 'task';
-    });
     try {
-      await (await getDesktopWireClient()).tasks.convertAutomationTask({ taskId: task.id });
+      await this.mutations.convertAutomationTask(task);
     } catch (e) {
-      runInAction(() => {
-        task.type = 'automation-run';
-      });
-      console.error(e);
+      log.error(e);
       throw e;
     }
   }
@@ -269,13 +222,18 @@ export class TaskStore implements TaskState {
 export function createUnregisteredTask(
   data: UnregisteredTaskData,
   projectId: string,
-  projectStores?: ScopedStoreLookup
+  projectStores?: ScopedStoreLookup,
+  mutations?: TaskStoreMutations
 ): TaskStore {
-  return new TaskStore(data, 'unregistered', 'creating', projectId, projectStores);
+  return new TaskStore(data, 'unregistered', 'creating', projectId, projectStores, mutations);
 }
 
-export function createUnprovisionedTask(data: Task, projectStores?: ScopedStoreLookup): TaskStore {
-  return new TaskStore(data, 'unprovisioned', 'idle', data.projectId, projectStores);
+export function createUnprovisionedTask(
+  data: Task,
+  projectStores?: ScopedStoreLookup,
+  mutations?: TaskStoreMutations
+): TaskStore {
+  return new TaskStore(data, 'unprovisioned', 'idle', data.projectId, projectStores, mutations);
 }
 
 const unavailableProjectStores: ScopedStoreLookup = {
@@ -283,4 +241,20 @@ const unavailableProjectStores: ScopedStoreLookup = {
     throw new Error(`Project scoped store '${token.id}' is unavailable`);
   },
   has: () => false,
+};
+
+const unavailableMutations: TaskStoreMutations = {
+  rename: async (task) => err({ type: 'task-not-found', taskId: task.id }),
+  updateStatus: async () => {
+    throw new Error('Task mutations are unavailable');
+  },
+  setPinned: async () => {
+    throw new Error('Task mutations are unavailable');
+  },
+  updateLinkedIssue: async () => {
+    throw new Error('Task mutations are unavailable');
+  },
+  convertAutomationTask: async () => {
+    throw new Error('Task mutations are unavailable');
+  },
 };

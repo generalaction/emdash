@@ -3,7 +3,7 @@ import {
   operationMutationResultSchema,
 } from '@emdash/core/primitives/operations/api';
 import type { Result } from '@emdash/shared';
-import { defineContract, eventStream, fallible, procedure } from '@emdash/wire';
+import { defineContract, fallible, liveModel, liveState, mutation, procedure } from '@emdash/wire';
 import z from 'zod';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
@@ -16,7 +16,8 @@ import {
   type RenameTaskError,
   type RenameTaskSuccess,
   type Task,
-  type TaskEvent,
+  type TaskListData,
+  type TaskStatsData,
 } from '@core/primitives/tasks/api';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 
@@ -34,10 +35,6 @@ export const tasksWireContract = defineContract({
   createTask: procedure({
     input: z.custom<CreateTaskParams>(),
     output: z.custom<Result<CreateTaskSuccess, CreateTaskError>>(),
-  }),
-  getTasks: procedure({
-    input: z.object({ projectId: z.string().optional() }),
-    output: z.custom<Task[]>(),
   }),
   getDeletePreflight: procedure({
     input: z.object({ projectId: z.string(), taskIds: z.array(z.string()) }),
@@ -59,34 +56,6 @@ export const tasksWireContract = defineContract({
     }),
     output: z.void(),
   }),
-  archiveTask: procedure({
-    input: z.object({ projectId: z.string(), taskId: z.string() }),
-    output: z.void(),
-  }),
-  restoreTask: procedure({
-    input: taskIdInputSchema,
-    output: z.void(),
-  }),
-  renameTask: procedure({
-    input: z.object({ projectId: z.string(), taskId: z.string(), newName: z.string() }),
-    output: z.custom<Result<RenameTaskSuccess, RenameTaskError>>(),
-  }),
-  updateLinkedIssue: procedure({
-    input: z.object({ taskId: z.string(), issue: z.custom<LinkedIssue>().optional() }),
-    output: z.void(),
-  }),
-  updateTaskStatus: procedure({
-    input: z.object({ taskId: z.string(), status: taskLifecycleStatuses }),
-    output: z.void(),
-  }),
-  setTaskPinned: procedure({
-    input: z.object({ taskId: z.string(), isPinned: z.boolean() }),
-    output: z.void(),
-  }),
-  convertAutomationTask: procedure({
-    input: taskIdInputSchema,
-    output: z.custom<Task | null>(),
-  }),
   getProjectWorkspaces: procedure({
     input: z.object({ projectId: z.string() }),
     output: z.custom<ProjectWorkspace[]>(),
@@ -99,7 +68,55 @@ export const tasksWireContract = defineContract({
     input: z.object({ title: z.string().optional(), description: z.string().optional() }),
     output: z.string(),
   }),
-  events: eventStream({ key: z.void(), event: z.custom<TaskEvent>() }),
+  taskList: liveModel({
+    key: z.object({ projectId: z.string() }),
+    states: {
+      list: liveState({ data: z.custom<TaskListData>() }),
+    },
+    mutations: {
+      rename: mutation({
+        input: z.object({ taskId: z.string(), newName: z.string() }),
+        data: z.custom<RenameTaskSuccess>(),
+        error: z.custom<RenameTaskError>(),
+      }),
+      setStatus: mutation({
+        input: z.object({ taskId: z.string(), status: taskLifecycleStatuses }),
+        data: z.void(),
+        error: z.never(),
+      }),
+      setPinned: mutation({
+        input: z.object({ taskId: z.string(), isPinned: z.boolean() }),
+        data: z.void(),
+        error: z.never(),
+      }),
+      setLinkedIssue: mutation({
+        input: z.object({ taskId: z.string(), issue: z.custom<LinkedIssue>().optional() }),
+        data: z.void(),
+        error: z.never(),
+      }),
+      convertAutomation: mutation({
+        input: taskIdInputSchema,
+        data: z.custom<Task | null>(),
+        error: z.never(),
+      }),
+      archive: mutation({
+        input: taskIdInputSchema,
+        data: z.void(),
+        error: z.never(),
+      }),
+      restore: mutation({
+        input: taskIdInputSchema,
+        data: z.void(),
+        error: z.never(),
+      }),
+    },
+  }),
+  taskStats: liveModel({
+    key: z.object({ projectId: z.string() }),
+    states: {
+      stats: liveState({ data: z.custom<TaskStatsData>() }),
+    },
+  }),
   delete: fallible({
     input: deleteTaskInputSchema,
     data: operationMutationResultSchema,

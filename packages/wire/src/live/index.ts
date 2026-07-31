@@ -2,16 +2,11 @@ export * from './protocol';
 export * from './mutations';
 export * from './replica';
 export {
-  BatchedLiveState,
   ComputedLiveState,
   LiveState,
   bindMachineToLiveState,
-  microtaskScheduler,
-  timerScheduler,
-  type BatchedLiveStateOptions,
   type BindMachineToLiveStateOptions,
   type ComputedLiveStateOptions,
-  type FlushScheduler,
   type LiveChangeMeta,
   type LiveStateProduceOptions,
   type MachineLiveStateBinding,

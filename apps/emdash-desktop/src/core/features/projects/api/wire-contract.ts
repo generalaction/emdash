@@ -104,6 +104,10 @@ const projectIdInputSchema = z.object({
   projectId: z.string(),
 });
 
+export type ProjectListData = {
+  projects: Project[];
+};
+
 export const projectsWireContract = defineContract({
   createProject: procedure({
     input: z.custom<CreateProjectParams>(),
@@ -133,10 +137,6 @@ export const projectsWireContract = defineContract({
   resolveRepositoryDestination: procedure({
     input: z.custom<ResolveRepositoryDestinationParams>(),
     output: z.custom<Result<string, ProjectPlacementError>>(),
-  }),
-  getProjects: procedure({
-    input: z.void(),
-    output: z.custom<Project[]>(),
   }),
   deleteProject: procedure({
     input: projectIdInputSchema,
@@ -189,6 +189,12 @@ export const projectsWireContract = defineContract({
   events: eventStream({
     key: z.void(),
     event: z.object({ type: z.literal('settings-changed'), projectId: z.string() }),
+  }),
+  projectList: liveModel({
+    key: z.void(),
+    states: {
+      list: liveState({ data: z.custom<ProjectListData>() }),
+    },
   }),
   creation: liveModel({
     key: projectCreationKeySchema,

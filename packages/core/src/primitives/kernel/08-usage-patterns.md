@@ -190,6 +190,49 @@ What it does not give you: execution-time atomicity. Children settle
 independently; a failed teardown leaves a failed row to retry or dismiss,
 never an automatic un-delete of the project.
 
+## The imperative coordinator
+
+*Sequenced, branching multi-step work* — where the declarative batch's
+static fan-out doesn't fit, write the plan as code with `ctx.run`
+([06 §two styles](./06-execution-and-handlers.md#two-coordinator-styles)).
+"Ship this task" is the worked example: push the branch, then open a PR
+with the pushed branch's name.
+
+```ts
+const shipTask = defineOperation({
+  name: 'ship-task',
+  // ...
+  key: (i) => `ship:${i.taskId}`,
+  // Deadlock discipline (05): claim only what this subtree exclusively
+  // owns — the task. Never the repo or host; the children claim those.
+  claims: (i) => taskResource.mutates(i),
+});
+
+const shipTaskHandler = createOperationHandler(shipTask, async (ctx) => {
+  const pushed = await ctx.run(pushBranch, { worktree: ctx.input.worktree });
+  if (!pushed.ok) ctx.reject({ code: 'push-failed', cause: pushed.error });
+
+  const pr = await ctx.run(createPullRequest, {
+    branch: pushed.value.remoteBranch,     // branching on a typed child result
+    title: ctx.input.title,
+  });
+  if (!pr.ok) ctx.reject({ code: 'pr-failed', cause: pr.error });
+  return { prUrl: pr.value.url };
+});
+```
+
+The durability story, concretely: kill the app between the push and the PR.
+On reboot, recovery resets `ship-task` to `pending`; it re-dispatches and
+the handler re-runs from the top. The first `ctx.run` re-submits
+`pushBranch`, which **dedupes by key into the already-succeeded child and
+returns its persisted typed result instantly** — no second push, no replay
+machinery. Execution continues to the PR step as if nothing happened. The
+requirements this leans on: child keys derive deterministically from the
+parent's input, and `pushBranch` itself is idempotent behind its physical
+guard (`--force-with-lease` semantics). Each child is also independently
+visible, retryable, and claim-scoped — the PR step contends on GitHub,
+not on the worktree the push needed.
+
 ## Supersession
 
 *Newer intent invalidates older.* The user deletes a task whose workspace is
@@ -348,3 +391,15 @@ Recognize these before they ship:
 - **Cross-plane admission** — asking the desktop to admit against a host's
   log or vice versa. Each plane is authoritative for its own log; the bridge
   pattern plus shared keys handles the coupling.
+- **Broad claims on an awaiting coordinator** — a `ctx.run` coordinator
+  claiming the repo or host it merely orchestrates over. An awaiting parent
+  holds its claims while blocked — genuine hold-and-wait — so broad claims
+  make cross-tree deadlock constructible
+  ([05 §where the proof stops](./05-dispatch.md#why-queueing-cannot-deadlock--and-where-the-proof-stops)).
+  Claim only what the subtree exclusively owns; let children claim what
+  they touch.
+- **Reading your own prior attempt's facts** — branching a retry on what a
+  previous attempt recorded about itself. Facts are write-only
+  ([06](./06-execution-and-handlers.md#facts-are-write-only)); decisions
+  come from physical guards and settled child results. If a step is worth
+  remembering, it is a child operation.

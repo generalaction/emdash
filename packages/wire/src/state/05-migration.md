@@ -56,10 +56,11 @@ new state test under `wire/src/state/`:
 - [x] Settled cursors: mutation response resolves with cursors; client
       `settled` promise fulfills on tagged update (`replica/instance` tests)
 - [x] Error atomicity: a throwing derived/query leaves state recoverable
-      (`BatchedLiveState` flush semantics)
+      (`kernel.test.ts`, `query.test.ts`)
 - [x] Lease acquire/release pairing incl. failure paths
       (`resource-host` acquire tests)
-- [ ] Replica gap → resync; persistent-store seed then live catch-up
+- [x] Replica gap → resync; persistent-store seed then live catch-up
+      (`bridge/roundtrip.test.ts`)
 
 New behavior, to be flagged in the PR that enables each:
 
@@ -102,7 +103,7 @@ breakage):
    kernel `Scope`; `defineViewScope` definitions declare their data pins).
 6. **File tree** — the hard port: dynamic deps, settle, shared reducers, and
    the `optimistic` overlay replacing `mutations/group.ts` recipes.
-7. **Deletions**: `ComputedLiveState`, `BatchedLiveState`, `machine-binding`,
+7. **Deletions**: `ComputedLiveState`, `machine-binding`,
    `resource-host`, `host` (registry flavor), hand-written providers; update
    `packages/wire/docs/live/*.md` and `agents/conventions/` pages.
 

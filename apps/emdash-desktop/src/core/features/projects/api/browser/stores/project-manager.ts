@@ -1,7 +1,9 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { projectsWireContract } from '@core/features/projects/api';
 import {
@@ -26,6 +28,8 @@ import { type LocalProject, type SshProject } from '@core/primitives/projects/ap
 import { splitNameWithOwner } from '@core/primitives/repository/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getProjectsWireClient } from '@renderer/lib/runtime/projects-wire-client';
+import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
+import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
 import { appState } from '@renderer/lib/stores/app-state';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
@@ -44,6 +48,8 @@ export class ProjectManagerStore {
   private _projectCreationJobs = new Map<string, { cancel(): Promise<void> }>();
   private _projectMountPromises = new Map<string, Promise<void>>();
   private _loadPromise: Promise<void> | null = null;
+  private readonly _projectListScope: Scope = createScope({ label: 'project-list-replica' });
+  private _projectListRemote: RemoteModel<typeof projectsWireContract.projectList> | null = null;
   private _lastSshRecoveryAttemptAt = 0;
   private _disposed = false;
   private readonly _handleOnline = (): void => {
@@ -62,6 +68,8 @@ export class ProjectManagerStore {
 
   dispose(): void {
     this._disposed = true;
+    void this._projectListScope.dispose();
+    void this._projectListRemote?.dispose();
     globalThis.window?.removeEventListener('online', this._handleOnline);
     globalThis.window?.removeEventListener('focus', this._handleFocus);
   }
@@ -78,16 +86,62 @@ export class ProjectManagerStore {
   }
 
   private async _doLoad(): Promise<void> {
-    const rawProjects = await (await getDesktopWireClient()).projects.getProjects();
-    const toMount: string[] = [];
-    runInAction(() => {
-      for (const p of rawProjects) {
-        if (this.projects.has(p.id)) continue;
-        this.projects.set(p.id, createUnmountedProject(p, 'idle'));
-        toMount.push(p.id);
-      }
+    const client = await getProjectsWireClient();
+    this._projectListRemote ??= remote(projectsWireContract.projectList, client.projectList, {
+      scope: this._projectListScope,
+      lingerMs: 15_000,
     });
-    await Promise.allSettled(toMount.map((id) => this.mountProject(id)));
+    const member = this._projectListRemote(undefined);
+    const initialMounts = await new Promise<string[]>((resolve, reject) => {
+      let resolved = false;
+      observeReadableInAction(
+        member.states.list,
+        (current) => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          const toMount = this._reconcileProjectRows(current.value.projects);
+          if (resolved) {
+            void Promise.allSettled(toMount.map((id) => this.mountProject(id)));
+            return;
+          }
+          resolved = true;
+          resolve(toMount);
+        },
+        { scope: this._projectListScope }
+      );
+    });
+    await Promise.allSettled(initialMounts.map((id) => this.mountProject(id)));
+  }
+
+  private _reconcileProjectRows(rows: readonly (LocalProject | SshProject)[]): string[] {
+    const toMount: string[] = [];
+    reconcileKeyedEntities({
+      rows,
+      stores: this.projects,
+      getRowId: (project) => project.id,
+      create: (project) => {
+        toMount.push(project.id);
+        return createUnmountedProject(project, 'idle');
+      },
+      update: (current, project) => {
+        if (isUnregisteredProject(current)) {
+          current.transitionToUnmounted(project, 'idle');
+          toMount.push(project.id);
+          return;
+        }
+        if (current.data) {
+          Object.assign(current.data, project);
+          current.name = project.name;
+          current.createdAt = project.createdAt;
+        }
+      },
+      shouldKeepMissing: (projectId) => this.pendingCreationIds.has(projectId),
+      remove: (current) => current.mountedProject?.dispose(),
+    });
+    return toMount;
   }
 
   async createProject(

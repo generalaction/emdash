@@ -1,8 +1,9 @@
-import { ok } from '@emdash/shared';
+import { ok, toPendingLease } from '@emdash/shared';
 import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveModel, liveState, mutation } from '../../api';
+import { LiveState } from '../../live/state/server';
 import { createTestWire } from '../../testing';
 import { cell, derived, flushStateTurn, read, snapshot } from '../core';
 import { optimistic } from '../optimistic';
@@ -60,13 +61,9 @@ describe('state bridge round trip', () => {
     expect(snapshot(member.states.value).status).toBe('loading');
     await waitForValue(() => snapshot(member.states.value).value?.count, 0);
 
-    const result = await view.run(
-      member.mutations.increment,
-      { by: 1 },
-      (draft, input) => {
-        draft.count += input.by;
-      }
-    );
+    const result = await view.run(member.mutations.increment, { by: 1 }, (draft, input) => {
+      draft.count += input.by;
+    });
     await settleAsync();
 
     expect(result.success).toBe(true);
@@ -83,6 +80,56 @@ describe('state bridge round trip', () => {
     await model.dispose();
     await wire.dispose();
     await provider.dispose();
+  });
+
+  it('resyncs a remote member after a generation gap and marks seed data stale until catch-up', async () => {
+    const key = { id: 'one' };
+    const clock = createManualClock();
+    const authoritative = new LiveState({ count: 1 }, 1);
+    const provider = {
+      kind: 'leasedLiveModelProvider',
+      contract: api.counter,
+      acquireState() {
+        return toPendingLease(
+          Promise.resolve({
+            value: authoritative,
+            release: async () => {},
+          })
+        );
+      },
+      async runMutation() {
+        throw new Error('not used');
+      },
+      async dispose() {},
+    } as const;
+    const wire = createTestWire(api, { counter: provider });
+    const model = remote(api.counter, wire.client.counter, {
+      clock,
+      lingerMs: 5,
+    });
+    const member = model(key);
+    const recorded = recordSnapshots(member.states.value);
+
+    await waitForValue(() => snapshot(member.states.value).value?.count, 1);
+    expect(snapshot(member.states.value).status).toBe('live');
+
+    authoritative.reseed({ count: 2 });
+    authoritative.produce((draft) => {
+      draft.count = 3;
+    });
+    await waitForValue(() => snapshot(member.states.value).value?.count, 3);
+    expect(snapshot(member.states.value).status).toBe('stale');
+
+    authoritative.produce((draft) => {
+      draft.count = 4;
+    });
+    await waitForValue(() => snapshot(member.states.value).value?.count, 4);
+    expect(snapshot(member.states.value).status).toBe('live');
+    expect(recorded.snapshots.map((current) => current.status)).toContain('stale');
+
+    await recorded.dispose();
+    await model.dispose();
+    await wire.dispose();
   });
 });
 

@@ -70,6 +70,7 @@ const workspaceAliases = {
   '@emdash/shared/testing': resolve('../../packages/shared/src/testing/index.ts'),
   '@emdash/shared': resolve('../../packages/shared/src/index.ts'),
   '@emdash/wire/api': resolve('../../packages/wire/src/api/index.ts'),
+  '@emdash/wire/state': resolve('../../packages/wire/src/state/index.ts'),
   '@emdash/wire/testing': resolve('../../packages/wire/src/testing/index.ts'),
   '@emdash/wire/util/mobx': resolve('../../packages/wire/src/util/mobx/index.ts'),
   '@emdash/wire/util': resolve('../../packages/wire/src/util/index.ts'),

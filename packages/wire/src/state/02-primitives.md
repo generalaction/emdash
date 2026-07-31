@@ -51,10 +51,10 @@ Semantics:
   diffs consecutive values structurally; in-place mutation breaks both
   equality gating and diffing.)
 
-Replaces: direct feature use of `LiveState` for in-memory state, and the
-enqueue side of `BatchedLiveState` (turn coalescing subsumes microtask
-batching; use `derived` + `expose`-level debounce where `timerScheduler`
-windows were used).
+Replaces: direct feature use of `LiveState` for in-memory state. The deleted
+`BatchedLiveState` microtask scheduler is covered by turn coalescing; use
+`query.debounceMs` or an edge debounce where timer windows were previously
+needed.
 
 ## `derived`
 

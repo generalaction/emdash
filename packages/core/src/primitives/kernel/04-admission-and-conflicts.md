@@ -78,19 +78,50 @@ Design points, each settled deliberately:
 Two caveats on the sharper verbs:
 
 - **`supersede` of a `running` incumbent** is a cancellation request, not an
-  instant replacement: the incumbent gets its `AbortSignal` fired and the
-  newcomer stays `pending` until the incumbent actually reaches a terminal
-  state. Claims outlive the supersede verb by exactly as long as the work
-  does.
+  instant replacement: the incumbent's `AbortSignal` fires with reason
+  `'supersede'` ([06 §abort reasons](./06-execution-and-handlers.md#abort-reasons)),
+  it settles as `superseded`, and the newcomer stays `pending` until then.
+  How the newcomer waits needs **no bespoke mechanism**: the aborting
+  incumbent is still non-terminal, so its claims block the newcomer at
+  dispatch through ordinary claim compatibility — there is no "waiting on
+  supersede" state, and none should be built. Claims outlive the supersede
+  verb by exactly as long as the work does. (A *pending* incumbent
+  supersedes instantly: `pending → superseded`, nothing to abort.)
 - **`queue` is safe from deadlock** by construction — a queued operation
   holds durable claims but no runtime resources, and dispatch acquires
-  atomically (no hold-and-wait, see [05](./05-dispatch.md#why-queueing-cannot-deadlock)).
+  atomically (no hold-and-wait, see
+  [05](./05-dispatch.md#why-queueing-cannot-deadlock--and-where-the-proof-stops)).
   What `queue` costs is a user-visible waiting state, which must be *derived*
   for display, never stored.
 
+## The ancestor exemption
+
+Operations are **never conflict-checked against their own ancestor chain** —
+at admission or at dispatch ([05](./05-dispatch.md#ancestor-exemption-and-claim-release)).
+Exempt pairs are filtered out *before* verb resolution, so the policy table
+is never consulted for a parent-child pair.
+
+Without this rule the docs' own canonical example fails: a project-delete
+parent's claims collide with its teardown children's implicit repo intents,
+the table has no `(teardownWorkspace, deleteProject)` row, and default-
+reject aborts the batch. With it, a coordinator may claim what its subtree
+works on and the subtree still admits and dispatches.
+
+The exemption covers all three ways a parent relationship arises: intra-
+batch (via the member's `parent` index), post-hoc (via stored `parentId`
+chains, walked to the root), and adoption. It is strictly *ancestral* —
+siblings are **not** exempt from each other, which is what keeps two
+teardown children of one project delete from racing the same worktree if a
+key bug ever produced overlapping claims.
+
 ## `admit`
 
-The pure function both planes call inside their transaction:
+The pure function both planes call inside their transaction. It operates on
+*hydrated* records (claims joined in, per
+[02](./02-resources-and-claims.md#claims-are-data)) — the relational claims
+table changes how the store narrows what gets hydrated
+([07 §store port](./07-engine-and-stores.md#the-store-port)), never this
+signature. No store handle reaches the pure layer.
 
 ```ts
 export function admit(
@@ -98,37 +129,53 @@ export function admit(
     definition: AnyOperationDefinition;
     key: string;
     claims: ResourceClaim[];
+    parentId?: string;          // for the ancestor exemption
   },
   nonTerminal: readonly OperationRecord[],
-  policy: ConflictPolicy
+  policy: ConflictPolicy,
+  byId: (id: string) => OperationRecord | undefined   // ancestor-chain resolver
 ): AdmissionDecision;
 
 export type AdmissionDecision =
-  | { kind: 'insert' }                                   // no collision
-  | { kind: 'insert-queued' }                            // collision, verb=queue
   | { kind: 'dedupe'; existing: OperationRecord }
   | { kind: 'reject'; conflicts: OperationRecord[] }
-  | { kind: 'supersede'; toSupersede: OperationRecord[] };
+  | { kind: 'insert'; toSupersede: OperationRecord[] };  // queue pairs contribute
+                                                          // nothing — queued-ness is
+                                                          // derivable at dispatch
 ```
+
+The decision is **composite** because one incoming operation can collide
+with several non-terminal records under *different* verbs — a teardown
+arriving over a pending provision (`supersede`) *and* two running scans
+(`queue`) needs all outcomes at once. Precedence, as a documented and
+tested property:
+
+1. A key match short-circuits to `dedupe` — no policy consultation.
+2. Ancestor-exempt pairs are filtered out.
+3. If *any* remaining colliding pair resolves to `reject`, the whole
+   admission is `reject` (listing every conflicting record).
+4. Otherwise all `supersede` targets collect into one `insert`; `queue`
+   pairs require nothing beyond insertion. There is no `insert-queued`
+   kind — whether an inserted operation must wait is dispatch's question.
 
 The engine's submit path is then mechanical:
 
 ```ts
 await store.transaction((tx) => {
-  const decision = admit(incoming, tx.listNonTerminal(), policy);
+  const decision = admit(incoming, tx.listNonTerminal(), policy, byId(tx));
   switch (decision.kind) {
-    case 'dedupe':    return handleFor(decision.existing);
-    case 'reject':    return err(conflictError(decision.conflicts));
-    case 'supersede': tx.markSuperseded(decision.toSupersede.map((r) => r.id)); // falls through
+    case 'dedupe': return handleFor(decision.existing);
+    case 'reject': return err(conflictError(decision.conflicts));
     case 'insert':
-    case 'insert-queued':
+      supersede(tx, decision.toSupersede);   // pending → superseded now;
+                                             // running → abort with 'supersede'
       return handleFor(tx.insert(newRecord(incoming)));
   }
 });
 ```
 
 Everything decision-shaped is in `admit` (pure, exhaustively unit-tested);
-everything effect-shaped is in the transaction (four lines per verb).
+everything effect-shaped is in the transaction (a few lines per verb).
 
 Because admission runs against the store's serialized non-terminal set, two
 racing submissions cannot both pass: the second transaction sees the first's
@@ -168,6 +215,13 @@ teardown). Instead of `dedupe` (wrong — the parent is new work) or `reject`
 (wrong — nothing conflicts), the parent **adopts**: admission re-parents the
 matching orphan (`parentId := parent.id`) and skips inserting a duplicate
 child. Match criterion is the child's `key` — the same identity dedupe uses.
+
+Adoption re-parents **orphans only** (`parentId === null`). A matching
+record that already belongs to another tree is never stolen — silently
+re-parenting it would corrupt that tree's propagation and settlement. Such
+a record matches by key, so the batch member dedupes into it *without*
+re-parenting, and the coordinator's propagation policy simply doesn't cover
+it.
 
 Adoption is requested by the coordinator's submission
 (`adoptExisting: true` on batch members), not implicit, because re-parenting

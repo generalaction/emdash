@@ -90,9 +90,12 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
 | `admit` | Pure admission decision against the non-terminal set; each plane wraps it in its own transaction | [04](./04-admission-and-conflicts.md#admit) |
 | `RunningClaims` / `dispatchPass` | Matrix-gated dispatch with fairness barriers; degenerates to keyed lanes when every claim is exclusive | [05](./05-dispatch.md) |
 | `createOperationHandler` | Execution SPI: `run(ctx)` with `ctx.stage()`, progress reporting, and cancellation via `AbortSignal` | [06](./06-execution-and-handlers.md#createoperationhandler) |
+| `ctx.run` / `ctx.spawn` | Child operations from inside handlers; `ctx.run` awaits the typed result, making imperative coordinators durable via key-dedupe rather than replay | [06](./06-execution-and-handlers.md#ctxrun-and-ctxspawn-operations-from-inside-handlers) |
 | `OperationProgress` | The live stage/progress shape; streamed via a `ProgressSink`, never persisted (records keep a compact terminal summary) | [06](./06-execution-and-handlers.md#stages-and-progress) |
 | `OperationStore` | The persistence port; one SQLite implementation shared by both planes, plus the in-memory test store | [07](./07-engine-and-stores.md#the-store-port) |
+| Transition journal | `operation_transitions` rows appended with every CAS — the operation timeline for display/debugging and the poke source for read models | [07](./07-engine-and-stores.md#the-transition-journal) |
 | `createOperationEngine` | Composition root: admission + dispatch + execution + retry + recovery over a store and a registry | [07](./07-engine-and-stores.md#the-engine) |
+| `engine.query()` / folds | The read path: filter-shaped queries over records and claims, plus pure display folds (`displayStatus`, `activityFeed`, `operationTreeView`, `provenanceChain`) | [09](./09-querying-and-display.md) |
 
 ## What the kernel is not
 
@@ -132,8 +135,12 @@ const result = await handle.result; // Result<TeardownResult, TeardownError>
    composition, the store port, registration, recovery, testing, and the
    migration plan.
 8. [08-usage-patterns.md](./08-usage-patterns.md) — the cookbook: worked
-   patterns for destructive operations, shared scans, coordinators,
-   supersession, queueing, and cross-plane submission.
+   patterns for destructive operations, shared scans, coordinators
+   (declarative and imperative), supersession, queueing, and cross-plane
+   submission.
+9. [09-querying-and-display.md](./09-querying-and-display.md) — the read
+   path: CQRS framing, `engine.query()`, the pure display folds, wire
+   exposure, and retention.
 
 ## Design lineage
 

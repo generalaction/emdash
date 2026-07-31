@@ -90,9 +90,15 @@ export type Task = {
   automationRunMeta?: AutomationRunMeta;
 };
 
-export type TaskEvent =
-  | { type: 'created'; task: Task }
-  | { type: 'deleted'; taskId: string; projectId: string };
+export type TaskRow = Omit<Task, 'prs' | 'workspaceGit'>;
+
+export type TaskListData = {
+  tasks: TaskRow[];
+};
+
+export type TaskStatsData = {
+  byWorkspaceId: Record<string, { linesAdded: number; linesDeleted: number }>;
+};
 
 export type TaskBootstrapStatus =
   | { status: 'ready' }

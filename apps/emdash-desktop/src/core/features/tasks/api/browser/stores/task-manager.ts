@@ -1,14 +1,19 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
+import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica, createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
+import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { tasksWireContract } from '@core/features/tasks/api';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
   type TaskStore,
+  type TaskStoreMutations,
 } from '@core/features/tasks/api/browser/stores/task-store';
 import {
   formatFetchErrorDetail,
@@ -21,7 +26,7 @@ import {
 } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
-import { getMementoClient } from '@core/primitives/mementos/browser';
+import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';
 import {
   isProvisioned,
@@ -34,10 +39,26 @@ import type {
   CreateTaskParams,
   CreateTaskWarning,
   DeleteTaskOptions,
+  RenameTaskError,
+  RenameTaskSuccess,
   Task,
+  TaskLifecycleStatus,
+  TaskListData,
+  TaskRow,
+  TaskStatsData,
 } from '@core/primitives/tasks/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
+import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
 import { appState } from '@renderer/lib/stores/app-state';
+import { log } from '@renderer/utils/logger';
+
+type TaskMutationInvocation<Data, Error> = {
+  result: SharedResult<{ data: Data; cursors: unknown[] }, Error>;
+  settled: Promise<void>;
+};
+
+type TaskListRemoteMember = ReturnType<RemoteModel<typeof tasksWireContract.taskList>>;
 
 function formatCreateTaskError(error: CreateTaskError, opts?: { isSshProject?: boolean }): string {
   return match(error)
@@ -97,6 +118,10 @@ function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function throwIfMutationFailed(result: SharedResult<unknown, unknown>): void {
+  if (!result.success) throw new Error(formatErrorMessage(result.error));
+}
+
 function wireErrorToWorkspaceError(error: unknown): WorkspaceError {
   if (
     typeof error === 'object' &&
@@ -118,12 +143,24 @@ export class TaskManagerStore {
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
-
-  private _unsubTaskEvents: (() => void) | null = null;
+  private readonly _taskListScope: Scope = createScope({ label: 'task-list-replica' });
+  private _taskListRemote: RemoteModel<typeof tasksWireContract.taskList> | null = null;
+  private _taskStatsRemote: RemoteModel<typeof tasksWireContract.taskStats> | null = null;
+  private _taskListView: OptimisticView<TaskListData> | null = null;
+  private _taskListData: TaskListData | null = null;
+  private _taskStats: TaskStatsData = { byWorkspaceId: {} };
+  private _taskListAttemptScope: Scope | null = null;
   private _bootstrapReplicaPromise: Promise<
     LiveModelReplica<typeof workspacesWireContract.bootstrap>
   > | null = null;
   private _bootstrapDisposers = new Map<string, () => void>();
+  private readonly _taskMutations: TaskStoreMutations = {
+    rename: (task, name) => this._renameTask(task, name),
+    updateStatus: (task, status) => this._updateTaskStatus(task, status),
+    setPinned: (task, isPinned) => this._setTaskPinned(task, isPinned),
+    updateLinkedIssue: (task, issue) => this._updateLinkedIssue(task, issue),
+    convertAutomationTask: (task) => this._convertAutomationTask(task),
+  };
 
   tasks = observable.map<string, TaskStore>();
 
@@ -135,72 +172,146 @@ export class TaskManagerStore {
     this.projectId = projectId;
     this._settingsStore = settingsStore;
     makeObservable(this, { tasks: observable });
-
-    let disposed = false;
-    let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.tasks.events.subscribe(undefined, {
-        onEvent: (event) => {
-          if (event.type === 'created') {
-            const { task } = event;
-            if (task.projectId !== this.projectId || this.tasks.has(task.id)) return;
-            runInAction(() => {
-              this.tasks.set(task.id, createUnprovisionedTask(task, this.projectStores));
-            });
-            if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
-            return;
-          }
-          if (event.projectId === this.projectId) void this._removeTaskLocally(event.taskId);
-        },
-        onGap: () => {
-          this._loadPromise = null;
-          void this.loadTasks();
-        },
-      });
-      if (disposed) nextUnsubscribe();
-      else unsubscribe = nextUnsubscribe;
-    });
-    this._unsubTaskEvents = () => {
-      disposed = true;
-      unsubscribe?.();
-    };
-  }
-
-  private async _removeTaskLocally(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (!task) return;
-    runInAction(() => {
-      this.tasks.delete(taskId);
-    });
-    appState.navigation.invalidateSubject(taskSubject({ taskId }));
-    this._bootstrapDisposers.get(taskId)?.();
-    this._bootstrapDisposers.delete(taskId);
-    const mementos = getMementoClient();
-    try {
-      await mementos.deleteBySubject(taskSubject({ taskId }));
-    } catch (error) {
-      mementos.reportError(error);
-    }
-    task.dispose();
   }
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = getDesktopWireClient()
-        .then((client) => client.tasks.getTasks({ projectId: this.projectId }))
-        .then((tasks) => {
-          runInAction(() => {
-            for (const t of tasks) {
-              this.tasks.set(t.id, createUnprovisionedTask(t, this.projectStores));
-              if (t.workspaceId) this._watchWorkspaceBootstrap(t.id, t.workspaceId);
-            }
-          });
-        })
-        .catch((e) => {
-          console.error('Error loading tasks', e);
-        });
+      this._loadPromise = this._ensureTaskListModels().catch((e) => {
+        log.error('Error loading tasks', { error: e });
+        this._loadPromise = null;
+      });
     }
     return this._loadPromise;
+  }
+
+  private async _ensureTaskListModels(): Promise<void> {
+    if (this._taskListView) return;
+    const attemptScope = this._taskListScope.child('task-list-models');
+    const client = await getDesktopWireClient();
+    const taskListRemote = remote(tasksWireContract.taskList, client.tasks.taskList, {
+      scope: attemptScope,
+      lingerMs: 15_000,
+    });
+    const taskStatsRemote = remote(tasksWireContract.taskStats, client.tasks.taskStats, {
+      scope: attemptScope,
+      lingerMs: 15_000,
+    });
+    this._taskListRemote = taskListRemote;
+    this._taskStatsRemote = taskStatsRemote;
+    const taskListMember = this._taskListRemote({ projectId: this.projectId });
+    const taskStatsMember = this._taskStatsRemote({ projectId: this.projectId });
+    const taskListView = optimistic(taskListMember.states.list);
+    this._taskListView = taskListView;
+
+    const ready = new Promise<void>((resolve, reject) => {
+      let resolved = false;
+      observeReadableInAction(
+        taskListView,
+        (current) => {
+          if (current.status === 'error') {
+            reject(current.error);
+            return;
+          }
+          if (!current.value) return;
+          this._taskListData = current.value;
+          this._reconcileTaskRows(current.value.tasks);
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        },
+        { scope: attemptScope }
+      );
+    });
+    observeReadableInAction(
+      taskStatsMember.states.stats,
+      (current) => {
+        if (!current.value) return;
+        const previousStats = this._taskStats;
+        this._taskStats = current.value;
+        this._applyTaskStats(previousStats, current.value);
+      },
+      { scope: attemptScope }
+    );
+    try {
+      await ready;
+      this._taskListAttemptScope = attemptScope;
+    } catch (error) {
+      if (this._taskListRemote === taskListRemote) this._taskListRemote = null;
+      if (this._taskStatsRemote === taskStatsRemote) this._taskStatsRemote = null;
+      if (this._taskListView === taskListView) this._taskListView = null;
+      this._taskListData = null;
+      await taskListRemote.dispose();
+      await taskStatsRemote.dispose();
+      await attemptScope.dispose();
+      throw error;
+    }
+  }
+
+  private _reconcileTaskRows(rows: readonly TaskRow[]): void {
+    reconcileKeyedEntities({
+      rows,
+      stores: this.tasks,
+      getRowId: (row) => row.id,
+      create: (row) => {
+        const task = this._taskFromRow(row);
+        return createUnprovisionedTask(task, this.projectStores, this._taskMutations);
+      },
+      update: (current, row) => {
+        const task = this._taskFromRow(row);
+        if (isUnregistered(current)) {
+          current.transitionToUnprovisioned(task);
+          if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
+          return;
+        }
+        if (!isDeepEqual(current.data, task)) current.data = task;
+        if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
+      },
+      shouldKeepMissing: (_taskId, task) => isUnregistered(task),
+      onAppear: (_store, row) => {
+        if (row.workspaceId) this._watchWorkspaceBootstrap(row.id, row.workspaceId);
+      },
+      remove: (task, taskId) => {
+        this._bootstrapDisposers.get(taskId)?.();
+        this._bootstrapDisposers.delete(taskId);
+        task.dispose();
+        appState.navigation.invalidateSubject(taskSubject({ taskId }));
+      },
+    });
+  }
+
+  private _taskFromRow(row: TaskRow): Task {
+    const git = row.workspaceId ? this._taskStats.byWorkspaceId[row.workspaceId] : undefined;
+    return {
+      ...row,
+      prs: [],
+      workspaceGit: git,
+    };
+  }
+
+  private _applyTaskStats(previous: TaskStatsData, next: TaskStatsData): void {
+    const changedWorkspaceIds = new Set<string>();
+    for (const workspaceId of new Set([
+      ...Object.keys(previous.byWorkspaceId),
+      ...Object.keys(next.byWorkspaceId),
+    ])) {
+      if (!isDeepEqual(previous.byWorkspaceId[workspaceId], next.byWorkspaceId[workspaceId])) {
+        changedWorkspaceIds.add(workspaceId);
+      }
+    }
+    if (changedWorkspaceIds.size === 0) return;
+
+    runInAction(() => {
+      for (const task of this.tasks.values()) {
+        if (!isRegistered(task)) continue;
+        const workspaceId = task.data.workspaceId;
+        if (!workspaceId || !changedWorkspaceIds.has(workspaceId)) continue;
+        const workspaceGit = next.byWorkspaceId[workspaceId];
+        if (!isDeepEqual(task.data.workspaceGit, workspaceGit)) {
+          task.data = { ...task.data, workspaceGit };
+        }
+      }
+    });
   }
 
   async createTask(params: CreateTaskParams) {
@@ -220,7 +331,8 @@ export class TaskManagerStore {
             type: 'task',
           },
           this.projectId,
-          this.projectStores
+          this.projectStores,
+          this._taskMutations
         )
       );
     });
@@ -436,7 +548,7 @@ export class TaskManagerStore {
         void lease.release();
       });
     })().catch((error: unknown) => {
-      console.warn('Failed to watch workspace bootstrap state', error);
+      log.warn('Failed to watch workspace bootstrap state', { error });
       this._bootstrapDisposers.delete(taskId);
     });
   }
@@ -542,33 +654,86 @@ export class TaskManagerStore {
     await task.setPinned(isPinned);
   }
 
+  private async _renameTask(
+    task: Task,
+    name: string
+  ): Promise<SharedResult<RenameTaskSuccess, RenameTaskError>> {
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.rename,
+      { taskId: task.id, newName: name },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === task.id);
+        if (target) target.name = name;
+      }
+    );
+    if (!result.success) return err(result.error);
+    return ok(result.data.data);
+  }
+
+  private async _updateTaskStatus(task: Task, status: TaskLifecycleStatus): Promise<void> {
+    const changedAt = new Date().toISOString();
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.setStatus,
+      { taskId: task.id, status },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === task.id);
+        if (!target) return;
+        target.status = status;
+        target.statusChangedAt = changedAt;
+      }
+    );
+    throwIfMutationFailed(result);
+  }
+
+  private async _setTaskPinned(task: Task, isPinned: boolean): Promise<void> {
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.setPinned,
+      { taskId: task.id, isPinned },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === task.id);
+        if (target) target.isPinned = isPinned;
+      }
+    );
+    throwIfMutationFailed(result);
+  }
+
+  private async _updateLinkedIssue(task: Task, issue?: LinkedIssue): Promise<void> {
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.setLinkedIssue,
+      { taskId: task.id, issue },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === task.id);
+        if (target) target.linkedIssue = issue;
+      }
+    );
+    throwIfMutationFailed(result);
+  }
+
+  private async _convertAutomationTask(task: Task): Promise<void> {
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.convertAutomation,
+      { taskId: task.id },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === task.id);
+        if (target) target.type = 'task';
+      }
+    );
+    throwIfMutationFailed(result);
+  }
+
   async archiveTask(taskId: string): Promise<void> {
     const currentTask = this.tasks.get(taskId);
     if (!currentTask || !isRegistered(currentTask)) return;
-    const previousArchivedAt = currentTask.data.archivedAt;
-
-    try {
-      runInAction(() => {
-        const task = this.tasks.get(taskId);
-        if (task && isRegistered(task)) {
-          task.data.archivedAt = new Date().toISOString();
-        }
-      });
-      await (
-        await getDesktopWireClient()
-      ).tasks.archiveTask({
-        projectId: this.projectId,
-        taskId,
-      });
-    } catch (e) {
-      runInAction(() => {
-        const task = this.tasks.get(taskId);
-        if (task && isRegistered(task)) {
-          task.data.archivedAt = previousArchivedAt;
-        }
-      });
-      throw e;
-    }
+    const archivedAt = new Date().toISOString();
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.archive,
+      { taskId },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === taskId);
+        if (target) target.archivedAt = archivedAt;
+      }
+    );
+    throwIfMutationFailed(result);
 
     runInAction(() => {
       const task = this.tasks.get(taskId);
@@ -586,25 +751,43 @@ export class TaskManagerStore {
   async restoreTask(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task || !isRegistered(task)) return;
-    const archivedAt = task.data.archivedAt;
+    const result = await this._runTaskListMutation(
+      (member) => member.mutations.restore,
+      { taskId },
+      (draft) => {
+        const target = draft.tasks.find((candidate) => candidate.id === taskId);
+        if (target) target.archivedAt = undefined;
+      }
+    );
+    throwIfMutationFailed(result);
+  }
 
-    try {
-      await (await getDesktopWireClient()).tasks.restoreTask({ taskId });
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isRegistered(current)) {
-          current.data.archivedAt = undefined;
-        }
-      });
-    } catch (e) {
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isRegistered(current)) {
-          current.data.archivedAt = archivedAt;
-        }
-      });
-      throw e;
+  private async _taskListMutationContext(): Promise<{
+    member: TaskListRemoteMember;
+    view: OptimisticView<TaskListData>;
+  }> {
+    await this.loadTasks();
+    if (!this._taskListRemote || !this._taskListView) {
+      throw new Error('Task list model is unavailable');
     }
+    return {
+      member: this._taskListRemote({ projectId: this.projectId }),
+      view: this._taskListView,
+    };
+  }
+
+  private async _runTaskListMutation<Input, Data, Error>(
+    selectMutation: (
+      member: TaskListRemoteMember
+    ) => (
+      input: Input,
+      options: { mutationId: string }
+    ) => Promise<TaskMutationInvocation<Data, Error>>,
+    input: Input,
+    recipe: (draft: TaskListData) => void
+  ): Promise<SharedResult<{ data: Data; cursors: unknown[] }, Error>> {
+    const { member, view } = await this._taskListMutationContext();
+    return await view.run(selectMutation(member), input, recipe);
   }
 
   async deleteTask(taskId: string, opts?: DeleteTaskOptions): Promise<void> {
@@ -613,19 +796,7 @@ export class TaskManagerStore {
 
   async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
     const removed = new Map<string, TaskStore>();
-
-    // Optimistic removal empties this.tasks before taskDeleted events arrive,
-    // so record confirmations here and skip them during rollback.
-    const confirmed = new Set<string>();
     const tasksClient = (await getDesktopWireClient()).tasks;
-    const unsubConfirmations = await tasksClient.events.subscribe(undefined, {
-      onEvent: (event) => {
-        if (event.type === 'deleted' && event.projectId === this.projectId) {
-          confirmed.add(event.taskId);
-        }
-      },
-      onGap: () => {},
-    });
 
     runInAction(() => {
       for (const id of taskIds) {
@@ -638,27 +809,25 @@ export class TaskManagerStore {
     });
 
     try {
-      removed.forEach((task) => task.dispose());
       await tasksClient.deleteTasks({
         projectId: this.projectId,
         taskIds,
         options: opts,
       });
+      removed.forEach((task) => task.dispose());
       for (const id of removed.keys()) {
         appState.navigation.invalidateSubject(taskSubject({ taskId: id }));
       }
     } catch (e) {
       runInAction(() => {
         removed.forEach((t, id) => {
-          if (!confirmed.has(id)) this.tasks.set(id, t);
+          this.tasks.set(id, t);
         });
       });
       toast.error(`Could not delete ${taskIds.length === 1 ? 'task' : 'tasks'}`, {
         description: formatErrorMessage(e),
       });
       throw e;
-    } finally {
-      unsubConfirmations();
     }
   }
 
@@ -667,8 +836,10 @@ export class TaskManagerStore {
       task.dispose();
     }
     this.tasks.clear();
-    this._unsubTaskEvents?.();
-    this._unsubTaskEvents = null;
+    void this._taskListScope.dispose();
+    void this._taskListAttemptScope?.dispose();
+    void this._taskListRemote?.dispose();
+    void this._taskStatsRemote?.dispose();
     for (const dispose of this._bootstrapDisposers.values()) dispose();
     this._bootstrapDisposers.clear();
     const replicaPromise = this._bootstrapReplicaPromise;

@@ -1,9 +1,9 @@
 import { ok } from '@emdash/shared';
 import { createManualClock } from '@emdash/shared/testing';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
-import { liveModel, liveState, mutation } from '../../api';
-import { cell, derived, flushStateTurn, read } from '../core';
+import { liveModel, liveState, mutation, type LiveModelDef } from '../../api';
+import { cell, derived, family, flushStateTurn, read, snapshot } from '../core';
 import { query } from '../query';
 import { settleAsync } from '../testing';
 import { expose } from './expose';
@@ -23,6 +23,10 @@ const contract = liveModel({
 });
 
 describe('state expose bridge', () => {
+  it('accepts typed live models with mutations without casts', () => {
+    expectTypeOf(contract).toMatchTypeOf<LiveModelDef>();
+  });
+
   it('waits for a cold query before resolving an acquired live source', async () => {
     const clock = createManualClock();
     const model = query({
@@ -120,4 +124,171 @@ describe('state expose bridge', () => {
     await lease.release();
     await provider.dispose();
   });
+
+  it('dedupes duplicate mutation ids while the handler is in flight', async () => {
+    const base = cell({ count: 0 });
+    const release = deferred<void>();
+    let handlerCalls = 0;
+    const deduped: string[] = [];
+    const provider = expose(
+      contract,
+      { value: base },
+      {
+        mutations: {
+          async increment(context) {
+            handlerCalls += 1;
+            await release.promise;
+            const revision = base.update(
+              (previous) => ({ count: previous.count + context.input.by }),
+              { mutationIds: [context.mutationId] }
+            );
+            await context.observed('value', revision);
+            return ok<void>();
+          },
+        },
+        instrumentation: {
+          mutationDeduped(event) {
+            deduped.push(event.mutationId);
+          },
+        },
+      }
+    );
+
+    const first = provider.runMutation('increment', {
+      key: { id: 'one' },
+      input: { by: 2 },
+      mutationId: 'm1',
+    });
+    const second = provider.runMutation('increment', {
+      key: { id: 'one' },
+      input: { by: 2 },
+      mutationId: 'm1',
+    });
+    await settleAsync();
+    expect(handlerCalls).toBe(1);
+    expect(deduped).toEqual(['m1']);
+
+    release.resolve(undefined);
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    expect(firstResult).toEqual(secondResult);
+    expect(handlerCalls).toBe(1);
+    expect(snapshot(base).value).toEqual({ count: 2 });
+    await provider.dispose();
+  });
+
+  it('keeps a family member retained while an exposed record is leased past linger', async () => {
+    const clock = createManualClock();
+    const key = { id: 'one' };
+    let source = 1;
+    let instances = 0;
+    const models = family(
+      (_key: typeof key, scope) => {
+        instances += 1;
+        return query({
+          fetch: async () => ({ count: source }),
+          debounceMs: 0,
+          clock,
+          scope,
+        });
+      },
+      { clock, lingerMs: 5, name: 'expose-family-retention-test' }
+    );
+    const provider = expose(
+      contract,
+      {
+        value: (memberKey, scope) => {
+          scope.add(models.retain(memberKey));
+          return models(memberKey);
+        },
+      },
+      {
+        clock,
+        lingerMs: 5,
+        mutations: {
+          async increment(context) {
+            source += context.input.by;
+            await context.observed(
+              'value',
+              models(context.key).refresh({ mutationIds: [context.mutationId] })
+            );
+            return ok<void>();
+          },
+        },
+      }
+    );
+    const lease = provider.acquireState(key, 'value');
+    await clock.advanceBy(0);
+    await lease.ready();
+
+    await clock.advanceBy(20);
+    const result = await provider.runMutation('increment', {
+      key,
+      input: { by: 2 },
+      mutationId: 'm1',
+    });
+
+    expect(result.success).toBe(true);
+    expect(instances).toBe(1);
+    expect((await (await lease.ready()).snapshot()).data).toEqual({ count: 3 });
+
+    await lease.release();
+    await provider.dispose();
+    await models.dispose();
+  });
+
+  it('disposes records created only by mutation observation after linger', async () => {
+    const clock = createManualClock();
+    const base = cell({ count: 0 });
+    let disposed = 0;
+    const provider = expose(
+      contract,
+      {
+        value: (_key, scope) => {
+          scope.add(() => {
+            disposed += 1;
+          });
+          return base;
+        },
+      },
+      {
+        clock,
+        lingerMs: 5,
+        mutations: {
+          async increment(context) {
+            const revision = base.update(
+              (previous) => ({ count: previous.count + context.input.by }),
+              { mutationIds: [context.mutationId] }
+            );
+            await context.observed('value', revision);
+            return ok<void>();
+          },
+        },
+      }
+    );
+
+    const result = await provider.runMutation('increment', {
+      key: { id: 'one' },
+      input: { by: 2 },
+      mutationId: 'm1',
+    });
+    expect(result.success).toBe(true);
+    expect(disposed).toBe(0);
+
+    await clock.advanceBy(5);
+    expect(disposed).toBe(1);
+
+    await provider.dispose();
+  });
 });
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}

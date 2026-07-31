@@ -23,6 +23,31 @@ Three nouns carry the whole system:
 Everything else — conflict policies, admission, dispatch, progress — is
 machinery for answering questions about these three nouns.
 
+### Durable identity is the unifying mechanism
+
+A fourth idea threads the three nouns together: every operation has a
+**semantic work identity** — its `key`
+([03 §identity](./03-operations.md#identity-key-vs-id)) — and most of the
+kernel's distinctive behaviors are one mechanism, *coalescing on that
+identity*, wearing different clothes:
+
+- **Dedupe** is request coalescing (singleflight): two submissions of the
+  same key are the same work, and the second caller attaches to the first's
+  record and result.
+- **Supersede** is cancel-in-progress conflation: a newer identity declares
+  an older one moot.
+- **Adoption** is tree-level coalescing: a coordinator recognizes existing
+  work as the child it would otherwise duplicate, by the same key match.
+
+Naming this matters because it makes key design a first-class, reviewable
+surface — the contracts every one of these behaviors routes through live in
+[03 §key conventions](./03-operations.md#key-conventions-and-coalescer-contracts)
+— and because it explains recovery: after a crash, re-submitting the same
+intent *coalesces into* whatever durable work already exists instead of
+duplicating it. The kernel gets workflow-resume semantics from durable
+identity, not from deterministic replay
+([07 §non-goals](./07-engine-and-stores.md#non-goals)).
+
 ## 2. The two planes
 
 The app runs the kernel in two places with different roles:
@@ -179,9 +204,10 @@ because they have different lifetimes and different consumers:
 
 The outcome summary is the **one durably versioned shape** on this path: it
 gets a light versioned envelope, while a definition's `result` and `error`
-payloads stay plain zod and are delivered to the awaiting handle only. The
-rationale and the promotion path for definitions that need more live in
-[03 §the record](./03-operations.md#the-record).
+payloads are persisted as plain, unversioned JSON and validated through the
+definition's zod schemas at read time — small *verdicts*, not bulk data.
+The rationale, the verdict-not-payload rule, and the degradation contract
+live in [03 §the record](./03-operations.md#the-record).
 
 ## 7. Operations vs sessions
 

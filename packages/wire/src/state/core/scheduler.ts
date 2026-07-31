@@ -86,9 +86,6 @@ function mergeMeta(left: BatchMeta | undefined, right: BatchMeta): BatchMeta | u
   return ids.size > 0 ? { mutationIds: [...ids] } : left;
 }
 
-function collectInstrumentation(
-  set: Set<TurnInstrumentation>,
-  node: Flushable
-): void {
+function collectInstrumentation(set: Set<TurnInstrumentation>, node: Flushable): void {
   if (node.__stateInstrumentation) set.add(node.__stateInstrumentation);
 }

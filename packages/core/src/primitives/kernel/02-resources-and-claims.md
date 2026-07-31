@@ -102,10 +102,31 @@ earlier design rounds considered `defineClaim(...)` and rejected it, because
 every property a claim definition would hold is already owned by either the
 resource (identity, hierarchy) or the operation (purpose, lifetime).
 
-Claims are computed once by `definition.claims(input)` at admission,
-persisted on the record as JSON, and never re-derived. Admission, dispatch,
-and the UI all read the same frozen list, so a change to a resource's
-definition can never make old records mean something new.
+Claims are computed once by `definition.claims(input)` at admission and
+never re-derived. Their storage is **relational, not JSON**: the admission
+transaction writes them into a canonical claims table —
+
+```sql
+operation_claims(operationId, resource, key, mode, implicit)
+```
+
+— and `OperationRecord.claims` is hydrated by join. The frozen-at-admission
+invariant restates as *written once, never updated*: there is no code path
+that modifies a claim row after insert.
+
+Relational storage is not an optimization detail; it is what makes claims
+queryable in the two directions that matter. Admission runs a *targeted*
+collision query ("which non-terminal operations hold claims on these
+keys?" — [07 §store port](./07-engine-and-stores.md#the-store-port))
+instead of scanning and deserializing every non-terminal record. And the
+display layer's most common question — "what is happening to this
+resource / this subtree?" — becomes an indexed lookup by key prefix
+([09](./09-querying-and-display.md)) instead of a JSON scan. Foreign keys
+give integrity and cascade retention for free.
+
+Either way, admission, dispatch, and the UI all read the same frozen
+rows, so a change to a resource's definition can never make old records
+mean something new.
 
 ## `defineResource`
 

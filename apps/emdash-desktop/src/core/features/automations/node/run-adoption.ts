@@ -18,6 +18,7 @@ import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
   conversations,
   tasks,
@@ -242,7 +243,9 @@ async function adoptRunOnce(
       const conversation = mapConversationRowToConversation(conversationRow);
       conversationEvents._emit('conversation:created', conversation);
       conversationWireEvents.emit(undefined, { type: 'created', conversation });
+      appDbPokes.conversations.poke({ projectId: task.projectId, taskId: task.id });
     }
+    if (created) appDbPokes.tasks.poke({ projectId: task.projectId, taskId: task.id });
     return ok({ taskId: task.id, projectId: task.projectId });
   });
 }
