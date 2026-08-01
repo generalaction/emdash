@@ -150,6 +150,10 @@ class LoopRunHandle implements LoopRunControl {
   stopFailure(): string | null {
     return this.stopFailureMessage;
   }
+
+  recordRunFailure(message: string): void {
+    this.stopFailureMessage ??= message;
+  }
 }
 
 function emitLoop(loop: Loop): void {
@@ -617,6 +621,7 @@ export class LoopService {
         if (!result.success) {
           const failed = await updateLoop(loopId, { status: 'failed' });
           if (failed.success) emitLoop(failed.data);
+          handle.recordRunFailure(result.error.message);
           log.warn('Loop run failed', { loopId, error: result.error.message });
           return;
         }
@@ -631,11 +636,13 @@ export class LoopService {
         if (result.data.kind === 'cancelled') return;
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       const failed = await updateLoop(loopId, { status: 'failed' });
       if (failed.success) emitLoop(failed.data);
+      handle.recordRunFailure(message);
       log.error('Loop run threw unexpectedly', {
         loopId,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
     }
   }
