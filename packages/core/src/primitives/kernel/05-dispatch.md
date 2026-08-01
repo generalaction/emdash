@@ -33,13 +33,13 @@ the repo and host.
 ```ts
 class RunningClaims {
   private byOperation = new Map<string, ResourceClaim[]>();          // opId → claims
-  private held = new Map<string, Map<ClaimMode, Set<string>>>();     // key → mode → holder opIds
+  private held = new Map<string, Map<ClaimMode, Set<string>>>();     // resource+key → mode → holder opIds
 
   /** Compatible with everything running, ignoring the given holders
    *  (the requesting operation's ancestor chain). */
   compatible(claims: ResourceClaim[], ignoring: ReadonlySet<string>): boolean {
     return claims.every((c) => {
-      const modes = this.held.get(c.key);
+      const modes = this.held.get(resourceKey(c));
       if (!modes) return true;
       for (const [heldMode, holders] of modes) {
         if (!modesCompatible(heldMode, c.mode) && holdersBeside(holders, ignoring)) {
@@ -71,30 +71,31 @@ export interface DispatchPassReport {
     blockedBy: string[];                                // running holder ids (matrix)
     barredOn: string[];                                 // keys barred by older waiters
   }>;
+  deferred: Array<{
+    id: string;
+    reason: 'not-before' | 'gated';                     // ineligible, not contention
+  }>;
 }
 
 export function dispatchPass(
   pending: readonly PendingOperation[],   // { id, seq, claims, ancestors: Set<id>, start() }
   running: RunningClaims,
-  gate?: (op: PendingOperation) => boolean   // notBefore + adapter availability; a gated
-                                             // skip plants no barriers (not contention)
 ): DispatchPassReport {
   // Fairness barriers: once an older operation is skipped, its keys bar
   // incompatible younger requests, so exclusive work cannot starve.
   const barred = new Map<string, ClaimMode[]>();
-  const report: DispatchPassReport = { started: [], skipped: [] };
+  const report: DispatchPassReport = { started: [], skipped: [], deferred: [] };
 
   for (const op of [...pending].sort((a, b) => a.seq - b.seq)) {
-    if (gate && !gate(op)) continue;                    // ineligible, not contending
     const barredOn = op.claims
-      .filter((c) => (barred.get(c.key) ?? []).some((m) => !modesCompatible(m, c.mode)))
-      .map((c) => c.key);
+      .filter((c) => (barred.get(resourceKey(c)) ?? []).some((m) => !modesCompatible(m, c.mode)))
+      .map((c) => `${c.resource}:${c.key}`);
     const blockedBy = running.blockers(op.claims, op.ancestors); // holder ids, exemption applied
     if (barredOn.length > 0 || blockedBy.length > 0) {
       for (const c of op.claims) {
-        const modes = barred.get(c.key) ?? [];
+        const modes = barred.get(resourceKey(c)) ?? [];
         modes.push(c.mode);
-        barred.set(c.key, modes);
+        barred.set(resourceKey(c), modes);
       }
       report.skipped.push({ id: op.id, blockedBy, barredOn });
       continue;
@@ -107,8 +108,11 @@ export function dispatchPass(
 }
 ```
 
-Complexity is O(pending × claims-per-operation) per pass — irrelevant at
-emdash scale (a few operations, a handful of claims each).
+The engine pre-partitions pending records whose retry `notBefore` has not
+arrived or whose execution adapter is gated (for example, host offline) into
+`deferred`; they do not enter the fairness algorithm and therefore plant no
+barriers. Complexity is O(pending × claims-per-operation) per pass —
+irrelevant at emdash scale (a few operations, a handful of claims each).
 
 ### Fairness barriers — the non-obvious part
 
@@ -203,8 +207,10 @@ A queued-behind operation's stored status is `pending` — there is no
 The UI derives the explanation from the **pass report**, which is why the
 report exists: it covers *both* reasons an operation didn't start — matrix
 blockers (`blockedBy`, with the holding operation ids for display labels)
-and fairness barriers (`barredOn`). Deriving from claims alone would show a
-barrier-blocked operation as "waiting on nothing".
+and fairness barriers (`barredOn`) — plus deferred ineligibility
+(`not-before`, `gated`) from the engine's pre-partition step. Deriving from
+claims alone would show a barrier-blocked operation as "waiting on nothing"
+and a host-offline operation as an unexplained queue.
 
 ```ts
 // "Waiting for 2 operations on feat-x" — derived from the latest pass
@@ -220,6 +226,12 @@ whole class of stale-status bugs: the moment the blocker settles, the next
 pass's report simply no longer lists the operation as skipped. The report
 also gives tests direct assertions on *why* something didn't start, instead
 of inferring it from absence.
+
+The engine retains the latest pass report and exposes it through
+`lastDispatchReport()`. Display folds such as `displayStatus(record, report)`
+consume that report; callers that omit it can still render terminal/running
+state but cannot distinguish `queued`, `waiting`, and `deferred` pending
+records.
 
 ## Cancellation and supersession while waiting
 

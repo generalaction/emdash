@@ -34,8 +34,9 @@ side's own needs:
    after settlement the durable `outcome` summary takes over.
 3. **Derived scheduling state** (per-pass). The latest `DispatchPassReport`
    ([05](./05-dispatch.md#the-derived-waiting-state)) explains *why* a
-   pending operation isn't running — blockers by holder id, barred keys —
-   and is re-derived every pass, so it can never go stale.
+   pending operation isn't running — blockers by holder id, barred keys, or
+   deferred ineligibility such as `not-before` / `gated` — and is
+   re-derived every pass, so it can never go stale.
 4. **Entity tables** (app-owned). Labels and navigation targets — task
    names, project names, workspace paths — come from the app's own tables,
    joined by the resource keys in claims. The kernel stores keys, never
@@ -48,7 +49,9 @@ The one read entry point over durable state:
 ```ts
 export interface OperationQueryFilter {
   /** All operations holding a claim on this key, or under this key prefix
-   *  (subtree — 'worktree:host-1:/repos/acme/…'). Uses the claims table. */
+   *  (subtree — 'repo:host-1:/repos/acme:worktree:feat').
+   *  Subtree matching is separator-aware: key === parent ||
+   *  key.startsWith(parent + ':'). Uses the claims table. */
   resource?: { key: string; subtree?: boolean };
 
   name?: string | string[];          // definition names
@@ -84,8 +87,9 @@ operation-tree rollup logic:
 
 ```ts
 /** One user-facing status from record + latest pass report:
- *  'queued' | 'waiting' (with blockers) | 'running' | 'waiting-children' |
- *  terminal — the truthful-display mapping, computed in exactly one place. */
+ *  'queued' | 'waiting' (with blockers) | 'deferred' (not-before/gated) |
+ *  'running' | 'waiting-children' | terminal — the truthful-display
+ *  mapping, computed in exactly one place. */
 export function displayStatus(record: OperationRecord, report?: DispatchPassReport): DisplayStatus;
 
 /** Recency-windowed, severity-ranked feed for panels: active operations
@@ -108,10 +112,13 @@ export function provenanceChain(
 ```
 
 All four are pure over plain records (plus the pass report where noted):
-unit-testable with literals, no store, no engine. App code composes them —
-"the workspace panel" is `query({ resource: { key: repoKey, subtree: true } })`
-piped through `activityFeed`, with labels joined from entity tables and
-`definition.describe(input)` for titles.
+unit-testable with literals, no store, no engine. The engine retains the
+latest `DispatchPassReport` as `lastDispatchReport()`, and app code composes
+it with query results — "the workspace panel" is
+`query({ resource: { key: repoKey, subtree: true } })` piped through
+`activityFeed`, with labels joined from entity tables,
+`displayStatus(record, engine.lastDispatchReport())` for truthful pending
+state, and `definition.describe(input)` for titles.
 
 ## Previewing plans before admission
 

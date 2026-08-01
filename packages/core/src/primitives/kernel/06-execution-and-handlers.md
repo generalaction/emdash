@@ -256,6 +256,8 @@ export interface OperationProgress {
   operationId: string;
   stages: OperationStage[];
   updatedAt: number;
+  /** Final synthetic snapshot emitted by progress.end before followers are cleared. */
+  done?: boolean;
 }
 
 export interface OperationStage {
@@ -306,10 +308,13 @@ mid-run:
 - Subscribing to a **running** operation delivers the latest progress
   snapshot immediately (the engine keeps the last-published
   `OperationProgress` per running operation), then live updates.
-- Subscribing to a **terminal** record delivers nothing and ends at once —
-  history views read the durable `outcome`, not the stream.
-- The stream ends when the operation settles; the terminal status arrives
-  via the handle/record, not as a progress event.
+- Subscribing after the engine has already cleared a **terminal** record's
+  progress delivers nothing — history views read the durable `outcome`, not
+  the stream.
+- The stream ends when the operation settles by emitting one final
+  `OperationProgress` snapshot with `done: true`; the terminal status still
+  arrives via the handle/record, not as a progress event. After that final
+  snapshot the engine clears followers for the operation id.
 
 ### Stage-derived outcome
 

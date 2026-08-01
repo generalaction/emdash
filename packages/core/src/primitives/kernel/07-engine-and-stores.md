@@ -17,6 +17,7 @@ export interface OperationStore {
   /** Serialized read-modify-write; the transactionality admission relies on. */
   transaction<T>(fn: (tx: OperationStoreTx) => T): Promise<T>;
 
+  listRecords(): Promise<OperationRecord[]>;
   listNonTerminal(): Promise<OperationRecord[]>;
   listPending(): Promise<OperationRecord[]>;      // dispatch candidates, seq order
   get(id: string): Promise<OperationRecord | undefined>;
@@ -45,7 +46,7 @@ export interface OperationStoreTx {
       'attempt' | 'notBefore' | 'error' | 'outcome' | 'result' | 'rejectedError' | 'parentId'>>
   ): boolean;
 
-  reparent(id: string, parentId: string): void;          // adoption
+  reparent(id: string, parentId: string): void;          // adoption; journals and bumps updatedAt
   listNonTerminal(): OperationRecord[];                   // sync, inside the tx
 
   /**
@@ -62,9 +63,11 @@ export interface OperationStoreTx {
 ### The transition journal
 
 Every CAS appends a row to `operation_transitions(operationId, from, to,
-at, cause)` in the same transaction. This is the deliberately small slice
-of event sourcing worth having: an **operation timeline** for display and
-debugging ("pending 09:14 → running 09:15 → pending (retry 1) 09:17 → …")
+at, cause)` in the same transaction. Insert also writes the timeline start
+(`pending → pending`, cause `submit`), and adoption writes a same-status
+`adoption` row while bumping `updatedAt`. This is the deliberately small
+slice of event sourcing worth having: an **operation timeline** for display
+and debugging ("pending 09:14 → running 09:15 → pending (retry 1) 09:17 → …")
 and the natural poke source for read-model invalidation
 ([09](./09-querying-and-display.md)) — without adopting fold-derived state,
 which is wrong for this system because the log records work *about* an
@@ -96,9 +99,11 @@ lives in adapter construction, not in the port:
 The port itself is justified by purity and testability, not by backend
 plurality — it is what lets every engine test run against memory with a
 fake clock. The contract tests (insert assigns monotonic seq; CAS
-transition rejects wrong `from`; transactions are serialized; non-terminal
-listing is consistent within a tx) are what make "same kernel, different
-stores" a tested property instead of a hope.
+transition rejects wrong `from`; transactions are serialized and roll back
+on throw; nested transactions are rejected rather than deadlocking;
+non-terminal listing is consistent within a tx; submit/adoption/CAS rows are
+journaled) are what make "same kernel, different stores" a tested property
+instead of a hope.
 
 ## The registry
 
@@ -149,6 +154,9 @@ export interface OperationEngine {
 
   /** Read path for display surfaces — filters and folds, see 09. */
   query(filter: OperationQueryFilter): Promise<OperationQueryPage>;
+
+  /** Latest dispatch explanation for pending display: skipped + deferred. */
+  lastDispatchReport(): DispatchPassReport;
 
   /** Boot sequence — must complete before the first submit. See §recovery. */
   recover(): Promise<void>;
@@ -233,7 +241,8 @@ design.
 matters because an intent ledger must not let quitting the app cancel a
 teardown the user asked for:
 
-1. Stop dispatching (no new starts).
+1. Stop dispatching (no new starts), including any dispatch pass already
+   queued in a microtask.
 2. Fire every running handler's `AbortSignal` with reason `'shutdown'`
    ([06 §abort reasons](./06-execution-and-handlers.md#abort-reasons)).
 3. Each interrupted record transitions `running → pending`, `attempt`

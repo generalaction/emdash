@@ -11,13 +11,17 @@ host's KV transaction wrap the *same* decision logic.
 
 For each non-terminal record, admission asks two questions in order:
 
-1. **Same work?** — `incoming.key === existing.key` → `dedupe`,
-   unconditionally. The caller gets a handle to the existing operation; no
-   policy consultation, no second row. This is what makes double-clicks,
-   retried RPCs, and re-submitted automations free.
-2. **Colliding work?** — do any of the two records' claims share a `key`
-   with incompatible modes (`modesCompatible(existing.mode, incoming.mode)
-   === false`)? Only then is the policy table consulted for a verb.
+1. **Same work?** — `incoming.key === existing.key` and
+   `incoming.definition.name === existing.name` → `dedupe`. A key match
+   across different operation definitions is rejected, because the existing
+   handle's result/error schemas would be the wrong type. For same-definition
+   matches the caller gets a handle to the existing operation; no policy
+   consultation, no second row. This is what makes double-clicks, retried
+   RPCs, and re-submitted automations free.
+2. **Colliding work?** — do any of the two records' claims share the same
+   `(resource, key)` pair with incompatible modes
+   (`modesCompatible(existing.mode, incoming.mode) === false`)? Only then is
+   the policy table consulted for a verb.
    Matrix-compatible pairs — two scans (`shared`+`shared`), a worktree
    teardown and an unrelated worktree's provision (`intent-exclusive`+
    `intent-exclusive` on the shared repo) — **never reach the table**; they
@@ -150,7 +154,8 @@ arriving over a pending provision (`supersede`) *and* two running scans
 (`queue`) needs all outcomes at once. Precedence, as a documented and
 tested property:
 
-1. A key match short-circuits to `dedupe` — no policy consultation.
+1. A same-definition key match short-circuits to `dedupe`; a cross-definition
+   key match rejects — no policy consultation either way.
 2. Ancestor-exempt pairs are filtered out.
 3. If *any* remaining colliding pair resolves to `reject`, the whole
    admission is `reject` (listing every conflicting record).
@@ -202,6 +207,13 @@ any member aborts the transaction (this is the behavior the current engine's
 `RelatedOperationInsertError` provides — the kernel makes it a first-class
 API instead of an exception convention).
 
+Parent references are intentionally one-way: a member may parent to an
+earlier batch index only. Forward references are programmer errors because
+they would otherwise insert silent roots or write `parentId: batch:N`
+placeholder ids. If a later member dedupes into an earlier in-batch member,
+the engine resolves that placeholder index to the earlier member's real
+record id before returning handles or writing child `parentId`s.
+
 Beyond admission, there are no operation transactions: execution-time
 atomicity across irreversible external effects is a fiction the kernel
 refuses to sell. See [08 §compensation](./08-usage-patterns.md#compensation).
@@ -227,6 +239,13 @@ Adoption is requested by the coordinator's submission
 (`adoptExisting: true` on batch members), not implicit, because re-parenting
 someone else's operation is a visible semantic change that should be
 greppable at the call site.
+
+Planned adoptions participate in the ancestor exemption during the same
+batch. A parent being admitted is allowed to collide with an orphan child
+that a later batch member explicitly adopts into that parent's subtree; the
+collision is filtered before default-reject would see it. This is what makes
+the canonical "delete project and adopt already-pending teardown children"
+batch admit atomically.
 
 ## Where admission runs, per plane
 

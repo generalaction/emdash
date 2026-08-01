@@ -94,9 +94,10 @@ Each omission was a design decision; keep them omitted:
 Every record has both, and they answer different questions:
 
 - **`key`** is *work identity* — "is this the same job?". Admission dedupes
-  on it among non-terminal records. After the work settles, the same key may
-  be submitted again (you can tear down, re-provision, and tear down the
-  same path).
+  on it among non-terminal records of the **same operation definition**.
+  A same-key record with a different `name` is a conflict, not a typed
+  dedupe handle. After the work settles, the same key may be submitted
+  again (you can tear down, re-provision, and tear down the same path).
 - **`id`** is *record identity* — an opaque unique string per admission
   (a UUID is sufficient; ordering lives in `seq`), used for parenting,
   progress streams, cancellation, and history.
@@ -111,7 +112,10 @@ through. The conventions:
 - **Derive keys from the resource key plus a verb prefix**
   (`teardown:${worktreeKey}`, `git-stats:${worktreeKey}`). The resource key
   carries everything that distinguishes distinct work (host, path); the
-  prefix separates different work on the same resource.
+  prefix separates different work on the same resource. Hierarchical keys
+  use `:` as their segment separator so subtree filters can match
+  `key === parent || key.startsWith(parent + ':')` without false prefix
+  matches.
 - **Never include clocks or randomness.** A timestamp in a key silently
   disables every coalescing behavior; randomness turns dedupe into a no-op.
   Likewise exclude anything incidental — initiators, retry counts.
@@ -215,7 +219,7 @@ One closed status machine, shared by both planes:
                         └──► cancelled (terminal — cancelled while waiting: row
                                         settles without ever running)
 
- parent-only:  running ──► waiting-children ──► succeeded | failed
+parent-only:  running ──► waiting-children ──► succeeded | failed | cancelled
                (own work done; settles when all children settle, per its
                 propagation policy)
 ```
