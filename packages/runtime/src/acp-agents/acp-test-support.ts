@@ -217,16 +217,18 @@ export class FakeAcpProcessHost implements AcpProcessHost {
     agentEnv: {},
   });
 
-  async spawn(_spec: {
-    command: string;
-    args: string[];
-    env: Record<string, string>;
-    cwd: string;
-  }): Promise<AcpProcessHandle> {
-    const handle = new FakeAcpProcessHandle();
-    this.handles.push(handle);
-    return handle;
-  }
+  readonly spawn = vi.fn(
+    async (_spec: {
+      command: string;
+      args: string[];
+      env: Record<string, string>;
+      cwd: string;
+    }): Promise<AcpProcessHandle> => {
+      const handle = new FakeAcpProcessHandle();
+      this.handles.push(handle);
+      return handle;
+    }
+  );
 
   async spawnTerminal(spec: {
     command: string;
@@ -429,6 +431,7 @@ export function makeStartInput(
     cwd: '/tmp/workspace',
     sessionId: null,
     model: null,
+    taskEnvironment: {},
     ...overrides,
   };
 }
