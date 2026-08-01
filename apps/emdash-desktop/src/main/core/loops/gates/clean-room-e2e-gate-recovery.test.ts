@@ -1959,9 +1959,16 @@ describe('CleanRoomE2EGate recovery and authority', () => {
 
       expect(result).toMatchObject({
         success: false,
-        error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+        error: {
+          type: 'native-verifier-ledger-invalid',
+          stage: 'quiescence',
+          recoveryRequired: true,
+          lastWorkspaceDestroyed: false,
+        },
       });
       expect(JSON.stringify(result)).not.toContain(secret);
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
     }
   );
 

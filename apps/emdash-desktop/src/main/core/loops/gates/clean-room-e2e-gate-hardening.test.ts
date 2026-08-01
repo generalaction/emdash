@@ -1221,10 +1221,10 @@ describe('CleanRoomE2EGate hardening', () => {
     {
       port: 'nested',
       errorType: 'native-verifier-ledger-invalid',
-      stage: 'required-checks',
-      releaseCount: 1,
-      destroyCount: 1,
-      destroyed: true,
+      stage: 'quiescence',
+      releaseCount: 0,
+      destroyCount: 0,
+      destroyed: false,
     },
     {
       port: 'cancel',

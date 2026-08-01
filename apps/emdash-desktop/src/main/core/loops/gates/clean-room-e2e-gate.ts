@@ -2161,10 +2161,17 @@ export class CleanRoomE2EGate {
         nestedStarting.data
       );
       if (checksError) {
+        const nestedAuthorityComplete = hasCompleteTerminalNestedAuthority(
+          checked.data,
+          nestedStarting.data,
+          active,
+          featureHead,
+          input
+        );
         markOuterAttempt(
           sessionAttempts,
           outerLedgerIndex,
-          'failed',
+          nestedAuthorityComplete ? 'failed' : 'interrupted',
           safeDate(this.dependencies.now),
           {
             error: checksError.message,
@@ -2182,6 +2189,20 @@ export class CleanRoomE2EGate {
         if (!nestedSettled.success) {
           return err({
             ...nestedSettled.error,
+            recoveryRequired: true,
+            lastWorkspaceDestroyed: false,
+            pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),
+          });
+        }
+        if (!nestedAuthorityComplete) {
+          return err({
+            ...this.failure(input, checksError.type, 'quiescence', checksError.message, {
+              featureHead,
+              attempt,
+              verificationRunId,
+              conversationId: session.conversationId,
+              sessionAttempts,
+            }),
             recoveryRequired: true,
             lastWorkspaceDestroyed: false,
             pendingWorkspace: pendingWorkspaceAuthority(cleanRoom),

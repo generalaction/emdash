@@ -693,19 +693,13 @@ describe('CleanRoomE2EGate', () => {
         type: collidesWithDurableIdentity
           ? 'native-verifier-ledger-ambiguous'
           : 'native-verifier-ledger-invalid',
-        stage: 'required-checks',
-        ...(collidesWithDurableIdentity
-          ? { recoveryRequired: true, lastWorkspaceDestroyed: false }
-          : {}),
+        stage: collidesWithDurableIdentity ? 'required-checks' : 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
       },
     });
-    if (collidesWithDurableIdentity) {
-      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
-      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
-    } else {
-      expect(harness.calls).toContain('release:1');
-      expect(harness.calls).toContain('destroy:1');
-    }
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
     expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
   });
 
@@ -1121,7 +1115,7 @@ describe('CleanRoomE2EGate', () => {
     expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
   });
 
-  it('rejects malformed required-check data without throwing or losing cleanup', async () => {
+  it('retains malformed required-check data that has no terminal nested authority', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     vi.mocked(harness.dependencies.requiredChecks.run).mockResolvedValueOnce(
       ok({ status: 'passed' } as never)
@@ -1131,10 +1125,15 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'required-checks-authority-invalid', stage: 'required-checks' },
+      error: {
+        type: 'required-checks-authority-invalid',
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
     });
-    expect(harness.calls).toContain('release:1');
-    expect(harness.calls).toContain('destroy:1');
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 'text/html'] as const)(
