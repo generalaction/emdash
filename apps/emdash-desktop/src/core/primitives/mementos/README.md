@@ -34,7 +34,7 @@ flowchart LR
   subgraph renderer [Renderer]
     ReactAdapter[SubjectProvider and useMemento]
     Handle[MementoHandle]
-    Optimistic[Per-memento OptimisticLiveModel]
+    Optimistic[Per-memento optimistic view]
     Transient[Transient LRU]
     ReactAdapter --> Handle
     Handle --> Optimistic
@@ -65,7 +65,7 @@ The vertical slice is split by runtime:
 - `src/core/services/mementos/node/`: worker-hosted persistence and live-model
   service.
 
-Each persisted memento has its own `OptimisticLiveModel`. Updating one memento
+Each persisted memento has its own optimistic view. Updating one memento
 cannot invalidate another memento on the same subject. The handle keeps a local
 dirty value during the debounce interval and primes a content-memoized parser
 with its serialized value. The flow is:

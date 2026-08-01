@@ -1,5 +1,5 @@
 import { deferred, type Deferred } from '@emdash/shared/testing';
-import { createLiveModelHost } from '@emdash/wire';
+import { cell, expose, peek, produce } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { machinesContract, type SaveMachineInput } from '@core/features/machines/api';
@@ -32,22 +32,23 @@ describe('MachinesStore', () => {
     expect(onConnectionReady).toHaveBeenCalledTimes(1);
     expect(onConnectionReady).toHaveBeenCalledWith('ssh-1');
 
-    fixture.instance.states.runtime.produce((runtime) => {
+    fixture.updateRuntime((runtime) => {
       runtime['ssh-2'] = runtimeEntry('connected');
     });
     await vi.waitFor(() => expect(onConnectionReady).toHaveBeenCalledTimes(2));
     expect(onConnectionReady).toHaveBeenLastCalledWith('ssh-2');
 
-    fixture.instance.states.runtime.produce((runtime) => {
+    fixture.updateRuntime((runtime) => {
       runtime['ssh-2'] = runtimeEntry('connected');
     });
     await Promise.resolve();
     expect(onConnectionReady).toHaveBeenCalledTimes(2);
 
-    fixture.instance.states.runtime.produce((runtime) => {
+    fixture.updateRuntime((runtime) => {
       runtime['ssh-2'] = runtimeEntry('disconnected');
     });
-    fixture.instance.states.runtime.produce((runtime) => {
+    await vi.waitFor(() => expect(fixture.store.stateFor('ssh-2')).toBe('disconnected'));
+    fixture.updateRuntime((runtime) => {
       runtime['ssh-2'] = runtimeEntry('connected');
     });
     await vi.waitFor(() => expect(onConnectionReady).toHaveBeenCalledTimes(3));
@@ -59,7 +60,7 @@ describe('MachinesStore', () => {
     const fixture = setup();
     await fixture.store.start();
 
-    fixture.instance.states.runtime.produce((runtime) => {
+    fixture.updateRuntime((runtime) => {
       runtime['ssh-1'] = {
         state: 'disconnected',
         health: { status: 'degraded' },
@@ -70,7 +71,7 @@ describe('MachinesStore', () => {
     );
     expect(fixture.store.stateFor('ssh-1')).toBe('disconnected');
 
-    fixture.instance.states.runtime.produce((runtime) => {
+    fixture.updateRuntime((runtime) => {
       runtime['ssh-1']!.health = { status: 'ok' };
     });
     await vi.waitFor(() => expect(fixture.store.healthFor('ssh-1')).toEqual({ status: 'ok' }));
@@ -239,9 +240,12 @@ function setup(
   const disconnect = vi.fn(async (_connectionId: string) => {
     await options.disconnectGate?.promise;
   });
-  const connections = createLiveModelHost(sshContract.connections);
-  const operationLog = createLiveModelHost(machinesContract.operationLog);
-  const instance = connections.create(undefined, { runtime: options.runtime ?? {} });
+  const runtime = cell<SshConnectionsRuntime>(options.runtime ?? {});
+  const connections = expose(sshContract.connections, { runtime });
+  const operationLog = expose(machinesContract.operationLog, { list: cell({}) });
+  const updateRuntime = (update: (runtime: SshConnectionsRuntime) => void): void => {
+    runtime.set(produce(peek(runtime), update));
+  };
   const saveMachine = vi.fn(
     async (input: SaveMachineInput): Promise<SshConfig> => ({
       ...input,
@@ -251,42 +255,42 @@ function setup(
   const renameMachine = vi.fn(async (_input: { id: string; name: string }) => {});
   const deleteMachine = vi.fn(async ({ id }: { id: string }) => {
     if (!options.removeRuntimeOnDelete) return;
-    instance.states.runtime.produce((runtime) => {
+    updateRuntime((runtime) => {
       delete runtime[id];
     });
   });
   const sshWire = createTestWire(sshContract, {
     connections,
     connect: async ({ connectionId }) => {
-      instance.states.runtime.produce((runtime) => {
+      updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('connecting');
       });
       try {
         await connect(connectionId);
       } catch (error) {
-        instance.states.runtime.produce((runtime) => {
+        updateRuntime((runtime) => {
           runtime[connectionId] = runtimeEntry('error');
         });
         throw error;
       }
-      instance.states.runtime.produce((runtime) => {
+      updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('connected');
       });
       return 'connected' as const;
     },
     ensureConnected: async ({ connectionId }) => {
-      instance.states.runtime.produce((runtime) => {
+      updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('connecting');
       });
       await ensureConnected(connectionId);
-      instance.states.runtime.produce((runtime) => {
+      updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('connected');
       });
       return 'connected' as const;
     },
     disconnect: async ({ connectionId }) => {
       await disconnect(connectionId);
-      instance.states.runtime.produce((runtime) => {
+      updateRuntime((runtime) => {
         runtime[connectionId] = runtimeEntry('disconnected');
       });
     },
@@ -316,7 +320,7 @@ function setup(
 
   return {
     store,
-    instance,
+    updateRuntime,
     connect,
     ensureConnected,
     disconnect,

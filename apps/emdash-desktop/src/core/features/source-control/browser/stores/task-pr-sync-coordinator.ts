@@ -1,5 +1,5 @@
-import { createLiveModelReplica } from '@emdash/wire';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, remote, type RemoteModel } from '@emdash/wire';
 import { reaction, runInAction } from 'mobx';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
@@ -11,8 +11,10 @@ import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-request
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 
 export class TaskPrSyncCoordinator {
-  private model: OptimisticLiveModel<typeof pullRequestsContract.syncState> | null = null;
-  private disposeSyncReaction: (() => void) | null = null;
+  private readonly scope = createScope({ label: 'task-pr-sync-coordinator' });
+  private syncScope: Scope | null = null;
+  private syncRemotePromise: Promise<RemoteModel<typeof pullRequestsContract.syncState>> | null =
+    null;
   private generation = 0;
   private readonly disposeGitHeadReaction: () => void;
   private readonly disposeRepositoryReaction: () => void;
@@ -41,10 +43,9 @@ export class TaskPrSyncCoordinator {
 
   dispose(): void {
     this.generation++;
-    this.disposeSyncReaction?.();
-    this.disposeSyncReaction = null;
-    if (this.model) void this.model.dispose();
-    this.model = null;
+    void this.syncScope?.dispose();
+    this.syncScope = null;
+    void this.scope.dispose();
     this.disposeGitHeadReaction();
     this.disposeRepositoryReaction();
   }
@@ -80,48 +81,42 @@ export class TaskPrSyncCoordinator {
 
   private async watchSync(repositoryUrl: string | null): Promise<void> {
     const generation = ++this.generation;
-    this.disposeSyncReaction?.();
-    this.disposeSyncReaction = null;
-    if (this.model) {
-      void this.model.dispose();
-      this.model = null;
-    }
+    void this.syncScope?.dispose();
+    this.syncScope = null;
     if (!repositoryUrl) return;
 
-    const client = await getPullRequestsRuntimeClient();
+    const syncRemote = await this.getSyncRemote();
     if (generation !== this.generation) return;
-    const replica = createLiveModelReplica(pullRequestsContract.syncState, client.syncState);
-    const model = new OptimisticLiveModel(
-      pullRequestsContract.syncState,
-      { repositoryUrl },
-      replica
-    );
-    this.model = model;
+    const syncScope = this.scope.child(`sync:${repositoryUrl}`);
+    this.syncScope = syncScope;
     let previousLastSyncedAt: number | undefined;
-    this.disposeSyncReaction = reaction(
-      () => model.values.state,
+    const member = syncRemote({ repositoryUrl });
+    observe(
+      member.states.state,
       (state) => {
+        const value = state.value;
         if (
-          state?.phase !== 'idle' ||
-          state.lastSyncedAt === undefined ||
-          state.lastSyncedAt === previousLastSyncedAt
+          value?.phase !== 'idle' ||
+          value.lastSyncedAt === undefined ||
+          value.lastSyncedAt === previousLastSyncedAt
         ) {
           return;
         }
-        previousLastSyncedAt = state.lastSyncedAt;
+        previousLastSyncedAt = value.lastSyncedAt;
         this.reloadAll();
-      }
+      },
+      { scope: syncScope }
     );
-    try {
-      await model.ready;
-    } catch {
-      if (this.model === model) {
-        this.disposeSyncReaction?.();
-        this.disposeSyncReaction = null;
-        this.model = null;
-      }
-      await model.dispose();
-    }
+  }
+
+  private getSyncRemote(): Promise<RemoteModel<typeof pullRequestsContract.syncState>> {
+    this.syncRemotePromise ??= getPullRequestsRuntimeClient().then((client) =>
+      remote(pullRequestsContract.syncState, client.syncState, {
+        scope: this.scope,
+        lingerMs: 15_000,
+      })
+    );
+    return this.syncRemotePromise;
   }
 }
 

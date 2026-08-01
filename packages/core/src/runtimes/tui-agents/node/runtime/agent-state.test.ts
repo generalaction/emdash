@@ -1,8 +1,10 @@
+import { peek } from '@emdash/wire';
 import {
   createTuiAgentStatesLiveHost,
   createTuiAgentStatesListModel,
   createTuiSessionsLiveHost,
   createTuiSessionsListModel,
+  produceCell,
 } from '@runtimes/tui-agents/node/state/live-models';
 import { describe, expect, it, vi } from 'vitest';
 import { TuiAgentStates } from './agent-state';
@@ -34,7 +36,7 @@ describe('TuiAgentStates', () => {
       message: 'approve command',
     });
 
-    expect(agentStates.states.list.snapshot().data['conv-1']).toMatchObject({
+    expect(peek(agentStates.states.list)['conv-1']).toMatchObject({
       conversationId: 'conv-1',
       providerId: 'codex',
       status: 'awaiting-input',
@@ -49,19 +51,19 @@ describe('TuiAgentStates', () => {
     const { tracker, agentStates } = createTracker();
 
     tracker.markInputSubmitted('conv-1', { hooks: { kind: 'none' } }, '\r');
-    expect(agentStates.states.list.snapshot().data['conv-1']?.status).toBe('working');
+    expect(peek(agentStates.states.list)['conv-1']?.status).toBe('working');
 
     tracker.markInputSubmitted(
       'conv-2',
       { hooks: { kind: 'config', scope: 'workspace', supportedEvents: ['start'] } },
       '\r'
     );
-    expect(agentStates.states.list.snapshot().data['conv-2']).toBeUndefined();
+    expect(peek(agentStates.states.list)['conv-2']).toBeUndefined();
   });
 
   it('publishes valid provider session ids through the sessions model', () => {
     const { tracker, sessions, onSessionIdChanged } = createTracker();
-    sessions.states.list.produce((draft) => {
+    produceCell(sessions.states.list, (draft) => {
       draft['conv-1'] = {
         conversationId: 'conv-1',
         providerId: 'amp',
@@ -79,7 +81,7 @@ describe('TuiAgentStates', () => {
       providerSessionId: 'T-123',
     });
 
-    expect(sessions.states.list.snapshot().data['conv-1']?.sessionId).toBe('T-123');
+    expect(peek(sessions.states.list)['conv-1']?.sessionId).toBe('T-123');
     expect(onSessionIdChanged).toHaveBeenCalledWith('conv-1', 'T-123');
   });
 });

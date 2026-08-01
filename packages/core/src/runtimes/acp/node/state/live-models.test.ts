@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createAcpSessionsLiveHost } from './live-models';
+import { createAcpSessionsLiveHost, produceCell } from './live-models';
 
 describe('ACP live models', () => {
-  it('executes compat cell producers once', async () => {
+  it('executes cell producers once', async () => {
     const host = createAcpSessionsLiveHost();
     let calls = 0;
 
-    host.model.states.list.produce(() => {
+    produceCell(host.model.states.list, () => {
       calls += 1;
     });
 

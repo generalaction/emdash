@@ -1,8 +1,8 @@
 import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplica, createLiveModelReplica, type LiveModelReplica } from '@emdash/wire';
-import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
+import { createLiveJobReplica } from '@emdash/wire';
+import { observe, optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
@@ -150,10 +150,10 @@ export class TaskManagerStore {
   private _taskListData: TaskListData | null = null;
   private _taskStats: TaskStatsData = { byWorkspaceId: {} };
   private _taskListAttemptScope: Scope | null = null;
-  private _bootstrapReplicaPromise: Promise<
-    LiveModelReplica<typeof workspacesWireContract.bootstrap>
+  private _bootstrapRemotePromise: Promise<
+    RemoteModel<typeof workspacesWireContract.bootstrap>
   > | null = null;
-  private _bootstrapDisposers = new Map<string, () => void>();
+  private _bootstrapScopes = new Map<string, Scope>();
   private readonly _taskMutations: TaskStoreMutations = {
     rename: (task, name) => this._renameTask(task, name),
     updateStatus: (task, status) => this._updateTaskStatus(task, status),
@@ -272,8 +272,8 @@ export class TaskManagerStore {
         if (row.workspaceId) this._watchWorkspaceBootstrap(row.id, row.workspaceId);
       },
       remove: (task, taskId) => {
-        this._bootstrapDisposers.get(taskId)?.();
-        this._bootstrapDisposers.delete(taskId);
+        void this._bootstrapScopes.get(taskId)?.dispose();
+        this._bootstrapScopes.delete(taskId);
         task.dispose();
         appState.navigation.invalidateSubject(taskSubject({ taskId }));
       },
@@ -522,34 +522,29 @@ export class TaskManagerStore {
   }
 
   private _watchWorkspaceBootstrap(taskId: string, workspaceId: string): void {
-    if (this._bootstrapDisposers.has(taskId)) return;
-
-    const pending = { disposed: false };
-    this._bootstrapDisposers.set(taskId, () => {
-      pending.disposed = true;
-    });
+    if (this._bootstrapScopes.has(taskId)) return;
+    const scope = this._taskListScope.child(`workspace-bootstrap:${workspaceId}`);
+    this._bootstrapScopes.set(taskId, scope);
 
     void (async () => {
-      const replica = await this._getBootstrapReplica();
-      const lease = replica.acquire({ workspaceId });
-      const model = await lease.ready();
-      if (pending.disposed) {
-        await lease.release();
+      const bootstrapRemote = await this._getBootstrapRemote();
+      if (this._bootstrapScopes.get(taskId) !== scope) {
+        await scope.dispose();
         return;
       }
-
-      const unsubscribe = model.states.state.onChange((state) =>
-        this._handleBootstrapState(taskId, state)
+      const member = bootstrapRemote({ workspaceId });
+      observe(
+        member.states.state,
+        (current) => {
+          if (!current.value) return;
+          this._handleBootstrapState(taskId, current.value);
+        },
+        { scope }
       );
-      this._handleBootstrapState(taskId, model.states.state.current());
-      this._bootstrapDisposers.set(taskId, () => {
-        pending.disposed = true;
-        unsubscribe();
-        void lease.release();
-      });
     })().catch((error: unknown) => {
       log.warn('Failed to watch workspace bootstrap state', { error });
-      this._bootstrapDisposers.delete(taskId);
+      this._bootstrapScopes.delete(taskId);
+      void scope.dispose();
     });
   }
 
@@ -593,15 +588,18 @@ export class TaskManagerStore {
     }
   }
 
-  private async _getBootstrapReplica(): Promise<
-    LiveModelReplica<typeof workspacesWireContract.bootstrap>
+  private async _getBootstrapRemote(): Promise<
+    RemoteModel<typeof workspacesWireContract.bootstrap>
   > {
-    if (!this._bootstrapReplicaPromise) {
-      this._bootstrapReplicaPromise = getWorkspacesWireClient().then((client) =>
-        createLiveModelReplica(workspacesWireContract.bootstrap, client.bootstrap)
+    if (!this._bootstrapRemotePromise) {
+      this._bootstrapRemotePromise = getWorkspacesWireClient().then((client) =>
+        remote(workspacesWireContract.bootstrap, client.bootstrap, {
+          scope: this._taskListScope,
+          lingerMs: 15_000,
+        })
       );
     }
-    return this._bootstrapReplicaPromise;
+    return this._bootstrapRemotePromise;
   }
 
   async teardownTask(taskId: string): Promise<void> {
@@ -840,10 +838,8 @@ export class TaskManagerStore {
     void this._taskListAttemptScope?.dispose();
     void this._taskListRemote?.dispose();
     void this._taskStatsRemote?.dispose();
-    for (const dispose of this._bootstrapDisposers.values()) dispose();
-    this._bootstrapDisposers.clear();
-    const replicaPromise = this._bootstrapReplicaPromise;
-    this._bootstrapReplicaPromise = null;
-    void replicaPromise?.then((replica) => replica.dispose());
+    for (const scope of this._bootstrapScopes.values()) void scope.dispose();
+    this._bootstrapScopes.clear();
+    this._bootstrapRemotePromise = null;
   }
 }

@@ -4,3 +4,4 @@ export * from './family';
 export * from './node';
 export * from './observe';
 export * from './scheduler';
+export * from './when-ready';

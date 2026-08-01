@@ -148,6 +148,3 @@ Use `procedure()` for API calls that do not need live model cursor settling.
 `mutation()` is only valid as a member of `liveModel().mutations`
 in the contract API.
 
-See [../../examples/group/client.ts](../../examples/group/client.ts),
-[../../examples/optimistic-live-model/client.ts](../../examples/optimistic-live-model/client.ts),
-and [../../examples/mutation-idempotency/client.ts](../../examples/mutation-idempotency/client.ts).

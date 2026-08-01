@@ -1,11 +1,11 @@
 import {
-  assignDraft,
   cell,
   expose,
-  LiveState,
+  peek,
   type Cell,
   type LeasedLiveModelProvider,
-  type LiveStateProduceOptions,
+  produce,
+  publishStructural,
 } from '@emdash/wire';
 import {
   acpApiContract,
@@ -22,30 +22,22 @@ import {
   type TranscriptTurn,
 } from '@runtimes/acp/api';
 
-type CompatCell<T> = Cell<T> & {
-  replace(next: T): void;
-  produce(mutator: (draft: T) => void): void;
-  snapshot(): { data: T };
-  subscribe: LiveState<T>['subscribe'];
-  dispose(): void;
-};
-
 export type SessionLiveModels = {
   states: {
-    state: CompatCell<SessionState>;
-    config: CompatCell<SessionConfigState>;
-    usage: CompatCell<SessionUsage | null>;
-    plan: CompatCell<PlanState | null>;
-    agents: CompatCell<AgentState[]>;
-    activeTurn: CompatCell<TranscriptTurn | null>;
-    draft: CompatCell<PromptDraft | null>;
-    terminals: CompatCell<TerminalState[]>;
-    mcpServers: CompatCell<SessionMcpServer[]>;
+    state: Cell<SessionState>;
+    config: Cell<SessionConfigState>;
+    usage: Cell<SessionUsage | null>;
+    plan: Cell<PlanState | null>;
+    agents: Cell<AgentState[]>;
+    activeTurn: Cell<TranscriptTurn | null>;
+    draft: Cell<PromptDraft | null>;
+    terminals: Cell<TerminalState[]>;
+    mcpServers: Cell<SessionMcpServer[]>;
   };
 } & { dispose(): void };
 export type SessionsListModel = {
   states: {
-    list: CompatCell<Record<string, SessionSummary>>;
+    list: Cell<Record<string, SessionSummary>>;
   };
 };
 export type AcpSessionLiveHost = LeasedLiveModelProvider<typeof acpApiContract.session> & {
@@ -79,7 +71,7 @@ export function createAcpSessionLiveHost(): AcpSessionLiveHost {
 }
 
 export function createAcpSessionsLiveHost(): AcpSessionsLiveHost {
-  const model = { states: { list: compatCell<Record<string, SessionSummary>>({}) } };
+  const model = { states: { list: cell<Record<string, SessionSummary>>({}) } };
   return Object.assign(
     expose(
       acpApiContract.sessions,
@@ -99,19 +91,18 @@ export function createSessionLiveModels(
 ): SessionLiveModels {
   const model: SessionLiveModels = {
     states: {
-      state: compatCell(initialState),
-      config: compatCell(initialSessionConfigState),
-      usage: compatCell<SessionUsage | null>(null),
-      plan: compatCell<PlanState | null>(null),
-      agents: compatCell<AgentState[]>([]),
-      activeTurn: compatCell<TranscriptTurn | null>(null),
-      draft: compatCell<PromptDraft | null>(null),
-      terminals: compatCell<TerminalState[]>([]),
-      mcpServers: compatCell<SessionMcpServer[]>([]),
+      state: cell(initialState),
+      config: cell(initialSessionConfigState),
+      usage: cell<SessionUsage | null>(null),
+      plan: cell<PlanState | null>(null),
+      agents: cell<AgentState[]>([]),
+      activeTurn: cell<TranscriptTurn | null>(null),
+      draft: cell<PromptDraft | null>(null),
+      terminals: cell<TerminalState[]>([]),
+      mcpServers: cell<SessionMcpServer[]>([]),
     },
     dispose() {
       host.models.delete(conversationId);
-      for (const state of Object.values(this.states)) state.dispose();
     },
   };
   host.models.set(conversationId, model);
@@ -122,13 +113,13 @@ export function createSessionsListModel(host: AcpSessionsLiveHost): SessionsList
   return host.model;
 }
 
-export function publishLiveModelState<T>(
-  model: CompatCell<T>,
-  next: T,
-  previous: T | undefined
-): void {
+export function publishLiveModelState<T>(model: Cell<T>, next: T, previous: T | undefined): void {
   if (Object.is(previous, next)) return;
-  model.produce((draft) => assignDraft(draft, next) as never);
+  publishStructural(model, next);
+}
+
+export function produceCell<T>(target: Cell<T>, mutator: (draft: T) => void): void {
+  target.set(produce(peek(target), mutator));
 }
 
 export type {
@@ -143,33 +134,6 @@ export type {
   TerminalState,
   TranscriptTurn,
 };
-
-function compatCell<T>(initial: T): CompatCell<T> {
-  const state = cell(initial) as CompatCell<T>;
-  const liveState = new LiveState(initial);
-  const set = state.set.bind(state);
-  state.set = (next, options) => {
-    const revision = set(next, options);
-    liveState.replace(next, {
-      mutationIds: options?.mutationIds ? [...options.mutationIds] : undefined,
-    } satisfies LiveStateProduceOptions);
-    return revision;
-  };
-  state.replace = (next) => {
-    state.set(next);
-  };
-  state.produce = (mutator) => {
-    const previousSequence = liveState.cursor.sequence;
-    liveState.produce(mutator);
-    if (liveState.cursor.sequence !== previousSequence) {
-      set(liveState.snapshot().data);
-    }
-  };
-  state.snapshot = () => liveState.snapshot();
-  state.subscribe = (cb) => liveState.subscribe(cb);
-  state.dispose = () => liveState.dispose();
-  return state;
-}
 
 function requireSessionModel(
   models: Map<string, SessionLiveModels>,

@@ -52,7 +52,6 @@ expose(tasksContract.taskList, taskList);
 | `peek` | Untracked read | [02](./02-primitives.md#peek-and-untracked-reads) |
 | `batch` | Group synchronous writes into one turn with shared metadata | [02](./02-primitives.md#batch) |
 | `pokeChannel` | Named invalidation channel connecting external change signals to queries | [02](./02-primitives.md#pokechannel) |
-| `fromSource` | Interop sugar: wrap any `{ current, subscribe }` source (e.g. a `Machine`) as a readable | [02](./02-primitives.md#fromsource) |
 | `optimistic` | Pending-edit overlay over an authoritative base: apply-now, ack-prune, rollback-for-free | [02](./02-primitives.md#optimistic) |
 | `pin` / `prefetch` | Explicit demand at lifecycle boundaries: fetch at mount/intent, not at render | [02](./02-primitives.md#pin-and-prefetch) |
 | `expose` | Publish a reactive/family as a wire live model (generates the provider) | [04](./04-wire-integration.md#expose) |

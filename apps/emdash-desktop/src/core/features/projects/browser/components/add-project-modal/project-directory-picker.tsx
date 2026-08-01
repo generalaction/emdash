@@ -10,6 +10,7 @@ import {
   type FileTreeModel,
   isExpandableFileEntry,
 } from '@emdash/core/runtimes/files/api';
+import { createScope } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import {
   DirectorySelector,
@@ -18,13 +19,14 @@ import {
   type DirectoryListing,
 } from '@emdash/ui/react/components';
 import {
-  createLiveModelReplica,
+  observe,
+  remote,
+  whenReady,
   type Contract,
   type ContractClient,
-  type LiveModelReplica,
-  type ReplicaInstance,
+  type RemoteModel,
+  type RemoteMember,
 } from '@emdash/wire';
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -41,6 +43,8 @@ import { toast } from '@core/primitives/ui/browser/use-toast';
 import { type Strategy } from './add-project-modal';
 
 type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
+type DirectoryTreeRemote = RemoteModel<DirectoryTreeModel>;
+type DirectoryTreeMember = RemoteMember<DirectoryTreeModel>;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 const DIRECTORY_TREE_READY_TIMEOUT_MS = 30_000;
 export type ProjectDirectoryPickerClient = ContractClient<
@@ -80,14 +84,13 @@ export function ProjectDirectoryPicker({
     if (!root || !history.path) return ROOT_RELATIVE_PATH;
     return relativePathWithin(root, hostPathFromNative(history.path));
   }, [history.path, root]);
-  const reveal = useRevealDirectory(tree.model, currentRelativePath);
-  void tree.revision;
+  const reveal = useRevealDirectory(tree.member, currentRelativePath);
   const listing = directoryListing({
     homePending: homeQuery.isPending,
     homeError: homeQuery.error,
     syncError: tree.error ?? reveal.error,
     pending: reveal.pending,
-    model: tree.model?.states.tree.current() ?? null,
+    model: tree.model,
     path: currentRelativePath,
   });
 
@@ -166,16 +169,17 @@ function useProjectDirectoryTree(
   sessionId: string,
   getProjectsClient: () => Promise<ProjectDirectoryPickerClient>
 ): {
-  model: ReplicaInstance<DirectoryTreeModel> | null;
-  revision: number;
+  member: DirectoryTreeMember | null;
+  model: FileTreeModel | null;
   error: string | null;
 } {
-  const [model, setModel] = useState<ReplicaInstance<DirectoryTreeModel> | null>(null);
-  const [revision, setRevision] = useState(0);
+  const [member, setMember] = useState<DirectoryTreeMember | null>(null);
+  const [model, setModel] = useState<FileTreeModel | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!host || !root) {
+      setMember(null);
       setModel(null);
       return;
     }
@@ -183,31 +187,18 @@ function useProjectDirectoryTree(
     const currentHost = host;
     const currentRoot = root;
     let disposed = false;
-    let replica: LiveModelReplica<DirectoryTreeModel> | null = null;
-    let release: (() => Promise<void>) | null = null;
-
-    async function disposeResources() {
-      const currentRelease = release;
-      const currentReplica = replica;
-      release = null;
-      replica = null;
-      await Promise.allSettled([
-        ...(currentRelease ? [currentRelease()] : []),
-        ...(currentReplica ? [currentReplica.dispose()] : []),
-      ]);
-    }
+    const scope = createScope({ label: `project-directory-picker:${sessionId}` });
 
     async function start() {
       try {
         const client = await getProjectsClient();
         if (disposed) return;
-        replica = createLiveModelReplica(projectsWireContract.directoryTree, client.directoryTree, {
-          stores: { tree: createImmutableMobxStore },
-          onChange: {
-            tree: () => setRevision((current) => current + 1),
-          },
-        });
-        const lease = replica.acquire(
+        const treeRemote: DirectoryTreeRemote = remote(
+          projectsWireContract.directoryTree,
+          client.directoryTree,
+          { scope, lingerMs: 15_000 }
+        );
+        const treeMember = treeRemote(
           currentHost.type === 'ssh'
             ? {
                 type: 'ssh',
@@ -217,14 +208,25 @@ function useProjectDirectoryTree(
               }
             : { type: 'local', root: currentRoot, sessionId }
         );
-        release = () => lease.release();
-        const readyModel = await runWithTimeout(() => lease.ready(), {
+        observe(
+          treeMember.states.tree,
+          (snapshot) => {
+            if (disposed) return;
+            if (snapshot.status === 'error') {
+              setError(errorMessage(snapshot.error));
+              return;
+            }
+            setModel(snapshot.value ?? null);
+          },
+          { scope }
+        );
+        const ready = await runWithTimeout(() => whenReady(treeMember.states.tree, { scope }), {
           timeoutMs: DIRECTORY_TREE_READY_TIMEOUT_MS,
         });
+        if (ready.status === 'error') throw ready.error;
         if (disposed) return;
-        setModel(readyModel);
+        setMember(treeMember);
         setError(null);
-        setRevision((current) => current + 1);
       } catch (caught) {
         if (!disposed) {
           setError(
@@ -233,39 +235,40 @@ function useProjectDirectoryTree(
               : errorMessage(caught)
           );
         }
-        void disposeResources();
+        void scope.dispose();
       }
     }
 
     void start();
     return () => {
       disposed = true;
+      setMember(null);
       setModel(null);
       setError(null);
-      void disposeResources();
+      void scope.dispose();
     };
   }, [getProjectsClient, host, root, sessionId]);
 
-  return { model, revision, error };
+  return { member, model, error };
 }
 
 function useRevealDirectory(
-  model: ReplicaInstance<DirectoryTreeModel> | null,
+  member: DirectoryTreeMember | null,
   path: PortableRelativePath
 ): { pending: boolean; error: string | null } {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!model) return;
-    const currentModel = model;
+    if (!member) return;
+    const currentMember = member;
     let cancelled = false;
     setPending(true);
     setError(null);
 
     async function reveal() {
       try {
-        const mutation = await currentModel.mutations.reveal({ path, depth: 2 });
+        const mutation = await currentMember.mutations.reveal({ path, depth: 2 });
         if (!mutation.result.success) {
           throw new Error(fsErrorMessage(mutation.result.error));
         }
@@ -282,7 +285,7 @@ function useRevealDirectory(
     return () => {
       cancelled = true;
     };
-  }, [model, path]);
+  }, [member, path]);
 
   return { pending, error };
 }

@@ -1,46 +1,34 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
-import { createLiveModelReplica } from '@emdash/wire';
-import { useEffect, useState } from 'react';
+import { remote, type RemoteModel } from '@emdash/wire';
+import { useMemo } from 'react';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import { skillsContract } from '../api';
 import { getSkillsClient } from './client';
+
+let installedRemotePromise: Promise<RemoteModel<typeof skillsContract.installed>> | undefined;
 
 export function useInstalledSkillsLiveModel(host: HostRef = LOCAL_HOST_REF): {
   data: CatalogSkill[];
   isLoading: boolean;
 } {
-  const [data, setData] = useState<CatalogSkill[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const key = useMemo(() => ({ host }), [host]);
+  const state = useRemoteModelState(skillsContract.installed, getInstalledRemote, key, 'list', {
+    initialValue: [],
+  });
 
-  useEffect(() => {
-    let disposed = false;
-    let cleanup: (() => void) | undefined;
-    void (async () => {
-      const client = await getSkillsClient();
-      if (disposed) return;
-      const replica = createLiveModelReplica(skillsContract.installed, client.installed, {
-        onChange: {
-          list: (list: CatalogSkill[]) => setData(list),
-        },
-      });
-      const lease = replica.acquire({ host });
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      const model = await lease.ready();
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      setData((await model.states.list.snapshot()).data as CatalogSkill[]);
-      setIsLoading(false);
-    })();
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [host]);
+  return { data: state.value ?? [], isLoading: state.isLoading };
+}
 
-  return { data, isLoading };
+function getInstalledRemote(): Promise<RemoteModel<typeof skillsContract.installed>> {
+  installedRemotePromise ??= getSkillsClient().then((client) =>
+    remote(skillsContract.installed, client.installed, { lingerMs: 15_000 })
+  );
+  return installedRemotePromise;
+}
+
+export async function resetInstalledSkillsLiveModelForTests(): Promise<void> {
+  const remoteModel = await installedRemotePromise;
+  installedRemotePromise = undefined;
+  await remoteModel?.dispose();
 }

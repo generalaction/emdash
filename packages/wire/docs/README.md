@@ -121,13 +121,14 @@ Use the broad `@emdash/wire` export when building examples or package-local
 features that need both API and live primitives:
 
 ```ts
-import { createController, LiveState, defineContract } from '@emdash/wire';
+import { cell, createController, defineContract, expose } from '@emdash/wire';
 ```
 
 Use narrower subpath exports at app boundaries:
 
-- `@emdash/wire/live`: live primitives, live model hosts, and mutation settling.
 - `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
+- `@emdash/wire/state`: state kernel primitives and Wire bridges (`cell`, `query`,
+  `family`, `expose`, `remote`, `optimistic`).
 - `@emdash/wire/component`: `defineWireComponent()`, requirement helpers, component
   instance types, and explicit component composition types.
 - `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
@@ -136,9 +137,8 @@ Use narrower subpath exports at app boundaries:
   worker process support.
 - `@emdash/wire/util`: Wire transport helpers for diagnosing structured-clone
   failures.
-- `@emdash/wire/util/mobx`: MobX-backed replica stores
-  (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`)
-  and optimistic group utilities.
+- `@emdash/wire/util/mobx`: MobX-backed log/store helpers
+  (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`).
 - `@emdash/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`, worker signal types,
   supervision types, process contracts, and worker log forwarding.
 - `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
@@ -160,20 +160,20 @@ Use Shared subpaths directly for generic foundations:
 
 MobX-backed utilities intentionally live in their own export because they have a
 `mobx` peer dependency. Server-only code can import `@emdash/wire`,
-`@emdash/wire/api`, `@emdash/wire/live`, `@emdash/wire/worker`, and Shared
+`@emdash/wire/api`, `@emdash/wire/state`, `@emdash/wire/worker`, and Shared
 foundation subpaths without pulling in MobX.
 
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `LiveState`, `LiveLog`, `EventStreamSource`, `LiveJob`, or
-   `createLiveModelHost()` instances.
-3. Create and dispose keyed host instances as domain resources appear.
+2. Create server-side `cell`, `query`, `LiveLog`, `EventStreamSource`, or `LiveJob`
+   instances and publish live models with `expose()`.
+3. Use `family()` or explicit domain indexes for keyed live model resources.
 4. Create a controller with `createController(contract, impl)`.
 5. Optionally wrap the controller with `withValidation(contract, controller, policy)`.
 6. Serve the controller over a `WireTransport`.
 7. Connect from the client and create a typed `client()`.
-8. Use client handles directly for streaming, or create replicas when local state,
-   ref counting, or downstream serving is needed.
+8. Use client handles directly for streaming, or use `remote()` for local state,
+   ref counting, and downstream observation.
 
-For a complete example in one file, see [../examples/contract/client.ts](../examples/contract/client.ts).
+For a complete state bridge example, see the tests under `src/state/bridge/`.

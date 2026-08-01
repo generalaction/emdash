@@ -5,14 +5,8 @@ import {
   type TuiSessionList,
 } from '@runtimes/tui-agents/api';
 
-type CompatCell<T> = Cell<T> & {
-  replace(next: T): void;
-  produce(mutator: (draft: T) => void): void;
-  snapshot(): { data: T };
-};
-
-export type TuiSessionsListModel = { states: { list: CompatCell<TuiSessionList> } };
-export type TuiAgentStatesListModel = { states: { list: CompatCell<TuiAgentStateList> } };
+export type TuiSessionsListModel = { states: { list: Cell<TuiSessionList> } };
+export type TuiAgentStatesListModel = { states: { list: Cell<TuiAgentStateList> } };
 export type TuiSessionsLiveHost = LeasedLiveModelProvider<typeof tuiAgentsContract.sessions> & {
   model: TuiSessionsListModel;
   get(key: unknown): TuiSessionsListModel | undefined;
@@ -25,7 +19,7 @@ export type TuiAgentStatesLiveHost = LeasedLiveModelProvider<
 };
 
 export function createTuiSessionsLiveHost(): TuiSessionsLiveHost {
-  const model = { states: { list: compatCell({} satisfies TuiSessionList) } };
+  const model = { states: { list: cell({} satisfies TuiSessionList) } };
   return Object.assign(
     expose(tuiAgentsContract.sessions, { list: model.states.list }, { publish: { list: 'diff' } }),
     { model, get: () => model }
@@ -33,7 +27,7 @@ export function createTuiSessionsLiveHost(): TuiSessionsLiveHost {
 }
 
 export function createTuiAgentStatesLiveHost(): TuiAgentStatesLiveHost {
-  const model = { states: { list: compatCell({} satisfies TuiAgentStateList) } };
+  const model = { states: { list: cell({} satisfies TuiAgentStateList) } };
   return Object.assign(
     expose(
       tuiAgentsContract.agentStates,
@@ -54,14 +48,6 @@ export function createTuiAgentStatesListModel(
   return host.model;
 }
 
-function compatCell<T>(initial: T): CompatCell<T> {
-  const state = cell(initial) as CompatCell<T>;
-  state.replace = (next) => {
-    state.set(next);
-  };
-  state.produce = (mutator) => {
-    state.set(produce(peek(state), mutator));
-  };
-  state.snapshot = () => ({ data: peek(state) });
-  return state;
+export function produceCell<T>(target: Cell<T>, mutator: (draft: T) => void): void {
+  target.set(produce(peek(target), mutator));
 }

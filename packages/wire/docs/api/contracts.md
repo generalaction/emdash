@@ -67,9 +67,9 @@ disconnects, unknown paths, and uncaught handler exceptions. See
 ### `mutation`
 
 `mutation({ input, data, error }, handler?)` defines a live-state mutation shape.
-Mutations are members of `liveModel()` definitions. They usually provide the
-inline handler in the contract because
-`OptimisticLiveModel` can run the same pure handler on the client.
+Mutations are members of `liveModel()` definitions. Optimistic previews should use
+shared reducer functions with the `optimistic()` bridge rather than contract-local
+client models.
 
 `mutation()` is for operations that must settle live model cursors. Use
 `procedure()` for calls that do not update live models and `liveJob()` for

@@ -1,38 +1,46 @@
-import { createLiveModelHost, type LiveInstance, type LiveModelHost } from '@emdash/wire';
+import { cell, expose, peek, produce, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
 import type { ConnectionState, SshConnectionEvent } from '@core/primitives/ssh/api';
 import { sshContract, type SshConnectionsRuntime } from '../api';
 
 export class SshConnectionsModel {
-  readonly host: LiveModelHost<typeof sshContract.connections>;
-  readonly instance: LiveInstance<typeof sshContract.connections>;
+  readonly runtime: Cell<SshConnectionsRuntime>;
+  readonly host: LeasedLiveModelProvider<typeof sshContract.connections>;
 
   constructor() {
-    this.host = createLiveModelHost(sshContract.connections);
-    this.instance = this.host.create(undefined, { runtime: {} });
+    this.runtime = cell<SshConnectionsRuntime>({});
+    this.host = expose(sshContract.connections, { runtime: this.runtime });
   }
 
   publishEvent(event: SshConnectionEvent): void {
-    this.instance.states.runtime.produce((runtime) => {
-      if (event.type === 'health-changed') {
-        runtime[event.connectionId] = {
-          state: runtime[event.connectionId]?.state ?? 'disconnected',
-          health: event.health,
-        };
-        return;
-      }
+    this.runtime.set(
+      produce(peek(this.runtime), (runtime) => {
+        if (event.type === 'health-changed') {
+          runtime[event.connectionId] = {
+            state: runtime[event.connectionId]?.state ?? 'disconnected',
+            health: event.health,
+          };
+          return;
+        }
 
-      setState(runtime, event.connectionId, stateForEvent(event));
-    });
+        setState(runtime, event.connectionId, stateForEvent(event));
+      })
+    );
   }
 
   remove(connectionId: string): void {
-    this.instance.states.runtime.produce((runtime) => {
-      delete runtime[connectionId];
-    });
+    this.runtime.set(
+      produce(peek(this.runtime), (runtime) => {
+        delete runtime[connectionId];
+      })
+    );
+  }
+
+  snapshot(): SshConnectionsRuntime {
+    return peek(this.runtime);
   }
 
   dispose(): void {
-    this.host.dispose();
+    void this.host.dispose();
   }
 }
 

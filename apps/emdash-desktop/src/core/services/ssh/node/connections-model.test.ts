@@ -20,7 +20,7 @@ describe('SshConnectionsModel', () => {
 
     for (const [event] of stateEvents) model.publishEvent(event);
 
-    const runtime = model.instance.states.runtime.snapshot().data;
+    const runtime = model.snapshot();
     for (const [event, state] of stateEvents) {
       expect(runtime[event.connectionId]).toEqual({
         state,
@@ -38,13 +38,13 @@ describe('SshConnectionsModel', () => {
       connectionId: 'ssh-1',
       health: { status: 'degraded' },
     });
-    expect(model.instance.states.runtime.snapshot().data['ssh-1']).toEqual({
+    expect(model.snapshot()['ssh-1']).toEqual({
       state: 'disconnected',
       health: { status: 'degraded' },
     });
 
     model.publishEvent({ type: 'connected', connectionId: 'ssh-1' });
-    expect(model.instance.states.runtime.snapshot().data['ssh-1']).toEqual({
+    expect(model.snapshot()['ssh-1']).toEqual({
       state: 'connected',
       health: { status: 'degraded' },
     });
@@ -54,7 +54,7 @@ describe('SshConnectionsModel', () => {
       connectionId: 'ssh-1',
       health: { status: 'ok' },
     });
-    expect(model.instance.states.runtime.snapshot().data['ssh-1']).toEqual({
+    expect(model.snapshot()['ssh-1']).toEqual({
       state: 'connected',
       health: { status: 'ok' },
     });
@@ -67,7 +67,7 @@ describe('SshConnectionsModel', () => {
 
     model.remove('ssh-1');
 
-    expect(model.instance.states.runtime.snapshot().data).toEqual({});
+    expect(model.snapshot()).toEqual({});
     model.dispose();
   });
 });

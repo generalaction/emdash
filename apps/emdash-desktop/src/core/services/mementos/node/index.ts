@@ -11,4 +11,5 @@ export {
   type MementoSnapshotRow,
   type MementoSweepPolicy,
 } from './persistence';
+export { mementoPokes, matchMementoKey, type MementoPoke } from './pokes';
 export { createMementosWireController } from './wire-controller';

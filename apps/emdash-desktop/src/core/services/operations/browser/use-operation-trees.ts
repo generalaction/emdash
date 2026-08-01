@@ -1,6 +1,7 @@
-import type { OperationTree, OperationTreeList } from '@emdash/core/primitives/operations/api';
-import { createLiveModelReplica, type LiveModelClientHandle } from '@emdash/wire';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { OperationTree } from '@emdash/core/primitives/operations/api';
+import { remote, type LiveModelClientHandle, type RemoteModel } from '@emdash/wire';
+import { useCallback, useMemo } from 'react';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import { operationsContract, type OperationsContract } from '@core/services/operations/api';
 
 type OperationMutationResponse = { success: true } | { success: false; error: { message: string } };
@@ -11,6 +12,11 @@ export type OperationTreesClient = {
   forget(input: { operationId: string }): Promise<OperationMutationResponse>;
 };
 
+type OperationTreesRemote = RemoteModel<typeof operationsContract.operationTrees>;
+type GetOperationTreesClient = () => Promise<OperationTreesClient>;
+
+const operationTreeRemotes = new Map<GetOperationTreesClient, Promise<OperationTreesRemote>>();
+
 export function useOperationTrees(
   projectId: string,
   getClient: () => Promise<OperationTreesClient>
@@ -19,41 +25,21 @@ export function useOperationTrees(
   retry(operationId: string): Promise<void>;
   forget(operationId: string): Promise<void>;
 } {
-  const [treeList, setTreeList] = useState<OperationTreeList>({});
-
-  useEffect(() => {
-    let disposed = false;
-    let cleanup: (() => void) | undefined;
-    void (async () => {
-      const client = await getClient();
-      if (disposed) return;
-      const replica = createLiveModelReplica(
-        operationsContract.operationTrees,
-        client.operationTrees,
-        {
-          onChange: { list: (list: OperationTreeList) => setTreeList(list) },
-        }
-      );
-      const lease = replica.acquire({ projectId });
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      const model = await lease.ready();
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      setTreeList((await model.states.list.snapshot()).data as OperationTreeList);
-    })();
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [getClient, projectId]);
+  const key = useMemo(() => ({ projectId }), [projectId]);
+  const treeListState = useRemoteModelState(
+    operationsContract.operationTrees,
+    () => getOperationTreesRemote(getClient),
+    key,
+    'list',
+    { initialValue: {} }
+  );
+  const treeList = treeListState.value;
 
   const trees = useMemo(
-    () => Object.values(treeList).sort((left, right) => left.root.createdAt - right.root.createdAt),
+    () =>
+      Object.values(treeList ?? {}).sort(
+        (left, right) => left.root.createdAt - right.root.createdAt
+      ),
     [treeList]
   );
 
@@ -74,4 +60,23 @@ export function useOperationTrees(
   );
 
   return { trees, retry, forget };
+}
+
+function getOperationTreesRemote(
+  getClient: GetOperationTreesClient
+): Promise<OperationTreesRemote> {
+  let remotePromise = operationTreeRemotes.get(getClient);
+  if (!remotePromise) {
+    remotePromise = getClient().then((client) =>
+      remote(operationsContract.operationTrees, client.operationTrees, { lingerMs: 15_000 })
+    );
+    operationTreeRemotes.set(getClient, remotePromise);
+  }
+  return remotePromise;
+}
+
+export async function resetOperationTreeRemotesForTests(): Promise<void> {
+  const remotes = [...operationTreeRemotes.values()];
+  operationTreeRemotes.clear();
+  await Promise.all(remotes.map(async (remoteModel) => (await remoteModel).dispose()));
 }

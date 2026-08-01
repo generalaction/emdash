@@ -7,8 +7,7 @@ subsystem's eventual port — nothing here is implemented yet).
 ## The composition rules
 
 1. **Sources at the bottom, one per kind of truth.** In-memory truth → `cell`.
-   External truth → `query` (+ pokes). Push-based legacy sources →
-   `fromSource`. Never mirror external truth into a `cell` "for convenience" —
+   External truth → `query` (+ pokes). Never mirror external truth into a `cell` "for convenience" —
    that creates a second source of truth with no invalidation story.
 2. **Everything above sources is `derived`.** Joins, filters, projections,
    overlays, roll-ups: pure sync functions over `read()`s. If you need async

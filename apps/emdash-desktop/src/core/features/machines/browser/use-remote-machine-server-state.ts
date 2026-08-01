@@ -1,9 +1,9 @@
-import { createLiveModelReplica } from '@emdash/wire';
-import { useCallback, useEffect, useState } from 'react';
+import { remote, type RemoteModel } from '@emdash/wire';
+import { useCallback, useEffect } from 'react';
 import { toast } from '@core/primitives/ui/browser/use-toast';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import {
   remoteMachineContract,
-  type RemoteMachineServerRuntime,
   type RemoteMachineServerState,
 } from '@core/services/remote-machine/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -15,10 +15,9 @@ type ServerAction =
   | 'restartServer'
   | 'updateServer';
 
-type RuntimeState = {
-  machineId: string;
-  runtime: RemoteMachineServerRuntime;
-};
+let serverStatesRemotePromise:
+  | Promise<RemoteModel<typeof remoteMachineContract.serverStates>>
+  | undefined;
 
 export function useRemoteMachineServerState({
   machineId,
@@ -38,64 +37,24 @@ export function useRemoteMachineServerState({
   update(): Promise<void>;
   refresh(): Promise<void>;
 } {
-  const [runtimeState, setRuntimeState] = useState<RuntimeState | null>(null);
-  const [modelReady, setModelReady] = useState(false);
-
-  useEffect(() => {
-    if (!enabled || !machineId) {
-      setRuntimeState(null);
-      setModelReady(false);
-      return;
+  const runtimeState = useRemoteModelState(
+    remoteMachineContract.serverStates,
+    getServerStatesRemote,
+    undefined,
+    'runtime',
+    {
+      enabled: enabled && machineId !== undefined,
+      initialValue: {},
     }
-
-    let disposed = false;
-    let cleanup: (() => void) | undefined;
-    setRuntimeState(null);
-    setModelReady(false);
-    void (async () => {
-      const client = await getDesktopWireClient();
-      if (disposed) return;
-      const replica = createLiveModelReplica(
-        remoteMachineContract.serverStates,
-        client.remoteMachine.serverStates,
-        {
-          onChange: {
-            runtime: (runtime: RemoteMachineServerRuntime) => {
-              if (!disposed) setRuntimeState({ machineId, runtime });
-            },
-          },
-        }
-      );
-      const lease = replica.acquire(undefined);
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      const model = await lease.ready();
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      const runtime = (await model.states.runtime.snapshot()).data as RemoteMachineServerRuntime;
-      setRuntimeState({ machineId, runtime });
-      setModelReady(true);
-    })().catch(() => {
-      if (!disposed) setModelReady(true);
-    });
-
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [enabled, machineId]);
+  );
 
   let state: RemoteMachineServerState | undefined;
-  if (connected && machineId && runtimeState?.machineId === machineId) {
-    state = runtimeState.runtime[machineId];
+  if (connected && machineId) {
+    state = runtimeState.value?.[machineId];
   }
 
   useEffect(() => {
-    if (!enabled || !connected || !machineId || !modelReady) return;
+    if (!enabled || !connected || !machineId || !runtimeState.ready) return;
     if (hasRecentLatestVersion(state)) return;
     let cancelled = false;
     void getDesktopWireClient()
@@ -106,7 +65,7 @@ export function useRemoteMachineServerState({
     return () => {
       cancelled = true;
     };
-  }, [connected, enabled, machineId, modelReady, state]);
+  }, [connected, enabled, machineId, runtimeState.ready, state]);
 
   const runAction = useCallback(
     async (action: ServerAction, label: string) => {
@@ -141,7 +100,7 @@ export function useRemoteMachineServerState({
 
   return {
     state,
-    loading: enabled && connected && (!modelReady || !state),
+    loading: enabled && connected && (!runtimeState.ready || !state),
     install: () => runAction('installServer', 'install'),
     start: () => runAction('startServer', 'start'),
     stop: () => runAction('stopServer', 'shut down'),
@@ -153,4 +112,19 @@ export function useRemoteMachineServerState({
 
 function hasRecentLatestVersion(state: RemoteMachineServerState | undefined): boolean {
   return state?.latestVersion !== undefined;
+}
+
+function getServerStatesRemote(): Promise<RemoteModel<typeof remoteMachineContract.serverStates>> {
+  serverStatesRemotePromise ??= getDesktopWireClient().then((client) =>
+    remote(remoteMachineContract.serverStates, client.remoteMachine.serverStates, {
+      lingerMs: 15_000,
+    })
+  );
+  return serverStatesRemotePromise;
+}
+
+export async function resetRemoteMachineServerStateForTests(): Promise<void> {
+  const remoteModel = await serverStatesRemotePromise;
+  serverStatesRemotePromise = undefined;
+  await remoteModel?.dispose();
 }

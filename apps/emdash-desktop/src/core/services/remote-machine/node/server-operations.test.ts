@@ -160,7 +160,7 @@ function createFixture() {
     wire,
     provision,
     status(connectionId: string) {
-      return state.instance.states.runtime.snapshot().data[connectionId];
+      return state.snapshot()[connectionId];
     },
     async dispose() {
       state.dispose();

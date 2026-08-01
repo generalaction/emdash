@@ -4,6 +4,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import type { AgentOperations } from '@core/features/agents/node/controller';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { agentsContract } from '../api';
 import {
   throwAgentsRuntimeResolveError,
@@ -120,17 +121,11 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
 function createAuthModelProvider(
   runtimes: AgentsRuntimeBroker
 ): LiveModelProvider<typeof agentsContract.auth> {
-  return {
-    kind: 'liveModelProvider',
-    contract: agentsContract.auth,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(runtimes, key.host, (runtime) =>
-        runtime.agentConfig.agents.state(undefined, name).asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error(`Live model '${agentsContract.auth.id}' has no mutations`);
-    },
-  };
+  return forwardLiveModel(agentsContract.auth, (key, name) =>
+    resolveRuntimeSource(runtimes, key.host, (runtime) =>
+      runtime.agentConfig.agents.state(undefined, name).asLiveSource()
+    )
+  );
 }
 
 async function withHostRuntime<T>(

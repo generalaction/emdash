@@ -2,15 +2,15 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { LiveState } from '@emdash/wire';
 import type {
   Contract,
   ContractImpl,
   GroupMutationEnvelope,
+  LeasedLiveModelProvider,
   LiveModelProvider,
   LiveSource,
 } from '@emdash/wire';
-import { expose, query } from '@emdash/wire/state';
+import { cell, expose, family, query, type Cell, type Family } from '@emdash/wire';
 import {
   projectsWireContract,
   type ProjectListData,
@@ -28,16 +28,19 @@ import {
 import { enqueueDeleteProject } from './operations/delete-project-definition';
 
 type CreationKey = { projectId: string };
-type CreationState = LiveState<ProjectCreationState>;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type ProjectsWireImpl = ContractImpl<ContractDefinitionsOf<typeof projectsWireContract>>;
+type CreationProvider = {
+  provider: LeasedLiveModelProvider<typeof projectsWireContract.creation>;
+  publish(projectId: string, next: ProjectCreationState): void;
+  retain(projectId: string): () => void;
+  dispose(): Promise<void>;
+};
 
 export type ProjectsWireController = {
   impl: ProjectsWireImpl;
   dispose(): Promise<void>;
 };
-
-const creationStates = new Map<string, CreationState>();
 
 export function createProjectsWireController(
   dependencies: ProjectOperationDependencies
@@ -45,6 +48,7 @@ export function createProjectsWireController(
   const { operations } = dependencies;
   const projectOperations = createProjectOperations(dependencies);
   const projectList = createProjectListProvider(projectOperations);
+  const creation = createCreationProvider();
   return {
     impl: {
       createProject: (input) => projectOperations.createProject(input),
@@ -78,17 +82,16 @@ export function createProjectsWireController(
       },
       events: projectEvents,
       projectList,
-      creation: createCreationProvider(),
+      creation: creation.provider,
       directoryTree: createDirectoryTreeModelProvider(dependencies),
       create: {
-        run: (input, ctx) =>
-          createProjectFromRemote(dependencies, input, ctx, publishCreationState),
+        run: (input, ctx) => runCreateProjectFromRemote(dependencies, creation, input, ctx),
         toError: unknownToWorkspaceError,
       },
       delete: (input) => enqueueDeleteProject(operations, input.projectId),
     },
     async dispose() {
-      creationStates.clear();
+      await creation.dispose();
       await projectList.dispose();
     },
   };
@@ -146,18 +149,51 @@ function createDirectoryTreeModelProvider(
   };
 }
 
-function createCreationProvider(): LiveModelProvider<typeof projectsWireContract.creation> {
-  return {
-    kind: 'liveModelProvider',
-    contract: projectsWireContract.creation,
-    resolveState(key, name) {
-      if (name !== 'state') throw new Error(`Unknown project creation state '${String(name)}'`);
-      return ensureCreationState(key);
+function createCreationProvider(): CreationProvider {
+  const states: Family<CreationKey, Cell<ProjectCreationState>> = family(
+    () =>
+      cell<ProjectCreationState>({
+        phase: 'cloning',
+        message: 'Preparing project...',
+      }),
+    { name: 'project-creation' }
+  );
+  const provider = expose(projectsWireContract.creation, {
+    state: (key, scope) => {
+      const release = states.retain(key);
+      scope.add(release);
+      return states(key);
     },
-    async runMutation() {
-      throw new Error('Project creation model does not expose mutations');
+  });
+  return {
+    provider,
+    publish(projectId, next) {
+      states({ projectId }).set(next);
+    },
+    retain(projectId) {
+      return states.retain({ projectId });
+    },
+    async dispose() {
+      await provider.dispose();
+      await states.dispose();
     },
   };
+}
+
+async function runCreateProjectFromRemote(
+  dependencies: ProjectOperationDependencies,
+  creation: CreationProvider,
+  input: Parameters<typeof createProjectFromRemote>[1],
+  ctx: Parameters<typeof createProjectFromRemote>[2]
+) {
+  const release = creation.retain(input.projectId);
+  try {
+    return await createProjectFromRemote(dependencies, input, ctx, (projectId, next) =>
+      creation.publish(projectId, next)
+    );
+  } finally {
+    release();
+  }
 }
 
 async function acquireHostRuntime(
@@ -180,21 +216,6 @@ async function resolveHostRuntimeSource(
 
 function hostRefForProjectHost(host: ProjectHostParams) {
   return host.type === 'ssh' ? hostRef('remote', host.connectionId) : LOCAL_HOST_REF;
-}
-
-function ensureCreationState(key: CreationKey): CreationState {
-  const existing = creationStates.get(key.projectId);
-  if (existing) return existing;
-  const state = new LiveState<ProjectCreationState>({
-    phase: 'cloning',
-    message: 'Preparing project…',
-  });
-  creationStates.set(key.projectId, state);
-  return state;
-}
-
-function publishCreationState(projectId: string, next: ProjectCreationState): void {
-  ensureCreationState({ projectId }).replace(next);
 }
 
 function rebindMutationCursors<

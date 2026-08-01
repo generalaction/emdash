@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
-import { createLiveModelHost, defineContract } from '@emdash/wire';
+import { cell, defineContract, expose, type LiveStateData } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MonacoModelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
@@ -172,7 +172,7 @@ describe('MonacoModelRegistry live content', () => {
     const uri = await register(runtime.registry, 'git', STAGED_REF);
     const gitUri = runtime.registry.toGitUri(uri, STAGED_REF);
 
-    runtime.gitState.states.content.replace({
+    runtime.gitState.states.content.set({
       kind: 'missing',
       path: portablePath('file.ts'),
       source: { kind: 'index' },
@@ -219,47 +219,50 @@ describe('MonacoModelRegistry live content', () => {
 
 function createRuntime() {
   const filePath = portablePath('file.ts');
-  const contentKey = { workspaceId: 'workspace', relative: filePath };
   const writePreconditions: Array<{ kind: 'etag'; etag: string } | { kind: 'overwrite' }> = [];
   let currentEtag = 'etag-1';
-  const filesHost = createLiveModelHost(editorContract.content, {
-    mutations: {
-      write: (context, input) => {
-        writePreconditions.push(input.precondition);
-        if (input.precondition.kind === 'etag' && currentEtag !== input.precondition.etag) {
-          return err({
-            type: 'etag-mismatch' as const,
-            path: filePath,
-            expected: input.precondition.etag,
-            actual: currentEtag,
-          });
-        }
-        currentEtag = 'etag-saved';
-        context.produce('content', () => textContent(input.content, 'etag-saved'));
-        return ok<void>();
-      },
-    },
-  });
-  const filesState = filesHost.create(contentKey, { content: textContent('base', 'etag-1') });
-  const setFileContent = (content: string, etag: string) => {
-    currentEtag = etag;
-    filesState.states.content.replace(textContent(content, etag));
-  };
-
-  const gitHost = createLiveModelHost(sourceControlContract.checkout.content);
-  const gitState = gitHost.create(
-    { workspaceId: 'workspace', path: filePath, source: { kind: 'index' } },
+  const filesContent = cell(textContent('base', 'etag-1'));
+  const filesHost = expose(
+    editorContract.content,
+    { content: filesContent },
     {
-      content: {
-        kind: 'text',
-        path: filePath,
-        source: { kind: 'index' },
-        oid: 'abc123',
-        byteSize: 4,
-        content: 'base',
+      mutations: {
+        write: (context) => {
+          const input = context.input;
+          writePreconditions.push(input.precondition);
+          if (input.precondition.kind === 'etag' && currentEtag !== input.precondition.etag) {
+            return err({
+              type: 'etag-mismatch' as const,
+              path: filePath,
+              expected: input.precondition.etag,
+              actual: currentEtag,
+            });
+          }
+          currentEtag = 'etag-saved';
+          filesContent.set(textContent(input.content, 'etag-saved'));
+          return ok<void>();
+        },
       },
     }
   );
+  const filesState = { states: { content: filesContent } };
+  const setFileContent = (content: string, etag: string) => {
+    currentEtag = etag;
+    filesState.states.content.set(textContent(content, etag));
+  };
+
+  const gitContent = cell<
+    LiveStateData<typeof sourceControlContract.checkout.content.states.content>
+  >({
+    kind: 'text' as const,
+    path: filePath,
+    source: { kind: 'index' as const },
+    oid: 'abc123',
+    byteSize: 4,
+    content: 'base',
+  });
+  const gitHost = expose(sourceControlContract.checkout.content, { content: gitContent });
+  const gitState = { states: { content: gitContent } };
 
   const filesWire = createTestWire(filesTestContract, { content: filesHost });
   const gitWire = createTestWire(gitTestContract, { checkout: { content: gitHost } });

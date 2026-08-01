@@ -15,17 +15,25 @@ vi.mock('@emdash/wire', async (importOriginal) => {
   const actual = await importOriginal<typeof WireModule>();
   return {
     ...actual,
-    ReplicaState: class {
-      readonly ready = Promise.resolve();
-      readonly dispose = vi.fn(async () => {});
-      current() {
-        return {
-          provider: {
-            auth: { status: { kind: 'unknown' }, login: null },
+    remote: vi.fn(() => {
+      const list = {
+        __stateNode: {
+          observe(listener: (snapshot: unknown) => void) {
+            listener({
+              status: 'ready',
+              value: {
+                provider: {
+                  auth: { status: { kind: 'unknown' }, login: null },
+                },
+              },
+            });
+            return () => {};
           },
-        };
-      }
-    },
+        },
+        refresh: vi.fn(async () => {}),
+      };
+      return Object.assign(() => ({ states: { list } }), { dispose: vi.fn(async () => {}) });
+    }),
     ReplicaLog: class {
       readonly ready = Promise.resolve();
       readonly dispose = vi.fn(async () => {});
@@ -50,7 +58,6 @@ describe('AcpAuthLoginBinding', () => {
       },
       expect.anything()
     );
-    expect(client.auth.state).toHaveBeenCalledWith({ host: LOCAL_HOST_REF }, 'list');
     expect(client.loginOutput.handle).toHaveBeenCalledWith({
       host: LOCAL_HOST_REF,
       providerId: 'provider',

@@ -1,46 +1,34 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
-import { createLiveModelReplica } from '@emdash/wire';
-import { useEffect, useState } from 'react';
+import { remote, type RemoteModel } from '@emdash/wire';
+import { useMemo } from 'react';
 import { getMcpClient } from '@core/features/mcp/api/browser/client';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import { mcpContract } from '../api';
+
+let serversRemotePromise: Promise<RemoteModel<typeof mcpContract.servers>> | undefined;
 
 export function useInstalledMcpServersLiveModel(host: HostRef = LOCAL_HOST_REF): {
   data: McpServer[];
   isLoading: boolean;
 } {
-  const [data, setData] = useState<McpServer[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const key = useMemo(() => ({ host }), [host]);
+  const state = useRemoteModelState(mcpContract.servers, getServersRemote, key, 'list', {
+    initialValue: [],
+  });
 
-  useEffect(() => {
-    let disposed = false;
-    let cleanup: (() => void) | undefined;
-    void (async () => {
-      const client = await getMcpClient();
-      if (disposed) return;
-      const replica = createLiveModelReplica(mcpContract.servers, client.servers, {
-        onChange: {
-          list: (list: McpServer[]) => setData(list),
-        },
-      });
-      const lease = replica.acquire({ host });
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      const model = await lease.ready();
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      setData((await model.states.list.snapshot()).data as McpServer[]);
-      setIsLoading(false);
-    })();
-    return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [host]);
+  return { data: state.value ?? [], isLoading: state.isLoading };
+}
 
-  return { data, isLoading };
+function getServersRemote(): Promise<RemoteModel<typeof mcpContract.servers>> {
+  serversRemotePromise ??= getMcpClient().then((client) =>
+    remote(mcpContract.servers, client.servers, { lingerMs: 15_000 })
+  );
+  return serversRemotePromise;
+}
+
+export async function resetInstalledMcpServersLiveModelForTests(): Promise<void> {
+  const remoteModel = await serversRemotePromise;
+  serversRemotePromise = undefined;
+  await remoteModel?.dispose();
 }

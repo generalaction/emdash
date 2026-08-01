@@ -1,6 +1,7 @@
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope } from '@emdash/shared/concurrency';
+import { observe, remote, whenReady } from '@emdash/wire';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type {
   DirectPreviewServer,
@@ -58,23 +59,24 @@ export async function createDevServerBridge(
   dependencies: DevServerBridgeDependencies
 ): Promise<DevServerBridge> {
   let previous = new Map<string, TerminalDevServer>();
-  const replica = createLiveModelReplica(terminalsContract.devServers, client.devServers, {
-    onChange: {
-      list: (list: TerminalDevServerList) => {
-        void syncDevServers(dependencies, previous, list).catch((error) => {
-          log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
-        });
-        previous = new Map(Object.entries(list));
-      },
-    },
+  const scope = createScope({ label: 'dev-server-bridge' });
+  const devServers = remote(terminalsContract.devServers, client.devServers, {
+    scope,
+    lingerMs: 15_000,
   });
-  const lease = replica.acquire(undefined);
-  try {
-    await lease.ready();
-  } catch (error) {
-    await Promise.allSettled([lease.release(), replica.dispose()]);
-    throw error;
-  }
+  const member = devServers(undefined);
+  observe(
+    member.states.list,
+    (snapshot) => {
+      const list: TerminalDevServerList = snapshot.value ?? {};
+      void syncDevServers(dependencies, previous, list).catch((error) => {
+        log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
+      });
+      previous = new Map(Object.entries(list));
+    },
+    { scope }
+  );
+  await whenReady(member.states.list, { scope });
 
   const stopHandler = async (server: DirectPreviewServer) => {
     const devServer = await findDevServerForPreview(dependencies, previous, server);
@@ -92,7 +94,7 @@ export async function createDevServerBridge(
   return {
     async dispose() {
       dependencies.previewServers.setStopTerminalServerHandler(undefined);
-      await Promise.all([lease.release(), replica.dispose()]);
+      await scope.dispose();
       previous = new Map();
     },
   };

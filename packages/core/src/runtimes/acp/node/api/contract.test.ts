@@ -1,5 +1,5 @@
 import { isOk } from '@emdash/shared';
-import { ReplicaState } from '@emdash/wire';
+import { peek, remote, snapshot } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import {
   acpApiContract,
@@ -7,7 +7,6 @@ import {
   promptDraftSchema,
   sessionConfigStateSchema,
   sessionStateSchema,
-  sessionSummarySchema,
   sessionUsageSchema,
   transcriptTurnSchema,
   uploadAttachmentCommandSchema,
@@ -15,7 +14,6 @@ import {
 import { makeAcpHarness, makeStartInput } from '@runtimes/acp/node/acp-test-support';
 import { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
 import { describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 import { createAcpController } from './controller';
 
 describe('ACP API contract schemas', () => {
@@ -29,17 +27,11 @@ describe('ACP API contract schemas', () => {
     if (!live) throw new Error('expected live models');
 
     expect(acpApiContract.session.id).toBe('session');
-    expect(() => sessionStateSchema.parse(live.states.state.snapshot().data)).not.toThrow();
-    expect(() => sessionConfigStateSchema.parse(live.states.config.snapshot().data)).not.toThrow();
-    expect(() =>
-      sessionUsageSchema.nullable().parse(live.states.usage.snapshot().data)
-    ).not.toThrow();
-    expect(() =>
-      transcriptTurnSchema.nullable().parse(live.states.activeTurn.snapshot().data)
-    ).not.toThrow();
-    expect(() =>
-      promptDraftSchema.nullable().parse(live.states.draft.snapshot().data)
-    ).not.toThrow();
+    expect(() => sessionStateSchema.parse(peek(live.states.state))).not.toThrow();
+    expect(() => sessionConfigStateSchema.parse(peek(live.states.config))).not.toThrow();
+    expect(() => sessionUsageSchema.nullable().parse(peek(live.states.usage))).not.toThrow();
+    expect(() => transcriptTurnSchema.nullable().parse(peek(live.states.activeTurn))).not.toThrow();
+    expect(() => promptDraftSchema.nullable().parse(peek(live.states.draft))).not.toThrow();
   });
 
   it('round-trips procedures and live state over a wire transport', async () => {
@@ -47,32 +39,29 @@ describe('ACP API contract schemas', () => {
     const rt = new AcpRuntime(h.deps);
     const wire = createTestWire(acpApiContract, createAcpController(rt), { validate: 'full' });
     const contractClient = wire.client;
-    const summaries = new ReplicaState(contractClient.sessions.state(undefined, 'list'), {
-      schema: z.record(z.string(), sessionSummarySchema),
-    });
+    const sessions = remote(acpApiContract.sessions, contractClient.sessions);
+    const sessionRemote = remote(acpApiContract.session, contractClient.session);
+    const summaries = sessions(undefined);
 
     try {
-      await summaries.ready;
+      await summaries.states.list.refresh();
       const input = makeStartInput({ conversationId: 'conv-wire' });
       const started = await contractClient.startSession({ input });
       expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
 
       await vi.waitFor(() => {
-        expect(summaries.current()['conv-wire']).toMatchObject({
+        expect(snapshot(summaries.states.list).value?.['conv-wire']).toMatchObject({
           conversationId: 'conv-wire',
           lifecycle: 'ready',
         });
       });
 
-      const state = new ReplicaState(
-        contractClient.session.state({ conversationId: 'conv-wire' }, 'state'),
-        { schema: sessionStateSchema }
-      );
-      await state.ready;
-      expect(state.current()).toMatchObject({ lifecycle: 'ready' });
-      await state.dispose();
+      const session = sessionRemote({ conversationId: 'conv-wire' });
+      await session.states.state.refresh();
+      expect(snapshot(session.states.state).value).toMatchObject({ lifecycle: 'ready' });
     } finally {
-      await summaries.dispose();
+      await sessions.dispose();
+      await sessionRemote.dispose();
       wire.dispose();
     }
   });

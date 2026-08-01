@@ -1,5 +1,6 @@
 import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
+import { snapshot } from '@emdash/wire';
 import { describe, expect, it, vi } from 'vitest';
 import { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
@@ -43,16 +44,12 @@ describe('WorkspaceServerProvisioner', () => {
     const fixture = createProvisionerFixture();
     await fixture.provisioner.ensure('ssh-1');
 
-    const updates: unknown[] = [];
-    const unsubscribe = fixture.model.instance.states.runtime.subscribe((update) =>
-      updates.push(update)
-    );
+    const before = snapshot(fixture.model.runtime).revision;
     fixture.provisioner.drop('ssh-1');
     await fixture.provisioner.ensure('ssh-1');
-    unsubscribe();
 
     expect(fixture.dialOnce).toHaveBeenCalledTimes(2);
-    expect(updates).toHaveLength(0);
+    expect(snapshot(fixture.model.runtime).revision).toBe(before);
     expect(fixture.status('ssh-1')).toMatchObject({ status: 'healthy' });
     await fixture.dispose();
   });
@@ -261,7 +258,7 @@ function createProvisionerFixture(
     logger,
     model,
     status(connectionId: string) {
-      return model.instance.states.runtime.snapshot().data[connectionId];
+      return model.snapshot()[connectionId];
     },
     async dispose() {
       model.dispose();

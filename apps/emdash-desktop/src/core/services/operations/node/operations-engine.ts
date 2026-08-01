@@ -11,16 +11,11 @@ import {
   type OperationTreeKey,
   type OperationTreeList,
 } from '@emdash/core/primitives/operations/api';
-import { err, ok, type PendingLease, type Result } from '@emdash/shared';
-import {
-  createDurableQueue,
-  createResourceCache,
-  type DurableQueue,
-  type Scope,
-} from '@emdash/shared/concurrency';
+import { err, ok, type Result } from '@emdash/shared';
+import { createDurableQueue, type DurableQueue, type Scope } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { ComputedLiveState, type LiveSource } from '@emdash/wire';
+import { family, query, type Family, type Query } from '@emdash/wire';
 import { and, eq, inArray } from 'drizzle-orm';
 import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
@@ -50,6 +45,7 @@ import {
   settleWaitingParents,
   tryTransitionStatus,
 } from './execution';
+import { matchOperationProject, operationsPokes } from './pokes';
 import { loadOperationTrees, operationTreeKey } from './projection';
 
 const RECONCILE_INTERVAL_MS = 10 * 60_000;
@@ -85,10 +81,7 @@ export class OperationsEngine {
   private readonly queue: DurableQueue;
   private started = false;
   private readonly progress = new Map<string, OperationProgress>();
-  private readonly operationTreeKeys = new Map<string, OperationTreeKey>();
-  private readonly operationTrees: ReturnType<
-    typeof createResourceCache<OperationTreeKey, ComputedLiveState<OperationTreeList>>
-  >;
+  private readonly operationTrees: Family<OperationTreeKey, Query<OperationTreeList>>;
 
   constructor(deps: OperationsEngineDeps) {
     this.db = deps.db;
@@ -129,17 +122,10 @@ export class OperationsEngine {
       onError: (error) => log.error('lifecycle operations drain failed', { error }),
       onPass: () => this.refreshOperationTrees(),
     });
-    this.operationTrees = createResourceCache<
-      OperationTreeKey,
-      ComputedLiveState<OperationTreeList>
-    >({
-      scope: this.scope,
-      label: 'operation-trees',
-      key: operationTreeKey,
-      create: (key, entryScope) => {
-        const keyId = operationTreeKey(key);
-        const state = new ComputedLiveState<OperationTreeList>({
-          compute: () =>
+    this.operationTrees = family<OperationTreeKey, Query<OperationTreeList>>(
+      (key, scope) =>
+        query({
+          fetch: () =>
             loadOperationTrees({
               db: this.db,
               definitions: this.definitions,
@@ -147,21 +133,17 @@ export class OperationsEngine {
               hostIsOnline: (hostRef) => this.hostIsOnline(hostRef),
               projectId: key.projectId,
             }),
+          pokes: [operationsPokes.trees.subscription(matchOperationProject(key.projectId))],
           clock: this.clock,
+          scope,
           onError: (error) =>
             log.warn('lifecycle operation tree refresh failed', {
               projectId: key.projectId,
               error: String(error),
             }),
-        });
-        this.operationTreeKeys.set(keyId, key);
-        entryScope.add(() => {
-          state.dispose();
-          this.operationTreeKeys.delete(keyId);
-        });
-        return state;
-      },
-    });
+        }),
+      { name: 'operation-trees', key: operationTreeKey, scope: this.scope }
+    );
   }
 
   async start(): Promise<void> {
@@ -387,12 +369,10 @@ export class OperationsEngine {
     return ok({ operationId: operation.id });
   }
 
-  acquireOperationTreeState(projectId?: string): PendingLease<LiveSource> {
-    const lease = this.operationTrees.acquire({ projectId });
-    return {
-      ready: async () => (await lease.ready()).prepare(),
-      release: lease.release,
-    };
+  operationTreeState(key: OperationTreeKey, scope: Scope): Query<OperationTreeList> {
+    const normalized = normalizeOperationTreeKey(key);
+    scope.add(this.operationTrees.retain(normalized));
+    return this.operationTrees(normalized);
   }
 
   poke(): void {
@@ -464,11 +444,13 @@ export class OperationsEngine {
     };
   }
 
-  private async refreshOperationTrees(): Promise<void> {
-    for (const key of this.operationTreeKeys.values()) {
-      this.operationTrees.peek(key)?.invalidate();
-    }
+  private async refreshOperationTrees(projectId?: string): Promise<void> {
+    operationsPokes.trees.poke({ projectId });
   }
+}
+
+function normalizeOperationTreeKey(key: OperationTreeKey): OperationTreeKey {
+  return key.projectId === undefined ? {} : { projectId: key.projectId };
 }
 
 function definitionMap(

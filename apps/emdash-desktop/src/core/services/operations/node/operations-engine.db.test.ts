@@ -6,6 +6,7 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred, ManualClock } from '@emdash/shared/testing';
+import { observe, snapshot } from '@emdash/wire';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +24,7 @@ import type {
   OperationsSshManager,
 } from './definition';
 import { createOperationsEngine, type OperationsEngineHandle } from './factory';
+import { operationsPokes } from './pokes';
 
 describe('OperationsEngine', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -453,20 +455,70 @@ describe('OperationsEngine', () => {
     await handle.engine.waitForIdle();
     expect(await operationStatus()).toBe('pending');
     expect(run).not.toHaveBeenCalled();
-    const lease = handle.engine.acquireOperationTreeState();
-    const source = await lease.ready();
-    const list = (await source.snapshot()).data as OperationTreeList;
+    const list = await operationTreeList(handle.engine);
     expect(Object.values(list)[0]?.root).toMatchObject({
       status: 'blocked-host-offline',
       entityName: 'task-1',
       hostRef: 'remote-1',
     });
-    await lease.release();
-
     ssh.connect();
     await handle.engine.waitForIdle();
     expect(await operationStatus()).toBe('succeeded');
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes global operation tree keys', async () => {
+    fixture = await openFixture('empty');
+    handle = await createTestEngine({});
+    const scope = createScope({ label: 'operation-tree-key-normalization-test' });
+
+    try {
+      const left = handle.engine.operationTreeState({}, scope);
+      const right = handle.engine.operationTreeState({ projectId: undefined }, scope);
+      expect(left).toBe(right);
+    } finally {
+      await scope.dispose();
+    }
+  });
+
+  it('invalidates global and matching project operation trees for project-scoped pokes', async () => {
+    fixture = await openFixture('empty');
+    handle = await createTestEngine({ ssh: createSshManager(false) });
+    await fixture.db.insert(lifecycleOperations).values([
+      { ...operationRow('task-1', 'local', 1), projectId: 'project-1' },
+      { ...operationRow('task-2', 'local', 2), projectId: 'project-2' },
+    ]);
+    const scope = createScope({ label: 'operation-tree-invalidation-test' });
+
+    try {
+      const globalTree = handle.engine.operationTreeState({}, scope);
+      const projectOneTree = handle.engine.operationTreeState({ projectId: 'project-1' }, scope);
+      const projectTwoTree = handle.engine.operationTreeState({ projectId: 'project-2' }, scope);
+      observe(globalTree, () => {}, { scope });
+      observe(projectOneTree, () => {}, { scope });
+      observe(projectTwoTree, () => {}, { scope });
+      await Promise.all([globalTree.refresh(), projectOneTree.refresh(), projectTwoTree.refresh()]);
+      const before = {
+        global: snapshot(globalTree).revision,
+        projectOne: snapshot(projectOneTree).revision,
+        projectTwo: snapshot(projectTwoTree).revision,
+      };
+
+      operationsPokes.trees.poke({ projectId: 'project-1' });
+
+      expect(snapshot(globalTree)).toMatchObject({
+        revision: before.global + 1,
+        status: 'stale',
+      });
+      expect(snapshot(projectOneTree)).toMatchObject({
+        revision: before.projectOne + 1,
+        status: 'stale',
+      });
+      expect(snapshot(projectTwoTree).revision).toBe(before.projectTwo);
+      expect(snapshot(projectTwoTree).status).toBe('live');
+    } finally {
+      await scope.dispose();
+    }
   });
 
   it('allows forgetting cleanup that is pending on an offline host', async () => {
@@ -663,15 +715,11 @@ describe('OperationsEngine', () => {
     );
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
 
-    const lease = handle.engine.acquireOperationTreeState();
-    const source = await lease.ready();
-    const list = (await source.snapshot()).data as OperationTreeList;
+    const list = await operationTreeList(handle.engine);
     expect(Object.values(list)[0]?.root).toMatchObject({
       status: 'waiting',
       currentStep: 'deactivate-workspace',
     });
-    await lease.release();
-
     releaseRun.resolve();
     await handle.engine.waitForIdle();
   });
@@ -697,10 +745,7 @@ describe('OperationsEngine', () => {
       },
     ]);
 
-    const lease = handle.engine.acquireOperationTreeState('project-1');
-    const source = await lease.ready();
-    const list = (await source.snapshot()).data as OperationTreeList;
-    await lease.release();
+    const list = await operationTreeList(handle.engine, { projectId: 'project-1' });
 
     expect(Object.keys(list)).toEqual(['operation-child']);
     expect(list['operation-child']?.root).toMatchObject({
@@ -917,6 +962,20 @@ function operationDisplayState(status: OperationDisplayState['status']): Operati
     ...(status === 'failed' ? { error: 'failed' } : {}),
     ...(status === 'awaiting-confirmation' ? { confirmationReason: 'stale' as const } : {}),
   } as OperationDisplayState;
+}
+
+async function operationTreeList(
+  engine: OperationsEngineHandle['engine'],
+  key: { projectId?: string } = {}
+): Promise<OperationTreeList> {
+  const scope = createScope({ label: 'operation-tree-list-test' });
+  try {
+    const state = engine.operationTreeState(key, scope);
+    await state.refresh();
+    return snapshot(state).value ?? {};
+  } finally {
+    await scope.dispose();
+  }
 }
 
 function createSshManager(initiallyConnected: boolean): OperationsSshManager & {

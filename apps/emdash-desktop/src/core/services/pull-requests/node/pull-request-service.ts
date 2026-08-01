@@ -3,10 +3,13 @@ import type { Logger } from '@emdash/shared/logger';
 import { requestPriorities } from '@emdash/shared/requests';
 import { err, ok, type Result } from '@emdash/shared/result';
 import {
-  createLiveModelHost,
+  cell,
+  expose,
+  family,
   type ContractClient,
-  type LiveInstance,
-  type LiveModelHost,
+  type Cell,
+  type Family,
+  type LeasedLiveModelProvider,
 } from '@emdash/wire';
 import {
   normalizeRepositoryUrl,
@@ -28,8 +31,8 @@ import type { PullRequestStore } from './store';
 
 type SyncResult = Result<void, PullRequestError>;
 type SyncRun = Run<SyncResult>;
-type SyncStateHost = LiveModelHost<typeof pullRequestsContract.syncState>;
-type SyncStateInstance = LiveInstance<typeof pullRequestsContract.syncState>;
+type SyncStateHost = LeasedLiveModelProvider<typeof pullRequestsContract.syncState>;
+type SyncStateKey = { repositoryUrl: string };
 
 const DEFAULT_MIN_SYNC_INTERVAL_MS = 60_000;
 
@@ -47,15 +50,30 @@ export type PullRequestServiceOptions = {
 
 export class PullRequestService {
   private readonly syncStates: SyncStateHost;
+  private readonly syncStateCells: Family<SyncStateKey, Cell<SyncState>>;
+  private readonly syncStateValues = new Map<string, SyncState>();
   private readonly syncRuns = new Map<string, SyncRun>();
   private readonly lastSuccessfulSyncs = new Map<string, number>();
   private readonly engine: PullRequestEngine;
 
   constructor(private readonly options: PullRequestServiceOptions) {
-    this.syncStates = options.scope.use(createLiveModelHost(pullRequestsContract.syncState));
     for (const repository of options.store.listRegisteredRepositories()) {
-      this.ensureSyncState(repository.repositoryUrl);
+      this.syncStateValues.set(repository.repositoryUrl, idleSyncState());
     }
+    this.syncStateCells = family<SyncStateKey, Cell<SyncState>>(
+      (key) => cell(this.syncStateValues.get(key.repositoryUrl) ?? idleSyncState()),
+      { name: 'pull-request-sync-state', key: (key) => key.repositoryUrl, scope: options.scope }
+    );
+    this.syncStates = expose(pullRequestsContract.syncState, {
+      state: (key, scope) => {
+        const normalized = {
+          repositoryUrl: normalizeRepositoryUrl(key.repositoryUrl) ?? key.repositoryUrl,
+        };
+        scope.add(this.syncStateCells.retain(normalized));
+        return this.syncStateCells(normalized);
+      },
+    });
+    options.scope.add(() => this.syncStates.dispose());
     this.engine =
       options.engine ??
       new PullRequestEngine({
@@ -143,7 +161,7 @@ export class PullRequestService {
     const normalized = normalizeRepositoryUrl(repositoryUrl);
     if (!normalized) return err({ type: 'invalid_repository', input: repositoryUrl });
     this.options.store.registerRepository(normalized, accountId);
-    this.ensureSyncState(normalized);
+    this.syncStateValues.set(normalized, this.syncStateValues.get(normalized) ?? idleSyncState());
     void this.syncWithPriority(normalized, requestPriorities.background);
     return ok();
   }
@@ -154,7 +172,8 @@ export class PullRequestService {
     await this.cancelAndWait(normalized);
     this.options.store.unregisterRepository(normalized);
     this.lastSuccessfulSyncs.delete(normalized);
-    this.syncStates.get({ repositoryUrl: normalized })?.dispose();
+    this.syncStateCells.peekMember({ repositoryUrl: normalized })?.set(idleSyncState());
+    this.syncStateValues.delete(normalized);
     return ok();
   }
 
@@ -326,20 +345,14 @@ export class PullRequestService {
     await run.exit;
   }
 
-  private ensureSyncState(repositoryUrl: string): SyncStateInstance {
-    return (
-      this.syncStates.get({ repositoryUrl }) ??
-      this.syncStates.create({ repositoryUrl }, { state: { phase: 'idle', kind: null } })
-    );
-  }
-
   private setSyncState(repositoryUrl: string, state: SyncState): void {
     if (state.phase === 'idle' && state.lastSyncedAt !== undefined) {
       this.lastSuccessfulSyncs.set(repositoryUrl, state.lastSyncedAt);
     } else if (state.phase === 'error') {
       this.lastSuccessfulSyncs.delete(repositoryUrl);
     }
-    this.ensureSyncState(repositoryUrl).states.state.produce(() => state);
+    this.syncStateValues.set(repositoryUrl, state);
+    this.syncStateCells.peekMember({ repositoryUrl })?.set(state);
   }
 
   private async syncAllRegistered(): Promise<void> {
@@ -352,6 +365,10 @@ export class PullRequestService {
         )
     );
   }
+}
+
+function idleSyncState(): SyncState {
+  return { phase: 'idle', kind: null };
 }
 
 async function syncRunResult(run: SyncRun): Promise<SyncResult> {

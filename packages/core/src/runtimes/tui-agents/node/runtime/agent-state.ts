@@ -1,7 +1,9 @@
+import { peek } from '@emdash/wire';
 import type { TuiAgentState } from '@runtimes/tui-agents/api';
-import type {
-  TuiAgentStatesListModel,
-  TuiSessionsListModel,
+import {
+  produceCell,
+  type TuiAgentStatesListModel,
+  type TuiSessionsListModel,
 } from '@runtimes/tui-agents/node/state/live-models';
 import type { ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
 import type { CanonicalHookEvent } from '@services/agent-plugins/api/plugins';
@@ -126,7 +128,7 @@ export class TuiAgentStates {
 
   setProviderSessionId(conversationId: string, providerSessionId: string): void {
     let changed = false;
-    this.sessions.states.list.produce((draft) => {
+    produceCell(this.sessions.states.list, (draft) => {
       const session = draft[conversationId];
       if (!session || session.sessionId === providerSessionId) return;
       session.sessionId = providerSessionId;
@@ -140,17 +142,17 @@ export class TuiAgentStates {
   }
 
   clear(conversationId: string): void {
-    this.agentStates.states.list.produce((draft) => {
+    produceCell(this.agentStates.states.list, (draft) => {
       delete draft[conversationId];
     });
   }
 
   current(conversationId: string): TuiAgentState | undefined {
-    return this.agentStates.states.list.snapshot().data[conversationId];
+    return peek(this.agentStates.states.list)[conversationId];
   }
 
   restore(state: TuiAgentState): void {
-    this.agentStates.states.list.produce((draft) => {
+    produceCell(this.agentStates.states.list, (draft) => {
       draft[state.conversationId] = state;
     });
   }
@@ -160,7 +162,7 @@ export class TuiAgentStates {
     patch: Omit<Partial<TuiAgentState>, 'conversationId' | 'updatedAt'>
   ): void {
     let changedState: TuiAgentState | undefined;
-    this.agentStates.states.list.produce((draft) => {
+    produceCell(this.agentStates.states.list, (draft) => {
       const previous = draft[conversationId];
       const next: TuiAgentState = {
         conversationId,

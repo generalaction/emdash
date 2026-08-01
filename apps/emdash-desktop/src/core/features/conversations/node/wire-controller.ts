@@ -1,13 +1,8 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import type { LiveModelProvider, LiveSource } from '@emdash/wire';
-import {
-  createController,
-  type CallMeta,
-  type Controller,
-  type LiveModelDef,
-} from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire';
+import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { and, eq } from 'drizzle-orm';
 import { createConversationOperations } from '@core/features/conversations/node/controller';
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
@@ -19,6 +14,7 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { conversations, tasks } from '@core/services/app-db/node/schema';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
   throwConversationsRuntimeResolveError,
@@ -95,17 +91,17 @@ export function createConversationsWireController(
     ) => Promise<Result<T, E>>
   ) => withConversationRuntime(options.runtimes, target(conversationId), work);
 
-  const acpSessions = modelProvider(conversationsContract.acp.sessions, (key, name) =>
+  const acpSessions = forwardLiveModel(conversationsContract.acp.sessions, (key, name) =>
     resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
       client.acp.sessions.state(key, name).asLiveSource()
     )
   );
-  const acpSession = modelProvider(conversationsContract.acp.session, (key, name) =>
+  const acpSession = forwardLiveModel(conversationsContract.acp.session, (key, name) =>
     resolveConversationRuntimeSource(options.runtimes, target(key.conversationId), (client) =>
       client.acp.session.state(key, name).asLiveSource()
     )
   );
-  const tuiSessions = modelProvider(conversationsContract.tui.sessions, (key, name) =>
+  const tuiSessions = forwardLiveModel(conversationsContract.tui.sessions, (key, name) =>
     resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
       client.tuiAgents.sessions.state(key, name).asLiveSource()
     )
@@ -446,20 +442,6 @@ async function withConversationRuntime<T, E>(
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
   return meta.signal ? { signal: meta.signal } : {};
-}
-
-function modelProvider<Group extends LiveModelDef>(
-  contract: Group,
-  resolveState: LiveModelProvider<Group>['resolveState']
-): LiveModelProvider<Group> {
-  return {
-    kind: 'liveModelProvider',
-    contract,
-    resolveState,
-    async runMutation() {
-      throw new Error(`Live model '${contract.id}' has no mutations`);
-    },
-  };
 }
 
 async function resolveConversationRuntimeSource(

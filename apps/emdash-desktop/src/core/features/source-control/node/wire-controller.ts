@@ -15,6 +15,7 @@ import {
 } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
 import {
   sourceControlGitRuntimeContract as gitContract,
@@ -256,29 +257,19 @@ function createFileDiffModelProvider({
 }: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.checkout.fileDiff
 > {
-  const contract = sourceControlContract.checkout.fileDiff;
-  return {
-    kind: 'liveModelProvider',
-    contract,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolve(key.workspaceId),
-        (client, identity) =>
-          client.git.checkout.fileDiff
-            .state(
-              {
-                ...withoutWorkspaceId(key),
-                checkout: hostPathFromNative(identity.path),
-              },
-              name
-            )
-            .asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error(`Live model '${contract.id}' has no mutations`);
-    },
-  };
+  return forwardLiveModel(sourceControlContract.checkout.fileDiff, (key, name) =>
+    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
+      client.git.checkout.fileDiff
+        .state(
+          {
+            ...withoutWorkspaceId(key),
+            checkout: hostPathFromNative(identity.path),
+          },
+          name
+        )
+        .asLiveSource()
+    )
+  );
 }
 
 function createContentModelProvider({
@@ -287,29 +278,19 @@ function createContentModelProvider({
 }: CreateSourceControlWireControllerOptions): LiveModelProvider<
   typeof sourceControlContract.checkout.content
 > {
-  const contract = sourceControlContract.checkout.content;
-  return {
-    kind: 'liveModelProvider',
-    contract,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(
-        runtimes,
-        workspaceIdentity.resolve(key.workspaceId),
-        (client, identity) =>
-          client.git.checkout.content
-            .state(
-              {
-                ...withoutWorkspaceId(key),
-                checkout: hostPathFromNative(identity.path),
-              },
-              name
-            )
-            .asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error(`Live model '${contract.id}' has no mutations`);
-    },
-  };
+  return forwardLiveModel(sourceControlContract.checkout.content, (key, name) =>
+    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
+      client.git.checkout.content
+        .state(
+          {
+            ...withoutWorkspaceId(key),
+            checkout: hostPathFromNative(identity.path),
+          },
+          name
+        )
+        .asLiveSource()
+    )
+  );
 }
 
 async function withRepositoryRuntime<T extends { projectId: string }, R, E>(

@@ -1,14 +1,10 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import {
-  agentConfigListSchema,
-  type AgentConfigList,
-  type AuthStatusModelState,
-} from '@emdash/core/runtimes/agent-config/api';
+import type { AgentConfigList, AuthStatusModelState } from '@emdash/core/runtimes/agent-config/api';
 import type { Result } from '@emdash/shared';
 import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
-import { ReplicaLog, ReplicaState } from '@emdash/wire';
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { observe, remote, ReplicaLog, whenReady, type Readable } from '@emdash/wire';
 import type { Terminal } from '@xterm/xterm';
+import { agentsContract } from '@core/features/agents/api';
 import { getAgentsClient, type AgentsRpcClient } from '@core/features/agents/api/browser/client';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
 
@@ -58,12 +54,15 @@ export class AcpAuthLoginBinding {
       });
 
       const key = { host: args.host, providerId: args.providerId };
-      const agents = new ReplicaState(client.auth.state({ host: args.host }, 'list'), {
-        schema: agentConfigListSchema,
-        store: createImmutableMobxStore(),
+      const auth = remote(agentsContract.auth, client.auth, {
+        scope,
+        lingerMs: 15_000,
       });
-      scope.add(() => agents.dispose());
-      const status = createAuthStatusHandle(args.providerId, agents);
+      const status = createAuthStatusHandle(
+        args.providerId,
+        auth({ host: args.host }).states.list,
+        scope
+      );
       const output = new ReplicaLog(client.loginOutput.handle(key), {
         store: createXtermLogSink(args.terminal),
       });
@@ -129,15 +128,22 @@ export class AcpAuthLoginBinding {
 
 function createAuthStatusHandle(
   providerId: string,
-  agents: ReplicaState<AgentConfigList>
+  agents: Readable<AgentConfigList | undefined>,
+  parentScope: Scope
 ): AuthStatusHandle {
-  return {
-    ready: agents.ready,
-    current: () =>
-      agents.current()[providerId]?.auth ?? { status: { kind: 'unknown' }, login: null },
-    dispose: async () => {
-      await agents.dispose();
+  const scope = parentScope.child(`auth-status:${providerId}`);
+  let current: AgentConfigList = {};
+  observe(
+    agents,
+    (snapshot) => {
+      current = snapshot.value ?? {};
     },
+    { scope }
+  );
+  return {
+    ready: whenReady(agents, { scope }).then(() => undefined),
+    current: () => current[providerId]?.auth ?? { status: { kind: 'unknown' }, login: null },
+    dispose: () => scope.dispose(),
   };
 }
 

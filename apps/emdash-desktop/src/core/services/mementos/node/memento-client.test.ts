@@ -306,6 +306,35 @@ describe('MementoClient', () => {
     expect(setup.persistence.snapshot()).toEqual([]);
   });
 
+  it('flushes a debounced dirty write while releasing its remote member', async () => {
+    vi.useFakeTimers();
+    const setup = await createSetup(cleanups, { debounceMs: 50 });
+    const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
+    const handle = space.handle(drawerMemento);
+    await handle.ready;
+
+    handle.update({ version: '2', open: true, height: 320 });
+    const release = space.release();
+    await vi.advanceTimersByTimeAsync(50);
+    await release;
+
+    expect(setup.persistence.snapshot()).toHaveLength(1);
+  });
+
+  it('flushes beforeunload writes while the client is disposing members', async () => {
+    const setup = await createSetup(cleanups, { debounceMs: 50 });
+    const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
+    const handle = space.handle(drawerMemento);
+    await handle.ready;
+
+    handle.update({ version: '2', open: true, height: 320 });
+    const beforeUnload = (setup.client as unknown as { beforeUnload(): void }).beforeUnload;
+    beforeUnload();
+    await setup.client.dispose();
+
+    expect(setup.persistence.snapshot()).toHaveLength(1);
+  });
+
   it('deletes all persisted and transient mementos', async () => {
     const setup = await createSetup(cleanups);
     const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));

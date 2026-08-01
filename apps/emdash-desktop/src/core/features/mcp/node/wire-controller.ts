@@ -2,6 +2,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
 import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { mcpContract } from '../api';
 import {
   throwMcpRuntimeResolveError,
@@ -39,17 +40,11 @@ export function createMcpWireController(options: CreateMcpWireControllerOptions)
 function createServersModelProvider(
   runtimes: McpRuntimeBroker
 ): LiveModelProvider<typeof mcpContract.servers> {
-  return {
-    kind: 'liveModelProvider',
-    contract: mcpContract.servers,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(runtimes, key.host, (runtime) =>
-        runtime.agentConfig.mcpServers.state(undefined, name).asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error(`Live model '${mcpContract.servers.id}' has no mutations`);
-    },
-  };
+  return forwardLiveModel(mcpContract.servers, (key, name) =>
+    resolveRuntimeSource(runtimes, key.host, (runtime) =>
+      runtime.agentConfig.mcpServers.state(undefined, name).asLiveSource()
+    )
+  );
 }
 
 async function withAgentConfigResult<T, E>(

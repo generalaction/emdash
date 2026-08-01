@@ -1,6 +1,8 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { isOk, ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
+import { observe, peek } from '@emdash/wire';
 import {
   FakeAcpTerminalProcess,
   makeAcpHarness,
@@ -66,7 +68,7 @@ describe('AcpRuntime session manager', () => {
 
     await clock.advanceBy(1_200);
 
-    expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toEqual({});
+    expect(peek(rt.sessionsLiveHost().get(undefined)!.states.list)).toEqual({});
     await clock.advanceBy(500);
     expect(h.lastChild.kill).toHaveBeenCalledWith('SIGTERM');
   });
@@ -97,7 +99,7 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-old',
       mcpServers: [],
     });
-    expect(rt.sessionsLiveHost().get(undefined)?.states.list.snapshot().data).toHaveProperty(
+    expect(peek(rt.sessionsLiveHost().get(undefined)!.states.list)).toHaveProperty(
       'conv-reconcile'
     );
   });
@@ -144,7 +146,7 @@ describe('AcpRuntime session manager', () => {
         },
       ],
     });
-    expect(rt.sessionLiveModels('conv-mcp')?.states.mcpServers.snapshot().data).toEqual([
+    expect(peek(rt.sessionLiveModels('conv-mcp')!.states.mcpServers)).toEqual([
       { name: 'filesystem', transport: 'stdio' },
       { name: 'docs', transport: 'http' },
     ]);
@@ -168,7 +170,7 @@ describe('AcpRuntime session manager', () => {
       sessionId: 'session-old',
       mcpServers: [{ name: 'filesystem', command: 'npx', args: [], env: [] }],
     });
-    expect(rt.sessionLiveModels('conv-load-mcp')?.states.mcpServers.snapshot().data).toEqual([
+    expect(peek(rt.sessionLiveModels('conv-load-mcp')!.states.mcpServers)).toEqual([
       { name: 'filesystem', transport: 'stdio' },
     ]);
   });
@@ -328,8 +330,9 @@ describe('AcpRuntime session manager', () => {
     );
     const live = rt.sessionLiveModels('conv-live');
     if (!live) throw new Error('expected live models');
-    const updates: Array<{ delta: unknown }> = [];
-    const unsubscribe = live.states.activeTurn.subscribe((update) => updates.push(update));
+    const scope = createScope({ label: 'test:active-turn' });
+    const updates: unknown[] = [];
+    observe(live.states.activeTurn, (snapshot) => updates.push(snapshot.value), { scope });
 
     const prompt = rt.sendPrompt('conv-live', { text: 'hello' });
     updates.length = 0;
@@ -353,10 +356,9 @@ describe('AcpRuntime session manager', () => {
       } as SessionUpdate,
     });
 
-    const patches = updates.flatMap((update) => update.delta as Array<{ path: unknown[] }>);
-    expect(patches.length).toBeGreaterThan(0);
-    expect(patches.every((patch) => patch.path.length > 0)).toBe(true);
-    unsubscribe();
+    expect(updates.length).toBeGreaterThan(0);
+    expect(JSON.stringify(peek(live.states.activeTurn))).toContain('hello');
+    await scope.dispose();
     resolvePrompt({ stopReason: 'end_turn' });
     await prompt;
   });
@@ -365,8 +367,9 @@ describe('AcpRuntime session manager', () => {
     const { rt, client, sessionId } = await startHarness('conv-usage');
     const live = rt.sessionLiveModels('conv-usage');
     if (!live) throw new Error('expected live models');
+    const scope = createScope({ label: 'test:usage' });
     const updates: unknown[] = [];
-    const unsubscribe = live.states.usage.subscribe((update) => updates.push(update));
+    observe(live.states.usage, (snapshot) => updates.push(snapshot.value), { scope });
 
     await client.sessionUpdate({
       sessionId,
@@ -379,13 +382,13 @@ describe('AcpRuntime session manager', () => {
       } as SessionUpdate,
     });
 
-    expect(live.states.usage.snapshot().data).toEqual({
+    expect(peek(live.states.usage)).toEqual({
       contextUsed: 42_000,
       contextSize: 200_000,
       cost: { amount: 0.25, currency: 'USD' },
     });
     expect(updates.length).toBeGreaterThan(0);
-    unsubscribe();
+    await scope.dispose();
   });
 
   it('keeps stored attachment ids in user transcript messages', async () => {
@@ -509,7 +512,7 @@ describe('AcpRuntime session manager', () => {
       cwd: '/tmp',
     });
 
-    expect(rt.sessionLiveModels('conv-terminal')?.states.terminals.snapshot().data).toMatchObject([
+    expect(peek(rt.sessionLiveModels('conv-terminal')!.states.terminals)).toMatchObject([
       { terminalId: created.terminalId, command: 'echo', exitStatus: null },
     ]);
 
@@ -526,7 +529,7 @@ describe('AcpRuntime session manager', () => {
     expect(updates.at(-1)).toMatchObject({ delta: { chunk: ' world' } });
 
     terminal.triggerExit({ exitCode: 0, signal: null });
-    expect(rt.sessionLiveModels('conv-terminal')?.states.terminals.snapshot().data).toMatchObject([
+    expect(peek(rt.sessionLiveModels('conv-terminal')!.states.terminals)).toMatchObject([
       { terminalId: created.terminalId, exitStatus: { exitCode: 0, signal: null } },
     ]);
     unsub();
@@ -539,7 +542,7 @@ describe('AcpRuntime session manager', () => {
 
     await vi.waitFor(() => expect(rt.getSessionState('conv-close').lifecycle).toBe('closed'));
     expect(rt.sessionLiveModels('conv-close')).toBeNull();
-    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+    expect(peek(rt.sessionsListLiveModel().states.list)).toEqual({});
   });
 
   it('removes all sessions sharing a process when that process closes', async () => {
@@ -561,7 +564,7 @@ describe('AcpRuntime session manager', () => {
     });
     expect(rt.sessionLiveModels('conv-a')).toBeNull();
     expect(rt.sessionLiveModels('conv-b')).toBeNull();
-    expect(rt.sessionsListLiveModel().states.list.snapshot().data).toEqual({});
+    expect(peek(rt.sessionsListLiveModel().states.list)).toEqual({});
   });
 });
 

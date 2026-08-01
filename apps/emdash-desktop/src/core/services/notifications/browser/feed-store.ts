@@ -1,23 +1,66 @@
-import { createLiveModelReplica } from '@emdash/wire';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  observe,
+  optimistic,
+  remote,
+  whenReady,
+  type OptimisticView,
+  type RemoteModel,
+} from '@emdash/wire';
+import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { DesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { notificationsContract, type AppNotification } from '../api';
+import {
+  notificationsContract,
+  reduceDismiss,
+  reduceMarkAllRead,
+  reduceMarkRead,
+  type AppNotification,
+  type NotificationList,
+} from '../api';
+
+type FeedRemote = RemoteModel<typeof notificationsContract.feed>;
+type FeedMember = ReturnType<FeedRemote>;
 
 export class NotificationsFeedStore {
-  private readonly model: OptimisticLiveModel<typeof notificationsContract.feed>;
+  private readonly scope: Scope;
+  private readonly remoteModel: FeedRemote;
+  private readonly member: FeedMember;
+  private readonly view: OptimisticView<NotificationList>;
+  private readonly readyPromise: Promise<void>;
+  private list: NotificationList = {};
 
   constructor(client: DesktopWireClient) {
-    const replica = createLiveModelReplica(notificationsContract.feed, client.notifications.feed);
-    this.model = new OptimisticLiveModel(notificationsContract.feed, undefined, replica);
+    this.scope = createScope({ label: 'notifications-feed-store' });
+    this.remoteModel = remote(notificationsContract.feed, client.notifications.feed, {
+      scope: this.scope,
+      lingerMs: 15_000,
+    });
+    this.member = this.remoteModel(undefined);
+    this.view = optimistic(this.member.states.list);
+    makeObservable<NotificationsFeedStore, 'list'>(this, {
+      list: observable.ref,
+      all: computed,
+      unreadCount: computed,
+    });
+    observe(
+      this.view,
+      (snapshot) => {
+        runInAction(() => {
+          this.list = snapshot.value ?? {};
+        });
+      },
+      { scope: this.scope }
+    );
+    this.readyPromise = whenReady(this.view, { scope: this.scope }).then(() => undefined);
   }
 
   get ready(): Promise<void> {
-    return this.model.ready;
+    return this.readyPromise;
   }
 
   get all(): AppNotification[] {
-    return Object.values(this.model.values.list ?? {}).sort((a, b) => b.createdAt - a.createdAt);
+    return Object.values(this.list).sort((a, b) => b.createdAt - a.createdAt);
   }
 
   get unreadCount(): number {
@@ -29,19 +72,19 @@ export class NotificationsFeedStore {
 
   read(ids: string[]): void {
     if (ids.length === 0) return;
-    void this.model.mutations.markRead({ ids, at: Date.now() });
+    void this.view.run(this.member.mutations.markRead, { ids, at: Date.now() }, reduceMarkRead);
   }
 
   markAllRead(): void {
-    void this.model.mutations.markAllRead({ at: Date.now() });
+    void this.view.run(this.member.mutations.markAllRead, { at: Date.now() }, reduceMarkAllRead);
   }
 
   dismiss(id: string): void {
-    void this.model.mutations.dismiss({ ids: [id] });
+    void this.view.run(this.member.mutations.dismiss, { ids: [id] }, reduceDismiss);
   }
 
   async dispose(): Promise<void> {
-    await this.model.dispose();
+    await this.scope.dispose();
   }
 }
 
@@ -53,4 +96,10 @@ export function getNotificationsFeedStore(): Promise<NotificationsFeedStore> {
     return store.ready.then(() => store);
   });
   return storePromise;
+}
+
+export async function resetNotificationsFeedStoreForTests(): Promise<void> {
+  const store = await storePromise;
+  storePromise = null;
+  await store?.dispose();
 }

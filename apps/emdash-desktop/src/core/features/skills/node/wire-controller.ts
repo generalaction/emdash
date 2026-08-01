@@ -2,6 +2,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
 import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { skillsContract } from '../api';
 import {
   throwSkillsRuntimeResolveError,
@@ -35,17 +36,11 @@ export function createSkillsWireController(options: CreateSkillsWireControllerOp
 function createInstalledModelProvider(
   runtimes: SkillsRuntimeBroker
 ): LiveModelProvider<typeof skillsContract.installed> {
-  return {
-    kind: 'liveModelProvider',
-    contract: skillsContract.installed,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(runtimes, key.host, (runtime) =>
-        runtime.agentConfig.skills.state(undefined, name).asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error(`Live model '${skillsContract.installed.id}' has no mutations`);
-    },
-  };
+  return forwardLiveModel(skillsContract.installed, (key, name) =>
+    resolveRuntimeSource(runtimes, key.host, (runtime) =>
+      runtime.agentConfig.skills.state(undefined, name).asLiveSource()
+    )
+  );
 }
 
 async function withAgentConfigResult<T, E>(

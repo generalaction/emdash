@@ -2,7 +2,6 @@ import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
-
 import * as buttonStyles from './button.css';
 
 export type ButtonVariant = NonNullable<ControlVariantProps['variant']> | 'destructive' | 'link';

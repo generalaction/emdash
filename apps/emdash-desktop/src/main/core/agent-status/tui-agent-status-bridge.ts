@@ -1,4 +1,5 @@
 import {
+  tuiAgentsContract,
   tuiAgentStateListSchema,
   tuiSessionListSchema,
   type TuiAgentState,
@@ -8,7 +9,8 @@ import {
   type TuiSessionState,
 } from '@emdash/core/runtimes/tui-agents/api';
 import type { Unsubscribe } from '@emdash/shared';
-import { ReplicaState } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, remote, whenReady } from '@emdash/wire';
 import type { WireWorker } from '@emdash/wire/worker';
 import type { ConversationEvent } from '@core/primitives/conversations/api';
 import type { TuiAgentsRuntimeClient } from '@main/gateway/desktop-workers';
@@ -36,11 +38,8 @@ class TuiAgentStatusBridge {
   private readonly agentStates = new Map<string, TuiAgentState>();
   private readonly sessions = new Map<string, TuiSessionState>();
   private workerStateUnsubscribe: Unsubscribe | null = null;
-  private agentStatesReplica: ReplicaState<TuiAgentStateList> | null = null;
-  private sessionsReplica: ReplicaState<TuiSessionList> | null = null;
+  private attachScope: Scope | null = null;
   private attaching = false;
-  private agentStatesBootstrapped = false;
-  private sessionsBootstrapped = false;
   private dependencies: TuiAgentStatusBridgeDependencies | undefined;
 
   initialize(dependencies: TuiAgentStatusBridgeDependencies): void {
@@ -68,28 +67,70 @@ class TuiAgentStatusBridge {
         this.detach();
       });
 
-      const agentStatesReplica = new ReplicaState<TuiAgentStateList>(
-        dependencies.client.agentStates.state(undefined, 'list'),
+      const scope = createScope({ label: 'tui-agent-status-bridge' });
+      this.attachScope = scope;
+      const remoteAgentStates = remote(
+        tuiAgentsContract.agentStates,
+        dependencies.client.agentStates,
         {
-          schema: tuiAgentStateListSchema,
-          onChange: (states) => void this.applyAgentStates(states),
+          scope,
+          lingerMs: 15_000,
         }
       );
-      const sessionsReplica = new ReplicaState<TuiSessionList>(
-        dependencies.client.sessions.state(undefined, 'list'),
-        {
-          schema: tuiSessionListSchema,
-          onChange: (sessions) => void this.applySessions(sessions),
-        }
+      const remoteSessions = remote(tuiAgentsContract.sessions, dependencies.client.sessions, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const agentStatesList = remoteAgentStates(undefined).states.list;
+      const sessionsList = remoteSessions(undefined).states.list;
+      let firstAgentStates = true;
+      let firstSessions = true;
+      let agentStatesChain = Promise.resolve();
+      let sessionsChain = Promise.resolve();
+      observe(
+        agentStatesList,
+        (snapshot) => {
+          if (snapshot.status === 'loading') return;
+          const states = tuiAgentStateListSchema.parse(snapshot.value ?? {});
+          const bootstrap = firstAgentStates;
+          firstAgentStates = false;
+          agentStatesChain = agentStatesChain
+            .then(() => this.applyAgentStates(states, { bootstrap }))
+            .catch((error) => {
+              log.warn('TUI agent status bridge failed to apply agent states', {
+                error: String(error),
+              });
+            });
+        },
+        { scope }
+      );
+      observe(
+        sessionsList,
+        (snapshot) => {
+          if (snapshot.status === 'loading') return;
+          const sessions = tuiSessionListSchema.parse(snapshot.value ?? {});
+          const bootstrap = firstSessions;
+          firstSessions = false;
+          sessionsChain = sessionsChain
+            .then(() => this.applySessions(sessions, { bootstrap }))
+            .catch((error) => {
+              log.warn('TUI agent status bridge failed to apply sessions', {
+                error: String(error),
+              });
+            });
+        },
+        { scope }
       );
 
-      await Promise.all([agentStatesReplica.ready, sessionsReplica.ready]);
-      this.agentStatesReplica = agentStatesReplica;
-      this.sessionsReplica = sessionsReplica;
-      await this.applyAgentStates(agentStatesReplica.current(), { bootstrap: true });
-      await this.applySessions(sessionsReplica.current(), { bootstrap: true });
-      this.agentStatesBootstrapped = true;
-      this.sessionsBootstrapped = true;
+      await Promise.all([
+        whenReady(agentStatesList, { scope }),
+        whenReady(sessionsList, { scope }),
+      ]);
+      await Promise.all([agentStatesChain, sessionsChain]);
+      if (this.attachScope !== scope) {
+        await scope.dispose();
+        return;
+      }
     } finally {
       this.attaching = false;
     }
@@ -98,23 +139,18 @@ class TuiAgentStatusBridge {
   private detach(): void {
     this.workerStateUnsubscribe?.();
     this.workerStateUnsubscribe = null;
-    const agentStatesReplica = this.agentStatesReplica;
-    const sessionsReplica = this.sessionsReplica;
-    this.agentStatesReplica = null;
-    this.sessionsReplica = null;
-    this.agentStatesBootstrapped = false;
-    this.sessionsBootstrapped = false;
+    const scope = this.attachScope;
+    this.attachScope = null;
     this.agentStates.clear();
     this.sessions.clear();
-    if (agentStatesReplica) void agentStatesReplica.dispose();
-    if (sessionsReplica) void sessionsReplica.dispose();
+    if (scope) void scope.dispose();
   }
 
   private async applyAgentStates(
     nextStates: TuiAgentStateList,
     options: { bootstrap?: boolean } = {}
   ): Promise<void> {
-    const bootstrap = options.bootstrap ?? !this.agentStatesBootstrapped;
+    const bootstrap = options.bootstrap ?? false;
     const seen = new Set<string>();
 
     for (const state of Object.values(nextStates)) {
@@ -139,7 +175,7 @@ class TuiAgentStatusBridge {
     nextSessions: TuiSessionList,
     options: { bootstrap?: boolean } = {}
   ): Promise<void> {
-    const bootstrap = options.bootstrap ?? !this.sessionsBootstrapped;
+    const bootstrap = options.bootstrap ?? false;
     const seen = new Set<string>();
 
     for (const session of Object.values(nextSessions)) {

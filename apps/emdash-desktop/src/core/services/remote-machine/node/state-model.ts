@@ -1,5 +1,5 @@
 import { isDeepEqual } from '@emdash/shared';
-import { createLiveModelHost, type LiveInstance, type LiveModelHost } from '@emdash/wire';
+import { cell, expose, peek, produce, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
 import {
   remoteMachineContract,
   type RemoteMachineServerRuntime,
@@ -7,46 +7,56 @@ import {
 } from '../api';
 
 export class RemoteMachineStateModel {
-  readonly host: LiveModelHost<typeof remoteMachineContract.serverStates>;
-  readonly instance: LiveInstance<typeof remoteMachineContract.serverStates>;
+  readonly runtime: Cell<RemoteMachineServerRuntime>;
+  readonly host: LeasedLiveModelProvider<typeof remoteMachineContract.serverStates>;
 
   constructor() {
-    this.host = createLiveModelHost(remoteMachineContract.serverStates);
-    this.instance = this.host.create(undefined, { runtime: {} });
+    this.runtime = cell<RemoteMachineServerRuntime>({});
+    this.host = expose(remoteMachineContract.serverStates, { runtime: this.runtime });
   }
 
   set(connectionId: string, state: RemoteMachineServerState): void {
-    this.instance.states.runtime.produce((runtime: RemoteMachineServerRuntime) => {
-      // Assigning a fresh deep-equal object would still produce a patch; skip
-      // the write so identical states never emit updates to subscribers.
-      if (isDeepEqual(runtime[connectionId], state)) return;
-      runtime[connectionId] = state;
-    });
+    this.runtime.set(
+      produce(peek(this.runtime), (runtime) => {
+        // Assigning a fresh deep-equal object would still produce a patch; skip
+        // the write so identical states never emit updates to subscribers.
+        if (isDeepEqual(runtime[connectionId], state)) return;
+        runtime[connectionId] = state;
+      })
+    );
   }
 
   get(connectionId: string): RemoteMachineServerState | undefined {
-    return this.instance.states.runtime.snapshot().data[connectionId];
+    return peek(this.runtime)[connectionId];
   }
 
   remove(connectionId: string): void {
-    this.instance.states.runtime.produce((runtime: RemoteMachineServerRuntime) => {
-      delete runtime[connectionId];
-    });
+    this.runtime.set(
+      produce(peek(this.runtime), (runtime) => {
+        delete runtime[connectionId];
+      })
+    );
   }
 
   markConnectionLost(connectionId: string): void {
-    this.instance.states.runtime.produce((runtime: RemoteMachineServerRuntime) => {
-      const current = runtime[connectionId];
-      if (current?.status !== 'healthy') return;
-      runtime[connectionId] = {
-        status: 'stopped',
-        version: current.version,
-        latestVersion: current.latestVersion,
-      };
-    });
+    this.runtime.set(
+      produce(peek(this.runtime), (runtime) => {
+        const current = runtime[connectionId];
+        if (current?.status !== 'healthy') return;
+        runtime[connectionId] = {
+          status: 'stopped',
+          version: current.version,
+          latestVersion: current.latestVersion,
+        };
+      })
+    );
+  }
+
+  snapshot(): RemoteMachineServerRuntime {
+    return peek(this.runtime);
   }
 
   dispose(): void {
-    this.host.dispose();
+    void this.host.dispose();
   }
 }

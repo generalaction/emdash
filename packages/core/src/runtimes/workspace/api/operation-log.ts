@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope } from '@emdash/shared/concurrency';
+import { observe, remote } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import { workspaceContract, type WorkspaceContract } from './contract';
 import {
@@ -37,33 +38,38 @@ export async function submitAndFollowWorkspaceOperation(
     terminalResolve = resolve;
   });
 
-  const replica = createLiveModelReplica(workspaceContract.operationLog, client.operationLog, {
-    onChange: {
-      list: (value) => {
-        const list = value as unknown as WorkspaceOperationRecordMap;
-        const record = list[request.requestId];
-        if (settled) return;
-        if (!record) {
-          if (observed) {
-            settled = true;
-            terminalResolve({
-              kind: 'error',
-              error: { type: 'not-found', message: 'Workspace operation record disappeared' },
-            });
-          }
-          return;
-        }
-        observed = true;
-        if (record.stages) options.onProgress?.(record.stages);
-        options.onWaitingChange?.(record.status === 'pending');
-        if (isTerminalStatus(record.status)) {
-          settled = true;
-          terminalResolve({ kind: 'record', record });
-        }
-      },
-    },
+  const scope = createScope({ label: `workspace-operation:${request.requestId}` });
+  const operationLog = remote(workspaceContract.operationLog, client.operationLog, {
+    scope,
+    lingerMs: 15_000,
   });
-  const lease = replica.acquire({});
+  const member = operationLog({});
+  observe(
+    member.states.list,
+    (snapshot) => {
+      const list = (snapshot.value ?? {}) as WorkspaceOperationRecordMap;
+      const record = list[request.requestId];
+      if (settled) return;
+      if (!record) {
+        if (observed) {
+          settled = true;
+          terminalResolve({
+            kind: 'error',
+            error: { type: 'not-found', message: 'Workspace operation record disappeared' },
+          });
+        }
+        return;
+      }
+      observed = true;
+      if (record.stages) options.onProgress?.(record.stages);
+      options.onWaitingChange?.(record.status === 'pending');
+      if (isTerminalStatus(record.status)) {
+        settled = true;
+        terminalResolve({ kind: 'record', record });
+      }
+    },
+    { scope }
+  );
   const cancel = () => {
     aborted = true;
     void client.cancelOperation({ requestId: request.requestId });
@@ -71,16 +77,7 @@ export async function submitAndFollowWorkspaceOperation(
   options.signal?.addEventListener('abort', cancel, { once: true });
 
   try {
-    const model = await lease.ready();
-    const snapshot = await model.states.list.snapshot();
-    // The replica snapshot currently loses the live-state data generic at this boundary.
-    const records = snapshot.data as WorkspaceOperationRecordMap;
-    const existing = records[request.requestId];
-    if (existing) observed = true;
-    if (existing && isTerminalStatus(existing.status)) {
-      settled = true;
-      terminalResolve({ kind: 'record', record: existing });
-    }
+    await member.states.list.refresh();
 
     if (options.signal?.aborted) return err(cancelledError());
 
@@ -104,8 +101,7 @@ export async function submitAndFollowWorkspaceOperation(
     );
   } finally {
     options.signal?.removeEventListener('abort', cancel);
-    await lease.release();
-    await replica.dispose();
+    await scope.dispose();
   }
 }
 

@@ -72,6 +72,7 @@ import {
   createSessionLiveModels,
   createSessionsListModel,
   publishLiveModelState,
+  produceCell,
   type AcpSessionLiveHost,
   type AcpSessionsLiveHost,
   type SessionLiveModels,
@@ -673,7 +674,7 @@ export class SessionManager implements InboundRouter {
     if (activity?.lastOutputAt !== null && activity?.lastOutputAt !== undefined) {
       summary.lastOutputAt = activity.lastOutputAt;
     }
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       draft[input.conversationId] = summary;
     });
   }
@@ -717,7 +718,7 @@ export class SessionManager implements InboundRouter {
   }
 
   private deleteSessionSummary(conversationId: string): void {
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       delete draft[conversationId];
     });
   }
@@ -744,7 +745,7 @@ export class SessionManager implements InboundRouter {
   private syncSessionActivity(conversationId: string): void {
     const activity = this.activity.get(conversationId)?.snapshot();
     if (!activity) return;
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (!current) return;
       if (activity.lastInputAt !== null) current.lastInputAt = activity.lastInputAt;

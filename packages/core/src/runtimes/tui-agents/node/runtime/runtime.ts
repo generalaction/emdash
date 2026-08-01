@@ -1,5 +1,5 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
-import { LiveLog, type LiveSource } from '@emdash/wire';
+import { LiveLog, peek, type LiveSource } from '@emdash/wire';
 import { formatCommandLine } from '@primitives/exec/api';
 import {
   compileIdlePolicy,
@@ -30,6 +30,7 @@ import {
   createTuiAgentStatesListModel,
   createTuiSessionsLiveHost,
   createTuiSessionsListModel,
+  produceCell,
   type TuiAgentStatesLiveHost,
   type TuiAgentStatesListModel,
   type TuiSessionsLiveHost,
@@ -229,7 +230,7 @@ export class TuiAgentsRuntime {
     const active = this.sessions.get(conversationId);
     active?.output.reseed();
     this.sessions.delete(conversationId);
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       delete draft[conversationId];
     });
     this.agentStates.clear(conversationId);
@@ -251,7 +252,7 @@ export class TuiAgentsRuntime {
     const active = this.sessions.get(conversationId);
     active?.output.reseed();
     this.sessions.delete(conversationId);
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       delete draft[conversationId];
     });
     this.agentStates.clear(conversationId);
@@ -655,7 +656,7 @@ export class TuiAgentsRuntime {
     if (activity?.lastOutputAt !== null && activity?.lastOutputAt !== undefined) {
       next.lastOutputAt = activity.lastOutputAt;
     }
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       draft[state.conversationId] = next;
     });
   }
@@ -663,7 +664,7 @@ export class TuiAgentsRuntime {
   private syncSessionActivity(conversationId: string): void {
     const activity = this.activity.get(conversationId)?.snapshot();
     if (!activity) return;
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (!current) return;
       if (activity.lastInputAt !== null) current.lastInputAt = activity.lastInputAt;
@@ -693,7 +694,7 @@ export class TuiAgentsRuntime {
   private lifecycleSnapshot(conversationId: string): IoActivitySnapshot | null {
     const config = this.configs.get(conversationId);
     if (!config || config.intent === 'stopped') return null;
-    const state = this.sessionsList.states.list.snapshot().data[conversationId];
+    const state = peek(this.sessionsList.states.list)[conversationId];
     const activity = this.activityFor(conversationId).snapshot();
     const tmuxLastOutputAt = config.input.tmuxSessionName
       ? this.tmuxActivity.get(config.input.tmuxSessionName)
@@ -763,7 +764,7 @@ export class TuiAgentsRuntime {
     conversationId: string,
     resume: NonNullable<TuiSessionState['resume']>
   ): void {
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (current) {
         current.resume = resume;
@@ -785,7 +786,7 @@ export class TuiAgentsRuntime {
   }
 
   private markExited(conversationId: string, info: PtyExitInfo | null): void {
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (!current) return;
       current.status = 'exited';
@@ -796,7 +797,7 @@ export class TuiAgentsRuntime {
   }
 
   private updateSessionSize(conversationId: string, cols: number, rows: number): void {
-    this.sessionsList.states.list.produce((draft) => {
+    produceCell(this.sessionsList.states.list, (draft) => {
       const current = draft[conversationId];
       if (!current) return;
       current.cols = cols;
@@ -805,11 +806,11 @@ export class TuiAgentsRuntime {
   }
 
   private currentProviderSessionId(conversationId: string, fallback: string | null): string | null {
-    return this.sessionsList.states.list.snapshot().data[conversationId]?.sessionId ?? fallback;
+    return peek(this.sessionsList.states.list)[conversationId]?.sessionId ?? fallback;
   }
 
   private currentResumeState(conversationId: string): TuiSessionState['resume'] {
-    return this.sessionsList.states.list.snapshot().data[conversationId]?.resume ?? null;
+    return peek(this.sessionsList.states.list)[conversationId]?.resume ?? null;
   }
 
   private spawnSpec(

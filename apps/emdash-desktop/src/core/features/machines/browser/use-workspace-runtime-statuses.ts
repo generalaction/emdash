@@ -1,6 +1,6 @@
-import { createLiveModelReplica } from '@emdash/wire';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
-import { makeAutoObservable, observable, reaction, runInAction } from 'mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, remote, type RemoteModel } from '@emdash/wire';
+import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { useEffect, useMemo } from 'react';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import {
@@ -21,17 +21,14 @@ export type WorkspaceRuntimeStatusInput = {
   hasActiveSessions: boolean;
 };
 
-type RuntimeReplica = ReturnType<
-  typeof createLiveModelReplica<typeof workspacesWireContract.runtime>
->;
-type RuntimeModel = OptimisticLiveModel<typeof workspacesWireContract.runtime>;
+type RuntimeRemote = RemoteModel<typeof workspacesWireContract.runtime>;
 
 class WorkspaceRuntimeStatusesStore {
   readonly statuses = observable.map<string, WorkspaceRuntimeStatusDetails>();
-  private readonly models = new Map<string, RuntimeModel>();
-  private readonly reactions = new Map<string, () => void>();
+  private readonly scope = createScope({ label: 'workspace-runtime-statuses' });
+  private readonly scopes = new Map<string, Scope>();
   private readonly fallbacks = new Map<string, WorkspaceRuntimeStatus>();
-  private replica: RuntimeReplica | null = null;
+  private remotePromise: Promise<RuntimeRemote> | null = null;
   private disposed = false;
 
   constructor() {
@@ -53,7 +50,7 @@ class WorkspaceRuntimeStatusesStore {
       }
     }
 
-    for (const workspaceId of [...this.models.keys()]) {
+    for (const workspaceId of [...this.scopes.keys()]) {
       if (nextIds.has(workspaceId)) continue;
       void this.remove(workspaceId);
     }
@@ -69,81 +66,74 @@ class WorkspaceRuntimeStatusesStore {
 
   async dispose(): Promise<void> {
     this.disposed = true;
-    const models = [...this.models.values()];
-    const reactions = [...this.reactions.values()];
-    this.models.clear();
-    this.reactions.clear();
+    const scopes = [...this.scopes.values()];
+    this.scopes.clear();
     this.statuses.clear();
     this.fallbacks.clear();
-    for (const disposeReaction of reactions) disposeReaction();
-    await Promise.all(models.map(async (model) => await model.dispose()));
-    await this.replica?.dispose();
-    this.replica = null;
+    await Promise.all(scopes.map(async (scope) => await scope.dispose()));
+    await this.scope.dispose();
   }
 
   private async ensure(workspaceId: string): Promise<void> {
-    if (this.models.has(workspaceId) || this.disposed) return;
-    const replica = await this.ensureReplica();
-    if (this.disposed || this.models.has(workspaceId)) return;
+    if (this.scopes.has(workspaceId) || this.disposed) return;
+    const runtimeRemote = await this.ensureRemote();
+    if (this.disposed || this.scopes.has(workspaceId)) return;
 
-    const model = new OptimisticLiveModel(workspacesWireContract.runtime, { workspaceId }, replica);
-    this.models.set(workspaceId, model);
-    this.reactions.set(
-      workspaceId,
-      reaction(
-        () => model.values.state,
-        (state) => {
-          runInAction(() => {
-            this.statuses.set(
-              workspaceId,
-              deriveWorkspaceRuntimeStatus(state, this.fallbacks.get(workspaceId) === 'active')
-            );
-          });
-        },
-        { fireImmediately: true }
-      )
+    const scope = this.scope.child(`runtime:${workspaceId}`);
+    this.scopes.set(workspaceId, scope);
+    const member = runtimeRemote({ workspaceId });
+    observe(
+      member.states.state,
+      (snapshot) => {
+        runInAction(() => {
+          this.statuses.set(
+            workspaceId,
+            deriveWorkspaceRuntimeStatus(
+              snapshot.value,
+              this.fallbacks.get(workspaceId) === 'active'
+            )
+          );
+        });
+      },
+      { scope }
     );
 
     try {
-      await model.ready;
-      if (this.disposed || this.models.get(workspaceId) !== model) {
-        await model.dispose();
+      await member.states.state.refresh();
+      if (this.disposed || this.scopes.get(workspaceId) !== scope) {
+        await scope.dispose();
         return;
       }
-      runInAction(() => {
-        const state = model.values.state;
-        this.statuses.set(
-          workspaceId,
-          deriveWorkspaceRuntimeStatus(state, this.fallbacks.get(workspaceId) === 'active')
-        );
-      });
     } catch {
-      if (this.models.get(workspaceId) === model) {
-        this.statuses.set(
-          workspaceId,
-          deriveWorkspaceRuntimeStatus(undefined, this.fallbacks.get(workspaceId) === 'active')
-        );
+      if (this.scopes.get(workspaceId) === scope) {
+        runInAction(() => {
+          this.statuses.set(
+            workspaceId,
+            deriveWorkspaceRuntimeStatus(undefined, this.fallbacks.get(workspaceId) === 'active')
+          );
+        });
       }
     }
   }
 
-  private async ensureReplica(): Promise<RuntimeReplica> {
-    if (this.replica) return this.replica;
-    const client = await getWorkspacesWireClient();
-    if (this.replica) return this.replica;
-    this.replica = createLiveModelReplica(workspacesWireContract.runtime, client.runtime);
-    return this.replica;
+  private async ensureRemote(): Promise<RuntimeRemote> {
+    if (this.remotePromise) return this.remotePromise;
+    this.remotePromise = getWorkspacesWireClient().then((client) =>
+      remote(workspacesWireContract.runtime, client.runtime, {
+        scope: this.scope,
+        lingerMs: 15_000,
+      })
+    );
+    return this.remotePromise;
   }
 
   private async remove(workspaceId: string): Promise<void> {
-    const model = this.models.get(workspaceId);
-    if (!model) return;
-    this.reactions.get(workspaceId)?.();
-    this.reactions.delete(workspaceId);
-    this.models.delete(workspaceId);
+    const scope = this.scopes.get(workspaceId);
+    if (!scope) return;
+    this.scopes.delete(workspaceId);
     this.statuses.delete(workspaceId);
     this.fallbacks.delete(workspaceId);
-    await model.dispose();
+    await scope.dispose();
   }
 }
 

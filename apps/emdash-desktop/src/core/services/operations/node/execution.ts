@@ -23,7 +23,7 @@ export type OperationExecutionContext = {
   definitions: Map<OperationKind, OperationDefinition>;
   progress: Map<string, OperationProgress>;
   hostIsOnline(hostRef: string): boolean;
-  refreshOperationTrees(): Promise<void>;
+  refreshOperationTrees(projectId?: string): Promise<void>;
   publishPendingCleanup(
     operation: Pick<LifecycleOperationRow, 'id' | 'payload' | 'hostRef'>,
     reason: OperationConfirmationReason
@@ -82,7 +82,7 @@ async function runOperation(
     .update(lifecycleOperations)
     .set({ status: runningStatus, attempt: operation.attempt + 1, error: null })
     .where(eq(lifecycleOperations.id, operation.id));
-  await context.refreshOperationTrees();
+  await context.refreshOperationTrees(operation.projectId ?? undefined);
 
   const result = await runWithRetries(context, current, definition, signal);
   context.progress.delete(operation.id);
@@ -113,7 +113,7 @@ async function runOperation(
       })
       .where(eq(lifecycleOperations.id, operation.id));
   }
-  await context.refreshOperationTrees();
+  await context.refreshOperationTrees(operation.projectId ?? undefined);
 }
 
 export async function settleParentIfChildrenDone(
@@ -148,7 +148,7 @@ export async function settleParentIfChildrenDone(
     return changes > 0;
   });
   if (!settled) return;
-  await context.refreshOperationTrees();
+  await context.refreshOperationTrees(child.projectId ?? undefined);
   context.poke();
 }
 
@@ -208,7 +208,7 @@ async function runWithRetries(
         clock: context.clock,
         reportProgress: (progress) => {
           context.progress.set(operation.id, progress);
-          void context.refreshOperationTrees();
+          void context.refreshOperationTrees(operation.projectId ?? undefined);
         },
       });
     } catch (error) {
@@ -249,7 +249,7 @@ async function awaitConfirmation(
     })
     .where(eq(lifecycleOperations.id, operation.id));
   context.publishPendingCleanup(operation, reason);
-  await context.refreshOperationTrees();
+  await context.refreshOperationTrees(operation.projectId ?? undefined);
 }
 
 async function failMissingDefinition(
@@ -270,7 +270,7 @@ async function failMissingDefinition(
       error,
     })
     .where(eq(lifecycleOperations.id, operation.id));
-  await context.refreshOperationTrees();
+  await context.refreshOperationTrees(operation.projectId ?? undefined);
 }
 
 export function transitionStatus(

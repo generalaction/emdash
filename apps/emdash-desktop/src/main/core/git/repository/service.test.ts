@@ -4,51 +4,46 @@ import { GitRepositoryService } from './service';
 
 const mocks = vi.hoisted(() => ({
   dispose: vi.fn(),
-  onChange: vi.fn(),
-  ready: Promise.resolve(),
-  warn: vi.fn(),
+  remote: vi.fn(),
 }));
 
 vi.mock('@emdash/wire', async (importOriginal) => ({
   ...(await importOriginal<typeof Wire>()),
-  ReplicaState: vi.fn(function ReplicaState() {
-    return {
-      dispose: mocks.dispose,
-      onChange: mocks.onChange,
-      ready: mocks.ready,
-    };
-  }),
-}));
-
-vi.mock('@emdash/shared/logger', () => ({
-  log: { warn: mocks.warn },
+  remote: mocks.remote,
 }));
 
 describe('GitRepositoryService', () => {
   beforeEach(() => {
     mocks.dispose.mockReset();
-    mocks.onChange.mockReset();
-    mocks.warn.mockReset();
-    mocks.ready = Promise.resolve();
+    mocks.remote.mockReset();
+    mocks.remote.mockReturnValue(() => ({
+      states: {
+        remotes: {
+          __stateNode: {
+            observe(listener: (snapshot: unknown) => void) {
+              listener({
+                status: 'ready',
+                value: { remotes: [{ name: 'origin', url: 'git@example' }] },
+              });
+              return mocks.dispose;
+            },
+          },
+        },
+      },
+    }));
   });
 
-  it('treats a remotes seed failure as a safe no-op subscription', async () => {
-    mocks.ready = Promise.reject(new Error('not a git repository'));
+  it('subscribes to remote state and disposes the observation scope', async () => {
     const service = new GitRepositoryService(
       { repository: { model: { state: vi.fn() } } } as never,
       { repository: { root: { kind: 'posix' }, segments: ['plain-folder'] } } as never,
       { get: vi.fn() }
     );
+    const cb = vi.fn();
 
-    const unsubscribe = service.subscribeRemotes(vi.fn());
+    const unsubscribe = service.subscribeRemotes(cb);
 
-    await vi.waitFor(() =>
-      expect(mocks.warn).toHaveBeenCalledWith(
-        'GitRepositoryService: failed to subscribe to remotes',
-        expect.objectContaining({ error: 'not a git repository' })
-      )
-    );
-    expect(mocks.onChange).not.toHaveBeenCalled();
+    expect(cb).toHaveBeenCalledWith({ remotes: [{ name: 'origin', url: 'git@example' }] });
 
     unsubscribe();
 

@@ -5,7 +5,8 @@ import {
   type WorkspaceOperationRecordMap,
   type WorkspaceOperationRecordStatus,
 } from '@emdash/core/runtimes/workspace/api';
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope } from '@emdash/shared/concurrency';
+import { observe, remote } from '@emdash/wire';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { machinesContract } from '@core/features/machines/api';
@@ -138,63 +139,41 @@ export function useWorkspaceOperationRecords(machineId?: string): WorkspaceOpera
 
   useEffect(() => {
     let disposed = false;
-    let cleanup: (() => void) | undefined;
     let initialized = false;
     const terminalRecordIds = new Set<string>();
+    const scope = createScope({ label: 'workspace-operation-records' });
     void (async () => {
       try {
         const client = await getDesktopWireClient();
         if (disposed) return;
-        const replica = createLiveModelReplica(
-          machinesContract.operationLog,
-          client.machines.operationLog,
-          {
-            onChange: {
-              list: (list: WorkspaceOperationRecordMap) => {
-                setRecords(list);
-                if (!initialized) {
-                  seedTerminalRecordIds(terminalRecordIds, list);
-                  initialized = true;
-                  return;
-                }
-                void invalidateWorkspaceScanCacheForNewTerminalRecords(
-                  client,
-                  list,
-                  terminalRecordIds
-                );
-              },
-            },
-          }
+        const operationLog = remote(machinesContract.operationLog, client.machines.operationLog, {
+          scope,
+          lingerMs: 15_000,
+        });
+        const member = operationLog({ machineId });
+        observe(
+          member.states.list,
+          (snapshot) => {
+            if (disposed) return;
+            const list = snapshot.value ?? {};
+            setRecords(list);
+            if (!initialized) {
+              seedTerminalRecordIds(terminalRecordIds, list);
+              initialized = true;
+              return;
+            }
+            void invalidateWorkspaceScanCacheForNewTerminalRecords(client, list, terminalRecordIds);
+          },
+          { scope }
         );
-        const lease = replica.acquire({ machineId });
-        let released = false;
-        cleanup = () => {
-          if (released) return;
-          released = true;
-          void lease.release();
-          void replica.dispose();
-        };
-        const model = await lease.ready();
-        if (disposed) {
-          cleanup();
-          return;
-        }
-        const snapshot = await model.states.list.snapshot();
-        // The replica snapshot currently loses the live-state data generic at this boundary.
-        const snapshotData = snapshot.data as WorkspaceOperationRecordMap;
-        setRecords(snapshotData);
-        if (!initialized) {
-          seedTerminalRecordIds(terminalRecordIds, snapshotData);
-          initialized = true;
-        }
       } catch {
-        cleanup?.();
+        void scope.dispose();
         if (!disposed) setRecords({});
       }
     })();
     return () => {
       disposed = true;
-      cleanup?.();
+      void scope.dispose();
     };
   }, [machineId]);
 

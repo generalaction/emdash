@@ -1,14 +1,6 @@
-import { createLiveModelReplica, type ContractClient } from '@emdash/wire';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
-import {
-  action,
-  computed,
-  makeObservable,
-  observable,
-  reaction,
-  runInAction,
-  type IReactionDisposer,
-} from 'mobx';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, remote, whenReady, type ContractClient } from '@emdash/wire';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import type {
   ConnectionState,
@@ -30,7 +22,6 @@ type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
   Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
 type SshClient = ContractClient<typeof sshContract>;
 type MachinesClient = ContractClient<typeof machinesContract>;
-type ConnectionsModel = OptimisticLiveModel<typeof sshContract.connections>;
 export type SystemDependenciesStore = Pick<
   MachinesStore,
   'getSystemDependencies' | 'installSystemDependency'
@@ -48,9 +39,9 @@ export class MachinesStore {
   private pendingMutations = 0;
   private started = false;
   private modelReady = false;
-  private model: ConnectionsModel | undefined;
+  private runtimeData: SshConnectionsRuntime = {};
+  private modelScope: Scope | undefined;
   private startPromise: Promise<void> | undefined;
-  private disposeConnectionReaction: IReactionDisposer | undefined;
   private sshClientPromise: Promise<SshClient> | undefined;
   private machinesClientPromise: Promise<MachinesClient> | undefined;
   private readonly sshClientOverride?: SshClient;
@@ -66,18 +57,21 @@ export class MachinesStore {
       []
     );
 
-    makeObservable<MachinesStore, 'model' | 'modelReady' | 'pendingMutations' | 'started'>(this, {
-      model: observable.ref,
-      modelReady: observable,
-      pendingMutations: observable,
-      started: observable,
-      connections: computed,
-      connectionStates: computed,
-      healthStates: computed,
-      isLoading: computed,
-      start: action,
-      dispose: action,
-    });
+    makeObservable<MachinesStore, 'runtimeData' | 'modelReady' | 'pendingMutations' | 'started'>(
+      this,
+      {
+        runtimeData: observable.ref,
+        modelReady: observable,
+        pendingMutations: observable,
+        started: observable,
+        connections: computed,
+        connectionStates: computed,
+        healthStates: computed,
+        isLoading: computed,
+        start: action,
+        dispose: action,
+      }
+    );
   }
 
   get connections(): SshConfig[] {
@@ -97,12 +91,7 @@ export class MachinesStore {
   }
 
   get isLoading(): boolean {
-    return (
-      this.connectionsResource.loading ||
-      !this.modelReady ||
-      (this.model?.isPending ?? false) ||
-      this.pendingMutations > 0
-    );
+    return this.connectionsResource.loading || !this.modelReady || this.pendingMutations > 0;
   }
 
   start(): Promise<void> {
@@ -120,11 +109,10 @@ export class MachinesStore {
     this.modelReady = false;
     this.startPromise = undefined;
     this.connectionsResource.dispose();
-    this.disposeConnectionReaction?.();
-    this.disposeConnectionReaction = undefined;
-    const model = this.model;
-    this.model = undefined;
-    if (model) void model.dispose();
+    const scope = this.modelScope;
+    this.modelScope = undefined;
+    this.runtimeData = {};
+    if (scope) void scope.dispose();
   }
 
   stateFor(connectionId: string): ConnectionState {
@@ -221,7 +209,7 @@ export class MachinesStore {
   }
 
   private get runtime(): SshConnectionsRuntime {
-    return this.model?.values.runtime ?? {};
+    return this.runtimeData;
   }
 
   private getSshClient(): Promise<SshClient> {
@@ -242,41 +230,48 @@ export class MachinesStore {
     const client = await this.getSshClient();
     if (!this.started) return;
 
-    const replica = createLiveModelReplica(sshContract.connections, client.connections);
-    const model = new OptimisticLiveModel(sshContract.connections, undefined, replica);
-    runInAction(() => {
-      this.model = model;
+    const scope = createScope({ label: 'machines-store:ssh-connections' });
+    const connectionsRemote = remote(sshContract.connections, client.connections, {
+      scope,
+      lingerMs: 15_000,
     });
-    await model.ready;
+    const model = connectionsRemote(undefined);
 
-    if (!this.started || this.model !== model) {
-      await model.dispose();
+    observe(
+      model.states.runtime,
+      (snapshot) => {
+        const previousRuntime = this.runtimeData;
+        const runtime = snapshot.value ?? {};
+        runInAction(() => {
+          this.runtimeData = runtime;
+          if (snapshot.status !== 'loading') this.modelReady = true;
+          for (const [connectionId, value] of Object.entries(runtime)) {
+            if (
+              value.state === 'connected' &&
+              previousRuntime[connectionId]?.state !== 'connected'
+            ) {
+              this.onConnectionReady?.(connectionId);
+            }
+          }
+        });
+      },
+      { scope }
+    );
+
+    runInAction(() => {
+      this.modelScope = scope;
+    });
+    await whenReady(model.states.runtime, { scope });
+
+    if (!this.started || this.modelScope !== scope) {
+      await scope.dispose();
       return;
     }
-
-    this.disposeConnectionReaction = reaction(
-      () => model.values.runtime ?? {},
-      (runtime, previousRuntime) => {
-        for (const [connectionId, value] of Object.entries(runtime)) {
-          if (
-            value.state === 'connected' &&
-            previousRuntime?.[connectionId]?.state !== 'connected'
-          ) {
-            this.onConnectionReady?.(connectionId);
-          }
-        }
-      },
-      { fireImmediately: true }
-    );
-    runInAction(() => {
-      this.modelReady = true;
-    });
   }
 
-  private async ensureConnectionsModel(): Promise<ConnectionsModel> {
+  private async ensureConnectionsModel(): Promise<void> {
     await this.start();
-    if (!this.model || !this.modelReady) throw new Error('SSH connections model is not ready');
-    return this.model;
+    if (!this.modelReady) throw new Error('SSH connections model is not ready');
   }
 
   private upsertConnection(savedConnection: SshConfig): SshConfig[] {

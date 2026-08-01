@@ -27,18 +27,19 @@ The `impl` object is keyed by the contract shape. Procedures receive
 `(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or a
 `LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s, or
 `LiveLogReplica`. Event streams use `createEventStreamHost()`, resolver functions,
-or `EventStreamClientHandle`s. Live model contracts use a `createLiveModelHost()`,
-`LiveModelClientHandle`, or `LiveModelReplica`.
+or `EventStreamClientHandle`s. Live model contracts use `expose()` or an existing
+`LiveModelClientHandle`.
 
-Mutation idempotency is configured on `createLiveModelHost()`, not on the
+Mutation idempotency is configured on `expose()`, not on the
 controller. The controller only routes calls, snapshots, attachments, and live
 mutation procedure envelopes.
 
-Live model hosts are separate from the contract because live model instances are
-runtime resources. A controller can be created once, while conversations,
-sessions, or windows create and dispose keyed host instances over time.
+Live model state is separate from the contract because instances are runtime
+resources. A controller can be created once, while conversations, sessions, or
+windows create and dispose keyed state through `family()` and scoped `expose()`
+lifecycles.
 
-See [../../examples/controller/controller.ts](../../examples/controller/controller.ts).
+See the state bridge tests under `src/state/bridge/`.
 
 ## Serving
 

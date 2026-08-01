@@ -1,9 +1,13 @@
 import { ok, err, type Result, type Serializable } from '@emdash/shared';
 import {
+  cell,
   createController,
-  createLiveModelHost,
-  type LiveInstance,
-  type LiveModelHost,
+  expose,
+  peek,
+  publishStructural,
+  revisionOf,
+  type Cell,
+  type LeasedLiveModelProvider,
 } from '@emdash/wire';
 import { defineWireComponent } from '@emdash/wire/component';
 import type { IExecutionContext } from '@primitives/exec/api';
@@ -58,8 +62,7 @@ const selectionDocumentSchema = z.object({
   selections: z.record(z.string(), hostDependencySelectionSchema),
 });
 
-type HostDependenciesLiveHost = LiveModelHost<typeof hostDependenciesContract.snapshot>;
-type HostDependenciesLiveModel = LiveInstance<typeof hostDependenciesContract.snapshot>;
+type HostDependenciesLiveHost = LeasedLiveModelProvider<typeof hostDependenciesContract.snapshot>;
 
 export function createHostDependenciesComponent(options: CreateHostDependenciesComponentOptions) {
   return defineWireComponent({
@@ -121,7 +124,7 @@ type RuntimeDeps = {
 export class HostDependenciesRuntime {
   private readonly definitions: Map<string, HostDependencyDefinition>;
   private readonly host: HostDependenciesLiveHost;
-  private readonly model: HostDependenciesLiveModel;
+  private readonly current: Cell<HostDependencySnapshot>;
   private selections: Record<string, HostDependencySelection> | null = null;
   private generation = 0;
   private disposed = false;
@@ -129,26 +132,34 @@ export class HostDependenciesRuntime {
 
   constructor(private readonly deps: RuntimeDeps) {
     this.definitions = new Map(deps.definitions.map((definition) => [definition.id, definition]));
-    this.host = createLiveModelHost(hostDependenciesContract.snapshot, {
-      mutations: {
-        setSelection: (_ctx, input) => this.setSelection(input.id, input.selection),
-        refresh: async (_ctx, input) => {
-          const refreshed = await this.refresh(input?.id);
-          return refreshed.success ? ok(refreshed.data) : err(refreshed.error);
+    this.current = cell<HostDependencySnapshot>({
+      hostId: deps.hostId,
+      generation: 0,
+      dependencies: {},
+    });
+    this.host = expose(
+      hostDependenciesContract.snapshot,
+      { current: this.current },
+      {
+        mutations: {
+          setSelection: async (context) => {
+            const result = await this.setSelection(context.input.id, context.input.selection);
+            if (result.success) await context.observed('current', revisionOf(this.current));
+            return result;
+          },
+          refresh: async (context) => {
+            const refreshed = await this.refresh(context.input?.id);
+            if (refreshed.success) await context.observed('current', revisionOf(this.current));
+            return refreshed.success ? ok(refreshed.data) : err(refreshed.error);
+          },
         },
-      },
-    });
-    this.model = this.host.create(undefined, {
-      current: {
-        hostId: deps.hostId,
-        generation: 0,
-        dependencies: {},
-      },
-    });
+      }
+    );
   }
 
   dispose(): void {
     this.disposed = true;
+    void this.host.dispose();
   }
 
   liveHost(): HostDependenciesLiveHost {
@@ -313,12 +324,12 @@ export class HostDependenciesRuntime {
   }
 
   private snapshot(): HostDependencySnapshot {
-    return this.model.states.current.snapshot().data;
+    return peek(this.current);
   }
 
   private publish(snapshot: HostDependencySnapshot): void {
     if (this.disposed) return;
-    this.model.states.current.produce((draft) => Object.assign(draft, snapshot));
+    publishStructural(this.current, snapshot);
   }
 
   private async getView(

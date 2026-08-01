@@ -2,9 +2,7 @@ export * from './protocol';
 export * from './mutations';
 export * from './replica';
 export {
-  ComputedLiveState,
   LiveState,
-  type ComputedLiveStateOptions,
   type LiveChangeMeta,
   type LiveStateProduceOptions,
   type Mutator,

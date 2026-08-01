@@ -18,10 +18,19 @@ import {
 } from '@emdash/core/runtimes/acp/api/client';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import type { Result, Unsubscribe } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
-import { ReplicaLog, ReplicaState, type BlobSource, type LiveClientHandle } from '@emdash/wire';
-import { createImmutableMobxStore, createMobxLogStore } from '@emdash/wire/util/mobx';
+import {
+  observe,
+  remote,
+  ReplicaLog,
+  whenReady,
+  type BlobSource,
+  type Readable,
+} from '@emdash/wire';
+import { createMobxLogStore } from '@emdash/wire/util/mobx';
 import { z } from 'zod';
+import { conversationsContract } from '../../api';
 import { getConversationsClient, type ConversationsClient } from '../client';
 
 export interface LiveValueSource<T> {
@@ -29,7 +38,14 @@ export interface LiveValueSource<T> {
   subscribe(cb: () => void): Unsubscribe;
 }
 
-export function asValueSource<T>(replica: ReplicaState<T>): LiveValueSource<T> {
+type RemoteValueState<T> = {
+  readonly ready: Promise<void>;
+  current(): T;
+  onChange(cb: (value: T) => void): Unsubscribe;
+  dispose(): Promise<void>;
+};
+
+export function asValueSource<T>(replica: RemoteValueState<T>): LiveValueSource<T> {
   return {
     getSnapshot: () => replica.current(),
     subscribe: (cb) => replica.onChange(() => cb()),
@@ -52,14 +68,15 @@ export class AcpStartError extends Error {
 }
 
 export class AcpLiveSession {
-  readonly sessionState: ReplicaState<SessionState>;
-  readonly config: ReplicaState<z.infer<typeof sessionConfigStateSchema>>;
-  readonly usage: ReplicaState<z.infer<typeof sessionUsageSchema> | null>;
-  readonly plan: ReplicaState<z.infer<typeof planStateSchema> | null>;
-  readonly activeTurn: ReplicaState<z.infer<typeof transcriptTurnSchema> | null>;
-  readonly draft: ReplicaState<z.infer<typeof promptDraftSchema> | null>;
-  readonly terminals: ReplicaState<TerminalState[]>;
-  readonly mcpServers: ReplicaState<Array<z.infer<typeof sessionMcpServerSchema>>>;
+  readonly sessionState: RemoteValueState<SessionState>;
+  readonly config: RemoteValueState<z.infer<typeof sessionConfigStateSchema>>;
+  readonly usage: RemoteValueState<z.infer<typeof sessionUsageSchema> | null>;
+  readonly plan: RemoteValueState<z.infer<typeof planStateSchema> | null>;
+  readonly activeTurn: RemoteValueState<z.infer<typeof transcriptTurnSchema> | null>;
+  readonly draft: RemoteValueState<z.infer<typeof promptDraftSchema> | null>;
+  readonly terminals: RemoteValueState<TerminalState[]>;
+  readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
+  private readonly scope = createScope({ label: 'acp-live-session' });
   private readonly terminalLogs = new Map<string, ReplicaLog>();
   private disposed = false;
 
@@ -68,28 +85,30 @@ export class AcpLiveSession {
     private readonly client: ConversationsClient['acp']
   ) {
     const key = { conversationId };
-    this.sessionState = createReplicaState(client.session.state(key, 'state'), sessionStateSchema);
-    this.config = createReplicaState(client.session.state(key, 'config'), sessionConfigStateSchema);
-    this.usage = createReplicaState(
-      client.session.state(key, 'usage'),
-      sessionUsageSchema.nullable()
+    const sessionRemote = remote(conversationsContract.acp.session, client.session, {
+      scope: this.scope,
+      lingerMs: 15_000,
+    });
+    const member = sessionRemote(key);
+    this.sessionState = remoteValueState(member.states.state, sessionStateSchema, this.scope);
+    this.config = remoteValueState(member.states.config, sessionConfigStateSchema, this.scope);
+    this.usage = remoteValueState(member.states.usage, sessionUsageSchema.nullable(), this.scope);
+    this.plan = remoteValueState(member.states.plan, planStateSchema.nullable(), this.scope);
+    this.activeTurn = remoteValueState(
+      member.states.activeTurn,
+      transcriptTurnSchema.nullable(),
+      this.scope
     );
-    this.plan = createReplicaState(client.session.state(key, 'plan'), planStateSchema.nullable());
-    this.activeTurn = createReplicaState(
-      client.session.state(key, 'activeTurn'),
-      transcriptTurnSchema.nullable()
+    this.draft = remoteValueState(member.states.draft, promptDraftSchema.nullable(), this.scope);
+    this.terminals = remoteValueState(
+      member.states.terminals,
+      z.array(terminalStateSchema),
+      this.scope
     );
-    this.draft = createReplicaState(
-      client.session.state(key, 'draft'),
-      promptDraftSchema.nullable()
-    );
-    this.terminals = createReplicaState(
-      client.session.state(key, 'terminals'),
-      z.array(terminalStateSchema)
-    );
-    this.mcpServers = createReplicaState(
-      client.session.state(key, 'mcpServers'),
-      z.array(sessionMcpServerSchema)
+    this.mcpServers = remoteValueState(
+      member.states.mcpServers,
+      z.array(sessionMcpServerSchema),
+      this.scope
     );
   }
 
@@ -103,20 +122,25 @@ export class AcpLiveSession {
       throw new AcpStartError(result.error);
     }
     const session = new AcpLiveSession(conversationId, client);
-    await withTimeout(
-      Promise.all([
-        session.sessionState.ready,
-        session.config.ready,
-        session.usage.ready,
-        session.plan.ready,
-        session.activeTurn.ready,
-        session.draft.ready,
-        session.terminals.ready,
-        session.mcpServers.ready,
-      ]),
-      'Timed out connecting ACP live models'
-    );
-    return session;
+    try {
+      await withTimeout(
+        Promise.all([
+          session.sessionState.ready,
+          session.config.ready,
+          session.usage.ready,
+          session.plan.ready,
+          session.activeTurn.ready,
+          session.draft.ready,
+          session.terminals.ready,
+          session.mcpServers.ready,
+        ]),
+        'Timed out connecting ACP live models'
+      );
+      return session;
+    } catch (error) {
+      session.dispose();
+      throw error;
+    }
   }
 
   start(): Promise<Result<{ sessionId: string }, unknown>> {
@@ -249,14 +273,7 @@ export class AcpLiveSession {
 
   dispose(): void {
     this.disposed = true;
-    void this.sessionState.dispose();
-    void this.config.dispose();
-    void this.usage.dispose();
-    void this.plan.dispose();
-    void this.activeTurn.dispose();
-    void this.draft.dispose();
-    void this.terminals.dispose();
-    void this.mcpServers.dispose();
+    void this.scope.dispose();
     for (const binding of this.terminalLogs.values()) {
       void binding.dispose();
     }
@@ -268,11 +285,48 @@ async function* singleChunk(data: Uint8Array): AsyncIterable<Uint8Array> {
   yield data;
 }
 
-function createReplicaState<T>(handle: LiveClientHandle<T>, schema: z.ZodType<T>): ReplicaState<T> {
-  return new ReplicaState(handle, {
-    schema,
-    store: createImmutableMobxStore(),
+function remoteValueState<T>(
+  source: Readable<T | undefined>,
+  schema: z.ZodType<T>,
+  parentScope: Scope
+): RemoteValueState<T> {
+  const scope = parentScope.child('remote-value-state');
+  const listeners = new Set<(value: T) => void>();
+  let value: T | undefined;
+  const ready = whenReady(source, { scope }).then((settled) => {
+    if (settled.status === 'error' && settled.value === undefined) {
+      throw readableError(settled.error);
+    }
+    if (settled.value !== undefined) value = schema.parse(settled.value);
   });
+  observe(
+    source,
+    (snapshot) => {
+      if (snapshot.value !== undefined) {
+        value = schema.parse(snapshot.value);
+        for (const listener of [...listeners]) listener(value);
+      }
+    },
+    { scope }
+  );
+  return {
+    ready,
+    current() {
+      return value as T;
+    },
+    onChange(cb) {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    dispose() {
+      return scope.dispose();
+    },
+  };
+}
+
+function readableError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  return new Error(error === undefined ? 'Remote live model failed to load' : String(error));
 }
 
 function withTimeout<T>(

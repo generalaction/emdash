@@ -1,5 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope } from '@emdash/shared/concurrency';
+import { observe, remote } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import { formatAbsolute, hostFileRef, parseAbsolute, type HostFileRef } from '@primitives/path/api';
 import {
@@ -200,34 +201,29 @@ async function submitAndFollowProvisioningOperation(
   const terminal = new Promise<WorkspaceProvisioningOperationRecord>((resolve) => {
     terminalResolve = resolve;
   });
-  const replica = createLiveModelReplica(
-    workspaceProvisioningContract.operationLog,
-    client.operationLog,
-    {
-      onChange: {
-        list: (records: WorkspaceProvisioningOperationRecordMap) => {
-          const record = records[request.requestId];
-          if (!record || settled) return;
-          if (isTerminalStatus(record.status)) {
-            settled = true;
-            terminalResolve(record);
-          }
-        },
-      },
-    }
+  const scope = createScope({ label: `workspace-provisioning:${request.requestId}` });
+  const operationLog = remote(workspaceProvisioningContract.operationLog, client.operationLog, {
+    scope,
+    lingerMs: 15_000,
+  });
+  const member = operationLog({});
+  observe(
+    member.states.list,
+    (snapshot) => {
+      const records: WorkspaceProvisioningOperationRecordMap = snapshot.value ?? {};
+      const record = records[request.requestId];
+      if (!record || settled) return;
+      if (isTerminalStatus(record.status)) {
+        settled = true;
+        terminalResolve(record);
+      }
+    },
+    { scope }
   );
-  const lease = replica.acquire({});
   const cancel = () => void client.cancelOperation({ requestId: request.requestId });
   options.signal?.addEventListener('abort', cancel, { once: true });
   try {
-    const model = await lease.ready();
-    const snapshot = await model.states.list.snapshot();
-    const records = snapshot.data as WorkspaceProvisioningOperationRecordMap;
-    const existing = records[request.requestId];
-    if (existing && isTerminalStatus(existing.status)) {
-      settled = true;
-      terminalResolve(existing);
-    }
+    await member.states.list.refresh();
     if (options.signal?.aborted) return err(PROVISIONING_CANCELLED_ERROR);
     const submitted = await client.submitOperation(request);
     if (!submitted.success) return err(submitted.error);
@@ -241,8 +237,7 @@ async function submitAndFollowProvisioningOperation(
     );
   } finally {
     options.signal?.removeEventListener('abort', cancel);
-    await lease.release();
-    await replica.dispose();
+    await scope.dispose();
   }
 }
 

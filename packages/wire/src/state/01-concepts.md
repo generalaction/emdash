@@ -8,8 +8,7 @@ reference — every primitive is a small application of the rules defined here.
 Every reactive value is a **node** in a directed acyclic graph:
 
 - **Source nodes** hold values written from outside the graph: `cell`
-  (in-memory writable), `query` (async snapshot of an external system),
-  `fromSource` (interop wrapper).
+  (in-memory writable) and `query` (async snapshot of an external system).
 - **Derived nodes** (`derived`) compute their value from other nodes and hold
   no truth of their own.
 - **Edges** (dependencies) are discovered automatically for `derived` (see §4)

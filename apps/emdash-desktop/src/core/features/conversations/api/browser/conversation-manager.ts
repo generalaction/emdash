@@ -1,7 +1,7 @@
 import type { SessionSummary } from '@emdash/core/runtimes/acp/api/client';
 import type { TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
-import type { Disposable } from '@emdash/shared/concurrency';
-import { createLiveModelReplica, ReplicaLog } from '@emdash/wire';
+import { createScope, type Disposable } from '@emdash/shared/concurrency';
+import { observe, remote, ReplicaLog } from '@emdash/wire';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { conversationsContract } from '@core/features/conversations/api';
@@ -157,30 +157,24 @@ export class ConversationManagerStore implements Disposable {
   private listenToTuiSessionState(): () => void {
     if (typeof window === 'undefined') return () => {};
     let disposed = false;
-    let cleanup: (() => void) | undefined;
+    const scope = createScope({ label: 'conversation-manager:tui-sessions' });
     void (async () => {
       const client = await getConversationsClient();
       if (disposed) return;
-      const replica = createLiveModelReplica(
-        conversationsContract.tui.sessions,
-        client.tui.sessions,
-        {
-          onChange: {
-            list: (list: TuiSessionList) => this.handleTuiSessionListChanged(list),
-          },
-        }
+      const sessions = remote(conversationsContract.tui.sessions, client.tui.sessions, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const member = sessions(undefined);
+      observe(
+        member.states.list,
+        (snapshot) => this.handleTuiSessionListChanged(snapshot.value ?? {}),
+        { scope }
       );
-      const lease = replica.acquire(undefined);
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      await lease.ready();
-      if (disposed) cleanup();
     })();
     return () => {
       disposed = true;
-      cleanup?.();
+      void scope.dispose();
     };
   }
 
@@ -198,30 +192,24 @@ export class ConversationManagerStore implements Disposable {
   private listenToAcpSessionState(): () => void {
     if (typeof window === 'undefined') return () => {};
     let disposed = false;
-    let cleanup: (() => void) | undefined;
+    const scope = createScope({ label: 'conversation-manager:acp-sessions' });
     void (async () => {
       const client = await getConversationsClient();
       if (disposed) return;
-      const replica = createLiveModelReplica(
-        conversationsContract.acp.sessions,
-        client.acp.sessions,
-        {
-          onChange: {
-            list: (list: Record<string, SessionSummary>) => this.handleAcpSessionListChanged(list),
-          },
-        }
+      const sessions = remote(conversationsContract.acp.sessions, client.acp.sessions, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const member = sessions(undefined);
+      observe(
+        member.states.list,
+        (snapshot) => this.handleAcpSessionListChanged(snapshot.value ?? {}),
+        { scope }
       );
-      const lease = replica.acquire(undefined);
-      cleanup = () => {
-        void lease.release();
-        void replica.dispose();
-      };
-      await lease.ready();
-      if (disposed) cleanup();
     })();
     return () => {
       disposed = true;
-      cleanup?.();
+      void scope.dispose();
     };
   }
 

@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import { createLiveModelHost } from '@emdash/wire';
+import { cell, expose } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';
@@ -76,18 +76,13 @@ function provisioningWire(
     onSubmit?: () => void;
   } = {}
 ) {
-  const host = createLiveModelHost(workspaceProvisioningContract.operationLog);
-  host.create({}, { list: {} });
+  const list = cell({});
+  const host = expose(workspaceProvisioningContract.operationLog, { list });
   const wire = createTestWire(workspaceProvisioningContract, {
-    operationLog: {
-      kind: 'liveModelProvider' as const,
-      contract: workspaceProvisioningContract.operationLog,
-      resolveState: (key, name) => host.get(key)?.states[name],
-      runMutation: (name, envelope) => host.runMutation(name, envelope),
-    },
+    operationLog: host,
     submitOperation: async (request) => {
       options.onSubmit?.();
-      host.get({})?.states.list.replace({
+      list.set({
         [request.requestId]: options.error
           ? {
               requestId: request.requestId,
@@ -107,7 +102,7 @@ function provisioningWire(
   return {
     client: wire.client,
     async dispose() {
-      host.dispose();
+      await host.dispose();
       await wire.dispose();
     },
   };

@@ -4,26 +4,29 @@ export type PokeSubscription = {
   subscribe(listener: () => void): Unsubscribe;
 };
 
-export type PokeChannel = {
+export type PokeChannel<T = void> = {
   readonly name: string;
-  poke(): void;
-  subscription(): PokeSubscription;
+  poke: undefined extends T ? (payload?: T) => void : (payload: T) => void;
+  subscription(match?: (payload: T) => boolean): PokeSubscription;
 };
 
-export function pokeChannel(name: string): PokeChannel {
-  const listeners = new Set<() => void>();
+export function pokeChannel<T = void>(name: string): PokeChannel<T> {
+  const listeners = new Set<(payload: T) => void>();
   return {
     name,
-    poke() {
-      for (const listener of [...listeners]) listener();
+    poke(payload?: T) {
+      for (const listener of [...listeners]) listener(payload as T);
     },
-    subscription() {
+    subscription(match) {
       return {
         subscribe(listener) {
-          listeners.add(listener);
-          return () => listeners.delete(listener);
+          const wrapped = (payload: T): void => {
+            if (!match || match(payload)) listener();
+          };
+          listeners.add(wrapped);
+          return () => listeners.delete(wrapped);
         },
       };
     },
-  };
+  } as PokeChannel<T>;
 }

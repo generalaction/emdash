@@ -1,7 +1,7 @@
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, remote, whenReady, type RemoteModel } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
-import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { action, makeObservable, observable, runInAction } from 'mobx';
 import {
   normalizeRepositoryUrl,
   pullRequestsContract,
@@ -14,10 +14,11 @@ import {
 } from '../api';
 import { createPullRequestListView } from './pull-request-list-view';
 
-type SyncModel = OptimisticLiveModel<typeof pullRequestsContract.syncState>;
+type SyncRemote = RemoteModel<typeof pullRequestsContract.syncState>;
 type ModelEntry = {
-  model: SyncModel;
-  disposeReaction: () => void;
+  scope: Scope;
+  state: SyncState | undefined;
+  previousLastSyncedAt: number | undefined;
 };
 
 const EMPTY_FILTER_OPTIONS: PullRequestFilterOptions = {
@@ -32,6 +33,8 @@ export class PullRequestsStore {
   readonly listView;
   readonly ready: Promise<void>;
 
+  private readonly scope = createScope({ label: 'pull-requests-store' });
+  private readonly syncRemote: SyncRemote;
   private readonly syncModels = new Map<string, ModelEntry>();
   private filterOptionsRequest = 0;
   private disposed = false;
@@ -41,6 +44,10 @@ export class PullRequestsStore {
     repositoryUrls: string[]
   ) {
     this.repositoryUrls = unique(repositoryUrls);
+    this.syncRemote = remote(pullRequestsContract.syncState, client.syncState, {
+      scope: this.scope,
+      lingerMs: 15_000,
+    });
     this.listView = createPullRequestListView({
       client,
       getRepositoryUrls: () => this.repositoryUrls,
@@ -64,7 +71,7 @@ export class PullRequestsStore {
 
   syncState(repositoryUrl: string): SyncState | undefined {
     const normalizedUrl = normalizeRepositoryUrl(repositoryUrl) ?? repositoryUrl;
-    return this.syncModels.get(normalizedUrl)?.model.values.state;
+    return this.syncModels.get(normalizedUrl)?.state;
   }
 
   async reload(): Promise<void> {
@@ -182,8 +189,8 @@ export class PullRequestsStore {
     this.listView.store.dispose();
     const entries = [...this.syncModels.values()];
     this.syncModels.clear();
-    for (const entry of entries) entry.disposeReaction();
-    await Promise.all(entries.map(async ({ model }) => await model.dispose()));
+    await Promise.all(entries.map(async ({ scope }) => await scope.dispose()));
+    await this.scope.dispose();
   }
 
   private async initialize(): Promise<void> {
@@ -195,35 +202,49 @@ export class PullRequestsStore {
     const removals: Promise<void>[] = [];
     for (const [repositoryUrl, entry] of this.syncModels) {
       if (wanted.has(repositoryUrl)) continue;
-      entry.disposeReaction();
       this.syncModels.delete(repositoryUrl);
-      removals.push(entry.model.dispose());
+      removals.push(entry.scope.dispose());
     }
     const additions: Promise<void>[] = [];
     for (const repositoryUrl of wanted) {
       if (this.syncModels.has(repositoryUrl)) continue;
-      const replica = createLiveModelReplica(pullRequestsContract.syncState, this.client.syncState);
-      const model = new OptimisticLiveModel(
-        pullRequestsContract.syncState,
-        { repositoryUrl },
-        replica
-      );
-      let previousLastSyncedAt: number | undefined;
-      const disposeReaction = reaction(
-        () => model.values.state,
-        (state) => {
+      const scope = this.scope.child(`sync:${repositoryUrl}`);
+      const entry: ModelEntry = {
+        scope,
+        state: undefined,
+        previousLastSyncedAt: undefined,
+      };
+      this.syncModels.set(repositoryUrl, entry);
+      const member = this.syncRemote({ repositoryUrl });
+      observe(
+        member.states.state,
+        (snapshot) => {
+          const current = this.syncModels.get(repositoryUrl);
+          if (!current) return;
+          const state = snapshot.value;
+          const previousLastSyncedAt = current.previousLastSyncedAt;
+          const nextEntry = {
+            ...current,
+            state,
+            previousLastSyncedAt:
+              state?.phase === 'idle' && state.lastSyncedAt !== undefined
+                ? state.lastSyncedAt
+                : current.previousLastSyncedAt,
+          };
+          runInAction(() => {
+            this.syncModels.set(repositoryUrl, nextEntry);
+          });
           if (
             state?.phase === 'idle' &&
             state.lastSyncedAt !== undefined &&
             state.lastSyncedAt !== previousLastSyncedAt
           ) {
-            previousLastSyncedAt = state.lastSyncedAt;
             void this.reload();
           }
-        }
+        },
+        { scope }
       );
-      this.syncModels.set(repositoryUrl, { model, disposeReaction });
-      additions.push(model.ready);
+      additions.push(whenReady(member.states.state, { scope }).then(() => undefined));
     }
     await Promise.all([...removals, ...additions]);
   }

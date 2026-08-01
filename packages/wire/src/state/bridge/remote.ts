@@ -20,7 +20,7 @@ type RemoteStates<Group extends LiveModelDef> = {
   [Name in StateName<Group>]: RemoteState<LiveStateData<LiveModelStates<Group>[Name]>>;
 };
 
-type RemoteMember<Group extends LiveModelDef> = {
+export type RemoteMember<Group extends LiveModelDef> = {
   states: RemoteStates<Group>;
   mutations: ReplicaMutations<Group>;
 };

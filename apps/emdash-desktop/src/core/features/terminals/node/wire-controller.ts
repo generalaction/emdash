@@ -47,6 +47,7 @@ import { lifecycleScriptNodeIdFromTerminalId, type Terminal } from '@core/primit
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, terminals } from '@core/services/app-db/node/schema';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import type { AppSettingsService } from '@core/services/settings/node';
 
 export type CreateTerminalsWireControllerOptions = Readonly<{
@@ -423,17 +424,11 @@ async function runScriptWorkflow(
 function createWorkflowsProvider(
   options: CreateTerminalsWireControllerOptions
 ): LiveModelProvider<typeof terminalsContract.workflows> {
-  return {
-    kind: 'liveModelProvider',
-    contract: terminalsContract.workflows,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-        client.terminals.workflows.state({ workspace: workspaceRef(identity) }, name).asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error('Terminal workflows model has no mutations');
-    },
-  };
+  return forwardLiveModel(terminalsContract.workflows, (key, name) =>
+    resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+      client.terminals.workflows.state({ workspace: workspaceRef(identity) }, name).asLiveSource()
+    )
+  );
 }
 
 async function runUpstreamWorkflow(

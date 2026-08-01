@@ -2,10 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { Logger } from '@emdash/shared/logger';
 import { err, ok } from '@emdash/shared/result';
 import {
+  cell,
   createEventStreamHost,
-  createLiveModelHost,
+  expose,
+  peek,
+  produce,
+  revisionOf,
+  type Cell,
   type EventStreamHost,
-  type LiveModelHost,
+  type LeasedLiveModelProvider,
 } from '@emdash/wire';
 import {
   notificationsContract,
@@ -14,6 +19,7 @@ import {
   type NotificationList,
   type PublishNotification,
 } from '../api';
+import { reduceDismiss, reduceMarkAllRead, reduceMarkRead } from '../api/optimistic';
 import type { Clock, NotificationSink, NotificationStore, TimerHandle } from '../api/ports';
 import { systemClock } from '../api/ports';
 import type { RoutingContext, RoutingPolicy } from '../api/routing';
@@ -42,57 +48,68 @@ type PendingBatch = {
 export class NotificationService {
   private readonly clock: Clock;
   private readonly routingPolicy: RoutingPolicy;
-  private readonly feed: LiveModelHost<typeof notificationsContract.feed>;
+  private readonly feed: LeasedLiveModelProvider<typeof notificationsContract.feed>;
   private readonly delivery: EventStreamHost<typeof notificationsContract.delivery>;
+  private readonly list: Cell<NotificationList>;
   private readonly disposers = new Set<() => void>();
   private readonly sinks = new Map<string, NotificationSink>();
   private readonly pendingBatches = new Map<string, PendingBatch>();
   private readonly seenDedupeKeys = new Map<string, string>();
-
-  private readonly instance;
+  private initializePromise: Promise<void> | undefined;
 
   constructor(private readonly deps: NotificationServiceDeps) {
     this.clock = deps.clock ?? systemClock;
     this.routingPolicy = deps.routingPolicy ?? defaultRoutingPolicy;
-    this.feed = createLiveModelHost(notificationsContract.feed, {
-      mutations: {
-        markRead: async (ctx, input) => {
-          ctx.produce('list', (draft) => {
-            const list = draft as NotificationList;
-            for (const id of input.ids) {
-              if (list[id]) list[id].readAt ??= input.at;
-            }
-          });
-          const persisted = await this.deps.store.markRead(input.ids, input.at);
-          if (!persisted.success) return err({ message: persisted.error });
-          return ok<void>();
-        },
-        markAllRead: async (ctx, input) => {
-          ctx.produce('list', (draft) => {
-            for (const notification of Object.values(draft as NotificationList)) {
-              notification.readAt ??= input.at;
-            }
-          });
-          const persisted = await this.deps.store.markAllRead(input.at);
-          if (!persisted.success) return err({ message: persisted.error });
-          return ok<void>();
-        },
-        dismiss: async (ctx, input) => {
-          ctx.produce('list', (draft) => {
-            const list = draft as NotificationList;
-            for (const id of input.ids) delete list[id];
-          });
-          const persisted = await this.deps.store.remove(input.ids);
-          if (!persisted.success) return err({ message: persisted.error });
-          return ok<void>();
+    this.list = cell<NotificationList>({});
+    this.feed = expose(
+      notificationsContract.feed,
+      {
+        list: async () => {
+          await this.initialize();
+          return this.list;
         },
       },
-    });
+      {
+        mutations: {
+          markRead: async (context) => {
+            const revision = this.updateList((list) => reduceMarkRead(list, context.input), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('list', revision);
+            const persisted = await this.deps.store.markRead(context.input.ids, context.input.at);
+            if (!persisted.success) return err({ message: persisted.error });
+            return ok<void>();
+          },
+          markAllRead: async (context) => {
+            const revision = this.updateList((list) => reduceMarkAllRead(list, context.input), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('list', revision);
+            const persisted = await this.deps.store.markAllRead(context.input.at);
+            if (!persisted.success) return err({ message: persisted.error });
+            return ok<void>();
+          },
+          dismiss: async (context) => {
+            const revision = this.updateList((list) => reduceDismiss(list, context.input), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('list', revision);
+            const persisted = await this.deps.store.remove(context.input.ids);
+            if (!persisted.success) return err({ message: persisted.error });
+            return ok<void>();
+          },
+        },
+      }
+    );
     this.delivery = createEventStreamHost(notificationsContract.delivery);
-    this.instance = this.feed.create(undefined, { list: {} });
   }
 
   async initialize(): Promise<void> {
+    this.initializePromise ??= this.initializeOnce();
+    return await this.initializePromise;
+  }
+
+  private async initializeOnce(): Promise<void> {
     const now = this.clock.now();
     const retentionMs = this.deps.retentionMs ?? DEFAULT_RETENTION_MS;
     const maxRows = this.deps.maxRows ?? DEFAULT_MAX_ROWS;
@@ -102,9 +119,9 @@ export class NotificationService {
       since: now - retentionMs,
       maxRows,
     });
-    this.instance.states.list.produce((draft) => {
-      for (const notification of recent) draft[notification.id] = notification;
-    });
+    this.list.set(
+      Object.fromEntries(recent.map((notification) => [notification.id, notification]))
+    );
   }
 
   registerSink(sink: NotificationSink): () => void {
@@ -131,7 +148,7 @@ export class NotificationService {
     if (input.dedupeKey) this.seenDedupeKeys.set(input.dedupeKey, notification.id);
 
     const supersededIds: string[] = [];
-    this.instance.states.list.produce((draft) => {
+    this.updateList((draft) => {
       for (const existing of Object.values(draft)) {
         if (existing.groupKey === notification.groupKey && existing.readAt === null) {
           notification.count += existing.count;
@@ -152,7 +169,7 @@ export class NotificationService {
     this.delivery.emit(undefined, event);
   }
 
-  feedHost(): LiveModelHost<typeof notificationsContract.feed> {
+  feedHost(): LeasedLiveModelProvider<typeof notificationsContract.feed> {
     return this.feed;
   }
 
@@ -166,8 +183,21 @@ export class NotificationService {
     for (const pending of this.pendingBatches.values()) this.clock.clearTimeout(pending.timer);
     this.pendingBatches.clear();
     this.sinks.clear();
-    this.feed.dispose();
+    void this.feed.dispose();
     this.delivery.dispose();
+  }
+
+  snapshot(): NotificationList {
+    return peek(this.list);
+  }
+
+  private updateList(
+    update: (list: NotificationList) => void,
+    options: { mutationIds?: readonly string[] } = {}
+  ) {
+    const next = produce(peek(this.list), update);
+    if (Object.is(next, peek(this.list))) return revisionOf(this.list);
+    return this.list.set(next, options);
   }
 
   private enqueueDelivery(notification: AppNotification): void {

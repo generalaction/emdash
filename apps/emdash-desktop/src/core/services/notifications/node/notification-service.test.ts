@@ -93,7 +93,7 @@ function input(overrides: Partial<PublishNotification> = {}): PublishNotificatio
 }
 
 function feed(service: NotificationService) {
-  return service.feedHost().get(undefined)?.states.list.snapshot().data ?? {};
+  return service.snapshot();
 }
 
 describe('NotificationService', () => {

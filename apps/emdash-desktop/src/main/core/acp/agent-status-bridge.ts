@@ -1,10 +1,12 @@
 import {
+  acpApiContract,
   sessionSummarySchema,
   type AcpApiContract,
   type SessionSummary,
 } from '@emdash/core/runtimes/acp/api';
 import type { Unsubscribe } from '@emdash/shared';
-import { ReplicaState } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { observe, remote, whenReady } from '@emdash/wire';
 import type { WireWorker } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
@@ -37,9 +39,8 @@ class AcpAgentStatusBridge {
   private readonly summaries = new Map<string, SessionSummary>();
   private workerStateUnsubscribe: Unsubscribe | null = null;
   private conversationCreatedUnsubscribe: Unsubscribe | null = null;
-  private replica: ReplicaState<SessionSummaryList> | null = null;
+  private attachScope: Scope | null = null;
   private attaching = false;
-  private bootstrapped = false;
   private runtime: AcpAgentStatusRuntime | undefined;
   private titleDeps: AcpSessionTitleDeps | undefined;
 
@@ -84,17 +85,38 @@ class AcpAgentStatusBridge {
         });
         this.detach();
       });
-      const replica = new ReplicaState<SessionSummaryList>(
-        runtime.client.sessions.state(undefined, 'list'),
-        {
-          schema: sessionSummaryListSchema,
-          onChange: (summaries) => void this.applySummaries(summaries),
-        }
+      const scope = createScope({ label: 'acp-agent-status-bridge' });
+      this.attachScope = scope;
+      const sessions = remote(acpApiContract.sessions, runtime.client.sessions, {
+        scope,
+        lingerMs: 15_000,
+      });
+      const list = sessions(undefined).states.list;
+      let first = true;
+      let applyChain = Promise.resolve();
+      observe(
+        list,
+        (snapshot) => {
+          if (snapshot.status === 'loading') return;
+          const summaries = sessionSummaryListSchema.parse(snapshot.value ?? {});
+          const bootstrap = first;
+          first = false;
+          applyChain = applyChain
+            .then(() => this.applySummaries(summaries, { bootstrap }))
+            .catch((error) => {
+              log.warn('ACP agent status bridge failed to apply summaries', {
+                error: String(error),
+              });
+            });
+        },
+        { scope }
       );
-      await replica.ready;
-      this.replica = replica;
-      this.applySummaries(replica.current(), { bootstrap: true });
-      this.bootstrapped = true;
+      await whenReady(list, { scope });
+      await applyChain;
+      if (this.attachScope !== scope) {
+        await scope.dispose();
+        return;
+      }
     } finally {
       this.attaching = false;
     }
@@ -103,17 +125,16 @@ class AcpAgentStatusBridge {
   private detach(): void {
     this.workerStateUnsubscribe?.();
     this.workerStateUnsubscribe = null;
-    const replica = this.replica;
-    this.replica = null;
-    this.bootstrapped = false;
-    if (replica) void replica.dispose();
+    const scope = this.attachScope;
+    this.attachScope = null;
+    if (scope) void scope.dispose();
   }
 
   private applySummaries(
     nextSummaries: SessionSummaryList,
     options: { bootstrap?: boolean } = {}
   ): void {
-    const bootstrap = options.bootstrap ?? !this.bootstrapped;
+    const bootstrap = options.bootstrap ?? false;
     const seen = new Set<string>();
     for (const summary of Object.values(nextSummaries)) {
       seen.add(summary.conversationId);

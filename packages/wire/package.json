@@ -20,10 +20,6 @@
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
-    "./live": {
-      "types": "./dist/live.d.mts",
-      "default": "./dist/live.mjs"
-    },
     "./state": {
       "types": "./dist/state.d.mts",
       "default": "./dist/state.mjs"
@@ -78,19 +74,9 @@
     "example:mailbox": "tsx examples/mailbox/client.ts",
     "example:resource-cache": "tsx examples/resource-cache/client.ts",
     "example:cancellation": "tsx examples/cancellation/client.ts",
-    "example:contract": "tsx examples/contract/client.ts",
-    "example:api-definition": "tsx examples/api-definition/inspect.ts",
-    "example:controller": "tsx examples/controller/controller.ts",
-    "example:api-client": "tsx examples/api-client/client.ts",
-    "example:group": "tsx examples/group/client.ts",
     "example:dedupe": "tsx examples/dedupe/server.ts",
     "example:job-contract": "tsx examples/job-contract/client.ts",
-    "example:mutation-idempotency": "tsx examples/mutation-idempotency/client.ts",
-    "example:multi-window": "tsx examples/multi-window/client.ts",
-    "example:logging": "tsx examples/logging/client.ts",
-    "example:replica": "tsx examples/replica/client.ts",
-    "example:process": "tsx examples/process/client.ts",
-    "example:optimistic-live-model": "tsx examples/optimistic-live-model/client.ts",
+    "example:api-definition": "tsx examples/api-definition/inspect.ts",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",
     "format": "oxfmt",
     "format:check": "oxfmt --check",

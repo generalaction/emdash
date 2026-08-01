@@ -2,7 +2,7 @@
 
 Signatures are the design contract for the implementation in this folder.
 Names are deliberately boring: `cell`, `derived`, `query`, `family`,
-`observe`, `peek`, `batch`, `pokeChannel`, `fromSource` — plus the wire
+`observe`, `peek`, `batch`, `pokeChannel` — plus the wire
 bridges `expose` and `remote` documented in
 [04-wire-integration.md](./04-wire-integration.md).
 
@@ -276,33 +276,6 @@ Typical producers:
 A poke carries no payload. If a change signal has a payload worth keeping,
 it is either a `settle` (known new truth) or an event stream (append-only
 data), not a poke.
-
-## `fromSource`
-
-Interop wrapper for push-based sources that already exist —
-`Machine` from `@emdash/shared/concurrency` being the main one.
-
-```ts
-function fromSource<T>(
-  source: { current(): T; subscribe(cb: (value: unknown) => void): Unsubscribe },
-  options: { scope: Scope; equals?: (a: T, b: T) => boolean }
-): Readable<T>;
-```
-
-Each source emission becomes a turn-scheduled write; equality gating applies.
-This is SolidJS's `from()`.
-
-Note on standing: `fromSource` is *sugar*, not kernel core — it is a ~10-line
-composition of `cell` + a scope-owned subscription. Its real job is normative:
-it marks the one **sanctioned** case of mirroring truth into a cell (an
-in-process, push-based source the graph cannot read directly), which keeps the
-"never mirror a query into a cell" rule absolute. If `Machine` ever exposes a
-`Readable` natively, `fromSource` fades away without any consumer noticing.
-
-Replaces: `bindMachineToLiveState` — compose as
-`expose(contract.model, derived(() => project(read(fromSource(machine, { scope })))))`,
-which keeps the projection a plain tested function and gets equality gating,
-turns, and publish batching from the kernel.
 
 ## `optimistic`
 

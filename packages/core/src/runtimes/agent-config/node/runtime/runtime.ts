@@ -27,12 +27,12 @@ import { AgentSkillsManager } from './skills';
 import type { AgentConfigRuntimeDeps } from './types';
 
 export class AgentConfigRuntime {
-  private readonly agentsHost = createAgentConfigAgentsLiveHost();
-  private readonly mcpHost = createAgentConfigMcpLiveHost();
-  private readonly skillsHost = createAgentConfigSkillsLiveHost();
-  private readonly agentsModel = createAgentConfigAgentsModel(this.agentsHost);
-  private readonly mcpModel = createAgentConfigMcpModel(this.mcpHost);
-  private readonly skillsModel = createAgentConfigSkillsModel(this.skillsHost);
+  private readonly agentsModel = createAgentConfigAgentsModel();
+  private readonly mcpModel = createAgentConfigMcpModel();
+  private readonly skillsModel = createAgentConfigSkillsModel();
+  private readonly agentsHost = createAgentConfigAgentsLiveHost(this.agentsModel);
+  private readonly mcpHost = createAgentConfigMcpLiveHost(this.mcpModel);
+  private readonly skillsHost = createAgentConfigSkillsLiveHost(this.skillsModel);
 
   readonly install: AgentInstallManager;
   readonly auth: AgentAuthManager;
@@ -47,9 +47,9 @@ export class AgentConfigRuntime {
     this.deps.scope.add(async () => {
       await this.auth.dispose();
       this.install.dispose();
-      this.agentsHost.dispose();
-      this.mcpHost.dispose();
-      this.skillsHost.dispose();
+      await this.agentsHost.dispose();
+      await this.mcpHost.dispose();
+      await this.skillsHost.dispose();
     });
     this.install.initialize();
     void this.mcp.initialize();

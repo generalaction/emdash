@@ -40,6 +40,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
+import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import {
   enqueueArchiveWorkspace,
   enqueueDeleteWorkspace,
@@ -157,17 +158,11 @@ export function createWorkspacesWireController(
 function createWorkspaceRuntimeProvider(
   options: CreateWorkspacesWireControllerOptions
 ): LiveModelProvider<typeof workspacesWireContract.runtime> {
-  return {
-    kind: 'liveModelProvider',
-    contract: workspacesWireContract.runtime,
-    resolveState: (key, name) =>
-      resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-        client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
-      ),
-    async runMutation() {
-      throw new Error('Workspace runtime model has no mutations');
-    },
-  };
+  return forwardLiveModel(workspacesWireContract.runtime, (key, name) =>
+    resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
+      client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
+    )
+  );
 }
 
 async function withWorkspaceRuntime<T, E>(

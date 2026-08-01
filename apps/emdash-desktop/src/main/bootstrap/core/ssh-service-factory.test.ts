@@ -42,7 +42,7 @@ describe('createSshService', () => {
         throw new Error('Resolver failed');
       })
     ).rejects.toThrow('Resolver failed');
-    expect(handle.connections.instance.states.runtime.snapshot().data['ssh-1']).toEqual({
+    expect(handle.connections.snapshot()['ssh-1']).toEqual({
       state: 'connecting',
       health: { status: 'ok' },
     });

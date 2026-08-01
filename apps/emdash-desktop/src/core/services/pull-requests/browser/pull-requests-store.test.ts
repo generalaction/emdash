@@ -1,15 +1,15 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { err, ok } from '@emdash/shared/result';
-import {
-  createController,
-  createLiveModelHost,
-  type ContractClient,
-  type LiveInstance,
-} from '@emdash/wire';
+import { cell, createController, expose, type Cell, type ContractClient } from '@emdash/wire';
 import { defineWireComponent } from '@emdash/wire/component';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { pullRequestsContract, type PullRequest, type PullRequestsContract } from '../api';
+import {
+  pullRequestsContract,
+  type PullRequest,
+  type PullRequestsContract,
+  type SyncState,
+} from '../api';
 import { createPullRequestListView } from './pull-request-list-view';
 import { PullRequestsStore } from './pull-requests-store';
 
@@ -79,18 +79,18 @@ describe('createPullRequestListView', () => {
 describe('PullRequestsStore', () => {
   it('reloads the list exactly once when sync-backed data changes', async () => {
     const scope = createScope({ label: 'pull-requests-browser-test' });
-    let syncInstance: LiveInstance<typeof pullRequestsContract.syncState> | undefined;
+    const syncCells = new Map<string, Cell<SyncState>>();
     const testComponent = defineWireComponent({
       id: 'pull-requests-browser-test',
       contract: pullRequestsContract,
       requirements: {},
       configSchema: z.object({}),
       create: ({ instance, scope: componentScope }) => {
-        const syncState = componentScope.use(createLiveModelHost(pullRequestsContract.syncState));
-        syncInstance = syncState.create(
-          { repositoryUrl },
-          { state: { phase: 'idle', kind: null } }
-        );
+        const syncState = expose(pullRequestsContract.syncState, {
+          state: (key) => syncCell(syncCells, key.repositoryUrl),
+        });
+        componentScope.add(() => syncState.dispose());
+        syncCell(syncCells, repositoryUrl);
         return instance({
           scope: componentScope,
           controller: createController(pullRequestsContract, {
@@ -129,17 +129,17 @@ describe('PullRequestsStore', () => {
     await store.ready;
     const reload = vi.spyOn(store, 'reload').mockResolvedValue();
 
-    syncInstance!.states.state.produce(() => ({
+    syncCell(syncCells, repositoryUrl).set({
       phase: 'running',
       kind: 'incremental',
       synced: 0,
-    }));
-    syncInstance!.states.state.produce(() => ({
+    });
+    syncCell(syncCells, repositoryUrl).set({
       phase: 'idle',
       kind: 'incremental',
       synced: 1,
       lastSyncedAt: 1,
-    }));
+    });
 
     await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
     await expect(store.mergePullRequest(repositoryUrl, 1, { strategy: 'merge' })).resolves.toEqual(
@@ -178,12 +178,13 @@ describe('PullRequestsStore', () => {
       requirements: {},
       configSchema: z.object({}),
       create: ({ instance, scope: componentScope }) => {
-        const syncState = componentScope.use(createLiveModelHost(pullRequestsContract.syncState));
-        syncState.create({ repositoryUrl }, { state: { phase: 'idle', kind: null } });
-        syncState.create(
-          { repositoryUrl: secondRepositoryUrl },
-          { state: { phase: 'idle', kind: null } }
-        );
+        const syncCells = new Map<string, Cell<SyncState>>();
+        const syncState = expose(pullRequestsContract.syncState, {
+          state: (key) => syncCell(syncCells, key.repositoryUrl),
+        });
+        componentScope.add(() => syncState.dispose());
+        syncCell(syncCells, repositoryUrl);
+        syncCell(syncCells, secondRepositoryUrl);
         return instance({
           scope: componentScope,
           controller: createController(pullRequestsContract, {
@@ -261,4 +262,13 @@ function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
     checks: [],
     ...overrides,
   };
+}
+
+function syncCell(cells: Map<string, Cell<SyncState>>, repositoryUrl: string): Cell<SyncState> {
+  let current = cells.get(repositoryUrl);
+  if (!current) {
+    current = cell<SyncState>({ phase: 'idle', kind: null });
+    cells.set(repositoryUrl, current);
+  }
+  return current;
 }

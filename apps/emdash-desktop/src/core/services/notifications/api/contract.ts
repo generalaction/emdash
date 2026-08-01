@@ -1,6 +1,7 @@
 import { ok } from '@emdash/shared/result';
 import { defineContract, eventStream, liveModel, liveState, mutation } from '@emdash/wire/api';
 import { z } from 'zod';
+import { reduceDismiss, reduceMarkAllRead, reduceMarkRead } from './optimistic';
 import {
   notificationDeliveryEventSchema,
   notificationListSchema,
@@ -34,33 +35,21 @@ export const notificationsContract = defineContract({
       markRead: mutation(
         { input: markReadInputSchema, data: z.void(), error: notificationMutationErrorSchema },
         (ctx, input) => {
-          ctx.produce('list', (draft) => {
-            const list = draft as NotificationList;
-            for (const id of input.ids) {
-              if (list[id]) list[id].readAt ??= input.at;
-            }
-          });
+          ctx.produce('list', (draft) => reduceMarkRead(draft as NotificationList, input));
           return ok<void>();
         }
       ),
       markAllRead: mutation(
         { input: markAllReadInputSchema, data: z.void(), error: notificationMutationErrorSchema },
         (ctx, input) => {
-          ctx.produce('list', (draft) => {
-            for (const notification of Object.values(draft as NotificationList)) {
-              notification.readAt ??= input.at;
-            }
-          });
+          ctx.produce('list', (draft) => reduceMarkAllRead(draft as NotificationList, input));
           return ok<void>();
         }
       ),
       dismiss: mutation(
         { input: idsInputSchema, data: z.void(), error: notificationMutationErrorSchema },
         (ctx, input) => {
-          ctx.produce('list', (draft) => {
-            const list = draft as NotificationList;
-            for (const id of input.ids) delete list[id];
-          });
+          ctx.produce('list', (draft) => reduceDismiss(draft as NotificationList, input));
           return ok<void>();
         }
       ),

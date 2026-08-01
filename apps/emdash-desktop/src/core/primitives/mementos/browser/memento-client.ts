@@ -1,7 +1,14 @@
-import type { Scope } from '@emdash/shared/concurrency';
-import { createLiveModelReplica } from '@emdash/wire';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  observe,
+  optimistic,
+  remote,
+  whenReady,
+  type OptimisticView,
+  type RemoteModel,
+  type RemoteMember,
+} from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import { OptimisticLiveModel } from '@emdash/wire/util/mobx';
 import {
   comparer,
   computed,
@@ -25,20 +32,16 @@ import {
 import type { Subject, SubjectDef } from '@core/primitives/subjects/api';
 
 type MementosClientContract = ContractClient<typeof mementosWireContract>;
-type PersistentModel = OptimisticLiveModel<typeof mementosWireContract.memento>;
+type PersistentRemote = RemoteModel<typeof mementosWireContract.memento>;
+type PersistentMember = RemoteMember<typeof mementosWireContract.memento>;
 type BoundMementoDef<TValue, TKind extends string> = MementoDef<
   TValue,
   SubjectDef<TKind, z.ZodType>
 >;
 type MementoUpdater<TValue> = TValue | ((current: TValue) => TValue);
 
-interface ModelEntry {
-  readonly model: PersistentModel;
-  refs: number;
-}
-
 interface ModelLease {
-  readonly model: PersistentModel;
+  readonly model: PersistentMementoModel;
   readonly ready: Promise<void>;
   release(): Promise<void>;
 }
@@ -65,8 +68,8 @@ export interface MementoClientOptions {
 }
 
 export class MementoClient {
-  private readonly replica;
-  private readonly models = new Map<string, ModelEntry>();
+  private readonly scope = createScope({ label: 'memento-client' });
+  private readonly remoteModel: PersistentRemote;
   private readonly spaces = new Set<SubjectSpace<string>>();
   private readonly persistentHandles = new Set<PersistentMementoHandle<unknown>>();
   private readonly transient = new TransientMementoStore();
@@ -83,8 +86,9 @@ export class MementoClient {
     readonly wire: MementosClientContract,
     options: MementoClientOptions = {}
   ) {
-    this.replica = createLiveModelReplica(mementosWireContract.memento, wire.memento, {
-      retentionMs: 30_000,
+    this.remoteModel = remote(mementosWireContract.memento, wire.memento, {
+      scope: this.scope,
+      lingerMs: 30_000,
     });
     this.debounceMs = options.debounceMs ?? 1_000;
     this.now = options.now ?? Date.now;
@@ -166,35 +170,20 @@ export class MementoClient {
     }
     await Promise.allSettled([...this.spaces].map(async (space) => await space.release()));
     this.spaces.clear();
-    await Promise.allSettled(
-      [...this.models.values()].map(async ({ model }) => await model.dispose())
-    );
-    this.models.clear();
-    await this.replica.dispose();
+    await this.scope.dispose();
     if (flushError) throw flushError;
   }
 
   acquirePersistentModel(key: MementoModelKey): ModelLease {
-    const keyId = mementoKeyId(key);
-    let entry = this.models.get(keyId);
-    if (!entry) {
-      const model = new OptimisticLiveModel(mementosWireContract.memento, key, this.replica);
-      entry = { model, refs: 0 };
-      this.models.set(keyId, entry);
-    }
-    entry.refs += 1;
-    const acquired = entry;
+    const model = new PersistentMementoModel(this.scope, this.remoteModel, key);
     let released = false;
     return {
-      model: acquired.model,
-      ready: acquired.model.ready,
+      model,
+      ready: model.ready,
       release: async () => {
         if (released) return;
         released = true;
-        acquired.refs -= 1;
-        if (acquired.refs > 0 || this.models.get(keyId) !== acquired) return;
-        this.models.delete(keyId);
-        await acquired.model.dispose();
+        await model.dispose();
       },
     };
   }
@@ -309,6 +298,45 @@ interface DirtyValue<TValue> {
   readonly row: MementoRow;
 }
 
+class PersistentMementoModel {
+  readonly member: PersistentMember;
+  readonly view: OptimisticView<MementoRow | null>;
+  readonly ready: Promise<void>;
+  value: MementoRow | null | undefined;
+  private readonly scope: Scope;
+  private loading = true;
+
+  constructor(parentScope: Scope, remoteModel: PersistentRemote, key: MementoModelKey) {
+    this.scope = parentScope.child(`memento:${mementoKeyId(key)}`);
+    this.member = remoteModel(key);
+    this.view = optimistic(this.member.states.value);
+    makeObservable<this, 'loading'>(this, {
+      value: observable.ref,
+      loading: observable,
+      isPending: computed,
+    });
+    observe(
+      this.view,
+      (snapshot) => {
+        runInAction(() => {
+          this.value = snapshot.value;
+          this.loading = snapshot.status === 'loading';
+        });
+      },
+      { scope: this.scope }
+    );
+    this.ready = whenReady(this.view, { scope: this.scope }).then(() => undefined);
+  }
+
+  get isPending(): boolean {
+    return this.loading;
+  }
+
+  async dispose(): Promise<void> {
+    await this.scope.dispose();
+  }
+}
+
 class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
   readonly ready: Promise<void>;
   private readonly lease: ModelLease;
@@ -343,7 +371,7 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
   }
 
   get value(): TValue {
-    return this.dirty?.value ?? this.parser.parse(this.lease.model.values.value);
+    return this.dirty?.value ?? this.parser.parse(this.lease.model.value);
   }
 
   get isPending(): boolean {
@@ -351,7 +379,7 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
   }
 
   get hasStoredValue(): boolean {
-    return this.dirty !== undefined || this.lease.model.values.value != null;
+    return this.dirty !== undefined || this.lease.model.value != null;
   }
 
   read(): TValue {
@@ -386,7 +414,7 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
       this.revision += 1;
     });
     await this.activeWrite;
-    const invocation = await this.lease.model.mutations.reset(undefined);
+    const invocation = await this.lease.model.member.mutations.reset(undefined);
     if (!invocation.result.success) throw new Error(invocation.result.error.message);
     await invocation.settled;
   }
@@ -433,7 +461,7 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
 
   private async flushDirty(dirty: DirtyValue<TValue>): Promise<void> {
     try {
-      const pendingInvocation = this.lease.model.mutations.save(dirty.row);
+      const pendingInvocation = this.lease.model.member.mutations.save(dirty.row);
       runInAction(() => {
         if (this.dirty?.revision === dirty.revision) this.dirty = undefined;
       });
