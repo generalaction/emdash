@@ -161,6 +161,25 @@ boundary mocks and narrow observed-load timeouts, without production behavior ch
 required proof is an actual small two-phase local/SSH Loop, followed by the Wave 5 Summario pilot.
 Nothing was pushed, released, or deployed.
 
+## 2026-08-01 authoritative checkpoint: Wave 4 live local/SSH proof green
+
+Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration` at `8f679bd019` before this documentation checkpoint. The opt-in
+real-Electron live proof used production project/task/worktree/Loop RPCs and native Codex ACP. On
+both local and isolated current-container OpenSSH targets, two fresh GPT-5.6 Sol conversations
+completed two ordered work phases, produced two product checkpoint commits, and left a clean
+worktree. The ordinary deterministic local/SSH forwarding, origin-rotation, lease, and cleanup
+harness remained green.
+
+The live proof found and remediated false session-state conflicts caused by key-order-sensitive
+JSON comparison and a legacy SSH ACP spawn bug that quoted an already-composed executable plus its
+argument as one token. Commit `2c6f1b3806` contains the production fixes and regressions;
+`8f679bd019` contains the live harness. The 30-file Loop/ACP node matrix passed 774/774, the new DB
+CAS regression passed, app typecheck and focused lint passed, and both exact live targets passed.
+Wave 4 is complete. The next authorized slice is Wave 5 on an Emdash-created clean Summario task
+worktree; the dirty/divergent source checkout remains read-only. Nothing was pushed, released, or
+deployed.
+
 ## 2026-08-01 authoritative checkpoint: Wave 3C integrated
 
 Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on

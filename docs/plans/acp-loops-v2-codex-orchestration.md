@@ -1282,7 +1282,17 @@ fresh recreated green run becomes the final success report.
   the exact real-Electron local/SSH harness passed. The production main entry was proven isolated
   from the test bridge. The remaining Wave 4 activity is the live small two-phase local/SSH Loop
   proof before Summario dogfood. No branch was pushed.
-- [ ] Complete independent review, local Electron proof, and Docker SSH proof.
+- [x] 2026-08-01: Completed the live Wave 4 two-phase proof through `8f679bd019`. The production
+  RPC path created and provisioned disposable Emdash tasks, launched two fresh GPT-5.6 Sol Codex
+  ACP conversations per target, persisted two passed phases and two checkpoint commits, and left
+  both local and SSH worktrees clean. The proof exposed and closed two production defects: JSON
+  state CAS used key-order-sensitive string equality between phases, and the legacy SSH ACP host
+  passed an already-composed command back through the shared command builder as one executable
+  token. Structural CAS, separated executable/argument/environment construction, a DB regression,
+  and the opt-in live Electron harness are committed. The 30-file Loop/ACP matrix passed 774/774,
+  the focused DB test passed, app typecheck passed, and the deterministic Electron local/SSH
+  forwarding/rotation harness remained green. No branch was pushed.
+- [x] Complete independent review, local Electron proof, and Docker/current-container SSH proof.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
@@ -1414,9 +1424,9 @@ fresh recreated green run becomes the final success report.
 
 ## Outcomes & Retrospective
 
-Implementation and independent remediation are complete through the Wave 4 code, merge, and
-automated Electron/SSH gates on the isolated integration branch. The live small two-phase Loop
-proof and both Summario acceptance Loops remain. At each major merge wave, the lead records what
-shipped, proof obtained, deviations, and cleanup. At final completion, compare the observable
-result with `Purpose and observable outcome`, list exact validation evidence, and state any
-remaining blocker without claiming success for an unverified path.
+Implementation, independent remediation, and the live two-phase local/SSH proof are complete
+through Wave 4 on the isolated integration branch. Both Summario acceptance Loops remain. At each
+major merge wave, the lead records what shipped, proof obtained, deviations, and cleanup. At final
+completion, compare the observable result with `Purpose and observable outcome`, list exact
+validation evidence, and state any remaining blocker without claiming success for an unverified
+path.
