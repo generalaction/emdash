@@ -1274,6 +1274,14 @@ fresh recreated green run becomes the final success report.
   command automatically exercised the runner container's real OpenSSH service instead. The test
   bridge is double-gated by build mode and environment and was absent from the ordinary production
   build. The source and integrated exact commands both passed. No branch was pushed.
+- [x] 2026-08-01: Completed the Wave 4 independent review/remediation checkpoint through
+  `160949fc0d`. A fresh non-implementing reviewer approved the cumulative base-to-head result with
+  no P0/P1/P2 findings after lifecycle, interruption, model-selection, default-off isolation, and
+  SSH-harness fixes. The repository-wide format, lint, typecheck, test, and build gates passed; the
+  desktop target passed 370 files and 3246 tests, the final focused Loop matrix passed 67/67, and
+  the exact real-Electron local/SSH harness passed. The production main entry was proven isolated
+  from the test bridge. The remaining Wave 4 activity is the live small two-phase local/SSH Loop
+  proof before Summario dogfood. No branch was pushed.
 - [ ] Complete independent review, local Electron proof, and Docker SSH proof.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
@@ -1357,6 +1365,12 @@ fresh recreated green run becomes the final success report.
   timeouts; exact serial reruns passed 16/16 and 17/17 respectively. Wave 3B's focused 48-test
   matrix and all modified-path checks remain green; the full gate is recorded as baseline-red, not
   misreported as passing.
+- Observation: those renderer-boundary failures were caused by test suites importing application
+  singletons without completing their RPC/UI boundary mocks, while aggregate load exposed three
+  timeouts below the observed cold-start duration.
+  Evidence: test-local ACP/feature-flag/SSH mocks plus narrowly increased startup-aware timeouts
+  produced a literal repository-wide green run: all 370 desktop files and 3246 tests passed, with
+  no production behavior changes.
 
 ## Decision Log
 
@@ -1400,9 +1414,9 @@ fresh recreated green run becomes the final success report.
 
 ## Outcomes & Retrospective
 
-Implementation is complete through the independently reviewed Wave 2B foundations on the isolated
-integration branch. The clean-room E2E gate, serial engine/renderer wiring, native Electron harness,
-full independent review, and both Summario acceptance Loops remain. At each major merge wave, the
-lead records what shipped, proof obtained, deviations, and cleanup. At final completion, compare the
-observable result with `Purpose and observable outcome`, list exact validation evidence, and state
-any remaining blocker without claiming success for an unverified path.
+Implementation and independent remediation are complete through the Wave 4 code, merge, and
+automated Electron/SSH gates on the isolated integration branch. The live small two-phase Loop
+proof and both Summario acceptance Loops remain. At each major merge wave, the lead records what
+shipped, proof obtained, deviations, and cleanup. At final completion, compare the observable
+result with `Purpose and observable outcome`, list exact validation evidence, and state any
+remaining blocker without claiming success for an unverified path.

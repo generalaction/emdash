@@ -141,6 +141,26 @@ same-machine worktrees are unsupported, required preserved files cannot be copie
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
 
+## 2026-08-01 authoritative checkpoint: Wave 4 review/remediation green
+
+Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration` at `160949fc0dc4e684f93a714c01ecefb1a584d2ee` before the
+documentation checkpoint commit. The complete base-to-head implementation received a fresh
+independent review after remediation with no P0/P1/P2 findings. Lifecycle remediation now
+serializes startup, bounds and awaits cancellation, fails closed on interruption persistence,
+retains PhaseRunner failure authority, requires an explicit native Codex catalog model, and keeps
+the renderer/main Loop surface inert while the experiment is disabled. The Electron harness uses
+an isolated current-container OpenSSH fallback without modifying the user's SSH authorization.
+
+Exact proof on this head: repository format, lint, typecheck, test, and production build gates
+passed; the desktop target passed 370 files and 3246 tests; the focused Loop matrix passed 67/67;
+and `pnpm --dir apps/emdash-desktop run test:loops-electron` passed its local and production
+SSH/forwarding targets. The ordinary production main entry contained no reference to the
+Loops-Electron test bridge. Aggregate-only baseline test failures were fixed with test-local
+boundary mocks and narrow observed-load timeouts, without production behavior changes. The next
+required proof is an actual small two-phase local/SSH Loop, followed by the Wave 5 Summario pilot.
+Nothing was pushed, released, or deployed.
+
 ## 2026-08-01 authoritative checkpoint: Wave 3C integrated
 
 Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
