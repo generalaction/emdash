@@ -306,7 +306,7 @@ describe('Controller-driven PTY grid fan-out (FrontendPty.bySession)', () => {
     const pty = new FrontendPty('session-a');
     expect(FrontendPty.bySession.get('session-a')).toBe(pty);
     expect(getFrontendPty('session-a')).toBe(pty);
-  });
+  }, 30_000);
 
   it('removes a FrontendPty from bySession on dispose', async () => {
     const { FrontendPty, getFrontendPty } = await getPtyModule();

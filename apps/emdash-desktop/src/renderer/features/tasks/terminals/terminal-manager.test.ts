@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalManagerStore } from './terminal-manager';
 
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {},
+}));
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 const createTerminal = vi.hoisted(() => vi.fn());
 const getTerminalsForTask = vi.hoisted(() => vi.fn());
 const hydrateTerminal = vi.hoisted(() => vi.fn());

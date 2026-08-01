@@ -89,7 +89,7 @@ describe('BoundExec', () => {
             'setInterval(() => {}, 10_000);',
           ].join(' '),
         ],
-        { timeoutMs: 250 }
+        { timeoutMs: 1_000 }
       )
     ).rejects.toBeInstanceOf(ExecError);
 
