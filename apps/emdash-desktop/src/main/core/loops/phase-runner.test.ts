@@ -81,6 +81,14 @@ function makeExecutionTarget(): LoopExecutionTarget {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
+
 function makeV2Loop(): LoopWithPhases {
   const base = '1'.repeat(40);
   const loop = makeLoop();
@@ -482,6 +490,109 @@ describe('PhaseRunner', () => {
       expect.objectContaining({ checkpointCommit: checkpoint })
     );
     expect(exec).toHaveBeenCalledWith('git', ['add', '-A'], expect.any(Object));
+  });
+
+  it('interrupts and cancels a v2 session that resolves after a pause request', async () => {
+    loop = makeV2Loop();
+    const memory = makeMemoryDeps(loop, new Map([['unit-tests', passingVerifier('unit-tests')]]));
+    const commitSessionAttempt = vi.fn(async (input) => {
+      const attempts = [...input.expected.sessionAttempts];
+      if (input.previous) {
+        attempts[attempts.findIndex((attempt) => attempt.attemptId === input.previous.attemptId)] =
+          input.next;
+      } else {
+        attempts.push(input.next);
+      }
+      return ok({ ...input.expected, sessionAttempts: attempts });
+    });
+    const pendingSession = deferred<Awaited<ReturnType<LoopSessionDriver['startPhaseSession']>>>();
+    driver.startPhaseSession = vi.fn(() => pendingSession.promise);
+    let reason: 'pause' | 'cancel' | null = null;
+    const controller = new AbortController();
+    const control: LoopRunControl = {
+      signal: controller.signal,
+      stopReason: () => reason,
+      setActiveConversation: vi.fn(async (conversationId, activeDriver) => {
+        if (conversationId && activeDriver && reason) {
+          await activeDriver.cancelPrompt(conversationId);
+        }
+      }),
+    };
+    const run = new PhaseRunner({
+      ...memory.deps,
+      commitSessionAttempt: commitSessionAttempt as never,
+    }).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control,
+    });
+    await vi.waitFor(() => expect(driver.startPhaseSession).toHaveBeenCalledOnce());
+    reason = 'pause';
+    controller.abort();
+    pendingSession.resolve(ok({ conversationId: 'late-session', title: 'late' }));
+
+    const result = await run;
+
+    expect(result.success && result.data.kind).toBe('paused');
+    expect(driver.cancelPrompt).toHaveBeenCalledWith(expect.any(String));
+    expect(commitSessionAttempt.mock.calls.map(([input]) => input.next.status)).toEqual([
+      'starting',
+      'interrupted',
+    ]);
+  });
+
+  it('persists verifier cancellation as interruption instead of failing the v2 phase', async () => {
+    loop = makeV2Loop();
+    let reason: 'pause' | 'cancel' | null = null;
+    const controller = new AbortController();
+    const verifier = passingVerifier('unit-tests');
+    verifier.run = vi.fn(async () => {
+      reason = 'pause';
+      controller.abort();
+      return err({
+        kind: 'aborted',
+        verifierId: 'unit-tests',
+        message: 'validation cancelled',
+        cwd: '/tmp/workspace',
+      } satisfies VerifierError);
+    });
+    const memory = makeMemoryDeps(loop, new Map([['unit-tests', verifier]]));
+    const commitSessionAttempt = vi.fn(async (input) => {
+      const attempts = [...input.expected.sessionAttempts];
+      if (input.previous) {
+        attempts[attempts.findIndex((attempt) => attempt.attemptId === input.previous.attemptId)] =
+          input.next;
+      } else {
+        attempts.push(input.next);
+      }
+      return ok({ ...input.expected, sessionAttempts: attempts });
+    });
+    driver.sendPrompt = vi.fn(async () => ok({ finalText: `Done\n${PHASE_DONE_SENTINEL}` }));
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      commitSessionAttempt: commitSessionAttempt as never,
+    }).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control: {
+        signal: controller.signal,
+        stopReason: () => reason,
+        setActiveConversation: vi.fn(),
+      },
+    });
+
+    expect(result.success && result.data.kind).toBe('paused');
+    expect(commitSessionAttempt.mock.calls.map(([input]) => input.next.status)).toEqual([
+      'starting',
+      'running',
+      'interrupted',
+    ]);
+    expect(memory.loopTransitions).not.toContain('failed');
   });
 
   it('dispatches one terminal Review phase and atomically retains its checkpoint', async () => {

@@ -2,7 +2,6 @@ import { nextDefaultConversationTitle } from '@renderer/features/conversations/c
 import type { LoopPlanDraft } from '@renderer/features/loops/loop-plan-model';
 import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import { extractIssueMentionTargets } from '@shared/core/issues/issue-context';
-import { DEFAULT_LOOP_MODEL } from '@shared/core/loops/loops';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import type { TaskConfig } from '@shared/core/tasks/task-config';
 import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
@@ -73,11 +72,12 @@ export type LoopTaskAuthoringInput = {
 
 export function buildLoopTaskAuthoringInput(
   taskName: string,
-  draft: LoopPlanDraft
+  draft: LoopPlanDraft,
+  model: string
 ): LoopTaskAuthoringInput {
   return {
     name: `${taskName.trim()} Loop`,
-    model: DEFAULT_LOOP_MODEL,
+    model: model.trim(),
     planSource: draft.planSource.trim(),
     validationCommands: draft.validationCommands.map((command) => command.trim()).filter(Boolean),
     terminalGates: { ...draft.terminalGates },

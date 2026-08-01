@@ -439,6 +439,8 @@ export class PhaseRunner {
     }
 
     let durableLoopState = loopState.data;
+    const stoppedBeforeStart = await this.stopV2Work(input, loop, phase);
+    if (stoppedBeforeStart) return stoppedBeforeStart;
     const conversationId = randomUUID();
     const attemptId = randomUUID();
     const startedAt = this.deps.now().toISOString();
@@ -464,6 +466,14 @@ export class PhaseRunner {
     });
     if (!appended.success) return this.operationFailure(appended.error);
     durableLoopState = appended.data;
+    const stoppedBeforeSession = await this.stopV2Work(
+      input,
+      loop,
+      phase,
+      durableLoopState,
+      sessionAttempt
+    );
+    if (stoppedBeforeSession) return stoppedBeforeSession;
 
     const session = await input.driver.startPhaseSession({
       loop,
@@ -474,6 +484,8 @@ export class PhaseRunner {
       conversationId,
     });
     if (!session.success) {
+      const stopped = await this.stopV2Work(input, loop, phase, durableLoopState, sessionAttempt);
+      if (stopped) return stopped;
       await this.finishSessionAttempt(
         loop.id,
         durableLoopState,
@@ -488,6 +500,16 @@ export class PhaseRunner {
       });
     }
 
+    await input.control.setActiveConversation(conversationId, input.driver);
+    const stoppedAfterSession = await this.stopV2Work(
+      input,
+      loop,
+      phase,
+      durableLoopState,
+      sessionAttempt
+    );
+    if (stoppedAfterSession) return stoppedAfterSession;
+
     const runningAttempt: LoopSessionAttempt = { ...sessionAttempt, status: 'running' };
     const runningCommit = await this.deps.commitSessionAttempt({
       loopId: loop.id,
@@ -498,7 +520,14 @@ export class PhaseRunner {
     if (!runningCommit.success) return this.operationFailure(runningCommit.error);
     durableLoopState = runningCommit.data;
     sessionAttempt = runningAttempt;
-    await input.control.setActiveConversation(conversationId, input.driver);
+    const stoppedAfterRunningCommit = await this.stopV2Work(
+      input,
+      loop,
+      phase,
+      durableLoopState,
+      sessionAttempt
+    );
+    if (stoppedAfterRunningCommit) return stoppedAfterRunningCommit;
 
     const phaseRunning = await this.transitionPhase(phase.id, {
       conversationId,
@@ -508,6 +537,14 @@ export class PhaseRunner {
     });
     if (!phaseRunning.success) return err(phaseRunning.error);
     phase = phaseRunning.data;
+    const stoppedAfterPhaseTransition = await this.stopV2Work(
+      input,
+      loop,
+      phase,
+      durableLoopState,
+      sessionAttempt
+    );
+    if (stoppedAfterPhaseTransition) return stoppedAfterPhaseTransition;
 
     const previousPhase = loop.phases
       .filter((candidate) => candidate.idx < phase.idx)
@@ -534,6 +571,14 @@ export class PhaseRunner {
       failureMessage: 'Loop work prompt failed',
       timeoutLabel: 'Loop work prompt',
     });
+    const stoppedAfterPrompt = await this.stopV2Work(
+      input,
+      loop,
+      phase,
+      durableLoopState,
+      sessionAttempt
+    );
+    if (stoppedAfterPrompt) return stoppedAfterPrompt;
     if (!promptResult.success) {
       await this.finishSessionAttempt(
         loop.id,
@@ -577,6 +622,14 @@ export class PhaseRunner {
       criteria: phase.criteria?.criteria ?? [],
       signal: input.control.signal,
     });
+    const stoppedAfterVerification = await this.stopV2Work(
+      input,
+      loop,
+      phase,
+      durableLoopState,
+      sessionAttempt
+    );
+    if (stoppedAfterVerification) return stoppedAfterVerification;
     if (!verification.success) {
       await this.finishSessionAttempt(
         loop.id,
@@ -651,6 +704,8 @@ export class PhaseRunner {
       await input.control.setActiveConversation(null, null);
       return ok({ kind: 'passed', loop, phase });
     } catch (error) {
+      const stopped = await this.stopV2Work(input, loop, phase, durableLoopState, sessionAttempt);
+      if (stopped) return stopped;
       const message = error instanceof Error ? error.message : String(error);
       await this.finishSessionAttempt(
         loop.id,
@@ -662,6 +717,29 @@ export class PhaseRunner {
       );
       return this.markV2WorkFailed(loop, phase, message);
     }
+  }
+
+  private async stopV2Work(
+    input: RunPhaseInput,
+    loop: LoopWithPhases,
+    phase: LoopPhase,
+    state?: LoopStateV2,
+    attempt?: LoopSessionAttempt
+  ): Promise<Result<RunPhaseResult, LoopRunError> | null> {
+    const reason = input.control.stopReason();
+    if (!reason) return null;
+    if (state && attempt) {
+      await this.finishSessionAttempt(
+        loop.id,
+        state,
+        attempt,
+        reason === 'pause' ? 'interrupted' : 'cancelled',
+        undefined,
+        reason === 'pause' ? 'Loop paused' : 'Loop cancelled'
+      );
+    }
+    await input.control.setActiveConversation(null, null);
+    return ok({ kind: reason === 'pause' ? 'paused' : 'cancelled', loop, phase });
   }
 
   private async runV2ReviewPhase(

@@ -1,16 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
 import { createServer as createTcpServer, Socket } from 'node:net';
@@ -49,17 +39,13 @@ const composeFile = join(process.cwd(), 'tooling/loops-electron/docker-compose.y
 const containerSshFallback =
   process.env.EMDASH_LOOPS_ELECTRON_CONTAINER_SSH === '1' ||
   (existsSync('/.dockerenv') && process.env.EMDASH_LOOPS_ELECTRON_CONTAINER_SSH !== '0');
-const authorizedKeysPath = join(process.env.HOME ?? '', '.ssh/authorized_keys');
 let electronApp: ElectronApplication | undefined;
 let localServer: Server | undefined;
 let remoteFallbackServer: Server | undefined;
 let localPortBlocker: ReturnType<typeof createTcpServer> | undefined;
 let rotationPortBlocker: ReturnType<typeof createTcpServer> | undefined;
+let fallbackSshd: ChildProcess | undefined;
 let dockerStarted = false;
-let authorizedKeysBackup:
-  | { existed: false }
-  | { existed: true; contents: Buffer; mode: number }
-  | undefined;
 
 try {
   localServer = createServer((_request, response) => {
@@ -88,6 +74,9 @@ try {
   page.on('pageerror', (error) => process.stderr.write(`[renderer:error] ${error.message}\n`));
   await page.waitForFunction(() => window.electronAPI !== undefined);
   assert.deepEqual(await invoke(page, 'loopsElectronTest.ping'), { mode: 'loops-electron' });
+  await invoke(page, 'appSettings.update', 'experiments', { loops: true });
+  await page.reload();
+  await page.waitForFunction(() => window.electronAPI !== undefined);
   await page.waitForFunction(() => document.querySelector('#root')?.childElementCount !== 0);
   await delay(250);
 
@@ -95,7 +84,10 @@ try {
   await proveCancelledDiscovery(page);
 
   if (process.env.EMDASH_LOOPS_ELECTRON_LOCAL_ONLY !== '1') {
-    const sshPort = containerSshFallback ? 22 : await startDockerSshFixture();
+    generateSshKey();
+    const sshPort = containerSshFallback
+      ? await startContainerSshFixture()
+      : await startDockerSshFixture();
     await waitForTcp(sshPort);
     await proveSshFlow(page, sshPort);
   }
@@ -105,7 +97,7 @@ try {
     process.env.EMDASH_LOOPS_ELECTRON_LOCAL_ONLY === '1'
       ? ' (Docker SSH explicitly skipped)\n'
       : containerSshFallback
-        ? ' and current-container SSH forwarding/rotation\n'
+        ? ' and isolated current-container SSH forwarding/rotation\n'
         : ' and Docker SSH forwarding/rotation\n'
   );
 } finally {
@@ -114,6 +106,7 @@ try {
   remoteFallbackServer?.close();
   localServer?.close();
   await electronApp?.close().catch(() => undefined);
+  await stopContainerSshFixture();
   if (dockerStarted) {
     docker([
       'compose',
@@ -126,7 +119,6 @@ try {
       '--remove-orphans',
     ]);
   }
-  restoreAuthorizedKeys();
   rmSync(root, { recursive: true, force: true });
 }
 
@@ -214,10 +206,8 @@ async function proveCancelledDiscovery(page: Page): Promise<void> {
 }
 
 async function proveSshFlow(page: Page, sshPort: number): Promise<void> {
-  generateSshKey();
   const containerId = containerSshFallback ? undefined : dockerContainerId();
-  if (containerSshFallback) installFallbackAuthorizedKey();
-  else installDockerAuthorizedKey(containerId!);
+  if (containerId) installDockerAuthorizedKey(containerId);
 
   const remoteFixture = join(root, 'remote-index.html');
   writeFileSync(remoteFixture, fixtureHtml);
@@ -448,6 +438,55 @@ async function startDockerSshFixture(): Promise<number> {
   return sshPort;
 }
 
+async function startContainerSshFixture(): Promise<number> {
+  assert.ok(existsSync('/.dockerenv'), 'container SSH fallback is allowed only inside Docker');
+  requireCommand('sudo');
+  const port = await getFreePort();
+  const hostKeyPath = join(root, 'ssh_host_ed25519_key');
+  const authorizedKeysPath = join(root, 'sshd_authorized_keys');
+  const configPath = join(root, 'sshd_config');
+  const pidPath = join(root, 'sshd.pid');
+  const hostKey = spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', hostKeyPath]);
+  if (hostKey.error) throw hostKey.error;
+  assert.equal(hostKey.status, 0, 'container SSH host-key generation failed');
+  writeFileSync(authorizedKeysPath, readFileSync(`${keyPath}.pub`));
+  chmodSync(authorizedKeysPath, 0o600);
+  writeFileSync(
+    configPath,
+    [
+      `Port ${port}`,
+      'ListenAddress 127.0.0.1',
+      `HostKey ${hostKeyPath}`,
+      `PidFile ${pidPath}`,
+      `AuthorizedKeysFile ${authorizedKeysPath}`,
+      'PubkeyAuthentication yes',
+      'PasswordAuthentication no',
+      'KbdInteractiveAuthentication no',
+      'UsePAM yes',
+      'PermitRootLogin no',
+      'AllowUsers devuser',
+      'StrictModes no',
+      'LogLevel ERROR',
+    ].join('\n') + '\n'
+  );
+  fallbackSshd = spawn('sudo', ['-n', '/usr/sbin/sshd', '-D', '-e', '-f', configPath], {
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
+  await waitForTcp(port);
+  return port;
+}
+
+async function stopContainerSshFixture(): Promise<void> {
+  const child = fallbackSshd;
+  fallbackSshd = undefined;
+  if (!child) return;
+  child.kill('SIGTERM');
+  await Promise.race([
+    new Promise<void>((resolve) => child.once('exit', () => resolve())),
+    delay(2_000),
+  ]);
+}
+
 function docker(args: string[]): string {
   const result = spawnSync('docker', args, { cwd: process.cwd(), encoding: 'utf8' });
   if (result.error) throw result.error;
@@ -499,32 +538,6 @@ function installDockerAuthorizedKey(containerId: string): void {
     '-lc',
     'install -d -m 700 -o devuser -g devuser /home/devuser/.ssh && install -m 600 -o devuser -g devuser /tmp/loops-electron.pub /home/devuser/.ssh/authorized_keys',
   ]);
-}
-
-function installFallbackAuthorizedKey(): void {
-  assert.ok(existsSync('/.dockerenv'), 'container SSH fallback is allowed only inside Docker');
-  mkdirSync(join(process.env.HOME ?? '', '.ssh'), { recursive: true, mode: 0o700 });
-  authorizedKeysBackup = existsSync(authorizedKeysPath)
-    ? {
-        existed: true,
-        contents: readFileSync(authorizedKeysPath),
-        mode: statSync(authorizedKeysPath).mode,
-      }
-    : { existed: false };
-  const previous = authorizedKeysBackup.existed ? authorizedKeysBackup.contents.toString() : '';
-  const publicKey = readFileSync(`${keyPath}.pub`, 'utf8').trim();
-  writeFileSync(authorizedKeysPath, `${previous.trimEnd()}${previous ? '\n' : ''}${publicKey}\n`);
-  chmodSync(authorizedKeysPath, 0o600);
-}
-
-function restoreAuthorizedKeys(): void {
-  if (!authorizedKeysBackup) return;
-  if (!authorizedKeysBackup.existed) {
-    if (existsSync(authorizedKeysPath)) unlinkSync(authorizedKeysPath);
-    return;
-  }
-  writeFileSync(authorizedKeysPath, authorizedKeysBackup.contents);
-  chmodSync(authorizedKeysPath, authorizedKeysBackup.mode & 0o777);
 }
 
 async function startRemoteServer(containerId: string | undefined, port: number): Promise<void> {

@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { LoopAuthoringPort, LoopTabEvent, LoopTabSnapshot } from './loop-authoring-port';
 import { LoopTabResource } from './loop-tab-resource';
 
+const settings = vi.hoisted(() => ({ loops: true }));
+vi.mock('@renderer/features/settings/app-settings-client', () => ({
+  getAppSettingValueSnapshot: () => ({ loops: settings.loops }),
+}));
+
 function snapshot(patch: Partial<LoopTabSnapshot> = {}): LoopTabSnapshot {
   return {
     loopId: 'loop-1',
@@ -56,6 +61,24 @@ describe('LoopTabResource', () => {
     expect(fake.port.loadLoop).toHaveBeenCalledWith('loop-1');
     expect(fake.port.subscribeToLoop).toHaveBeenCalledWith('loop-1', expect.any(Function));
     expect(resource.state).toEqual({ kind: 'ready', snapshot: snapshot() });
+  });
+
+  it('stays inert while disabled and releases subscriptions on live opt-out', async () => {
+    settings.loops = false;
+    const fake = fakePort();
+    const resource = new LoopTabResource('loop-1', fake.port);
+
+    resource.onActivate();
+    await resource.load();
+    expect(fake.port.loadLoop).not.toHaveBeenCalled();
+    expect(fake.port.subscribeToLoop).not.toHaveBeenCalled();
+
+    resource.setEnabled(true);
+    await resource.loading;
+    resource.setEnabled(false);
+    expect(fake.unsubscribe).toHaveBeenCalledOnce();
+    expect(resource.state).toEqual({ kind: 'idle' });
+    settings.loops = true;
   });
 
   it('maps subscribed events, including handoff, evidence, and browser state', async () => {

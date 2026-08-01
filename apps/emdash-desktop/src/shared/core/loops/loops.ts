@@ -29,7 +29,6 @@ export type LoopPhaseKind = z.infer<typeof loopPhaseKindSchema>;
 
 /** Provider used by newly authored v2 Loops. Historical v1 rows had a Claude default. */
 export const DEFAULT_LOOP_PROVIDER = 'codex' as const satisfies LoopProviderId;
-export const DEFAULT_LOOP_MODEL = 'gpt-5.6-sol';
 export const LEGACY_DEFAULT_LOOP_PROVIDER = 'claude' as const satisfies LoopProviderId;
 
 export const loopTerminalGatesSchema = z
@@ -102,7 +101,7 @@ export type NewLoopConfigV2 = z.infer<typeof newLoopConfigV2Schema>;
 export type LoopConfig = LoopConfigV1 | LoopConfigV2;
 
 export type CreateLoopConfigV2Input = {
-  model?: string;
+  model: string;
   validationCommands: string[];
   planSource: string;
   terminalGates: LoopTerminalGates;
@@ -115,7 +114,7 @@ export function createLoopConfigV2(input: CreateLoopConfigV2Input): NewLoopConfi
   return newLoopConfigV2Schema.parse({
     version: '2',
     provider: DEFAULT_LOOP_PROVIDER,
-    model: input.model ?? DEFAULT_LOOP_MODEL,
+    model: input.model,
     validationCommands: input.validationCommands,
     planSource: input.planSource,
     terminalGates: input.terminalGates,

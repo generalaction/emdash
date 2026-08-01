@@ -89,7 +89,7 @@ describe('buildInitialConversation', () => {
       terminalGates: { review: true, e2e: true },
     };
 
-    expect(buildLoopTaskAuthoringInput(' Feature ', draft)).toEqual({
+    expect(buildLoopTaskAuthoringInput(' Feature ', draft, ' gpt-5.6-sol ')).toEqual({
       name: 'Feature Loop',
       model: 'gpt-5.6-sol',
       planSource: '## Build',

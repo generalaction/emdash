@@ -1,3 +1,4 @@
+import { getPlugin } from '@main/core/agents/plugin-registry';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getTasks } from '@main/core/tasks/operations/getTasks';
 import { taskService } from '@main/core/tasks/task-service';
@@ -50,11 +51,20 @@ export type LoopServiceError =
 
 class LoopRunHandle implements LoopRunControl {
   private readonly abortController = new AbortController();
+  private readonly completion: Promise<void>;
+  private resolveCompletion!: () => void;
+  private completed = false;
   private reason: 'pause' | 'cancel' | null = null;
   private activeConversationId: string | null = null;
   private activeDriver: LoopSessionDriver | null = null;
 
   currentPhaseId: string | null = null;
+
+  constructor() {
+    this.completion = new Promise((resolve) => {
+      this.resolveCompletion = resolve;
+    });
+  }
 
   get signal(): AbortSignal {
     return this.abortController.signal;
@@ -64,13 +74,19 @@ class LoopRunHandle implements LoopRunControl {
     return this.reason;
   }
 
-  setActiveConversation(conversationId: string | null, driver: LoopSessionDriver | null): void {
+  async setActiveConversation(
+    conversationId: string | null,
+    driver: LoopSessionDriver | null
+  ): Promise<void> {
     this.activeConversationId = conversationId;
     this.activeDriver = driver;
+    if (this.reason && conversationId && driver) {
+      await driver.cancelPrompt(conversationId);
+    }
   }
 
   async request(reason: 'pause' | 'cancel'): Promise<void> {
-    this.reason = reason;
+    if (this.reason !== 'cancel') this.reason = reason;
     if (!this.abortController.signal.aborted) {
       this.abortController.abort(new Error(`Loop ${reason}`));
     }
@@ -78,6 +94,16 @@ class LoopRunHandle implements LoopRunControl {
     if (this.activeConversationId && this.activeDriver) {
       await this.activeDriver.cancelPrompt(this.activeConversationId);
     }
+  }
+
+  finish(): void {
+    if (this.completed) return;
+    this.completed = true;
+    this.resolveCompletion();
+  }
+
+  waitForCompletion(): Promise<void> {
+    return this.completion;
   }
 }
 
@@ -152,7 +178,9 @@ export class LoopService {
     this.enabled = enabled;
     if (enabled) return;
 
-    await Promise.all(Array.from(this.activeRuns.values(), (handle) => handle.request('pause')));
+    const handles = Array.from(this.activeRuns.values());
+    await Promise.all(handles.map((handle) => handle.request('pause')));
+    await Promise.all(handles.map((handle) => handle.waitForCompletion()));
     const paused = await pauseRunningLoopsForBoot();
     for (const loop of paused) emitLoop(loop);
   }
@@ -185,6 +213,14 @@ export class LoopService {
   ): Promise<Result<CreateTaskWithLoopSuccess, CreateTaskWithLoopError | LoopServiceError>> {
     const enabled = this.requireEnabled();
     if (!enabled.success) return enabled;
+    const requestedModel = params.loop.model?.trim() ?? '';
+    const models = getPlugin('codex').capabilities.models;
+    if (models.kind !== 'selectable' || !(requestedModel in models.modelOptions)) {
+      return err({
+        kind: 'invalid-state',
+        message: `Codex model '${requestedModel || '(empty)'}' is not available`,
+      });
+    }
     const result = await createTaskWithLoopOperation(params);
     if (!result.success) return result;
 
@@ -195,10 +231,14 @@ export class LoopService {
   }
 
   async getLoopsForProject(projectId: string): Promise<Result<LoopWithPhases[], LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     return ok(await getLoopsForProjectOperation(projectId));
   }
 
   async getLoop(loopId: string): Promise<Result<LoopWithPhases, LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     return loadLoop(loopId);
   }
 
@@ -261,6 +301,7 @@ export class LoopService {
     const handle = this.activeRuns.get(loopId);
     if (handle) {
       await handle.request('pause');
+      await handle.waitForCompletion();
     }
 
     const updated = await updateLoop(loopId, { status: 'paused' });
@@ -274,6 +315,7 @@ export class LoopService {
     const handle = this.activeRuns.get(loopId);
     if (handle) {
       await handle.request('cancel');
+      await handle.waitForCompletion();
       if (handle.currentPhaseId) {
         const phase = await updatePhase(handle.currentPhaseId, {
           status: 'failed',
@@ -324,7 +366,7 @@ export class LoopService {
     const handle = this.activeRuns.get(loopId);
     if (handle) {
       await handle.request('cancel');
-      this.activeRuns.delete(loopId);
+      await handle.waitForCompletion();
     }
 
     const result = await deleteLoopOperation(loopId);
@@ -342,44 +384,85 @@ export class LoopService {
       return err({ kind: 'conflict', message: 'Loop is already running' });
     }
 
-    const loopResult = await loadLoop(loopId);
-    if (!loopResult.success) return loopResult;
-
-    const allowed =
-      action === 'start'
-        ? ['draft', 'paused', 'failed'].includes(loopResult.data.status)
-        : loopResult.data.status === 'paused';
-    if (!allowed) {
-      return err({
-        kind: 'invalid-state',
-        message: `Cannot ${action} loop with status '${loopResult.data.status}'`,
-      });
-    }
-
-    const executionTarget = await resolveExecutionTarget(loopResult.data);
-    if (!executionTarget.success) return executionTarget;
-
-    const checkpoint = await this.initializeCheckpointAuthority(
-      loopResult.data,
-      executionTarget.data
-    );
-    if (!checkpoint.success) {
-      executionTarget.data.dispose();
-      return checkpoint;
-    }
-
-    const running = await updateLoop(loopId, { status: 'running' });
-    if (!running.success) return err(serviceError(running.error));
-    emitLoop(running.data);
-
     const handle = new LoopRunHandle();
     this.activeRuns.set(loopId, handle);
-    void this.runLoop(loopId, executionTarget.data, handle).finally(() => {
-      executionTarget.data.dispose();
-      this.activeRuns.delete(loopId);
-    });
+    let executionTarget: LoopExecutionTarget | undefined;
+    let launched = false;
 
-    return loadLoop(loopId);
+    try {
+      const stopped = this.preLaunchStop(handle, action);
+      if (stopped) return stopped;
+
+      const loopResult = await loadLoop(loopId);
+      if (!loopResult.success) return loopResult;
+      const stoppedAfterLoad = this.preLaunchStop(handle, action);
+      if (stoppedAfterLoad) return stoppedAfterLoad;
+
+      const allowed =
+        action === 'start'
+          ? ['draft', 'paused', 'failed'].includes(loopResult.data.status)
+          : loopResult.data.status === 'paused';
+      if (!allowed) {
+        return err({
+          kind: 'invalid-state',
+          message: `Cannot ${action} loop with status '${loopResult.data.status}'`,
+        });
+      }
+
+      const resolvedTarget = await resolveExecutionTarget(loopResult.data);
+      if (!resolvedTarget.success) return resolvedTarget;
+      executionTarget = resolvedTarget.data;
+      const stoppedAfterTarget = this.preLaunchStop(handle, action);
+      if (stoppedAfterTarget) return stoppedAfterTarget;
+
+      const checkpoint = await this.initializeCheckpointAuthority(loopResult.data, executionTarget);
+      if (!checkpoint.success) return checkpoint;
+      const stoppedAfterCheckpoint = this.preLaunchStop(handle, action);
+      if (stoppedAfterCheckpoint) return stoppedAfterCheckpoint;
+
+      const running = await updateLoop(loopId, { status: 'running' });
+      if (!running.success) return err(serviceError(running.error));
+      const stoppedAfterTransition = this.preLaunchStop(handle, action);
+      if (stoppedAfterTransition) {
+        await updateLoop(loopId, { status: 'paused' });
+        return stoppedAfterTransition;
+      }
+      emitLoop(running.data);
+
+      const ownedTarget = executionTarget;
+      launched = true;
+      void this.runLoop(loopId, ownedTarget, handle).finally(() => {
+        ownedTarget.dispose();
+        if (this.activeRuns.get(loopId) === handle) this.activeRuns.delete(loopId);
+        handle.finish();
+      });
+
+      return loadLoop(loopId);
+    } finally {
+      if (!launched) {
+        executionTarget?.dispose();
+        if (this.activeRuns.get(loopId) === handle) this.activeRuns.delete(loopId);
+        handle.finish();
+      }
+    }
+  }
+
+  private preLaunchStop(
+    handle: LoopRunHandle,
+    action: 'start' | 'resume'
+  ): Result<never, LoopServiceError> | null {
+    if (!this.enabled) {
+      return err({
+        kind: 'feature-disabled',
+        message: 'ACP Loops are disabled in Experimental Settings',
+      });
+    }
+    const reason = handle.stopReason();
+    if (!reason) return null;
+    return err({
+      kind: 'invalid-state',
+      message: `Loop ${action} was ${reason === 'pause' ? 'paused' : 'cancelled'}`,
+    });
   }
 
   private async initializeCheckpointAuthority(

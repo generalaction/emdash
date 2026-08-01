@@ -28,10 +28,13 @@ export function useCreateTaskCallback({
   navigate,
   onClose,
 }: UseCreateTaskCallbackParams): { handleCreateTask: () => Promise<void>; canCreate: boolean } {
-  const canCreate = !!selectedProjectId && state.isValid;
+  const hasResolvedLoopModel =
+    !state.loopPlan.enabled ||
+    (initialConversation.provider === 'codex' && Boolean(initialConversation.model?.trim()));
+  const canCreate = !!selectedProjectId && state.isValid && hasResolvedLoopModel;
 
   const handleCreateTask = useCallback(async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId || !canCreate) return;
     const taskManager = getTaskManagerStore(selectedProjectId);
     if (!taskManager) return;
 
@@ -58,7 +61,11 @@ export function useCreateTaskCallback({
       if (state.loopPlan.enabled) {
         const loop = await taskManager.createTaskWithLoop({
           task,
-          loop: buildLoopTaskAuthoringInput(state.taskName.effectiveTaskName, state.loopPlan),
+          loop: buildLoopTaskAuthoringInput(
+            state.taskName.effectiveTaskName,
+            state.loopPlan,
+            initialConversation.model!
+          ),
         });
         getTaskView(selectedProjectId, id)?.paneLayout.open(
           'loop',
@@ -71,7 +78,7 @@ export function useCreateTaskCallback({
     } catch (error) {
       log.error(state.loopPlan.enabled ? 'create Loop task failed' : 'create task failed', error);
     }
-  }, [selectedProjectId, state, initialConversation, navigate, onClose]);
+  }, [selectedProjectId, state, initialConversation, navigate, onClose, canCreate]);
 
   return { handleCreateTask, canCreate };
 }

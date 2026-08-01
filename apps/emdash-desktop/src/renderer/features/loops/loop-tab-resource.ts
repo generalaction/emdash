@@ -1,4 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import type { TabResource } from '@renderer/features/tabs/core/tab-provider';
 import type { LoopAuthoringPort, LoopTabEvent, LoopTabSnapshot } from './loop-authoring-port';
 
@@ -26,6 +27,7 @@ export class LoopTabResource implements TabResource {
 
   private unsubscribe: (() => void) | undefined;
   private activated = false;
+  private enabled = false;
   private disposed = false;
   private eventVersion = 0;
   private loadGeneration = 0;
@@ -40,16 +42,33 @@ export class LoopTabResource implements TabResource {
       disposed: false,
       loading: false,
     });
+    this.enabled = getAppSettingValueSnapshot('experiments')?.loops === true;
   }
 
   onActivate(): void {
-    if (this.activated || this.disposed) return;
+    if (!this.enabled || this.activated || this.disposed) return;
     this.activated = true;
     this.loading = this.load();
   }
 
+  setEnabled(enabled: boolean): void {
+    if (this.disposed || this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (enabled) {
+      this.onActivate();
+      return;
+    }
+    this.activated = false;
+    this.eventVersion += 1;
+    this.loadGeneration += 1;
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.state = { kind: 'idle' };
+    this.action = { kind: 'idle' };
+  }
+
   load(): Promise<void> {
-    if (this.disposed) return Promise.resolve();
+    if (!this.enabled || this.disposed) return Promise.resolve();
     this.ensureSubscribed();
     const versionAtStart = this.eventVersion;
     const generation = ++this.loadGeneration;

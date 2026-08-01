@@ -4,7 +4,6 @@ import { loopPhaseCriteria } from './loop-phase-criteria';
 import { loopPhaseState } from './loop-phase-state';
 import { loopState } from './loop-state';
 import {
-  DEFAULT_LOOP_MODEL,
   DEFAULT_LOOP_PROVIDER,
   LEGACY_DEFAULT_LOOP_PROVIDER,
   createLoopConfigV2,
@@ -99,6 +98,7 @@ describe('loop versioned schemas', () => {
 
   it('creates strict v2 configs with the preflighted Codex provider/model pair', () => {
     const config = createLoopConfigV2({
+      model: 'gpt-5.6-sol',
       validationCommands: ['pnpm run test'],
       planSource: 'phase plan',
       terminalGates: { review: true, e2e: true },
@@ -106,7 +106,6 @@ describe('loop versioned schemas', () => {
     });
 
     expect(DEFAULT_LOOP_PROVIDER).toBe('codex');
-    expect(DEFAULT_LOOP_MODEL).toBe('gpt-5.6-sol');
     expect(config).toMatchObject({
       version: '2',
       provider: 'codex',

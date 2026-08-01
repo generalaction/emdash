@@ -6,8 +6,18 @@ import type { LoopAuthoringPort, LoopTabSnapshot } from './loop-authoring-port';
 import { createLoopTabProvider, LoopTabPanel } from './loop-tab-provider';
 import { LoopTabResource } from './loop-tab-resource';
 
+const settings = vi.hoisted(() => ({ loops: true }));
+
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
-  useAppSettingsKey: () => ({ value: {}, isLoading: false, isSaving: false }),
+  useAppSettingsKey: () => ({
+    value: { loops: settings.loops },
+    isLoading: false,
+    isSaving: false,
+  }),
+}));
+
+vi.mock('@renderer/features/settings/app-settings-client', () => ({
+  getAppSettingValueSnapshot: () => ({ loops: settings.loops }),
 }));
 
 vi.mock('@renderer/features/tabs/tab-bar/generic-tab-item', async () => {
@@ -95,6 +105,7 @@ describe('native Loop tab', () => {
   let container: HTMLElement;
 
   beforeEach(() => {
+    settings.loops = true;
     dom = new JSDOM('<div id="root"></div>');
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
@@ -128,6 +139,13 @@ describe('native Loop tab', () => {
     expect(provider.mount).toBe('single');
     expect(provider.resourceKey({ loopId: 'loop-1' })).toBe('loop-1');
     expect(resource).toBeInstanceOf(LoopTabResource);
+  });
+
+  it('rejects Loop tab activation while the experiment is disabled', () => {
+    settings.loops = false;
+    const provider = createLoopTabProvider(port());
+
+    expect(provider.onBeforeOpen?.({ loopId: 'loop-1' }, { viewId: 'task-1' })).toBeNull();
   });
 
   it('renders phase kinds, handoff, evidence, browser state, and actionable failures', async () => {

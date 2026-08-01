@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ok } from '@main/lib/result';
+import { err, ok } from '@main/lib/result';
 import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
 import type { Loop, LoopWithPhases } from '@shared/core/loops/loops';
 import { LoopService } from './loop-service';
@@ -11,10 +11,13 @@ const pauseRunningLoopsForBootMock = vi.hoisted(() => vi.fn());
 const resolveTaskWorkspaceTargetMock = vi.hoisted(() => vi.fn());
 const resolveLoopExecutionTargetMock = vi.hoisted(() => vi.fn());
 const getTasksMock = vi.hoisted(() => vi.fn());
+const getPluginMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@main/lib/events', () => ({
   events: { emit: emitMock },
 }));
+
+vi.mock('@main/core/agents/plugin-registry', () => ({ getPlugin: getPluginMock }));
 
 vi.mock('./operations/loop-operations', () => ({
   createLoop: vi.fn(),
@@ -93,6 +96,14 @@ describe('LoopService boot recovery', () => {
 describe('LoopService atomic task creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getPluginMock.mockReturnValue({
+      capabilities: {
+        models: {
+          kind: 'selectable',
+          modelOptions: { 'gpt-5.6-sol': { name: 'GPT-5.6 Sol' } },
+        },
+      },
+    });
   });
 
   it('publishes task and Loop events only after the atomic operation succeeds', async () => {
@@ -126,7 +137,7 @@ describe('LoopService atomic task creation', () => {
     const taskParams = { id: 'task-1', projectId: 'project-1' };
     const params = {
       task: taskParams,
-      loop: {},
+      loop: { model: 'gpt-5.6-sol' },
     } as never;
     const service = new LoopService();
     await service.reconcileEnabledState(true);
@@ -140,6 +151,25 @@ describe('LoopService atomic task creation', () => {
       loopId: loop.id,
       phase: createdLoop.phases[0],
     });
+  });
+
+  it('rejects a model that is not present in the Codex catalog before creating anything', async () => {
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const result = await service.createTaskWithLoop({
+      task: { id: 'task-1', projectId: 'project-1' },
+      loop: { model: 'invented-model' },
+    } as never);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        kind: 'invalid-state',
+        message: "Codex model 'invented-model' is not available",
+      },
+    });
+    expect(createTaskWithLoop).not.toHaveBeenCalled();
   });
 });
 
@@ -199,6 +229,95 @@ describe('LoopService start and resume workspace resolution', () => {
       expect(result.error.message).toBe('Workspace path no longer exists: /tmp/missing-worktree');
     }
   });
+
+  it('reserves a loop before target resolution so concurrent starts cannot race', async () => {
+    let resolveTarget!: (value: Awaited<ReturnType<typeof resolveLoopExecutionTargetMock>>) => void;
+    resolveLoopExecutionTargetMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTarget = resolve;
+      })
+    );
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const first = service.startLoop('loop-1');
+    await vi.waitFor(() => expect(resolveLoopExecutionTargetMock).toHaveBeenCalledOnce());
+    const second = await service.startLoop('loop-1');
+
+    expect(second).toEqual({
+      success: false,
+      error: { kind: 'conflict', message: 'Loop is already running' },
+    });
+    resolveTarget({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose: vi.fn(),
+      },
+    });
+    await first;
+  });
+
+  it('cancels an in-flight start before disabling the experiment settles', async () => {
+    let resolveTarget!: (value: Awaited<ReturnType<typeof resolveLoopExecutionTargetMock>>) => void;
+    const dispose = vi.fn();
+    resolveLoopExecutionTargetMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTarget = resolve;
+      })
+    );
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const start = service.startLoop('loop-1');
+    await vi.waitFor(() => expect(resolveLoopExecutionTargetMock).toHaveBeenCalledOnce());
+    const disable = service.reconcileEnabledState(false);
+    resolveTarget({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose,
+      },
+    });
+
+    const result = await start;
+    await disable;
+    expect(result.success).toBe(false);
+    expect(updateLoop).not.toHaveBeenCalledWith('loop-1', { status: 'running' });
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('disposes the execution target when the running transition fails', async () => {
+    const dispose = vi.fn();
+    resolveLoopExecutionTargetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose,
+      },
+    });
+    vi.mocked(updateLoop).mockResolvedValueOnce(
+      err({ kind: 'db-error', message: 'running transition failed' })
+    );
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const result = await service.startLoop('loop-1');
+
+    expect(result.success).toBe(false);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
 });
 
 describe('LoopService experiment enforcement', () => {
@@ -217,6 +336,13 @@ describe('LoopService experiment enforcement', () => {
         message: 'ACP Loops are disabled in Experimental Settings',
       },
     });
+    expect(getLoop).not.toHaveBeenCalled();
+  });
+
+  it('does not expose persisted Loop reads while the feature is disabled', async () => {
+    const result = await new LoopService().getLoop('loop-1');
+
+    expect(result.success).toBe(false);
     expect(getLoop).not.toHaveBeenCalled();
   });
 

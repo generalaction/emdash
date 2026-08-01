@@ -6,6 +6,7 @@ import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
 import { LoopBrowserHost } from './features/loops/loop-browser-host';
 import { Onboarding } from './features/onboarding/onboarding';
+import { useAppSettingsKey } from './features/settings/use-app-settings-key';
 import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
 import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
@@ -24,6 +25,11 @@ export const HAS_SEEN_ONBOARDING = 'emdash:has-seen-onboarding:v1';
 
 type AppView = 'onboarding' | 'welcome' | 'workspace';
 type OnboardingStep = 'sign-in' | 'import';
+
+function ExperimentalLoopBrowserHost() {
+  const { value, isLoading } = useAppSettingsKey('experiments');
+  return isLoading || !value?.loops ? null : <LoopBrowserHost />;
+}
 
 function AppContent() {
   const [view, setView] = useState<AppView>(() =>
@@ -102,7 +108,7 @@ function AppContent() {
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                 <RightSidebarProvider>
                   <ThemeProvider>
-                    <LoopBrowserHost />
+                    <ExperimentalLoopBrowserHost />
                     <ModalRenderer />
                     {renderContent()}
                   </ThemeProvider>

@@ -87,7 +87,10 @@ describe('useCreateTaskCallback', () => {
     dom.window.close();
   });
 
-  async function renderAndCreate(loopEnabled: boolean) {
+  async function renderAndCreate(
+    loopEnabled: boolean,
+    conversation: InitialConversationState = initialConversation()
+  ) {
     const navigate = vi.fn();
     const onClose = vi.fn();
     let create!: () => Promise<void>;
@@ -96,7 +99,7 @@ describe('useCreateTaskCallback', () => {
       create = useCreateTaskCallback({
         selectedProjectId: 'project-1',
         state: createState(loopEnabled),
-        initialConversation: initialConversation(),
+        initialConversation: conversation,
         navigate,
         onClose,
       }).handleCreateTask;
@@ -137,5 +140,17 @@ describe('useCreateTaskCallback', () => {
       })
     );
     expect(mocks.open).not.toHaveBeenCalled();
+  });
+
+  it('does not create a Loop until an explicit Codex catalog model is selected', async () => {
+    const conversation = initialConversation();
+    conversation.model = null;
+
+    const { navigate, onClose } = await renderAndCreate(true, conversation);
+
+    expect(mocks.createTaskWithLoop).not.toHaveBeenCalled();
+    expect(mocks.createTask).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

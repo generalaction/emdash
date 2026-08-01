@@ -1,5 +1,8 @@
 import { Pause, Play, RefreshCw, Repeat2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useEffect } from 'react';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import type {
   ResolvedTab,
   TabBarItemProps,
@@ -322,6 +325,8 @@ const LoopTabBarItem = observer(function LoopTabBarItem({
   host,
   ctx,
 }: TabBarItemProps<LoopTabResource>) {
+  const { value, isLoading } = useAppSettingsKey('experiments');
+  if (isLoading || !value?.loops) return null;
   const label = tab.resource.state.kind === 'ready' ? tab.resource.state.snapshot.name : 'Loop';
   return (
     <GenericTabItem
@@ -335,14 +340,20 @@ const LoopTabBarItem = observer(function LoopTabBarItem({
 });
 
 function LoopTabBarItemDragPreview({ tab }: { tab: ResolvedTab<LoopTabResource> }) {
+  if (getAppSettingValueSnapshot('experiments')?.loops !== true) return null;
   const label = tab.resource.state.kind === 'ready' ? tab.resource.state.snapshot.name : 'Loop';
   return <GenericTabDragPreview preSlot={<Repeat2 className="size-4" />} label={label} />;
 }
 
 const LoopTabContent = observer(function LoopTabContent({ host }: TabContentProps) {
+  const { value, isLoading } = useAppSettingsKey('experiments');
   const activeTab = host.resolvedTabs.find((tab) => tab.isActive);
+  const resource = activeTab?.kind === 'loop' ? (activeTab.resource as LoopTabResource) : undefined;
+  const enabled = !isLoading && value?.loops === true;
+  useEffect(() => resource?.setEnabled(enabled), [enabled, resource]);
   if (activeTab?.kind !== 'loop') return null;
-  return <LoopTabPanel resource={activeTab.resource as LoopTabResource} />;
+  if (!enabled || !resource) return null;
+  return <LoopTabPanel resource={resource} />;
 });
 
 export function createLoopTabProvider(
@@ -353,6 +364,7 @@ export function createLoopTabProvider(
     mount: 'single',
     resourceKey: (state: LoopTabState) => state.loopId,
     onBeforeOpen(args: LoopTabOpenArgs): LoopTabState | null {
+      if (getAppSettingValueSnapshot('experiments')?.loops !== true) return null;
       const loopId = args.loopId.trim();
       return loopId ? { loopId } : null;
     },
