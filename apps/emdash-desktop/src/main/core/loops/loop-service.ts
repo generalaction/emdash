@@ -34,6 +34,7 @@ import {
 } from './operations/loop-operations';
 import type { LoopOperationError } from './operations/types';
 import { PhaseRunner, type LoopRunControl } from './phase-runner';
+import { runLoopCommand } from './runtime/loop-command-runner';
 import {
   resolveLoopExecutionTarget,
   type LoopExecutionTarget,
@@ -347,6 +348,15 @@ export class LoopService {
     const executionTarget = await resolveExecutionTarget(loopResult.data);
     if (!executionTarget.success) return executionTarget;
 
+    const checkpoint = await this.initializeCheckpointAuthority(
+      loopResult.data,
+      executionTarget.data
+    );
+    if (!checkpoint.success) {
+      executionTarget.data.dispose();
+      return checkpoint;
+    }
+
     const running = await updateLoop(loopId, { status: 'running' });
     if (!running.success) return err(serviceError(running.error));
     emitLoop(running.data);
@@ -359,6 +369,43 @@ export class LoopService {
     });
 
     return loadLoop(loopId);
+  }
+
+  private async initializeCheckpointAuthority(
+    loop: LoopWithPhases,
+    target: LoopExecutionTarget
+  ): Promise<Result<void, LoopServiceError>> {
+    if (loop.config?.version !== '2' || loop.state?.version !== '2') return ok();
+    try {
+      const head = (
+        await runLoopCommand(target, 'git', ['rev-parse', 'HEAD'], { timeoutMs: 60_000 })
+      ).stdout.trim();
+      const expected = loop.state.checkpointCommit;
+      if (expected && expected !== head) {
+        return err({
+          kind: 'invalid-state',
+          message: `Loop checkpoint drift: expected ${expected}, observed ${head}`,
+        });
+      }
+      if (!loop.state.baseCommit) {
+        const initialized = await updateLoop(loop.id, {
+          state: {
+            ...loop.state,
+            baseCommit: head,
+            expectedFeatureHead: head,
+            checkpointCommit: head,
+          },
+        });
+        if (!initialized.success) return err(serviceError(initialized.error));
+        emitLoop(initialized.data);
+      }
+      return ok();
+    } catch (error) {
+      return err({
+        kind: 'workspace-unavailable',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async runLoop(

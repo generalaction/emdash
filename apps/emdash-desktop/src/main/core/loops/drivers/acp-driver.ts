@@ -72,7 +72,7 @@ async function startConversation(
 
   try {
     conversation = await createConversation({
-      id: randomUUID(),
+      id: ctx.conversationId ?? randomUUID(),
       projectId: ctx.loop.projectId,
       taskId: ctx.loop.taskId,
       provider,

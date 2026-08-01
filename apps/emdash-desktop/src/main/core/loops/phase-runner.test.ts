@@ -4,6 +4,7 @@ import type { Loop, LoopPhase, LoopWithPhases } from '@shared/core/loops/loops';
 import type { LoopSessionDriver } from './drivers/session-driver';
 import { MAX_PHASE_ATTEMPTS, PhaseRunner, type LoopRunControl } from './phase-runner';
 import { PHASE_DONE_SENTINEL } from './prompt-builder';
+import type { LoopExecutionTarget } from './runtime/loop-execution-target';
 import type { BuiltInVerifierId, LoopVerifier, VerifierError } from './verifiers/types';
 
 vi.mock('./operations/loop-operations', () => ({
@@ -11,6 +12,9 @@ vi.mock('./operations/loop-operations', () => ({
   updateLoop: vi.fn(),
   updatePhase: vi.fn(),
 }));
+
+vi.mock('./operations/session-progress', () => ({ commitSessionAttempt: vi.fn() }));
+vi.mock('./operations/work-phase-progress', () => ({ commitWorkPhaseProgress: vi.fn() }));
 
 function makeLoop(): LoopWithPhases {
   const loop: Loop = {
@@ -59,15 +63,61 @@ function makeControl(): LoopRunControl {
   };
 }
 
-function makeExecutionTarget() {
+function makeExecutionTarget(): LoopExecutionTarget {
   return {
     workspaceId: 'workspace-1',
     path: '/tmp/workspace',
     machine: { kind: 'local' as const },
     taskEnv: { EMDASH_TASK_ID: 'task-1', EMDASH_TASK_PATH: '/tmp/workspace' },
-    executionContext: {},
+    executionContext: {
+      root: '/tmp/workspace',
+      supportsLocalSpawn: true,
+      exec: vi.fn(),
+      execStreaming: vi.fn(),
+      dispose: vi.fn(),
+    },
     dispose: vi.fn(),
-  } as never;
+  };
+}
+
+function makeV2Loop(): LoopWithPhases {
+  const base = '1'.repeat(40);
+  const loop = makeLoop();
+  return {
+    ...loop,
+    config: {
+      version: '2',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      validationCommands: ['pnpm test'],
+      planSource: '# Plan',
+      terminalGates: { review: false, e2e: false },
+      browserPreview: { enabled: false },
+      reviewEnabled: false,
+      verifiers: [],
+    },
+    isPrimary: true,
+    state: {
+      version: '2',
+      baseCommit: base,
+      expectedFeatureHead: base,
+      checkpointCommit: base,
+      e2eAttemptsConsumed: 0,
+      sessionAttempts: [],
+      verification: null,
+    },
+    phases: loop.phases.map((phase) => ({
+      ...phase,
+      kind: 'work' as const,
+      state: {
+        version: '2' as const,
+        checkpointCommit: null,
+        handoff: null,
+        retryHandoffs: [],
+        result: null,
+      },
+    })),
+  };
 }
 
 function makeMemoryDeps(loop: LoopWithPhases, verifiers: Map<BuiltInVerifierId, LoopVerifier>) {
@@ -349,5 +399,87 @@ describe('PhaseRunner', () => {
     expect(result.success).toBe(true);
     expect(result.success && result.data.kind).toBe('failed');
     expect(memory.current().phases[0]?.lastError).toBe('Loop prompt failed');
+  });
+
+  it('runs a v2 work phase in one fresh targeted session and atomically checkpoints it', async () => {
+    loop = makeV2Loop();
+    const memory = makeMemoryDeps(loop, new Map([['unit-tests', passingVerifier('unit-tests')]]));
+    const commitSessionAttempt = vi.fn(async (input) => {
+      const attempts = [...input.expected.sessionAttempts];
+      if (input.previous) {
+        attempts[attempts.findIndex((attempt) => attempt.attemptId === input.previous.attemptId)] =
+          input.next;
+      } else {
+        attempts.push(input.next);
+      }
+      return ok({ ...input.expected, sessionAttempts: attempts });
+    });
+    const checkpoint = '2'.repeat(40);
+    const commitWorkPhaseProgress = vi.fn(async (input) =>
+      ok({
+        loop: {
+          ...loop,
+          state: {
+            ...input.expectedLoopState,
+            checkpointCommit: checkpoint,
+            expectedFeatureHead: checkpoint,
+          },
+        },
+        phase: { ...loop.phases[0]!, status: 'passed' as const },
+      })
+    );
+    const exec = vi.fn(async (_command: string, args?: string[]) => ({
+      stdout:
+        args?.[0] === 'status'
+          ? ' M src/file.ts\n'
+          : args?.[0] === 'rev-parse'
+            ? `${checkpoint}\n`
+            : '',
+      stderr: '',
+    }));
+    const executionTarget = {
+      ...makeExecutionTarget(),
+      executionContext: {
+        root: '/tmp/workspace',
+        supportsLocalSpawn: true,
+        exec,
+        execStreaming: vi.fn(),
+        dispose: vi.fn(),
+      },
+    };
+    driver.sendPrompt = vi.fn(async () =>
+      ok({ finalText: `Implemented with tests.\n${PHASE_DONE_SENTINEL}` })
+    );
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      commitSessionAttempt: commitSessionAttempt as never,
+      commitWorkPhaseProgress: commitWorkPhaseProgress as never,
+      now: () => new Date('2026-07-12T00:00:00.000Z'),
+    }).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      executionTarget,
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success && result.data.kind).toBe('passed');
+    expect(driver.startPhaseSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'work',
+        target: expect.objectContaining({ workspaceId: 'workspace-1' }),
+        taskEnvironment: executionTarget.taskEnv,
+        conversationId: expect.any(String),
+      })
+    );
+    expect(commitSessionAttempt.mock.calls.map(([input]) => input.next.status)).toEqual([
+      'starting',
+      'running',
+    ]);
+    expect(commitWorkPhaseProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ checkpointCommit: checkpoint })
+    );
+    expect(exec).toHaveBeenCalledWith('git', ['add', '-A'], expect.any(Object));
   });
 });

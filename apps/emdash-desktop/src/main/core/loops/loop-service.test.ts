@@ -31,6 +31,9 @@ vi.mock('./operations/create-task-with-loop', () => ({
   createTaskWithLoop: vi.fn(),
 }));
 
+vi.mock('./operations/session-progress', () => ({ commitSessionAttempt: vi.fn() }));
+vi.mock('./operations/work-phase-progress', () => ({ commitWorkPhaseProgress: vi.fn() }));
+
 vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { notifyTaskCreated: vi.fn() },
 }));

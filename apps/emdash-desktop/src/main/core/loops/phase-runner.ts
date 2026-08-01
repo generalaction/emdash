@@ -1,4 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@main/lib/result';
+import { loopPhaseStateV2Schema } from '@shared/core/loops/loop-phase-state';
+import {
+  loopStateV2Schema,
+  type LoopSessionAttempt,
+  type LoopStateV2,
+} from '@shared/core/loops/loop-state';
 import type { Loop, LoopPhase, LoopPhaseCriteria, LoopWithPhases } from '@shared/core/loops/loops';
 import {
   resolvePromptTimeoutMs,
@@ -6,12 +13,16 @@ import {
   sendPromptWithTimeout,
 } from './drivers/prompt-timeout';
 import type { LoopSessionDriver } from './drivers/session-driver';
+import { boundedSummary } from './gates/clean-room-e2e-boundary';
+import { buildLoopPhaseHandoff } from './handoff-builder';
 import {
   getLoop,
   updateLoop as updateLoopRow,
   updatePhase as updatePhaseRow,
 } from './operations/loop-operations';
+import { commitSessionAttempt } from './operations/session-progress';
 import type { LoopOperationError } from './operations/types';
+import { commitWorkPhaseProgress } from './operations/work-phase-progress';
 import {
   buildPhasePrompt,
   buildRetryPrompt,
@@ -20,7 +31,10 @@ import {
   parseReviewSentinel,
   PHASE_DONE_SENTINEL,
   REVIEW_APPROVED_SENTINEL,
+  buildWorkPrompt,
+  parseWorkSentinel,
 } from './prompt-builder';
+import { runLoopCommand } from './runtime/loop-command-runner';
 import type { LoopExecutionTarget } from './runtime/loop-execution-target';
 import { runExecFile, type ExecFileFailure } from './verifiers/exec';
 import { getVerifier } from './verifiers/registry';
@@ -36,6 +50,7 @@ export const DEFAULT_PROMPT_TIMEOUT_MS = 20 * 60 * 1000;
 export const DEFAULT_VERIFIER_PROMPT_TIMEOUT_MS = 15 * 60 * 1000;
 
 export type LoopRunError =
+  | { kind: 'invalid-state'; message: string }
   | { kind: 'paused'; message: string }
   | { kind: 'cancelled'; message: string }
   | { kind: 'driver-error'; message: string }
@@ -60,6 +75,9 @@ export type PhaseRunnerDeps = {
   getDiff(cwd: string): Promise<string>;
   promptTimeoutMs: number;
   verifierPromptTimeoutMs: number;
+  commitSessionAttempt: typeof commitSessionAttempt;
+  commitWorkPhaseProgress: typeof commitWorkPhaseProgress;
+  now(): Date;
   onLoopUpdated?(loop: Loop): void;
   onPhaseUpdated?(phase: LoopPhase): void;
 };
@@ -105,6 +123,9 @@ function defaultDeps(): PhaseRunnerDeps {
     getDiff: defaultGetDiff,
     promptTimeoutMs: resolvePromptTimeoutMs(DEFAULT_PROMPT_TIMEOUT_MS),
     verifierPromptTimeoutMs: resolvePromptTimeoutMs(DEFAULT_VERIFIER_PROMPT_TIMEOUT_MS),
+    commitSessionAttempt,
+    commitWorkPhaseProgress,
+    now: () => new Date(),
   };
 }
 
@@ -181,6 +202,16 @@ export class PhaseRunner {
   }
 
   async runPhase(input: RunPhaseInput): Promise<Result<RunPhaseResult, LoopRunError>> {
+    if (input.loop.config?.version === '2') {
+      if ((input.phase.kind ?? 'work') !== 'work') {
+        return err({
+          kind: 'invalid-state',
+          message: `Terminal ${input.phase.kind} phase is not bound to its production gate`,
+        } as LoopRunError);
+      }
+      return this.runV2WorkPhase(input);
+    }
+
     const cwd = input.executionTarget.path;
     let loop: LoopWithPhases = input.loop;
     let phase: LoopPhase = input.phase;
@@ -361,6 +392,290 @@ export class PhaseRunner {
     const failed = await this.markPhaseAndLoopFailed(loop, phase, 'Maximum attempts reached');
     if (!failed.success) return err(failed.error);
     return ok(failed.data);
+  }
+
+  private async runV2WorkPhase(
+    input: RunPhaseInput
+  ): Promise<Result<RunPhaseResult, LoopRunError>> {
+    let loop = input.loop;
+    let phase = input.phase;
+    const loopState = loopStateV2Schema.safeParse(loop.state);
+    const phaseState = loopPhaseStateV2Schema.safeParse(phase.state);
+    if (
+      !loopState.success ||
+      !phaseState.success ||
+      !loopState.data.baseCommit ||
+      !loopState.data.checkpointCommit
+    ) {
+      return err({
+        kind: 'invalid-state',
+        message: 'Loop checkpoint authority is not initialized',
+      } as LoopRunError);
+    }
+
+    let durableLoopState = loopState.data;
+    const conversationId = randomUUID();
+    const attemptId = randomUUID();
+    const startedAt = this.deps.now().toISOString();
+    const target = {
+      workspaceId: input.executionTarget.workspaceId,
+      path: input.executionTarget.path,
+      machine: input.executionTarget.machine,
+    };
+    let sessionAttempt: LoopSessionAttempt = {
+      attemptId,
+      conversationId,
+      purpose: 'work',
+      phaseId: phase.id,
+      target,
+      status: 'starting',
+      checkpointBefore: durableLoopState.checkpointCommit ?? undefined,
+      startedAt,
+    };
+    const appended = await this.deps.commitSessionAttempt({
+      loopId: loop.id,
+      expected: durableLoopState,
+      next: sessionAttempt,
+    });
+    if (!appended.success) return this.operationFailure(appended.error);
+    durableLoopState = appended.data;
+
+    const session = await input.driver.startPhaseSession({
+      loop,
+      phase,
+      purpose: 'work',
+      target,
+      taskEnvironment: input.executionTarget.taskEnv,
+      conversationId,
+    });
+    if (!session.success) {
+      await this.finishSessionAttempt(
+        loop.id,
+        durableLoopState,
+        sessionAttempt,
+        'failed',
+        undefined,
+        session.error.message
+      );
+      return err({
+        kind: 'driver-error',
+        message: safeMessage(session.error.message, 'Failed to start Loop work session'),
+      });
+    }
+
+    const runningAttempt: LoopSessionAttempt = { ...sessionAttempt, status: 'running' };
+    const runningCommit = await this.deps.commitSessionAttempt({
+      loopId: loop.id,
+      expected: durableLoopState,
+      previous: sessionAttempt,
+      next: runningAttempt,
+    });
+    if (!runningCommit.success) return this.operationFailure(runningCommit.error);
+    durableLoopState = runningCommit.data;
+    sessionAttempt = runningAttempt;
+    await input.control.setActiveConversation(conversationId, input.driver);
+
+    const phaseRunning = await this.transitionPhase(phase.id, {
+      conversationId,
+      status: 'running',
+      attempts: phase.attempts + 1,
+      lastError: null,
+    });
+    if (!phaseRunning.success) return err(phaseRunning.error);
+    phase = phaseRunning.data;
+
+    const previousPhase = loop.phases
+      .filter((candidate) => candidate.idx < phase.idx)
+      .sort((left, right) => right.idx - left.idx)[0];
+    const previousState = loopPhaseStateV2Schema.safeParse(previousPhase?.state);
+    const priorHandoff =
+      previousPhase && previousState.success && previousState.data.handoff
+        ? { source: previousPhase.name, handoff: previousState.data.handoff }
+        : null;
+    const prompt = buildWorkPrompt({
+      goal: phase.goal,
+      acceptanceCriteria: phase.criteria?.criteria.map((criterion) => criterion.description) ?? [
+        phase.goal,
+      ],
+      baseCommit: durableLoopState.baseCommit!,
+      checkpointCommit: durableLoopState.checkpointCommit!,
+      priorHandoff,
+    });
+    const promptResult = await sendPromptWithTimeout({
+      driver: input.driver,
+      conversationId,
+      prompt,
+      timeoutMs: this.deps.promptTimeoutMs,
+      failureMessage: 'Loop work prompt failed',
+      timeoutLabel: 'Loop work prompt',
+    });
+    if (!promptResult.success) {
+      await this.finishSessionAttempt(
+        loop.id,
+        durableLoopState,
+        sessionAttempt,
+        'failed',
+        undefined,
+        promptResult.error.message
+      );
+      return this.markV2WorkFailed(loop, phase, promptResult.error.message);
+    }
+    const sentinel = parseWorkSentinel(promptResult.data.finalText);
+    if (!sentinel || sentinel.kind === 'failed') {
+      const message =
+        sentinel?.kind === 'failed' ? sentinel.reason : `Missing strict ${PHASE_DONE_SENTINEL}`;
+      await this.finishSessionAttempt(
+        loop.id,
+        durableLoopState,
+        sessionAttempt,
+        'failed',
+        undefined,
+        message
+      );
+      return this.markV2WorkFailed(loop, phase, message);
+    }
+
+    const verifying = await this.transitionPhase(phase.id, { status: 'verifying' });
+    if (!verifying.success) return err(verifying.error);
+    phase = verifying.data;
+    const verifier = this.deps.getVerifier('unit-tests');
+    if (!verifier) {
+      return this.markV2WorkFailed(loop, phase, 'Unit-test verifier is unavailable');
+    }
+    const verification = await verifier.run({
+      loop,
+      phase,
+      cwd: input.executionTarget.path,
+      executionTarget: input.executionTarget,
+      taskEnvironment: input.executionTarget.taskEnv,
+      validationCommands: loop.config?.version === '2' ? loop.config.validationCommands : [],
+      criteria: phase.criteria?.criteria ?? [],
+      signal: input.control.signal,
+    });
+    if (!verification.success) {
+      await this.finishSessionAttempt(
+        loop.id,
+        durableLoopState,
+        sessionAttempt,
+        'failed',
+        undefined,
+        verification.error.message
+      );
+      return this.markV2WorkFailed(loop, phase, verification.error.message);
+    }
+
+    try {
+      const status = await runLoopCommand(input.executionTarget, 'git', ['status', '--porcelain'], {
+        signal: input.control.signal,
+      });
+      if (status.stdout.trim()) {
+        await runLoopCommand(input.executionTarget, 'git', ['add', '-A'], {
+          signal: input.control.signal,
+        });
+        await runLoopCommand(
+          input.executionTarget,
+          'git',
+          [
+            '-c',
+            'user.name=Emdash Loop',
+            '-c',
+            'user.email=loops@emdash.local',
+            'commit',
+            '-m',
+            `chore(loops): checkpoint ${phase.name}`,
+          ],
+          { signal: input.control.signal }
+        );
+      }
+      const head = await runLoopCommand(input.executionTarget, 'git', ['rev-parse', 'HEAD'], {
+        signal: input.control.signal,
+      });
+      const checkpointCommit = head.stdout.trim();
+      const completedAt = this.deps.now().toISOString();
+      const summary = boundedSummary(promptResult.data.finalText, 'Work phase passed.');
+      const handoff = buildLoopPhaseHandoff({
+        summary,
+        risks: [],
+        remainingWork: [],
+        artifacts: [],
+        createdAt: completedAt,
+      });
+      const completedAttempt: LoopSessionAttempt = {
+        ...sessionAttempt,
+        status: 'completed',
+        checkpointAfter: checkpointCommit,
+        finishedAt: completedAt,
+      };
+      const committed = await this.deps.commitWorkPhaseProgress({
+        loopId: loop.id,
+        phaseId: phase.id,
+        expectedLoopState: durableLoopState,
+        expectedPhaseState: phaseState.data,
+        checkpointCommit,
+        handoff,
+        summary,
+        completedAt,
+        previousAttempt: sessionAttempt,
+        completedAttempt,
+      });
+      if (!committed.success) return this.operationFailure(committed.error);
+      loop = committed.data.loop;
+      phase = committed.data.phase;
+      this.deps.onLoopUpdated?.(loop);
+      this.deps.onPhaseUpdated?.(phase);
+      await input.control.setActiveConversation(null, null);
+      return ok({ kind: 'passed', loop, phase });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.finishSessionAttempt(
+        loop.id,
+        durableLoopState,
+        sessionAttempt,
+        'failed',
+        undefined,
+        message
+      );
+      return this.markV2WorkFailed(loop, phase, message);
+    }
+  }
+
+  private async finishSessionAttempt(
+    loopId: string,
+    state: LoopStateV2,
+    previous: LoopSessionAttempt,
+    status: 'failed' | 'cancelled' | 'interrupted',
+    checkpointAfter?: string,
+    error?: string
+  ): Promise<void> {
+    await this.deps.commitSessionAttempt({
+      loopId,
+      expected: state,
+      previous,
+      next: {
+        ...previous,
+        status,
+        ...(checkpointAfter ? { checkpointAfter } : {}),
+        finishedAt: this.deps.now().toISOString(),
+        ...(error ? { error: boundedSummary(error, 'Loop session failed') } : {}),
+      },
+    });
+  }
+
+  private operationFailure(error: LoopOperationError): Result<never, LoopRunError> {
+    return err({ kind: 'operation-error', message: error.message, cause: error });
+  }
+
+  private async markV2WorkFailed(
+    loop: LoopWithPhases,
+    phase: LoopPhase,
+    message: string
+  ): Promise<Result<RunPhaseResult, LoopRunError>> {
+    const failed = await this.markPhaseAndLoopFailed(
+      loop,
+      phase,
+      boundedSummary(message, 'Loop work phase failed')
+    );
+    return failed.success ? ok(failed.data) : err(failed.error);
   }
 
   private async runVerifierGate(

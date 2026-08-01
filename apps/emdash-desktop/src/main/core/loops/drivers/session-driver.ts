@@ -17,6 +17,7 @@ export type StartPhaseSessionContext = {
   purpose: Extract<LoopSessionPurpose, 'work' | 'review'>;
   target: LoopSessionTarget;
   taskEnvironment: Readonly<Record<string, string>>;
+  conversationId?: string;
 };
 
 export type StartVerificationSessionContext = {
@@ -25,6 +26,7 @@ export type StartVerificationSessionContext = {
   purpose: Extract<LoopSessionPurpose, 'browser-verification' | 'e2e'>;
   target: LoopSessionTarget;
   taskEnvironment: Readonly<Record<string, string>>;
+  conversationId?: string;
 };
 
 export type LoopSessionInfo = {
