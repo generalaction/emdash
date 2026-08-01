@@ -1,0 +1,11 @@
+services:
+  loops-ssh:
+    build:
+      context: ../docker-ssh
+      dockerfile: dockerfile
+    ports:
+      - '127.0.0.1::22'
+    restart: 'no'
+    tty: true
+    stdin_open: true
+    shm_size: '256mb'

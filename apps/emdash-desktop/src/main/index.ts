@@ -184,6 +184,11 @@ void app.whenReady().then(async () => {
   );
 
   registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
+  if (import.meta.env.MODE === 'loops-electron' && process.env.EMDASH_LOOPS_ELECTRON_TEST === '1') {
+    const { registerLoopsElectronTestBridge } =
+      await import('@root/tooling/loops-electron/main-bridge');
+    registerLoopsElectronTestBridge();
+  }
 
   void reconcileResourceSampler();
 
