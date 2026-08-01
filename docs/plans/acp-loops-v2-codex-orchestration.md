@@ -1237,7 +1237,19 @@ fresh recreated green run becomes the final success report.
   worktree routing remained intact, the user-owned source checkout stayed untouched, and nothing
   was pushed, released, or deployed.
 - [x] Complete and merge Wave 2C Lane E.
-- [ ] Complete serial main-engine and final renderer integration.
+- [x] 2026-08-01: Completed and merged serial Wave 3A main-engine integration through
+  `9ace2c3914` (source `1f06027b7e`). The engine now creates the task and primary v2 Loop in one
+  transaction, enforces live default-off opt-in, retains exact local/SSH targets and the bounded
+  trusted task environment through fresh work/Review/E2E/browser-verification ACP sessions,
+  rejects historical verification hydration, and persists work and terminal stage authority.
+  Production clean-room E2E composes the audited Wave 2 services with a transactional LoopState
+  CAS adapter, an atomic private app-data cleanup journal, restart interruption/cleanup recovery,
+  native browser events/evidence, and exact task-machine execution. The legacy Agent Browser
+  executable was removed while its schema marker remains for native acceptance criteria. The
+  integrated Loop matrix passed 30 files and 751/751 tests; the new DB CAS test passed; app and
+  release typechecks passed after rebuilding the worktree-local core package; and the production
+  build, focused lint/format, and `git diff --check` passed. No branch was pushed.
+- [ ] Complete serial Wave 3B final renderer integration.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
 - [ ] Complete independent review, local Electron proof, and Docker SSH proof.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.

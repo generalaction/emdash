@@ -141,6 +141,17 @@ same-machine worktrees are unsupported, required preserved files cannot be copie
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
 
+## 2026-08-01 authoritative checkpoint: Wave 3A integrated
+
+Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration` at `9ace2c391445a30be5f4f3bba2cd19b9fa2b277e` before the
+documentation checkpoint commit. Wave 3A is complete and integrated. Its source lane is clean at
+`1f06027b7e`; the integrated Loop matrix passed 751/751, the DB E2E-progress CAS test passed,
+app/release typechecks and the production build passed, and focused lint/format/diff checks passed.
+The next slice is serialized Wave 3B renderer integration from the existing UI foundation. Do not
+start the Electron harness until Wave 3B is integrated and green. Nothing was pushed, released, or
+deployed.
+
 ## 2026-08-01 authoritative checkpoint: Wave 2C integrated
 
 Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
