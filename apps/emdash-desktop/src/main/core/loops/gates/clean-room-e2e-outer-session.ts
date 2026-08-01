@@ -368,7 +368,6 @@ export async function bootstrapOuterSession(
       );
       const cancellations = await cancelSessionsConcurrently(
         identities,
-        input,
         cleanRoom.target,
         cancellationPromises,
         operations
@@ -469,7 +468,6 @@ export async function bootstrapOuterSession(
     );
     const cancellations = await cancelSessionsConcurrently(
       distinctIdentities,
-      input,
       cleanRoom.target,
       cancellationPromises,
       operations
@@ -612,7 +610,6 @@ export async function bootstrapOuterSession(
     );
     const cancellations = await cancelSessionsConcurrently(
       identities,
-      input,
       cleanRoom.target,
       cancellationPromises,
       operations
@@ -728,7 +725,6 @@ export async function bootstrapOuterSession(
     );
     const cancellations = await cancelSessionsConcurrently(
       identities,
-      input,
       cleanRoom.target,
       cancellationPromises,
       operations
@@ -958,7 +954,9 @@ function reportedStartSessions(
         parsed.data.checkpointBefore !== featureHead ||
         !sameTarget(parsed.data.target, expected.target) ||
         !validId(parsed.data.attemptId) ||
-        !validId(parsed.data.conversationId)
+        !validId(parsed.data.conversationId) ||
+        (error.quiescent === true &&
+          !['completed', 'failed', 'cancelled', 'interrupted'].includes(parsed.data.status))
       ) {
         complete = false;
         if (validId(attemptId) && validId(conversationId)) {
@@ -996,11 +994,6 @@ async function reserveSessionAuthorities(
   for (const session of distinctSessions(sessions)) {
     const key = sessionIdentityKey(session);
     if (indexes.has(key)) continue;
-    const alreadyDurablyRepresented = sessionIdentityIsAlreadyDurable(
-      session,
-      input,
-      sessionAttempts
-    );
     const reserved = await operations.reserveUnexpectedOuterAttempt(
       input,
       session,
@@ -1011,7 +1004,7 @@ async function reserveSessionAuthorities(
       sessionAttempts
     );
     if (reserved.index === undefined) {
-      if (!alreadyDurablyRepresented) fullyRepresented = false;
+      fullyRepresented = false;
     } else {
       indexes.set(key, reserved.index);
     }
@@ -1022,42 +1015,16 @@ async function reserveSessionAuthorities(
 
 function cancelSessionsConcurrently(
   sessions: readonly E2ESessionInfo[],
-  input: NormalizedInput,
   target: LoopSessionTarget,
   cancellationPromises: E2ECancellationRegistry,
   operations: OuterSessionBootstrapOperations
 ): Promise<Array<{ session: E2ESessionInfo; result: Result<void, E2EGateDependencyError> }>> {
-  const pending = distinctSessions(sessions)
-    .filter((session) => !isExactHistoricalTerminalIdentity(session, input))
-    .map((session) => ({
-      session,
-      result: operations.cancelSession(session, target, cancellationPromises),
-    }));
+  const pending = distinctSessions(sessions).map((session) => ({
+    session,
+    result: operations.cancelSession(session, target, cancellationPromises),
+  }));
   return Promise.all(
     pending.map(async ({ session, result }) => ({ session, result: await result }))
-  );
-}
-
-function sessionIdentityIsAlreadyDurable(
-  session: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>,
-  input: NormalizedInput,
-  attempts: readonly LoopSessionAttempt[]
-): boolean {
-  return [...input.previousSessionAttempts, ...attempts].some(
-    (attempt) =>
-      attempt.attemptId === session.attemptId && attempt.conversationId === session.conversationId
-  );
-}
-
-function isExactHistoricalTerminalIdentity(
-  session: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>,
-  input: NormalizedInput
-): boolean {
-  return input.previousSessionAttempts.some(
-    (attempt) =>
-      attempt.attemptId === session.attemptId &&
-      attempt.conversationId === session.conversationId &&
-      ['completed', 'failed', 'cancelled', 'interrupted'].includes(attempt.status)
   );
 }
 

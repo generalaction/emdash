@@ -1562,6 +1562,36 @@ describe('CleanRoomE2EGate', () => {
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
+  it('cancels and retains recovery authority for exact historical outer-session reuse', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.startFreshE2ESession).mockImplementationOnce(
+      async (input) =>
+        ok({
+          ...input,
+          attemptId: 'work-attempt-1',
+          conversationId: 'work-1',
+        })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledTimes(2);
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledWith(
+      expect.objectContaining({ attemptId: 'work-attempt-1', conversationId: 'work-1' })
+    );
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       'attempt ID',

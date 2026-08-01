@@ -239,6 +239,47 @@ describe('CleanRoomE2EGate hardening', () => {
     }
   );
 
+  it('does not trust quiescent start-failure authority with a nonterminal reported attempt', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.session.startFreshE2ESession).mockImplementationOnce(
+      async (input) =>
+        err({
+          message: 'Session start rejected after reporting a running attempt.',
+          quiescent: true,
+          recoveryRequired: false,
+          sessionAttempts: [
+            {
+              attemptId: input.attemptId,
+              conversationId: input.conversationId,
+              purpose: input.purpose,
+              phaseId: input.phaseId,
+              verificationRunId: input.verificationRunId,
+              target: input.target,
+              status: 'running',
+              checkpointBefore: FEATURE_COMMIT,
+              startedAt: '2026-07-12T01:00:00.000Z',
+            },
+          ],
+        })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+      },
+    });
+    expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledOnce();
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       'array method',
