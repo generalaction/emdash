@@ -2080,10 +2080,18 @@ export class CleanRoomE2EGate {
               featureHead,
               input
             ));
+        const checksAttemptStatus = quiescenceUnproven
+          ? 'interrupted'
+          : checked.error.type === 'cancelled' || checked.error.kind === 'cancelled'
+            ? 'cancelled'
+            : checked.error.type === 'deadline-exceeded' ||
+                checked.error.kind === 'deadline-exceeded'
+              ? 'interrupted'
+              : 'failed';
         markOuterAttempt(
           sessionAttempts,
           outerLedgerIndex,
-          quiescenceUnproven ? 'interrupted' : 'failed',
+          checksAttemptStatus,
           safeDate(this.dependencies.now),
           {
             error: checked.error.message,

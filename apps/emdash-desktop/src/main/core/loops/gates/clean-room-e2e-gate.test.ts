@@ -846,7 +846,16 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'cancelled', stage: 'required-checks', lastWorkspaceDestroyed: true },
+      error: {
+        type: 'cancelled',
+        stage: 'required-checks',
+        lastWorkspaceDestroyed: true,
+        sessionAttempts: [
+          { purpose: 'e2e', status: 'cancelled' },
+          { purpose: 'browser-verification', status: 'cancelled' },
+        ],
+        stageResult: { status: 'cancelled' },
+      },
     });
     expect(harness.calls).toContain('release:1');
     expect(harness.calls).toContain('destroy:1');
