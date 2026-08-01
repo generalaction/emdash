@@ -422,6 +422,53 @@ function normalizeNestedAttemptCandidate(
   }
 }
 
+export function hasCompleteTerminalNestedAuthority(
+  value: unknown,
+  starting: LoopSessionAttempt,
+  active: ActiveAttempt,
+  featureHead: string,
+  input: NormalizedInput
+): boolean {
+  try {
+    const candidates =
+      value && typeof value === 'object'
+        ? (value as { sessionAttempts?: unknown }).sessionAttempts
+        : undefined;
+    if (
+      !Array.isArray(candidates) ||
+      candidates.length === 0 ||
+      candidates.length > CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS
+    ) {
+      return false;
+    }
+    let expectedWasReported = false;
+    for (const candidate of candidates) {
+      const parsed = loopSessionAttemptSchema.safeParse(candidate);
+      if (
+        !parsed.success ||
+        !hasCanonicalAttemptFields(candidate, parsed.data) ||
+        !['completed', 'failed', 'cancelled', 'interrupted'].includes(parsed.data.status) ||
+        !normalizeNestedAttemptCandidate(
+          candidate,
+          starting,
+          active,
+          featureHead,
+          input,
+          parsed.data.finishedAt ?? parsed.data.startedAt
+        )
+      ) {
+        return false;
+      }
+      expectedWasReported ||=
+        parsed.data.attemptId === starting.attemptId &&
+        parsed.data.conversationId === starting.conversationId;
+    }
+    return expectedWasReported;
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeNestedAttempt(
   value: unknown,
   starting: LoopSessionAttempt,

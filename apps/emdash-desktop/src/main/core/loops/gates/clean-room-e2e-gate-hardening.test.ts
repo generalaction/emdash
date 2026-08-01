@@ -303,7 +303,7 @@ describe('CleanRoomE2EGate hardening', () => {
       ],
     ],
   ] as const)(
-    'contains a hostile required-check error %s and still cleans the workspace',
+    'contains a hostile required-check error %s and retains the workspace',
     async (_name, sessionAttempts) => {
       const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
       vi.mocked(harness.dependencies.requiredChecks.run).mockResolvedValueOnce(
@@ -316,10 +316,15 @@ describe('CleanRoomE2EGate hardening', () => {
 
       await expect(harness.gate.run(defaultInput)).resolves.toMatchObject({
         success: false,
-        error: { type: 'dependency-rejected', stage: 'required-checks' },
+        error: {
+          type: 'dependency-rejected',
+          stage: 'quiescence',
+          recoveryRequired: true,
+          lastWorkspaceDestroyed: false,
+        },
       });
-      expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
-      expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
     }
   );
 

@@ -924,7 +924,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(JSON.stringify(result)).toContain('unallocated-nested-attempt');
   });
 
-  it('normalizes the expected and distinct actual nonterminal attempts after checks quiesce', async () => {
+  it('retains recovery authority when checks claim quiescence with nonterminal attempts', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     vi.mocked(harness.dependencies.requiredChecks.run).mockImplementationOnce(async (input) => {
       const running = nestedAttempt({ ...input.sessionIdentity, status: 'running' });
@@ -947,9 +947,12 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        stage: 'required-checks',
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
         sessionAttempts: [
-          { purpose: 'e2e', status: 'failed' },
+          { purpose: 'e2e', status: 'interrupted' },
           { attemptId: 'browser-verification-run-1', status: 'interrupted' },
           { attemptId: 'unallocated-nested-starting', status: 'interrupted' },
         ],
@@ -957,6 +960,8 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     });
     if (result.success) throw new Error('Expected required-check rejection.');
     expect(result.error.sessionAttempts.slice(1).every((attempt) => attempt.finishedAt)).toBe(true);
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it('passes a current retry checkpoint, state, ledger, and one canonical command list to checks', async () => {
@@ -1569,7 +1574,14 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         message: 'checks rejected after nested verification',
         quiescent: true,
         sessionAttempts: [
-          nestedAttempt(exactIdentity),
+          nestedAttempt({
+            ...exactIdentity,
+            phaseId: input.authority.phaseId,
+            verificationRunId: input.verificationRunId,
+            target: input.target,
+            checkpointBefore: input.checkpointCommit,
+            checkpointAfter: input.checkpointCommit,
+          }),
           nestedAttempt({
             attemptId: 'unallocated-browser-attempt',
             conversationId: 'unallocated-browser-conversation',

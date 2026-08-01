@@ -104,6 +104,7 @@ import {
   copyAttempt,
   collectNestedAttemptSettlement,
   freshAttemptIdentity,
+  hasCompleteTerminalNestedAuthority,
   markNestedAttemptInterrupted,
   markOuterAttempt,
   tryMakeOuterAttempt,
@@ -2005,6 +2006,8 @@ export class CleanRoomE2EGate {
         return nestedStartingProgress;
       }
 
+      let stoppedChecksSettlement: E2EGateDependencyError | E2ERequiredChecksResult | undefined;
+      let stoppedChecksQuiescent = false;
       const checked = await this.callControlled(
         input,
         'Required E2E checks',
@@ -2034,16 +2037,49 @@ export class CleanRoomE2EGate {
           }),
         async (operation) => {
           const settled = await operation;
-          if (!settled.value.success && settled.value.error.quiescent !== true) {
-            return err(settled.value.error);
+          stoppedChecksSettlement = settled.value.success
+            ? settled.value.data
+            : settled.value.error;
+          if (
+            !settled.value.success &&
+            (settled.value.error.quiescent !== true ||
+              settled.value.error.recoveryRequired === true)
+          ) {
+            return err({ ...settled.value.error, recoveryRequired: true });
           }
+          if (
+            !hasCompleteTerminalNestedAuthority(
+              stoppedChecksSettlement,
+              nestedStarting.data,
+              active,
+              featureHead,
+              input
+            )
+          ) {
+            return err({
+              type: 'cleanup-failed',
+              message: 'Required checks did not return complete terminal session authority.',
+              recoveryRequired: true,
+            });
+          }
+          stoppedChecksQuiescent = true;
           return ok();
         },
         stabilizePlainSuccess<E2ERequiredChecksResult>
       );
       if (!checked.success) {
+        const checksSettlement = stoppedChecksSettlement ?? checked.error;
         const quiescenceUnproven =
-          checked.error.quiescent !== true || checked.error.recoveryRequired === true;
+          checked.error.quiescent !== true ||
+          checked.error.recoveryRequired === true ||
+          (!stoppedChecksQuiescent &&
+            !hasCompleteTerminalNestedAuthority(
+              checked.error,
+              nestedStarting.data,
+              active,
+              featureHead,
+              input
+            ));
         markOuterAttempt(
           sessionAttempts,
           outerLedgerIndex,
@@ -2060,7 +2096,7 @@ export class CleanRoomE2EGate {
           attempt,
           sessionAttempts,
           nestedLedgerIndex,
-          checked.error
+          checksSettlement
         );
         if (!nestedSettled.success) {
           return err({

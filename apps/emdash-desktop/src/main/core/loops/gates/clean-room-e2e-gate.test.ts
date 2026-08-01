@@ -20,6 +20,7 @@ import {
   loopWithTerminalGates,
   makeHarness,
   mutateRequiredChecksOnce,
+  nestedAttempt,
   phase,
   project,
   requiredChecksResult,
@@ -831,7 +832,22 @@ describe('CleanRoomE2EGate', () => {
     expect(settled).toBe(false);
     expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
 
-    deferred.resolve(err({ type: 'cancelled', message: 'checks stopped', quiescent: true }));
+    const checksInput = vi.mocked(harness.dependencies.requiredChecks.run).mock.calls[0]![0];
+    deferred.resolve(
+      err({
+        type: 'cancelled',
+        message: 'checks stopped',
+        quiescent: true,
+        recoveryRequired: false,
+        sessionAttempts: [
+          {
+            ...nestedAttempt(checksInput.sessionIdentity),
+            status: 'cancelled',
+            error: 'Checks stopped after abort.',
+          },
+        ],
+      })
+    );
     const result = await run;
 
     expect(result).toMatchObject({
@@ -840,6 +856,49 @@ describe('CleanRoomE2EGate', () => {
     });
     expect(harness.calls).toContain('release:1');
     expect(harness.calls).toContain('destroy:1');
+  });
+
+  it('retains a held required-check workspace when stop settlement still requires recovery', async () => {
+    const controller = new AbortController();
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    type ChecksResult = Awaited<ReturnType<CleanRoomE2EGateDependencies['requiredChecks']['run']>>;
+    const deferred = Promise.withResolvers<ChecksResult>();
+    vi.mocked(harness.dependencies.requiredChecks.run).mockReturnValueOnce(deferred.promise);
+
+    const run = harness.gate.run({ ...defaultInput, signal: controller.signal });
+    await vi.waitFor(() => expect(harness.dependencies.requiredChecks.run).toHaveBeenCalledOnce());
+    controller.abort();
+    const checksInput = vi.mocked(harness.dependencies.requiredChecks.run).mock.calls[0]![0];
+    deferred.resolve(
+      err({
+        type: 'cancelled',
+        message: 'checks stopped but cleanup authority remains unresolved',
+        quiescent: true,
+        recoveryRequired: true,
+        sessionAttempts: [
+          {
+            ...nestedAttempt(checksInput.sessionIdentity),
+            status: 'cancelled',
+            error: 'Nested checks cancelled with unresolved recovery authority.',
+          },
+        ],
+      })
+    );
+
+    const result = await run;
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+        pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+      },
+    });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it('lets release failure override a thrown prompt and forbids destroy', async () => {
