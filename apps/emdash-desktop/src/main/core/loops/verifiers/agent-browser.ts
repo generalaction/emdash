@@ -61,7 +61,7 @@ export const agentBrowserVerifier: LoopVerifier = {
       );
     }
 
-    if (!ctx.sessionDriver) {
+    if (!ctx.sessionDriver || !ctx.executionTarget || !ctx.taskEnvironment) {
       return err(
         failure({
           kind: 'invalid-config',
@@ -78,6 +78,9 @@ export const agentBrowserVerifier: LoopVerifier = {
     const session = await ctx.sessionDriver.startVerificationSession({
       loop: ctx.loop,
       phase: ctx.phase,
+      purpose: 'browser-verification',
+      target: ctx.executionTarget,
+      taskEnvironment: ctx.taskEnvironment,
     });
     if (!session.success) {
       return err(

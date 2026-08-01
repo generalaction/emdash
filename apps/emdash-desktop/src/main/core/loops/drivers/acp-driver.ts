@@ -1,13 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { AcpTurn } from '@emdash/core/acp';
-import { eq } from 'drizzle-orm';
 import { acpSessionManager } from '@main/core/acp/production-acp-session-manager';
 import { createConversation } from '@main/core/conversations/createConversation';
-import { hydrateConversation } from '@main/core/conversations/hydrateConversation';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
 import { err, ok, type Result } from '@main/lib/result';
-import { resolveLoopProvider } from '@shared/core/loops/loops';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import { resolveLoopModel, resolveLoopProvider } from '@shared/core/loops/loops';
 import {
   phaseConversationTitle,
   verificationConversationTitle,
@@ -46,15 +43,6 @@ function errorMessage(error: unknown, fallback = 'ACP loop request failed'): str
   return fallback;
 }
 
-function hasErrorType(error: unknown, type: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'type' in error &&
-    (error as { type?: unknown }).type === type
-  );
-}
-
 function assistantTextFromTurn(turn: AcpTurn): string {
   return turn.updates
     .map(({ update }) =>
@@ -73,41 +61,17 @@ function finalAssistantText(conversationId: string): string {
   return '';
 }
 
-async function hydrateConversationById(
-  conversationId: string
-): Promise<Result<void, LoopSessionDriverError>> {
-  try {
-    const [row] = await db
-      .select({
-        projectId: conversations.projectId,
-        taskId: conversations.taskId,
-      })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId))
-      .limit(1);
-    if (!row) {
-      return err({ kind: 'hydrate-failed', message: 'Conversation not found' });
-    }
-
-    await hydrateConversation(row.projectId, row.taskId, conversationId);
-    return ok();
-  } catch (error) {
-    return err({
-      kind: 'hydrate-failed',
-      message: errorMessage(error, 'Failed to hydrate ACP conversation'),
-    });
-  }
-}
-
 async function startConversation(
   ctx: StartPhaseSessionContext | StartVerificationSessionContext,
   title: string
 ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
   let conversationId = '';
+  let conversation: Conversation | null = null;
   const provider = resolveLoopProvider(ctx.loop.config);
+  const model = resolveLoopModel(ctx.loop.config) ?? undefined;
 
   try {
-    const conversation = await createConversation({
+    conversation = await createConversation({
       id: randomUUID(),
       projectId: ctx.loop.projectId,
       taskId: ctx.loop.taskId,
@@ -115,6 +79,7 @@ async function startConversation(
       title,
       isInitialConversation: false,
       type: 'acp',
+      model,
     });
     conversationId = conversation.id;
     acpSessionManager.registerPermissionAutoApproval(conversationId);
@@ -125,12 +90,22 @@ async function startConversation(
     });
   }
 
-  try {
-    await hydrateConversation(ctx.loop.projectId, ctx.loop.taskId, conversationId);
-  } catch (error) {
+  if (!conversation) {
+    return err({ kind: 'create-failed', message: 'Conversation was not created' });
+  }
+
+  const started = await acpSessionManager.start(
+    conversation,
+    ctx.target.workspaceId,
+    ctx.target.path,
+    ctx.target.machine,
+    undefined,
+    ctx.taskEnvironment
+  );
+  if (!started.success) {
     return err({
       kind: 'hydrate-failed',
-      message: errorMessage(error, 'Failed to hydrate ACP conversation'),
+      message: errorMessage(started.error, 'Failed to start targeted ACP conversation'),
     });
   }
 
@@ -143,14 +118,14 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
   async startPhaseSession(
     ctx: StartPhaseSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
-    const title = phaseConversationTitle(ctx.loop, ctx.phase, ctx.review);
+    const title = phaseConversationTitle(ctx.loop, ctx.phase, ctx.purpose);
     return startConversation(ctx, title);
   },
 
   async startVerificationSession(
     ctx: StartVerificationSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
-    return startConversation(ctx, verificationConversationTitle(ctx.loop, ctx.phase));
+    return startConversation(ctx, verificationConversationTitle(ctx.loop, ctx.phase, ctx.purpose));
   },
 
   async sendPrompt(
@@ -159,16 +134,9 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
   ): Promise<Result<PromptResult, LoopSessionDriverError>> {
     acpSessionManager.registerPermissionAutoApproval(conversationId);
 
-    let result = await acpSessionManager.prompt(conversationId, text, undefined, {
+    const result = await acpSessionManager.prompt(conversationId, text, undefined, {
       requireRuntime: true,
     });
-    if (!result.success && hasErrorType(result.error, 'conversation_not_found')) {
-      const hydrated = await hydrateConversationById(conversationId);
-      if (!hydrated.success) return hydrated;
-      result = await acpSessionManager.prompt(conversationId, text, undefined, {
-        requireRuntime: true,
-      });
-    }
     if (!result.success) {
       return err({
         kind: 'prompt-failed',

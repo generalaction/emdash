@@ -21,6 +21,7 @@ import {
   PHASE_DONE_SENTINEL,
   REVIEW_APPROVED_SENTINEL,
 } from './prompt-builder';
+import type { LoopExecutionTarget } from './runtime/loop-execution-target';
 import { runExecFile, type ExecFileFailure } from './verifiers/exec';
 import { getVerifier } from './verifiers/registry';
 import type {
@@ -66,7 +67,7 @@ export type PhaseRunnerDeps = {
 export type RunPhaseInput = {
   loop: LoopWithPhases;
   phase: LoopPhase;
-  cwd: string;
+  executionTarget: LoopExecutionTarget;
   driver: LoopSessionDriver;
   control: LoopRunControl;
 };
@@ -180,6 +181,7 @@ export class PhaseRunner {
   }
 
   async runPhase(input: RunPhaseInput): Promise<Result<RunPhaseResult, LoopRunError>> {
+    const cwd = input.executionTarget.path;
     let loop: LoopWithPhases = input.loop;
     let phase: LoopPhase = input.phase;
     let conversationId = phase.conversationId;
@@ -210,7 +212,13 @@ export class PhaseRunner {
       }
 
       if (!conversationId) {
-        const session = await input.driver.startPhaseSession({ loop, phase, review: false });
+        const session = await input.driver.startPhaseSession({
+          loop,
+          phase,
+          purpose: 'work',
+          target: input.executionTarget,
+          taskEnvironment: input.executionTarget.taskEnv,
+        });
         if (!session.success) {
           return err({
             kind: 'driver-error',
@@ -304,7 +312,8 @@ export class PhaseRunner {
       const verifierResult = await this.runVerifierGate(
         loop,
         phase,
-        input.cwd,
+        cwd,
+        input.executionTarget,
         input.driver,
         input.control
       );
@@ -320,11 +329,12 @@ export class PhaseRunner {
         continue;
       }
 
-      if (loop.config?.reviewEnabled) {
+      if (loop.config?.version === '1' && loop.config.reviewEnabled) {
         const review = await this.runReviewGate(
           loop,
           phase,
-          input.cwd,
+          cwd,
+          input.executionTarget,
           input.driver,
           input.control
         );
@@ -357,6 +367,7 @@ export class PhaseRunner {
     loop: Loop,
     phase: LoopPhase,
     cwd: string,
+    executionTarget: LoopExecutionTarget,
     driver: LoopSessionDriver,
     control: LoopRunControl
   ): Promise<
@@ -401,6 +412,8 @@ export class PhaseRunner {
         criteria: phase.criteria?.criteria ?? [],
         signal: control.signal,
         sessionDriver: driver,
+        executionTarget,
+        taskEnvironment: executionTarget.taskEnv,
         promptTimeoutMs: this.deps.verifierPromptTimeoutMs,
         setActiveConversation: control.setActiveConversation.bind(control),
       });
@@ -440,6 +453,7 @@ export class PhaseRunner {
     loop: Loop,
     phase: LoopPhase,
     cwd: string,
+    executionTarget: LoopExecutionTarget,
     driver: LoopSessionDriver,
     control: LoopRunControl
   ): Promise<Result<{ kind: 'approved' } | { kind: 'changes'; feedback: string }, LoopRunError>> {
@@ -447,7 +461,13 @@ export class PhaseRunner {
     if (!reviewing.success) return err(reviewing.error);
     phase = reviewing.data;
 
-    const session = await driver.startPhaseSession({ loop, phase, review: true });
+    const session = await driver.startPhaseSession({
+      loop,
+      phase,
+      purpose: 'review',
+      target: executionTarget,
+      taskEnvironment: executionTarget.taskEnv,
+    });
     if (!session.success) {
       return err({
         kind: 'driver-error',

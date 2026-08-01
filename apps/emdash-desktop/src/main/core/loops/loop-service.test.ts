@@ -9,6 +9,8 @@ import { getLoop, pauseRunningLoopsForBoot, updateLoop } from './operations/loop
 const emitMock = vi.hoisted(() => vi.fn());
 const pauseRunningLoopsForBootMock = vi.hoisted(() => vi.fn());
 const resolveTaskWorkspaceTargetMock = vi.hoisted(() => vi.fn());
+const resolveLoopExecutionTargetMock = vi.hoisted(() => vi.fn());
+const getTasksMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@main/lib/events', () => ({
   events: { emit: emitMock },
@@ -39,6 +41,21 @@ vi.mock('./drivers/driver-registry', () => ({
 
 vi.mock('@main/core/workspaces/resolve-task-workspace-target', () => ({
   resolveTaskWorkspaceTarget: resolveTaskWorkspaceTargetMock,
+}));
+
+vi.mock('./runtime/loop-execution-target', () => ({
+  resolveLoopExecutionTarget: resolveLoopExecutionTargetMock,
+}));
+
+vi.mock('@main/core/tasks/operations/getTasks', () => ({ getTasks: getTasksMock }));
+
+vi.mock('@main/core/projects/project-manager', () => ({
+  projectManager: {
+    getProject: vi.fn(() => ({
+      repoPath: '/project',
+      settings: { get: vi.fn(async () => ({ defaultBranch: 'main' })) },
+    })),
+  },
 }));
 
 const loop: Loop = {
@@ -129,6 +146,18 @@ describe('LoopService start and resume workspace resolution', () => {
       success: true,
       data: { workspaceId: 'workspace-1', path: '/tmp/worktree', machine: { kind: 'local' } },
     });
+    getTasksMock.mockResolvedValue([{ id: 'task-1', name: 'Task' }]);
+    resolveLoopExecutionTargetMock.mockResolvedValue({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: { EMDASH_TASK_ID: 'task-1' },
+        executionContext: {},
+        dispose: vi.fn(),
+      },
+    });
     vi.mocked(getLoop).mockResolvedValue({ ...loop, phases: [] } satisfies LoopWithPhases);
     vi.mocked(updateLoop).mockImplementation(async (_loopId, patch) => ok({ ...loop, ...patch }));
   });
@@ -138,13 +167,17 @@ describe('LoopService start and resume workspace resolution', () => {
     await service.reconcileEnabledState(true);
     const result = await service.startLoop('loop-1');
 
-    expect(resolveTaskWorkspaceTargetMock).toHaveBeenCalledWith('task-1');
+    expect(resolveLoopExecutionTargetMock).toHaveBeenCalledWith('task-1', {
+      taskName: 'Task',
+      projectPath: '/project',
+      defaultBranch: 'main',
+    });
     expect(updateLoop).toHaveBeenCalledWith('loop-1', { status: 'running' });
     expect(result.success).toBe(true);
   });
 
   it('returns a clear workspace error when the resolved worktree path is unavailable', async () => {
-    resolveTaskWorkspaceTargetMock.mockResolvedValueOnce({
+    resolveLoopExecutionTargetMock.mockResolvedValueOnce({
       success: false,
       error: {
         kind: 'workspace-unavailable',

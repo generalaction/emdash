@@ -5,41 +5,11 @@ import { acpLoopSessionDriver } from './acp-driver';
 
 const acpSessionManagerMock = vi.hoisted(() => ({
   registerPermissionAutoApproval: vi.fn(),
+  start: vi.fn(),
   prompt: vi.fn(),
   cancel: vi.fn(),
   getChatHistory: vi.fn(),
 }));
-const dbMock = vi.hoisted(() => ({
-  select: vi.fn(),
-}));
-const hydrateConversationMock = vi.hoisted(() => vi.fn());
-
-function mockConversationLookup(row: { projectId: string; taskId: string } | null): void {
-  dbMock.select.mockReturnValue({
-    from: () => ({
-      where: () => ({
-        limit: async () => (row ? [row] : []),
-      }),
-    }),
-  });
-}
-
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn(() => ({})),
-}));
-
-vi.mock('@main/db/client', () => ({
-  db: dbMock,
-}));
-
-vi.mock('@main/db/schema', () => ({
-  conversations: {
-    id: {},
-    projectId: {},
-    taskId: {},
-  },
-}));
-
 vi.mock('@main/core/acp/production-acp-session-manager', () => ({
   acpSessionManager: acpSessionManagerMock,
 }));
@@ -48,21 +18,23 @@ vi.mock('@main/core/conversations/createConversation', () => ({
   createConversation: vi.fn(),
 }));
 
-vi.mock('@main/core/conversations/hydrateConversation', () => ({
-  hydrateConversation: hydrateConversationMock,
-}));
-
 describe('acpLoopSessionDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     acpSessionManagerMock.getChatHistory.mockReturnValue({ turns: [], complete: true });
-    mockConversationLookup({ projectId: 'project-1', taskId: 'task-1' });
+    acpSessionManagerMock.start.mockResolvedValue({ success: true, data: undefined });
   });
 
   function makeLoopContext(patch: Partial<Loop> = {}): {
     loop: Loop;
     phase: LoopPhase;
-    review: boolean;
+    purpose: 'work';
+    target: {
+      workspaceId: string;
+      path: string;
+      machine: { kind: 'local' };
+    };
+    taskEnvironment: Readonly<Record<string, string>>;
   } {
     const loop: Loop = {
       id: 'loop-1',
@@ -91,7 +63,13 @@ describe('acpLoopSessionDriver', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     };
-    return { loop, phase, review: false };
+    return {
+      loop,
+      phase,
+      purpose: 'work',
+      target: { workspaceId: 'workspace-1', path: '/worktree', machine: { kind: 'local' } },
+      taskEnvironment: { EMDASH_TASK_ID: 'task-1', EMDASH_TASK_PATH: '/worktree' },
+    };
   }
 
   it('registers newly created loop ACP conversations for permission auto-approval', async () => {
@@ -105,9 +83,8 @@ describe('acpLoopSessionDriver', () => {
       isInitialConversation: false,
       lastInteractedAt: null,
     });
-    hydrateConversationMock.mockResolvedValueOnce(undefined);
-
-    const result = await acpLoopSessionDriver.startPhaseSession(makeLoopContext());
+    const context = makeLoopContext();
+    const result = await acpLoopSessionDriver.startPhaseSession(context);
 
     expect(result.success).toBe(true);
     expect(createConversation).toHaveBeenCalledWith(
@@ -117,7 +94,14 @@ describe('acpLoopSessionDriver', () => {
       })
     );
     expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-loop');
-    expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-loop');
+    expect(acpSessionManagerMock.start).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conv-loop' }),
+      context.target.workspaceId,
+      context.target.path,
+      context.target.machine,
+      undefined,
+      context.taskEnvironment
+    );
   });
 
   it('uses the loop config provider when creating ACP conversations', async () => {
@@ -131,8 +115,6 @@ describe('acpLoopSessionDriver', () => {
       isInitialConversation: false,
       lastInteractedAt: null,
     });
-    hydrateConversationMock.mockResolvedValueOnce(undefined);
-
     const result = await acpLoopSessionDriver.startPhaseSession(
       makeLoopContext({
         config: {
@@ -167,12 +149,13 @@ describe('acpLoopSessionDriver', () => {
       isInitialConversation: false,
       lastInteractedAt: null,
     });
-    hydrateConversationMock.mockResolvedValueOnce(undefined);
-
     const context = makeLoopContext();
     const result = await acpLoopSessionDriver.startVerificationSession({
       loop: context.loop,
       phase: context.phase,
+      purpose: 'browser-verification',
+      target: context.target,
+      taskEnvironment: context.taskEnvironment,
     });
 
     expect(result.success).toBe(true);
@@ -186,7 +169,14 @@ describe('acpLoopSessionDriver', () => {
     expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith(
       'conv-verify'
     );
-    expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-verify');
+    expect(acpSessionManagerMock.start).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conv-verify' }),
+      context.target.workspaceId,
+      context.target.path,
+      context.target.machine,
+      undefined,
+      context.taskEnvironment
+    );
   });
 
   it('uses strict ACP prompt routing and never returns literal undefined as the error message', async () => {
@@ -240,20 +230,17 @@ describe('acpLoopSessionDriver', () => {
     }
   });
 
-  it('hydrates an existing conversation and retries when no ACP runtime is registered', async () => {
-    acpSessionManagerMock.prompt
-      .mockResolvedValueOnce({
-        success: false,
-        error: { type: 'conversation_not_found', message: 'ACP conversation is not running' },
-      })
-      .mockResolvedValueOnce({ success: true, data: undefined });
+  it('does not fall back to normal task hydration when the explicit runtime is missing', async () => {
+    acpSessionManagerMock.prompt.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'conversation_not_found', message: 'ACP conversation is not running' },
+    });
 
     const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-1');
-    expect(hydrateConversationMock).toHaveBeenCalledWith('project-1', 'task-1', 'conv-1');
-    expect(acpSessionManagerMock.prompt).toHaveBeenCalledTimes(2);
+    expect(acpSessionManagerMock.prompt).toHaveBeenCalledOnce();
   });
 
   it('uses strict ACP cancel routing', async () => {

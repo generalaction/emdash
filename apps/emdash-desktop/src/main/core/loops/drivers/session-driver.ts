@@ -1,4 +1,5 @@
 import type { Result } from '@main/lib/result';
+import type { LoopSessionPurpose, LoopSessionTarget } from '@shared/core/loops/loop-state';
 import type { Loop, LoopPhase } from '@shared/core/loops/loops';
 
 export type LoopSessionKind = 'acp' | 'pty';
@@ -13,12 +14,17 @@ export type LoopSessionDriverError =
 export type StartPhaseSessionContext = {
   loop: Loop;
   phase: LoopPhase;
-  review: boolean;
+  purpose: Extract<LoopSessionPurpose, 'work' | 'review'>;
+  target: LoopSessionTarget;
+  taskEnvironment: Readonly<Record<string, string>>;
 };
 
 export type StartVerificationSessionContext = {
   loop: Loop;
   phase: LoopPhase;
+  purpose: Extract<LoopSessionPurpose, 'browser-verification' | 'e2e'>;
+  target: LoopSessionTarget;
+  taskEnvironment: Readonly<Record<string, string>>;
 };
 
 export type LoopSessionInfo = {
@@ -45,10 +51,18 @@ export interface LoopSessionDriver {
   cancelPrompt(conversationId: string): Promise<Result<void, LoopSessionDriverError>>;
 }
 
-export function phaseConversationTitle(loop: Loop, phase: LoopPhase, review: boolean): string {
-  return `${loop.slug}-${phase.idx + 1}${review ? '-review' : ''}`;
+export function phaseConversationTitle(
+  loop: Loop,
+  phase: LoopPhase,
+  purpose: 'work' | 'review'
+): string {
+  return `${loop.slug}-${phase.idx + 1}${purpose === 'review' ? '-review' : ''}`;
 }
 
-export function verificationConversationTitle(loop: Loop, phase: LoopPhase): string {
-  return `${loop.slug}-${phase.idx + 1}-verify`;
+export function verificationConversationTitle(
+  loop: Loop,
+  phase: LoopPhase,
+  purpose: 'browser-verification' | 'e2e'
+): string {
+  return `${loop.slug}-${phase.idx + 1}-${purpose === 'e2e' ? 'e2e' : 'verify'}`;
 }

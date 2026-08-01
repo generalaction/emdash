@@ -48,6 +48,7 @@ export type VerifierRunContext = {
   cwd: string;
   /** Target-bound execution supplied by the v2 engine. Optional until serial integration lands. */
   executionTarget?: LoopExecutionTarget;
+  taskEnvironment?: Readonly<Record<string, string>>;
   validationCommands: string[];
   criteria: LoopPhaseCriterion[];
   signal?: AbortSignal;

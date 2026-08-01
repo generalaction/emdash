@@ -1,3 +1,5 @@
+import { projectManager } from '@main/core/projects/project-manager';
+import { getTasks } from '@main/core/tasks/operations/getTasks';
 import { taskService } from '@main/core/tasks/task-service';
 import { resolveTaskWorkspaceTarget } from '@main/core/workspaces/resolve-task-workspace-target';
 import { events } from '@main/lib/events';
@@ -32,6 +34,10 @@ import {
 } from './operations/loop-operations';
 import type { LoopOperationError } from './operations/types';
 import { PhaseRunner, type LoopRunControl } from './phase-runner';
+import {
+  resolveLoopExecutionTarget,
+  type LoopExecutionTarget,
+} from './runtime/loop-execution-target';
 import { requireVerifier } from './verifiers/registry';
 
 export type LoopServiceError =
@@ -98,6 +104,31 @@ async function resolveWorkspacePath(taskId: string): Promise<Result<string, Loop
     return err({ kind: 'workspace-unavailable', message: target.error.message });
   }
   return ok(target.data.path);
+}
+
+async function resolveExecutionTarget(
+  loop: Loop
+): Promise<Result<LoopExecutionTarget, LoopServiceError>> {
+  const project = projectManager.getProject(loop.projectId);
+  const task = (await getTasks(loop.projectId)).find((candidate) => candidate.id === loop.taskId);
+  if (!project || !task) {
+    return err({ kind: 'workspace-unavailable', message: 'Loop task or project is unavailable' });
+  }
+
+  const settings = await project.settings.get();
+  const defaultBranch =
+    typeof settings.defaultBranch === 'string'
+      ? settings.defaultBranch
+      : settings.defaultBranch?.name;
+  const target = await resolveLoopExecutionTarget(loop.taskId, {
+    taskName: task.name,
+    projectPath: project.repoPath,
+    defaultBranch,
+  });
+  if (!target.success) {
+    return err({ kind: 'workspace-unavailable', message: target.error.message });
+  }
+  return target;
 }
 
 export class LoopService {
@@ -313,8 +344,8 @@ export class LoopService {
       });
     }
 
-    const cwd = await resolveWorkspacePath(loopResult.data.taskId);
-    if (!cwd.success) return cwd;
+    const executionTarget = await resolveExecutionTarget(loopResult.data);
+    if (!executionTarget.success) return executionTarget;
 
     const running = await updateLoop(loopId, { status: 'running' });
     if (!running.success) return err(serviceError(running.error));
@@ -322,14 +353,19 @@ export class LoopService {
 
     const handle = new LoopRunHandle();
     this.activeRuns.set(loopId, handle);
-    void this.runLoop(loopId, cwd.data, handle).finally(() => {
+    void this.runLoop(loopId, executionTarget.data, handle).finally(() => {
+      executionTarget.data.dispose();
       this.activeRuns.delete(loopId);
     });
 
     return loadLoop(loopId);
   }
 
-  private async runLoop(loopId: string, cwd: string, handle: LoopRunHandle): Promise<void> {
+  private async runLoop(
+    loopId: string,
+    executionTarget: LoopExecutionTarget,
+    handle: LoopRunHandle
+  ): Promise<void> {
     try {
       const driver = getLoopSessionDriver('acp');
 
@@ -358,7 +394,7 @@ export class LoopService {
         const result = await this.runner.runPhase({
           loop,
           phase,
-          cwd,
+          executionTarget,
           driver,
           control: handle,
         });

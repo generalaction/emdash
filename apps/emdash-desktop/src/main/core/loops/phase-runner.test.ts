@@ -59,6 +59,17 @@ function makeControl(): LoopRunControl {
   };
 }
 
+function makeExecutionTarget() {
+  return {
+    workspaceId: 'workspace-1',
+    path: '/tmp/workspace',
+    machine: { kind: 'local' as const },
+    taskEnv: { EMDASH_TASK_ID: 'task-1', EMDASH_TASK_PATH: '/tmp/workspace' },
+    executionContext: {},
+    dispose: vi.fn(),
+  } as never;
+}
+
 function makeMemoryDeps(loop: LoopWithPhases, verifiers: Map<BuiltInVerifierId, LoopVerifier>) {
   let current = loop;
   const loopTransitions: string[] = [];
@@ -153,7 +164,7 @@ describe('PhaseRunner', () => {
     }).runPhase({
       loop,
       phase: loop.phases[0]!,
-      cwd: '/tmp/workspace',
+      executionTarget: makeExecutionTarget(),
       driver,
       control: makeControl(),
     });
@@ -197,7 +208,7 @@ describe('PhaseRunner', () => {
     const result = await new PhaseRunner(memory.deps).runPhase({
       loop,
       phase: loop.phases[0]!,
-      cwd: '/tmp/workspace',
+      executionTarget: makeExecutionTarget(),
       driver,
       control: makeControl(),
     });
@@ -246,7 +257,7 @@ describe('PhaseRunner', () => {
     const result = await new PhaseRunner(memory.deps).runPhase({
       loop,
       phase: loop.phases[0]!,
-      cwd: '/tmp/workspace',
+      executionTarget: makeExecutionTarget(),
       driver,
       control: makeControl(),
     });
@@ -274,7 +285,7 @@ describe('PhaseRunner', () => {
     const result = await new PhaseRunner(memory.deps).runPhase({
       loop,
       phase: loop.phases[0]!,
-      cwd: '/tmp/workspace',
+      executionTarget: makeExecutionTarget(),
       driver,
       control: makeControl(),
     });
@@ -303,7 +314,7 @@ describe('PhaseRunner', () => {
     }).runPhase({
       loop,
       phase: loop.phases[0]!,
-      cwd: '/tmp/workspace',
+      executionTarget: makeExecutionTarget(),
       driver,
       control: makeControl(),
     });
@@ -330,7 +341,7 @@ describe('PhaseRunner', () => {
     const result = await new PhaseRunner(memory.deps).runPhase({
       loop,
       phase: loop.phases[0]!,
-      cwd: '/tmp/workspace',
+      executionTarget: makeExecutionTarget(),
       driver,
       control: makeControl(),
     });
