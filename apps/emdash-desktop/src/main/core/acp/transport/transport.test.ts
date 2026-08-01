@@ -101,6 +101,33 @@ function makeFakeProxy(channel: FakeSshChannel) {
 // ---------------------------------------------------------------------------
 
 describe('SshChannelHandle (via LegacySshAcpProcessHost.spawn)', () => {
+  it('passes executable, arguments, and environment separately to the SSH command builder', async () => {
+    const channel = new FakeSshChannel();
+    const proxy = makeFakeProxy(channel);
+    const [{ LegacySshAcpProcessHost }, { buildSshCommand }] = await Promise.all([
+      import('./legacy-ssh-acp-process-host'),
+      import('@main/core/execution-context/ssh-execution-context'),
+    ]);
+    vi.mocked(buildSshCommand).mockClear();
+    const host = new LegacySshAcpProcessHost(proxy as never);
+
+    await host.spawn({
+      command: '/path with spaces/electron',
+      args: ['/adapter path/index.js', '--flag=value'],
+      env: { CODEX_PATH: '/usr/bin/codex', EMDASH_TASK_NAME: 'task with spaces' },
+      cwd: '/remote workspace',
+    });
+
+    expect(buildSshCommand).toHaveBeenCalledWith(
+      '/remote workspace',
+      '/path with spaces/electron',
+      ['/adapter path/index.js', '--flag=value'],
+      expect.any(Object),
+      undefined,
+      { CODEX_PATH: '/usr/bin/codex', EMDASH_TASK_NAME: 'task with spaces' }
+    );
+  });
+
   it('stdout is the channel itself', async () => {
     const channel = new FakeSshChannel();
     const { LegacySshAcpProcessHost } = await import('./legacy-ssh-acp-process-host');

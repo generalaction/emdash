@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { loopPhases, loops } from '@main/db/schema';
@@ -34,10 +35,10 @@ export async function commitWorkPhaseProgress(input: {
       if (
         !loopRow ||
         !phaseRow ||
-        JSON.stringify(loopRow.state) !== JSON.stringify(input.expectedLoopState) ||
-        JSON.stringify(phaseRow.state) !== JSON.stringify(input.expectedPhaseState) ||
-        !input.expectedLoopState.sessionAttempts.some(
-          (attempt) => JSON.stringify(attempt) === JSON.stringify(input.previousAttempt)
+        !isDeepStrictEqual(loopRow.state, input.expectedLoopState) ||
+        !isDeepStrictEqual(phaseRow.state, input.expectedPhaseState) ||
+        !input.expectedLoopState.sessionAttempts.some((attempt) =>
+          isDeepStrictEqual(attempt, input.previousAttempt)
         )
       ) {
         conflict = true;

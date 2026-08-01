@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { loops } from '@main/db/schema';
@@ -31,7 +32,7 @@ export async function commitSessionAttempt(input: {
         .where(eq(loops.id, input.loopId))
         .limit(1)
         .all();
-      if (!row || JSON.stringify(row.state) !== JSON.stringify(input.expected)) {
+      if (!row || !isDeepStrictEqual(row.state, input.expected)) {
         conflict = true;
         return;
       }
@@ -42,7 +43,7 @@ export async function commitSessionAttempt(input: {
             attempt.attemptId === input.previous?.attemptId &&
             attempt.conversationId === input.previous.conversationId
         );
-        if (index < 0 || JSON.stringify(attempts[index]) !== JSON.stringify(input.previous)) {
+        if (index < 0 || !isDeepStrictEqual(attempts[index], input.previous)) {
           conflict = true;
           return;
         }
