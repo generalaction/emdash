@@ -2,9 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@main/lib/result';
 import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
 import type { Loop, LoopWithPhases } from '@shared/core/loops/loops';
+import { getLoopSessionDriver } from './drivers/driver-registry';
 import { LoopService } from './loop-service';
 import { createTaskWithLoop } from './operations/create-task-with-loop';
-import { getLoop, pauseRunningLoopsForBoot, updateLoop } from './operations/loop-operations';
+import {
+  getLoop,
+  pauseRunningLoopsForBoot,
+  updateLoop,
+  updatePhase,
+} from './operations/loop-operations';
 
 const emitMock = vi.hoisted(() => vi.fn());
 const pauseRunningLoopsForBootMock = vi.hoisted(() => vi.fn());
@@ -171,6 +177,19 @@ describe('LoopService atomic task creation', () => {
     });
     expect(createTaskWithLoop).not.toHaveBeenCalled();
   });
+
+  it('rejects inherited object properties as model ids', async () => {
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const result = await service.createTaskWithLoop({
+      task: { id: 'task-1', projectId: 'project-1' },
+      loop: { model: 'constructor' },
+    } as never);
+
+    expect(result.success).toBe(false);
+    expect(createTaskWithLoop).not.toHaveBeenCalled();
+  });
 });
 
 describe('LoopService start and resume workspace resolution', () => {
@@ -292,6 +311,88 @@ describe('LoopService start and resume workspace resolution', () => {
     expect(result.success).toBe(false);
     expect(updateLoop).not.toHaveBeenCalledWith('loop-1', { status: 'running' });
     expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed within a bound when an in-flight start never settles during opt-out', async () => {
+    let resolveTarget!: (value: Awaited<ReturnType<typeof resolveLoopExecutionTargetMock>>) => void;
+    resolveLoopExecutionTargetMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTarget = resolve;
+      })
+    );
+    const service = new LoopService({ stopSettlementTimeoutMs: 5 });
+    await service.reconcileEnabledState(true);
+    const start = service.startLoop('loop-1');
+    await vi.waitFor(() => expect(resolveLoopExecutionTargetMock).toHaveBeenCalledOnce());
+
+    await service.reconcileEnabledState(false);
+
+    expect(updateLoop).toHaveBeenCalledWith('loop-1', { status: 'failed' });
+    resolveTarget({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose: vi.fn(),
+      },
+    });
+    await start;
+  });
+
+  it('reports cancellation failure instead of claiming a paused run is quiescent', async () => {
+    const phase = {
+      id: 'phase-1',
+      loopId: loop.id,
+      idx: 0,
+      name: 'Work',
+      goal: 'Implement it',
+      kind: 'work' as const,
+      status: 'pending' as const,
+      attempts: 0,
+      conversationId: null,
+      criteria: null,
+      state: null,
+      lastError: null,
+      createdAt: loop.createdAt,
+      updatedAt: loop.updatedAt,
+    };
+    const runningLoop = { ...loop, status: 'running' as const, phases: [phase] };
+    const prompt =
+      Promise.withResolvers<
+        Awaited<ReturnType<ReturnType<typeof getLoopSessionDriver>['sendPrompt']>>
+      >();
+    const driver = {
+      kind: 'acp' as const,
+      startPhaseSession: vi.fn(async () => ok({ conversationId: 'conversation-1', title: 'work' })),
+      startVerificationSession: vi.fn(),
+      sendPrompt: vi.fn(() => prompt.promise),
+      cancelPrompt: vi.fn(async () =>
+        err({ kind: 'cancel-failed' as const, message: 'agent refused cancellation' })
+      ),
+    };
+    vi.mocked(getLoop)
+      .mockResolvedValueOnce({ ...loop, phases: [phase] })
+      .mockResolvedValue(runningLoop);
+    vi.mocked(updatePhase).mockImplementation(async (_phaseId, patch) =>
+      ok({ ...phase, ...patch })
+    );
+    vi.mocked(getLoopSessionDriver).mockReturnValue(driver);
+    const service = new LoopService({ stopSettlementTimeoutMs: 5 });
+    await service.reconcileEnabledState(true);
+    await service.startLoop(loop.id);
+    await vi.waitFor(() => expect(driver.sendPrompt).toHaveBeenCalledOnce());
+
+    const result = await service.pauseLoop(loop.id);
+
+    expect(result).toEqual({
+      success: false,
+      error: { kind: 'run-failed', message: 'Loop pause failed: agent refused cancellation' },
+    });
+    expect(updateLoop).toHaveBeenCalledWith(loop.id, { status: 'failed' });
+    prompt.resolve(err({ kind: 'prompt-failed', message: 'cancelled after failure' }));
   });
 
   it('disposes the execution target when the running transition fails', async () => {

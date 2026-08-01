@@ -486,7 +486,7 @@ export class PhaseRunner {
     if (!session.success) {
       const stopped = await this.stopV2Work(input, loop, phase, durableLoopState, sessionAttempt);
       if (stopped) return stopped;
-      await this.finishSessionAttempt(
+      const finished = await this.finishSessionAttempt(
         loop.id,
         durableLoopState,
         sessionAttempt,
@@ -494,6 +494,7 @@ export class PhaseRunner {
         undefined,
         session.error.message
       );
+      if (!finished.success) return finished;
       return err({
         kind: 'driver-error',
         message: safeMessage(session.error.message, 'Failed to start Loop work session'),
@@ -580,7 +581,7 @@ export class PhaseRunner {
     );
     if (stoppedAfterPrompt) return stoppedAfterPrompt;
     if (!promptResult.success) {
-      await this.finishSessionAttempt(
+      const finished = await this.finishSessionAttempt(
         loop.id,
         durableLoopState,
         sessionAttempt,
@@ -588,13 +589,14 @@ export class PhaseRunner {
         undefined,
         promptResult.error.message
       );
+      if (!finished.success) return finished;
       return this.markV2WorkFailed(loop, phase, promptResult.error.message);
     }
     const sentinel = parseWorkSentinel(promptResult.data.finalText);
     if (!sentinel || sentinel.kind === 'failed') {
       const message =
         sentinel?.kind === 'failed' ? sentinel.reason : `Missing strict ${PHASE_DONE_SENTINEL}`;
-      await this.finishSessionAttempt(
+      const finished = await this.finishSessionAttempt(
         loop.id,
         durableLoopState,
         sessionAttempt,
@@ -602,6 +604,7 @@ export class PhaseRunner {
         undefined,
         message
       );
+      if (!finished.success) return finished;
       return this.markV2WorkFailed(loop, phase, message);
     }
 
@@ -631,7 +634,7 @@ export class PhaseRunner {
     );
     if (stoppedAfterVerification) return stoppedAfterVerification;
     if (!verification.success) {
-      await this.finishSessionAttempt(
+      const finished = await this.finishSessionAttempt(
         loop.id,
         durableLoopState,
         sessionAttempt,
@@ -639,6 +642,7 @@ export class PhaseRunner {
         undefined,
         verification.error.message
       );
+      if (!finished.success) return finished;
       return this.markV2WorkFailed(loop, phase, verification.error.message);
     }
 
@@ -707,7 +711,7 @@ export class PhaseRunner {
       const stopped = await this.stopV2Work(input, loop, phase, durableLoopState, sessionAttempt);
       if (stopped) return stopped;
       const message = error instanceof Error ? error.message : String(error);
-      await this.finishSessionAttempt(
+      const finished = await this.finishSessionAttempt(
         loop.id,
         durableLoopState,
         sessionAttempt,
@@ -715,6 +719,7 @@ export class PhaseRunner {
         undefined,
         message
       );
+      if (!finished.success) return finished;
       return this.markV2WorkFailed(loop, phase, message);
     }
   }
@@ -729,7 +734,7 @@ export class PhaseRunner {
     const reason = input.control.stopReason();
     if (!reason) return null;
     if (state && attempt) {
-      await this.finishSessionAttempt(
+      const finished = await this.finishSessionAttempt(
         loop.id,
         state,
         attempt,
@@ -737,6 +742,7 @@ export class PhaseRunner {
         undefined,
         reason === 'pause' ? 'Loop paused' : 'Loop cancelled'
       );
+      if (!finished.success) return finished;
     }
     await input.control.setActiveConversation(null, null);
     return ok({ kind: reason === 'pause' ? 'paused' : 'cancelled', loop, phase });
@@ -855,8 +861,8 @@ export class PhaseRunner {
     status: 'failed' | 'cancelled' | 'interrupted',
     checkpointAfter?: string,
     error?: string
-  ): Promise<void> {
-    await this.deps.commitSessionAttempt({
+  ): Promise<Result<LoopStateV2, LoopRunError>> {
+    const committed = await this.deps.commitSessionAttempt({
       loopId,
       expected: state,
       previous,
@@ -868,6 +874,7 @@ export class PhaseRunner {
         ...(error ? { error: boundedSummary(error, 'Loop session failed') } : {}),
       },
     });
+    return committed.success ? ok(committed.data) : this.operationFailure(committed.error);
   }
 
   private operationFailure(error: LoopOperationError): Result<never, LoopRunError> {

@@ -49,18 +49,39 @@ export type LoopServiceError =
   | { kind: 'workspace-unavailable'; message: string }
   | { kind: 'run-failed'; message: string };
 
+export const DEFAULT_LOOP_STOP_SETTLEMENT_TIMEOUT_MS = 10_000;
+
+type SettledWithin<T> = { settled: true; value: T } | { settled: false };
+
+async function settleWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<SettledWithin<T>> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<SettledWithin<T>>((resolve) => {
+    timeout = setTimeout(() => resolve({ settled: false }), timeoutMs);
+    timeout.unref?.();
+  });
+  try {
+    return await Promise.race([
+      promise.then((value): SettledWithin<T> => ({ settled: true, value })),
+      deadline,
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 class LoopRunHandle implements LoopRunControl {
   private readonly abortController = new AbortController();
   private readonly completion: Promise<void>;
   private resolveCompletion!: () => void;
   private completed = false;
   private reason: 'pause' | 'cancel' | null = null;
+  private stopFailureMessage: string | null = null;
   private activeConversationId: string | null = null;
   private activeDriver: LoopSessionDriver | null = null;
 
   currentPhaseId: string | null = null;
 
-  constructor() {
+  constructor(private readonly stopSettlementTimeoutMs: number) {
     this.completion = new Promise((resolve) => {
       this.resolveCompletion = resolve;
     });
@@ -81,7 +102,7 @@ class LoopRunHandle implements LoopRunControl {
     this.activeConversationId = conversationId;
     this.activeDriver = driver;
     if (this.reason && conversationId && driver) {
-      await driver.cancelPrompt(conversationId);
+      await this.cancelActivePrompt(conversationId, driver);
     }
   }
 
@@ -92,7 +113,27 @@ class LoopRunHandle implements LoopRunControl {
     }
 
     if (this.activeConversationId && this.activeDriver) {
-      await this.activeDriver.cancelPrompt(this.activeConversationId);
+      await this.cancelActivePrompt(this.activeConversationId, this.activeDriver);
+    }
+  }
+
+  private async cancelActivePrompt(
+    conversationId: string,
+    driver: LoopSessionDriver
+  ): Promise<void> {
+    try {
+      const cancellation = await settleWithin(
+        driver.cancelPrompt(conversationId),
+        this.stopSettlementTimeoutMs
+      );
+      if (!cancellation.settled) {
+        this.stopFailureMessage = `ACP prompt cancellation did not settle within ${this.stopSettlementTimeoutMs}ms`;
+      } else if (!cancellation.value.success) {
+        this.stopFailureMessage = cancellation.value.error.message;
+      }
+    } catch (error) {
+      this.stopFailureMessage =
+        error instanceof Error ? error.message : 'ACP prompt cancellation failed';
     }
   }
 
@@ -102,8 +143,12 @@ class LoopRunHandle implements LoopRunControl {
     this.resolveCompletion();
   }
 
-  waitForCompletion(): Promise<void> {
-    return this.completion;
+  async waitForCompletion(): Promise<boolean> {
+    return (await settleWithin(this.completion, this.stopSettlementTimeoutMs)).settled;
+  }
+
+  stopFailure(): string | null {
+    return this.stopFailureMessage;
   }
 }
 
@@ -161,10 +206,17 @@ async function resolveExecutionTarget(
 export class LoopService {
   private readonly activeRuns = new Map<string, LoopRunHandle>();
   private enabled = false;
-  private readonly runner = new PhaseRunner({
-    onLoopUpdated: emitLoop,
-    onPhaseUpdated: emitPhase,
-  });
+  private readonly runner: PhaseRunner;
+  private readonly stopSettlementTimeoutMs: number;
+
+  constructor(options: { stopSettlementTimeoutMs?: number } = {}) {
+    this.stopSettlementTimeoutMs =
+      options.stopSettlementTimeoutMs ?? DEFAULT_LOOP_STOP_SETTLEMENT_TIMEOUT_MS;
+    this.runner = new PhaseRunner({
+      onLoopUpdated: emitLoop,
+      onPhaseUpdated: emitPhase,
+    });
+  }
 
   async initialize(enabled: boolean): Promise<void> {
     this.enabled = enabled;
@@ -178,9 +230,13 @@ export class LoopService {
     this.enabled = enabled;
     if (enabled) return;
 
-    const handles = Array.from(this.activeRuns.values());
-    await Promise.all(handles.map((handle) => handle.request('pause')));
-    await Promise.all(handles.map((handle) => handle.waitForCompletion()));
+    const handles = Array.from(this.activeRuns.entries());
+    const stopped = await Promise.all(
+      handles.map(([loopId, handle]) => this.stopActiveRun(loopId, handle, 'pause'))
+    );
+    for (const result of stopped) {
+      if (!result.success) log.warn('Loop did not quiesce cleanly during opt-out', result.error);
+    }
     const paused = await pauseRunningLoopsForBoot();
     for (const loop of paused) emitLoop(loop);
   }
@@ -215,7 +271,7 @@ export class LoopService {
     if (!enabled.success) return enabled;
     const requestedModel = params.loop.model?.trim() ?? '';
     const models = getPlugin('codex').capabilities.models;
-    if (models.kind !== 'selectable' || !(requestedModel in models.modelOptions)) {
+    if (models.kind !== 'selectable' || !Object.hasOwn(models.modelOptions, requestedModel)) {
       return err({
         kind: 'invalid-state',
         message: `Codex model '${requestedModel || '(empty)'}' is not available`,
@@ -300,8 +356,8 @@ export class LoopService {
   async pauseLoop(loopId: string): Promise<Result<LoopWithPhases, LoopServiceError>> {
     const handle = this.activeRuns.get(loopId);
     if (handle) {
-      await handle.request('pause');
-      await handle.waitForCompletion();
+      const stopped = await this.stopActiveRun(loopId, handle, 'pause');
+      if (!stopped.success) return stopped;
     }
 
     const updated = await updateLoop(loopId, { status: 'paused' });
@@ -314,8 +370,8 @@ export class LoopService {
   async cancelLoop(loopId: string): Promise<Result<LoopWithPhases, LoopServiceError>> {
     const handle = this.activeRuns.get(loopId);
     if (handle) {
-      await handle.request('cancel');
-      await handle.waitForCompletion();
+      const stopped = await this.stopActiveRun(loopId, handle, 'cancel');
+      if (!stopped.success) return stopped;
       if (handle.currentPhaseId) {
         const phase = await updatePhase(handle.currentPhaseId, {
           status: 'failed',
@@ -365,8 +421,8 @@ export class LoopService {
   async deleteLoop(loopId: string): Promise<Result<void, LoopServiceError>> {
     const handle = this.activeRuns.get(loopId);
     if (handle) {
-      await handle.request('cancel');
-      await handle.waitForCompletion();
+      const stopped = await this.stopActiveRun(loopId, handle, 'cancel');
+      if (!stopped.success) return stopped;
     }
 
     const result = await deleteLoopOperation(loopId);
@@ -384,7 +440,7 @@ export class LoopService {
       return err({ kind: 'conflict', message: 'Loop is already running' });
     }
 
-    const handle = new LoopRunHandle();
+    const handle = new LoopRunHandle(this.stopSettlementTimeoutMs);
     this.activeRuns.set(loopId, handle);
     let executionTarget: LoopExecutionTarget | undefined;
     let launched = false;
@@ -445,6 +501,24 @@ export class LoopService {
         handle.finish();
       }
     }
+  }
+
+  private async stopActiveRun(
+    loopId: string,
+    handle: LoopRunHandle,
+    reason: 'pause' | 'cancel'
+  ): Promise<Result<void, LoopServiceError>> {
+    await handle.request(reason);
+    const settled = await handle.waitForCompletion();
+    const cancellationFailure = handle.stopFailure();
+    if (settled && !cancellationFailure) return ok();
+
+    const message = cancellationFailure
+      ? `Loop ${reason} failed: ${cancellationFailure}`
+      : `Loop ${reason} did not settle within ${this.stopSettlementTimeoutMs}ms`;
+    const failed = await updateLoop(loopId, { status: 'failed' });
+    if (failed.success) emitLoop(failed.data);
+    return err({ kind: 'run-failed', message });
   }
 
   private preLaunchStop(

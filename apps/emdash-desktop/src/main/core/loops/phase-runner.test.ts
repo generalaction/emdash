@@ -543,6 +543,53 @@ describe('PhaseRunner', () => {
     ]);
   });
 
+  it('fails closed when interruption persistence does not commit', async () => {
+    loop = makeV2Loop();
+    const memory = makeMemoryDeps(loop, new Map([['unit-tests', passingVerifier('unit-tests')]]));
+    const commitSessionAttempt = vi.fn(async (input) => {
+      if (input.next.status === 'interrupted') {
+        return err({ kind: 'db-error' as const, message: 'interruption write failed' });
+      }
+      return ok({
+        ...input.expected,
+        sessionAttempts: [...input.expected.sessionAttempts, input.next],
+      });
+    });
+    const pendingSession = deferred<Awaited<ReturnType<LoopSessionDriver['startPhaseSession']>>>();
+    driver.startPhaseSession = vi.fn(() => pendingSession.promise);
+    let reason: 'pause' | 'cancel' | null = null;
+    const controller = new AbortController();
+    const run = new PhaseRunner({
+      ...memory.deps,
+      commitSessionAttempt: commitSessionAttempt as never,
+    }).runPhase({
+      loop,
+      phase: loop.phases[0]!,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control: {
+        signal: controller.signal,
+        stopReason: () => reason,
+        setActiveConversation: vi.fn(),
+      },
+    });
+    await vi.waitFor(() => expect(driver.startPhaseSession).toHaveBeenCalledOnce());
+    reason = 'pause';
+    controller.abort();
+    pendingSession.resolve(ok({ conversationId: 'late-session', title: 'late' }));
+
+    const result = await run;
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        kind: 'operation-error',
+        message: 'interruption write failed',
+        cause: { kind: 'db-error', message: 'interruption write failed' },
+      },
+    });
+  });
+
   it('persists verifier cancellation as interruption instead of failing the v2 phase', async () => {
     loop = makeV2Loop();
     let reason: 'pause' | 'cancel' | null = null;
