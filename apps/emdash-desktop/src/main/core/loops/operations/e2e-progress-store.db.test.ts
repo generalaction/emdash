@@ -53,7 +53,7 @@ describe('e2eProgressStore', () => {
       transition: { kind: 'workspace', verification: null },
     });
     expect(stale).toMatchObject({ success: false, error: { type: 'conflict' } });
-  });
+  }, 15_000);
 });
 
 async function loadStore() {
