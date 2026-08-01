@@ -62,7 +62,7 @@ describe('LoopService boot recovery', () => {
   it('marks running loops paused on initialize and emits loop updates', async () => {
     vi.mocked(pauseRunningLoopsForBoot).mockResolvedValue([loop]);
 
-    await new LoopService().initialize();
+    await new LoopService().initialize(true);
 
     expect(pauseRunningLoopsForBoot).toHaveBeenCalledOnce();
     expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop });
@@ -107,7 +107,9 @@ describe('LoopService atomic task creation', () => {
       task: taskParams,
       loop: {},
     } as never;
-    const result = await new LoopService().createTaskWithLoop(params);
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const result = await service.createTaskWithLoop(params);
 
     expect(result.success).toBe(true);
     const { taskService } = await import('@main/core/tasks/task-service');
@@ -132,7 +134,9 @@ describe('LoopService start and resume workspace resolution', () => {
   });
 
   it('starts a loop using a resolved workspace path even when no workspace is mounted', async () => {
-    const result = await new LoopService().startLoop('loop-1');
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const result = await service.startLoop('loop-1');
 
     expect(resolveTaskWorkspaceTargetMock).toHaveBeenCalledWith('task-1');
     expect(updateLoop).toHaveBeenCalledWith('loop-1', { status: 'running' });
@@ -148,12 +152,46 @@ describe('LoopService start and resume workspace resolution', () => {
       },
     });
 
-    const result = await new LoopService().startLoop('loop-1');
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const result = await service.startLoop('loop-1');
 
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.kind).toBe('workspace-unavailable');
       expect(result.error.message).toBe('Workspace path no longer exists: /tmp/missing-worktree');
     }
+  });
+});
+
+describe('LoopService experiment enforcement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pauseRunningLoopsForBootMock.mockResolvedValue([]);
+  });
+
+  it('rejects starts while the default-off feature is disabled', async () => {
+    const result = await new LoopService().startLoop('loop-1');
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        kind: 'feature-disabled',
+        message: 'ACP Loops are disabled in Experimental Settings',
+      },
+    });
+    expect(getLoop).not.toHaveBeenCalled();
+  });
+
+  it('pauses persisted running loops immediately when disabled live', async () => {
+    const running = { ...loop, status: 'running' as const };
+    pauseRunningLoopsForBootMock.mockResolvedValueOnce([running]);
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    await service.reconcileEnabledState(false);
+
+    expect(pauseRunningLoopsForBootMock).toHaveBeenCalledOnce();
+    expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop: running });
   });
 });

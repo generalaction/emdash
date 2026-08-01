@@ -149,9 +149,9 @@ void app.whenReady().then(async () => {
   remoteTmuxReaperService.initialize();
   automationsService.start();
   appService.initialize();
-  await loopService.initialize();
   await appSettingsService.initialize();
   applyNativeTheme(await appSettingsService.get('theme'));
+  await loopService.initialize((await appSettingsService.get('experiments')).loops);
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();

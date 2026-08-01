@@ -36,6 +36,7 @@ import { requireVerifier } from './verifiers/registry';
 
 export type LoopServiceError =
   | LoopOperationError
+  | { kind: 'feature-disabled'; message: string }
   | { kind: 'invalid-state'; message: string }
   | { kind: 'workspace-unavailable'; message: string }
   | { kind: 'run-failed'; message: string };
@@ -101,19 +102,41 @@ async function resolveWorkspacePath(taskId: string): Promise<Result<string, Loop
 
 export class LoopService {
   private readonly activeRuns = new Map<string, LoopRunHandle>();
+  private enabled = false;
   private readonly runner = new PhaseRunner({
     onLoopUpdated: emitLoop,
     onPhaseUpdated: emitPhase,
   });
 
-  async initialize(): Promise<void> {
+  async initialize(enabled: boolean): Promise<void> {
+    this.enabled = enabled;
     const paused = await pauseRunningLoopsForBoot();
     for (const loop of paused) {
       emitLoop(loop);
     }
   }
 
+  async reconcileEnabledState(enabled: boolean): Promise<void> {
+    this.enabled = enabled;
+    if (enabled) return;
+
+    await Promise.all(Array.from(this.activeRuns.values(), (handle) => handle.request('pause')));
+    const paused = await pauseRunningLoopsForBoot();
+    for (const loop of paused) emitLoop(loop);
+  }
+
+  private requireEnabled(): Result<void, LoopServiceError> {
+    return this.enabled
+      ? ok()
+      : err({
+          kind: 'feature-disabled',
+          message: 'ACP Loops are disabled in Experimental Settings',
+        });
+  }
+
   async createLoop(params: CreateLoopParams): Promise<Result<LoopWithPhases, LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     const result = await createLoopOperation(params);
     if (!result.success) return err(serviceError(result.error));
 
@@ -127,7 +150,9 @@ export class LoopService {
 
   async createTaskWithLoop(
     params: CreateTaskWithLoopParams
-  ): Promise<Result<CreateTaskWithLoopSuccess, CreateTaskWithLoopError>> {
+  ): Promise<Result<CreateTaskWithLoopSuccess, CreateTaskWithLoopError | LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     const result = await createTaskWithLoopOperation(params);
     if (!result.success) return result;
 
@@ -148,6 +173,8 @@ export class LoopService {
   async getVerifierAvailability(
     taskId: string
   ): Promise<Result<LoopVerifierAvailability[], LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     const cwd = await resolveWorkspacePath(taskId);
     if (!cwd.success) {
       return ok(
@@ -224,6 +251,8 @@ export class LoopService {
     loopId: string,
     phaseId: string
   ): Promise<Result<LoopWithPhases, LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     if (this.activeRuns.has(loopId)) {
       return err({ kind: 'conflict', message: 'Cannot retry a phase while the loop is running' });
     }
@@ -264,6 +293,8 @@ export class LoopService {
     loopId: string,
     action: 'start' | 'resume'
   ): Promise<Result<LoopWithPhases, LoopServiceError>> {
+    const enabled = this.requireEnabled();
+    if (!enabled.success) return enabled;
     if (this.activeRuns.has(loopId)) {
       return err({ kind: 'conflict', message: 'Loop is already running' });
     }
