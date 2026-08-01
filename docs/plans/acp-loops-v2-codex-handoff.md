@@ -141,6 +141,21 @@ same-machine worktrees are unsupported, required preserved files cannot be copie
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
 
+## 2026-08-01 authoritative checkpoint: Wave 3B integrated
+
+Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration` at `7fa0956ba9a2db4eb06f6bcf81d637ade88be082` before the
+documentation checkpoint commit. Wave 3B is complete and integrated. Its source lane is clean at
+`4fe0ecdb1b`.
+
+Proof: the focused renderer matrix passed 10 files and 48/48 tests; the remediated lazy IPC adapter
+passed 4/4; app/release typechecks, the production build, focused lint, and full workspace
+lint/typecheck passed. The full workspace test command exposed only baseline failures reproduced in
+the pre-Wave-3B worktree: built chat UI `document` imports in three Node suites, renderer IPC
+`window` import in one feature-flag suite, plus contention-only timeouts whose exact serial reruns
+passed 16/16 core tests and 17/17 browser tests. The next authorized slice is Wave 3C: the automated
+real-Electron local and Docker-SSH harness. Nothing was pushed, released, or deployed.
+
 ## 2026-08-01 authoritative checkpoint: Wave 3A integrated
 
 Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on

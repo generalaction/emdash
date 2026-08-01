@@ -1249,7 +1249,20 @@ fresh recreated green run becomes the final success report.
   integrated Loop matrix passed 30 files and 751/751 tests; the new DB CAS test passed; app and
   release typechecks passed after rebuilding the worktree-local core package; and the production
   build, focused lint/format, and `git diff --check` passed. No branch was pushed.
-- [ ] Complete serial Wave 3B final renderer integration.
+- [x] 2026-08-01: Completed and merged serial Wave 3B renderer integration through
+  `7fa0956ba9` (source `4fe0ecdb1b`). The experimental default-off Create Task section now
+  captures an explicit goal, ordered editable phases, authoritative validation commands, and
+  native-browser acceptance criteria, then atomically creates the task and primary Loop through
+  the shared optimistic provisioning lifecycle. Loop tasks suppress the ordinary initial
+  conversation, open the existing task tab immediately, and render through the production RPC
+  adapter with event-driven refresh, handoffs, evidence, controls, and the context-free native
+  browser host. Superseded modal/sidebar/standalone Loop paths were removed. The focused renderer
+  matrix passed 10 files and 48/48 tests; a post-remediation adapter matrix passed 4/4; app and
+  release typechecks, the production build, focused lint, and the full workspace lint/typecheck
+  passed. The repository-wide test command also exposed only independently reproduced baseline
+  failures: three Node suites evaluate the built chat UI's `document`, one feature-flag test
+  evaluates renderer IPC's `window`, one cold browser import timed out but passed 17/17 warm, and
+  two contended core Git tests passed 16/16 when rerun serially. No branch was pushed.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
 - [ ] Complete independent review, local Electron proof, and Docker SSH proof.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
@@ -1326,6 +1339,14 @@ fresh recreated green run becomes the final success report.
   is unsafe; the authoring contract must provide authoritative non-empty gate inputs or name an
   equally explicit source. Production checkpoint authority and arbitrary clean-room target binding
   also remain assigned Wave 3 seams, not Lane E responsibilities.
+- Observation: the repository-wide desktop test target contains four pre-existing Node import
+  failures at the renderer/browser boundary: three suites import the built chat UI, which evaluates
+  `document`, and one initial-conversation suite reaches renderer IPC, which evaluates `window`.
+  Evidence: each failure reproduced unchanged in the pre-Wave-3B main-engine worktree. Under
+  concurrent workspace load, two core Git tests and one cold browser import also exceeded their
+  timeouts; exact serial reruns passed 16/16 and 17/17 respectively. Wave 3B's focused 48-test
+  matrix and all modified-path checks remain green; the full gate is recorded as baseline-red, not
+  misreported as passing.
 
 ## Decision Log
 
