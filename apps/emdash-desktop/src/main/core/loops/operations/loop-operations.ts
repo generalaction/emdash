@@ -446,12 +446,20 @@ export async function resetPhaseForRetry(
         })),
       }
     : null;
+  const state = row.state
+    ? {
+        ...row.state,
+        handoff: null,
+        result: null,
+      }
+    : null;
 
   return updatePhase(phaseId, {
     status: 'pending',
     attempts: 0,
     conversationId: null,
     criteria,
+    state,
     lastError: null,
   });
 }

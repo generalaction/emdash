@@ -77,3 +77,40 @@ export async function resolveLoopExecutionTarget(
     });
   }
 }
+
+/** Creates the same trusted execution/env binding for an explicitly authorized clean-room target. */
+export async function resolveExplicitLoopExecutionTarget(
+  target: LoopSessionTarget,
+  taskId: string,
+  taskEnvironment: LoopTaskEnvironment,
+  dependencies: Pick<
+    LoopExecutionTargetDependencies,
+    'createLocalExecutionContext' | 'createSshExecutionContext'
+  > = defaultDependencies
+): Promise<Result<LoopExecutionTarget, LoopExecutionTargetError>> {
+  try {
+    const executionContext =
+      target.machine.kind === 'local'
+        ? dependencies.createLocalExecutionContext(target.path)
+        : await dependencies.createSshExecutionContext(target.machine.connectionId, target.path);
+    const taskEnv = getTaskEnvVars({
+      taskId,
+      taskName: taskEnvironment.taskName,
+      taskPath: target.path,
+      projectPath: taskEnvironment.projectPath,
+      defaultBranch: taskEnvironment.defaultBranch,
+      portSeed: target.path,
+    });
+    return ok({
+      ...target,
+      executionContext,
+      taskEnv,
+      dispose: () => executionContext.dispose(),
+    });
+  } catch (error) {
+    return err({
+      kind: 'execution-context-unavailable',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}

@@ -39,7 +39,7 @@ import {
   resolveLoopExecutionTarget,
   type LoopExecutionTarget,
 } from './runtime/loop-execution-target';
-import { requireVerifier } from './verifiers/registry';
+import { getVerifier } from './verifiers/registry';
 
 export type LoopServiceError =
   | LoopOperationError
@@ -211,12 +211,15 @@ export class LoopService {
     if (!cwd.success) {
       return ok(
         VERIFIER_IDS.map((id) => {
-          const verifier = requireVerifier(id);
+          const verifier = getVerifier(id);
           return {
             id,
-            label: verifier.label,
+            label: verifier?.label ?? 'Native Browser Preview',
             available: false,
-            reason: cwd.error.message,
+            reason:
+              id === 'agent-browser'
+                ? 'Browser verification is provided by the v2 clean-room E2E gate'
+                : cwd.error.message,
           };
         })
       );
@@ -224,7 +227,15 @@ export class LoopService {
 
     const availability = await Promise.all(
       VERIFIER_IDS.map(async (id) => {
-        const verifier = requireVerifier(id);
+        const verifier = getVerifier(id);
+        if (!verifier) {
+          return {
+            id,
+            label: 'Native Browser Preview',
+            available: false,
+            reason: 'Browser verification is provided by the v2 clean-room E2E gate',
+          };
+        }
         const result = await verifier.checkAvailability(cwd.data);
         return {
           id,

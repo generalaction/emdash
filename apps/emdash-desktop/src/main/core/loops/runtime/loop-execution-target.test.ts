@@ -6,6 +6,7 @@ import { resolveTaskWorkspaceTarget } from '@main/core/workspaces/resolve-task-w
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { err, ok } from '@main/lib/result';
 import {
+  resolveExplicitLoopExecutionTarget,
   resolveLoopExecutionTarget,
   type LoopExecutionTargetDependencies,
 } from './loop-execution-target';
@@ -129,5 +130,31 @@ describe('resolveLoopExecutionTarget', () => {
     expect(result.data).toMatchObject(target);
     expect(result.data.executionContext.root).toBe(target.path);
     result.data.dispose();
+  });
+
+  it('binds an explicit clean-room SSH target without consulting the task resolver', async () => {
+    const target = {
+      workspaceId: 'loop-verify-1',
+      path: '/remote/worktrees/loop-verify-1',
+      machine: { kind: 'ssh' as const, connectionId: 'connection-clean-room' },
+    };
+    const deps = dependencies(vi.fn());
+
+    const result = await resolveExplicitLoopExecutionTarget(
+      target,
+      'task-1',
+      taskEnvironment,
+      deps
+    );
+
+    expect(result.success).toBe(true);
+    expect(deps.resolveTaskWorkspaceTarget).not.toHaveBeenCalled();
+    expect(deps.createSshExecutionContext).toHaveBeenCalledWith(
+      'connection-clean-room',
+      target.path
+    );
+    if (!result.success) return;
+    expect(result.data).toMatchObject(target);
+    expect(result.data.taskEnv.EMDASH_TASK_PATH).toBe(target.path);
   });
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@main/lib/result';
-import { loopPhaseStateV2Schema } from '@shared/core/loops/loop-phase-state';
+import { loopPhaseStateV2Schema, type LoopStageResult } from '@shared/core/loops/loop-phase-state';
 import {
   loopStateV2Schema,
   type LoopSessionAttempt,
@@ -81,6 +81,17 @@ export type PhaseRunnerDeps = {
   commitWorkPhaseProgress: typeof commitWorkPhaseProgress;
   commitTerminalPhaseSuccess: typeof commitTerminalPhaseSuccess;
   runTerminalReviewPhase: typeof runTerminalReviewPhase;
+  runCleanRoomE2EPhase(input: {
+    loop: LoopWithPhases;
+    phase: LoopPhase;
+    executionTarget: LoopExecutionTarget;
+    driver: LoopSessionDriver;
+    signal: AbortSignal;
+    setActiveConversation(
+      conversationId: string | null,
+      driver: LoopSessionDriver | null
+    ): void | Promise<void>;
+  }): Promise<Result<{ stageResult: LoopStageResult }, { message: string }>>;
   now(): Date;
   onLoopUpdated?(loop: Loop): void;
   onPhaseUpdated?(phase: LoopPhase): void;
@@ -131,6 +142,8 @@ function defaultDeps(): PhaseRunnerDeps {
     commitWorkPhaseProgress,
     commitTerminalPhaseSuccess,
     runTerminalReviewPhase,
+    runCleanRoomE2EPhase: async (input) =>
+      (await import('./runtime/clean-room-e2e-runtime')).runCleanRoomE2EPhase(input),
     now: () => new Date(),
   };
 }
@@ -211,6 +224,9 @@ export class PhaseRunner {
     if (input.loop.config?.version === '2') {
       if ((input.phase.kind ?? 'work') === 'review') {
         return this.runV2ReviewPhase(input);
+      }
+      if ((input.phase.kind ?? 'work') === 'e2e') {
+        return this.runV2E2EPhase(input);
       }
       if ((input.phase.kind ?? 'work') !== 'work') {
         return err({
@@ -704,6 +720,54 @@ export class PhaseRunner {
     this.deps.onLoopUpdated?.(committed.data.loop);
     this.deps.onPhaseUpdated?.(committed.data.phase);
     return ok({ kind: 'passed', loop: committed.data.loop, phase: committed.data.phase });
+  }
+
+  private async runV2E2EPhase(input: RunPhaseInput): Promise<Result<RunPhaseResult, LoopRunError>> {
+    const reviewing = await this.transitionPhase(input.phase.id, {
+      status: 'reviewing',
+      attempts: input.phase.attempts + 1,
+      lastError: null,
+    });
+    if (!reviewing.success) return err(reviewing.error);
+    const result = await this.deps.runCleanRoomE2EPhase({
+      loop: input.loop,
+      phase: reviewing.data,
+      executionTarget: input.executionTarget,
+      driver: input.driver,
+      signal: input.control.signal,
+      setActiveConversation: input.control.setActiveConversation.bind(input.control),
+    });
+    const reloaded = await this.deps.getLoop(input.loop.id);
+    const phase = reloaded?.phases.find((candidate) => candidate.id === input.phase.id);
+    if (!reloaded || !phase) {
+      return err({ kind: 'operation-error', message: 'E2E phase disappeared during execution' });
+    }
+    this.deps.onLoopUpdated?.(reloaded);
+    this.deps.onPhaseUpdated?.(phase);
+
+    const stopped = input.control.stopReason();
+    if (stopped) {
+      return ok({
+        kind: stopped === 'pause' ? 'paused' : 'cancelled',
+        loop: reloaded,
+        phase,
+      });
+    }
+    const phaseState = loopPhaseStateV2Schema.safeParse(phase.state);
+    if (result.success && phase.status === 'passed' && phaseState.success) {
+      return ok({ kind: 'passed', loop: reloaded, phase });
+    }
+    if (phase.status === 'failed' && phaseState.success && phaseState.data.result) {
+      const failedLoop = await this.transitionLoop(reloaded.id, { status: 'failed' });
+      if (!failedLoop.success) return err(failedLoop.error);
+      return ok({ kind: 'failed', loop: { ...reloaded, status: 'failed' }, phase });
+    }
+    return err({
+      kind: 'driver-error',
+      message: result.success
+        ? 'Clean-room E2E gate did not persist a terminal result'
+        : result.error.message,
+    });
   }
 
   private async finishSessionAttempt(

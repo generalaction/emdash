@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { listVerifiers, requireVerifier } from './registry';
+import { getVerifier, listVerifiers, requireVerifier } from './registry';
 
 const execFileMock = vi.hoisted(() => vi.fn());
 
@@ -21,8 +21,8 @@ describe('loop verifier registry', () => {
       'gh',
       'vercel',
       'convex',
-      'agent-browser',
     ]);
+    expect(getVerifier('agent-browser')).toBeUndefined();
   });
 
   it('executes validation commands with execFile argv and no shell option', async () => {

@@ -580,4 +580,78 @@ describe('PhaseRunner', () => {
     );
     expect(driver.startPhaseSession).not.toHaveBeenCalled();
   });
+
+  it('dispatches the durable clean-room E2E gate exactly once', async () => {
+    const workLoop = makeV2Loop();
+    const e2ePhase: LoopPhase = {
+      ...workLoop.phases[0]!,
+      id: 'phase-e2e',
+      idx: 1,
+      name: 'E2E',
+      kind: 'e2e',
+      status: 'pending',
+      criteria: {
+        version: '1',
+        criteria: [
+          { description: 'The native preview works', verifier: 'agent-browser', status: 'pending' },
+        ],
+      },
+      state: {
+        version: '2',
+        checkpointCommit: null,
+        handoff: null,
+        retryHandoffs: [],
+        result: null,
+      },
+    };
+    loop = {
+      ...workLoop,
+      currentPhaseIndex: 1,
+      config: {
+        ...workLoop.config!,
+        terminalGates: { review: false, e2e: true },
+        browserPreview: { enabled: true },
+      } as never,
+      phases: [{ ...workLoop.phases[0]!, status: 'passed' }, e2ePhase],
+    };
+    const memory = makeMemoryDeps(loop, new Map());
+    const stageResult = {
+      status: 'passed' as const,
+      summary: 'Clean-room E2E passed.',
+      completedAt: '2026-07-12T02:00:00.000Z',
+    };
+    const runCleanRoomE2EPhase = vi.fn(async () => {
+      await memory.deps.updatePhase(e2ePhase.id, {
+        status: 'passed',
+        state: {
+          ...e2ePhase.state!,
+          checkpointCommit: workLoop.state!.checkpointCommit,
+          result: stageResult,
+        },
+      });
+      return ok({ stageResult });
+    });
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      runCleanRoomE2EPhase,
+    }).runPhase({
+      loop,
+      phase: e2ePhase,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success && result.data.kind).toBe('passed');
+    expect(runCleanRoomE2EPhase).toHaveBeenCalledOnce();
+    expect(runCleanRoomE2EPhase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        loop,
+        phase: expect.objectContaining({ status: 'reviewing', attempts: 1 }),
+        driver,
+      })
+    );
+    expect(driver.startVerificationSession).not.toHaveBeenCalled();
+  });
 });
