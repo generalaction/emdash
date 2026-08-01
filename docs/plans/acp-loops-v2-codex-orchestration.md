@@ -1263,7 +1263,17 @@ fresh recreated green run becomes the final success report.
   failures: three Node suites evaluate the built chat UI's `document`, one feature-flag test
   evaluates renderer IPC's `window`, one cold browser import timed out but passed 17/17 warm, and
   two contended core Git tests passed 16/16 when rerun serially. No branch was pushed.
-- [ ] Add and pass the automated Electron local/Docker-SSH harness.
+- [x] 2026-08-01: Added and merged the serial Wave 3C real-Electron harness through
+  `3d5a9a013b` (source `5ff485605c`). The mandatory `pnpm run test:loops-electron` command launches
+  the built app with isolated user data and proves native host request, scoped WebContents lease
+  registration/readiness/action, cancellation, teardown, and partition cleanup. Its production
+  SSH/preview-service path proves forwarded content, local-port collision fallback, reconnect
+  pause, tunnel failure, changed-origin restart, lease rotation, and complete teardown. The
+  default path provisions the repository Docker SSH image through isolated Compose; on this
+  unprivileged Docker-hosted runner, where nested BuildKit bind mounts are forbidden, the exact
+  command automatically exercised the runner container's real OpenSSH service instead. The test
+  bridge is double-gated by build mode and environment and was absent from the ordinary production
+  build. The source and integrated exact commands both passed. No branch was pushed.
 - [ ] Complete independent review, local Electron proof, and Docker SSH proof.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.

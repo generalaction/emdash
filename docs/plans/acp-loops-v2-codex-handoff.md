@@ -141,6 +141,27 @@ same-machine worktrees are unsupported, required preserved files cannot be copie
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
 
+## 2026-08-01 authoritative checkpoint: Wave 3C integrated
+
+Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration` at `3d5a9a013bedb78f3d377d42a6638a6af2b75833` before the
+documentation checkpoint commit. Wave 3C is complete and integrated from clean source lane
+`codex/loops-v2-electron-harness` at `5ff485605c1fa1aa373b7e88718c586ced5bf4da`.
+
+The mandatory `pnpm run test:loops-electron` command passed from both source and integration. It
+builds and launches the real Electron app with isolated user data, proves native host request,
+lease/session registration, partition configuration, renderer/WebContents readiness attestation,
+scoped native action execution, cancellation, partition cleanup, and cancelled discovery. Its
+second target uses production SSH connection and preview-forwarding services, proves forwarded
+HTTP content, forces local-port collision, pauses the lease, detects tunnel failure, restarts the
+remote preview on a changed local origin, rotates the lease, and tears down the preview, SSH
+connection, browser session, and disposable profile. The harness uses its isolated Docker Compose
+SSH target on ordinary hosts; because this runner is itself an unprivileged Docker container, the
+green run automatically used that container's real OpenSSH service after nested Docker mounts were
+proven unavailable. Production builds remain free of the test bridge through the double
+mode/environment guard. The next authorized slice is Wave 4 independent review and Emdash proof.
+Nothing was pushed, released, or deployed.
+
 ## 2026-08-01 authoritative checkpoint: Wave 3B integrated
 
 Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
