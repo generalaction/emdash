@@ -15,6 +15,7 @@ vi.mock('./operations/loop-operations', () => ({
 
 vi.mock('./operations/session-progress', () => ({ commitSessionAttempt: vi.fn() }));
 vi.mock('./operations/work-phase-progress', () => ({ commitWorkPhaseProgress: vi.fn() }));
+vi.mock('./operations/terminal-phase-progress', () => ({ commitTerminalPhaseSuccess: vi.fn() }));
 
 function makeLoop(): LoopWithPhases {
   const loop: Loop = {
@@ -481,5 +482,102 @@ describe('PhaseRunner', () => {
       expect.objectContaining({ checkpointCommit: checkpoint })
     );
     expect(exec).toHaveBeenCalledWith('git', ['add', '-A'], expect.any(Object));
+  });
+
+  it('dispatches one terminal Review phase and atomically retains its checkpoint', async () => {
+    const workLoop = makeV2Loop();
+    const checkpoint = '2'.repeat(40);
+    const reviewPhase: LoopPhase = {
+      ...workLoop.phases[0]!,
+      id: 'phase-review',
+      idx: 1,
+      name: 'Review',
+      kind: 'review',
+      status: 'pending',
+      conversationId: null,
+      state: {
+        version: '2',
+        checkpointCommit: null,
+        handoff: null,
+        retryHandoffs: [],
+        result: null,
+      },
+    };
+    loop = {
+      ...workLoop,
+      config: { ...workLoop.config!, terminalGates: { review: true, e2e: false } } as never,
+      phases: [
+        {
+          ...workLoop.phases[0]!,
+          status: 'passed',
+          state: {
+            version: '2',
+            checkpointCommit: workLoop.state!.checkpointCommit,
+            handoff: null,
+            retryHandoffs: [],
+            result: {
+              status: 'passed',
+              summary: 'Work passed.',
+              completedAt: '2026-07-12T00:00:00.000Z',
+            },
+          },
+        },
+        reviewPhase,
+      ],
+    };
+    const memory = makeMemoryDeps(loop, new Map());
+    const stageResult = {
+      status: 'passed' as const,
+      summary: 'Review passed.',
+      completedAt: '2026-07-12T01:00:00.000Z',
+    };
+    const runTerminalReviewPhase = vi.fn(async () =>
+      ok({
+        purpose: 'review' as const,
+        conversationId: 'review-conversation',
+        target: {
+          workspaceId: 'workspace-1',
+          path: '/tmp/workspace',
+          machine: { kind: 'local' as const },
+        },
+        previousCheckpointCommit: workLoop.state!.checkpointCommit!,
+        checkpointCommit: checkpoint,
+        correctionApplied: true,
+        requiredGateSummary: 'Review and required checks passed.',
+        stageResult,
+      })
+    );
+    const commitTerminalPhaseSuccess = vi.fn(async (input) =>
+      ok({
+        loop: {
+          ...loop,
+          state: { ...input.expectedLoopState, checkpointCommit: checkpoint },
+        },
+        phase: { ...reviewPhase, status: 'passed' as const },
+      })
+    );
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      runTerminalReviewPhase: runTerminalReviewPhase as never,
+      commitTerminalPhaseSuccess: commitTerminalPhaseSuccess as never,
+    }).runPhase({
+      loop,
+      phase: reviewPhase,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success && result.data.kind).toBe('passed');
+    expect(runTerminalReviewPhase).toHaveBeenCalledOnce();
+    expect(commitTerminalPhaseSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpointCommit: checkpoint,
+        result: stageResult,
+        sessionAttempts: [expect.objectContaining({ purpose: 'review', status: 'completed' })],
+      })
+    );
+    expect(driver.startPhaseSession).not.toHaveBeenCalled();
   });
 });

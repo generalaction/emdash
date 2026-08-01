@@ -21,6 +21,7 @@ import {
   updatePhase as updatePhaseRow,
 } from './operations/loop-operations';
 import { commitSessionAttempt } from './operations/session-progress';
+import { commitTerminalPhaseSuccess } from './operations/terminal-phase-progress';
 import type { LoopOperationError } from './operations/types';
 import { commitWorkPhaseProgress } from './operations/work-phase-progress';
 import {
@@ -36,6 +37,7 @@ import {
 } from './prompt-builder';
 import { runLoopCommand } from './runtime/loop-command-runner';
 import type { LoopExecutionTarget } from './runtime/loop-execution-target';
+import { runTerminalReviewPhase } from './runtime/terminal-review-runtime';
 import { runExecFile, type ExecFileFailure } from './verifiers/exec';
 import { getVerifier } from './verifiers/registry';
 import type {
@@ -77,6 +79,8 @@ export type PhaseRunnerDeps = {
   verifierPromptTimeoutMs: number;
   commitSessionAttempt: typeof commitSessionAttempt;
   commitWorkPhaseProgress: typeof commitWorkPhaseProgress;
+  commitTerminalPhaseSuccess: typeof commitTerminalPhaseSuccess;
+  runTerminalReviewPhase: typeof runTerminalReviewPhase;
   now(): Date;
   onLoopUpdated?(loop: Loop): void;
   onPhaseUpdated?(phase: LoopPhase): void;
@@ -125,6 +129,8 @@ function defaultDeps(): PhaseRunnerDeps {
     verifierPromptTimeoutMs: resolvePromptTimeoutMs(DEFAULT_VERIFIER_PROMPT_TIMEOUT_MS),
     commitSessionAttempt,
     commitWorkPhaseProgress,
+    commitTerminalPhaseSuccess,
+    runTerminalReviewPhase,
     now: () => new Date(),
   };
 }
@@ -203,6 +209,9 @@ export class PhaseRunner {
 
   async runPhase(input: RunPhaseInput): Promise<Result<RunPhaseResult, LoopRunError>> {
     if (input.loop.config?.version === '2') {
+      if ((input.phase.kind ?? 'work') === 'review') {
+        return this.runV2ReviewPhase(input);
+      }
       if ((input.phase.kind ?? 'work') !== 'work') {
         return err({
           kind: 'invalid-state',
@@ -637,6 +646,64 @@ export class PhaseRunner {
       );
       return this.markV2WorkFailed(loop, phase, message);
     }
+  }
+
+  private async runV2ReviewPhase(
+    input: RunPhaseInput
+  ): Promise<Result<RunPhaseResult, LoopRunError>> {
+    const loopState = loopStateV2Schema.safeParse(input.loop.state);
+    const phaseState = loopPhaseStateV2Schema.safeParse(input.phase.state);
+    if (!loopState.success || !phaseState.success || !loopState.data.checkpointCommit) {
+      return err({ kind: 'invalid-state', message: 'Review checkpoint authority is unavailable' });
+    }
+    const reviewing = await this.transitionPhase(input.phase.id, {
+      status: 'reviewing',
+      attempts: input.phase.attempts + 1,
+      lastError: null,
+    });
+    if (!reviewing.success) return err(reviewing.error);
+    const result = await this.deps.runTerminalReviewPhase({
+      ...input,
+      phase: reviewing.data,
+    });
+    if (!result.success) {
+      return this.markV2WorkFailed(input.loop, reviewing.data, result.error.message);
+    }
+
+    const completedAt = result.data.stageResult.completedAt;
+    const handoff = buildLoopPhaseHandoff({
+      summary: boundedSummary(result.data.requiredGateSummary, 'Terminal Review passed.'),
+      risks: [],
+      remainingWork: [],
+      artifacts: [],
+      createdAt: completedAt,
+    });
+    const attempt: LoopSessionAttempt = {
+      attemptId: randomUUID(),
+      conversationId: result.data.conversationId,
+      purpose: 'review',
+      phaseId: input.phase.id,
+      target: result.data.target,
+      status: 'completed',
+      checkpointBefore: result.data.previousCheckpointCommit,
+      checkpointAfter: result.data.checkpointCommit,
+      startedAt: completedAt,
+      finishedAt: completedAt,
+    };
+    const committed = await this.deps.commitTerminalPhaseSuccess({
+      loopId: input.loop.id,
+      phaseId: input.phase.id,
+      expectedLoopState: loopState.data,
+      expectedPhaseState: phaseState.data,
+      checkpointCommit: result.data.checkpointCommit,
+      handoff,
+      result: result.data.stageResult,
+      sessionAttempts: [...loopState.data.sessionAttempts, attempt],
+    });
+    if (!committed.success) return this.operationFailure(committed.error);
+    this.deps.onLoopUpdated?.(committed.data.loop);
+    this.deps.onPhaseUpdated?.(committed.data.phase);
+    return ok({ kind: 'passed', loop: committed.data.loop, phase: committed.data.phase });
   }
 
   private async finishSessionAttempt(
