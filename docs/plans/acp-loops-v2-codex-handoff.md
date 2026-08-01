@@ -3,6 +3,30 @@
 Give this file to the lead Codex agent. It is the short execution entrypoint; the linked ExecPlan is
 the authoritative implementation contract and living progress record.
 
+## 2026-08-01 authoritative checkpoint: Wave 5 ready for human pre-auth
+
+Resume task `019f5262-b159-7133-9a12-8fb1625533d8` from
+`/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration`. Wave 4 is complete. The production RPC path created the still-draft
+Wave 5 Summario task and Loop from frozen `origin/main` commit `b9f53681364a`; exact IDs and paths
+are recorded in the detailed plan and the mode-0600 external state file at
+`/home/devuser/emdash/worktrees/emdash/acp-loops-v2/dogfood/wave5/state.json`. The worktree is clean,
+the dirty source checkout remained read-only, and no ACP conversation has started.
+
+Fresh local Convex/Auth and native preview readiness were proven, including the current base's four
+load-time WorkOS requirements and `/auth/agent-login` at the canonical loopback origin. That
+preflight attempt was invalidated after a local backend credential appeared in terminal process
+output. All required feature-table booleans were false, every process and run-owned file was
+removed, and the backend must not be reused. The next attempt must recreate `.convex/`, the
+mode-0600 projection, and the local deployment from scratch.
+
+The remaining gate is external and mandatory: a human must type the password into
+`#agent-password` in the disposable native browser before E2E ACP/evidence. This runner has no
+human-controllable display, and CDP/Agent Browser automation is explicitly forbidden for password
+entry. Provide a human-visible Electron browser surface/profile, then resume the existing exact
+task; do not put the password in a URL, prompt, log, screenshot, action payload, or evidence and do
+not weaken or skip authentication. Wave 5 and all of Wave 6 remain incomplete.
+
 ## Copy-paste prompt
 
 > Orchestrate ACP Loops v2 from `docs/plans/acp-loops-v2-codex-handoff.md`. Before editing, read

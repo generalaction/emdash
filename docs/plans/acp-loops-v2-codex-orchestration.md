@@ -1293,6 +1293,34 @@ fresh recreated green run becomes the final success report.
   the focused DB test passed, app typecheck passed, and the deterministic Electron local/SSH
   forwarding/rotation harness remained green. No branch was pushed.
 - [x] Complete independent review, local Electron proof, and Docker/current-container SSH proof.
+- [ ] 2026-08-01: Prepared Wave 5 through the production Emdash RPC path without starting ACP.
+  Emdash created task `acp-loops-v2-wave5-vocabulary`, Loop
+  `d5fc8f9b-c6d8-421d-a0f0-a70cc56ea01c`, workspace
+  `d6b8b42a-3a07-4c7e-bc53-573c565a1206`, and branch
+  `emdash/acp-loops-v2-wave5-vocabulary` from frozen `origin/main` commit
+  `b9f53681364ae21a5d30838ca5c25a5fe22dda02`. The worktree is
+  `/home/devuser/emdash/worktrees/summario/acp-loops-v2/summario-acp-loops-v2/emdash/acp-loops-v2-wave5-vocabulary`;
+  it is clean, and `.env.local` was preserved mode 0600. The isolated Emdash DB/user data and
+  secret-free state are under
+  `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/dogfood/wave5`.
+- [ ] 2026-08-01: Wave 5 preflight proved a fresh local Convex deployment, non-interactive Auth
+  component initialization, eight-variable external mode-0600 projection, canonical native
+  preview origin `http://127.0.0.1:3000`, and a 200 `/auth/agent-login` response. Current
+  `origin/main` additionally requires four load-time WorkOS values; the isolated lease used
+  explicitly non-functional local-only placeholders because Wave 5 does not exercise WorkOS.
+  A process-inspection command then exposed the local backend instance credential in terminal
+  output. The attempt was invalidated before ACP or evidence: all six required feature tables were
+  empty, Next and Convex were stopped, `.convex/`, the temporary audit directory, and the secret
+  projection were deleted, and the run-owned Git exclude line was removed. No fixture or ACP
+  session started.
+- [ ] 2026-08-01: Wave 5 is paused at its mandatory external human pre-auth boundary. The plan
+  forbids putting the password in a URL, prompt, log, screenshot, or browser action payload. This
+  runner has no human-controllable display (`DISPLAY` is unset), and the production Loop browser
+  host intentionally renders its disposable WebContents hidden. Agent Browser can connect to
+  Electron but cannot legally substitute for the required human password entry. Resume by
+  providing a human-controllable native Electron display/profile for `/auth/agent-login`, then
+  create a new fresh backend attempt before starting the still-draft Loop. Do not reuse the
+  destroyed backend state or downgrade authentication.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
@@ -1330,6 +1358,17 @@ fresh recreated green run becomes the final success report.
   installed Convex CLI has no deployment-delete command.
   Evidence: use a new worktree-local Convex deployment per local attempt; remote cloud fallback is
   explicitly authorized, uniquely named, expiring, and never reused.
+- Observation: current Summario `origin/main` mounts `@convex-dev/workos-authkit` even in legacy
+  frontend mode and therefore rejects Convex module loading unless `WORKOS_CLIENT_ID`,
+  `WORKOS_API_KEY`, `WORKOS_WEBHOOK_SECRET`, and `WORKOS_ACTION_SECRET` are present.
+  Evidence: the first fresh local deployment failed closed on the missing values; explicitly
+  non-functional local placeholders then allowed Auth/component initialization without exercising
+  WorkOS.
+- Observation: authenticated dogfood cannot be called autonomous on this runner. The Loop browser
+  host is a hidden disposable Electron WebContents and the shell has no human-visible display;
+  CDP automation would put the password in the forbidden action payload.
+  Evidence: backend and `/auth/agent-login` readiness were proven, but ACP remained draft and the
+  attempt was cleaned rather than violating the mandatory human-entry contract.
 - Observation: the v1 Loop provider default is Claude, so a GPT-5.6 Sol model ID alone is invalid.
   Evidence: freeze and test Codex provider plus resolved model as one config invariant while
   preserving historical v1 resolution during migration.
@@ -1425,8 +1464,10 @@ fresh recreated green run becomes the final success report.
 ## Outcomes & Retrospective
 
 Implementation, independent remediation, and the live two-phase local/SSH proof are complete
-through Wave 4 on the isolated integration branch. Both Summario acceptance Loops remain. At each
-major merge wave, the lead records what shipped, proof obtained, deviations, and cleanup. At final
-completion, compare the observable result with `Purpose and observable outcome`, list exact
+through Wave 4 on the isolated integration branch. Wave 5 has a clean Emdash-created draft task and
+proven fresh-backend preflight, but ACP has not started because this runner cannot satisfy mandatory
+human-only password entry into the hidden disposable native browser. The contaminated preflight
+lease was fully cleaned and may not be reused. Both Summario acceptance Loops remain incomplete.
+At final completion, compare the observable result with `Purpose and observable outcome`, list exact
 validation evidence, and state any remaining blocker without claiming success for an unverified
 path.
