@@ -1,15 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { db } from '@main/db/client';
+import { db, type DrizzleTx } from '@main/db/client';
 import { loopPhases, loops, tasks } from '@main/db/schema';
 import { err, ok, type Result } from '@main/lib/result';
+import type { LoopPhaseState } from '@shared/core/loops/loop-phase-state';
+import type { LoopStateV2 } from '@shared/core/loops/loop-state';
 import {
   DEFAULT_LOOP_PROVIDER,
+  createLoopConfigV2,
   type CreateLoopParams,
   type Loop,
   type LoopConfig,
   type LoopPhase,
   type LoopPhaseCriteria,
+  type LoopPhaseKind,
+  orderedLoopPhaseKinds,
   type LoopWithPhases,
 } from '@shared/core/loops/loops';
 import {
@@ -28,6 +33,184 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 64);
   return slug || 'loop';
+}
+
+export type NewLoopWorkPhaseInput = {
+  name: string;
+  goal: string;
+};
+
+export type NewLoopAuthoringInput = {
+  id?: string;
+  projectId: string;
+  taskId: string;
+  name: string;
+  model: string;
+  planSource: string;
+  validationCommands: readonly string[];
+  terminalGates: { review: boolean; e2e: boolean };
+  browserPreview: { enabled: boolean };
+  workPhases: readonly NewLoopWorkPhaseInput[];
+  acceptanceCriteria: readonly string[];
+};
+
+type PreparedNewLoopPhase = {
+  id: string;
+  loopId: string;
+  idx: number;
+  name: string;
+  goal: string;
+  kind: LoopPhaseKind;
+  criteria: LoopPhaseCriteria;
+  state: LoopPhaseState;
+};
+
+export type PreparedNewLoop = {
+  loopId: string;
+  projectId: string;
+  taskId: string;
+  name: string;
+  slug: string;
+  config: ReturnType<typeof createLoopConfigV2>;
+  state: LoopStateV2;
+  phases: PreparedNewLoopPhase[];
+};
+
+function initialPhaseState(): LoopPhaseState {
+  return {
+    version: '2',
+    checkpointCommit: null,
+    handoff: null,
+    retryHandoffs: [],
+    result: null,
+  };
+}
+
+export function prepareNewLoop(
+  params: NewLoopAuthoringInput
+): Result<PreparedNewLoop, LoopOperationError> {
+  const name = params.name.trim();
+  const model = params.model.trim();
+  const validationCommands = params.validationCommands
+    .map((command) => command.trim())
+    .filter(Boolean);
+  const workPhases = params.workPhases.map((phase, index) => ({
+    name: phase.name.trim() || `Phase ${index + 1}`,
+    goal: phase.goal.trim(),
+  }));
+  const acceptanceCriteria = params.acceptanceCriteria
+    .map((criterion) => criterion.trim())
+    .filter(Boolean);
+
+  if (!name) return err({ kind: 'invalid-input', message: 'Loop name is required' });
+  if (!model) return err({ kind: 'invalid-input', message: 'Loop model is required' });
+  if (validationCommands.length === 0) {
+    return err({ kind: 'invalid-input', message: 'At least one validation command is required' });
+  }
+  if (workPhases.length === 0 || workPhases.some((phase) => !phase.goal)) {
+    return err({ kind: 'invalid-input', message: 'At least one complete work phase is required' });
+  }
+  if (params.browserPreview.enabled !== params.terminalGates.e2e) {
+    return err({
+      kind: 'invalid-input',
+      message: 'Browser preview and the E2E terminal gate must be enabled together',
+    });
+  }
+  if (params.terminalGates.e2e && acceptanceCriteria.length === 0) {
+    return err({ kind: 'invalid-input', message: 'E2E acceptance criteria are required' });
+  }
+
+  const loopId = params.id ?? randomUUID();
+  const kinds = orderedLoopPhaseKinds(workPhases.length, params.terminalGates);
+  const phases = kinds.map((kind, idx): PreparedNewLoopPhase => {
+    const workPhase = kind === 'work' ? workPhases[idx] : undefined;
+    const criteria: LoopPhaseCriteria = {
+      version: '1',
+      criteria:
+        kind === 'e2e'
+          ? acceptanceCriteria.map((description) => ({
+              description,
+              verifier: 'agent-browser' as const,
+              status: 'pending' as const,
+            }))
+          : [],
+    };
+    return {
+      id: randomUUID(),
+      loopId,
+      idx,
+      kind,
+      name: workPhase?.name ?? (kind === 'review' ? 'Review' : 'E2E'),
+      goal:
+        workPhase?.goal ??
+        (kind === 'review'
+          ? 'Review the complete implementation and resolve all blocking findings.'
+          : 'Recreate and verify the feature in a clean-room workspace.'),
+      criteria,
+      state: initialPhaseState(),
+    };
+  });
+
+  return ok({
+    loopId,
+    projectId: params.projectId,
+    taskId: params.taskId,
+    name,
+    slug: slugify(name),
+    config: createLoopConfigV2({
+      model,
+      validationCommands,
+      planSource: params.planSource.trim(),
+      terminalGates: params.terminalGates,
+      browserPreview: params.browserPreview,
+    }),
+    state: {
+      version: '2',
+      baseCommit: null,
+      expectedFeatureHead: null,
+      checkpointCommit: null,
+      e2eAttemptsConsumed: 0,
+      sessionAttempts: [],
+      verification: null,
+    },
+    phases,
+  });
+}
+
+export function commitPreparedLoop(prepared: PreparedNewLoop, tx: DrizzleTx): LoopWithPhases {
+  const [loopRow] = tx
+    .insert(loops)
+    .values({
+      id: prepared.loopId,
+      projectId: prepared.projectId,
+      taskId: prepared.taskId,
+      name: prepared.name,
+      slug: prepared.slug,
+      status: 'draft',
+      currentPhaseIndex: 0,
+      config: prepared.config,
+      isPrimary: true,
+      state: prepared.state,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .returning()
+    .all();
+
+  const phaseRows = prepared.phases.map((phase) => {
+    const [row] = tx
+      .insert(loopPhases)
+      .values({
+        ...phase,
+        status: 'pending',
+        attempts: 0,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .returning()
+      .all();
+    return row;
+  });
+
+  return toLoopWithPhases(mapLoopRow(loopRow), phaseRows.map(mapLoopPhaseRow));
 }
 
 async function uniqueSlug(taskId: string, base: string): Promise<string> {
