@@ -1223,21 +1223,20 @@ fresh recreated green run becomes the final success report.
   focused and compatibility files passed 254/254 with one worker; desktop and release typechecks,
   focused lint/format, and `git diff --check` passed. The isolated integration and lane worktrees
   were clean, temporary dependency links were removed, and no branch was pushed.
-- [ ] 2026-07-12: Wave 2C is checkpointed, but deliberately not approved or integrated. Lane E is
-  clean at `cc1e848dc` on `codex/loops-v2-e2e-gate`. It now closes the previously recorded
-  clock/acquire/payload/target-alias/cancellation-single-flight findings and adds persisted v2
-  config/state/criteria authority, durable identity freshness, complete session/check echoes,
-  provenance-bound cleanup records, append-only failure evidence, and post-integration feature
-  reconciliation. The exact focused gate passed 95/95; the 13-file clean-room/Review/native
-  compatibility matrix passed 478/478 with one worker; desktop plus release typecheck, focused
-  lint/format, and `git diff --check` passed under Node 24/pnpm 10. Two fresh exact-range audits
-  were started after this checkpoint but immediately interrupted without a verdict when the
-  70–79 usage correction prohibited new audit work. A fresh independent exact-range approval is
-  still mandatory before integration. All ACP execution worktrees were then mechanically moved
-  from `/tmp` to `/home/devuser/emdash/worktrees/emdash/acp-loops-v2`, with branches, SHAs, clean
-  state, task routing, and committed provider configuration preserved; the exact map is in the
-  durable handoff. No Wave 3 work has started and nothing was pushed.
-- [ ] Complete and merge Wave 2C Lane E.
+- [x] 2026-08-01: Completed and merged Wave 2C Lane E. The independently audited source head is
+  `cea5d9ad73` on `codex/loops-v2-e2e-gate`; its source commits were cherry-picked without the
+  stale lane-local docs checkpoint into `codex/loops-v2-integration` through `76a13b150f`.
+  Clean-room E2E now preserves exact workspace, target, environment, progress, ledger, cancellation,
+  correction, and cleanup authority across ordinary and stopped success/error settlements. It
+  rejects reused or partially colliding live identities; path aliases/containment; clock rollback;
+  incomplete, nonterminal, hostile, or contradictory quiescence reports; and any cleanup without
+  complete durable authority. Two independent exact-range reviews approved
+  `38323ebc20..cea5d9ad73` with no P0/P1/P2 findings. The focused three-suite gate passed 223/223,
+  the independent seven-file gate passed 327/327, and the integrated 21-file matrix passed 717/717;
+  desktop/release typechecks, focused lint/format, and `git diff --check` passed. All persistent
+  worktree routing remained intact, the user-owned source checkout stayed untouched, and nothing
+  was pushed, released, or deployed.
+- [x] Complete and merge Wave 2C Lane E.
 - [ ] Complete serial main-engine and final renderer integration.
 - [ ] Add and pass the automated Electron local/Docker-SSH harness.
 - [ ] Complete independent review, local Electron proof, and Docker SSH proof.

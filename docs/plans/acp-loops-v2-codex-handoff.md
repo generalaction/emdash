@@ -141,7 +141,20 @@ same-machine worktrees are unsupported, required preserved files cannot be copie
 secret-safe authentication is unavailable, a fresh non-production backend cannot be created, or an
 independent clean-room replay cannot be proven.
 
+## 2026-08-01 authoritative checkpoint: Wave 2C integrated
+
+Resume from `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/integration` on
+`codex/loops-v2-integration` at `76a13b150f4f74ed6cf7fd19387a211ee661acaa`. Wave 2C Lane E is
+complete and integrated. Its independently audited source is
+`cea5d9ad73bab5723d05ccf54f5a30fce81b2d93` on `codex/loops-v2-e2e-gate`; both exact-range gates
+approved `38323ebc2045c0ff1fb988d422029d2ac66184fd..cea5d9ad73bab5723d05ccf54f5a30fce81b2d93`
+with no P0/P1/P2 findings. The integrated 21-file matrix passed 717/717 and both app/release
+typechecks passed. The next authorized slice is serialized Wave 3A main-engine integration. Do not
+repeat or re-merge Lane E, start renderer work before Wave 3A is green, or push/release/deploy.
+
 ## 2026-07-12 70–79 checkpoint: persistent resumer
+
+> Superseded by the 2026-08-01 authoritative checkpoint above.
 
 Resume only Wave 2C independent review. Do not integrate Lane E or start Wave 3 until a fresh exact
 range audit approves `e5c1bece0..cc1e848dc` with no P0/P1/P2 findings.
