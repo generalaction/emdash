@@ -1,4 +1,4 @@
-import { events, rpc } from '@renderer/lib/ipc';
+import type { Result } from '@emdash/shared';
 import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
 import type { LoopPhase, LoopWithPhases, PhaseStatus } from '@shared/core/loops/loops';
 import type {
@@ -114,7 +114,7 @@ export function mapLoopTabSnapshot(loop: LoopWithPhases): LoopTabSnapshot {
 }
 
 async function unwrapLoop(
-  request: Promise<Awaited<ReturnType<typeof rpc.loops.getLoop>>>
+  request: Promise<Result<LoopWithPhases, unknown>>
 ): Promise<LoopTabSnapshot> {
   const result = await request;
   if (!result.success) throw new Error(errorMessage(result.error));
@@ -122,7 +122,8 @@ async function unwrapLoop(
 }
 
 export class RpcLoopAuthoringPort implements LoopAuthoringPort {
-  loadLoop(loopId: string): Promise<LoopTabSnapshot> {
+  async loadLoop(loopId: string): Promise<LoopTabSnapshot> {
+    const { rpc } = await import('@renderer/lib/ipc');
     return unwrapLoop(rpc.loops.getLoop(loopId));
   }
 
@@ -145,29 +146,37 @@ export class RpcLoopAuthoringPort implements LoopAuthoringPort {
       );
     };
 
-    const offLoop = events.on(loopUpdatedChannel, ({ loop }) => {
-      if (loop.id === loopId) refresh();
-    });
-    const offPhase = events.on(loopPhaseUpdatedChannel, (event) => {
-      if (event.loopId === loopId) refresh();
+    const disposers: Array<() => void> = [];
+    void import('@renderer/lib/ipc').then(({ events }) => {
+      if (!active) return;
+      disposers.push(
+        events.on(loopUpdatedChannel, ({ loop }) => {
+          if (loop.id === loopId) refresh();
+        }),
+        events.on(loopPhaseUpdatedChannel, (event) => {
+          if (event.loopId === loopId) refresh();
+        })
+      );
     });
     return () => {
       active = false;
       generation += 1;
-      offLoop();
-      offPhase();
+      for (const dispose of disposers) dispose();
     };
   }
 
   async pauseLoop(loopId: string): Promise<LoopTabSnapshot> {
+    const { rpc } = await import('@renderer/lib/ipc');
     return unwrapLoop(rpc.loops.pauseLoop(loopId));
   }
 
   async resumeLoop(loopId: string): Promise<LoopTabSnapshot> {
+    const { rpc } = await import('@renderer/lib/ipc');
     return unwrapLoop(rpc.loops.resumeLoop(loopId));
   }
 
   async retryPhase(loopId: string, phaseId: string): Promise<LoopTabSnapshot> {
+    const { rpc } = await import('@renderer/lib/ipc');
     return unwrapLoop(rpc.loops.retryPhase(loopId, phaseId));
   }
 }

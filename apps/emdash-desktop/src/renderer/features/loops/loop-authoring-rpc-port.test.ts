@@ -156,6 +156,7 @@ describe('RpcLoopAuthoringPort', () => {
     const port = new RpcLoopAuthoringPort();
     const listener = vi.fn();
     const dispose = port.subscribeToLoop('loop-1', listener);
+    await vi.waitFor(() => expect(mocks.listeners.size).toBe(2));
 
     mocks.listeners.get(loopUpdatedChannel.name)?.({ loop: makeLoop() } as never);
     await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
