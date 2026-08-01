@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
 import { createServer as createTcpServer, Socket } from 'node:net';
@@ -26,6 +34,21 @@ type VerificationSession = { lease: Lease; previewServerId: string; previewUrl: 
 type StartResult =
   | { success: true; data: VerificationSession }
   | { success: false; error: { kind: string; message: string } };
+
+type RpcResult<T> = { success: true; data: T } | { success: false; error: unknown };
+
+type LiveLoop = {
+  id: string;
+  status: string;
+  state?: {
+    sessionAttempts?: Array<{ status: string; error?: string }>;
+  } | null;
+  phases: Array<{
+    status: string;
+    conversationId?: string;
+    state?: { checkpointCommit?: string | null } | null;
+  }>;
+};
 
 const fixtureHtml = `<!doctype html>
 <html><body><main><h1>Loops Electron fixture</h1><button data-testid="increment" aria-label="Increment">Increment</button><output aria-label="Count">0</output></main><script>const button=document.querySelector('button');const output=document.querySelector('output');button.addEventListener('click',()=>{output.textContent=String(Number(output.textContent)+1)});</script></body></html>`;
@@ -60,6 +83,7 @@ try {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      ...(liveLoopRequested() ? { PATH: externalAgentPath() } : {}),
       EMDASH_DB_FILE: dbFile,
       EMDASH_LOOPS_ELECTRON_TEST: '1',
       EMDASH_LOOPS_ELECTRON_USER_DATA: userData,
@@ -81,6 +105,21 @@ try {
   await delay(250);
 
   await proveLocalElectronFlow(page, localPort);
+  if (liveLoopTarget('local')) {
+    const localRepo = join(root, 'live-local-repo');
+    createGitFixture(localRepo);
+    await proveLiveLoop(page, {
+      projectId: 'electron-live-local-project',
+      taskId: 'electron-live-local-task',
+      project: {
+        type: 'local',
+        path: localRepo,
+        name: 'Loops live local proof',
+      },
+      branchName: `emdash/live-local-${process.pid}`,
+      label: 'local',
+    });
+  }
   await proveCancelledDiscovery(page);
 
   if (process.env.EMDASH_LOOPS_ELECTRON_LOCAL_ONLY !== '1') {
@@ -329,8 +368,181 @@ async function proveSshFlow(page: Page, sshPort: number): Promise<void> {
   });
   assert.equal(closed.partitionDataCleared, true);
   await invoke(page, 'previewServers.stop', forwarded.data.id);
+
+  if (liveLoopTarget('ssh')) {
+    assert.equal(
+      containerId,
+      undefined,
+      'Live SSH ACP proof requires the current-container SSH fixture with Codex installed'
+    );
+    const remoteRepo = join(root, 'live-ssh-repo');
+    createGitFixture(remoteRepo);
+    await proveLiveLoop(page, {
+      projectId: 'electron-live-ssh-project',
+      taskId: 'electron-live-ssh-task',
+      project: {
+        type: 'ssh',
+        path: remoteRepo,
+        name: 'Loops live SSH proof',
+        connectionId: connection.id,
+      },
+      branchName: `emdash/live-ssh-${process.pid}`,
+      label: 'SSH',
+    });
+  }
+
   await invoke(page, 'ssh.disconnect', connection.id);
   await invoke(page, 'ssh.deleteConnection', connection.id);
+}
+
+async function proveLiveLoop(
+  page: Page,
+  input: {
+    projectId: string;
+    taskId: string;
+    project:
+      | { type: 'local'; path: string; name: string }
+      | { type: 'ssh'; path: string; name: string; connectionId: string };
+    branchName: string;
+    label: string;
+  }
+): Promise<void> {
+  const createdProject = await invoke<RpcResult<{ id: string }>>(page, 'projects.createProject', {
+    id: input.projectId,
+    ...input.project,
+  });
+  assert.equal(
+    createdProject.success,
+    true,
+    `${input.label} live project creation failed: ${rpcFailure(createdProject)}`
+  );
+
+  let loopId: string | undefined;
+  let workspacePath: string | undefined;
+  try {
+    const created = await invoke<
+      RpcResult<{ task: { task: { workspaceId?: string } }; loop: LiveLoop }>
+    >(page, 'loops.createTaskWithLoop', {
+      task: {
+        id: input.taskId,
+        projectId: input.projectId,
+        taskConfig: { version: '1', name: `Loops live ${input.label} proof` },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: input.branchName,
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      },
+      loop: {
+        name: `Two-phase ${input.label} proof`,
+        model: 'gpt-5.6-sol',
+        planSource: 'Create one independently committed fixture file in each ordered phase.',
+        validationCommands: ['git diff --check'],
+        terminalGates: { review: false, e2e: false },
+        browserPreview: { enabled: false },
+        workPhases: [
+          {
+            name: 'Phase one',
+            goal: 'Create phase-one.txt containing exactly "phase one complete" and a trailing newline. Do not change any other file.',
+          },
+          {
+            name: 'Phase two',
+            goal: 'Create phase-two.txt containing exactly "phase two complete" and a trailing newline. Preserve phase-one.txt and do not change any other file.',
+          },
+        ],
+        acceptanceCriteria: [],
+      },
+    });
+    assert.equal(
+      created.success,
+      true,
+      `${input.label} live Loop creation failed: ${rpcFailure(created)}`
+    );
+    if (!created.success) return;
+    loopId = created.data.loop.id;
+
+    const provisioned = await invoke<RpcResult<{ path: string; workspaceId: string }>>(
+      page,
+      'tasks.provisionWorkspace',
+      input.taskId
+    );
+    assert.equal(
+      provisioned.success,
+      true,
+      `${input.label} workspace provisioning failed: ${rpcFailure(provisioned)}`
+    );
+    if (!provisioned.success) return;
+    workspacePath = provisioned.data.path;
+
+    const started = await invoke<RpcResult<LiveLoop>>(page, 'loops.startLoop', loopId);
+    assert.equal(
+      started.success,
+      true,
+      `${input.label} live Loop start failed: ${rpcFailure(started)}`
+    );
+
+    const completed = await poll<LiveLoop>(async () => {
+      const result = await invoke<RpcResult<LiveLoop>>(page, 'loops.getLoop', loopId);
+      assert.equal(
+        result.success,
+        true,
+        `${input.label} live Loop read failed: ${rpcFailure(result)}`
+      );
+      if (!result.success) return null;
+      if (result.data.status === 'failed') {
+        throw new Error(`${input.label} live Loop failed: ${liveLoopFailure(result.data)}`);
+      }
+      return result.data.status === 'completed' ? result.data : null;
+    }, 30 * 60_000);
+
+    assert.deepEqual(
+      completed.phases.map((phase) => phase.status),
+      ['passed', 'passed'],
+      `${input.label} live phases did not pass`
+    );
+    const conversationIds = completed.phases.map((phase) => phase.conversationId);
+    assert.ok(conversationIds.every(Boolean), `${input.label} phase conversation is missing`);
+    assert.equal(
+      new Set(conversationIds).size,
+      2,
+      `${input.label} phases did not use fresh ACP conversations`
+    );
+    assert.equal(
+      readFileSync(join(workspacePath, 'phase-one.txt'), 'utf8'),
+      'phase one complete\n'
+    );
+    assert.equal(
+      readFileSync(join(workspacePath, 'phase-two.txt'), 'utf8'),
+      'phase two complete\n'
+    );
+    const commits = git(workspacePath, ['log', '--format=%s', '-2']).trim().split('\n');
+    assert.equal(commits.length, 2, `${input.label} Loop did not create two checkpoints`);
+    assert.ok(
+      commits.every((subject) => subject.startsWith('chore(loops): checkpoint')),
+      `${input.label} Loop checkpoint subjects were unexpected: ${commits.join(', ')}`
+    );
+    assert.equal(git(workspacePath, ['status', '--porcelain']), '');
+    process.stdout.write(`Live ${input.label} two-phase Codex ACP Loop passed\n`);
+  } finally {
+    if (loopId) {
+      const current = await invoke<RpcResult<LiveLoop>>(page, 'loops.getLoop', loopId).catch(
+        () => undefined
+      );
+      if (current?.success && current.data.status === 'running') {
+        await invoke(page, 'loops.cancelLoop', loopId).catch(() => undefined);
+      }
+    }
+    await invoke(page, 'tasks.teardownTask', input.projectId, input.taskId).catch(() => undefined);
+    await invoke(page, 'tasks.deleteTask', input.projectId, input.taskId, {
+      deleteWorktree: true,
+      deleteBranch: true,
+    }).catch(() => undefined);
+    await invoke(page, 'projects.deleteProject', input.projectId).catch(() => undefined);
+  }
 }
 
 async function invoke<T = unknown>(page: Page, channel: string, ...args: unknown[]): Promise<T> {
@@ -363,6 +575,51 @@ async function poll<T>(read: () => Promise<T | null>, timeoutMs = 10_000): Promi
 
 function failureMessage(result: StartResult): string | undefined {
   return result.success ? undefined : `${result.error.kind}: ${result.error.message}`;
+}
+
+function rpcFailure(result: RpcResult<unknown>): string {
+  return result.success ? '' : JSON.stringify(result.error);
+}
+
+function liveLoopTarget(target: 'local' | 'ssh'): boolean {
+  const requested = process.env.EMDASH_LOOPS_ELECTRON_LIVE_LOOP;
+  return requested === target || requested === 'all';
+}
+
+function liveLoopRequested(): boolean {
+  return liveLoopTarget('local') || liveLoopTarget('ssh');
+}
+
+function externalAgentPath(): string {
+  const path = process.env.PATH ?? '';
+  return path
+    .split(':')
+    .filter((entry) => entry && !entry.includes('/node_modules/.bin'))
+    .join(':');
+}
+
+function liveLoopFailure(loop: LiveLoop): string {
+  const attempt = loop.state?.sessionAttempts?.findLast((candidate) => candidate.error);
+  return attempt?.error ?? JSON.stringify(loop.phases);
+}
+
+function createGitFixture(path: string): void {
+  mkdirSync(path, { recursive: true });
+  git(path, ['init', '-b', 'main']);
+  git(path, ['config', 'user.name', 'Emdash Loops Electron']);
+  git(path, ['config', 'user.email', 'loops-electron@example.invalid']);
+  writeFileSync(join(path, 'README.md'), '# Live Loop fixture\n');
+  git(path, ['add', 'README.md']);
+  git(path, ['commit', '-m', 'chore: initialize live Loop fixture']);
+}
+
+function git(cwd: string, args: string[]): string {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.stderr.trim()}`);
+  }
+  return result.stdout;
 }
 
 function listen(server: Server, port: number): Promise<number> {
@@ -463,6 +720,8 @@ async function startContainerSshFixture(): Promise<number> {
       'PasswordAuthentication no',
       'KbdInteractiveAuthentication no',
       'UsePAM yes',
+      'Subsystem sftp internal-sftp',
+      'MaxSessions 100',
       'PermitRootLogin no',
       'AllowUsers devuser',
       'StrictModes no',
