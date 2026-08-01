@@ -1,3 +1,4 @@
+import { taskService } from '@main/core/tasks/task-service';
 import { resolveTaskWorkspaceTarget } from '@main/core/workspaces/resolve-task-workspace-target';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -13,6 +14,12 @@ import {
 } from '@shared/core/loops/loops';
 import { getLoopSessionDriver } from './drivers/driver-registry';
 import type { LoopSessionDriver } from './drivers/session-driver';
+import {
+  createTaskWithLoop as createTaskWithLoopOperation,
+  type CreateTaskWithLoopError,
+  type CreateTaskWithLoopParams,
+  type CreateTaskWithLoopSuccess,
+} from './operations/create-task-with-loop';
 import {
   createLoop as createLoopOperation,
   deleteLoop as deleteLoopOperation,
@@ -115,6 +122,18 @@ export class LoopService {
       emitPhase(phase);
     }
 
+    return result;
+  }
+
+  async createTaskWithLoop(
+    params: CreateTaskWithLoopParams
+  ): Promise<Result<CreateTaskWithLoopSuccess, CreateTaskWithLoopError>> {
+    const result = await createTaskWithLoopOperation(params);
+    if (!result.success) return result;
+
+    taskService.notifyTaskCreated(result.data.task.task, params.task);
+    emitLoop(result.data.loop);
+    for (const phase of result.data.loop.phases) emitPhase(phase);
     return result;
   }
 

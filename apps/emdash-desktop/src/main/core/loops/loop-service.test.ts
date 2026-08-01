@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ok } from '@main/lib/result';
-import { loopUpdatedChannel } from '@shared/core/loops/loopEvents';
+import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
 import type { Loop, LoopWithPhases } from '@shared/core/loops/loops';
 import { LoopService } from './loop-service';
+import { createTaskWithLoop } from './operations/create-task-with-loop';
 import { getLoop, pauseRunningLoopsForBoot, updateLoop } from './operations/loop-operations';
 
 const emitMock = vi.hoisted(() => vi.fn());
@@ -22,6 +23,14 @@ vi.mock('./operations/loop-operations', () => ({
   resetPhaseForRetry: vi.fn(),
   updateLoop: vi.fn(),
   updatePhase: vi.fn(),
+}));
+
+vi.mock('./operations/create-task-with-loop', () => ({
+  createTaskWithLoop: vi.fn(),
+}));
+
+vi.mock('@main/core/tasks/task-service', () => ({
+  taskService: { notifyTaskCreated: vi.fn() },
 }));
 
 vi.mock('./drivers/driver-registry', () => ({
@@ -57,6 +66,57 @@ describe('LoopService boot recovery', () => {
 
     expect(pauseRunningLoopsForBoot).toHaveBeenCalledOnce();
     expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop });
+  });
+});
+
+describe('LoopService atomic task creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('publishes task and Loop events only after the atomic operation succeeds', async () => {
+    const task = { id: 'task-1', projectId: 'project-1' };
+    const createdLoop = {
+      ...loop,
+      phases: [
+        {
+          id: 'phase-1',
+          loopId: loop.id,
+          idx: 0,
+          name: 'Work',
+          goal: 'Implement it',
+          kind: 'work',
+          status: 'pending',
+          attempts: 0,
+          conversationId: null,
+          criteria: null,
+          state: null,
+          lastError: null,
+          createdAt: loop.createdAt,
+          updatedAt: loop.updatedAt,
+        },
+      ],
+    } satisfies LoopWithPhases;
+    vi.mocked(createTaskWithLoop).mockResolvedValue({
+      success: true,
+      data: { task: { task: task as never }, loop: createdLoop },
+    });
+
+    const taskParams = { id: 'task-1', projectId: 'project-1' };
+    const params = {
+      task: taskParams,
+      loop: {},
+    } as never;
+    const result = await new LoopService().createTaskWithLoop(params);
+
+    expect(result.success).toBe(true);
+    const { taskService } = await import('@main/core/tasks/task-service');
+    expect(taskService.notifyTaskCreated).toHaveBeenCalledWith(task, taskParams);
+    expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop: createdLoop });
+    expect(emitMock).toHaveBeenCalledWith(loopPhaseUpdatedChannel, {
+      loopId: loop.id,
+      phase: createdLoop.phases[0],
+    });
   });
 });
 

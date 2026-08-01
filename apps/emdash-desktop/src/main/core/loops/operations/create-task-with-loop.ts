@@ -24,7 +24,7 @@ export type CreateTaskWithLoopSuccess = {
   loop: LoopWithPhases;
 };
 
-type CreateTaskWithLoopError = LoopOperationError | CreateTaskError;
+export type CreateTaskWithLoopError = LoopOperationError | CreateTaskError;
 
 export async function createTaskWithLoop(
   params: CreateTaskWithLoopParams
