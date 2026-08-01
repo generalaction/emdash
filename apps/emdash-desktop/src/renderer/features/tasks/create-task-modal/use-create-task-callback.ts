@@ -1,9 +1,16 @@
 import { useCallback } from 'react';
-import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  getTaskManagerStore,
+  getTaskView,
+} from '@renderer/features/tasks/stores/task-selectors';
 import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
-import { buildInitialConversation, deriveInitialStatus } from './build-create-task-params';
+import {
+  buildInitialConversationForTask,
+  buildLoopTaskAuthoringInput,
+  deriveInitialStatus,
+} from './build-create-task-params';
 import type { CreateTaskState } from './use-create-task-state';
 
 interface UseCreateTaskCallbackParams {
@@ -20,32 +27,50 @@ export function useCreateTaskCallback({
   initialConversation,
   navigate,
   onClose,
-}: UseCreateTaskCallbackParams): { handleCreateTask: () => void; canCreate: boolean } {
+}: UseCreateTaskCallbackParams): { handleCreateTask: () => Promise<void>; canCreate: boolean } {
   const canCreate = !!selectedProjectId && state.isValid;
 
-  const handleCreateTask = useCallback(() => {
+  const handleCreateTask = useCallback(async () => {
     if (!selectedProjectId) return;
     const taskManager = getTaskManagerStore(selectedProjectId);
     if (!taskManager) return;
 
     const id = crypto.randomUUID();
-    void taskManager
-      .createTask({
-        id,
-        projectId: selectedProjectId,
-        taskConfig: {
-          version: '1',
-          name: state.taskName.effectiveTaskName,
-          linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
-          initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-          initialConversation: buildInitialConversation(initialConversation),
-        },
-        workspaceConfig: state.workspaceConfig.resolvedConfig,
-      })
-      .catch((e) => log.error('create task failed', e));
+    const task = {
+      id,
+      projectId: selectedProjectId,
+      taskConfig: {
+        version: '1' as const,
+        name: state.taskName.effectiveTaskName,
+        linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
+        initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
+        initialConversation: buildInitialConversationForTask(
+          initialConversation,
+          state.loopPlan.enabled
+        ),
+      },
+      workspaceConfig: state.workspaceConfig.resolvedConfig,
+    };
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
     onClose();
+    try {
+      if (state.loopPlan.enabled) {
+        const loop = await taskManager.createTaskWithLoop({
+          task,
+          loop: buildLoopTaskAuthoringInput(state.taskName.effectiveTaskName, state.loopPlan),
+        });
+        getTaskView(selectedProjectId, id)?.paneLayout.open(
+          'loop',
+          { loopId: loop.id },
+          { preview: false }
+        );
+      } else {
+        await taskManager.createTask(task);
+      }
+    } catch (error) {
+      log.error(state.loopPlan.enabled ? 'create Loop task failed' : 'create task failed', error);
+    }
   }, [selectedProjectId, state, initialConversation, navigate, onClose]);
 
   return { handleCreateTask, canCreate };

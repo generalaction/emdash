@@ -2,7 +2,6 @@ import type { ComponentType, ReactNode } from 'react';
 import { homeView } from '@renderer/app/home-view';
 import { automationsView } from '@renderer/features/automations/automations-view';
 import { libraryView } from '@renderer/features/library/library-view';
-import { loopView } from '@renderer/features/loops/loop-view';
 import { mcpView } from '@renderer/features/mcp/mcp-view';
 import { projectView } from '@renderer/features/projects/view';
 import { settingsView } from '@renderer/features/settings/settings-view';
@@ -20,7 +19,6 @@ export const views = {
   mcp: mcpView,
   project: projectView,
   task: taskView,
-  loop: loopView,
   settings: settingsView,
   // oxlint-disable-next-line typescript/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;

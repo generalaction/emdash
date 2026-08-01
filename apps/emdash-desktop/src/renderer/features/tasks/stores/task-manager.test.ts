@@ -16,6 +16,8 @@ type MockDraftComments = {
 
 const mocks = vi.hoisted(() => ({
   archiveTask: vi.fn(),
+  createTask: vi.fn(),
+  createTaskWithLoop: vi.fn(),
   conversationAcquire: vi.fn(),
   conversationRelease: vi.fn(),
   draftComments: [] as MockDraftComments[],
@@ -42,6 +44,9 @@ vi.mock('@renderer/lib/ipc', () => ({
     on: vi.fn(() => () => {}),
   },
   rpc: {
+    loops: {
+      createTaskWithLoop: mocks.createTaskWithLoop,
+    },
     conversations: {
       getConversationsForProject: mocks.getConversationsForProject,
     },
@@ -50,6 +55,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     },
     tasks: {
       archiveTask: mocks.archiveTask,
+      createTask: mocks.createTask,
       getTasks: mocks.getTasks,
       provisionWorkspace: mocks.provisionWorkspace,
       teardownTask: mocks.teardownTask,
@@ -158,6 +164,7 @@ describe('TaskManagerStore archive lifecycle', () => {
     mocks.draftComments.length = 0;
     mocks.viewModels.length = 0;
     mocks.archiveTask.mockResolvedValue(undefined);
+    mocks.createTaskWithLoop.mockReset();
     mocks.getConversationsForProject.mockResolvedValue([]);
     mocks.getProjectManagerStore.mockReturnValue({ mountProject: mocks.mountProject });
     mocks.getPullRequestsForTask.mockResolvedValue({ success: true, data: { prs: [] } });
@@ -218,6 +225,82 @@ describe('TaskManagerStore archive lifecycle', () => {
     expect(mocks.viewModels[1].restoreSnapshot).toHaveBeenCalledWith(snapshot);
     expect(mocks.viewModels[1].initialize).toHaveBeenCalledOnce();
 
+    manager.dispose();
+  });
+});
+
+describe('TaskManagerStore atomic Loop creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.draftComments.length = 0;
+    mocks.viewModels.length = 0;
+    mocks.getConversationsForProject.mockResolvedValue([]);
+    mocks.getProjectManagerStore.mockReturnValue({ mountProject: mocks.mountProject });
+    mocks.getPullRequestsForTask.mockResolvedValue({ success: true, data: { prs: [] } });
+    mocks.getTasks.mockResolvedValue([]);
+    mocks.mountProject.mockResolvedValue(undefined);
+    mocks.provisionWorkspace.mockResolvedValue({
+      success: true,
+      data: { path: '/tmp/workspace-1', workspaceId: 'workspace-1' },
+    });
+    mocks.viewStateGet.mockResolvedValue(undefined);
+  });
+
+  function makeParams() {
+    return {
+      task: {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1' as const, name: 'Task 1' },
+        workspaceConfig: { workspace: { kind: 'new-worktree' } },
+      },
+      loop: {
+        name: 'Task 1 Loop',
+        model: 'gpt-5.6-sol',
+        planSource: '## Build',
+        validationCommands: ['pnpm test'],
+        terminalGates: { review: false, e2e: false },
+        browserPreview: { enabled: false },
+        workPhases: [{ name: 'Build', goal: 'Build it' }],
+        acceptanceCriteria: [],
+      },
+    };
+  }
+
+  it('feeds the atomic task result through the ordinary provisioning lifecycle', async () => {
+    const loop = { id: 'loop-1' };
+    mocks.createTaskWithLoop.mockResolvedValue({
+      success: true,
+      data: { task: { task: makeTask() }, loop },
+    });
+    const manager = makeTaskManager();
+
+    const createdLoop = await manager.createTaskWithLoop(makeParams() as never);
+
+    expect(createdLoop).toBe(loop);
+    expect(mocks.createTaskWithLoop).toHaveBeenCalledWith(makeParams());
+    expect(mocks.conversationAcquire).toHaveBeenCalledWith('task-1', 'project-1', []);
+    expect(mocks.provisionWorkspace).toHaveBeenCalledWith('task-1');
+    expect(manager.tasks.get('task-1')?.state).toBe('provisioned');
+    manager.dispose();
+  });
+
+  it('keeps atomic creation failures visible on the optimistic task', async () => {
+    mocks.createTaskWithLoop.mockResolvedValue({
+      success: false,
+      error: { kind: 'invalid-input', message: 'Validation commands are required' },
+    });
+    const manager = makeTaskManager();
+
+    await expect(manager.createTaskWithLoop(makeParams() as never)).rejects.toThrow(
+      'Validation commands are required'
+    );
+
+    const task = manager.tasks.get('task-1');
+    expect(task?.state).toBe('unregistered');
+    expect(task?.phase).toBe('create-error');
+    expect(task?.errorMessage).toBe('Validation commands are required');
+    expect(mocks.provisionWorkspace).not.toHaveBeenCalled();
     manager.dispose();
   });
 });

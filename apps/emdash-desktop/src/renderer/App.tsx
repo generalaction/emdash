@@ -4,6 +4,7 @@ import { AppMenuEvents } from './app/app-menu-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
+import { LoopBrowserHost } from './features/loops/loop-browser-host';
 import { Onboarding } from './features/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from './lib/components/titlebar/window-controls';
 import { useAccountSession } from './lib/hooks/useAccount';
@@ -101,6 +102,7 @@ function AppContent() {
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                 <RightSidebarProvider>
                   <ThemeProvider>
+                    <LoopBrowserHost />
                     <ModalRenderer />
                     {renderContent()}
                   </ThemeProvider>

@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
+import { CreateTaskLoopSection } from '@renderer/features/loops/create-task-loop-section';
 import {
   getProjectManagerStore,
   getGitRepositoryStore,
@@ -131,6 +132,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             repositoryUrl={repositoryUrl}
             projectPath={projectPath}
           />
+          <CreateTaskLoopSection value={state.loopPlan} onChange={state.setLoopPlan} />
           <TaskStateProvider
             workspaceConfig={state.workspaceConfig}
             initialConversation={initialConversation}
@@ -145,11 +147,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           >
             <TaskConfigPanel
               tabs={[
-                {
-                  value: 'conversation',
-                  label: 'Initial Conversation',
-                  content: <ConversationField />,
-                },
+                ...(state.loopPlan.enabled
+                  ? []
+                  : [
+                      {
+                        value: 'conversation',
+                        label: 'Initial Conversation',
+                        content: <ConversationField />,
+                      },
+                    ]),
                 {
                   value: 'workspace',
                   label: 'Workspace Settings',

@@ -15,6 +15,8 @@
  */
 
 import { browserTabProvider } from '@renderer/features/browser/browser-tab-provider';
+import { loopAuthoringRpcPort } from '@renderer/features/loops/loop-authoring-rpc-port';
+import { createLoopTabProvider } from '@renderer/features/loops/loop-tab-provider';
 import { type KindOf, type OpenArgsOf } from '@renderer/features/tabs/core/tab-provider-registry';
 import { createTabView } from '@renderer/features/tabs/tab-view-factory';
 import { acpChatTabProvider } from '../conversations/acp/acp-chat-tab-provider';
@@ -33,6 +35,7 @@ export const taskTabView = createTabView(
     diffTabProvider,
     browserTabProvider,
     terminalTabProvider,
+    createLoopTabProvider(loopAuthoringRpcPort),
   ] as const,
   { makePersistor: (ctx) => new TaskTabViewPersistor(ctx as TaskTabContext) }
 );

@@ -57,6 +57,8 @@ export function CreateTaskLoopSection({ value, onChange }: CreateTaskLoopSection
     const normalized = normalizeLoopPlan({
       goal: value.goal,
       planSource: value.planSource,
+      validationCommands: value.validationCommands,
+      acceptanceCriteria: value.acceptanceCriteria,
       terminalGates: value.terminalGates,
     });
     setErrors(validateLoopPlanDraft(normalized));
@@ -225,6 +227,48 @@ export function CreateTaskLoopSection({ value, onChange }: CreateTaskLoopSection
               </div>
             </Field>
           </div>
+
+          <Field>
+            <FieldLabel htmlFor="loop-validation-commands">Validation commands</FieldLabel>
+            <FieldDescription>
+              Enter one repository command per line. These commands are the authoritative work
+              verification gate.
+            </FieldDescription>
+            <Textarea
+              id="loop-validation-commands"
+              aria-label="Loop validation commands"
+              aria-invalid={
+                errors.length > 0 && !value.validationCommands.some((command) => command.trim())
+              }
+              value={value.validationCommands.join('\n')}
+              placeholder="pnpm run test"
+              onInput={(event) =>
+                update({ validationCommands: event.currentTarget.value.split(/\r?\n/) })
+              }
+            />
+          </Field>
+
+          {value.terminalGates.e2e ? (
+            <Field>
+              <FieldLabel htmlFor="loop-acceptance-criteria">E2E acceptance criteria</FieldLabel>
+              <FieldDescription>
+                Enter one observable browser outcome per line for the clean-room E2E gate.
+              </FieldDescription>
+              <Textarea
+                id="loop-acceptance-criteria"
+                aria-label="Loop E2E acceptance criteria"
+                aria-invalid={
+                  errors.length > 0 &&
+                  !value.acceptanceCriteria.some((criterion) => criterion.trim())
+                }
+                value={value.acceptanceCriteria.join('\n')}
+                placeholder="The page loads and shows the completed behavior"
+                onInput={(event) =>
+                  update({ acceptanceCriteria: event.currentTarget.value.split(/\r?\n/) })
+                }
+              />
+            </Field>
+          ) : null}
 
           {errors.length > 0 ? (
             <FieldError id="loop-plan-errors" errors={errors.map((message) => ({ message }))} />

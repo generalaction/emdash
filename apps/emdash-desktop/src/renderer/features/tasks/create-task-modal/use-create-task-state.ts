@@ -1,6 +1,10 @@
 import type { GitBranchRef } from '@emdash/core/git';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import {
+  createDefaultLoopPlanDraft,
+  validateLoopPlanDraft,
+} from '@renderer/features/loops/loop-plan-model';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
 import type { LinkedIssue } from '@shared/core/linked-issue';
@@ -27,6 +31,7 @@ export function useCreateTaskState(
   const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
   const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
+  const [loopPlan, setLoopPlan] = useState(createDefaultLoopPlanDraft);
   const [prevProjectId, setPrevProjectId] = useState(projectId);
 
   // Reset linked state when project changes.
@@ -134,7 +139,10 @@ export function useCreateTaskState(
 
   // Issue/PR selection is optional enrichment — not required for creation.
   const isValid =
-    taskName.effectiveTaskName.trim().length > 0 && !taskName.isPending && workspaceConfig.isValid;
+    taskName.effectiveTaskName.trim().length > 0 &&
+    !taskName.isPending &&
+    workspaceConfig.isValid &&
+    validateLoopPlanDraft(loopPlan).length === 0;
 
   return {
     linkedType,
@@ -145,6 +153,8 @@ export function useCreateTaskState(
     setLinkedPR,
     taskName,
     workspaceConfig,
+    loopPlan,
+    setLoopPlan,
     isValid,
   };
 }

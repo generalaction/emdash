@@ -168,6 +168,8 @@ describe('loop plan model', () => {
       enabled: false,
       goal: '',
       planSource: '',
+      validationCommands: [''],
+      acceptanceCriteria: [''],
       workPhases: [
         {
           id: 'work-1',
@@ -209,6 +211,7 @@ describe('loop plan model', () => {
 
     expect(validateLoopPlanDraft(draft)).toEqual([
       'Add a goal for this Loop.',
+      'Add at least one validation command.',
       'Describe what Phase 1 should complete.',
     ]);
     expect(draft.workPhases).toHaveLength(1);
@@ -220,6 +223,7 @@ describe('loop plan model', () => {
       ...createDefaultLoopPlanDraft(),
       enabled: true,
       goal: 'Ship the feature',
+      validationCommands: ['pnpm test'],
       workPhases: [
         { id: 'work-1', kind: 'work' as const, name: '', goal: '' },
         { id: 'work-2', kind: 'work' as const, name: 'Renderer', goal: '' },
@@ -232,5 +236,27 @@ describe('loop plan model', () => {
       'Describe what Renderer should complete.',
     ]);
     expect(draft.workPhases).toHaveLength(2);
+  });
+
+  it('requires explicit browser criteria only when E2E is selected', () => {
+    const base = {
+      ...createDefaultLoopPlanDraft(),
+      enabled: true,
+      goal: 'Ship the feature',
+      validationCommands: ['pnpm test'],
+      workPhases: [{ id: 'work-1', kind: 'work' as const, name: 'Build', goal: 'Build it' }],
+    };
+
+    expect(validateLoopPlanDraft(base)).toEqual([]);
+    expect(validateLoopPlanDraft({ ...base, terminalGates: { review: false, e2e: true } })).toEqual(
+      ['Add at least one E2E acceptance criterion.']
+    );
+    expect(
+      validateLoopPlanDraft({
+        ...base,
+        acceptanceCriteria: ['The page shows the feature'],
+        terminalGates: { review: false, e2e: true },
+      })
+    ).toEqual([]);
   });
 });

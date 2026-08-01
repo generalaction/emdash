@@ -119,6 +119,12 @@ describe('CreateTaskLoopSection', () => {
     expect(container.querySelector('textarea[aria-label="Pasted plan"]')).not.toBeNull();
     expect(container.querySelector('input[aria-label="Phase 1 name"]')).not.toBeNull();
     expect(container.querySelector('textarea[aria-label="Phase 1 goal"]')).not.toBeNull();
+    expect(
+      container.querySelector('textarea[aria-label="Loop validation commands"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('textarea[aria-label="Loop E2E acceptance criteria"]')
+    ).toBeNull();
   });
 
   it('keeps invalid input editable and exposes validation errors accessibly', async () => {
@@ -183,6 +189,9 @@ describe('CreateTaskLoopSection', () => {
     await act(async () => e2e.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(review.getAttribute('aria-checked')).toBe('true');
     expect(e2e.getAttribute('aria-checked')).toBe('true');
+    expect(
+      container.querySelector('textarea[aria-label="Loop E2E acceptance criteria"]')
+    ).not.toBeNull();
 
     await act(async () => review.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(review.getAttribute('aria-checked')).toBe('false');

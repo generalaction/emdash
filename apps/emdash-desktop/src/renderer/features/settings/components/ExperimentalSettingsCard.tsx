@@ -23,7 +23,7 @@ export function ExperimentalSettingsCard() {
   return (
     <SettingRow
       title="Loops"
-      description="Show autonomous phased loop controls in task sidebars and enable loop creation."
+      description="Enable Create Task authoring and pinned task tabs for autonomous phased Loops."
       control={
         <Switch checked={loopsEnabled} disabled={loading || saving} onCheckedChange={toggleLoops} />
       }
