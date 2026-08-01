@@ -437,6 +437,52 @@ describe('CleanRoomE2EGate hardening', () => {
     expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
   });
 
+  it.each(['attempt', 'conversation'] as const)(
+    'retains recovery authority when an actual outer identity partially collides by %s ID',
+    async (collision) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      const start = vi.mocked(harness.dependencies.session.startFreshE2ESession);
+      const originalStart = start.getMockImplementation()!;
+      start.mockImplementationOnce(async (input) => {
+        const started = await originalStart(input);
+        if (!started.success) return started;
+        return ok({
+          ...started.data,
+          attemptId:
+            collision === 'attempt' ? input.attemptId : 'partially-colliding-actual-attempt',
+          conversationId:
+            collision === 'conversation'
+              ? input.conversationId
+              : 'partially-colliding-actual-conversation',
+        });
+      });
+
+      const result = await harness.gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          stage: 'quiescence',
+          recoveryRequired: true,
+          lastWorkspaceDestroyed: false,
+          pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+        },
+      });
+      expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attemptId:
+            collision === 'attempt' ? 'e2e-attempt-1' : 'partially-colliding-actual-attempt',
+          conversationId:
+            collision === 'conversation'
+              ? 'e2e-conversation-1'
+              : 'partially-colliding-actual-conversation',
+        })
+      );
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+    }
+  );
+
   it('attempts every known cancellation after the first identity fails to quiesce', async () => {
     const controller = new AbortController();
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
@@ -1033,6 +1079,46 @@ describe('CleanRoomE2EGate hardening', () => {
     expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
     expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
   });
+
+  it.each(['ready', 'running'] as const)(
+    'keeps workspace transitions monotonic when the clock rolls back after %s',
+    async (rollbackAfter) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      const progress = vi.mocked(harness.dependencies.progress.commit);
+      const originalProgress = progress.getMockImplementation()!;
+      const workspaceTimestamps: string[] = [];
+      let clockRolledBack = false;
+      progress.mockImplementation(async (input) => {
+        if (input.transition.kind === 'workspace' && input.transition.verification !== null) {
+          workspaceTimestamps.push(input.transition.verification.cleanup.updatedAt);
+        }
+        const result = await originalProgress(input);
+        if (
+          result.success &&
+          input.transition.kind === 'workspace' &&
+          input.transition.verification?.status === rollbackAfter
+        ) {
+          clockRolledBack = true;
+        }
+        return result;
+      });
+      harness.dependencies.now = vi.fn(
+        () => new Date(clockRolledBack ? '2026-07-12T01:00:00.000Z' : '2026-07-12T02:00:00.000Z')
+      );
+
+      const result = await harness.gate.run(defaultInput);
+
+      expect(result).toMatchObject({ success: true, data: { lastWorkspaceDestroyed: true } });
+      expect(workspaceTimestamps.length).toBeGreaterThanOrEqual(4);
+      for (let index = 1; index < workspaceTimestamps.length; index += 1) {
+        expect(Date.parse(workspaceTimestamps[index]!)).toBeGreaterThanOrEqual(
+          Date.parse(workspaceTimestamps[index - 1]!)
+        );
+      }
+      expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
+      expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+    }
+  );
 
   const targetEchoMachines = [
     { name: 'local', target: featureTarget, inputProject: project },

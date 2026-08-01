@@ -350,8 +350,15 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+      error: {
+        type: 'native-verifier-ledger-ambiguous',
+        stage: 'required-checks',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
     });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it('requires exactly one exact completed nested browser session attestation', async () => {
@@ -580,6 +587,46 @@ describe('CleanRoomE2EGate', () => {
   });
 
   it.each([
+    ['a descendant of the feature workspace', `${featureTarget.path}/verification-child`],
+    ['an ancestor of the feature workspace', '/tmp'],
+    ['a descendant of the project repository', `${project.repoPath}/verification-child`],
+  ] as const)('rejects a clean room at %s', async (_name, overlappingPath) => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    vi.mocked(harness.dependencies.cleanRoom.create).mockImplementationOnce(async (input) =>
+      ok({
+        projectId: project.projectId,
+        cleanupId: 'cleanup-overlapping-target',
+        verificationRunId: input.verificationRunId,
+        attempt: input.attempt,
+        target: {
+          workspaceId: 'overlapping-verification-workspace',
+          path: overlappingPath,
+          machine: { ...featureTarget.machine },
+        },
+        branchName: 'emdash/overlapping-verification-workspace',
+        baseCommit: input.baseCommit,
+        expectedFeatureHead: input.expectedFeatureHead,
+        replayedThroughCommit: input.expectedFeatureHead,
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'target-drift',
+        stage: 'create',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
     [
       'running status',
       (result: E2ERequiredChecksResult) => ({
@@ -631,18 +678,33 @@ describe('CleanRoomE2EGate', () => {
         sessionAttempts: [{ ...result.sessionAttempts[0]!, attemptId: 'e2e-attempt-1' }],
       }),
     ],
-  ] as const)('rejects nested browser ledger authority with %s', async (_name, mutate) => {
+  ] as const)('rejects nested browser ledger authority with %s', async (name, mutate) => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     mutateRequiredChecksOnce(harness, mutate);
 
     const result = await harness.gate.run(defaultInput);
+    const collidesWithDurableIdentity =
+      name === 'previous conversation reuse' || name === 'outer attempt identity reuse';
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+      error: {
+        type: collidesWithDurableIdentity
+          ? 'native-verifier-ledger-ambiguous'
+          : 'native-verifier-ledger-invalid',
+        stage: 'required-checks',
+        ...(collidesWithDurableIdentity
+          ? { recoveryRequired: true, lastWorkspaceDestroyed: false }
+          : {}),
+      },
     });
-    expect(harness.calls).toContain('release:1');
-    expect(harness.calls).toContain('destroy:1');
+    if (collidesWithDurableIdentity) {
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+    } else {
+      expect(harness.calls).toContain('release:1');
+      expect(harness.calls).toContain('destroy:1');
+    }
     expect(harness.dependencies.authority.inspectFeature).not.toHaveBeenCalled();
   });
 
@@ -1468,14 +1530,14 @@ describe('CleanRoomE2EGate', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        type: 'stale-conversation',
-        stage: 'session-start',
-        lastWorkspaceDestroyed: true,
+        stage: 'quiescence',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
         sessionAttempts: [
           {
             attemptId: 'e2e-attempt-1',
             conversationId: 'e2e-conversation-1',
-            status: 'failed',
+            status: 'interrupted',
           },
         ],
       },
@@ -1496,8 +1558,8 @@ describe('CleanRoomE2EGate', () => {
     expect(harness.dependencies.session.cancelE2ESession).toHaveBeenCalledWith(
       expect.objectContaining(returnedIdentity)
     );
-    expect(harness.dependencies.execution.release).toHaveBeenCalledOnce();
-    expect(harness.dependencies.cleanRoom.destroy).toHaveBeenCalledOnce();
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -1523,8 +1585,15 @@ describe('CleanRoomE2EGate', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'native-verifier-ledger-invalid', stage: 'required-checks' },
+      error: {
+        type: 'native-verifier-ledger-ambiguous',
+        stage: 'required-checks',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
     });
+    expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
   it.each([

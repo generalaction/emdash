@@ -797,6 +797,7 @@ export class CleanRoomE2EGate {
       const preparing = await this.commitWorkspaceProgress(
         input,
         verificationProgress({
+          currentVerification: input.progress.current.loopState.verification,
           verificationRunId,
           attempt,
           status: 'preparing',
@@ -897,6 +898,7 @@ export class CleanRoomE2EGate {
       const ready = await this.commitWorkspaceProgress(
         input,
         verificationProgress({
+          currentVerification: input.progress.current.loopState.verification,
           verificationRunId,
           attempt,
           status: 'ready',
@@ -1599,6 +1601,7 @@ export class CleanRoomE2EGate {
         const integratingProgress = await this.commitWorkspaceProgress(
           input,
           verificationProgress({
+            currentVerification: input.progress.current.loopState.verification,
             verificationRunId,
             attempt,
             status: 'integrating-fix',
@@ -3000,6 +3003,7 @@ export class CleanRoomE2EGate {
     return this.commitWorkspaceProgress(
       input,
       verificationProgress({
+        currentVerification: input.progress.current.loopState.verification,
         verificationRunId: cleanRoom.verificationRunId,
         attempt,
         status: 'destroying',
@@ -3125,6 +3129,7 @@ export class CleanRoomE2EGate {
       await this.commitWorkspaceProgress(
         input,
         verificationProgress({
+          currentVerification: input.progress.current.loopState.verification,
           verificationRunId: cleanRoom.verificationRunId,
           attempt,
           status: 'cleanup-failed',
@@ -3164,6 +3169,7 @@ export class CleanRoomE2EGate {
       await this.commitWorkspaceProgress(
         input,
         verificationProgress({
+          currentVerification: input.progress.current.loopState.verification,
           verificationRunId: cleanRoom.verificationRunId,
           attempt,
           status: 'cleanup-failed',

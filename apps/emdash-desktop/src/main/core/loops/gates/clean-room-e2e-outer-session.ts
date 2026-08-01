@@ -262,6 +262,7 @@ export async function bootstrapOuterSession(
     ? await operations.commitWorkspaceProgress(
         input,
         verificationProgress({
+          currentVerification: input.progress.current.loopState.verification,
           verificationRunId,
           attempt,
           status: 'running',
@@ -861,6 +862,7 @@ export async function bootstrapOuterSession(
     ? await operations.commitWorkspaceProgress(
         input,
         verificationProgress({
+          currentVerification: input.progress.current.loopState.verification,
           verificationRunId,
           attempt,
           status: 'running',
@@ -994,7 +996,7 @@ async function reserveSessionAuthorities(
   for (const session of distinctSessions(sessions)) {
     const key = sessionIdentityKey(session);
     if (indexes.has(key)) continue;
-    const collidesWithKnownAuthority = sessionIdentityCollidesWithKnownAuthority(
+    const alreadyDurablyRepresented = sessionIdentityIsAlreadyDurable(
       session,
       input,
       sessionAttempts
@@ -1009,7 +1011,7 @@ async function reserveSessionAuthorities(
       sessionAttempts
     );
     if (reserved.index === undefined) {
-      if (!collidesWithKnownAuthority) fullyRepresented = false;
+      if (!alreadyDurablyRepresented) fullyRepresented = false;
     } else {
       indexes.set(key, reserved.index);
     }
@@ -1036,14 +1038,14 @@ function cancelSessionsConcurrently(
   );
 }
 
-function sessionIdentityCollidesWithKnownAuthority(
+function sessionIdentityIsAlreadyDurable(
   session: Pick<E2ESessionInfo, 'attemptId' | 'conversationId'>,
   input: NormalizedInput,
   attempts: readonly LoopSessionAttempt[]
 ): boolean {
   return [...input.previousSessionAttempts, ...attempts].some(
     (attempt) =>
-      attempt.attemptId === session.attemptId || attempt.conversationId === session.conversationId
+      attempt.attemptId === session.attemptId && attempt.conversationId === session.conversationId
   );
 }
 

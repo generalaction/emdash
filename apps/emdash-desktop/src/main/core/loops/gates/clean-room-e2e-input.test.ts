@@ -3,6 +3,7 @@ import {
   CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
   type LoopSessionAttempt,
 } from '@shared/core/loops/loop-state';
+import { workspacePathsOverlap } from './clean-room-e2e-boundary';
 import type { RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
 import {
   BASE_COMMIT,
@@ -111,5 +112,17 @@ describe('clean-room E2E input authority', () => {
     }));
 
     expect(e2eCriteriaSchema.safeParse(oversized).success).toBe(false);
+  });
+
+  it.each([
+    ['/feature', '/feature/nested', true],
+    ['/feature/nested', '/feature', true],
+    ['/feature', '/feature-sibling', false],
+    ['C:\\Repo\\Feature', 'c:\\repo\\feature', true],
+    ['C:\\Repo', 'c:\\repo\\feature', true],
+    ['C:\\Repo\\Feature', 'D:\\Repo\\Feature', false],
+    ['/feature', 'C:\\feature', true],
+  ] as const)('detects machine-path overlap between %s and %s', (left, right, expectedOverlap) => {
+    expect(workspacePathsOverlap(left, right)).toBe(expectedOverlap);
   });
 });

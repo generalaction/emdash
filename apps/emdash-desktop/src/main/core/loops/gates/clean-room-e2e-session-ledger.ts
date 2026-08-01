@@ -16,6 +16,7 @@ import {
   sameTarget,
   validCommit,
   validId,
+  workspacePathsOverlap,
 } from './clean-room-e2e-boundary';
 import type {
   ActiveAttempt,
@@ -65,7 +66,8 @@ export function validateCleanRoom(
   if (
     !sameMachine(parsedTarget.data, input.featureTarget) ||
     parsedTarget.data.workspaceId === input.featureTarget.workspaceId ||
-    parsedTarget.data.path === input.featureTarget.path
+    workspacePathsOverlap(parsedTarget.data.path, input.featureTarget.path) ||
+    workspacePathsOverlap(parsedTarget.data.path, input.project.repoPath)
   ) {
     return {
       type: 'target-drift',
@@ -257,6 +259,21 @@ export function collectNestedAttemptSettlement(
         ambiguousActual = true;
       }
       for (const candidate of candidates.slice(0, CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS)) {
+        const reportedIdentity = readableAttemptIdentity(candidate);
+        if (
+          reportedIdentity &&
+          (reportedIdentity.attemptId !== starting.attemptId ||
+            reportedIdentity.conversationId !== starting.conversationId) &&
+          [...input.previousSessionAttempts, ...attempts].some(
+            (attempt) =>
+              (attempt.attemptId === reportedIdentity.attemptId ||
+                attempt.conversationId === reportedIdentity.conversationId) &&
+              (attempt.attemptId !== reportedIdentity.attemptId ||
+                attempt.conversationId !== reportedIdentity.conversationId)
+          )
+        ) {
+          ambiguousActual = true;
+        }
         const normalized = normalizeNestedAttemptCandidate(
           candidate,
           starting,
@@ -297,9 +314,12 @@ export function collectNestedAttemptSettlement(
               (attempt.attemptId === normalized.attemptId ||
                 attempt.conversationId === normalized.conversationId)
           );
-        if (collides) continue;
+        if (collides) {
+          ambiguousActual = true;
+          continue;
+        }
         actuals.push(normalized);
-        ambiguousActual = actuals.length > 1;
+        ambiguousActual ||= actuals.length > 1;
       }
     }
   } catch {
@@ -317,6 +337,22 @@ export function collectNestedAttemptSettlement(
     actuals,
     ambiguousActual,
   };
+}
+
+function readableAttemptIdentity(
+  value: unknown
+): Pick<LoopSessionAttempt, 'attemptId' | 'conversationId'> | undefined {
+  try {
+    const parsed = loopSessionAttemptSchema.safeParse(value);
+    return parsed.success && hasCanonicalAttemptFields(value, parsed.data)
+      ? {
+          attemptId: parsed.data.attemptId,
+          conversationId: parsed.data.conversationId,
+        }
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeNestedAttemptCandidate(

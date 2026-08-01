@@ -17,12 +17,14 @@ import {
   copyTarget,
   hasCanonicalPhaseState,
   isCanonicalTarget,
+  monotonicTimestamp,
   redactPersistedText,
   sameMachine,
   sameTarget,
   stabilizePlainSuccess,
   validCommit,
   validId,
+  workspacePathsOverlap,
 } from './clean-room-e2e-boundary';
 import type {
   CleanRoomE2EGateStage,
@@ -131,6 +133,7 @@ export function validatePrerequisites(
 }
 
 export function verificationProgress(input: {
+  currentVerification: LoopVerificationWorkspaceState | null;
   verificationRunId: string;
   attempt: number;
   status: LoopVerificationWorkspaceState['status'];
@@ -151,7 +154,7 @@ export function verificationProgress(input: {
     expectedFeatureHead: input.featureHead,
     cleanup: {
       status: input.cleanupStatus ?? 'pending',
-      updatedAt: input.updatedAt,
+      updatedAt: monotonicTimestamp(input.currentVerification?.cleanup.updatedAt, input.updatedAt),
       ...(input.cleanupError
         ? { error: boundedSummary(input.cleanupError, 'Workspace cleanup failed.') }
         : {}),
@@ -183,6 +186,8 @@ export function safePendingCleanup(
       pendingWorkspace.target
     ) ||
     !sameTarget(record.featureTarget, input.featureTarget) ||
+    workspacePathsOverlap(record.target.path, input.featureTarget.path) ||
+    workspacePathsOverlap(record.target.path, input.project.repoPath) ||
     record.baseCommit !== input.baseCommit ||
     record.expectedFeatureHead !== pendingWorkspace.expectedFeatureHead
   ) {
@@ -214,7 +219,8 @@ export function safeCreatePendingCleanup(
     !sameTarget(record.featureTarget, input.featureTarget) ||
     !sameMachine(target, input.featureTarget) ||
     target.workspaceId === input.featureTarget.workspaceId ||
-    target.path === input.featureTarget.path ||
+    workspacePathsOverlap(target.path, input.featureTarget.path) ||
+    workspacePathsOverlap(target.path, input.project.repoPath) ||
     record.baseCommit !== input.baseCommit ||
     record.expectedFeatureHead !== featureHead
   ) {

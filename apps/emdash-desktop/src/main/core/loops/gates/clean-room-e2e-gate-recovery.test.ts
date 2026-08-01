@@ -326,6 +326,39 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
   });
 
+  it('rejects create-failure cleanup authority that overlaps the feature workspace', async () => {
+    const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+    const overlappingCleanup = makePendingCleanup({
+      workspaceId: 'overlapping-cleanup-workspace',
+      path: `${featureTarget.path}/verification-child`,
+      machine: { ...featureTarget.machine },
+    });
+    vi.mocked(harness.dependencies.cleanRoom.create).mockResolvedValueOnce(
+      err({
+        type: 'cleanup-failed',
+        message: 'creation returned unsafe cleanup authority',
+        pendingCleanup: overlappingCleanup,
+      })
+    );
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'cleanup-failed',
+        stage: 'create',
+        recoveryRequired: true,
+        lastWorkspaceDestroyed: false,
+      },
+    });
+    if (result.success) throw new Error('Expected unsafe cleanup authority rejection.');
+    expect(result.error).not.toHaveProperty('pendingCleanup');
+    expect(result.error).not.toHaveProperty('pendingWorkspace');
+    expect(harness.dependencies.execution.acquire).not.toHaveBeenCalled();
+    expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+  });
+
   it('clears preparing authority only when creation explicitly proves quiescence', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     vi.mocked(harness.dependencies.cleanRoom.create).mockResolvedValueOnce(
@@ -1589,6 +1622,74 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     expect(harness.dependencies.cleanRoom.create).toHaveBeenCalledOnce();
   }, 60_000);
 
+  it.each(['attempt', 'conversation'] as const)(
+    'retains recovery authority when a nested actual identity partially collides by %s ID',
+    async (collision) => {
+      const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
+      vi.mocked(harness.dependencies.requiredChecks.run).mockImplementationOnce(async (input) =>
+        err({
+          message: 'checks rejected after a partially colliding nested identity',
+          quiescent: true,
+          recoveryRequired: false,
+          sessionAttempts: [
+            nestedAttempt({
+              attemptId: input.sessionIdentity.attemptId,
+              conversationId: input.sessionIdentity.conversationId,
+              phaseId: input.authority.phaseId,
+              verificationRunId: input.verificationRunId,
+              target: input.target,
+              checkpointBefore: input.checkpointCommit,
+              checkpointAfter: input.checkpointCommit,
+            }),
+            nestedAttempt({
+              attemptId:
+                collision === 'attempt' ? 'e2e-attempt-1' : 'nested-colliding-actual-attempt',
+              conversationId:
+                collision === 'conversation'
+                  ? 'e2e-conversation-1'
+                  : 'nested-colliding-actual-conversation',
+              phaseId: input.authority.phaseId,
+              verificationRunId: input.verificationRunId,
+              target: input.target,
+              checkpointBefore: input.checkpointCommit,
+              checkpointAfter: input.checkpointCommit,
+            }),
+            nestedAttempt({
+              attemptId: 'fresh-actual-after-partial-collision',
+              conversationId: 'fresh-conversation-after-partial-collision',
+              phaseId: input.authority.phaseId,
+              verificationRunId: input.verificationRunId,
+              target: input.target,
+              checkpointBefore: input.checkpointCommit,
+              checkpointAfter: input.checkpointCommit,
+            }),
+          ],
+        })
+      );
+
+      const result = await harness.gate.run(defaultInput);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          type: 'native-verifier-ledger-ambiguous',
+          stage: 'required-checks',
+          recoveryRequired: true,
+          lastWorkspaceDestroyed: false,
+          pendingWorkspace: { cleanupId: 'cleanup-loop-verify-1' },
+          sessionAttempts: expect.arrayContaining([
+            expect.objectContaining({
+              attemptId: 'fresh-actual-after-partial-collision',
+              conversationId: 'fresh-conversation-after-partial-collision',
+            }),
+          ]),
+        },
+      });
+      expect(harness.dependencies.execution.release).not.toHaveBeenCalled();
+      expect(harness.dependencies.cleanRoom.destroy).not.toHaveBeenCalled();
+    }
+  );
+
   it('durably retains a mismatched fresh session identity that was actually created', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     const start = vi.mocked(harness.dependencies.session.startFreshE2ESession);
@@ -1776,20 +1877,20 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     });
 
     expect(result).toMatchObject({
-      success: false,
-      error: {
-        stage: 'progress',
+      success: true,
+      data: {
+        lastWorkspaceDestroyed: true,
         intermediateFailures: [
           { source: 'Prior E2E failure' },
           { source: 'Clean-room E2E correction' },
         ],
       },
     });
-    if (result.success) throw new Error('Expected rollback-safe cleanup rejection.');
-    const sourceAttempt = result.error.sessionAttempts.find(
+    if (!result.success) throw new Error('Expected rollback-safe monotonic completion.');
+    const sourceAttempt = result.data.sessionAttempts.find(
       (attempt) => attempt.purpose === 'e2e' && attempt.verificationRunId === 'verification-run-1'
     );
-    const correction = result.error.intermediateFailures.find(
+    const correction = result.data.intermediateFailures.find(
       (handoff) => handoff.source === 'Clean-room E2E correction'
     );
     expect(sourceAttempt).toBeDefined();

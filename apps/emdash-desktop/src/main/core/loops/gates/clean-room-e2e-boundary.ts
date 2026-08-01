@@ -601,6 +601,36 @@ export function isCanonicalAbsolutePath(value: unknown): value is string {
   return canonicalPosix || canonicalWindows;
 }
 
+export function workspacePathsOverlap(left: string, right: string): boolean {
+  if (!isCanonicalAbsolutePath(left) || !isCanonicalAbsolutePath(right)) return true;
+  const leftIsWindows = win32.isAbsolute(left) && !left.includes('/');
+  const rightIsWindows = win32.isAbsolute(right) && !right.includes('/');
+  if (leftIsWindows !== rightIsWindows) return true;
+  if (leftIsWindows) {
+    return (
+      pathContains(win32, left.toLowerCase(), right.toLowerCase()) ||
+      pathContains(win32, right.toLowerCase(), left.toLowerCase())
+    );
+  }
+  return pathContains(posix, left, right) || pathContains(posix, right, left);
+}
+
+function pathContains(
+  pathApi: {
+    isAbsolute(path: string): boolean;
+    relative(from: string, to: string): string;
+    sep: string;
+  },
+  parent: string,
+  child: string
+): boolean {
+  const relative = pathApi.relative(parent, child);
+  return (
+    relative === '' ||
+    (relative !== '..' && !relative.startsWith(`..${pathApi.sep}`) && !pathApi.isAbsolute(relative))
+  );
+}
+
 export function validTimestamp(value: unknown): value is string {
   if (
     typeof value !== 'string' ||
