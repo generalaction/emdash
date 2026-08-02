@@ -41,6 +41,7 @@ import { e2eProgressStore } from '../operations/e2e-progress-store';
 import { getLoop } from '../operations/loop-operations';
 import { createNativeBrowserVerifier } from '../verifiers/native-browser';
 import { NativeBrowserE2EAttestationService } from '../verifiers/native-browser-e2e-attestation';
+import { priorPhasesForE2E } from './clean-room-e2e-prerequisites';
 import { runLoopCommand } from './loop-command-runner';
 import {
   resolveExplicitLoopExecutionTarget,
@@ -422,8 +423,9 @@ export async function runCleanRoomE2EPhase(input: {
     prerequisites: {
       resolve: async ({ loopId, phaseId }) => {
         const resolved = await getLoop(loopId);
-        return resolved?.phases.some((candidate) => candidate.id === phaseId)
-          ? ok({ phases: resolved.phases })
+        const phases = priorPhasesForE2E(resolved, phaseId);
+        return phases
+          ? ok({ phases })
           : err(dependencyError('Loop E2E prerequisites are unavailable.'));
       },
     },
