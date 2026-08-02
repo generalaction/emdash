@@ -48,6 +48,30 @@ describe('clean-room E2E input authority', () => {
     expect(isCanonicalAbsolutePath('/home/alice/token=raw-credential')).toBe(false);
   });
 
+  it('accepts canonical SQLite UTC metadata timestamps without relaxing durable ISO timestamps', () => {
+    const sqliteTimestamp = '2026-08-02 04:35:50';
+    const result = safeNormalizeInput({
+      ...defaultInput,
+      loop: {
+        ...defaultInput.loop,
+        createdAt: sqliteTimestamp,
+        updatedAt: sqliteTimestamp,
+      },
+      phase: {
+        ...defaultInput.phase,
+        createdAt: sqliteTimestamp,
+        updatedAt: sqliteTimestamp,
+      },
+    });
+    const malformed = safeNormalizeInput({
+      ...defaultInput,
+      loop: { ...defaultInput.loop, updatedAt: '2026-08-02 4:35:50' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(malformed).toMatchObject({ success: false, error: { type: 'invalid-input' } });
+  });
+
   it('accepts canonical historical v1 state only through the explicit v2 upgrade path', () => {
     if (!defaultInput.loop.state || defaultInput.loop.state.version !== '2') {
       throw new Error('Expected the current Loop state fixture.');

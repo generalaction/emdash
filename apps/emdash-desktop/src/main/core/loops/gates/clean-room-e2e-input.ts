@@ -409,16 +409,28 @@ export function validCoreAuthority(input: RunCleanRoomE2EGateInput): boolean {
         (typeof input.phase.lastError === 'string' &&
           input.phase.lastError.length <= MAX_SUMMARY_LENGTH &&
           redactPersistedText(input.phase.lastError) === input.phase.lastError)) &&
-      validTimestamp(input.loop.createdAt) &&
-      validTimestamp(input.loop.updatedAt) &&
-      validTimestamp(input.phase.createdAt) &&
-      validTimestamp(input.phase.updatedAt) &&
+      validEntityTimestamp(input.loop.createdAt) &&
+      validEntityTimestamp(input.loop.updatedAt) &&
+      validEntityTimestamp(input.phase.createdAt) &&
+      validEntityTimestamp(input.phase.updatedAt) &&
       typeof input.project.repoPath === 'string' &&
       isCanonicalAbsolutePath(input.project.repoPath)
     );
   } catch {
     return false;
   }
+}
+
+function validEntityTimestamp(value: unknown): value is string {
+  if (validTimestamp(value)) return true;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/u.test(value)) {
+    return false;
+  }
+  const parsed = new Date(`${value.replace(' ', 'T')}Z`);
+  return (
+    Number.isFinite(parsed.getTime()) &&
+    parsed.toISOString().replace('T', ' ').slice(0, 19) === value
+  );
 }
 
 export function snapshotProject(project: CleanRoomProject): CleanRoomProject {
