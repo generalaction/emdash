@@ -9,6 +9,8 @@ import {
   type NativeBrowserResult,
   type NativeBrowserVerificationSession,
 } from '@main/core/browser/native-browser-verification-service';
+import { getLoop } from '@main/core/loops/operations/loop-operations';
+import { adoptTerminalCorrectionForRetry } from '@main/core/loops/operations/terminal-phase-progress';
 import { previewServerService } from '@main/core/preview-servers/preview-server-service-instance';
 import { events } from '@main/lib/events';
 import type {
@@ -16,6 +18,8 @@ import type {
   LoopBrowserLease,
   LoopBrowserClosedMessage,
 } from '@shared/core/loops/loop-browser-contracts';
+import { loopPhaseStateV2Schema } from '@shared/core/loops/loop-phase-state';
+import { loopStateV2Schema } from '@shared/core/loops/loop-state';
 import {
   loopBrowserActionChannel,
   loopBrowserClosedChannel,
@@ -142,6 +146,45 @@ export function registerLoopsElectronTestBridge(): void {
   registered = true;
 
   ipcMain.handle('loopsElectronTest.ping', () => ({ mode: 'loops-electron' as const }));
+  ipcMain.handle(
+    'loopsElectronTest.adoptTerminalCorrectionForRetry',
+    async (
+      _event,
+      input: {
+        loopId: string;
+        phaseId: string;
+        expectedCheckpoint: string;
+        checkpointCommit: string;
+      }
+    ) => {
+      const loop = await getLoop(input.loopId);
+      const phase = loop?.phases.find((candidate) => candidate.id === input.phaseId);
+      const loopState = loopStateV2Schema.safeParse(loop?.state);
+      const phaseState = loopPhaseStateV2Schema.safeParse(phase?.state);
+      if (
+        !loop ||
+        !phase ||
+        !loopState.success ||
+        !phaseState.success ||
+        loop.status !== 'paused' ||
+        loop.currentPhaseIndex !== phase.idx ||
+        phase.kind !== 'review' ||
+        phase.status !== 'pending' ||
+        loopState.data.checkpointCommit !== input.expectedCheckpoint
+      ) {
+        throw new Error('Refusing to adopt a correction outside a paused pending Review retry');
+      }
+      const adopted = await adoptTerminalCorrectionForRetry({
+        loopId: loop.id,
+        phaseId: phase.id,
+        expectedLoopState: loopState.data,
+        expectedPhaseState: phaseState.data,
+        checkpointCommit: input.checkpointCommit,
+      });
+      if (!adopted.success) throw new Error(adopted.error.message);
+      return adopted.data;
+    }
+  );
   ipcMain.handle(
     'loopsElectronTest.registerLocalPreview',
     async (

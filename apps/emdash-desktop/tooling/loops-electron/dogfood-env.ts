@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 
 const [command, sourcePath, targetPath, origin] = process.argv.slice(2);
@@ -23,9 +24,21 @@ for (const key of required) {
   assert.ok(source[key], `${key} is missing from the preserved Summario environment`);
 }
 
+const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const jwtPrivateKey = privateKey
+  .export({ format: 'pem', type: 'pkcs8' })
+  .toString()
+  .trimEnd()
+  .replace(/\n/g, ' ');
+const jwks = JSON.stringify({
+  keys: [{ use: 'sig', ...publicKey.export({ format: 'jwk' }) }],
+});
+
 const projection = [
   `AGENT_LOGIN_PASSWORD=${quoteDotEnv(source.AGENT_LOGIN_PASSWORD)}`,
   `GOOGLE_GEMINI_API_KEY=${quoteDotEnv(source.GOOGLE_GEMINI_API_KEY)}`,
+  `JWT_PRIVATE_KEY=${quoteDotEnv(jwtPrivateKey)}`,
+  `JWKS=${jwks}`,
   `SITE_URL=${quoteDotEnv(appOrigin)}`,
   'SUMMARIO_BROWSER_FIXTURES=local',
   'WORKOS_CLIENT_ID=client_emdash_wave5_local_nonfunctional',
@@ -37,7 +50,7 @@ const projection = [
 writeFileSync(targetPath, `${projection}\n`, { mode: 0o600 });
 chmodSync(targetPath, 0o600);
 process.stdout.write(
-  'Wrote mode-0600 Wave 5 Convex projection with required secret keys, local-only WorkOS placeholders, and loopback origin.\n'
+  'Wrote mode-0600 Wave 5 Convex projection with fresh auth keys, required secret keys, local-only WorkOS placeholders, and loopback origin.\n'
 );
 
 function parseDotEnv(contents: string): Record<string, string> {

@@ -9,14 +9,14 @@ import { _electron, type ElectronApplication, type Page } from 'playwright';
 const require = createRequire(import.meta.url);
 const electronPath = require('electron') as string;
 const command = process.argv[2] ?? 'status';
+const cdpPort = process.env.EMDASH_LOOPS_DOGFOOD_CDP_PORT;
 const durableRoot =
   process.env.EMDASH_LOOPS_DOGFOOD_ROOT ??
   '/home/devuser/emdash/worktrees/emdash/acp-loops-v2/dogfood/wave5';
 const worktreeRoot =
   process.env.EMDASH_LOOPS_DOGFOOD_WORKTREE_ROOT ??
   '/home/devuser/emdash/worktrees/summario/acp-loops-v2';
-const sourceRepo =
-  process.env.EMDASH_LOOPS_DOGFOOD_SOURCE ?? '/home/devuser/projects/summario';
+const sourceRepo = process.env.EMDASH_LOOPS_DOGFOOD_SOURCE ?? '/home/devuser/projects/summario';
 const statePath = join(durableRoot, 'state.json');
 const dbFile = join(durableRoot, 'emdash.db');
 const userData = join(durableRoot, 'user-data');
@@ -30,6 +30,10 @@ type Loop = {
   id: string;
   status: string;
   currentPhaseIndex: number;
+  state?: {
+    version: '2';
+    checkpointCommit: string | null;
+  } | null;
   phases: Array<{
     id: string;
     name: string;
@@ -72,7 +76,13 @@ let electronApp: ElectronApplication | undefined;
 try {
   electronApp = await _electron.launch({
     executablePath: electronPath,
-    args: ['.', '--no-sandbox', '--disable-gpu', '--password-store=basic'],
+    args: [
+      '.',
+      '--no-sandbox',
+      '--disable-gpu',
+      '--password-store=basic',
+      ...(cdpPort ? [`--remote-debugging-port=${cdpPort}`] : []),
+    ],
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -101,6 +111,12 @@ try {
     await status(page);
   } else if (command === 'start') {
     await start(page);
+  } else if (command === 'retry') {
+    await retry(page);
+  } else if (command === 'adopt-review-correction') {
+    await adoptReviewCorrection(page);
+  } else if (command === 'resume') {
+    await resume(page);
   } else {
     throw new Error(`Unknown Wave 5 dogfood command: ${command}`);
   }
@@ -142,46 +158,43 @@ async function prepare(page: Page): Promise<void> {
     requireSuccess(createdProject, 'Wave 5 project creation');
   }
 
-  const created = await invoke<
-    RpcResult<{ task: { task: { workspaceId?: string } }; loop: Loop }>
-  >(page, 'loops.createTaskWithLoop', {
-    task: {
-      id: taskId,
-      projectId,
-      taskConfig: { version: '1', name: 'Wave 5 custom vocabulary pilot' },
-      workspaceConfig: {
-        version: '2',
-        git: {
-          kind: 'create-branch',
-          branchName,
-          fromBranch: {
-            type: 'remote',
-            branch: 'main',
-            remote: { name: 'origin', url: remoteUrl },
+  const created = await invoke<RpcResult<{ task: { task: { workspaceId?: string } }; loop: Loop }>>(
+    page,
+    'loops.createTaskWithLoop',
+    {
+      task: {
+        id: taskId,
+        projectId,
+        taskConfig: { version: '1', name: 'Wave 5 custom vocabulary pilot' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName,
+            fromBranch: {
+              type: 'remote',
+              branch: 'main',
+              remote: { name: 'origin', url: remoteUrl },
+            },
+            pushBranch: false,
           },
-          pushBranch: false,
+          workspace: { kind: 'new-worktree' },
         },
-        workspace: { kind: 'new-worktree' },
       },
-    },
-    loop: {
-      name: 'Summario custom vocabulary pilot',
-      model: 'gpt-5.6-sol',
-      planSource: wave5PlanSource(),
-      validationCommands: [
-        'pnpm test',
-        'pnpm exec tsc --noEmit',
-        'pnpm lint',
-        'pnpm build',
-      ],
-      terminalGates: { review: true, e2e: true },
-      browserPreview: { enabled: true },
-      workPhases: wave5WorkPhases(),
-      acceptanceCriteria: [
-        'Native preview proves default-on, opt-out, loading/failure/retry, editable/removable suggestions, persistence, manual-term preservation, edit flow, completed-Meeting absence, and continued transcription-context use.',
-      ],
-    },
-  });
+      loop: {
+        name: 'Summario custom vocabulary pilot',
+        model: 'gpt-5.6-sol',
+        planSource: wave5PlanSource(),
+        validationCommands: ['pnpm test', 'pnpm exec tsc --noEmit', 'pnpm lint', 'pnpm build'],
+        terminalGates: { review: true, e2e: true },
+        browserPreview: { enabled: true },
+        workPhases: wave5WorkPhases(),
+        acceptanceCriteria: [
+          'Native preview proves default-on, opt-out, loading/failure/retry, editable/removable suggestions, persistence, manual-term preservation, edit flow, completed-Meeting absence, and continued transcription-context use.',
+        ],
+      },
+    }
+  );
   requireSuccess(created, 'Wave 5 task and Loop creation');
 
   const provisioned = await invoke<RpcResult<{ path: string; workspaceId: string }>>(
@@ -287,6 +300,69 @@ async function start(page: Page): Promise<void> {
   const started = await invoke<RpcResult<Loop>>(page, 'loops.startLoop', state.loopId);
   requireSuccess(started, 'Wave 5 Loop start');
   process.stdout.write(`Wave 5 Loop ${state.loopId} started.\n`);
+  await monitor(page, state);
+}
+
+async function retry(page: Page): Promise<void> {
+  const state = readState();
+  await ensureProjectOpen(page);
+  const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
+  requireSuccess(before, 'Wave 5 pre-retry Loop read');
+  assert.equal(before.data.status, 'failed', `Wave 5 Loop is ${before.data.status}, not failed`);
+  const active = before.data.phases[before.data.currentPhaseIndex];
+  assert.ok(active, 'Wave 5 failed without an active phase');
+  const retried = await invoke<RpcResult<Loop>>(page, 'loops.retryPhase', state.loopId, active.id);
+  requireSuccess(retried, 'Wave 5 Loop phase retry');
+  process.stdout.write(`Wave 5 Loop ${state.loopId} retrying ${active.name}.\n`);
+  await monitor(page, state);
+}
+
+async function resume(page: Page): Promise<void> {
+  const state = readState();
+  await ensureProjectOpen(page);
+  const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
+  requireSuccess(before, 'Wave 5 pre-resume Loop read');
+  assert.equal(before.data.status, 'paused', `Wave 5 Loop is ${before.data.status}, not paused`);
+  const resumed = await invoke<RpcResult<Loop>>(page, 'loops.resumeLoop', state.loopId);
+  requireSuccess(resumed, 'Wave 5 Loop resume');
+  process.stdout.write(`Wave 5 Loop ${state.loopId} resumed.\n`);
+  await monitor(page, state);
+}
+
+async function adoptReviewCorrection(page: Page): Promise<void> {
+  const state = readState();
+  await ensureProjectOpen(page);
+  const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
+  requireSuccess(before, 'Wave 5 pre-adoption Loop read');
+  assert.equal(before.data.status, 'paused', 'Wave 5 Loop is not paused');
+  const phase = before.data.phases[before.data.currentPhaseIndex];
+  assert.ok(phase, 'Wave 5 current phase is unavailable');
+  assert.equal(phase.kind, 'review', 'Wave 5 current phase is not Review');
+  assert.equal(phase.status, 'pending', 'Wave 5 Review is not pending');
+  const expectedCheckpoint = before.data.state?.checkpointCommit;
+  assert.ok(expectedCheckpoint, 'Wave 5 checkpoint authority is unavailable');
+  assert.equal(git(state.workspacePath, ['status', '--porcelain=v1']), '', 'Workspace is dirty');
+  const checkpointCommit = git(state.workspacePath, ['rev-parse', 'HEAD']).trim();
+  assert.equal(
+    git(state.workspacePath, ['rev-parse', 'HEAD^']).trim(),
+    expectedCheckpoint,
+    'Review correction is not a direct child of Loop authority'
+  );
+  assert.equal(
+    git(state.workspacePath, ['rev-list', '--count', `${expectedCheckpoint}..HEAD`]).trim(),
+    '1',
+    'Review correction must contain exactly one commit'
+  );
+  await invoke(page, 'loopsElectronTest.adoptTerminalCorrectionForRetry', {
+    loopId: state.loopId,
+    phaseId: phase.id,
+    expectedCheckpoint,
+    checkpointCommit,
+  });
+  process.stdout.write(`Adopted validated Review correction ${checkpointCommit}.\n`);
+}
+
+async function monitor(page: Page, state: DogfoodState): Promise<void> {
   while (true) {
     const current = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
     requireSuccess(current, 'Wave 5 Loop poll');
@@ -320,7 +396,10 @@ async function invoke<T = unknown>(page: Page, channel: string, ...args: unknown
   })) as T;
 }
 
-function requireSuccess<T>(result: RpcResult<T>, label: string): asserts result is { success: true; data: T } {
+function requireSuccess<T>(
+  result: RpcResult<T>,
+  label: string
+): asserts result is { success: true; data: T } {
   assert.equal(result.success, true, `${label} failed: ${JSON.stringify(result)}`);
 }
 
