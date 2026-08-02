@@ -1293,7 +1293,7 @@ fresh recreated green run becomes the final success report.
   the focused DB test passed, app typecheck passed, and the deterministic Electron local/SSH
   forwarding/rotation harness remained green. No branch was pushed.
 - [x] Complete independent review, local Electron proof, and Docker/current-container SSH proof.
-- [ ] 2026-08-01: Prepared Wave 5 through the production Emdash RPC path without starting ACP.
+- [x] 2026-08-01: Prepared Wave 5 through the production Emdash RPC path without starting ACP.
   Emdash created task `acp-loops-v2-wave5-vocabulary`, Loop
   `d5fc8f9b-c6d8-421d-a0f0-a70cc56ea01c`, workspace
   `d6b8b42a-3a07-4c7e-bc53-573c565a1206`, and branch
@@ -1303,7 +1303,7 @@ fresh recreated green run becomes the final success report.
   it is clean, and `.env.local` was preserved mode 0600. The isolated Emdash DB/user data and
   secret-free state are under
   `/home/devuser/emdash/worktrees/emdash/acp-loops-v2/dogfood/wave5`.
-- [ ] 2026-08-01: Wave 5 preflight proved a fresh local Convex deployment, non-interactive Auth
+- [x] 2026-08-01: Wave 5 preflight proved a fresh local Convex deployment, non-interactive Auth
   component initialization, eight-variable external mode-0600 projection, canonical native
   preview origin `http://127.0.0.1:3000`, and a 200 `/auth/agent-login` response. Current
   `origin/main` additionally requires four load-time WorkOS values; the isolated lease used
@@ -1313,14 +1313,18 @@ fresh recreated green run becomes the final success report.
   empty, Next and Convex were stopped, `.convex/`, the temporary audit directory, and the secret
   projection were deleted, and the run-owned Git exclude line was removed. No fixture or ACP
   session started.
-- [ ] 2026-08-01: Wave 5 is paused at its mandatory external human pre-auth boundary. The plan
-  forbids putting the password in a URL, prompt, log, screenshot, or browser action payload. This
-  runner has no human-controllable display (`DISPLAY` is unset), and the production Loop browser
-  host intentionally renders its disposable WebContents hidden. Agent Browser can connect to
-  Electron but cannot legally substitute for the required human password entry. Resume by
-  providing a human-controllable native Electron display/profile for `/auth/agent-login`, then
-  create a new fresh backend attempt before starting the still-draft Loop. Do not reuse the
-  destroyed backend state or downgrade authentication.
+- [x] 2026-08-02: Executed the Wave 5 implementation and review phases through the production Loop.
+  The clean feature branch reached `3ca2f3cdea8f803d7d94e1fbf448e21c5ae6ab01`; all three work
+  phases and the independent Review phase passed. The final clean-room E2E attempt passed 124 test
+  files and 1,011 tests, strict TypeScript, lint, production build, clean-tree checks, and a
+  secret-pattern diff scan. The Loop then failed closed because its E2E agent ran a diagnostic
+  process listing with command-line arguments, violating the no-secret-bearing-process-arguments
+  rule before the authenticated browser fixture flow began. This was the third and final durable
+  E2E attempt; no retry or Wave 6 work was started. The failed clean room was removed, all owned
+  ports and the isolated local deployment were torn down, and external secret/pre-auth files were
+  deleted. The pre-teardown table audit recorded `templates`, `meetings`, and `oauthTokens`
+  non-empty and `shareLinks`, `meetingSeries`, and `driveExports` empty; no Wave 5 vocabulary
+  fixture had been created.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
@@ -1464,10 +1468,13 @@ fresh recreated green run becomes the final success report.
 ## Outcomes & Retrospective
 
 Implementation, independent remediation, and the live two-phase local/SSH proof are complete
-through Wave 4 on the isolated integration branch. Wave 5 has a clean Emdash-created draft task and
-proven fresh-backend preflight, but ACP has not started because this runner cannot satisfy mandatory
-human-only password entry into the hidden disposable native browser. The contaminated preflight
-lease was fully cleaned and may not be reused. Both Summario acceptance Loops remain incomplete.
+through Wave 4 on the isolated integration branch. Wave 5 implementation and independent review
+are complete on a clean Summario branch, and its full code-level E2E regression gates passed. The
+Wave 5 Loop nevertheless failed closed on its final attempt because the E2E agent emitted process
+command-line arguments during diagnostics; the authenticated browser fixture flow therefore never
+started. The isolated backend and browser lease were fully cleaned and may not be reused. Wave 6
+was not started because the Wave 5 independent gate is not green. Both Summario acceptance Loops
+remain incomplete.
 At final completion, compare the observable result with `Purpose and observable outcome`, list exact
 validation evidence, and state any remaining blocker without claiming success for an unverified
 path.
