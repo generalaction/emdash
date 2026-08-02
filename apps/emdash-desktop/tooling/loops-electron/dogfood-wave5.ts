@@ -354,6 +354,7 @@ async function retry(page: Page): Promise<void> {
 async function resume(page: Page): Promise<void> {
   const state = readState();
   await ensureProjectOpen(page);
+  await ensureCleanRoomRuntimeSettings(page);
   await registerPreview(page);
   const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
   requireSuccess(before, 'Wave 5 pre-resume Loop read');
@@ -362,6 +363,27 @@ async function resume(page: Page): Promise<void> {
   requireSuccess(resumed, 'Wave 5 Loop resume');
   process.stdout.write(`Wave 5 Loop ${state.loopId} resumed.\n`);
   await monitor(page, state);
+}
+
+async function ensureCleanRoomRuntimeSettings(page: Page): Promise<void> {
+  const settingsPage = await invoke<
+    RpcResult<{ settings: Record<string, unknown> & { scripts?: Record<string, string> } }>
+  >(page, 'projects.getProjectSettingsPage', projectId);
+  requireSuccess(settingsPage, 'Wave 5 project settings read');
+  const updated = await invoke<RpcResult<Record<string, unknown>>>(
+    page,
+    'projects.updateProjectSettings',
+    projectId,
+    {
+      ...settingsPage.data.settings,
+      scripts: {
+        ...settingsPage.data.settings.scripts,
+        run: 'pnpm dev',
+      },
+    }
+  );
+  requireSuccess(updated, 'Wave 5 clean-room runtime settings');
+  process.stdout.write('Wave 5 clean-room run lifecycle configured.\n');
 }
 
 async function adoptReviewCorrection(page: Page): Promise<void> {
