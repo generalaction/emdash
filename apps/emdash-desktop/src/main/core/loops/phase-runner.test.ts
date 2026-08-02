@@ -734,6 +734,7 @@ describe('PhaseRunner', () => {
     expect(runTerminalReviewPhase).toHaveBeenCalledOnce();
     expect(commitTerminalPhaseSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversationId: 'review-conversation',
         checkpointCommit: checkpoint,
         result: stageResult,
         sessionAttempts: [expect.objectContaining({ purpose: 'review', status: 'completed' })],
@@ -825,6 +826,7 @@ describe('PhaseRunner', () => {
     expect(result.success && result.data.kind).toBe('failed');
     expect(commitTerminalPhaseFailure).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversationId: 'review-conversation',
         checkpointCommit: correction,
         result: stageResult,
         sessionAttempts: [

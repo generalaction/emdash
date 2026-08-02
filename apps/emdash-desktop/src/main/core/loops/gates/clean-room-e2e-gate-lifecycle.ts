@@ -81,7 +81,7 @@ export function validatePrerequisites(
       phase.idx !== index ||
       (phase.kind !== 'work' && phase.kind !== 'review') ||
       phase.status !== 'passed' ||
-      !validId(phase.conversationId) ||
+      (phase.conversationId !== null && !validId(phase.conversationId)) ||
       state === null ||
       !state.success ||
       !hasCanonicalPhaseState(phase.state) ||
@@ -96,14 +96,16 @@ export function validatePrerequisites(
     ids.add(phase.id);
     if (phase.kind === 'review') reviewCount += 1;
     const purpose = phase.kind === 'review' ? 'review' : 'work';
-    const exactAttempt = input.loop.state?.sessionAttempts.some(
+    const exactAttempts = input.loop.state?.sessionAttempts.filter(
       (attempt) =>
         attempt.purpose === purpose &&
         attempt.phaseId === phase.id &&
-        attempt.conversationId === phase.conversationId &&
         attempt.status === 'completed' &&
         attempt.checkpointAfter === state.data.checkpointCommit
     );
+    const exactAttempt =
+      exactAttempts?.length === 1 &&
+      (phase.conversationId === null || exactAttempts[0]?.conversationId === phase.conversationId);
     if (!exactAttempt) {
       return {
         type: 'prerequisite-authority-invalid',

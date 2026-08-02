@@ -18,6 +18,7 @@ export async function commitTerminalPhaseSuccess(input: {
   phaseId: string;
   expectedLoopState: LoopStateV2;
   expectedPhaseState: LoopPhaseState;
+  conversationId: string;
   checkpointCommit: string;
   handoff: LoopPhaseHandoff | null;
   result: LoopStageResult;
@@ -57,6 +58,7 @@ export async function commitTerminalPhaseSuccess(input: {
       tx.update(loopPhases)
         .set({
           status: 'passed',
+          conversationId: input.conversationId,
           state: {
             ...input.expectedPhaseState,
             checkpointCommit: input.checkpointCommit,
@@ -89,6 +91,7 @@ export async function commitTerminalPhaseFailure(input: {
   phaseId: string;
   expectedLoopState: LoopStateV2;
   expectedPhaseState: LoopPhaseState;
+  conversationId: string;
   checkpointCommit: string;
   result: LoopStageResult;
   sessionAttempts: readonly LoopSessionAttempt[];
@@ -129,6 +132,7 @@ export async function commitTerminalPhaseFailure(input: {
       tx.update(loopPhases)
         .set({
           status: 'failed',
+          conversationId: input.conversationId,
           state: {
             ...input.expectedPhaseState,
             checkpointCommit: input.checkpointCommit,

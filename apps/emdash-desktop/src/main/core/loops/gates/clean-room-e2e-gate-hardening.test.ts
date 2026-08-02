@@ -5,6 +5,7 @@ import { CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT } from '@shared/core/loo
 import type { LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
 import type { CleanRoomE2EGateDependencies, RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
+import { validatePrerequisites } from './clean-room-e2e-gate-lifecycle';
 import {
   E2E_CRITERIA,
   FEATURE_COMMIT,
@@ -26,6 +27,7 @@ import {
   type Harness,
   type TargetEchoPort,
 } from './clean-room-e2e-gate.test-harness';
+import { safeNormalizeInput } from './clean-room-e2e-input';
 import { reduceE2EProgress, type E2EDurableProgress } from './clean-room-e2e-progress';
 
 describe('CleanRoomE2EGate hardening', () => {
@@ -99,6 +101,48 @@ describe('CleanRoomE2EGate hardening', () => {
     });
     expect(harness.dependencies.progress.commit).not.toHaveBeenCalled();
     expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
+  });
+
+  it('binds a legacy null Review conversation through one exact completed ledger attempt', () => {
+    const normalized = safeNormalizeInput(defaultInput);
+    if (!normalized.success) throw new Error(normalized.error.message);
+    const phases = prerequisitePhases(true).map((prior) =>
+      prior.kind === 'review' ? { ...prior, conversationId: null } : prior
+    );
+
+    expect(validatePrerequisites({ phases }, normalized.data)).toBeUndefined();
+  });
+
+  it('rejects a legacy null Review conversation when its ledger binding is ambiguous', () => {
+    if (!defaultInput.loop.state || defaultInput.loop.state.version !== '2') {
+      throw new Error('Expected current Loop state authority.');
+    }
+    const reviewAttempt = defaultInput.loop.state.sessionAttempts.find(
+      (attempt) => attempt.purpose === 'review'
+    );
+    if (!reviewAttempt) throw new Error('Expected a Review attempt fixture.');
+    const normalized = safeNormalizeInput({
+      ...defaultInput,
+      loop: loopWithState({
+        sessionAttempts: [
+          ...defaultInput.loop.state.sessionAttempts,
+          {
+            ...reviewAttempt,
+            attemptId: 'review-attempt-ambiguous',
+            conversationId: 'review-conversation-ambiguous',
+          },
+        ],
+      }),
+    });
+    if (!normalized.success) throw new Error(normalized.error.message);
+    const phases = prerequisitePhases(true).map((prior) =>
+      prior.kind === 'review' ? { ...prior, conversationId: null } : prior
+    );
+
+    expect(validatePrerequisites({ phases }, normalized.data)).toMatchObject({
+      type: 'prerequisite-authority-invalid',
+      message: 'A prior passed phase is not bound to its exact durable completed session.',
+    });
   });
 
   it('contains a throwing raw checkpoint getter without rereading invalid input', async () => {
