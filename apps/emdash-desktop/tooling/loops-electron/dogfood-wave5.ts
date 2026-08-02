@@ -327,6 +327,7 @@ async function registerPreview(page: Page): Promise<void> {
 async function start(page: Page): Promise<void> {
   const state = readState();
   await ensureProjectOpen(page);
+  await registerPreview(page);
   const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
   requireSuccess(before, 'Wave 5 pre-start Loop read');
   assert.equal(before.data.status, 'draft', `Wave 5 Loop is ${before.data.status}, not draft`);
@@ -353,6 +354,7 @@ async function retry(page: Page): Promise<void> {
 async function resume(page: Page): Promise<void> {
   const state = readState();
   await ensureProjectOpen(page);
+  await registerPreview(page);
   const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
   requireSuccess(before, 'Wave 5 pre-resume Loop read');
   assert.equal(before.data.status, 'paused', `Wave 5 Loop is ${before.data.status}, not paused`);
