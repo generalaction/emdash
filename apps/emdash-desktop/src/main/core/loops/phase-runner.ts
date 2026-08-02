@@ -21,7 +21,10 @@ import {
   updatePhase as updatePhaseRow,
 } from './operations/loop-operations';
 import { commitSessionAttempt } from './operations/session-progress';
-import { commitTerminalPhaseSuccess } from './operations/terminal-phase-progress';
+import {
+  commitTerminalPhaseFailure,
+  commitTerminalPhaseSuccess,
+} from './operations/terminal-phase-progress';
 import type { LoopOperationError } from './operations/types';
 import { commitWorkPhaseProgress } from './operations/work-phase-progress';
 import {
@@ -79,6 +82,7 @@ export type PhaseRunnerDeps = {
   verifierPromptTimeoutMs: number;
   commitSessionAttempt: typeof commitSessionAttempt;
   commitWorkPhaseProgress: typeof commitWorkPhaseProgress;
+  commitTerminalPhaseFailure: typeof commitTerminalPhaseFailure;
   commitTerminalPhaseSuccess: typeof commitTerminalPhaseSuccess;
   runTerminalReviewPhase: typeof runTerminalReviewPhase;
   runCleanRoomE2EPhase(input: {
@@ -140,6 +144,7 @@ function defaultDeps(): PhaseRunnerDeps {
     verifierPromptTimeoutMs: resolvePromptTimeoutMs(DEFAULT_VERIFIER_PROMPT_TIMEOUT_MS),
     commitSessionAttempt,
     commitWorkPhaseProgress,
+    commitTerminalPhaseFailure,
     commitTerminalPhaseSuccess,
     runTerminalReviewPhase,
     runCleanRoomE2EPhase: async (input) =>
@@ -767,6 +772,49 @@ export class PhaseRunner {
       phase: reviewing.data,
     });
     if (!result.success) {
+      const { checkpointCommit, conversationId, observedHead, stageResult } = result.error;
+      const recoverableCheckpoint =
+        result.error.recoveryRequired === false &&
+        checkpointCommit !== undefined &&
+        observedHead === checkpointCommit &&
+        checkpointCommit !== loopState.data.checkpointCommit &&
+        conversationId !== undefined &&
+        stageResult !== undefined;
+      if (recoverableCheckpoint && checkpointCommit && conversationId && stageResult) {
+        const completedAt = stageResult.completedAt;
+        const message = boundedSummary(result.error.message, 'Terminal Review failed');
+        const attempt: LoopSessionAttempt = {
+          attemptId: randomUUID(),
+          conversationId,
+          purpose: 'review',
+          phaseId: input.phase.id,
+          target: {
+            workspaceId: input.executionTarget.workspaceId,
+            path: input.executionTarget.path,
+            machine: input.executionTarget.machine,
+          },
+          status: 'failed',
+          checkpointBefore: loopState.data.checkpointCommit,
+          checkpointAfter: checkpointCommit,
+          startedAt: completedAt,
+          finishedAt: completedAt,
+          error: message,
+        };
+        const committed = await this.deps.commitTerminalPhaseFailure({
+          loopId: input.loop.id,
+          phaseId: input.phase.id,
+          expectedLoopState: loopState.data,
+          expectedPhaseState: phaseState.data,
+          checkpointCommit,
+          result: stageResult,
+          sessionAttempts: [...loopState.data.sessionAttempts, attempt],
+          lastError: message,
+        });
+        if (!committed.success) return this.operationFailure(committed.error);
+        this.deps.onLoopUpdated?.(committed.data.loop);
+        this.deps.onPhaseUpdated?.(committed.data.phase);
+        return ok({ kind: 'failed', loop: committed.data.loop, phase: committed.data.phase });
+      }
       return this.markV2WorkFailed(input.loop, reviewing.data, result.error.message);
     }
 

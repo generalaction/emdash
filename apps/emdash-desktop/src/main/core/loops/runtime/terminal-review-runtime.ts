@@ -14,7 +14,14 @@ import type { LoopRunControl } from '../phase-runner';
 import { runLoopCommand } from './loop-command-runner';
 import type { LoopExecutionTarget } from './loop-execution-target';
 
-export type TerminalReviewRuntimeError = { message: string; conversationId?: string };
+export type TerminalReviewRuntimeError = {
+  message: string;
+  checkpointCommit?: string;
+  observedHead?: string;
+  recoveryRequired?: boolean;
+  conversationId?: string;
+  stageResult?: LoopStageResult;
+};
 
 export async function runTerminalReviewPhase(input: {
   loop: LoopWithPhases;
@@ -132,7 +139,13 @@ export async function runTerminalReviewPhase(input: {
     ? result
     : err({
         message: result.error.message,
+        checkpointCommit: result.error.checkpointCommit,
+        ...(result.error.observedHead ? { observedHead: result.error.observedHead } : {}),
+        ...(result.error.recoveryRequired !== undefined
+          ? { recoveryRequired: result.error.recoveryRequired }
+          : {}),
         ...(result.error.conversationId ? { conversationId: result.error.conversationId } : {}),
+        stageResult: result.error.stageResult,
       });
 }
 

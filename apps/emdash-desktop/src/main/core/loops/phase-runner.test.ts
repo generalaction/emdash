@@ -15,7 +15,10 @@ vi.mock('./operations/loop-operations', () => ({
 
 vi.mock('./operations/session-progress', () => ({ commitSessionAttempt: vi.fn() }));
 vi.mock('./operations/work-phase-progress', () => ({ commitWorkPhaseProgress: vi.fn() }));
-vi.mock('./operations/terminal-phase-progress', () => ({ commitTerminalPhaseSuccess: vi.fn() }));
+vi.mock('./operations/terminal-phase-progress', () => ({
+  commitTerminalPhaseFailure: vi.fn(),
+  commitTerminalPhaseSuccess: vi.fn(),
+}));
 
 function makeLoop(): LoopWithPhases {
   const loop: Loop = {
@@ -737,6 +740,103 @@ describe('PhaseRunner', () => {
       })
     );
     expect(driver.startPhaseSession).not.toHaveBeenCalled();
+  });
+
+  it('retains a validated Review correction when the Review later fails', async () => {
+    const workLoop = makeV2Loop();
+    const correction = '2'.repeat(40);
+    const reviewPhase: LoopPhase = {
+      ...workLoop.phases[0]!,
+      id: 'phase-review',
+      idx: 1,
+      name: 'Review',
+      kind: 'review',
+      status: 'pending',
+      conversationId: null,
+      state: {
+        version: '2',
+        checkpointCommit: null,
+        handoff: null,
+        retryHandoffs: [],
+        result: null,
+      },
+    };
+    loop = {
+      ...workLoop,
+      config: { ...workLoop.config!, terminalGates: { review: true, e2e: false } } as never,
+      phases: [
+        {
+          ...workLoop.phases[0]!,
+          status: 'passed',
+          state: {
+            version: '2',
+            checkpointCommit: workLoop.state!.checkpointCommit,
+            handoff: null,
+            retryHandoffs: [],
+            result: {
+              status: 'passed',
+              summary: 'Work passed.',
+              completedAt: '2026-07-12T00:00:00.000Z',
+            },
+          },
+        },
+        reviewPhase,
+      ],
+    };
+    const memory = makeMemoryDeps(loop, new Map());
+    const stageResult = {
+      status: 'failed' as const,
+      summary: 'Review infrastructure failed after correction.',
+      completedAt: '2026-07-12T01:00:00.000Z',
+    };
+    const runTerminalReviewPhase = vi.fn(async () =>
+      err({
+        message: 'Native browser CDP was unavailable',
+        checkpointCommit: correction,
+        observedHead: correction,
+        recoveryRequired: false,
+        conversationId: 'review-conversation',
+        stageResult,
+      })
+    );
+    const commitTerminalPhaseFailure = vi.fn(async (input) =>
+      ok({
+        loop: {
+          ...loop,
+          status: 'failed' as const,
+          state: { ...input.expectedLoopState, checkpointCommit: correction },
+        },
+        phase: { ...reviewPhase, status: 'failed' as const },
+      })
+    );
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      runTerminalReviewPhase: runTerminalReviewPhase as never,
+      commitTerminalPhaseFailure: commitTerminalPhaseFailure as never,
+    }).runPhase({
+      loop,
+      phase: reviewPhase,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result.success && result.data.kind).toBe('failed');
+    expect(commitTerminalPhaseFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpointCommit: correction,
+        result: stageResult,
+        sessionAttempts: [
+          expect.objectContaining({
+            purpose: 'review',
+            status: 'failed',
+            checkpointAfter: correction,
+          }),
+        ],
+      })
+    );
+    expect(memory.loopTransitions).not.toContain('failed');
   });
 
   it('dispatches the durable clean-room E2E gate exactly once', async () => {
