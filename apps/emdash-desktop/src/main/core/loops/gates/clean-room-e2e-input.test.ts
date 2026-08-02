@@ -3,7 +3,13 @@ import {
   CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
   type LoopSessionAttempt,
 } from '@shared/core/loops/loop-state';
-import { isCanonicalAbsolutePath, workspacePathsOverlap } from './clean-room-e2e-boundary';
+import {
+  hasCanonicalAttemptFields,
+  hasCanonicalPersistedLoopState,
+  isCanonicalAbsolutePath,
+  validPersistedAttemptState,
+  workspacePathsOverlap,
+} from './clean-room-e2e-boundary';
 import type { RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
 import {
   BASE_COMMIT,
@@ -87,6 +93,57 @@ describe('clean-room E2E input authority', () => {
     if (!result.success) throw new Error(result.error.message);
     expect(result.data.e2eAttemptsConsumed).toBe(0);
     expect(result.data).not.toHaveProperty('maxAttempts');
+  });
+
+  it('accepts a failed Review attempt that durably retained its correction checkpoint', () => {
+    const reviewAttempt: LoopSessionAttempt = {
+      attemptId: 'review-correction-attempt',
+      conversationId: 'review-correction-conversation',
+      purpose: 'review',
+      phaseId: 'review-phase',
+      target: featureTarget,
+      status: 'failed',
+      checkpointBefore: BASE_COMMIT,
+      checkpointAfter: FEATURE_COMMIT,
+      startedAt: '2026-07-12T00:00:00.000Z',
+      finishedAt: '2026-07-12T00:00:01.000Z',
+      error: 'Review infrastructure failed after producing a validated correction.',
+    };
+    const loop = loopWithState({ sessionAttempts: [reviewAttempt] });
+    const result = safeNormalizeInput({
+      ...defaultInput,
+      loop,
+    });
+
+    expect(validPersistedAttemptState(reviewAttempt)).toBe(true);
+    expect(hasCanonicalAttemptFields(reviewAttempt, reviewAttempt)).toBe(true);
+    expect(hasCanonicalPersistedLoopState(loop.state)).toBe(true);
+    expect(result).toMatchObject({ success: true });
+  });
+
+  it('rejects failed non-Review attempts that claim a checkpoint', () => {
+    const result = safeNormalizeInput({
+      ...defaultInput,
+      loop: loopWithState({
+        sessionAttempts: [
+          {
+            attemptId: 'work-failure-attempt',
+            conversationId: 'work-failure-conversation',
+            purpose: 'work',
+            phaseId: 'work-phase',
+            target: featureTarget,
+            status: 'failed',
+            checkpointBefore: BASE_COMMIT,
+            checkpointAfter: FEATURE_COMMIT,
+            startedAt: '2026-07-12T00:00:00.000Z',
+            finishedAt: '2026-07-12T00:00:01.000Z',
+            error: 'Work failed.',
+          },
+        ],
+      }),
+    });
+
+    expect(result).toMatchObject({ success: false, error: { type: 'invalid-input' } });
   });
 
   it('reserves the bounded worst-case session records for every remaining E2E run', () => {

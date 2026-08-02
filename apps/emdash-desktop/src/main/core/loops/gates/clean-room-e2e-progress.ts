@@ -712,6 +712,13 @@ function validAttemptState(attempt: LoopSessionAttempt): boolean {
       attempt.error === undefined
     );
   }
+  if (attempt.status === 'failed') {
+    return (
+      attempt.finishedAt !== undefined &&
+      validCanonicalFreeText(attempt.error) &&
+      (attempt.checkpointAfter === undefined || attempt.purpose === 'review')
+    );
+  }
   return (
     attempt.finishedAt !== undefined &&
     attempt.checkpointAfter === undefined &&

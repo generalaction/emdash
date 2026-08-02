@@ -401,6 +401,13 @@ export function validPersistedAttemptState(attempt: LoopSessionAttempt): boolean
       attempt.error === undefined
     );
   }
+  if (attempt.status === 'failed') {
+    return (
+      attempt.finishedAt !== undefined &&
+      attempt.error !== undefined &&
+      (attempt.checkpointAfter === undefined || attempt.purpose === 'review')
+    );
+  }
   return (
     attempt.finishedAt !== undefined &&
     attempt.checkpointAfter === undefined &&
