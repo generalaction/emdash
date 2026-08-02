@@ -3,7 +3,7 @@ import {
   CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
   type LoopSessionAttempt,
 } from '@shared/core/loops/loop-state';
-import { workspacePathsOverlap } from './clean-room-e2e-boundary';
+import { isCanonicalAbsolutePath, workspacePathsOverlap } from './clean-room-e2e-boundary';
 import type { RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
 import {
   BASE_COMMIT,
@@ -35,6 +35,13 @@ function historicalAttempts(count: number): LoopSessionAttempt[] {
 }
 
 describe('clean-room E2E input authority', () => {
+  it('accepts canonical home-directory paths while still rejecting embedded secrets', () => {
+    expect(isCanonicalAbsolutePath('/home/alice/worktrees/feature')).toBe(true);
+    expect(isCanonicalAbsolutePath('/Users/alice/worktrees/feature')).toBe(true);
+    expect(isCanonicalAbsolutePath('C:\\Users\\alice\\worktrees\\feature')).toBe(true);
+    expect(isCanonicalAbsolutePath('/home/alice/token=raw-credential')).toBe(false);
+  });
+
   it('accepts canonical historical v1 state only through the explicit v2 upgrade path', () => {
     if (!defaultInput.loop.state || defaultInput.loop.state.version !== '2') {
       throw new Error('Expected the current Loop state fixture.');

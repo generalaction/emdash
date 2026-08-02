@@ -894,12 +894,13 @@ export class PhaseRunner {
       if (!failedLoop.success) return err(failedLoop.error);
       return ok({ kind: 'failed', loop: { ...reloaded, status: 'failed' }, phase });
     }
-    return err({
-      kind: 'driver-error',
-      message: result.success
+    const message = boundedSummary(
+      result.success
         ? 'Clean-room E2E gate did not persist a terminal result'
         : result.error.message,
-    });
+      'Clean-room E2E failed'
+    );
+    return this.markPhaseAndLoopFailed(reloaded, phase, message);
   }
 
   private async finishSessionAttempt(

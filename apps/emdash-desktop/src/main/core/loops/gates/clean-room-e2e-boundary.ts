@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { posix, win32 } from 'node:path';
-import { redactAll } from '@emdash/shared/logger';
+import { redactAll, redactSecrets } from '@emdash/shared/logger';
 import z from 'zod';
 import { loopPhaseHandoffSchema } from '@shared/core/loops/loop-phase-state';
 import {
@@ -584,7 +584,7 @@ export function isCanonicalAbsolutePath(value: unknown): value is string {
     value.length > 4_096 ||
     value !== value.trim() ||
     value.includes('\0') ||
-    redactPersistedText(value) !== value
+    redactSecrets(value) !== value
   ) {
     return false;
   }

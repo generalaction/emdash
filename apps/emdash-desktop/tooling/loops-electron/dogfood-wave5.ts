@@ -42,6 +42,10 @@ type Loop = {
     attempts: number;
     conversationId?: string | null;
     lastError?: string | null;
+    state?: {
+      checkpointCommit: string | null;
+      result?: unknown;
+    } | null;
   }>;
 };
 type DogfoodState = {
@@ -109,6 +113,8 @@ try {
     await registerPreview(page);
   } else if (command === 'status') {
     await status(page);
+  } else if (command === 'compact-status') {
+    await compactStatus(page);
   } else if (command === 'start') {
     await start(page);
   } else if (command === 'retry') {
@@ -259,6 +265,33 @@ async function status(page: Page): Promise<void> {
         },
         workspaceHead: git(state.workspacePath, ['rev-parse', 'HEAD']).trim(),
         workspaceClean: git(state.workspacePath, ['status', '--porcelain=v1']) === '',
+      },
+      null,
+      2
+    )}\n`
+  );
+}
+
+async function compactStatus(page: Page): Promise<void> {
+  const state = readState();
+  const loop = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
+  requireSuccess(loop, 'Wave 5 compact Loop read');
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        status: loop.data.status,
+        currentPhaseIndex: loop.data.currentPhaseIndex,
+        checkpointCommit: loop.data.state?.checkpointCommit ?? null,
+        phases: loop.data.phases.map((phase) => ({
+          id: phase.id,
+          name: phase.name,
+          kind: phase.kind,
+          status: phase.status,
+          attempts: phase.attempts,
+          lastError: phase.lastError,
+          checkpointCommit: phase.state?.checkpointCommit ?? null,
+          result: phase.state?.result ?? null,
+        })),
       },
       null,
       2

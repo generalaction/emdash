@@ -912,4 +912,62 @@ describe('PhaseRunner', () => {
     );
     expect(driver.startVerificationSession).not.toHaveBeenCalled();
   });
+
+  it('persists an E2E startup failure on both the phase and Loop', async () => {
+    const workLoop = makeV2Loop();
+    const e2ePhase: LoopPhase = {
+      ...workLoop.phases[0]!,
+      id: 'phase-e2e-startup-failure',
+      idx: 1,
+      name: 'E2E',
+      kind: 'e2e',
+      status: 'pending',
+      criteria: {
+        version: '1',
+        criteria: [
+          { description: 'The native preview works', verifier: 'agent-browser', status: 'pending' },
+        ],
+      },
+      state: {
+        version: '2',
+        checkpointCommit: null,
+        handoff: null,
+        retryHandoffs: [],
+        result: null,
+      },
+    };
+    loop = {
+      ...workLoop,
+      currentPhaseIndex: 1,
+      config: {
+        ...workLoop.config!,
+        terminalGates: { review: false, e2e: true },
+        browserPreview: { enabled: true },
+      } as never,
+      phases: [{ ...workLoop.phases[0]!, status: 'passed' }, e2ePhase],
+    };
+    const memory = makeMemoryDeps(loop, new Map());
+
+    const result = await new PhaseRunner({
+      ...memory.deps,
+      runCleanRoomE2EPhase: vi.fn(async () => err({ message: 'Invalid feature target' })),
+    }).runPhase({
+      loop,
+      phase: e2ePhase,
+      executionTarget: makeExecutionTarget(),
+      driver,
+      control: makeControl(),
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        kind: 'failed',
+        loop: { status: 'failed' },
+        phase: { status: 'failed', lastError: 'Invalid feature target' },
+      },
+    });
+    expect(memory.phaseTransitions).toEqual(['reviewing', 'failed']);
+    expect(memory.loopTransitions).toEqual(['failed']);
+  });
 });
