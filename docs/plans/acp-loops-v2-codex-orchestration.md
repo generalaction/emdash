@@ -1362,6 +1362,13 @@ fresh recreated green run becomes the final success report.
   registered port 3000, and its lifecycle performs a production build followed by `pnpm start`,
   eliminating HMR and dev-font traffic. Retain attempts one through eleven and use the
   user-authorized attempt twelve without resetting prior evidence.
+- [x] 2026-08-03: Attempt twelve selected the production lifecycle and canonical port 3000, but
+  failed during clean-room creation before any ACP or browser work because the measured Summario
+  production build takes about 90 seconds while strict preview readiness retained its generic
+  60-second default. Clean-room preview readiness now defaults to a bounded 180 seconds, still
+  inside the existing ten-minute creation deadline, with a red/green service regression. Retain
+  attempts one through twelve and use the user-authorized attempt thirteen without resetting prior
+  evidence.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.

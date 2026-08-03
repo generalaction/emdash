@@ -660,10 +660,11 @@ describe('CleanRoomWorkspaceService', () => {
     const preserveOptions = harness.worktreeService.copyPreservedFilesToWorktree.mock.calls[0][1];
     if (!preserveOptions) throw new Error('expected preserve controls');
     const factoryContext = harness.factoryContext[0] as {
-      strictStartup: { deadlineAt: number; signal?: AbortSignal };
+      strictStartup: { deadlineAt: number; signal?: AbortSignal; previewTimeoutMs?: number };
     };
     expect(harness.acquisitionControls[0].deadlineAt).toBe(preserveOptions.deadlineAt);
     expect(factoryContext.strictStartup.deadlineAt).toBe(preserveOptions.deadlineAt);
+    expect(factoryContext.strictStartup.previewTimeoutMs).toBe(180_000);
     expect(harness.acquisitionControls[0].signal).toBe(factoryContext.strictStartup.signal);
   });
 

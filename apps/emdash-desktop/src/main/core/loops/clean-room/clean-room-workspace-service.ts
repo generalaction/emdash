@@ -119,6 +119,7 @@ type CleanRoomStopFailure = Extract<
 >;
 
 const CLEAN_ROOM_TIMEOUT_MS = 10 * 60_000;
+const CLEAN_ROOM_PREVIEW_TIMEOUT_MS = 180_000;
 const MAX_CLEAN_ROOM_TIMEOUT_MS = 2_147_483_647;
 const FULL_COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
@@ -495,7 +496,7 @@ export class CleanRoomWorkspaceService {
             requirePreview: input.requirePreview,
             signal: input.signal,
             deadlineAt,
-            previewTimeoutMs: input.previewTimeoutMs,
+            previewTimeoutMs: input.previewTimeoutMs ?? CLEAN_ROOM_PREVIEW_TIMEOUT_MS,
           },
         }
       );
