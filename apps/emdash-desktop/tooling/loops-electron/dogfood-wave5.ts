@@ -380,12 +380,27 @@ async function ensureCleanRoomRuntimeSettings(page: Page): Promise<void> {
       ...settingsPage.data.settings,
       scripts: {
         ...settingsPage.data.settings.scripts,
-        run: 'pnpm build && pnpm start',
+        run: wave5ProductionPreviewScript(),
       },
     }
   );
   requireSuccess(updated, 'Wave 5 clean-room runtime settings');
   process.stdout.write('Wave 5 clean-room production lifecycle configured.\n');
+}
+
+function wave5ProductionPreviewScript(): string {
+  return [
+    'set -eu',
+    'source_dir=$(pwd)',
+    'pnpm build',
+    'preview_dir=$(mktemp -d "${TMPDIR:-/tmp}/emdash-wave5-preview.XXXXXX")',
+    `trap 'rm -rf "$preview_dir"' EXIT`,
+    'cp -a .next package.json "$preview_dir"/',
+    'for path in public next.config.* .env.local; do if [ -e "$path" ]; then cp -a "$path" "$preview_dir"/; fi; done',
+    'ln -s "$source_dir/node_modules" "$preview_dir/node_modules"',
+    'cd "$preview_dir"',
+    '"$source_dir/node_modules/.bin/next" start',
+  ].join('; ');
 }
 
 async function adoptReviewCorrection(page: Page): Promise<void> {

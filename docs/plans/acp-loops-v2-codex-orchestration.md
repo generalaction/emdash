@@ -1369,6 +1369,16 @@ fresh recreated green run becomes the final success report.
   inside the existing ten-minute creation deadline, with a red/green service regression. Retain
   attempts one through twelve and use the user-authorized attempt thirteen without resetting prior
   evidence.
+- [x] 2026-08-03: Attempt thirteen passed production startup, local authentication, React
+  hydration, and the first New Template interaction. It failed before native evidence after the
+  independent required `pnpm build` replaced `.next` underneath the running production server;
+  later documents referenced the server's earlier chunk map and returned stale-chunk 404s. The
+  clean-room lifecycle now copies the completed production output, runtime config, mode-0600 env,
+  and a node_modules link into a disposable mode-0700 preview directory before starting Next from
+  the source workspace's installed binary.
+  Required validation may rebuild the source workspace without mutating the served bytes, and the
+  lifecycle removes the preview copy on exit. Retain attempts one through thirteen and use the
+  user-authorized attempt fourteen without resetting prior evidence.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
