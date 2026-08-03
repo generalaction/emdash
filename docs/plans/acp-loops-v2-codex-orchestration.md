@@ -1319,12 +1319,20 @@ fresh recreated green run becomes the final success report.
   files and 1,011 tests, strict TypeScript, lint, production build, clean-tree checks, and a
   secret-pattern diff scan. The Loop then failed closed because its E2E agent ran a diagnostic
   process listing with command-line arguments, violating the no-secret-bearing-process-arguments
-  rule before the authenticated browser fixture flow began. This was the third and final durable
-  E2E attempt; no retry or Wave 6 work was started. The failed clean room was removed, all owned
+  rule before the authenticated browser fixture flow began. This exhausted the original
+  three-attempt budget; no retry or Wave 6 work was started at that checkpoint. The failed clean
+  room was removed, all owned
   ports and the isolated local deployment were torn down, and external secret/pre-auth files were
   deleted. The pre-teardown table audit recorded `templates`, `meetings`, and `oauthTokens`
   non-empty and `shareLinks`, `meetingSeries`, and `driveExports` empty; no Wave 5 vocabulary
   fixture had been created.
+- [x] 2026-08-03: The user amended the verification policy and authorized one replacement Wave 5
+  E2E attempt. Credentials supplied through the bound task environment, their normal application
+  use, and ordinary process diagnostics are not automatic failures; raw credential values still
+  must not be intentionally copied into durable evidence. The fixed durable budget is four, so the
+  original three attempts remain retained rather than reset. A fresh fetch confirmed Summario
+  `origin/main` is still `b9f53681364ae21a5d30838ca5c25a5fe22dda02`; rebasing the clean
+  five-commit feature branch was a no-op with no conflicts, and its head remains `3ca2f3c`.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
@@ -1470,10 +1478,12 @@ fresh recreated green run becomes the final success report.
 Implementation, independent remediation, and the live two-phase local/SSH proof are complete
 through Wave 4 on the isolated integration branch. Wave 5 implementation and independent review
 are complete on a clean Summario branch, and its full code-level E2E regression gates passed. The
-Wave 5 Loop nevertheless failed closed on its final attempt because the E2E agent emitted process
-command-line arguments during diagnostics; the authenticated browser fixture flow therefore never
-started. The isolated backend and browser lease were fully cleaned and may not be reused. Wave 6
-was not started because the Wave 5 independent gate is not green. Both Summario acceptance Loops
+Wave 5 Loop nevertheless failed closed after exhausting its original attempt budget because the E2E
+agent treated process command-line diagnostics as disqualifying; the authenticated browser fixture
+flow therefore never started. The isolated backend and browser lease were fully cleaned and may
+not be reused. The user has since authorized one fourth replacement attempt and clarified that
+bound-environment credential access and ordinary diagnostics are allowed. Wave 6 has not started
+because the replacement Wave 5 independent gate is not yet green. Both Summario acceptance Loops
 remain incomplete.
 At final completion, compare the observable result with `Purpose and observable outcome`, list exact
 validation evidence, and state any remaining blocker without claiming success for an unverified

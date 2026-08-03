@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getTaskEnvVars } from '@main/core/workspaces/workspace-env';
 import { err, ok } from '@main/lib/result';
-import { CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT } from '@shared/core/loops/loop-state';
+import {
+  CLEAN_ROOM_E2E_MAX_ATTEMPTS,
+  CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
+} from '@shared/core/loops/loop-state';
 import type { LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
 import type { CleanRoomE2EGateDependencies, RunCleanRoomE2EGateInput } from './clean-room-e2e-gate';
@@ -755,15 +758,15 @@ describe('CleanRoomE2EGate hardening', () => {
     const result = await harness.gate.run({
       ...defaultInput,
       loop: loopWithState({
-        e2eAttemptsConsumed: 3,
+        e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS,
         sessionAttempts: [...loop.state!.sessionAttempts, priorAttempt],
       }),
-      phase: { ...phase, attempts: 3 },
+      phase: { ...phase, attempts: CLEAN_ROOM_E2E_MAX_ATTEMPTS },
     });
 
     expect(result).toMatchObject({
       success: false,
-      error: { type: 'attempts-exhausted', attempt: 3 },
+      error: { type: 'attempts-exhausted', attempt: CLEAN_ROOM_E2E_MAX_ATTEMPTS },
     });
     expect(harness.dependencies.cleanRoom.create).not.toHaveBeenCalled();
   });
@@ -779,7 +782,7 @@ describe('CleanRoomE2EGate hardening', () => {
         sessionAttempts: [
           ...historicalAttempts(
             1_024 -
-              2 * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
+              (CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1) * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
               loop.state!.sessionAttempts.length -
               1
           ),

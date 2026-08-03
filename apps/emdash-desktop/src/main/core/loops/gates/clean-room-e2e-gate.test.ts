@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@main/lib/result';
+import { CLEAN_ROOM_E2E_MAX_ATTEMPTS } from '@shared/core/loops/loop-state';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
 import type { CleanRoomPendingCleanup } from '../clean-room/cleanup-journal';
 import type {
@@ -148,8 +149,9 @@ describe('CleanRoomE2EGate', () => {
 
   it('never treats a correction as pass when the attempt cap is exhausted', async () => {
     const harness = makeHarness([
-      { finalText: 'unused' },
-      { finalText: 'unused' },
+      ...Array.from({ length: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1 }, () => ({
+        finalText: 'unused',
+      })),
       {
         finalText: 'Fixed.\n<<<LOOP:E2E_CORRECTION_READY fixed dialog>>>',
         postHead: FIX_COMMIT,
@@ -159,7 +161,7 @@ describe('CleanRoomE2EGate', () => {
 
     const result = await harness.gate.run({
       ...defaultInput,
-      loop: loopWithState({ e2eAttemptsConsumed: 2 }),
+      loop: loopWithState({ e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1 }),
     });
 
     expect(result).toMatchObject({
@@ -167,13 +169,13 @@ describe('CleanRoomE2EGate', () => {
       error: {
         type: 'attempts-exhausted',
         featureHead: FIX_COMMIT,
-        attempt: 3,
+        attempt: CLEAN_ROOM_E2E_MAX_ATTEMPTS,
         intermediateFailures: [{ source: 'Clean-room E2E correction' }],
         stageResult: { status: 'failed' },
       },
     });
-    expect(harness.calls).not.toContain('checks:3');
-    expect(harness.calls).toContain('destroy:3');
+    expect(harness.calls).not.toContain(`checks:${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`);
+    expect(harness.calls).toContain(`destroy:${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`);
     expect(harness.dependencies.authority.inspectFeature).toHaveBeenCalledTimes(2);
     expect(vi.mocked(harness.dependencies.authority.inspectFeature).mock.calls).toEqual([
       [{ target: featureTarget, expectedFeatureHead: FIX_COMMIT }],

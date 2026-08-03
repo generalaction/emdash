@@ -112,7 +112,7 @@ describe('clean-room E2E input authority', () => {
       maxAttempts: 64,
     } as RunCleanRoomE2EGateInput & { maxAttempts: number });
 
-    expect(CLEAN_ROOM_E2E_MAX_ATTEMPTS).toBe(3);
+    expect(CLEAN_ROOM_E2E_MAX_ATTEMPTS).toBe(4);
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error.message);
     expect(result.data.e2eAttemptsConsumed).toBe(0);
@@ -175,14 +175,14 @@ describe('clean-room E2E input authority', () => {
     const fits = safeNormalizeInput({
       ...defaultInput,
       loop: loopWithState({
-        e2eAttemptsConsumed: 2,
+        e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1,
         sessionAttempts: historicalAttempts(exactCapacity),
       }),
     });
     const overflows = safeNormalizeInput({
       ...defaultInput,
       loop: loopWithState({
-        e2eAttemptsConsumed: 2,
+        e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1,
         sessionAttempts: historicalAttempts(exactCapacity + 1),
       }),
     });

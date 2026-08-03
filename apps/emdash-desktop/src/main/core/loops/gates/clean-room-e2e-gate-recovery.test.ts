@@ -776,8 +776,8 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         nestedAttempt({
           attemptId: `unallocated-nested-attempt-${index}`,
           conversationId: `unallocated-nested-conversation-${index}`,
-          verificationRunId: 'verification-run-3',
-          target: cleanTargetFor(featureTarget, 3),
+          verificationRunId: `verification-run-${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`,
+          target: cleanTargetFor(featureTarget, CLEAN_ROOM_E2E_MAX_ATTEMPTS),
           status: 'cancelled',
         })
     );
@@ -792,10 +792,10 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const result = await harness.gate.run({
       ...defaultInput,
       loop: loopWithState({
-        e2eAttemptsConsumed: 2,
+        e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1,
         sessionAttempts: [...historicalAttempts(historicalCount), ...loop.state!.sessionAttempts],
       }),
-      phase: { ...phase, attempts: 2 },
+      phase: { ...phase, attempts: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1 },
     });
 
     expect(result).toMatchObject({
@@ -1094,6 +1094,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const secrets = ['sentinel-token-value', 'sentinel-cookie-value', 'handoff-password-value'];
     const harness = makeHarness([
       { finalText: 'unused' },
+      { finalText: 'unused' },
       {
         finalText:
           '<<<LOOP:E2E_CORRECTION_READY token=sentinel-token-value session_cookie=sentinel-cookie-value>>>',
@@ -1104,12 +1105,14 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         finalText: 'Candidate green.\n<<<LOOP:E2E_PASSED>>>',
         checks: {
           ...requiredChecksResult({
-            target: cleanTargetFor(featureTarget, 3),
+            target: cleanTargetFor(featureTarget, CLEAN_ROOM_E2E_MAX_ATTEMPTS),
             checkpointCommit: FIX_COMMIT,
-            verificationRunId: 'verification-run-3',
-            outerConversationId: 'e2e-conversation-3',
-            taskEnvironment: environment(cleanTargetFor(featureTarget, 3)),
-            attempt: 3,
+            verificationRunId: `verification-run-${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`,
+            outerConversationId: `e2e-conversation-${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`,
+            taskEnvironment: environment(
+              cleanTargetFor(featureTarget, CLEAN_ROOM_E2E_MAX_ATTEMPTS)
+            ),
+            attempt: CLEAN_ROOM_E2E_MAX_ATTEMPTS,
             status: 'correctable',
           }),
           handoff: {
@@ -1128,7 +1131,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
 
     const result = await harness.gate.run({
       ...defaultInput,
-      loop: loopWithState({ e2eAttemptsConsumed: 1 }),
+      loop: loopWithState({ e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 2 }),
     });
     const persisted = JSON.stringify(result);
 
@@ -1598,7 +1601,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const result = await harness.gate.run({
       ...defaultInput,
       loop: loopWithState({
-        e2eAttemptsConsumed: 2,
+        e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1,
         sessionAttempts: [
           ...historicalAttempts(
             1_024 -
@@ -1622,8 +1625,8 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       result.error.sessionAttempts.filter((attempt) => attempt.purpose === 'browser-verification')
     ).toEqual([
       expect.objectContaining({
-        attemptId: 'browser-verification-run-3',
-        conversationId: 'browser-conversation-run-3',
+        attemptId: `browser-verification-run-${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`,
+        conversationId: `browser-conversation-run-${CLEAN_ROOM_E2E_MAX_ATTEMPTS}`,
       }),
       expect.objectContaining({
         attemptId: 'unallocated-browser-attempt',

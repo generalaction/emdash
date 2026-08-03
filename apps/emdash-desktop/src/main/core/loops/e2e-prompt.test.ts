@@ -91,6 +91,9 @@ describe('independent clean-room E2E prompt', () => {
     expect(prompt).toContain('If you made any repository mutation during this attempt');
     expect(prompt).toContain('modified, added or untracked, or deleted files');
     expect(prompt).toContain('created a correction checkpoint');
+    expect(prompt).toContain('Credentials supplied through the bound task environment');
+    expect(prompt).toContain('running ordinary process diagnostics is not by itself a failure');
+    expect(prompt).toContain('intentionally copy raw credential values into durable evidence');
     expect(prompt).toContain(E2E_CORRECTION_READY_PREFIX);
     expect(prompt).toContain(E2E_PASSED_SENTINEL);
     expect(prompt).not.toContain('Agent Browser');
