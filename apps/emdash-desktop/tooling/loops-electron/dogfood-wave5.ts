@@ -422,8 +422,23 @@ async function adoptReviewCorrection(page: Page): Promise<void> {
 }
 
 async function monitor(page: Page, state: DogfoodState): Promise<void> {
+  let monitorPage = page;
   while (true) {
-    const current = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
+    let current: RpcResult<Loop>;
+    try {
+      current = await invoke<RpcResult<Loop>>(monitorPage, 'loops.getLoop', state.loopId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        !/Execution context was destroyed|Target page, context or browser has been closed/.test(
+          message
+        )
+      ) {
+        throw error;
+      }
+      monitorPage = await recoverMonitorPage();
+      continue;
+    }
     requireSuccess(current, 'Wave 5 Loop poll');
     const active = current.data.phases[current.data.currentPhaseIndex];
     process.stdout.write(
@@ -437,6 +452,21 @@ async function monitor(page: Page, state: DogfoodState): Promise<void> {
     }
     await delay(5_000);
   }
+}
+
+async function recoverMonitorPage(): Promise<Page> {
+  assert.ok(electronApp, 'Wave 5 Electron app is unavailable during monitor recovery');
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const page = electronApp
+      .windows()
+      .find((candidate) => candidate.url().startsWith('app://emdash'));
+    if (page) {
+      await page.waitForFunction(() => window.electronAPI !== undefined);
+      return page;
+    }
+    await delay(250);
+  }
+  throw new Error('Wave 5 Emdash renderer did not recover after navigation');
 }
 
 async function ensureProjectOpen(page: Page): Promise<void> {
