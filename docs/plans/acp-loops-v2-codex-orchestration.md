@@ -1379,6 +1379,15 @@ fresh recreated green run becomes the final success report.
   Required validation may rebuild the source workspace without mutating the served bytes, and the
   lifecycle removes the preview copy on exit. Retain attempts one through thirteen and use the
   user-authorized attempt fourteen without resetting prior evidence.
+- [x] 2026-08-03: Attempt fourteen passed the exact-SHA replay, complete repository gate,
+  production isolation, authentication, onboarding creation, suggestion editing/removal,
+  back-navigation persistence, edit flow, completed-Meeting absence, and guarded fixture paths.
+  It failed only because the verifier invoked live Drive OAuth on the intentionally local backend,
+  where no `AUTH_GOOGLE_ID` exists, and correctly rejected the resulting console error. The E2E
+  authority now requires same-origin OAuth return-query simulation for draft-restoration acceptance
+  and leaves the live OAuth contract to the already-required backend tests; it must not invoke
+  `drive:startOAuth` or leave the allowed origin. Retain attempts one through fourteen and use the
+  user-authorized attempt fifteen without resetting prior evidence.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.

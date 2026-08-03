@@ -112,7 +112,7 @@ describe('clean-room E2E input authority', () => {
       maxAttempts: 64,
     } as RunCleanRoomE2EGateInput & { maxAttempts: number });
 
-    expect(CLEAN_ROOM_E2E_MAX_ATTEMPTS).toBe(14);
+    expect(CLEAN_ROOM_E2E_MAX_ATTEMPTS).toBe(15);
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error.message);
     expect(result.data.e2eAttemptsConsumed).toBe(0);
