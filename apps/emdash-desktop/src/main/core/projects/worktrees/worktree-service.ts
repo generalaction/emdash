@@ -1001,11 +1001,20 @@ export class WorktreeService {
   }
 
   private async inspectTrackedSourcePath(
+    sourcePath: string,
     absPath: string
   ): Promise<Result<boolean, { message: string }>> {
     try {
-      const relPath = this.files.path.relative(this.repoPath, absPath);
-      const result = await this.ctx.exec('git', ['ls-files', '--cached', '-z', '--', relPath]);
+      const relPath = this.files.path.relative(sourcePath, absPath);
+      const result = await this.ctx.exec('git', [
+        '-C',
+        sourcePath,
+        'ls-files',
+        '--cached',
+        '-z',
+        '--',
+        relPath,
+      ]);
       return ok(result.stdout.length > 0);
     } catch {
       return err({ message: 'Tracked status could not be verified.' });
@@ -1024,6 +1033,7 @@ export class WorktreeService {
     options: {
       strict?: boolean;
       generatedBranchName?: string;
+      sourcePath?: string;
       signal?: AbortSignal;
       deadlineAt?: number;
     } = {}
@@ -1042,6 +1052,7 @@ export class WorktreeService {
     options: {
       strict?: boolean;
       generatedBranchName?: string;
+      sourcePath?: string;
       signal?: AbortSignal;
       deadlineAt?: number;
     }
@@ -1049,12 +1060,24 @@ export class WorktreeService {
     const control = { signal: options.signal, deadlineAt: options.deadlineAt };
     this.throwIfCreateStopped(control);
     const strict = options.strict ?? true;
+    const sourcePath = options.sourcePath ?? this.repoPath;
     if (strict) {
       const attested = await awaitWithWorktreeQuiescence(
         this.attestGeneratedWorktree(targetPath, options.generatedBranchName),
         control
       );
       if (!attested.success) return err(attested.error);
+      const sourceAttested = await awaitWithWorktreeQuiescence(
+        this.attestRegisteredWorktree(sourcePath, control),
+        control
+      );
+      if (!sourceAttested) {
+        return err({
+          type: 'preserve-source-failed',
+          pattern: '<source-worktree>',
+          message: 'Required preserve source could not be validated.',
+        });
+      }
     }
     this.throwIfCreateStopped(control);
     const taskFs = this.taskConfigFs();
@@ -1104,7 +1127,7 @@ export class WorktreeService {
       if (!isSafePreservePattern(this.files.path, pattern)) {
         continue;
       }
-      const matches = repoFs.data.glob([pattern], { cwd: this.repoPath, dot: true });
+      const matches = repoFs.data.glob([pattern], { cwd: sourcePath, dot: true });
       if (!matches.success) {
         if (!strict) continue;
         return err({
@@ -1122,7 +1145,7 @@ export class WorktreeService {
           const absPath = next.value;
           matchedSource = true;
           const sourceContained = await awaitWithWorktreeQuiescence(
-            isRealPathContained(this.files, this.repoPath, absPath, {
+            isRealPathContained(this.files, sourcePath, absPath, {
               candidateMustExist: true,
             }),
             control
@@ -1137,10 +1160,10 @@ export class WorktreeService {
           }
           if (!sourceContained.data) continue;
 
-          const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
+          const relPath = preservedRepoRelativePath(this.files.path, sourcePath, absPath);
           if (!relPath) continue;
           const tracked = await awaitWithWorktreeQuiescence(
-            this.inspectTrackedSourcePath(absPath),
+            this.inspectTrackedSourcePath(sourcePath, absPath),
             control
           );
           if (!tracked.success) {
@@ -1210,6 +1233,36 @@ export class WorktreeService {
     }
     this.throwIfCreateStopped(control);
     return ok({ copied });
+  }
+
+  private async attestRegisteredWorktree(
+    sourcePath: string,
+    control: CreateWorktreeOperationControl
+  ): Promise<boolean> {
+    try {
+      if (!this.files.path.isAbsolute(sourcePath)) return false;
+      const mainCommonDir = await this.readCanonicalCommonDir(this.repoPath, control);
+      const sourceCommonDir = await this.readCanonicalCommonDir(sourcePath, control);
+      if (
+        !mainCommonDir ||
+        !sourceCommonDir ||
+        !this.sameCanonicalPath(mainCommonDir, sourceCommonDir)
+      ) {
+        return false;
+      }
+      const canonicalSource = await this.canonicalWorktreePath(sourcePath);
+      if (!canonicalSource) return false;
+      const records = await this.listRegisteredWorktrees(control);
+      for (const record of records) {
+        const canonicalRecordPath = await this.canonicalWorktreePath(record.path);
+        if (canonicalRecordPath && this.sameCanonicalPath(canonicalRecordPath, canonicalSource)) {
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   private async validateFeatureConfig(

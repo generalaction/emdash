@@ -429,6 +429,7 @@ export class CleanRoomWorkspaceService {
         input.project.worktreeService.copyPreservedFilesToWorktree(worktreePath, {
           strict: true,
           generatedBranchName: branchName,
+          sourcePath: input.featureTarget.path,
           signal: input.signal,
           deadlineAt,
         }),

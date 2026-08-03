@@ -206,6 +206,7 @@ function makeHarness(
         _copyOptions: {
           strict?: boolean;
           generatedBranchName?: string;
+          sourcePath?: string;
           signal?: AbortSignal;
           deadlineAt?: number;
         } = {}
@@ -652,6 +653,7 @@ describe('CleanRoomWorkspaceService', () => {
       expect.objectContaining({
         strict: true,
         generatedBranchName: 'emdash/loop-verify-fixed',
+        sourcePath: '/feature',
         deadlineAt: expect.any(Number),
       })
     );

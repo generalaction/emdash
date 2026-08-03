@@ -92,6 +92,7 @@ describe('independent clean-room E2E prompt', () => {
     expect(prompt).toContain('modified, added or untracked, or deleted files');
     expect(prompt).toContain('created a correction checkpoint');
     expect(prompt).toContain('Credentials supplied through the bound task environment');
+    expect(prompt).toContain('you may read them at runtime and enter them through the application');
     expect(prompt).toContain('running ordinary process diagnostics is not by itself a failure');
     expect(prompt).toContain('intentionally copy raw credential values into durable evidence');
     expect(prompt).toContain(E2E_CORRECTION_READY_PREFIX);

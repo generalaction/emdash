@@ -903,12 +903,14 @@ expiry, or any other cloud prerequisite is unavailable, block remote dogfood wit
 capability named.
 
 Authenticated native-preview E2E uses the existing `/auth/agent-login` password form in a new
-disposable browser partition. Human pre-auth is a mandatory external prerequisite for every fresh
-attempt: before ACP turns or evidence capture begin, the lead pauses and the human enters the
-password into `#agent-password`. Never put the password in a URL, action payload, ACP prompt, log,
-screenshot, or evidence record. Clear bounded browser action history, navigate away from the form,
-and begin evidence only after the agent test user is visibly authenticated. If human pre-auth is
-unavailable, authenticated dogfood is blocked rather than presented as autonomous or downgraded.
+disposable browser partition. A credential supplied through the exact bound verification
+workspace environment may be read at runtime and entered through the application by the lead or
+verification agent; human entry remains an acceptable alternative. Credential access and ordinary
+process diagnostics are not automatic failures. Never print the value or persist it in a URL,
+action payload, ACP prompt, repository file, log, screenshot, or evidence record. Clear bounded
+browser action history, navigate away from the form, and begin evidence only after the agent test
+user is visibly authenticated. If neither a bound credential nor human pre-auth is available,
+authenticated dogfood is blocked rather than presented as autonomous or downgraded.
 
 At teardown, delete task-owned templates/meetings through authenticated product or guarded fixture
 cleanup paths. The lead redirects `convex data --deployment <lease> --limit 1 --format jsonArray`
@@ -1340,6 +1342,16 @@ fresh recreated green run becomes the final success report.
   execution had not begun. The monitor now reacquires the Emdash renderer after navigation. The
   user-authorized restart remains incomplete, so one fifth attempt is durably permitted without
   resetting the first four; its backend and browser lease must be recreated again.
+- [x] 2026-08-03: The retained replacement sequence reached attempt ten after fixing renderer
+  recovery, cold-start timing, and the native accessibility snapshot executor. Attempt ten then
+  failed closed before authoritative evidence because clean-room preservation reproduced
+  `.env.local` from the project source checkout instead of the configured feature workspace, so
+  the exact replay selected an unrelated cloud backend. The reviewer also followed the older
+  human-only pre-auth paragraph despite the user's environment-access amendment. Clean-room
+  preservation now takes its files from an attested same-repository feature worktree, and the
+  plan/prompt explicitly permit runtime credential reads and application entry without printing or
+  persisting values. The user authorized restarting this last gate; attempt eleven is retained as
+  the next and final bounded replay without resetting prior evidence.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.

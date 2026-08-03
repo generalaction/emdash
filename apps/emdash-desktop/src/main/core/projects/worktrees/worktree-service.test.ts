@@ -1247,6 +1247,26 @@ describe('WorktreeService', () => {
   });
 
   describe('copyPreservedFilesToWorktree', () => {
+    it('reproduces preserved files from an explicitly attested feature worktree', async () => {
+      fs.writeFileSync(path.join(repoDir, '.env.local'), 'SOURCE=project');
+      const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
+      const featureBranch = 'emdash/feature-preserves';
+      const targetBranch = 'emdash/loop-feature-preserves';
+      const service = makeService({ projectSettings: makeSettings(['.env.local']) });
+      const feature = await service.createWorktreeAtCommit(commit, featureBranch);
+      const target = await service.createWorktreeAtCommit(commit, targetBranch);
+      if (!feature.success || !target.success) throw new Error('expected worktrees');
+      fs.writeFileSync(path.join(feature.data, '.env.local'), 'SOURCE=feature');
+
+      const copied = await service.copyPreservedFilesToWorktree(target.data, {
+        sourcePath: feature.data,
+        generatedBranchName: targetBranch,
+      });
+
+      expect(copied).toEqual({ success: true, data: { copied: ['.env.local'] } });
+      expect(fs.readFileSync(path.join(target.data, '.env.local'), 'utf8')).toBe('SOURCE=feature');
+    });
+
     it('keeps held preserve settings quiescent before generated worktree removal', async () => {
       fs.writeFileSync(path.join(repoDir, '.env.local'), 'SECRET=abc');
       const commit = (await git(['rev-parse', 'HEAD'], { cwd: repoDir })).stdout.trim();
@@ -1531,7 +1551,7 @@ describe('WorktreeService', () => {
         root: repoDir,
         supportsLocalSpawn: true,
         exec: (command, args = [], options) => {
-          if (command === 'git' && args[0] === 'ls-files') {
+          if (command === 'git' && args.includes('ls-files')) {
             return Promise.reject(new Error('Git transport unavailable'));
           }
           return delegate.exec(command, args, options);
