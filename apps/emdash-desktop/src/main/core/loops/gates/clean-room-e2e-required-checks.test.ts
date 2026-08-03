@@ -232,6 +232,7 @@ function makeHarness(
     nativeStatus?: 'passed' | 'correctable' | 'failed';
     validationFails?: boolean;
     nativeRun?: NativeBrowserE2EAttestationPort['run'];
+    context?: { loop: Loop; phase: LoopPhase };
   } = {}
 ) {
   const validationVerifier: LoopVerifier = {
@@ -262,7 +263,7 @@ function makeHarness(
   const native: NativeBrowserE2EAttestationPort = {
     run: options.nativeRun ?? vi.fn(async () => ok(attestation(options.nativeStatus ?? 'passed'))),
   };
-  const resolveContext = vi.fn(async () => ok({ loop, phase }));
+  const resolveContext = vi.fn(async () => ok(options.context ?? { loop, phase }));
   const adapter = new CleanRoomE2ERequiredChecksAdapter({
     resolveContext,
     validationVerifier,
@@ -273,6 +274,49 @@ function makeHarness(
 }
 
 describe('CleanRoomE2ERequiredChecksAdapter', () => {
+  it('accepts a cleared phase binding when the exact running outer E2E attempt is durable', async () => {
+    const outerAttempt: LoopSessionAttempt = {
+      attemptId: 'outer-attempt-1',
+      conversationId: 'outer-conversation',
+      purpose: 'e2e',
+      phaseId: phase.id,
+      verificationRunId: 'verification-run-1',
+      target,
+      status: 'running',
+      checkpointBefore: CHECKPOINT_COMMIT,
+      startedAt: '2026-07-12T00:59:00.000Z',
+    };
+    const detachedLoopState: LoopStateV2 = {
+      ...loopState,
+      sessionAttempts: [outerAttempt, ...loopState.sessionAttempts],
+    };
+    const detachedLoop: Loop = { ...loop, state: detachedLoopState };
+    const detachedPhase: LoopPhase = { ...phase, conversationId: null };
+    const harness = makeHarness({ context: { loop: detachedLoop, phase: detachedPhase } });
+    const runInput = input();
+    runInput.authority.progress = {
+      loopState: detachedLoopState,
+      phaseState,
+    };
+
+    const result = await harness.adapter.run(runInput);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a cleared phase binding without the exact durable outer E2E attempt', async () => {
+    const harness = makeHarness({
+      context: { loop, phase: { ...phase, conversationId: null } },
+    });
+
+    const result = await harness.adapter.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { type: 'required-checks-context-invalid', quiescent: true },
+    });
+  });
+
   it.each(['passed', 'correctable', 'failed'] as const)(
     'maps exact validation plus one native %s attestation',
     async (nativeStatus) => {

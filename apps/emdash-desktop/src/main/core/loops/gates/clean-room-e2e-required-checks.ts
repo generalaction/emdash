@@ -442,7 +442,6 @@ function validateContext(
       value.phase.loopId !== value.loop.id ||
       value.phase.kind !== 'e2e' ||
       value.phase.status !== 'reviewing' ||
-      value.phase.conversationId !== input.authority.outerConversationId ||
       !config.success ||
       !canonicalDeepEqual(value.loop.config, config.data) ||
       config.data.provider !== input.provider ||
@@ -465,6 +464,7 @@ function validateContext(
       (exactPhaseState !== null &&
         (exactPhaseState.result !== null ||
           exactPhaseState.checkpointCommit !== input.checkpointCommit)) ||
+      !validOuterConversationAuthority(value.phase.conversationId, loopState.data, input) ||
       !sameE2EDurableProgress(
         { loopState: loopState.data, phaseState: exactPhaseState },
         input.authority.progress
@@ -492,6 +492,29 @@ function validateContext(
   } catch {
     return invalidContext();
   }
+}
+
+function validOuterConversationAuthority(
+  phaseConversationId: string | null,
+  loopState: LoopState,
+  input: Parameters<E2ERequiredChecksPort['run']>[0]
+): boolean {
+  if (phaseConversationId === input.authority.outerConversationId) return true;
+  if (phaseConversationId !== null) return false;
+  const matching = loopState.sessionAttempts.filter(
+    (attempt) =>
+      attempt.conversationId === input.authority.outerConversationId &&
+      attempt.purpose === 'e2e' &&
+      attempt.phaseId === input.authority.phaseId &&
+      attempt.verificationRunId === input.verificationRunId &&
+      attempt.status === 'running' &&
+      attempt.checkpointBefore === input.checkpointCommit &&
+      attempt.checkpointAfter === undefined &&
+      attempt.finishedAt === undefined &&
+      attempt.error === undefined &&
+      sameExactTarget(attempt.target, input.target)
+  );
+  return matching.length === 1 && canonicalAttempt(matching[0]) !== undefined;
 }
 
 function validActiveVerificationContext(
