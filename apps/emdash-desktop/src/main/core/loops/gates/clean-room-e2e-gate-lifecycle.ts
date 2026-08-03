@@ -146,13 +146,23 @@ export function verificationProgress(input: {
   cleanupStatus?: LoopVerificationWorkspaceState['cleanup']['status'];
   cleanupError?: string;
 }): LoopVerificationWorkspaceState {
+  const currentWorkspaceAuthority =
+    input.status !== 'integrating-fix' &&
+    input.currentVerification?.verificationRunId === input.verificationRunId &&
+    input.currentVerification.target !== undefined &&
+    input.currentVerification.replayedThroughCommit !== undefined
+      ? input.currentVerification
+      : undefined;
+  const target = currentWorkspaceAuthority?.target ?? input.cleanRoom?.target;
+  const replayedThroughCommit =
+    currentWorkspaceAuthority?.replayedThroughCommit ?? input.cleanRoom?.replayedThroughCommit;
   return {
     verificationRunId: input.verificationRunId,
     attempt: input.attempt,
     status: input.status,
-    ...(input.cleanRoom ? { target: copyTarget(input.cleanRoom.target) } : {}),
+    ...(target ? { target: copyTarget(target) } : {}),
     baseCommit: input.baseCommit,
-    ...(input.cleanRoom ? { replayedThroughCommit: input.cleanRoom.replayedThroughCommit } : {}),
+    ...(replayedThroughCommit ? { replayedThroughCommit } : {}),
     expectedFeatureHead: input.featureHead,
     cleanup: {
       status: input.cleanupStatus ?? 'pending',

@@ -89,6 +89,12 @@ describe('CleanRoomE2EGate', () => {
       },
     });
     expect(harness.calls).toContain(`integrate:1:${FIX_COMMIT}`);
+    expect(harness.dependencies.cleanRoom.integrateFix).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cleanRoom: expect.objectContaining({ replayedThroughCommit: FEATURE_COMMIT }),
+        fixCommit: FIX_COMMIT,
+      })
+    );
     expect(harness.calls.indexOf('destroy:1')).toBeLessThan(
       harness.calls.indexOf(`create:2:${FIX_COMMIT}`)
     );

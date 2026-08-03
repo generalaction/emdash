@@ -1628,7 +1628,6 @@ export class CleanRoomE2EGate {
           if (!cleanup.success) return cleanup;
           return err({ ...integratingProgress.error, lastWorkspaceDestroyed: true });
         }
-        cleanRoom.replayedThroughCommit = correctionCleanRoom.replayedThroughCommit;
         lifecycle.integrationLinearized = true;
         const integrated = await this.callDependency(
           'E2E correction integration',

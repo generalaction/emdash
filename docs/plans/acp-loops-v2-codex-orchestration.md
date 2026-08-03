@@ -1402,6 +1402,13 @@ fresh recreated green run becomes the final success report.
   Restart the existing isolated deployment under an actively supervised lifecycle, prove both
   ports bound, use attempt seventeen for correction integration, and reserve attempt eighteen for
   the mandatory clean replay without resetting any prior evidence.
+- [x] 2026-08-03: Attempt seventeen ran the full authenticated native matrix, reproduced the
+  dismissed-suggestion defect, and produced clean correction commit `43d0d0ab9b`. Emdash then
+  rejected its own issued clean-room handle because the gate overwrote the handle's immutable
+  replay checkpoint with the correction SHA before calling integration. Keep the durable
+  integrating-fix progress at the correction SHA, but pass the unmodified issued handle plus the
+  separate fix commit to integration. Preserve the correction evidence, use attempt eighteen for
+  normal integration, and reserve attempt nineteen for the mandatory fresh replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
