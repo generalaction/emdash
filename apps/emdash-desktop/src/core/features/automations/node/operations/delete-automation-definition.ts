@@ -1,28 +1,16 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import {
-  nonTerminalOperationStatuses,
-  type OperationClaimResource,
-} from '@emdash/core/primitives/operations/api';
+import type { OperationClaimResource } from '@emdash/core/primitives/operations/api';
 import {
   runtimeResolveErrorAsError,
   type HostRuntimesClient,
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import z from 'zod';
-import {
-  defineOperationKindPayloadSchema,
-  reconcilerDedupeStatuses,
-  type OperationPayload,
-} from '@core/primitives/operations/api';
+import { defineOperationKindPayloadSchema } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import {
-  automationRuns,
-  automations,
-  lifecycleOperations,
-  projects,
-} from '@core/services/app-db/node/schema';
+import { automationRuns, automations, projects } from '@core/services/app-db/node/schema';
 import { defineOperationContribution } from '@core/services/operations/api';
 import {
   runOperationActions,
@@ -122,25 +110,11 @@ export async function enqueueDeleteAutomation(operations: OperationsEngine, auto
       .where(and(eq(automations.id, automationId), isNull(automations.deletedAt)))
       .limit(1);
     if (!automation) {
-      const [existing] = await db
-        .select({ id: lifecycleOperations.id })
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.entityKey, automationId),
-            eq(lifecycleOperations.kind, 'delete-automation'),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-          )
-        )
-        .orderBy(desc(lifecycleOperations.createdAt))
-        .limit(1);
-      return existing
-        ? ok({ outcome: 'existing' as const, operationId: existing.id })
-        : err({
-            type: 'automation-not-found',
-            automationId,
-            message: `Automation ${automationId} was not found`,
-          });
+      return err({
+        type: 'automation-not-found',
+        automationId,
+        message: `Automation ${automationId} was not found`,
+      });
     }
 
     const [project] = automation.projectId
@@ -167,7 +141,6 @@ export async function enqueueDeleteAutomation(operations: OperationsEngine, auto
         createdAt,
       },
       options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
         claims: deleteAutomationClaims(automation.id),
         precondition: automation.projectId
           ? (tx) => projectIsActive(tx, automation.projectId!)
@@ -211,19 +184,6 @@ export async function submitReconcilerAutomationCleanup(
   automationId: string
 ): Promise<void> {
   await submit(async ({ db, clock }) => {
-    const [existing] = await db
-      .select({ id: lifecycleOperations.id })
-      .from(lifecycleOperations)
-      .where(
-        and(
-          eq(lifecycleOperations.entityKey, automationId),
-          eq(lifecycleOperations.kind, 'delete-automation'),
-          inArray(lifecycleOperations.status, [...reconcilerDedupeStatuses])
-        )
-      )
-      .limit(1);
-    if (existing) return ok({ outcome: 'existing' as const, operationId: existing.id });
-
     const [automation] = await db
       .select({
         id: automations.id,
@@ -244,12 +204,12 @@ export async function submitReconcilerAutomationCleanup(
           .limit(1)
       : [];
     const createdAt = clock.now();
-    const payload: OperationPayload = {
+    const payload = {
       version: '2',
       source: 'reconciler',
       entityName: automation.name,
       hostLabel: project?.name,
-    };
+    } as const;
     return ok({
       outcome: 'enqueue' as const,
       draft: {
@@ -263,7 +223,6 @@ export async function submitReconcilerAutomationCleanup(
         createdAt,
       },
       options: {
-        dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: (tx) => {
           tx.update(automations)
             .set({ deletedAt: automation.deletedAt ?? createdAt, updatedAt: createdAt })

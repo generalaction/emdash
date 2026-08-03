@@ -10,7 +10,7 @@ import type { Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { OperationKind, OperationPayload } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
-import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from './lifecycle-operation';
 
 export type OperationProgress = {
   currentStep?: string;

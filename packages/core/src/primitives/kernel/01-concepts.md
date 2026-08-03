@@ -54,9 +54,12 @@ The app runs the kernel in two places with different roles:
 
 - **The desktop ledger** is the *intent plane*. It is the durable,
   SQLite-backed record of everything the user (or automation) has asked for:
-  a transactional outbox of pending host work plus the full history. Entity
-  mutations and their operations commit in the same transaction — deleting a
-  task and enqueueing the teardown of its workspace is one atomic write.
+  an operations database of pending host work plus the full history. Entity
+  mutations live in the app database while operations and claims live in a
+  separate kernel database. Desktop adapters therefore write the entity
+  tombstone first, then submit the operation; a reconciler treats tombstones
+  without matching live operations as proposals to repair the split-write
+  crash window.
 - **The host log** is the *execution plane*. Each host (the local machine, or
   a workspace server over SSH) keeps its own log of work it is actually
   performing against its own filesystem, git repos, and processes. It is the
@@ -84,13 +87,15 @@ Named precisely, the desktop ledger plays **two roles with one mechanism**:
 
 - For desktop-executed operations (DB deletions, coordinators) it is a
   genuine operation log — the work happens where the log lives.
-- For host-bound operations it is a **transactional outbox**: intent written
-  atomically with the entity mutation, delivered to another system later.
-  It is a *richer* outbox than the textbook pattern — a classic outbox row
-  is a fire-and-forget message, while these records track the remote
-  execution's full lifecycle (status, progress, result) back into the intent
-  record; the literature name is closer to a durable request/reply or saga
-  log.
+- For host-bound operations it is an **operation outbox**: intent written to
+  the kernel operations database and delivered to another system later. It is
+  not transactionally joined to the app database; instead, the app database's
+  tombstone is the source of repair truth for the narrow crash window between
+  tombstone and operation submit. It is a *richer* outbox than the textbook
+  pattern — a classic outbox row is a fire-and-forget message, while these
+  records track the remote execution's full lifecycle (status, progress,
+  result) back into the intent record; the literature name is closer to a
+  durable request/reply or saga log.
 
 The distinction is deliberately *not* reified into two systems. It is
 captured by **execution locality**, derivable from the definition's handler

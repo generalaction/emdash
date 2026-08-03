@@ -10,9 +10,9 @@ import {
   conversations,
   tasks,
   terminals,
-  type LifecycleOperationRow,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import type {
   AcpRuntimeClient,

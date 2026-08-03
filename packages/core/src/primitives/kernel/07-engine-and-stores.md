@@ -86,15 +86,14 @@ Two implementations, one contract test suite run against both:
   the same SQLite dependency, and a second persistence format would buy
   nothing but a second set of bugs.
 
-The two planes construct the SQLite store differently, and that difference
-lives in adapter construction, not in the port:
-
-- The **desktop** store attaches to the app database and must accept an
-  *external* transaction handle — admission joins the caller's Drizzle
-  transaction so the entity mutation and the operation land atomically (the
-  outbox property from [01 §2](./01-concepts.md#the-desktop-ledgers-dual-role)).
-- The **workspace server** store owns its own database file and its own
-  transactions.
+Both planes construct the SQLite store as an operations database, separate
+from any app/domain database. That keeps the kernel schema portable and gives
+claims/transition history the same shape in desktop and workspace-server
+deployments. The tradeoff is that desktop entity tombstones and operation
+submit are ordered writes instead of a single cross-database transaction. The
+desktop adapter therefore writes tombstones first, submits to the operations
+DB second, and relies on a reconciler to propose repair operations for
+tombstones that have no matching non-terminal operation.
 
 The port itself is justified by purity and testability, not by backend
 plurality — it is what lets every engine test run against memory with a
@@ -158,6 +157,9 @@ export interface OperationEngine {
   /** Latest dispatch explanation for pending display: skipped + deferred. */
   lastDispatchReport(): DispatchPassReport;
 
+  /** External event source woke eligibility (for example, a host reconnected). */
+  poke(): void;
+
   /** Boot sequence — must complete before the first submit. See §recovery. */
   recover(): Promise<void>;
 
@@ -205,8 +207,8 @@ path.
 The engine is event-driven, not polling. One dispatch pass runs per poke;
 pokes come from: `submit`/`submitBatch` commit, any settlement, retry
 backoff timers elapsing, `recover()` completing, and (desktop)
-host-availability changes. Between pokes the engine is idle — no timers
-except pending backoffs.
+host-availability changes delivered through `engine.poke()`. Between pokes
+the engine is idle — no timers except pending backoffs.
 
 Settlement is the busiest path and runs as one transaction: CAS the terminal
 status, write `outcome`, then — outside the transaction — end the progress
@@ -386,10 +388,10 @@ read paths become operations as part of the adapter steps
 1. **Land the kernel** (pure layers + engine + memory store) with tiers 1–3
    green — including the shared-mode interleaving scenarios. Zero app
    integration; purely additive.
-2. **Desktop adapter**: implement the SQLite store (schema gains the
-   `operation_claims` and `operation_transitions` tables plus
-   `outcome`/`result`/`rejectedError`/`notBefore` columns via a generated
-   Drizzle migration), swap the
+2. **Desktop adapter**: implement the SQLite store as a separate operations
+   database (schema contains `operation_claims` and `operation_transitions`
+   plus `outcome`/`result`/`rejectedError`/`notBefore` columns via bundled
+   migrations), swap the
    internals of the desktop operations service to `createOperationEngine`
    behind its existing wire surface, and migrate desktop definitions
    (project/task deletion trees) to `defineOperation`. The conflict table

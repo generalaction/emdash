@@ -9,11 +9,11 @@ import {
   projects,
   tasks,
   workspaces,
-  type LifecycleOperationRow,
   type ProjectRow,
   type TaskRow,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 
 export type LifecycleOperationContext = {
   task?: TaskRow;

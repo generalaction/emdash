@@ -492,6 +492,35 @@ describe('createOperationEngine', () => {
       deferred: [{ id: submitted.data.id, reason: 'gated' }],
     });
   });
+
+  test('poke wakes work that was deferred by the dispatch gate', async () => {
+    const definition = op('gate-poke');
+    let open = false;
+    let starts = 0;
+    const handler = createOperationHandler(definition, async () => {
+      starts += 1;
+      return { ok: true };
+    });
+    const { engine } = engineFor([handler], { dispatchGate: () => open });
+
+    const submitted = await engine.submit(
+      definition,
+      { key: 'a' },
+      {
+        initiator: { kind: 'user', action: 'test' },
+      }
+    );
+    expect(submitted.success).toBe(true);
+    if (!submitted.success) return;
+    await flushMicrotasks(20);
+    expect(starts).toBe(0);
+    expect((await engine.get(submitted.data.id))?.status).toBe('pending');
+
+    open = true;
+    engine.poke();
+    await expect(submitted.data.result).resolves.toEqual({ success: true, data: { ok: true } });
+    expect(starts).toBe(1);
+  });
 });
 
 class DelayedSnapshotGetStore extends MemoryOperationStore {

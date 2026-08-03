@@ -2,7 +2,7 @@ import { hostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type * as WorkspaceApi from '@emdash/core/runtimes/workspace/api';
 import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 import {
   cleanLifecycleWorkspaceArtifacts,
   deactivateLifecycleWorkspace,

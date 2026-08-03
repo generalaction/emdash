@@ -10,7 +10,8 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import type { LifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { tasks, workspaces, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { checkoutSelector } from '@core/services/runtime-broker/node/git';
 

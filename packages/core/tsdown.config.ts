@@ -23,6 +23,8 @@ export default defineConfig({
     'primitives-operations-api': 'src/primitives/operations/api/index.ts',
     'primitives-kernel-api': 'src/primitives/kernel/api/index.ts',
     'primitives-kernel-engine': 'src/primitives/kernel/engine/index.ts',
+    'primitives-kernel-sqlite': 'src/primitives/kernel/sqlite/index.ts',
+    'primitives-kernel-resources-api': 'src/primitives/kernel-resources/api/index.ts',
     'primitives-kernel-testing': 'src/primitives/kernel/testing/index.ts',
     'primitives-runtime-resolution-api': 'src/primitives/runtime-resolution/api/index.ts',
     'primitives-sqlite-store-api': 'src/primitives/sqlite-store/api/index.ts',

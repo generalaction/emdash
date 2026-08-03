@@ -1,9 +1,6 @@
-import {
-  nonTerminalOperationStatuses,
-  type OperationClaimResource,
-} from '@emdash/core/primitives/operations/api';
+import type { OperationClaimResource } from '@emdash/core/primitives/operations/api';
 import { err, ok } from '@emdash/shared';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import z from 'zod';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import {
@@ -17,19 +14,9 @@ import {
 } from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
-import {
-  defineOperationKindPayloadSchema,
-  reconcilerDedupeStatuses,
-  type OperationPayload,
-} from '@core/primitives/operations/api';
+import { defineOperationKindPayloadSchema } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
-import {
-  lifecycleOperations,
-  projects,
-  tasks,
-  workspaces,
-  type LifecycleOperationRow,
-} from '@core/services/app-db/node/schema';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { defineOperationContribution } from '@core/services/operations/api';
 import {
   isOperationStale,
@@ -42,6 +29,7 @@ import {
   type OperationSubmit,
   type OperationsEngine,
 } from '@core/services/operations/node';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 
 const SESSION_TIMEOUT_MS = 30_000;
 const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
@@ -240,13 +228,10 @@ export async function enqueueDeleteWorkspace(operations: OperationsEngine, works
       .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
       .limit(1);
     if (!workspace) {
-      const existing = await findWorkspaceOperation(db, workspaceId, nonTerminalOperationStatuses);
-      return existing
-        ? ok({ outcome: 'existing' as const, operationId: existing.id })
-        : err({
-            type: 'workspace-not-found',
-            message: `Workspace ${workspaceId} was not found`,
-          });
+      return err({
+        type: 'workspace-not-found',
+        message: `Workspace ${workspaceId} was not found`,
+      });
     }
     const [task] = await db.select().from(tasks).where(eq(tasks.workspaceId, workspaceId)).limit(1);
     const [project] = task
@@ -273,7 +258,6 @@ export async function enqueueDeleteWorkspace(operations: OperationsEngine, works
         createdAt,
       },
       options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
         precondition: (tx: DrizzleTx) =>
           workspacePrecondition(tx, {
             projectId: project?.id,
@@ -337,7 +321,6 @@ export async function enqueueDeleteWorkspacePath(
         createdAt,
       },
       options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
         precondition: (tx: DrizzleTx) =>
           workspacePrecondition(tx, {
             projectId: input.projectId,
@@ -412,7 +395,6 @@ export async function enqueueArchiveWorkspace(
         },
       },
       options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
         precondition: (tx: DrizzleTx) =>
           workspacePrecondition(tx, {
             projectId: input.projectId,
@@ -436,8 +418,6 @@ export async function submitReconcilerWorkspaceCleanup(
 ): Promise<void> {
   await submit(async ({ db, clock }) => {
     const entityKey = input.workspaceId ?? `workspace-path:${input.workspacePath}`;
-    const existing = await findWorkspaceOperation(db, entityKey, reconcilerDedupeStatuses);
-    if (existing) return ok({ outcome: 'existing' as const, operationId: existing.id });
     const [project] = await db
       .select()
       .from(projects)
@@ -445,7 +425,7 @@ export async function submitReconcilerWorkspaceCleanup(
       .limit(1);
     if (!project) return ok({ outcome: 'existing' as const });
     const createdAt = clock.now();
-    const payload: OperationPayload = {
+    const payload = {
       version: '2',
       source: 'reconciler',
       entityName: input.workspacePath,
@@ -454,7 +434,7 @@ export async function submitReconcilerWorkspaceCleanup(
       hostLabel: project.name,
       deleteWorktree: true,
       deleteBranch: false,
-    };
+    } as const;
     return ok({
       outcome: 'enqueue' as const,
       draft: {
@@ -469,7 +449,6 @@ export async function submitReconcilerWorkspaceCleanup(
         createdAt,
       },
       options: {
-        dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: input.workspaceId
           ? (tx: DrizzleTx) => {
               tx.update(workspaces)
@@ -589,24 +568,4 @@ function workspaceClaims(input: {
     claims.push({ kind: 'worktree', hostRef: input.hostRef, path: input.workspacePath });
   }
   return claims;
-}
-
-async function findWorkspaceOperation(
-  db: Parameters<OperationDefinition['run']>[0]['db'],
-  entityId: string,
-  statuses: readonly (typeof lifecycleOperations.$inferSelect.status)[]
-) {
-  const [operation] = await db
-    .select()
-    .from(lifecycleOperations)
-    .where(
-      and(
-        eq(lifecycleOperations.entityKey, entityId),
-        inArray(lifecycleOperations.kind, ['delete-workspace', 'archive-workspace']),
-        inArray(lifecycleOperations.status, [...statuses])
-      )
-    )
-    .orderBy(desc(lifecycleOperations.createdAt))
-    .limit(1);
-  return operation;
 }

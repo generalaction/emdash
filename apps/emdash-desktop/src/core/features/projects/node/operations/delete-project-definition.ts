@@ -1,7 +1,6 @@
-import { nonTerminalOperationStatuses } from '@emdash/core/primitives/operations/api';
 import { ok, err } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { and, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import z from 'zod';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
@@ -10,18 +9,10 @@ import { projectSubject } from '@core/features/projects/contributions/subject';
 import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
-import {
-  defineOperationKindPayloadSchema,
-  reconcilerDedupeStatuses,
-} from '@core/primitives/operations/api';
+import { defineOperationKindPayloadSchema } from '@core/primitives/operations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import {
-  lifecycleOperations,
-  projects,
-  tasks,
-  workspaces,
-} from '@core/services/app-db/node/schema';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { defineOperationContribution } from '@core/services/operations/api';
 import {
   isOperationStale,
@@ -142,24 +133,10 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
       .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
       .limit(1);
     if (!project) {
-      const [existing] = await db
-        .select({ id: lifecycleOperations.id })
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.entityKey, projectId),
-            eq(lifecycleOperations.kind, 'delete-project'),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-          )
-        )
-        .orderBy(desc(lifecycleOperations.createdAt))
-        .limit(1);
-      return existing
-        ? ok({ outcome: 'existing' as const, operationId: existing.id })
-        : err({
-            type: 'project-not-found',
-            message: `Project ${projectId} was not found`,
-          });
+      return err({
+        type: 'project-not-found',
+        message: `Project ${projectId} was not found`,
+      });
     }
     const taskRows = await db
       .select()
@@ -173,21 +150,6 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
         ? await db.select().from(workspaces).where(inArray(workspaces.id, workspaceIds))
         : [];
     const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
-    const liveTaskEntityKeys = new Set(taskRows.map((task) => task.id));
-    const orphanedOperationRows = (
-      await db
-        .select()
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.projectId, projectId),
-            ne(lifecycleOperations.kind, 'delete-project'),
-            isNull(lifecycleOperations.parentOperationId),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses]),
-            isNotNull(lifecycleOperations.entityKey)
-          )
-        )
-    ).filter((row) => row.entityKey && !liveTaskEntityKeys.has(row.entityKey));
     const claimedWorkspaceIds = new Set<string>();
     const createdAt = clock.now();
     const related: OperationRelatedInsert[] = [
@@ -234,39 +196,6 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
           },
         };
       }),
-      ...orphanedOperationRows.map<OperationRelatedInsert>((operation) => ({
-        draft: {
-          kind: operation.kind,
-          projectId,
-          taskId: operation.taskId,
-          workspaceId: operation.workspaceId,
-          entityKey: operation.entityKey!,
-          hostRef: operation.hostRef,
-          payload: operation.payload,
-          createdAt,
-        },
-        options: {
-          dedupeStatuses: nonTerminalOperationStatuses,
-          precondition: (tx) =>
-            tx
-              .select({ id: lifecycleOperations.id })
-              .from(lifecycleOperations)
-              .where(
-                and(
-                  eq(lifecycleOperations.id, operation.id),
-                  isNull(lifecycleOperations.parentOperationId),
-                  inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-                )
-              )
-              .limit(1)
-              .get()
-              ? undefined
-              : {
-                  type: 'operation-not-found',
-                  message: `Operation ${operation.id} is no longer waiting for project deletion`,
-                },
-        },
-      })),
     ];
     return ok({
       outcome: 'enqueue' as const,
@@ -283,7 +212,6 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
         createdAt,
       },
       options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
         claims: [{ kind: 'project', id: projectId }],
         tombstone: (tx) =>
           tx
@@ -307,18 +235,6 @@ export async function submitReconcilerProjectCleanup(
   projectId: string
 ): Promise<void> {
   await submit(async ({ db }) => {
-    const [existing] = await db
-      .select({ id: lifecycleOperations.id })
-      .from(lifecycleOperations)
-      .where(
-        and(
-          eq(lifecycleOperations.entityKey, projectId),
-          eq(lifecycleOperations.kind, 'delete-project'),
-          inArray(lifecycleOperations.status, [...reconcilerDedupeStatuses])
-        )
-      )
-      .limit(1);
-    if (existing) return ok({ outcome: 'existing' as const, operationId: existing.id });
     const [project] = await db
       .select()
       .from(projects)
@@ -340,7 +256,7 @@ export async function submitReconcilerProjectCleanup(
         },
         confirmationReason: 'reconciler-proposed' as const,
       },
-      options: { dedupeStatuses: reconcilerDedupeStatuses },
+      options: {},
     });
   });
   appDbPokes.projects.poke({ projectId });

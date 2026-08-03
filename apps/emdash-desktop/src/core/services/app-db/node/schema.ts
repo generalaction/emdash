@@ -1,7 +1,3 @@
-import type {
-  OperationConfirmationReason,
-  OperationStatus,
-} from '@emdash/core/primitives/operations/api';
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import { isNotNull, sql } from 'drizzle-orm';
 import {
@@ -20,8 +16,6 @@ import {
 } from '@core/primitives/automations/api/config';
 import { conversationConfig } from '@core/primitives/conversations/api';
 import { linkedIssue } from '@core/primitives/linked-issues/api';
-import { operationPayload, type OperationPayload } from '@core/primitives/operations/api';
-import type { OperationKind } from '@core/primitives/operations/api';
 import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
@@ -221,55 +215,6 @@ export const workspaces = sqliteTable(
   },
   (table) => ({
     keyIdx: uniqueIndex('idx_workspaces_key').on(table.key).where(isNotNull(table.key)),
-  })
-);
-
-export const lifecycleOperations = sqliteTable(
-  'lifecycle_operations',
-  {
-    id: text('id').primaryKey(),
-    kind: text('kind').notNull().$type<OperationKind>(),
-    status: text('status').notNull().$type<OperationStatus>(),
-    projectId: text('project_id'),
-    taskId: text('task_id'),
-    workspaceId: text('workspace_id'),
-    entityKey: text('entity_key'),
-    parentOperationId: text('parent_operation_id'),
-    parentForgetPolicy: text('parent_forget_policy').$type<
-      'abandon-children' | 'orphan-children'
-    >(),
-    initiatedBy: text('initiated_by'),
-    hostRef: text('host_ref').notNull(),
-    payload: versionedJsonColumn(operationPayload)('payload').$type<OperationPayload>().notNull(),
-    confirmedAt: integer('confirmed_at'),
-    confirmationReason: text('confirmation_reason').$type<OperationConfirmationReason>(),
-    attempt: integer('attempt').notNull().default(0),
-    error: text('error'),
-    createdAt: integer('created_at').notNull(),
-    finishedAt: integer('finished_at'),
-  },
-  (table) => ({
-    statusIdx: index('idx_lifecycle_operations_status').on(table.status),
-    hostStatusIdx: index('idx_lifecycle_operations_host_status').on(table.hostRef, table.status),
-    entityKeyIdx: index('idx_lifecycle_operations_entity_key').on(table.entityKey),
-    parentStatusIdx: index('idx_lifecycle_operations_parent_status').on(
-      table.parentOperationId,
-      table.status
-    ),
-  })
-);
-
-export const operationClaims = sqliteTable(
-  'operation_claims',
-  {
-    operationId: text('operation_id')
-      .notNull()
-      .references(() => lifecycleOperations.id, { onDelete: 'cascade' }),
-    resourceKey: text('resource_key').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.operationId, table.resourceKey] }),
-    resourceIdx: index('idx_operation_claims_resource').on(table.resourceKey),
   })
 );
 
@@ -582,10 +527,6 @@ export type AutomationRunRow = typeof automationRuns.$inferSelect;
 export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
 export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
-export type LifecycleOperationRow = Omit<typeof lifecycleOperations.$inferSelect, 'payload'> & {
-  payload: OperationPayload;
-};
-export type OperationClaimRow = typeof operationClaims.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

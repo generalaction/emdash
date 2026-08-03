@@ -256,7 +256,8 @@ Each plane dispatches against its own running set:
 
 - The **desktop** dispatcher additionally gates on host *availability*: an
   operation whose work targets an offline host is skipped (without barring —
-  offline is not contention) and re-poked when the host connects.
+  offline is not contention) and re-poked through `engine.poke()` when the
+  host connects.
 - The **host** dispatcher gates purely on claims; by the time work reaches
   the host log, the desktop has already sequenced intent.
 

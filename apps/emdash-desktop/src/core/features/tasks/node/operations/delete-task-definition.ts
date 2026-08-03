@@ -1,8 +1,7 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import { nonTerminalOperationStatuses } from '@emdash/core/primitives/operations/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
-import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import z from 'zod';
 import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
@@ -17,21 +16,11 @@ import type { LifecycleCleanupDependencies } from '@core/features/workspaces/api
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
-import {
-  defineOperationKindPayloadSchema,
-  reconcilerDedupeStatuses,
-  type OperationPayload,
-} from '@core/primitives/operations/api';
+import { defineOperationKindPayloadSchema } from '@core/primitives/operations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import {
-  lifecycleOperations,
-  projects,
-  tasks,
-  workspaces,
-  type LifecycleOperationRow,
-} from '@core/services/app-db/node/schema';
+import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { defineOperationContribution } from '@core/services/operations/api';
 import {
   isOperationStale,
@@ -44,6 +33,7 @@ import {
   type OperationSubmit,
   type OperationsEngine,
 } from '@core/services/operations/node';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 const SESSION_TIMEOUT_MS = 30_000;
@@ -244,21 +234,7 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
       .where(and(eq(tasks.id, input.taskId), isNull(tasks.deletedAt)))
       .limit(1);
     if (!task) {
-      const [existing] = await db
-        .select({ id: lifecycleOperations.id })
-        .from(lifecycleOperations)
-        .where(
-          and(
-            eq(lifecycleOperations.entityKey, input.taskId),
-            inArray(lifecycleOperations.kind, ['delete-task', 'cleanup-sessions']),
-            inArray(lifecycleOperations.status, [...nonTerminalOperationStatuses])
-          )
-        )
-        .orderBy(desc(lifecycleOperations.createdAt))
-        .limit(1);
-      return existing
-        ? ok({ outcome: 'existing' as const, operationId: existing.id })
-        : err({ type: 'task-not-found', message: `Task ${input.taskId} was not found` });
+      return err({ type: 'task-not-found', message: `Task ${input.taskId} was not found` });
     }
     projectId = task.projectId;
 
@@ -305,7 +281,6 @@ export async function enqueueDeleteTask(operations: OperationsEngine, input: Del
         createdAt,
       },
       options: {
-        dedupeStatuses: nonTerminalOperationStatuses,
         claims: deleteTaskClaims({
           projectId: task.projectId,
           taskId: task.id,
@@ -354,19 +329,6 @@ export async function submitReconcilerTaskCleanup(
 ): Promise<void> {
   let projectId: string | undefined;
   await submit(async ({ db, clock }) => {
-    const [existing] = await db
-      .select({ id: lifecycleOperations.id })
-      .from(lifecycleOperations)
-      .where(
-        and(
-          eq(lifecycleOperations.entityKey, taskId),
-          inArray(lifecycleOperations.kind, ['delete-task', 'cleanup-sessions']),
-          inArray(lifecycleOperations.status, [...reconcilerDedupeStatuses])
-        )
-      )
-      .limit(1);
-    if (existing) return ok({ outcome: 'existing' as const, operationId: existing.id });
-
     const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!task) return ok({ outcome: 'existing' as const });
     projectId = task.projectId;
@@ -379,14 +341,14 @@ export async function submitReconcilerTaskCleanup(
       .where(eq(projects.id, task.projectId))
       .limit(1);
     const createdAt = clock.now();
-    const payload: OperationPayload = {
+    const payload = {
       version: '2',
       source: 'reconciler',
       entityName: task.name,
       hostLabel: project?.name,
       deleteWorktree: true,
       deleteBranch: false,
-    };
+    } as const;
     return ok({
       outcome: 'enqueue' as const,
       draft: {
@@ -402,7 +364,6 @@ export async function submitReconcilerTaskCleanup(
         createdAt,
       },
       options: {
-        dedupeStatuses: reconcilerDedupeStatuses,
         tombstone: (tx) => {
           tx.update(tasks)
             .set({ deletedAt: task.deletedAt ?? new Date(createdAt).toISOString() })

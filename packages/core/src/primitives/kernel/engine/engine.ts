@@ -46,6 +46,7 @@ export interface OperationEngine {
   get(id: string): Promise<OperationRecord | undefined>;
   query(filter: OperationQueryFilter): Promise<OperationQueryPage>;
   lastDispatchReport(): DispatchPassReport;
+  poke(): void;
   recover(): Promise<void>;
   shutdown(): Promise<void>;
 }
@@ -323,6 +324,10 @@ export function createOperationEngine(deps: CreateOperationEngineDeps): Operatio
         })),
         deferred: lastReport.deferred.map((entry) => ({ ...entry })),
       };
+    },
+
+    poke() {
+      pokeDispatch();
     },
 
     async recover() {

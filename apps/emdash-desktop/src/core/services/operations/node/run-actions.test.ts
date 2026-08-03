@@ -1,6 +1,6 @@
 import { ManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
-import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from './lifecycle-operation';
 import { runOperationActions } from './run-actions';
 
 describe('runOperationActions', () => {

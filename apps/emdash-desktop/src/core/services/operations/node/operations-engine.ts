@@ -1,68 +1,78 @@
+import { randomUUID } from 'node:crypto';
 import {
-  createIdleSweeper,
-  type IoActivitySnapshot,
-} from '@emdash/core/primitives/io-activity/api';
+  createOperationHandler,
+  defineConflictPolicy,
+  defineOperation,
+  displayStatus,
+  isTerminalStatus,
+  operationTreeView,
+  type AnyOperationDefinition,
+  type OperationHandler,
+  type OperationRecord,
+  type ProgressSink,
+  type ResourceClaim,
+} from '@emdash/core/primitives/kernel/api';
 import {
-  type OperationClaimResource,
+  createOperationEngine,
+  type OperationEngine as KernelOperationEngine,
+  type OperationRegistry,
+} from '@emdash/core/primitives/kernel/engine';
+import type { SqliteOperationStore } from '@emdash/core/primitives/kernel/sqlite';
+import {
+  operationClaimResourceKey,
   type OperationConfirmationReason,
+  rollupStatus,
+  type OperationClaimResource,
+  type OperationDisplayState,
   type OperationMutationError,
-  nextOperationStatus,
-  requireNextOperationStatus,
+  type OperationTree,
   type OperationTreeKey,
   type OperationTreeList,
 } from '@emdash/core/primitives/operations/api';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { createDurableQueue, type DurableQueue, type Scope } from '@emdash/shared/concurrency';
-import { log } from '@emdash/shared/logger';
+import type { Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { family, query, type Family, type Query } from '@emdash/wire';
-import { and, eq, inArray } from 'drizzle-orm';
-import { operationKinds, type OperationKind } from '@core/primitives/operations/api';
-import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
-import { lifecycleOperations, type LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import { z } from 'zod';
+import type { AppDb } from '@core/services/app-db/node/db';
 import {
-  adoptOperation,
-  buildOperationDraft,
-  findClaimConflictByResources,
-  insertOperation,
-  latestOperationForDraft,
-  RelatedOperationInsertError,
-  type InsertOperationOutcome,
-} from './admission';
+  operationsPokes,
+  type OperationTreePoke,
+  matchOperationProject,
+} from '@core/services/operations/node/pokes';
 import type {
   OperationDefinition,
+  OperationDraftInput,
+  OperationInsertOptions,
   OperationProgress,
   OperationSubmission,
   OperationSubmit,
   OperationsNotificationPublisher,
   OperationsSshManager,
 } from './definition';
-import {
-  operationIsRunnable,
-  queuedOperations,
-  runQueuedOperation,
-  settleParentIfChildrenDone,
-  settleWaitingParents,
-  tryTransitionStatus,
-} from './execution';
-import { matchOperationProject, operationsPokes } from './pokes';
-import { loadOperationTrees, operationTreeKey } from './projection';
+import type { LifecycleOperationRow } from './lifecycle-operation';
 
-const RECONCILE_INTERVAL_MS = 10 * 60_000;
-const RECONCILE_SNAPSHOT: IoActivitySnapshot = {
-  running: false,
-  busy: false,
-  attachedClients: 0,
-  detachedAt: null,
-  lastInputAt: null,
-  lastOutputAt: null,
-};
+const legacyOperationInputSchema = defineVersionedSchema()
+  .unversioned(
+    z.custom<LegacyOperationInput>((value) => typeof value === 'object' && value !== null)
+  )
+  .build();
+const legacyOperationResultSchema = z.object({ ok: z.boolean() });
+const legacyOperationErrorSchema = z.object({
+  type: z.string(),
+  reason: z.string().optional(),
+  message: z.string().optional(),
+  code: z.string().optional(),
+  retryable: z.boolean().optional(),
+});
 
 type OperationMutationResult = Result<{ operationId?: string }, OperationMutationError>;
 
 export type OperationsEngineDeps = {
   db: AppDb;
   scope: Scope;
+  store: SqliteOperationStore;
   sshManager: OperationsSshManager;
   notifications: OperationsNotificationPublisher;
   definitions: OperationDefinition[];
@@ -70,132 +80,72 @@ export type OperationsEngineDeps = {
   clock?: Clock;
 };
 
+export interface LegacyOperationInput {
+  draft: OperationDraftInput & { id: string; createdAt: number };
+  claims: ResourceClaim[];
+  parentForgetPolicy?: 'abandon-children' | 'orphan-children';
+}
+
 export class OperationsEngine {
   private readonly db: AppDb;
   private readonly scope: Scope;
+  private readonly store: SqliteOperationStore;
   private readonly sshManager: OperationsSshManager;
-  private readonly notifications: OperationsNotificationPublisher;
-  private readonly initiatedBy: string | undefined;
-  private readonly definitions: Map<OperationKind, OperationDefinition>;
+  private readonly definitions: Map<string, OperationDefinition>;
+  private readonly kernelDefinitions: Map<string, AnyOperationDefinition>;
+  private readonly kernel: KernelOperationEngine;
   private readonly clock: Clock;
-  private readonly queue: DurableQueue;
-  private started = false;
+  private readonly initiatedBy: string | undefined;
   private readonly progress = new Map<string, OperationProgress>();
   private readonly operationTrees: Family<OperationTreeKey, Query<OperationTreeList>>;
 
   constructor(deps: OperationsEngineDeps) {
     this.db = deps.db;
     this.scope = deps.scope;
+    this.store = deps.store;
     this.sshManager = deps.sshManager;
-    this.notifications = deps.notifications;
-    this.initiatedBy = deps.initiatedBy;
     this.clock = deps.clock ?? systemClock;
-    this.definitions = definitionMap(deps.definitions);
-    this.queue = createDurableQueue({
-      scope: this.scope,
-      list: () => queuedOperations(this.db),
-      laneOf: (operation) => operation.hostRef,
-      isRunnable: (operation) =>
-        operationIsRunnable(
-          {
-            db: this.db,
-            definitions: this.definitions,
-            hostIsOnline: (hostRef) => this.hostIsOnline(hostRef),
-          },
-          operation
-        ),
-      run: (operation, signal) =>
-        runQueuedOperation(
-          {
-            db: this.db,
-            clock: this.clock,
-            definitions: this.definitions,
-            progress: this.progress,
-            hostIsOnline: (hostRef) => this.hostIsOnline(hostRef),
-            refreshOperationTrees: () => this.refreshOperationTrees(),
-            publishPendingCleanup: (item, reason) => this.publishPendingCleanup(item, reason),
-            poke: () => this.poke(),
-          },
-          operation,
-          signal
-        ),
-      onError: (error) => log.error('lifecycle operations drain failed', { error }),
-      onPass: () => this.refreshOperationTrees(),
+    this.initiatedBy = deps.initiatedBy;
+    this.definitions = new Map(deps.definitions.map((definition) => [definition.kind, definition]));
+    const registry = this.createRegistry(deps.definitions);
+    this.kernelDefinitions = new Map(
+      registry.definitions.map((definition) => [definition.name, definition])
+    );
+    this.kernel = createOperationEngine({
+      store: deps.store,
+      registry,
+      progress: this.createProgressSink(),
+      clock: {
+        now: () => this.clock.now(),
+        setTimeout: (callback, ms) => setTimeout(callback, ms),
+      },
+      dispatchGate: (record) => this.hostIsOnline(hostRefFromRecord(record)),
     });
     this.operationTrees = family<OperationTreeKey, Query<OperationTreeList>>(
       (key, scope) =>
         query({
-          fetch: () =>
-            loadOperationTrees({
-              db: this.db,
-              definitions: this.definitions,
-              progress: this.progress,
-              hostIsOnline: (hostRef) => this.hostIsOnline(hostRef),
-              projectId: key.projectId,
-            }),
+          fetch: () => this.loadOperationTrees(key),
           pokes: [operationsPokes.trees.subscription(matchOperationProject(key.projectId))],
           clock: this.clock,
           scope,
-          onError: (error) =>
-            log.warn('lifecycle operation tree refresh failed', {
-              projectId: key.projectId,
-              error: String(error),
-            }),
         }),
       { name: 'operation-trees', key: operationTreeKey, scope: this.scope }
     );
   }
 
   async start(): Promise<void> {
-    if (this.started) return;
-    this.started = true;
-    await this.db
-      .update(lifecycleOperations)
-      .set({
-        status: requireNextOperationStatus('running', { type: 'process-restarted' }),
-        error: null,
-      })
-      .where(eq(lifecycleOperations.status, 'running'));
-    await settleWaitingParents(this.db);
-
+    await this.kernel.recover();
     const onConnection = (event: { type: string }) => {
-      void this.refreshOperationTrees();
-      if (event.type === 'connected' || event.type === 'reconnected') this.poke();
+      this.refreshOperationTrees();
+      if (event.type === 'connected' || event.type === 'reconnected') {
+        this.kernel.poke();
+      }
     };
     this.sshManager.on('connection-event', onConnection);
     this.scope.add(() => {
       this.sshManager.off('connection-event', onConnection);
     });
-    this.scope.add(async () => {
-      await this.db
-        .update(lifecycleOperations)
-        .set({ status: requireNextOperationStatus('running', { type: 'process-restarted' }) })
-        .where(eq(lifecycleOperations.status, 'running'));
-    });
-
-    const reconcileDefinitions = [...this.definitions.values()].filter(
-      (definition) => definition.reconcile !== undefined
-    );
-    if (reconcileDefinitions.length > 0) {
-      const sweeper = createIdleSweeper({
-        scope: this.scope,
-        clock: this.clock,
-        intervalMs: RECONCILE_INTERVAL_MS,
-        entries: () => reconcileDefinitions,
-        snapshot: () => RECONCILE_SNAPSHOT,
-        policy: () => () => ({ action: 'deactivate', reason: 'reconcile' }),
-        deactivate: (definition) => this.reconcile(definition),
-        onError: (error, definition) =>
-          log.warn('lifecycle reconciler sweep failed', {
-            kind: definition?.kind,
-            error: String(error),
-          }),
-      });
-      void sweeper.sweepNow();
-    }
-
-    await this.refreshOperationTrees();
-    this.poke();
+    this.refreshOperationTrees();
   }
 
   readonly submit: OperationSubmit = async (prepare) => {
@@ -205,324 +155,484 @@ export class OperationsEngine {
       return ok({ operationId: prepared.data.operationId });
     }
 
-    const submission = prepared.data;
-    const hasRelatedOperations = (submission.related?.length ?? 0) > 0;
-    const draft = buildOperationDraft({
-      input: {
-        ...submission.draft,
-        status: submission.draft.status ?? (hasRelatedOperations ? 'waiting-children' : undefined),
-      },
-      initiatedBy: this.initiatedBy,
-      now: this.clock.now(),
-    });
-    const payloadError = this.validatePayload(draft);
-    if (payloadError) return err(payloadError);
-    let insertion: InsertOperationOutcome;
     try {
-      insertion = this.db.transaction((tx) => {
-        const primary = insertOperation(tx, draft, submission.options);
-        if (primary.outcome !== 'inserted') return primary;
-        for (const related of submission.related ?? []) {
-          const relatedDraft = buildOperationDraft({
-            input: {
-              ...related.draft,
-              parentOperationId: draft.id,
-            },
-            initiatedBy: this.initiatedBy,
-            now: this.clock.now(),
-          });
-          const relatedPayloadError = this.validatePayload(relatedDraft);
-          if (relatedPayloadError) {
-            throw new RelatedOperationInsertError(relatedPayloadError, relatedDraft);
-          }
-          const parentForgetPolicy = related.propagation?.onParentForget ?? 'abandon-children';
-          const relatedOptions = {
-            ...related.options,
-            parentForgetPolicy,
-          };
-          const relatedInsertion = insertOperation(tx, relatedDraft, relatedOptions);
-          if (relatedInsertion.outcome === 'duplicate' && relatedInsertion.operationId) {
-            adoptOperation(tx, relatedInsertion.operationId, draft.id, parentForgetPolicy);
-          } else if (relatedInsertion.outcome === 'precondition-failed') {
-            throw new RelatedOperationInsertError(relatedInsertion.error, relatedDraft);
-          }
-        }
-        return primary;
-      });
+      return await this.enqueueSubmission(prepared.data);
     } catch (error) {
-      if (!(error instanceof RelatedOperationInsertError)) throw error;
-      log.warn('related lifecycle operation insert failed', {
-        kind: error.draft.kind,
-        entityKey: error.draft.entityKey,
-        message: error.error.message,
+      return err({
+        type: 'operation-submit-failed',
+        message: error instanceof Error ? error.message : String(error),
       });
-      return err(error.error);
     }
-
-    if (insertion.outcome === 'precondition-failed') return err(insertion.error);
-    if (insertion.outcome === 'duplicate') {
-      const existing = insertion.operationId
-        ? await this.operationById(insertion.operationId)
-        : await latestOperationForDraft(this.db, draft, submission.options);
-      return existing
-        ? ok({ operationId: existing.id })
-        : err({
-            type: 'operation-not-found',
-            message: 'The operation was deduplicated but no existing operation was found',
-          });
-    }
-
-    await this.refreshOperationTrees();
-    if (draft.status === 'awaiting-confirmation') {
-      this.publishPendingCleanup(draft, draft.confirmationReason ?? 'reconciler-proposed');
-    } else {
-      this.poke();
-    }
-    return ok({ operationId: draft.id });
   };
 
   async retry(operationId: string): Promise<OperationMutationResult> {
-    const operation = await this.operationById(operationId);
-    if (!operation) {
-      return err({ type: 'operation-not-found', message: 'No pending cleanup was found' });
-    }
-    const definition = this.requireDefinition(operation.kind);
-    const confirmedAt = this.clock.now();
-    const retryEvent = { type: 'user-retried', confirmedAt } as const;
-    const preflight = nextOperationStatus(operation.status, retryEvent);
-    if (!preflight.success) {
-      return err({ type: preflight.error.type, message: preflight.error.message });
-    }
-    const reset = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
-      if (item.id === operation.id) resetRetryableChildren(tx, operation.id, reset);
-      const status = tryTransitionStatus(item, retryEvent);
-      if (!status) return;
-      tx.update(lifecycleOperations)
-        .set({
-          status,
-          error: null,
-          finishedAt: null,
-          confirmedAt,
-          confirmationReason: null,
-        })
-        .where(eq(lifecycleOperations.id, item.id))
-        .run();
-    };
-
-    if (definition.retry) {
-      await definition.retry({
-        operation,
-        db: this.db,
-        clock: this.clock,
-        reset,
+    const record = await this.getRoot(operationId);
+    if (!record) {
+      return err({
+        type: 'operation-not-found',
+        message: `Operation ${operationId} was not found`,
       });
-    } else {
-      this.db.transaction((tx) => reset(tx));
+    }
+    const definition = this.kernelDefinitions.get(record.name);
+    if (!definition) {
+      return err({ type: 'operation-not-found', message: `Operation ${record.name} is unknown` });
     }
 
-    await this.refreshOperationTrees();
-    this.poke();
-    return ok({ operationId: operation.id });
+    const input = cloneLegacyInput(record.input);
+    const rejected = needsConfirmation(record);
+    if (rejected) {
+      input.draft.confirmedAt = this.clock.now();
+      input.draft.confirmationReason = rejected.reason;
+    }
+    const submitted = await this.kernel.submit(definition, input, {
+      initiator: { kind: 'user', action: 'retry-operation' },
+    });
+    if (!submitted.success) {
+      return err(admissionError(submitted.error));
+    }
+    this.refreshOperationTrees(input.draft.projectId ?? undefined);
+    return ok({ operationId: submitted.data.id });
   }
 
   async forget(operationId: string): Promise<OperationMutationResult> {
-    const operation = await this.operationById(operationId);
-    if (!operation) {
-      return err({ type: 'operation-not-found', message: 'No pending cleanup was found' });
-    }
-    const definition = this.requireDefinition(operation.kind);
-    const abandonEvent = { type: 'user-abandoned' } as const;
-    const preflight = nextOperationStatus(operation.status, abandonEvent);
-    if (!preflight.success) {
-      return err({ type: preflight.error.type, message: preflight.error.message });
-    }
-    const markAbandoned = (tx: DrizzleTx, item: LifecycleOperationRow = operation) => {
-      if (item.id === operation.id) applyParentForgetPolicy(tx, operation.id, markAbandoned);
-      const status = tryTransitionStatus(item, abandonEvent);
-      if (!status) return;
-      tx.update(lifecycleOperations)
-        .set({ status, finishedAt: this.clock.now(), error: null })
-        .where(eq(lifecycleOperations.id, item.id))
-        .run();
-    };
-
-    if (definition.forget) {
-      await definition.forget({
-        operation,
-        db: this.db,
-        clock: this.clock,
-        markAbandoned,
-      });
-    } else {
-      this.db.transaction((tx) => markAbandoned(tx));
-    }
-
-    await settleParentIfChildrenDone(
-      {
-        db: this.db,
-        refreshOperationTrees: () => this.refreshOperationTrees(),
-        poke: () => this.poke(),
-      },
-      operation
-    );
-    await this.refreshOperationTrees();
-    return ok({ operationId: operation.id });
+    await this.cancelTree(operationId);
+    this.refreshOperationTrees();
+    return ok({ operationId });
   }
 
   operationTreeState(key: OperationTreeKey, scope: Scope): Query<OperationTreeList> {
-    const normalized = normalizeOperationTreeKey(key);
-    scope.add(this.operationTrees.retain(normalized));
-    return this.operationTrees(normalized);
+    const release = this.operationTrees.retain({ projectId: key.projectId });
+    scope.add(release);
+    return this.operationTrees({ projectId: key.projectId });
   }
 
   poke(): void {
-    if (!this.started || this.scope.disposed) return;
-    this.queue.poke();
+    this.kernel.poke();
   }
 
   async waitForIdle(): Promise<void> {
-    await this.queue.waitForIdle();
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const active = (await this.kernel.query({ active: true })).records;
+      if (active.length === 0) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   }
 
   async hasClaimConflict(resources: readonly OperationClaimResource[]): Promise<boolean> {
-    const conflict = await findClaimConflictByResources(this.db, resources);
-    return conflict !== undefined;
+    const keys = resources.map((resource) => operationClaimResourceKey(resource));
+    for (const key of keys) {
+      const page = await this.kernel.query({ resource: { key }, active: true, limit: 1 });
+      if (page.records.length > 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  private async reconcile(definition: OperationDefinition): Promise<void> {
-    await definition.reconcile?.({
-      db: this.db,
-      clock: this.clock,
-      submit: this.submit,
-    });
+  async shutdown(): Promise<void> {
+    await this.kernel.shutdown();
+    this.store.close();
   }
 
-  private publishPendingCleanup(
-    operation: Pick<LifecycleOperationRow, 'id' | 'payload' | 'hostRef'>,
-    reason: OperationConfirmationReason
-  ): void {
-    this.notifications.publishPendingCleanup({
-      operationId: operation.id,
-      payload: operation.payload,
-      hostRef: operation.hostRef,
-      reason,
+  private async enqueueSubmission(
+    submission: Extract<OperationSubmission, { outcome: 'enqueue' }>
+  ) {
+    const members = [submission, ...(submission.related ?? [])];
+    for (const member of members) {
+      const error = await this.applyPreconditionAndTombstone(member.draft, member.options);
+      if (error) {
+        return err(error);
+      }
+    }
+
+    const parentInput = this.inputFromDraft(submission.draft, submission.options);
+    const relatedInputs = (submission.related ?? []).map((related) =>
+      this.inputFromDraft(related.draft, related.options)
+    );
+    const parentDefinition = this.definitionForInput(parentInput);
+    if (!parentDefinition) {
+      return err({
+        type: 'operation-not-found',
+        message: `Operation ${parentInput.draft.kind} is unknown`,
+      });
+    }
+
+    if (relatedInputs.length === 0) {
+      const submitted = await this.kernel.submit(parentDefinition, parentInput, {
+        initiator: { kind: 'user', action: parentInput.draft.kind },
+      });
+      if (!submitted.success) {
+        return err(admissionError(submitted.error));
+      }
+      this.refreshOperationTrees(parentInput.draft.projectId ?? undefined);
+      return ok({ operationId: submitted.data.id });
+    }
+
+    const batch = [
+      { definition: parentDefinition, input: parentInput },
+      ...relatedInputs.flatMap((input) => {
+        const definition = this.definitionForInput(input);
+        return definition ? [{ definition, input, parent: 0, adoptExisting: true }] : [];
+      }),
+    ];
+    const submitted = await this.kernel.submitBatch(batch, {
+      initiator: { kind: 'user', action: parentInput.draft.kind },
+      propagation: 'fail-parent',
     });
+    if (!submitted.success) {
+      return err(admissionError(submitted.error));
+    }
+    this.refreshOperationTrees(parentInput.draft.projectId ?? undefined);
+    return ok({ operationId: submitted.data.handles[0]?.id });
+  }
+
+  private async applyPreconditionAndTombstone(
+    draft: OperationDraftInput,
+    options: OperationInsertOptions | undefined
+  ): Promise<OperationMutationError | undefined> {
+    if (options?.precondition) {
+      const error = this.db.transaction((tx) => options.precondition?.(tx));
+      if (error) return error;
+    }
+    if (options?.tombstone) {
+      const changed = this.db.transaction((tx) => options.tombstone?.(tx) ?? 1);
+      if (changed === 0) {
+        return {
+          type: 'operation-duplicate',
+          message: `Operation already exists for ${draft.entityKey ?? draft.id}`,
+        };
+      }
+    }
+    return undefined;
+  }
+
+  private inputFromDraft(
+    draftInput: OperationDraftInput,
+    options: OperationInsertOptions | undefined
+  ): LegacyOperationInput {
+    const now = this.clock.now();
+    const draft = {
+      ...draftInput,
+      id: draftInput.id ?? randomUUID(),
+      createdAt: draftInput.createdAt ?? now,
+      initiatedBy: draftInput.initiatedBy ?? this.initiatedBy,
+    };
+    return {
+      draft,
+      claims: (options?.claims ?? []).map((claim) => legacyClaimToKernel(claim)),
+      parentForgetPolicy: options?.parentForgetPolicy,
+    };
+  }
+
+  private definitionForInput(input: LegacyOperationInput): AnyOperationDefinition | undefined {
+    return this.kernelDefinitions.get(input.draft.kind);
+  }
+
+  private createRegistry(definitions: readonly OperationDefinition[]): OperationRegistry {
+    const pairs = definitions.map((definition) => {
+      const kernelDefinition = defineOperation({
+        name: definition.kind,
+        input: legacyOperationInputSchema,
+        result: legacyOperationResultSchema,
+        error: legacyOperationErrorSchema,
+        key: (input) => `${input.draft.kind}:${input.draft.entityKey ?? input.draft.id}`,
+        claims: (input) => input.claims,
+        describe: (input) =>
+          input.draft.payload.entityName ?? input.draft.entityKey ?? input.draft.id,
+        retry: { maxAttempts: 1, backoff: { kind: 'fixed', baseMs: 0 } },
+      }) as AnyOperationDefinition;
+      const handler = createOperationHandler(kernelDefinition, async (ctx) => {
+        const input = ctx.input as LegacyOperationInput;
+        const operation = rowFromInput(ctx.operationId, input, ctx.attempt, 'running');
+        const result = await definition.run({
+          operation,
+          db: this.db,
+          signal: ctx.signal,
+          clock: this.clock,
+          reportProgress: (progress) => {
+            this.progress.set(ctx.operationId, progress);
+            this.refreshOperationTrees(operation.projectId ?? undefined);
+          },
+        });
+        if (!result.success) {
+          if (result.error.type === 'awaiting-confirmation') {
+            ctx.reject({
+              type: 'needs-confirmation',
+              reason: result.error.reason,
+              message: result.error.message,
+            });
+          }
+          if (result.error.type === 'failed') {
+            throw Object.assign(new Error(result.error.message), {
+              code: result.error.code,
+              retryable: result.error.retryable,
+            });
+          }
+          throw new Error(result.error.message ?? 'Operation failed');
+        }
+        return { ok: true };
+      }) as OperationHandler<AnyOperationDefinition>;
+      return { definition: kernelDefinition, handler };
+    });
+
+    const policy = defineConflictPolicy((on) => {
+      for (const incoming of pairs) {
+        for (const existing of pairs) {
+          on(incoming.definition, existing.definition).queue();
+        }
+      }
+    });
+
+    return {
+      definitions: pairs.map((pair) => pair.definition),
+      handlers: pairs.map((pair) => pair.handler),
+      conflictPolicies: [policy],
+    };
+  }
+
+  private createProgressSink(): ProgressSink {
+    return {
+      publish: (update) => {
+        if (update.stages.length > 0) {
+          const current = update.stages.at(-1);
+          this.progress.set(update.operationId, {
+            currentStep: current?.id,
+            completedSteps: update.stages.filter((stage) => stage.status === 'succeeded').length,
+            totalSteps: update.stages.length,
+          });
+        }
+        this.refreshOperationTrees();
+      },
+      end: (operationId) => {
+        this.progress.delete(operationId);
+        this.refreshOperationTrees();
+      },
+    };
+  }
+
+  private async loadOperationTrees(key: OperationTreeKey): Promise<OperationTreeList> {
+    const records = (await this.kernel.query({ limit: 500 })).records.filter((record) => {
+      const input = legacyInput(record);
+      if (!input) return false;
+      if (key.projectId !== undefined && input.draft.projectId !== key.projectId) return false;
+      return (
+        !isTerminalStatus(record.status) ||
+        record.status === 'failed' ||
+        record.status === 'rejected'
+      );
+    });
+    const nodes = operationTreeView(records);
+    return Object.fromEntries(
+      nodes.map((node) => {
+        const root = this.toDisplayState(node.record);
+        const children = node.children.map((child) => this.toDisplayState(child.record));
+        const tree: OperationTree = {
+          root,
+          children,
+          rollup: {
+            total: 1 + children.length,
+            done: [root, ...children].filter((item) => item.status !== 'failed').length,
+            status: rollupStatus([root, ...children]),
+          },
+        };
+        return [root.operationId, tree];
+      })
+    );
+  }
+
+  private toDisplayState(record: OperationRecord): OperationDisplayState {
+    const input = cloneLegacyInput(record.input);
+    const progress = this.progress.get(record.id);
+    const status = displayStatus(record, this.kernel.lastDispatchReport());
+    const rejected = needsConfirmation(record);
+    const base = {
+      operationId: record.id,
+      operationKind: record.name,
+      entityId:
+        input.draft.entityKey ??
+        input.draft.taskId ??
+        input.draft.workspaceId ??
+        input.draft.projectId ??
+        record.id,
+      entityKind: this.definitions.get(record.name)?.entityKind ?? 'project',
+      projectId: input.draft.projectId ?? undefined,
+      entityName: input.draft.payload.entityName,
+      hostRef: input.draft.hostRef,
+      hostLabel: input.draft.payload.hostLabel,
+      workspacePath: input.draft.payload.workspacePath,
+      branchName: input.draft.payload.branchName,
+      createdAt: input.draft.createdAt,
+      attempt: record.attempt,
+      currentStep: progress?.currentStep,
+      completedSteps: progress?.completedSteps,
+      totalSteps: progress?.totalSteps,
+      error: record.error?.message,
+    };
+    if (rejected) {
+      return {
+        ...base,
+        status: 'awaiting-confirmation',
+        confirmationReason: rejected.reason as OperationConfirmationReason,
+        error: rejected.message,
+      };
+    }
+    if (status.kind === 'deferred' && status.reason === 'gated') {
+      return { ...base, status: 'blocked-host-offline' };
+    }
+    if (status.kind === 'waiting') {
+      return { ...base, status: 'waiting' };
+    }
+    if (status.kind === 'running') {
+      return { ...base, status: progress?.waiting ? 'waiting' : 'running' };
+    }
+    if (status.kind === 'waiting-children') {
+      return { ...base, status: 'waiting-children' };
+    }
+    if (status.kind === 'failed' || status.kind === 'rejected') {
+      return { ...base, status: 'failed', error: base.error ?? 'Operation failed' };
+    }
+    return { ...base, status: 'queued' };
+  }
+
+  private refreshOperationTrees(projectId?: string): void {
+    const poke: OperationTreePoke = projectId ? { projectId } : {};
+    operationsPokes.trees.poke(poke);
   }
 
   private hostIsOnline(hostRef: string): boolean {
     return hostRef === 'local' || this.sshManager.isConnected(hostRef);
   }
 
-  private async operationById(operationId: string): Promise<LifecycleOperationRow | undefined> {
-    const [operation] = await this.db
-      .select()
-      .from(lifecycleOperations)
-      .where(eq(lifecycleOperations.id, operationId))
-      .limit(1);
-    return operation;
+  private async getRoot(operationId: string): Promise<OperationRecord | undefined> {
+    let current = await this.kernel.get(operationId);
+    while (current?.parentId) {
+      const parent = await this.kernel.get(current.parentId);
+      if (!parent) break;
+      current = parent;
+    }
+    return current;
   }
 
-  private requireDefinition(kind: OperationKind): OperationDefinition {
-    const definition = this.definitions.get(kind);
-    if (!definition) throw new Error(`No operation definition is registered for '${kind}'`);
-    return definition;
+  private async cancelTree(operationId: string): Promise<void> {
+    const root = await this.kernel.get(operationId);
+    if (!root) return;
+    await this.kernel.cancel(operationId);
+    for (const child of (await this.kernel.query({ parentId: operationId, active: true }))
+      .records) {
+      const transitions = await this.store.listTransitions(child.id);
+      if (transitions.some((transition) => transition.cause === 'adoption')) {
+        continue;
+      }
+      await this.cancelTree(child.id);
+    }
   }
+}
 
-  private validatePayload(
-    operation: Pick<LifecycleOperationRow, 'kind' | 'payload'>
-  ): OperationMutationError | undefined {
-    const schema = this.definitions.get(operation.kind)?.payloadSchema;
-    if (!schema) return undefined;
-    const parsed = schema.safeParse(operation.payload);
-    if (parsed.status === 'ok') return undefined;
+function rowFromInput(
+  id: string,
+  input: LegacyOperationInput,
+  attempt: number,
+  status: LifecycleOperationRow['status']
+): LifecycleOperationRow {
+  return {
+    id,
+    kind: input.draft.kind,
+    status,
+    projectId: input.draft.projectId ?? null,
+    taskId: input.draft.taskId ?? null,
+    workspaceId: input.draft.workspaceId ?? null,
+    entityKey: input.draft.entityKey ?? null,
+    parentOperationId: input.draft.parentOperationId ?? null,
+    parentForgetPolicy: input.parentForgetPolicy ?? null,
+    initiatedBy: input.draft.initiatedBy ?? null,
+    hostRef: input.draft.hostRef,
+    payload: input.draft.payload,
+    confirmedAt: input.draft.confirmedAt ?? null,
+    confirmationReason: input.draft.confirmationReason ?? null,
+    attempt,
+    createdAt: input.draft.createdAt,
+    finishedAt: null,
+  };
+}
+
+function legacyClaimToKernel(resource: OperationClaimResource): ResourceClaim {
+  return {
+    resource: resource.kind,
+    key: operationClaimResourceKey(resource),
+    mode: 'exclusive',
+    implicit: false,
+  };
+}
+
+function hostRefFromRecord(record: OperationRecord): string {
+  return legacyInput(record)?.draft.hostRef ?? 'local';
+}
+
+function legacyInput(record: OperationRecord): LegacyOperationInput | undefined {
+  return isLegacyOperationInput(record.input) ? record.input : undefined;
+}
+
+function cloneLegacyInput(input: unknown): LegacyOperationInput {
+  if (!isLegacyOperationInput(input)) {
+    throw new Error('Stored operation input is not a legacy operation input');
+  }
+  return {
+    draft: { ...input.draft, payload: { ...input.draft.payload } },
+    claims: input.claims.map((claim) => ({ ...claim })),
+    parentForgetPolicy: input.parentForgetPolicy,
+  };
+}
+
+function isLegacyOperationInput(input: unknown): input is LegacyOperationInput {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'draft' in input &&
+    typeof input.draft === 'object' &&
+    input.draft !== null &&
+    'kind' in input.draft &&
+    'hostRef' in input.draft
+  );
+}
+
+function needsConfirmation(
+  record: OperationRecord
+): { reason: string; message?: string } | undefined {
+  if (record.status !== 'rejected') {
+    return undefined;
+  }
+  const error = record.rejectedError;
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'type' in error &&
+    error.type === 'needs-confirmation' &&
+    'reason' in error &&
+    typeof error.reason === 'string'
+  ) {
     return {
-      type: 'invalid-operation-payload',
-      message:
-        parsed.status === 'invalid'
-          ? parsed.reason
-          : `Operation payload for ${operation.kind} uses unsupported version '${parsed.version}'`,
+      reason: error.reason,
+      message: 'message' in error && typeof error.message === 'string' ? error.message : undefined,
     };
   }
+  return undefined;
+}
 
-  private async refreshOperationTrees(projectId?: string): Promise<void> {
-    operationsPokes.trees.poke({ projectId });
+function admissionError(error: { kind: string; conflicts?: OperationRecord[]; name?: string }) {
+  if (error.kind === 'conflict') {
+    return {
+      type: 'resource-claimed',
+      message: `Operation conflicts with ${error.conflicts?.[0]?.name ?? 'another operation'}`,
+    };
   }
+  return {
+    type: error.kind,
+    message: error.name ? `Operation ${error.name} cannot be submitted` : 'Operation failed',
+  };
 }
 
-function normalizeOperationTreeKey(key: OperationTreeKey): OperationTreeKey {
-  return key.projectId === undefined ? {} : { projectId: key.projectId };
-}
-
-function definitionMap(
-  definitions: OperationDefinition[]
-): Map<OperationKind, OperationDefinition> {
-  const map = new Map<OperationKind, OperationDefinition>();
-  for (const definition of definitions) {
-    if (map.has(definition.kind)) {
-      throw new Error(`Duplicate operation definition '${definition.kind}'`);
-    }
-    map.set(definition.kind, definition);
-  }
-  const missing = operationKinds.filter((kind) => !map.has(kind));
-  if (missing.length > 0) {
-    throw new Error(`Missing operation definitions: ${missing.join(', ')}`);
-  }
-  return map;
-}
-
-export function enqueueSubmission(
-  submission: Omit<Extract<OperationSubmission, { outcome: 'enqueue' }>, 'outcome'>
-): Result<OperationSubmission, OperationMutationError> {
-  return ok({ outcome: 'enqueue', ...submission });
-}
-
-function resetRetryableChildren(
-  tx: DrizzleTx,
-  parentOperationId: string,
-  reset: (tx: DrizzleTx, item: LifecycleOperationRow) => void
-): void {
-  const children = tx
-    .select()
-    .from(lifecycleOperations)
-    .where(
-      and(
-        eq(lifecycleOperations.parentOperationId, parentOperationId),
-        inArray(lifecycleOperations.status, ['awaiting-confirmation' as const, 'failed' as const])
-      )
-    )
-    .all();
-  for (const child of children) reset(tx, child);
-}
-
-function applyParentForgetPolicy(
-  tx: DrizzleTx,
-  parentOperationId: string,
-  markAbandoned: (tx: DrizzleTx, item: LifecycleOperationRow) => void
-): void {
-  const children = tx
-    .select()
-    .from(lifecycleOperations)
-    .where(
-      and(
-        eq(lifecycleOperations.parentOperationId, parentOperationId),
-        inArray(lifecycleOperations.status, [
-          'pending' as const,
-          'waiting-children' as const,
-          'running' as const,
-          'awaiting-confirmation' as const,
-          'failed' as const,
-        ])
-      )
-    )
-    .all();
-  for (const child of children) {
-    if (child.parentForgetPolicy === 'orphan-children') {
-      tx.update(lifecycleOperations)
-        .set({ parentOperationId: null, parentForgetPolicy: null })
-        .where(eq(lifecycleOperations.id, child.id))
-        .run();
-    } else {
-      markAbandoned(tx, child);
-    }
-  }
+function operationTreeKey(key: OperationTreeKey): string {
+  return JSON.stringify({ projectId: key.projectId });
 }

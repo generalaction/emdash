@@ -1,14 +1,26 @@
-import type { VersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
-import type { OperationKind } from '@core/primitives/operations/api';
+import type {
+  AnyOperationDefinition,
+  ConflictPolicy,
+  InputOf,
+  OperationHandler,
+} from '@emdash/core/primitives/kernel/api';
 
-export type OperationContribution<TDeps, TDefinition> = {
-  kind: OperationKind;
-  payload: VersionedSchema<unknown>;
-  create(dependencies: TDeps): TDefinition;
+export type KernelOperationContribution<TDeps> = {
+  create(dependencies: TDeps): {
+    definitions: readonly AnyOperationDefinition[];
+    handlers: readonly OperationHandler<AnyOperationDefinition>[];
+    conflictPolicies: readonly ConflictPolicy[];
+    examples: readonly OperationExample[];
+  };
 };
 
-export function defineOperationContribution<TDeps, TDefinition>(
-  contribution: OperationContribution<TDeps, TDefinition>
-): OperationContribution<TDeps, TDefinition> {
+export interface OperationExample<D extends AnyOperationDefinition = AnyOperationDefinition> {
+  definition: D;
+  input: InputOf<D>;
+}
+
+export function defineOperationContribution<TContribution>(
+  contribution: TContribution
+): TContribution {
   return contribution;
 }

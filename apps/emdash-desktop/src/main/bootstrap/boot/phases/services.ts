@@ -113,6 +113,7 @@ import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { runLocalCommand } from '@main/core/utils/exec';
 import { KV } from '@main/db/kv';
+import { resolveOperationsDatabasePath } from '@main/db/operations-path';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
@@ -550,6 +551,7 @@ export async function bootServices(
   const operations = await createOperationsEngine({
     scope: appScope,
     db,
+    databasePath: resolveOperationsDatabasePath(),
     sshManager: infrastructure.ssh.manager,
     initiatedBy: desktopClientId,
     notifications: {

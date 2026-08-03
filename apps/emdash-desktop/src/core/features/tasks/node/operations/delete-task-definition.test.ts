@@ -1,6 +1,6 @@
 import { ManualClock } from '@emdash/shared/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LifecycleOperationRow } from '@core/services/app-db/node/schema';
+import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
 import { createDeleteTaskOperationDefinition } from './delete-task-definition';
 
 const mocks = vi.hoisted(() => ({
