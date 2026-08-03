@@ -491,6 +491,26 @@ export class NativeBrowserE2EAttestationService implements NativeBrowserE2EAttes
 
     const status = productStatus(capturedTerminal.status);
     if (
+      session.startInvocations === 0 &&
+      !session.accepted &&
+      session.startedAt === null &&
+      status !== 'passed' &&
+      !verifierResult.success
+    ) {
+      const recovered = await settleCapturedResources(
+        exact,
+        session,
+        evidenceRuns,
+        timestampNow,
+        true
+      );
+      return attestationError(
+        errorType(verifierResult.error),
+        safeText(verifierResult.error.message, capturedTerminal.summary),
+        recovered
+      );
+    }
+    if (
       (status === 'passed' && !verifierResult.success) ||
       (status !== 'passed' && verifierResult.success) ||
       !session.accepted ||

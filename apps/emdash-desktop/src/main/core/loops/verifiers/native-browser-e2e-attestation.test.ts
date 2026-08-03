@@ -587,6 +587,51 @@ describe('NativeBrowserE2EAttestationService', () => {
     expect(harness.dependencies.startExactSession).toHaveBeenCalledOnce();
   });
 
+  it('preserves a typed browser-start failure before the exact ACP session begins', async () => {
+    const harness = makeHarness('failed', {
+      createVerifier: (nativeDependencies): LoopVerifier => ({
+        id: 'agent-browser',
+        label: 'browser-start failure',
+        checkAvailability: vi.fn(async () => ok({ available: true })),
+        run: vi.fn<LoopVerifier['run']>(async (ctx) => {
+          const binding = await nativeDependencies.resolveTrustedBinding({
+            loop: ctx.loop,
+            phase: ctx.phase,
+            signal: ctx.signal ?? new AbortController().signal,
+          });
+          if (!binding.success) throw new Error('Expected a trusted binding.');
+          const run = await nativeDependencies.evidenceStore.beginRun({
+            loopId: ctx.loop.id,
+            phaseId: ctx.phase.id,
+            verificationRunId: binding.data.verificationRunId,
+          });
+          await run.finish({
+            status: 'failed',
+            summary: 'Timed out waiting for the browser host',
+          });
+          return err({
+            kind: 'command-failed',
+            verifierId: 'agent-browser',
+            message: 'Timed out waiting for the browser host',
+            cwd: ctx.cwd,
+          });
+        }),
+      }),
+    });
+
+    const result = await harness.service.run(input());
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'native-browser-rejected',
+        message: 'Timed out waiting for the browser host',
+        quiescent: true,
+      },
+    });
+    expect(harness.dependencies.startExactSession).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['failure-atomic', true, false],
     ['recovery-required', false, true],

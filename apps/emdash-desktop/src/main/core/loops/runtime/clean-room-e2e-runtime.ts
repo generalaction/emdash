@@ -116,6 +116,9 @@ function getBrowserService(): NativeBrowserVerificationService {
       onClosed: (listener) => events.on(loopBrowserClosedChannel, listener),
     },
     configurePartition: configureBrowserVerificationSession,
+    // A clean-room dev server can accept TCP connections before its first route finishes
+    // compiling, especially on a persistent worktree filesystem.
+    readyTimeoutMs: 120_000,
   }));
 }
 
