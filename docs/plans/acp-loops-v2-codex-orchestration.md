@@ -1396,6 +1396,12 @@ fresh recreated green run becomes the final success report.
   separately reporting `mutated`, with a focused regression. Preserve the discovered correction,
   use attempt sixteen to integrate a freshly reproduced correction through the normal gate, and
   reserve attempt seventeen for the mandatory clean replay.
+- [x] 2026-08-03: Attempt sixteen retained the exact reviewed feature checkpoint and completed
+  without a repository mutation, but the lead-owned local Convex process exited during the run.
+  The verifier correctly failed when ports 3210/3211 disappeared before fixture authentication.
+  Restart the existing isolated deployment under an actively supervised lifecycle, prove both
+  ports bound, use attempt seventeen for correction integration, and reserve attempt eighteen for
+  the mandatory clean replay without resetting any prior evidence.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
