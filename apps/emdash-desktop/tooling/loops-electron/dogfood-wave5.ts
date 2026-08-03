@@ -380,12 +380,12 @@ async function ensureCleanRoomRuntimeSettings(page: Page): Promise<void> {
       ...settingsPage.data.settings,
       scripts: {
         ...settingsPage.data.settings.scripts,
-        run: 'pnpm dev',
+        run: 'pnpm build && pnpm start',
       },
     }
   );
   requireSuccess(updated, 'Wave 5 clean-room runtime settings');
-  process.stdout.write('Wave 5 clean-room run lifecycle configured.\n');
+  process.stdout.write('Wave 5 clean-room production lifecycle configured.\n');
 }
 
 async function adoptReviewCorrection(page: Page): Promise<void> {

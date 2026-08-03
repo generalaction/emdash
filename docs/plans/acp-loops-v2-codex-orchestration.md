@@ -1352,6 +1352,16 @@ fresh recreated green run becomes the final success report.
   plan/prompt explicitly permit runtime credential reads and application entry without printing or
   persisting values. The user authorized restarting this last gate; attempt eleven is retained as
   the next and final bounded replay without resetting prior evidence.
+- [x] 2026-08-03: Attempt eleven proved the corrected clean-room environment byte-for-byte by key
+  presence/equality, authenticated the shared agent through the exact local backend, and reached
+  the template creation route. It failed before native evidence because the Next development
+  preview repeatedly reloaded before hydration while emitting Turbopack HMR failures and a
+  dev-font 403; preview discovery also made one read-only probe to the still-running feature server
+  on port 3000 before finding the exact clean room on 3001. This was a preview-lifecycle failure,
+  not a Summario product verdict. The feature preview is now stopped, the clean-room origin is the
+  registered port 3000, and its lifecycle performs a production build followed by `pnpm start`,
+  eliminating HMR and dev-font traffic. Retain attempts one through eleven and use the
+  user-authorized attempt twelve without resetting prior evidence.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
