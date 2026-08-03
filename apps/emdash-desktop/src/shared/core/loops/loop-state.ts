@@ -7,7 +7,7 @@ const boundedMessageSchema = z.string().max(4096);
 const timestampSchema = z.string().trim().min(1).max(64);
 
 /** Fixed product policy for one clean-room E2E phase, including interrupted/recovered runs. */
-export const CLEAN_ROOM_E2E_MAX_ATTEMPTS = 4;
+export const CLEAN_ROOM_E2E_MAX_ATTEMPTS = 5;
 /** Bounded hostile-result authority retained and cancelled for one session-start boundary. */
 export const CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS = 64;
 /** One outer identity, one preallocated nested identity, and every bounded reported actual. */

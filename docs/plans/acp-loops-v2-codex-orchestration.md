@@ -1329,10 +1329,17 @@ fresh recreated green run becomes the final success report.
 - [x] 2026-08-03: The user amended the verification policy and authorized one replacement Wave 5
   E2E attempt. Credentials supplied through the bound task environment, their normal application
   use, and ordinary process diagnostics are not automatic failures; raw credential values still
-  must not be intentionally copied into durable evidence. The fixed durable budget is four, so the
-  original three attempts remain retained rather than reset. A fresh fetch confirmed Summario
+  must not be intentionally copied into durable evidence. The original three attempts remain
+  retained rather than reset. A fresh fetch confirmed Summario
   `origin/main` is still `b9f53681364ae21a5d30838ca5c25a5fe22dda02`; rebasing the clean
   five-commit feature branch was a no-op with no conflicts, and its head remains `3ca2f3c`.
+- [x] 2026-08-03: Replacement attempt four recreated the reviewed checkpoint and started the full
+  regression gate, but the dogfood monitor lost its renderer execution context during an internal
+  Emdash navigation and closed Electron. The engine retained the interrupted attempt and destroyed
+  its clean room; no product failure or repository mutation was reported, and native fixture/login
+  execution had not begun. The monitor now reacquires the Emdash renderer after navigation. The
+  user-authorized restart remains incomplete, so one fifth attempt is durably permitted without
+  resetting the first four; its backend and browser lease must be recreated again.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
@@ -1481,10 +1488,11 @@ are complete on a clean Summario branch, and its full code-level E2E regression 
 Wave 5 Loop nevertheless failed closed after exhausting its original attempt budget because the E2E
 agent treated process command-line diagnostics as disqualifying; the authenticated browser fixture
 flow therefore never started. The isolated backend and browser lease were fully cleaned and may
-not be reused. The user has since authorized one fourth replacement attempt and clarified that
-bound-environment credential access and ordinary diagnostics are allowed. Wave 6 has not started
-because the replacement Wave 5 independent gate is not yet green. Both Summario acceptance Loops
-remain incomplete.
+not be reused. The user has since clarified that bound-environment credential access and ordinary
+diagnostics are allowed. Replacement attempt four was interrupted by the dogfood monitor losing its
+renderer context, not by a product failure; the monitor is fixed and a fifth retained-history
+attempt is authorized. Wave 6 has not started because the replacement Wave 5 independent gate is
+not yet green. Both Summario acceptance Loops remain incomplete.
 At final completion, compare the observable result with `Purpose and observable outcome`, list exact
 validation evidence, and state any remaining blocker without claiming success for an unverified
 path.

@@ -1093,8 +1093,9 @@ describe('CleanRoomE2EGate recovery and authority', () => {
   it('redacts sentinel and check-handoff secrets before retaining correction evidence', async () => {
     const secrets = ['sentinel-token-value', 'sentinel-cookie-value', 'handoff-password-value'];
     const harness = makeHarness([
-      { finalText: 'unused' },
-      { finalText: 'unused' },
+      ...Array.from({ length: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 2 }, () => ({
+        finalText: 'unused',
+      })),
       {
         finalText:
           '<<<LOOP:E2E_CORRECTION_READY token=sentinel-token-value session_cookie=sentinel-cookie-value>>>',
