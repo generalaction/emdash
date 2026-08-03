@@ -5,7 +5,10 @@ import type {
   LoopSessionTarget,
   LoopVerificationWorkspaceState,
 } from '@shared/core/loops/loop-state';
-import { CLEAN_ROOM_E2E_MAX_ATTEMPTS } from '@shared/core/loops/loop-state';
+import {
+  CLEAN_ROOM_E2E_MAX_ATTEMPTS,
+  CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS,
+} from '@shared/core/loops/loop-state';
 import {
   copyE2EDurableProgress,
   reduceE2EProgress,
@@ -594,7 +597,9 @@ describe('clean-room E2E durable progress reducer', () => {
     expect(
       reduceE2EProgress(baseProgress(), {
         kind: 'session-attempts',
-        next: Array.from({ length: 1_025 }, (_, index) => batchStartingAttempt(index)),
+        next: Array.from({ length: CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS + 1 }, (_, index) =>
+          batchStartingAttempt(index)
+        ),
       }).success
     ).toBe(false);
     expect(appended.loopState.sessionAttempts).toEqual([first, second]);

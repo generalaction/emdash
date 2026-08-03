@@ -20,6 +20,7 @@ import {
   loopWithState,
 } from './clean-room-e2e-gate.test-harness';
 import {
+  CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS,
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   e2eCriteriaSchema,
   safeNormalizeInput,
@@ -112,7 +113,7 @@ describe('clean-room E2E input authority', () => {
       maxAttempts: 64,
     } as RunCleanRoomE2EGateInput & { maxAttempts: number });
 
-    expect(CLEAN_ROOM_E2E_MAX_ATTEMPTS).toBe(15);
+    expect(CLEAN_ROOM_E2E_MAX_ATTEMPTS).toBe(17);
     expect(result.success).toBe(true);
     if (!result.success) throw new Error(result.error.message);
     expect(result.data.e2eAttemptsConsumed).toBe(0);
@@ -171,7 +172,8 @@ describe('clean-room E2E input authority', () => {
   });
 
   it('reserves the bounded worst-case session records for every remaining E2E run', () => {
-    const exactCapacity = 1_024 - CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT;
+    const exactCapacity =
+      CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS - CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT;
     const fits = safeNormalizeInput({
       ...defaultInput,
       loop: loopWithState({

@@ -79,6 +79,7 @@ import {
   type SuccessStabilizer,
 } from './clean-room-e2e-gate-lifecycle';
 import {
+  CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS,
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   durableE2EVerificationRunIds,
   e2eCriteriaSchema,
@@ -194,7 +195,7 @@ const e2eRequiredChecksResultSchema = z
         artifacts: z.array(loopArtifactReferenceSchema).max(64),
       })
       .strict(),
-    sessionAttempts: z.array(loopSessionAttemptSchema).max(1_024),
+    sessionAttempts: z.array(loopSessionAttemptSchema).max(CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS),
     handoff: loopPromptHandoffSchema.optional(),
   })
   .strict();

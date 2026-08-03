@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { app } from 'electron';
@@ -42,6 +42,7 @@ import { getLoop } from '../operations/loop-operations';
 import { createNativeBrowserVerifier } from '../verifiers/native-browser';
 import { NativeBrowserE2EAttestationService } from '../verifiers/native-browser-e2e-attestation';
 import { priorPhasesForE2E } from './clean-room-e2e-prerequisites';
+import { deriveCleanRoomMutationInspection } from './clean-room-mutation-inspection';
 import { runLoopCommand } from './loop-command-runner';
 import {
   resolveExplicitLoopExecutionTarget,
@@ -203,20 +204,18 @@ export async function runCleanRoomE2EPhase(input: {
         }),
       ]);
       const headCommit = head.stdout.trim();
-      const mutationBaseline = createHash('sha256')
-        .update(headCommit)
-        .update('\0')
-        .update(status.stdout)
-        .update('\0')
-        .update(branch.stdout)
-        .digest('hex');
+      const mutation = deriveCleanRoomMutationInspection(
+        headCommit,
+        status.stdout,
+        branch.stdout,
+        baseline
+      );
       return ok({
         target: { ...target, machine: { ...target.machine } },
         headCommit,
         clean: status.stdout.trim() === '',
         branchAttached: branch.stdout.trim() !== 'HEAD',
-        mutationBaseline,
-        mutated: baseline !== undefined && mutationBaseline !== baseline,
+        ...mutation,
       });
     } catch (error) {
       return err(dependencyError(error instanceof Error ? error.message : String(error)));

@@ -7,12 +7,14 @@ const boundedMessageSchema = z.string().max(4096);
 const timestampSchema = z.string().trim().min(1).max(64);
 
 /** Fixed product policy for one clean-room E2E phase, including interrupted/recovered runs. */
-export const CLEAN_ROOM_E2E_MAX_ATTEMPTS = 15;
+export const CLEAN_ROOM_E2E_MAX_ATTEMPTS = 17;
 /** Bounded hostile-result authority retained and cancelled for one session-start boundary. */
 export const CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS = 64;
 /** One outer identity, one preallocated nested identity, and every bounded reported actual. */
 export const CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT =
   CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS + 2;
+/** Bounded ledger capacity, including non-E2E work and review history. */
+export const CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS = 1_280;
 
 export const loopCommitSchema = z
   .string()
@@ -109,7 +111,7 @@ export const loopStateV1Schema = z
     baseCommit: loopCommitSchema.nullable(),
     expectedFeatureHead: loopCommitSchema.nullable(),
     checkpointCommit: loopCommitSchema.nullable(),
-    sessionAttempts: z.array(loopSessionAttemptSchema).max(1024),
+    sessionAttempts: z.array(loopSessionAttemptSchema).max(CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS),
     verification: loopVerificationWorkspaceStateSchema.nullable(),
   })
   .strict()
@@ -144,7 +146,7 @@ export const loopStateV2Schema = z
     checkpointCommit: loopCommitSchema.nullable(),
     /** Durable product-owned budget, charged before each clean-room E2E workspace is created. */
     e2eAttemptsConsumed: z.number().int().nonnegative().max(CLEAN_ROOM_E2E_MAX_ATTEMPTS),
-    sessionAttempts: z.array(loopSessionAttemptSchema).max(1024),
+    sessionAttempts: z.array(loopSessionAttemptSchema).max(CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS),
     verification: loopVerificationWorkspaceStateSchema.nullable(),
   })
   .strict()

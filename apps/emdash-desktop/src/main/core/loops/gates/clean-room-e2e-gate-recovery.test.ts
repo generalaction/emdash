@@ -4,6 +4,7 @@ import {
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS,
   CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
+  CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS,
   type LoopSessionAttempt,
   type LoopSessionTarget,
 } from '@shared/core/loops/loop-state';
@@ -746,7 +747,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     const sessionAttempts = [
       ...historicalAttempts(
-        1_024 -
+        CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS -
           CLEAN_ROOM_E2E_MAX_ATTEMPTS * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
           loop.state!.sessionAttempts.length +
           1
@@ -769,7 +770,9 @@ describe('CleanRoomE2EGate recovery and authority', () => {
   it('persists all 64 missing-expected native attempts at the exact reserved ledger limit', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     const historicalCount =
-      1_024 - CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT - loop.state!.sessionAttempts.length;
+      CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS -
+      CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
+      loop.state!.sessionAttempts.length;
     const reportedActuals = Array.from(
       { length: CLEAN_ROOM_E2E_MAX_REPORTED_SESSION_ATTEMPTS },
       (_, index) =>
@@ -825,7 +828,9 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       data: { loopState: { sessionAttempts: expect.any(Array) } },
     });
     if (!durable.success) throw new Error('Expected durable max-ledger authority.');
-    expect(durable.data.loopState.sessionAttempts).toHaveLength(1_024);
+    expect(durable.data.loopState.sessionAttempts).toHaveLength(
+      CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS
+    );
     expect(durable.data.loopState.sessionAttempts.at(-1)).toMatchObject({
       attemptId: 'unallocated-nested-attempt-63',
       status: 'cancelled',
@@ -1605,7 +1610,7 @@ describe('CleanRoomE2EGate recovery and authority', () => {
         e2eAttemptsConsumed: CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1,
         sessionAttempts: [
           ...historicalAttempts(
-            1_024 -
+            CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS -
               CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
               loop.state!.sessionAttempts.length
           ),

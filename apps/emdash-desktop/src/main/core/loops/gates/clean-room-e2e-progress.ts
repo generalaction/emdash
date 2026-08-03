@@ -12,6 +12,7 @@ import {
 } from '@shared/core/loops/loop-phase-state';
 import {
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
+  CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS,
   loopCommitSchema,
   loopSessionAttemptSchema,
   loopSessionTargetSchema,
@@ -192,7 +193,7 @@ export function reduceE2EProgress(
       }
       case 'session-attempts': {
         const rawNext = transition.next;
-        if (!Array.isArray(rawNext) || rawNext.length > 1_024) {
+        if (!Array.isArray(rawNext) || rawNext.length > CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS) {
           return invalid('Session attempt batch exceeds the bounded durable ledger.');
         }
         const next = rawNext.map((attempt) => loopSessionAttemptSchema.parse(attempt));

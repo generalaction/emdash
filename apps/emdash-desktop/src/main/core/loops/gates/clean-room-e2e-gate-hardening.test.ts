@@ -4,6 +4,7 @@ import { err, ok } from '@main/lib/result';
 import {
   CLEAN_ROOM_E2E_MAX_ATTEMPTS,
   CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT,
+  CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS,
 } from '@shared/core/loops/loop-state';
 import type { LoopPhaseCriterion } from '@shared/core/loops/loops';
 import type { CleanRoomProject } from '../clean-room/clean-room-workspace-service';
@@ -781,7 +782,7 @@ describe('CleanRoomE2EGate hardening', () => {
         e2eAttemptsConsumed: 1,
         sessionAttempts: [
           ...historicalAttempts(
-            1_024 -
+            CLEAN_ROOM_MAX_DURABLE_SESSION_ATTEMPTS -
               (CLEAN_ROOM_E2E_MAX_ATTEMPTS - 1) * CLEAN_ROOM_E2E_MAX_SESSION_RECORDS_PER_ATTEMPT -
               loop.state!.sessionAttempts.length -
               1

@@ -1388,6 +1388,14 @@ fresh recreated green run becomes the final success report.
   and leaves the live OAuth contract to the already-required backend tests; it must not invoke
   `drive:startOAuth` or leave the allowed origin. Retain attempts one through fourteen and use the
   user-authorized attempt fifteen without resetting prior evidence.
+- [x] 2026-08-03: Attempt fifteen passed the corrected local-OAuth browser matrix and found a real
+  product defect: dismissed suggestions can reappear. Its clean correction commit was rejected
+  before integration because the production inspection adapter returned the post-mutation
+  fingerprint in the immutable `mutationBaseline` field; cleanup then correctly refused to delete
+  the advanced temporary branch. The adapter now retains the original attempt baseline while
+  separately reporting `mutated`, with a focused regression. Preserve the discovered correction,
+  use attempt sixteen to integrate a freshly reproduced correction through the normal gate, and
+  reserve attempt seventeen for the mandatory clean replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
