@@ -340,6 +340,8 @@ async function start(page: Page): Promise<void> {
 async function retry(page: Page): Promise<void> {
   const state = readState();
   await ensureProjectOpen(page);
+  await ensureCleanRoomRuntimeSettings(page);
+  await registerPreview(page);
   const before = await invoke<RpcResult<Loop>>(page, 'loops.getLoop', state.loopId);
   requireSuccess(before, 'Wave 5 pre-retry Loop read');
   assert.equal(before.data.status, 'failed', `Wave 5 Loop is ${before.data.status}, not failed`);
