@@ -456,7 +456,11 @@ async function monitor(page: Page, state: DogfoodState): Promise<void> {
 
 async function recoverMonitorPage(): Promise<Page> {
   assert.ok(electronApp, 'Wave 5 Electron app is unavailable during monitor recovery');
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  // Electron temporarily exposes the native guest webview in place of the app renderer.
+  // Keep the harness alive for the bounded E2E window so a cold preview or auth flow cannot
+  // make the monitor close an otherwise healthy run.
+  const deadline = Date.now() + 35 * 60_000;
+  while (Date.now() < deadline) {
     const page = electronApp
       .windows()
       .find((candidate) => candidate.url().startsWith('app://emdash'));
