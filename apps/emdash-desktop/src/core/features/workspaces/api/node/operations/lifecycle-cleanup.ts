@@ -11,7 +11,7 @@ import type { LifecycleOperationContext } from '@core/features/workspaces/api/no
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks, workspaces } from '@core/services/app-db/node/schema';
-import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
+import type { LifecycleOperationParams } from '@core/services/operations/node';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { checkoutSelector } from '@core/services/runtime-broker/node/git';
 
@@ -23,7 +23,7 @@ export type LifecycleCleanupDependencies = {
 
 export async function deactivateLifecycleWorkspace(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleOperationContext,
   options: { signal?: AbortSignal; onWaitingChange?: (waiting: boolean) => void } = {}
 ): Promise<void> {
@@ -40,14 +40,14 @@ export async function deactivateLifecycleWorkspace(
           .snapshot()
           .then((snapshot) => snapshot.data.consumers.map((consumer) => consumer.id))
           .catch(() => [])
-      : [operation.taskId ?? operation.id];
-  const resolvedConsumerIds = consumerIds.length > 0 ? consumerIds : [operation.id];
+      : [operation.taskId ?? operation.operationId];
+  const resolvedConsumerIds = consumerIds.length > 0 ? consumerIds : [operation.operationId];
 
   for (const consumerId of resolvedConsumerIds) {
     const result = await submitAndFollowWorkspaceOperation(
       client,
       {
-        requestId: `${operation.id}:deactivate:${consumerId}`,
+        requestId: `${operation.operationId}:deactivate:${consumerId}`,
         kind: 'deactivate',
         workspace,
         initiatedBy: operation.initiatedBy ? { clientId: operation.initiatedBy } : undefined,
@@ -71,7 +71,7 @@ export async function deactivateLifecycleWorkspace(
 
 export async function cleanLifecycleWorkspaceArtifacts(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleOperationContext,
   options: { signal?: AbortSignal; onWaitingChange?: (waiting: boolean) => void } = {}
 ): Promise<void> {
@@ -83,7 +83,7 @@ export async function cleanLifecycleWorkspaceArtifacts(
   const result = await submitAndFollowWorkspaceOperation(
     client,
     {
-      requestId: `${operation.id}:clean-artifacts`,
+      requestId: `${operation.operationId}:clean-artifacts`,
       kind: 'clean-artifacts',
       workspace,
       initiatedBy: operation.initiatedBy ? { clientId: operation.initiatedBy } : undefined,
@@ -106,7 +106,7 @@ export async function cleanLifecycleWorkspaceArtifacts(
 export async function teardownLifecycleWorkspace(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleOperationContext
 ): Promise<void> {
   if (operation.workspaceId && !(await lifecycleWorkspaceIsUnused(db, operation.workspaceId))) {
@@ -144,9 +144,9 @@ export async function teardownLifecycleWorkspace(
     operation.hostRef === 'local' ? undefined : operation.hostRef
   );
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
-  const force = operation.confirmedAt !== null;
+  const force = operation.confirmedAt !== null && operation.confirmedAt !== undefined;
   const result = await submitAndFollowWorkspaceOperation(client, {
-    requestId: `${operation.id}:teardown`,
+    requestId: `${operation.operationId}:teardown`,
     kind: 'teardown',
     workspace,
     initiatedBy: operation.initiatedBy ? { clientId: operation.initiatedBy } : undefined,
@@ -174,7 +174,7 @@ export async function teardownLifecycleWorkspace(
 export async function purgeLifecycleWorkspaceRow(
   dependencies: Pick<LifecycleCleanupDependencies, 'unregisterFileSearchRoot'>,
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleOperationContext
 ): Promise<void> {
   // Workspace rows are desktop references to host-owned resources. Drop them
@@ -209,7 +209,7 @@ export async function lifecycleWorkspaceIsUnused(db: AppDb, workspaceId: string)
 
 export async function lifecycleWorkspaceIsDirty(
   dependencies: Pick<LifecycleCleanupDependencies, 'projects'>,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleOperationContext
 ): Promise<boolean> {
   if (!operation.projectId || !context.workspacePath) return false;

@@ -107,6 +107,41 @@ export function describeOperationStoreContract(makeStore: () => OperationStore):
         { operationId: 'a', from: 'pending', to: 'pending', cause: 'adoption' },
       ]);
     });
+
+    test('prunes terminal records and their child rows', async () => {
+      const store = makeStore();
+      const inserted = await store.transaction((tx) => {
+        const record = tx.insert(newRecord('a', 'worktree:a'));
+        tx.transition(record.id, 'pending', 'running', 'dispatch');
+        tx.transition(record.id, 'running', 'succeeded', 'settle');
+        return record;
+      });
+
+      await store.transaction((tx) => tx.prune([inserted.id]));
+
+      expect(await store.get(inserted.id)).toBeUndefined();
+      expect(await store.listTransitions(inserted.id)).toEqual([]);
+      const claims = await store.transaction((tx) =>
+        tx.listNonTerminalClaimsOnKeys(['worktree:a'])
+      );
+      expect(claims).toEqual([]);
+    });
+
+    test('rejects pruning non-terminal records without deleting terminal rows', async () => {
+      const store = makeStore();
+      await store.transaction((tx) => {
+        tx.insert(newRecord('active'));
+        const terminal = tx.insert(newRecord('terminal'));
+        tx.transition(terminal.id, 'pending', 'cancelled', 'cancel');
+      });
+
+      await expect(store.transaction((tx) => tx.prune(['active', 'terminal']))).rejects.toThrow(
+        /Cannot prune non-terminal operation/
+      );
+
+      expect((await store.get('active'))?.status).toBe('pending');
+      expect((await store.get('terminal'))?.status).toBe('cancelled');
+    });
   });
 }
 

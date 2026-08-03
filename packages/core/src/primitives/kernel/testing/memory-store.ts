@@ -123,6 +123,23 @@ export class MemoryOperationStore implements OperationStore {
     this.journal(id, record.status, record.status, 'adoption');
   }
 
+  prune(ids: readonly string[]): void {
+    for (const id of ids) {
+      const record = this.records.get(id);
+      if (!record) {
+        continue;
+      }
+      if (!isTerminalStatus(record.status)) {
+        throw new Error(`Cannot prune non-terminal operation '${id}'`);
+      }
+    }
+
+    for (const id of ids) {
+      this.records.delete(id);
+      this.transitions.delete(id);
+    }
+  }
+
   listNonTerminalSync(): OperationRecord[] {
     return this.snapshot((record) => !isTerminalStatus(record.status));
   }
@@ -236,6 +253,10 @@ class MemoryOperationStoreTx implements OperationStoreTx {
 
   reparent(id: string, parentId: string): void {
     this.store.reparent(id, parentId);
+  }
+
+  prune(ids: readonly string[]): void {
+    this.store.prune(ids);
   }
 
   listNonTerminal(): OperationRecord[] {

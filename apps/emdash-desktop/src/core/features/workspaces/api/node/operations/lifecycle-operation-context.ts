@@ -13,7 +13,7 @@ import {
   type TaskRow,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
-import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
+import type { LifecycleOperationParams } from '@core/services/operations/node';
 
 export type LifecycleOperationContext = {
   task?: TaskRow;
@@ -35,7 +35,7 @@ export type LifecycleOperationContextDependencies = {
 export async function resolveLifecycleOperationContext(
   dependencies: LifecycleOperationContextDependencies,
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   options: { resolveRuntimeConfig?: boolean } = {}
 ): Promise<LifecycleOperationContext> {
   const [task] = operation.taskId

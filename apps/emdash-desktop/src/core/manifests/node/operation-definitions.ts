@@ -1,4 +1,9 @@
 import {
+  defineConflictPolicy,
+  type AnyOperationDefinition,
+} from '@emdash/core/primitives/kernel/api';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import {
   deleteAutomationOperationContribution,
   type DeleteAutomationOperationDependencies,
 } from '@core/features/automations/node/operations/delete-automation-definition';
@@ -19,9 +24,13 @@ import {
   deleteWorkspaceOperationContribution,
   type WorkspaceLifecycleDependencies,
 } from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationDefinition } from '@core/services/operations/node';
 
 export type OperationDefinitionOptions = {
+  db: AppDb;
+  clock?: Clock;
+  initiatedBy?: string;
   deleteAutomation: DeleteAutomationOperationDependencies;
   deleteProject: DeleteProjectOperationDependencies;
   deleteTask: DeleteTaskOperationDependencies;
@@ -32,23 +41,56 @@ export type OperationDefinitionOptions = {
 export function createOperationDefinitions(
   options: OperationDefinitionOptions
 ): OperationDefinition[] {
-  return [
-    createDefinition(deleteTaskOperationContribution, options.deleteTask),
-    createDefinition(deleteAutomationOperationContribution, options.deleteAutomation),
-    createDefinition(deleteWorkspaceOperationContribution, options.workspaceLifecycle),
-    createDefinition(archiveWorkspaceOperationContribution, options.workspaceLifecycle),
-    createDefinition(deleteProjectOperationContribution, options.deleteProject),
-    createDefinition(cleanupSessionsOperationContribution, options.cleanupSessions),
+  const runtime = {
+    db: options.db,
+    clock: options.clock ?? systemClock,
+    initiatedBy: options.initiatedBy,
+  };
+  const definitions = [
+    ...deleteTaskOperationContribution.create(options.deleteTask, runtime),
+    ...deleteAutomationOperationContribution.create(options.deleteAutomation, runtime),
+    ...deleteWorkspaceOperationContribution.create(options.workspaceLifecycle, runtime),
+    ...archiveWorkspaceOperationContribution.create(options.workspaceLifecycle, runtime),
+    ...deleteProjectOperationContribution.create(options.deleteProject, runtime),
+    ...cleanupSessionsOperationContribution.create(options.cleanupSessions, runtime),
   ];
+  const policy = createDesktopConflictPolicy(
+    definitions.map((definition) => definition.definition)
+  );
+  return [{ ...definitions[0]!, conflictPolicies: [policy] }, ...definitions.slice(1)];
 }
 
-function createDefinition<TDeps>(
-  contribution: {
-    payload: OperationDefinition['payloadSchema'];
-    create(dependencies: TDeps): OperationDefinition;
-  },
-  dependencies: TDeps
-): OperationDefinition {
-  const definition = contribution.create(dependencies);
-  return { ...definition, payloadSchema: contribution.payload };
+export function createDesktopConflictPolicy(definitions: readonly AnyOperationDefinition[]) {
+  const byName = new Map(definitions.map((definition) => [definition.name, definition]));
+  const get = (name: string) => {
+    const definition = byName.get(name);
+    if (!definition) throw new Error(`Missing operation definition '${name}'`);
+    return definition;
+  };
+  return defineConflictPolicy((on) => {
+    on(get('delete-task'), get('cleanup-sessions')).supersede();
+    on(get('cleanup-sessions'), get('delete-task')).reject();
+    on(get('delete-workspace'), get('delete-task')).queue();
+    on(get('delete-task'), get('delete-workspace')).queue();
+    on(get('archive-workspace'), get('delete-task')).queue();
+    on(get('delete-task'), get('archive-workspace')).queue();
+    on(get('archive-workspace'), get('delete-workspace')).queue();
+    on(get('delete-workspace'), get('archive-workspace')).queue();
+    on(get('delete-project'), get('delete-task')).queue();
+    on(get('delete-task'), get('delete-project')).queue();
+    on(get('delete-project'), get('delete-workspace')).queue();
+    on(get('delete-workspace'), get('delete-project')).queue();
+    on(get('delete-project'), get('archive-workspace')).queue();
+    on(get('archive-workspace'), get('delete-project')).queue();
+    on(get('delete-project'), get('cleanup-sessions')).queue();
+    on(get('cleanup-sessions'), get('delete-project')).queue();
+    on(get('delete-workspace'), get('cleanup-sessions')).queue();
+    on(get('cleanup-sessions'), get('delete-workspace')).queue();
+    on(get('archive-workspace'), get('cleanup-sessions')).queue();
+    on(get('cleanup-sessions'), get('archive-workspace')).queue();
+    on(get('delete-project'), get('delete-automation')).queue();
+    on(get('delete-automation'), get('delete-project')).queue();
+    on(get('cleanup-sessions'), get('delete-automation')).queue();
+    on(get('delete-automation'), get('cleanup-sessions')).queue();
+  });
 }

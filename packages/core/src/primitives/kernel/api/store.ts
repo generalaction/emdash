@@ -32,6 +32,7 @@ export interface OperationStoreTx {
     patch?: OperationRecordPatch
   ): boolean;
   reparent(id: string, parentId: string): void;
+  prune(ids: readonly string[]): void;
   listNonTerminal(): OperationRecord[];
   listNonTerminalClaimsOnKeys(keys: readonly string[]): ClaimWithHolder[];
   get(id: string): OperationRecord | undefined;

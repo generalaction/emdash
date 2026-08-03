@@ -12,7 +12,7 @@ import {
   terminals,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
-import type { LifecycleOperationRow } from '@core/services/operations/node/lifecycle-operation';
+import type { LifecycleOperationParams } from '@core/services/operations/node';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import type {
   AcpRuntimeClient,
@@ -34,7 +34,7 @@ export type LifecycleSessionContext = {
 };
 
 export type SessionCleanupDependencies = {
-  assertWorkspaceDeleteAllowed(db: AppDb, operation: LifecycleOperationRow): Promise<void>;
+  assertWorkspaceDeleteAllowed(db: AppDb, operation: LifecycleOperationParams): Promise<void>;
   getAcpRuntimeClient(): Promise<AcpRuntimeClient>;
   getProjectTerminals(
     projectId: string
@@ -50,7 +50,7 @@ type SessionTargetSets = {
 export async function resolveLifecycleSessionTargets(
   dependencies: SessionCleanupDependencies,
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleSessionContext,
   options: { includeRuntimeTargets?: boolean } = {}
 ): Promise<LifecycleSessionTargets> {
@@ -113,7 +113,7 @@ export async function resolveLifecycleSessionTargets(
 export async function killLifecycleAcpSessions(
   dependencies: SessionCleanupDependencies,
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   targets: LifecycleSessionTargets
 ): Promise<void> {
   await dependencies.assertWorkspaceDeleteAllowed(db, operation);
@@ -130,7 +130,7 @@ export async function killLifecycleAcpSessions(
 export async function killLifecycleTerminalSessions(
   dependencies: SessionCleanupDependencies,
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleSessionContext,
   targets: LifecycleSessionTargets
 ): Promise<void> {
@@ -165,7 +165,7 @@ export async function killLifecycleTerminalSessions(
   await projectTerminals.killTmuxSessions({ sessionNames: targets.tmuxSessionNames });
 }
 
-function payloadTargets(operation: LifecycleOperationRow): SessionTargetSets {
+function payloadTargets(operation: LifecycleOperationParams): SessionTargetSets {
   return {
     acpConversationIds: new Set(operation.payload.acpConversationIds ?? []),
     tuiConversationIds: new Set(operation.payload.tuiConversationIds ?? []),
@@ -185,7 +185,7 @@ function toArrays(targets: SessionTargetSets): LifecycleSessionTargets {
 
 async function taskIdsForOperation(
   db: AppDb,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   context: LifecycleSessionContext
 ): Promise<string[]> {
   if (operation.kind === 'delete-task') {
@@ -203,7 +203,7 @@ async function taskIdsForOperation(
 async function addRuntimePathTargets(
   dependencies: SessionCleanupDependencies,
   targets: SessionTargetSets,
-  operation: LifecycleOperationRow,
+  operation: LifecycleOperationParams,
   workspacePath: string
 ): Promise<void> {
   const terminalScan = dependencies

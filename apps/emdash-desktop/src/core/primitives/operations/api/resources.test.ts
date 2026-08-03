@@ -10,8 +10,7 @@ describe('desktop operation kernel resources', () => {
         workspaceId: 'workspace-1',
         workspaceShared: false,
         branch: {
-          hostRef: 'local',
-          repoPath: '/repo',
+          projectId: 'project-1',
           branchName: 'feature/a',
         },
         worktree: {
@@ -25,7 +24,7 @@ describe('desktop operation kernel resources', () => {
         ['task', 'task:task-1', 'exclusive', false],
         ['project', 'project:project-1', 'intent-exclusive', true],
         ['workspace', 'workspace:workspace-1', 'exclusive', false],
-        ['branch', 'branch:local:%2Frepo:feature%2Fa', 'exclusive', false],
+        ['branch', 'branch:project-1:feature%2Fa', 'exclusive', false],
         ['worktree', 'worktree:local:%2Frepo%2F.worktrees%2Ffeature', 'exclusive', false],
         ['repo', 'repo:local:%2Frepo', 'intent-exclusive', true],
         ['host', 'host:local', 'intent-exclusive', true],

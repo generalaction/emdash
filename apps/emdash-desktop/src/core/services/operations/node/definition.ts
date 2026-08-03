@@ -1,16 +1,19 @@
 import type {
-  OperationClaimResource,
+  AnyOperationDefinition,
+  ConflictPolicy,
+  InputOf,
+  OperationHandler,
+  OperationRecord,
+  ResourceClaim,
+} from '@emdash/core/primitives/kernel/api';
+import type {
   OperationConfirmationReason,
   OperationEntityKind,
   OperationMutationError,
-  OperationStatus,
 } from '@emdash/core/primitives/operations/api';
-import type { VersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
-import type { Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { OperationKind, OperationPayload } from '@core/primitives/operations/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
-import type { LifecycleOperationRow } from './lifecycle-operation';
 
 export type OperationProgress = {
   currentStep?: string;
@@ -21,153 +24,102 @@ export type OperationProgress = {
 
 export type OperationDescription = {
   entityName?: string;
+  hostLabel?: string;
   workspacePath?: string;
   branchName?: string;
 };
 
-export type OperationRunError =
-  | {
-      type: 'awaiting-confirmation';
-      reason: OperationConfirmationReason;
-      message?: string;
-    }
-  | {
-      type: 'failed';
-      code: string;
-      message: string;
-      retryable: boolean;
-    };
+export type OperationInputSource = 'user' | 'reconciler';
 
-export type OperationRunContext = {
-  operation: LifecycleOperationRow;
-  db: AppDb;
-  signal: AbortSignal;
-  clock: Clock;
-  reportProgress(progress: OperationProgress): void;
+export type OperationInputBase = {
+  version: '1';
+  source: OperationInputSource;
+  hostRef: string;
+  projectId?: string | null;
+  entityName?: string;
+  hostLabel?: string;
+  workspacePath?: string;
+  branchName?: string;
+  confirmedAt?: number;
+  createdAt: number;
 };
 
-export type OperationDraft = Pick<
-  LifecycleOperationRow,
-  | 'id'
-  | 'kind'
-  | 'status'
-  | 'projectId'
-  | 'taskId'
-  | 'workspaceId'
-  | 'entityKey'
-  | 'parentOperationId'
-  | 'initiatedBy'
-  | 'hostRef'
-  | 'payload'
-  | 'confirmedAt'
-  | 'confirmationReason'
-  | 'createdAt'
->;
+export type LifecycleOperationParams = {
+  operationId: string;
+  kind: OperationKind;
+  projectId?: string | null;
+  taskId?: string | null;
+  workspaceId?: string | null;
+  entityKey?: string | null;
+  hostRef: string;
+  payload: Partial<OperationPayload>;
+  confirmedAt?: number | null;
+  createdAt: number;
+  initiatedBy?: string | null;
+  attempt?: number;
+};
 
-export type OperationDraftInput = Pick<
-  OperationDraft,
-  'kind' | 'entityKey' | 'hostRef' | 'payload'
-> &
-  Partial<
-    Pick<
-      OperationDraft,
-      | 'id'
-      | 'status'
-      | 'projectId'
-      | 'taskId'
-      | 'workspaceId'
-      | 'parentOperationId'
-      | 'initiatedBy'
-      | 'confirmedAt'
-      | 'confirmationReason'
-      | 'createdAt'
-    >
-  >;
+export type OperationMutationResult = {
+  operationId?: string;
+};
 
-export type OperationInsertOptions = {
-  dedupeStatuses?: readonly OperationStatus[];
-  claims?: readonly OperationClaimResource[];
+export type OperationSubmitOptions = {
   precondition?: (tx: DrizzleTx) => OperationMutationError | undefined;
   tombstone?: (tx: DrizzleTx) => number;
-  parentForgetPolicy?: OperationParentForgetPolicy;
+  revertTombstone?: (tx: DrizzleTx) => void;
 };
-
-export type OperationParentForgetPolicy = 'abandon-children' | 'orphan-children';
-
-export type OperationPropagation = {
-  onParentForget?: OperationParentForgetPolicy;
-};
-
-export type OperationRelatedInsert = {
-  draft: OperationDraftInput;
-  options?: OperationInsertOptions;
-  propagation?: OperationPropagation;
-};
-
-export type OperationSubmission =
-  | {
-      outcome: 'enqueue';
-      draft: OperationDraftInput;
-      options?: OperationInsertOptions;
-      related?: OperationRelatedInsert[];
-    }
-  | {
-      outcome: 'existing';
-      operationId?: string;
-    };
-
-export type OperationSubmitContext = {
-  db: AppDb;
-  clock: Clock;
-};
-
-export type OperationSubmit = (
-  prepare: (
-    context: OperationSubmitContext
-  ) => Promise<Result<OperationSubmission, OperationMutationError>>
-) => Promise<Result<{ operationId?: string }, OperationMutationError>>;
 
 export type OperationReconcileContext = {
   db: AppDb;
   clock: Clock;
-  submit: OperationSubmit;
+  submit<D extends AnyOperationDefinition>(
+    definition: D,
+    input: InputOf<D>,
+    options?: OperationSubmitOptions
+  ): Promise<void>;
+  hasActiveKey(key: string): Promise<boolean>;
 };
 
 export type OperationForgetContext = {
-  operation: LifecycleOperationRow;
+  record: OperationRecord;
   db: AppDb;
   clock: Clock;
-  markAbandoned(tx: DrizzleTx, operation?: LifecycleOperationRow): void;
 };
 
-export type OperationRetryContext = {
-  operation: LifecycleOperationRow;
-  db: AppDb;
-  clock: Clock;
-  reset(tx: DrizzleTx, operation?: LifecycleOperationRow): void;
-};
-
-export type OperationReadyContext = {
-  operation: LifecycleOperationRow;
-  db: AppDb;
-};
-
-export type OperationDescribeContext = {
-  operation: LifecycleOperationRow;
-  db: AppDb;
-};
-
-export type OperationDefinition = {
-  kind: OperationKind;
+export type OperationDefinition<D extends AnyOperationDefinition = AnyOperationDefinition> = {
+  definition: D;
+  handler: OperationHandler<D>;
   entityKind: OperationEntityKind;
-  payloadSchema?: VersionedSchema<unknown>;
-  run(context: OperationRunContext): Promise<Result<void, OperationRunError>>;
-  describe(context: OperationDescribeContext): Promise<OperationDescription>;
-  isReady?(context: OperationReadyContext): Promise<boolean>;
-  forget?(context: OperationForgetContext): Promise<void>;
-  retry?(context: OperationRetryContext): Promise<void>;
+  examples: readonly { definition: D; input: InputOf<D> }[];
+  conflictPolicies?: readonly ConflictPolicy[];
+  describe(input: InputOf<D>): OperationDescription;
+  projectId(input: InputOf<D>): string | undefined;
+  hostRef(input: InputOf<D>): string;
+  confirmedInput(
+    input: InputOf<D>,
+    confirmedAt: number,
+    reason: OperationConfirmationReason
+  ): InputOf<D>;
+  purge?(context: {
+    input: InputOf<D>;
+    record: OperationRecord;
+    db: AppDb;
+    clock: Clock;
+  }): Promise<void>;
   reconcile?(context: OperationReconcileContext): Promise<void>;
 };
+
+export type OperationRuntimeContext = {
+  db: AppDb;
+  clock: Clock;
+  initiatedBy?: string;
+};
+
+export type OperationContribution<TDeps> = {
+  create(dependencies: TDeps, runtime: OperationRuntimeContext): readonly OperationDefinition[];
+};
+
+export type OperationClaimInput = readonly ResourceClaim[];
 
 export type OperationsSshManager = {
   on(eventName: 'connection-event', listener: (event: { type: string }) => void): unknown;

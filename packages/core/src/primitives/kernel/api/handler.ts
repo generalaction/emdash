@@ -1,12 +1,6 @@
 import type { Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
-import type {
-  AnyOperationDefinition,
-  ErrorOf,
-  InputOf,
-  OperationDefinition,
-  ResultOf,
-} from './definition';
+import type { AnyOperationDefinition, ErrorOf, InputOf, ResultOf } from './definition';
 import type { OperationProgress } from './progress';
 import type { OperationErrorSummary } from './record';
 
@@ -51,9 +45,7 @@ export interface OperationHandler<D extends AnyOperationDefinition> {
   run(ctx: HandlerContext<InputOf<D>, ErrorOf<D>>): Promise<ResultOf<D>>;
 }
 
-export function createOperationHandler<
-  D extends OperationDefinition<string, unknown, unknown, unknown>,
->(
+export function createOperationHandler<D extends AnyOperationDefinition>(
   definition: D,
   run: (ctx: HandlerContext<InputOf<D>, ErrorOf<D>>) => Promise<ResultOf<D>>
 ): OperationHandler<D> {

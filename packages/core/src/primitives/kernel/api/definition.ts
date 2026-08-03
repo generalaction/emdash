@@ -24,11 +24,11 @@ export interface OperationDefinition<TName extends string, TInput, TResult, TErr
 export type AnyOperationDefinition = OperationDefinition<string, any, any, any>;
 
 export type InputOf<D> =
-  D extends OperationDefinition<string, infer I, unknown, unknown> ? I : never;
+  D extends OperationDefinition<infer _Name, infer I, infer _Result, infer _Error> ? I : never;
 export type ResultOf<D> =
-  D extends OperationDefinition<string, unknown, infer R, unknown> ? R : never;
+  D extends OperationDefinition<infer _Name, infer _Input, infer R, infer _Error> ? R : never;
 export type ErrorOf<D> =
-  D extends OperationDefinition<string, unknown, unknown, infer E> ? E : never;
+  D extends OperationDefinition<infer _Name, infer _Input, infer _Result, infer E> ? E : never;
 
 export function defineOperation<TName extends string, TInput, TResult, TError>(spec: {
   name: TName;

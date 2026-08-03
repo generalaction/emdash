@@ -1,10 +1,10 @@
-import type { OperationErrorClassifier, OperationRunError } from '@core/services/operations/node';
+import type { OperationErrorClassifier } from '@core/services/operations/node';
 
 export const classifyWorkspaceOperationError: OperationErrorClassifier = (error) => {
   const code = errorCode(error);
   if (code === 'workspace-busy') {
     return {
-      type: 'awaiting-confirmation',
+      type: 'needs-confirmation',
       reason: 'workspace-busy',
       message: workspaceBusyMessage(error),
     };
@@ -29,7 +29,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function workspaceBusyMessage(error: unknown): OperationRunError['message'] {
+function workspaceBusyMessage(error: unknown): string | undefined {
   if (!(error instanceof Error)) return undefined;
   const holders =
     typeof error === 'object' &&

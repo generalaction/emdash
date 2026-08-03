@@ -1,12 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import {
-  createOperationHandler,
-  defineConflictPolicy,
-  defineOperation,
   displayStatus,
   isTerminalStatus,
   operationTreeView,
   type AnyOperationDefinition,
+  type InputOf,
   type OperationHandler,
   type OperationRecord,
   type ProgressSink,
@@ -19,55 +16,41 @@ import {
 } from '@emdash/core/primitives/kernel/engine';
 import type { SqliteOperationStore } from '@emdash/core/primitives/kernel/sqlite';
 import {
-  operationClaimResourceKey,
-  type OperationConfirmationReason,
   rollupStatus,
-  type OperationClaimResource,
+  type OperationConfirmationReason,
   type OperationDisplayState,
   type OperationMutationError,
   type OperationTree,
   type OperationTreeKey,
   type OperationTreeList,
 } from '@emdash/core/primitives/operations/api';
-import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { family, query, type Family, type Query } from '@emdash/wire';
-import { z } from 'zod';
+import type { OperationPayload } from '@core/primitives/operations/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
+  matchOperationProject,
   operationsPokes,
   type OperationTreePoke,
-  matchOperationProject,
 } from '@core/services/operations/node/pokes';
 import type {
   OperationDefinition,
-  OperationDraftInput,
-  OperationInsertOptions,
-  OperationProgress,
-  OperationSubmission,
-  OperationSubmit,
+  OperationMutationResult,
+  OperationReconcileContext,
+  OperationSubmitOptions,
   OperationsNotificationPublisher,
   OperationsSshManager,
 } from './definition';
-import type { LifecycleOperationRow } from './lifecycle-operation';
+import { OPERATION_RETENTION_MS } from './runtime';
 
-const legacyOperationInputSchema = defineVersionedSchema()
-  .unversioned(
-    z.custom<LegacyOperationInput>((value) => typeof value === 'object' && value !== null)
-  )
-  .build();
-const legacyOperationResultSchema = z.object({ ok: z.boolean() });
-const legacyOperationErrorSchema = z.object({
-  type: z.string(),
-  reason: z.string().optional(),
-  message: z.string().optional(),
-  code: z.string().optional(),
-  retryable: z.boolean().optional(),
-});
+const RECENT_SETTLED_WINDOW_MS = OPERATION_RETENTION_MS;
+const RECONCILER_INTERVAL_MS = 10 * 60_000;
+const WAIT_FOR_IDLE_TIMEOUT_MS = 10_000;
+const WAIT_FOR_IDLE_POLL_MS = 25;
 
-type OperationMutationResult = Result<{ operationId?: string }, OperationMutationError>;
+type OperationMutation = Result<OperationMutationResult, OperationMutationError>;
 
 export type OperationsEngineDeps = {
   db: AppDb;
@@ -80,23 +63,17 @@ export type OperationsEngineDeps = {
   clock?: Clock;
 };
 
-export interface LegacyOperationInput {
-  draft: OperationDraftInput & { id: string; createdAt: number };
-  claims: ResourceClaim[];
-  parentForgetPolicy?: 'abandon-children' | 'orphan-children';
-}
-
 export class OperationsEngine {
-  private readonly db: AppDb;
+  readonly db: AppDb;
   private readonly scope: Scope;
   private readonly store: SqliteOperationStore;
   private readonly sshManager: OperationsSshManager;
+  private readonly notifications: OperationsNotificationPublisher;
   private readonly definitions: Map<string, OperationDefinition>;
-  private readonly kernelDefinitions: Map<string, AnyOperationDefinition>;
   private readonly kernel: KernelOperationEngine;
   private readonly clock: Clock;
   private readonly initiatedBy: string | undefined;
-  private readonly progress = new Map<string, OperationProgress>();
+  private readonly progress = new Map<string, OperationProgressSummary>();
   private readonly operationTrees: Family<OperationTreeKey, Query<OperationTreeList>>;
 
   constructor(deps: OperationsEngineDeps) {
@@ -104,22 +81,21 @@ export class OperationsEngine {
     this.scope = deps.scope;
     this.store = deps.store;
     this.sshManager = deps.sshManager;
+    this.notifications = deps.notifications;
     this.clock = deps.clock ?? systemClock;
     this.initiatedBy = deps.initiatedBy;
-    this.definitions = new Map(deps.definitions.map((definition) => [definition.kind, definition]));
-    const registry = this.createRegistry(deps.definitions);
-    this.kernelDefinitions = new Map(
-      registry.definitions.map((definition) => [definition.name, definition])
+    this.definitions = new Map(
+      deps.definitions.map((definition) => [definition.definition.name, definition])
     );
     this.kernel = createOperationEngine({
       store: deps.store,
-      registry,
+      registry: this.createRegistry(deps.definitions),
       progress: this.createProgressSink(),
       clock: {
         now: () => this.clock.now(),
         setTimeout: (callback, ms) => setTimeout(callback, ms),
       },
-      dispatchGate: (record) => this.hostIsOnline(hostRefFromRecord(record)),
+      dispatchGate: (record) => this.hostIsOnline(this.hostRefFromRecord(record)),
     });
     this.operationTrees = family<OperationTreeKey, Query<OperationTreeList>>(
       (key, scope) =>
@@ -145,27 +121,39 @@ export class OperationsEngine {
     this.scope.add(() => {
       this.sshManager.off('connection-event', onConnection);
     });
+    const interval = setInterval(() => {
+      void this.sweep().catch(() => undefined);
+    }, RECONCILER_INTERVAL_MS);
+    this.scope.add(() => clearInterval(interval));
+    await this.sweep();
     this.refreshOperationTrees();
   }
 
-  readonly submit: OperationSubmit = async (prepare) => {
-    const prepared = await prepare({ db: this.db, clock: this.clock });
-    if (!prepared.success) return prepared;
-    if (prepared.data.outcome === 'existing') {
-      return ok({ operationId: prepared.data.operationId });
-    }
+  async submitWithTombstone<D extends AnyOperationDefinition>(
+    definition: D,
+    input: InputOf<D>,
+    options: OperationSubmitOptions = {}
+  ): Promise<OperationMutation> {
+    return this.submitKernel(definition, input, {
+      initiator: { kind: 'user', action: definition.name },
+      options,
+      revertOnReject: true,
+    });
+  }
 
-    try {
-      return await this.enqueueSubmission(prepared.data);
-    } catch (error) {
-      return err({
-        type: 'operation-submit-failed',
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
+  async submitReconciler<D extends AnyOperationDefinition>(
+    definition: D,
+    input: InputOf<D>,
+    options: OperationSubmitOptions = {}
+  ): Promise<OperationMutation> {
+    return this.submitKernel(definition, input, {
+      initiator: { kind: 'reconciler', probe: definition.name },
+      options,
+      revertOnReject: false,
+    });
+  }
 
-  async retry(operationId: string): Promise<OperationMutationResult> {
+  async retry(operationId: string): Promise<OperationMutation> {
     const record = await this.getRoot(operationId);
     if (!record) {
       return err({
@@ -173,29 +161,53 @@ export class OperationsEngine {
         message: `Operation ${operationId} was not found`,
       });
     }
-    const definition = this.kernelDefinitions.get(record.name);
-    if (!definition) {
+    const descriptor = this.definitions.get(record.name);
+    if (!descriptor) {
       return err({ type: 'operation-not-found', message: `Operation ${record.name} is unknown` });
     }
-
-    const input = cloneLegacyInput(record.input);
-    const rejected = needsConfirmation(record);
-    if (rejected) {
-      input.draft.confirmedAt = this.clock.now();
-      input.draft.confirmationReason = rejected.reason;
+    const parsed = descriptor.definition.input.safeParse(record.input);
+    if (parsed.status !== 'ok') {
+      return err({
+        type: 'operation-input-invalid',
+        message: `Operation ${record.name} input is invalid`,
+      });
     }
-    const submitted = await this.kernel.submit(definition, input, {
+    const confirmed = needsConfirmation(record)
+      ? descriptor.confirmedInput(
+          parsed.data,
+          this.clock.now(),
+          needsConfirmation(record)!.reason as OperationConfirmationReason
+        )
+      : parsed.data;
+    const submitted = await this.kernel.submit(descriptor.definition, confirmed, {
       initiator: { kind: 'user', action: 'retry-operation' },
     });
-    if (!submitted.success) {
-      return err(admissionError(submitted.error));
-    }
-    this.refreshOperationTrees(input.draft.projectId ?? undefined);
+    if (!submitted.success) return err(admissionError(submitted.error));
+    this.refreshOperationTrees(descriptor.projectId(confirmed));
     return ok({ operationId: submitted.data.id });
   }
 
-  async forget(operationId: string): Promise<OperationMutationResult> {
-    await this.cancelTree(operationId);
+  async forget(operationId: string): Promise<OperationMutation> {
+    const root = await this.getRoot(operationId);
+    if (!root) {
+      return err({
+        type: 'operation-not-found',
+        message: `Operation ${operationId} was not found`,
+      });
+    }
+
+    await this.cancelTree(root.id);
+    const records = await this.collectSubtree(root.id);
+    for (const record of records) {
+      if (record.id !== root.id && (await this.wasAdopted(record.id))) {
+        continue;
+      }
+      await this.purgeRecord(record);
+    }
+    const terminalIds = records
+      .filter((record) => isTerminalStatus(record.status))
+      .map((record) => record.id);
+    await this.store.transaction((tx) => tx.prune(terminalIds));
     this.refreshOperationTrees();
     return ok({ operationId });
   }
@@ -210,23 +222,24 @@ export class OperationsEngine {
     this.kernel.poke();
   }
 
-  async waitForIdle(): Promise<void> {
-    for (let attempt = 0; attempt < 200; attempt += 1) {
+  async waitForIdle(timeoutMs = WAIT_FOR_IDLE_TIMEOUT_MS): Promise<void> {
+    const deadline = this.clock.now() + timeoutMs;
+    while (this.clock.now() < deadline) {
       const active = (await this.kernel.query({ active: true })).records;
-      if (active.length === 0) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      if (active.length === 0) return;
+      await new Promise((resolve) => setTimeout(resolve, WAIT_FOR_IDLE_POLL_MS));
     }
+    throw new Error('Timed out waiting for operations to become idle');
   }
 
-  async hasClaimConflict(resources: readonly OperationClaimResource[]): Promise<boolean> {
-    const keys = resources.map((resource) => operationClaimResourceKey(resource));
-    for (const key of keys) {
-      const page = await this.kernel.query({ resource: { key }, active: true, limit: 1 });
-      if (page.records.length > 0) {
-        return true;
-      }
+  async hasClaimConflict(claims: readonly ResourceClaim[]): Promise<boolean> {
+    for (const claim of claims) {
+      const page = await this.kernel.query({
+        resource: { key: claim.key },
+        active: true,
+        limit: 1,
+      });
+      if (page.records.length > 0) return true;
     }
     return false;
   }
@@ -236,159 +249,61 @@ export class OperationsEngine {
     this.store.close();
   }
 
-  private async enqueueSubmission(
-    submission: Extract<OperationSubmission, { outcome: 'enqueue' }>
-  ) {
-    const members = [submission, ...(submission.related ?? [])];
-    for (const member of members) {
-      const error = await this.applyPreconditionAndTombstone(member.draft, member.options);
-      if (error) {
-        return err(error);
-      }
+  private async submitKernel<D extends AnyOperationDefinition>(
+    definition: D,
+    input: InputOf<D>,
+    opts: {
+      initiator: Parameters<KernelOperationEngine['submit']>[2]['initiator'];
+      options: OperationSubmitOptions;
+      revertOnReject: boolean;
     }
-
-    const parentInput = this.inputFromDraft(submission.draft, submission.options);
-    const relatedInputs = (submission.related ?? []).map((related) =>
-      this.inputFromDraft(related.draft, related.options)
-    );
-    const parentDefinition = this.definitionForInput(parentInput);
-    if (!parentDefinition) {
+  ): Promise<OperationMutation> {
+    const descriptor = this.definitions.get(definition.name);
+    if (!descriptor) {
       return err({
         type: 'operation-not-found',
-        message: `Operation ${parentInput.draft.kind} is unknown`,
+        message: `Operation ${definition.name} is unknown`,
       });
     }
 
-    if (relatedInputs.length === 0) {
-      const submitted = await this.kernel.submit(parentDefinition, parentInput, {
-        initiator: { kind: 'user', action: parentInput.draft.kind },
-      });
-      if (!submitted.success) {
-        return err(admissionError(submitted.error));
-      }
-      this.refreshOperationTrees(parentInput.draft.projectId ?? undefined);
-      return ok({ operationId: submitted.data.id });
-    }
+    const tombstoneError = this.applyPreconditionAndTombstone(opts.options);
+    if (tombstoneError) return err(tombstoneError);
 
-    const batch = [
-      { definition: parentDefinition, input: parentInput },
-      ...relatedInputs.flatMap((input) => {
-        const definition = this.definitionForInput(input);
-        return definition ? [{ definition, input, parent: 0, adoptExisting: true }] : [];
-      }),
-    ];
-    const submitted = await this.kernel.submitBatch(batch, {
-      initiator: { kind: 'user', action: parentInput.draft.kind },
-      propagation: 'fail-parent',
+    const submitted = await this.kernel.submit(definition, input, {
+      initiator: opts.initiator,
     });
     if (!submitted.success) {
+      if (opts.revertOnReject && opts.options.revertTombstone) {
+        this.db.transaction((tx) => opts.options.revertTombstone?.(tx));
+      }
       return err(admissionError(submitted.error));
     }
-    this.refreshOperationTrees(parentInput.draft.projectId ?? undefined);
-    return ok({ operationId: submitted.data.handles[0]?.id });
+    this.maybePublishProposalNotification(submitted.data.id, definition, input);
+    this.refreshOperationTrees(descriptor.projectId(input));
+    return ok({ operationId: submitted.data.id });
   }
 
-  private async applyPreconditionAndTombstone(
-    draft: OperationDraftInput,
-    options: OperationInsertOptions | undefined
-  ): Promise<OperationMutationError | undefined> {
-    if (options?.precondition) {
-      const error = this.db.transaction((tx) => options.precondition?.(tx));
-      if (error) return error;
-    }
-    if (options?.tombstone) {
-      const changed = this.db.transaction((tx) => options.tombstone?.(tx) ?? 1);
+  private applyPreconditionAndTombstone(
+    options: OperationSubmitOptions
+  ): OperationMutationError | undefined {
+    return this.db.transaction((tx) => {
+      const precondition = options.precondition?.(tx);
+      if (precondition) return precondition;
+      const changed = options.tombstone?.(tx) ?? 1;
       if (changed === 0) {
-        return {
-          type: 'operation-duplicate',
-          message: `Operation already exists for ${draft.entityKey ?? draft.id}`,
-        };
+        return { type: 'operation-duplicate', message: 'Operation target is already tombstoned' };
       }
-    }
-    return undefined;
-  }
-
-  private inputFromDraft(
-    draftInput: OperationDraftInput,
-    options: OperationInsertOptions | undefined
-  ): LegacyOperationInput {
-    const now = this.clock.now();
-    const draft = {
-      ...draftInput,
-      id: draftInput.id ?? randomUUID(),
-      createdAt: draftInput.createdAt ?? now,
-      initiatedBy: draftInput.initiatedBy ?? this.initiatedBy,
-    };
-    return {
-      draft,
-      claims: (options?.claims ?? []).map((claim) => legacyClaimToKernel(claim)),
-      parentForgetPolicy: options?.parentForgetPolicy,
-    };
-  }
-
-  private definitionForInput(input: LegacyOperationInput): AnyOperationDefinition | undefined {
-    return this.kernelDefinitions.get(input.draft.kind);
+      return undefined;
+    });
   }
 
   private createRegistry(definitions: readonly OperationDefinition[]): OperationRegistry {
-    const pairs = definitions.map((definition) => {
-      const kernelDefinition = defineOperation({
-        name: definition.kind,
-        input: legacyOperationInputSchema,
-        result: legacyOperationResultSchema,
-        error: legacyOperationErrorSchema,
-        key: (input) => `${input.draft.kind}:${input.draft.entityKey ?? input.draft.id}`,
-        claims: (input) => input.claims,
-        describe: (input) =>
-          input.draft.payload.entityName ?? input.draft.entityKey ?? input.draft.id,
-        retry: { maxAttempts: 1, backoff: { kind: 'fixed', baseMs: 0 } },
-      }) as AnyOperationDefinition;
-      const handler = createOperationHandler(kernelDefinition, async (ctx) => {
-        const input = ctx.input as LegacyOperationInput;
-        const operation = rowFromInput(ctx.operationId, input, ctx.attempt, 'running');
-        const result = await definition.run({
-          operation,
-          db: this.db,
-          signal: ctx.signal,
-          clock: this.clock,
-          reportProgress: (progress) => {
-            this.progress.set(ctx.operationId, progress);
-            this.refreshOperationTrees(operation.projectId ?? undefined);
-          },
-        });
-        if (!result.success) {
-          if (result.error.type === 'awaiting-confirmation') {
-            ctx.reject({
-              type: 'needs-confirmation',
-              reason: result.error.reason,
-              message: result.error.message,
-            });
-          }
-          if (result.error.type === 'failed') {
-            throw Object.assign(new Error(result.error.message), {
-              code: result.error.code,
-              retryable: result.error.retryable,
-            });
-          }
-          throw new Error(result.error.message ?? 'Operation failed');
-        }
-        return { ok: true };
-      }) as OperationHandler<AnyOperationDefinition>;
-      return { definition: kernelDefinition, handler };
-    });
-
-    const policy = defineConflictPolicy((on) => {
-      for (const incoming of pairs) {
-        for (const existing of pairs) {
-          on(incoming.definition, existing.definition).queue();
-        }
-      }
-    });
-
     return {
-      definitions: pairs.map((pair) => pair.definition),
-      handlers: pairs.map((pair) => pair.handler),
-      conflictPolicies: [policy],
+      definitions: definitions.map((definition) => definition.definition),
+      handlers: definitions.map(
+        (definition) => definition.handler as OperationHandler<AnyOperationDefinition>
+      ),
+      conflictPolicies: definitions.flatMap((definition) => definition.conflictPolicies ?? []),
     };
   }
 
@@ -403,26 +318,38 @@ export class OperationsEngine {
             totalSteps: update.stages.length,
           });
         }
-        this.refreshOperationTrees();
+        this.refreshOperationTrees(this.projectIdFromRecordId(update.operationId));
       },
       end: (operationId) => {
         this.progress.delete(operationId);
-        this.refreshOperationTrees();
+        this.refreshOperationTrees(this.projectIdFromRecordId(operationId));
       },
     };
   }
 
   private async loadOperationTrees(key: OperationTreeKey): Promise<OperationTreeList> {
-    const records = (await this.kernel.query({ limit: 500 })).records.filter((record) => {
-      const input = legacyInput(record);
-      if (!input) return false;
-      if (key.projectId !== undefined && input.draft.projectId !== key.projectId) return false;
-      return (
-        !isTerminalStatus(record.status) ||
-        record.status === 'failed' ||
-        record.status === 'rejected'
-      );
+    const active = await this.kernel.query({ active: true });
+    const terminal = await this.kernel.query({
+      settledAfter: this.clock.now() - RECENT_SETTLED_WINDOW_MS,
     });
+    const byId = new Map(
+      [...active.records, ...terminal.records].map((record) => [record.id, record])
+    );
+    const records = [...byId.values()].filter((record) => {
+      if (
+        isTerminalStatus(record.status) &&
+        record.status !== 'failed' &&
+        record.status !== 'rejected'
+      ) {
+        return false;
+      }
+      const descriptor = this.definitions.get(record.name);
+      if (!descriptor) return false;
+      const parsed = descriptor.definition.input.safeParse(record.input);
+      if (parsed.status !== 'ok') return false;
+      return key.projectId === undefined || descriptor.projectId(parsed.data) === key.projectId;
+    });
+
     const nodes = operationTreeView(records);
     return Object.fromEntries(
       nodes.map((node) => {
@@ -443,27 +370,30 @@ export class OperationsEngine {
   }
 
   private toDisplayState(record: OperationRecord): OperationDisplayState {
-    const input = cloneLegacyInput(record.input);
+    const descriptor = this.definitions.get(record.name);
+    if (!descriptor) {
+      return fallbackDisplay(record);
+    }
+    const parsed = descriptor.definition.input.safeParse(record.input);
+    if (parsed.status !== 'ok') {
+      return fallbackDisplay(record);
+    }
+    const description = descriptor.describe(parsed.data);
     const progress = this.progress.get(record.id);
     const status = displayStatus(record, this.kernel.lastDispatchReport());
     const rejected = needsConfirmation(record);
     const base = {
       operationId: record.id,
       operationKind: record.name,
-      entityId:
-        input.draft.entityKey ??
-        input.draft.taskId ??
-        input.draft.workspaceId ??
-        input.draft.projectId ??
-        record.id,
-      entityKind: this.definitions.get(record.name)?.entityKind ?? 'project',
-      projectId: input.draft.projectId ?? undefined,
-      entityName: input.draft.payload.entityName,
-      hostRef: input.draft.hostRef,
-      hostLabel: input.draft.payload.hostLabel,
-      workspacePath: input.draft.payload.workspacePath,
-      branchName: input.draft.payload.branchName,
-      createdAt: input.draft.createdAt,
+      entityId: record.key,
+      entityKind: descriptor.entityKind,
+      projectId: descriptor.projectId(parsed.data),
+      entityName: description.entityName,
+      hostRef: descriptor.hostRef(parsed.data),
+      hostLabel: description.hostLabel,
+      workspacePath: description.workspacePath,
+      branchName: description.branchName,
+      createdAt: record.createdAt,
       attempt: record.attempt,
       currentStep: progress?.currentStep,
       completedSteps: progress?.completedSteps,
@@ -481,15 +411,9 @@ export class OperationsEngine {
     if (status.kind === 'deferred' && status.reason === 'gated') {
       return { ...base, status: 'blocked-host-offline' };
     }
-    if (status.kind === 'waiting') {
-      return { ...base, status: 'waiting' };
-    }
-    if (status.kind === 'running') {
-      return { ...base, status: progress?.waiting ? 'waiting' : 'running' };
-    }
-    if (status.kind === 'waiting-children') {
-      return { ...base, status: 'waiting-children' };
-    }
+    if (status.kind === 'waiting') return { ...base, status: 'waiting' };
+    if (status.kind === 'running') return { ...base, status: 'running' };
+    if (status.kind === 'waiting-children') return { ...base, status: 'waiting-children' };
     if (status.kind === 'failed' || status.kind === 'rejected') {
       return { ...base, status: 'failed', error: base.error ?? 'Operation failed' };
     }
@@ -505,6 +429,16 @@ export class OperationsEngine {
     return hostRef === 'local' || this.sshManager.isConnected(hostRef);
   }
 
+  private hostRefFromRecord(record: OperationRecord): string {
+    const descriptor = this.definitions.get(record.name);
+    const parsed = descriptor?.definition.input.safeParse(record.input);
+    return parsed?.status === 'ok' && descriptor ? descriptor.hostRef(parsed.data) : 'local';
+  }
+
+  private projectIdFromRecordId(_operationId: string): string | undefined {
+    return undefined;
+  }
+
   private async getRoot(operationId: string): Promise<OperationRecord | undefined> {
     let current = await this.kernel.get(operationId);
     while (current?.parentId) {
@@ -515,94 +449,108 @@ export class OperationsEngine {
     return current;
   }
 
-  private async cancelTree(operationId: string): Promise<void> {
+  private async collectSubtree(operationId: string): Promise<OperationRecord[]> {
     const root = await this.kernel.get(operationId);
-    if (!root) return;
+    if (!root) return [];
+    const children = await this.kernel.query({ parentId: operationId });
+    const descendants = await Promise.all(
+      children.records.map((child) => this.collectSubtree(child.id))
+    );
+    return [root, ...descendants.flat()];
+  }
+
+  private async cancelTree(operationId: string): Promise<void> {
     await this.kernel.cancel(operationId);
-    for (const child of (await this.kernel.query({ parentId: operationId, active: true }))
-      .records) {
-      const transitions = await this.store.listTransitions(child.id);
-      if (transitions.some((transition) => transition.cause === 'adoption')) {
-        continue;
-      }
+    const children = await this.kernel.query({ parentId: operationId, active: true });
+    for (const child of children.records) {
+      if (await this.wasAdopted(child.id)) continue;
       await this.cancelTree(child.id);
     }
   }
-}
 
-function rowFromInput(
-  id: string,
-  input: LegacyOperationInput,
-  attempt: number,
-  status: LifecycleOperationRow['status']
-): LifecycleOperationRow {
-  return {
-    id,
-    kind: input.draft.kind,
-    status,
-    projectId: input.draft.projectId ?? null,
-    taskId: input.draft.taskId ?? null,
-    workspaceId: input.draft.workspaceId ?? null,
-    entityKey: input.draft.entityKey ?? null,
-    parentOperationId: input.draft.parentOperationId ?? null,
-    parentForgetPolicy: input.parentForgetPolicy ?? null,
-    initiatedBy: input.draft.initiatedBy ?? null,
-    hostRef: input.draft.hostRef,
-    payload: input.draft.payload,
-    confirmedAt: input.draft.confirmedAt ?? null,
-    confirmationReason: input.draft.confirmationReason ?? null,
-    attempt,
-    createdAt: input.draft.createdAt,
-    finishedAt: null,
-  };
-}
-
-function legacyClaimToKernel(resource: OperationClaimResource): ResourceClaim {
-  return {
-    resource: resource.kind,
-    key: operationClaimResourceKey(resource),
-    mode: 'exclusive',
-    implicit: false,
-  };
-}
-
-function hostRefFromRecord(record: OperationRecord): string {
-  return legacyInput(record)?.draft.hostRef ?? 'local';
-}
-
-function legacyInput(record: OperationRecord): LegacyOperationInput | undefined {
-  return isLegacyOperationInput(record.input) ? record.input : undefined;
-}
-
-function cloneLegacyInput(input: unknown): LegacyOperationInput {
-  if (!isLegacyOperationInput(input)) {
-    throw new Error('Stored operation input is not a legacy operation input');
+  private async wasAdopted(operationId: string): Promise<boolean> {
+    return (await this.store.listTransitions(operationId)).some(
+      (transition) => transition.cause === 'adoption'
+    );
   }
-  return {
-    draft: { ...input.draft, payload: { ...input.draft.payload } },
-    claims: input.claims.map((claim) => ({ ...claim })),
-    parentForgetPolicy: input.parentForgetPolicy,
-  };
+
+  private async purgeRecord(record: OperationRecord): Promise<void> {
+    const descriptor = this.definitions.get(record.name);
+    if (!descriptor?.purge) return;
+    const parsed = descriptor.definition.input.safeParse(record.input);
+    if (parsed.status !== 'ok') return;
+    await descriptor.purge({ input: parsed.data, record, db: this.db, clock: this.clock });
+  }
+
+  private async sweep(): Promise<void> {
+    const context: OperationReconcileContext = {
+      db: this.db,
+      clock: this.clock,
+      submit: async (definition, input, options) => {
+        await this.submitReconciler(definition, input, options);
+      },
+      hasActiveKey: async (key) => {
+        const active = await this.kernel.query({ active: true });
+        return active.records.some((record) => record.key === key);
+      },
+    };
+
+    for (const definition of this.definitions.values()) {
+      await definition.reconcile?.(context);
+    }
+    await this.pruneRetainedRecords();
+  }
+
+  private async pruneRetainedRecords(): Promise<void> {
+    const records = (await this.kernel.query({})).records;
+    const pruneIds = records
+      .filter((record) => {
+        if (!isTerminalStatus(record.status)) return false;
+        const descriptor = this.definitions.get(record.name);
+        const parsed = descriptor?.definition.input.safeParse(record.input);
+        if (parsed?.status !== 'ok') return true;
+        if (needsConfirmation(record)) return false;
+        return record.updatedAt < this.clock.now() - OPERATION_RETENTION_MS;
+      })
+      .map((record) => record.id);
+    await this.store.transaction((tx) => tx.prune(pruneIds));
+  }
+
+  private maybePublishProposalNotification<D extends AnyOperationDefinition>(
+    operationId: string,
+    definition: D,
+    input: InputOf<D>
+  ): void {
+    if (!isReconcilerInput(input)) return;
+    const descriptor = this.definitions.get(definition.name);
+    if (!descriptor || definition.name === 'cleanup-sessions') return;
+    const description = descriptor.describe(input);
+    this.notifications.publishPendingCleanup({
+      operationId,
+      payload: {
+        version: '2',
+        source: 'reconciler',
+        entityName: description.entityName,
+        workspacePath: description.workspacePath,
+        branchName: description.branchName,
+        hostLabel: description.hostLabel,
+      } as OperationPayload,
+      hostRef: descriptor.hostRef(input),
+      reason: 'reconciler-proposed',
+    });
+  }
 }
 
-function isLegacyOperationInput(input: unknown): input is LegacyOperationInput {
-  return (
-    typeof input === 'object' &&
-    input !== null &&
-    'draft' in input &&
-    typeof input.draft === 'object' &&
-    input.draft !== null &&
-    'kind' in input.draft &&
-    'hostRef' in input.draft
-  );
-}
+type OperationProgressSummary = {
+  currentStep?: string;
+  completedSteps: number;
+  totalSteps: number;
+};
 
 function needsConfirmation(
   record: OperationRecord
 ): { reason: string; message?: string } | undefined {
-  if (record.status !== 'rejected') {
-    return undefined;
-  }
+  if (record.status !== 'rejected') return undefined;
   const error = record.rejectedError;
   if (
     typeof error === 'object' &&
@@ -618,6 +566,29 @@ function needsConfirmation(
     };
   }
   return undefined;
+}
+
+function isReconcilerInput(input: unknown): input is { source: 'reconciler' } {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'source' in input &&
+    input.source === 'reconciler'
+  );
+}
+
+function fallbackDisplay(record: OperationRecord): OperationDisplayState {
+  return {
+    operationId: record.id,
+    operationKind: record.name,
+    entityId: record.key,
+    entityKind: 'project',
+    hostRef: 'local',
+    createdAt: record.createdAt,
+    attempt: record.attempt,
+    status: record.status === 'failed' || record.status === 'rejected' ? 'failed' : 'queued',
+    error: record.error?.message ?? 'Operation failed',
+  };
 }
 
 function admissionError(error: { kind: string; conflicts?: OperationRecord[]; name?: string }) {

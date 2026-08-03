@@ -1,10 +1,9 @@
 import {
-  branchKernelResource,
   worktreeKernelResource,
-  type BranchResourceRef,
   type WorktreeResourceRef,
 } from '@emdash/core/primitives/kernel-resources/api';
 import { defineResource, type ResourceClaim } from '@emdash/core/primitives/kernel/api';
+import { operationClaimResourceKey } from '@emdash/core/primitives/operations/api';
 
 export interface ProjectResourceRef {
   projectId: string;
@@ -16,6 +15,10 @@ export interface TaskResourceRef extends ProjectResourceRef {
 
 export interface WorkspaceResourceRef extends ProjectResourceRef {
   workspaceId: string;
+}
+
+export interface BranchResourceRef extends ProjectResourceRef {
+  branchName: string;
 }
 
 export interface AutomationResourceRef extends ProjectResourceRef {
@@ -42,6 +45,17 @@ export const workspaceKernelResource = defineResource<'workspace', WorkspaceReso
 export const automationKernelResource = defineResource<'automation', AutomationResourceRef>({
   name: 'automation',
   key: (ref) => `automation:${encodeURIComponent(ref.automationId)}`,
+  parent: (ref) => ({ def: projectKernelResource, ref: { projectId: ref.projectId } }),
+});
+
+export const branchKernelResource = defineResource<'branch', BranchResourceRef>({
+  name: 'branch',
+  key: (ref) =>
+    operationClaimResourceKey({
+      kind: 'branch',
+      projectId: ref.projectId,
+      name: ref.branchName,
+    }),
   parent: (ref) => ({ def: projectKernelResource, ref: { projectId: ref.projectId } }),
 });
 
@@ -107,6 +121,10 @@ export function workspaceKernelClaims(input: WorkspaceClaimInput): ResourceClaim
 
 export function projectClaimKey(projectId: string): string {
   return projectKernelResource.key({ projectId });
+}
+
+export function branchKernelClaim(projectId: string, branchName: string): ResourceClaim[] {
+  return branchKernelResource.mutates({ projectId, branchName });
 }
 
 function dedupeClaims(claims: readonly ResourceClaim[]): ResourceClaim[] {

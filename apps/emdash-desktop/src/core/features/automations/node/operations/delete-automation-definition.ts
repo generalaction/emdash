@@ -1,39 +1,76 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import type { OperationClaimResource } from '@emdash/core/primitives/operations/api';
+import { createOperationHandler, defineOperation } from '@emdash/core/primitives/kernel/api';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import {
   runtimeResolveErrorAsError,
   type HostRuntimesClient,
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
-import { err, ok } from '@emdash/shared';
-import { and, eq, isNull } from 'drizzle-orm';
+import { err, type Result } from '@emdash/shared';
+import type { Clock } from '@emdash/shared/scheduling';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import z from 'zod';
-import { defineOperationKindPayloadSchema } from '@core/primitives/operations/api';
-import type { AppDb } from '@core/services/app-db/node/db';
+import { automationKernelResource } from '@core/primitives/operations/api/resources';
+import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { automationRuns, automations, projects } from '@core/services/app-db/node/schema';
-import { defineOperationContribution } from '@core/services/operations/api';
+import type {
+  OperationDefinition,
+  OperationReconcileContext,
+  OperationSubmitOptions,
+} from '@core/services/operations/node';
 import {
-  runOperationActions,
-  type OperationDefinition,
-  type OperationInsertOptions,
-  type OperationSubmit,
-  type OperationsEngine,
+  confirmInput,
+  needsConfirmation,
+  operationErrorSchema,
+  operationResultSchema,
+  operationRetryPolicy,
+  runOperationStage,
 } from '@core/services/operations/node';
 import { listTombstonedAutomationIds, purgeAutomationRows } from '../repo';
 
 const RUNTIME_TIMEOUT_MS = 30_000;
 const PURGE_TIMEOUT_MS = 30_000;
 const LIST_RUNS_LIMIT = 200;
-const deleteAutomationOperationPayload = defineOperationKindPayloadSchema({
-  entityName: z.string().optional(),
-  hostLabel: z.string().optional(),
+
+const deleteAutomationInputSchema = defineVersionedSchema()
+  .initial(
+    '1',
+    z.object({
+      version: z.literal('1'),
+      source: z.enum(['user', 'reconciler']),
+      automationId: z.string(),
+      projectId: z.string().nullable().optional(),
+      hostRef: z.string(),
+      entityName: z.string().optional(),
+      hostLabel: z.string().optional(),
+      confirmedAt: z.number().int().nonnegative().optional(),
+      createdAt: z.number().int().nonnegative(),
+    })
+  )
+  .build();
+
+export type DeleteAutomationOperationInput = typeof deleteAutomationInputSchema.Type;
+
+export const deleteAutomationOperation = defineOperation({
+  name: 'delete-automation',
+  input: deleteAutomationInputSchema,
+  result: operationResultSchema,
+  error: operationErrorSchema,
+  key: (input) => `automation:${input.automationId}`,
+  claims: (input) =>
+    automationKernelResource.mutates({
+      projectId: input.projectId ?? 'global',
+      automationId: input.automationId,
+    }),
+  describe: (input) => input.entityName ?? input.automationId,
+  retry: operationRetryPolicy,
 });
 
-export const deleteAutomationOperationContribution = defineOperationContribution({
-  kind: 'delete-automation',
-  payload: deleteAutomationOperationPayload,
-  create: createDeleteAutomationOperationDefinition,
-});
+export const deleteAutomationOperationContribution = {
+  create: (dependencies: DeleteAutomationOperationDependencies, runtime: OperationRuntime) => [
+    createDeleteAutomationOperationDefinition(dependencies, runtime),
+  ],
+};
 
 const ACTIVE_RUN_STATUSES = [
   'scheduled',
@@ -46,124 +83,132 @@ export type DeleteAutomationOperationDependencies = {
   runtimes: Pick<RuntimeBroker, 'client'>;
 };
 
+type OperationRuntime = { db: AppDb; clock: Clock; initiatedBy?: string };
+
 export function createDeleteAutomationOperationDefinition(
-  dependencies: DeleteAutomationOperationDependencies
-): OperationDefinition {
+  dependencies: DeleteAutomationOperationDependencies,
+  runtime: OperationRuntime
+): OperationDefinition<typeof deleteAutomationOperation> {
+  const handler = createOperationHandler(deleteAutomationOperation, async (ctx) => {
+    if (ctx.input.source === 'reconciler' && !ctx.input.confirmedAt) {
+      needsConfirmation(ctx, 'reconciler-proposed');
+    }
+    const client = await resolveRuntimeClient(dependencies.runtimes, ctx.input.hostRef);
+    await runOperationStage(ctx, {
+      id: 'cancel-active-runs',
+      timeoutMs: RUNTIME_TIMEOUT_MS,
+      clock: runtime.clock,
+      run: async () => cancelActiveRuns(client, ctx.input.automationId),
+    });
+    await runOperationStage(ctx, {
+      id: 'remove-deployment',
+      timeoutMs: RUNTIME_TIMEOUT_MS,
+      clock: runtime.clock,
+      run: async () => removeDeployment(client, ctx.input.automationId),
+    });
+    await runOperationStage(ctx, {
+      id: 'purge-automation-rows',
+      timeoutMs: PURGE_TIMEOUT_MS,
+      clock: runtime.clock,
+      run: async () => purgeAutomationRows(runtime.db, ctx.input.automationId),
+    });
+    return { ok: true as const };
+  });
+
   return {
-    kind: 'delete-automation',
+    definition: deleteAutomationOperation,
+    handler,
     entityKind: 'automation',
-    async describe({ operation, db }) {
-      if (!operation.entityKey) return { entityName: operation.payload.entityName };
-      const [automation] = await db
-        .select({ name: automations.name })
-        .from(automations)
-        .where(eq(automations.id, operation.entityKey))
-        .limit(1);
-      return { entityName: automation?.name ?? operation.payload.entityName };
-    },
-    async run(runContext) {
-      const { operation, db } = runContext;
-      const automationId = operation.entityKey;
-      if (!automationId) return ok(undefined);
-      const client = await resolveRuntimeClient(dependencies.runtimes, operation.hostRef);
-      return runOperationActions(runContext, [
-        {
-          id: 'cancel-active-runs',
-          timeoutMs: RUNTIME_TIMEOUT_MS,
-          run: async () => cancelActiveRuns(client, automationId),
+    examples: [
+      {
+        definition: deleteAutomationOperation,
+        input: {
+          version: '1',
+          source: 'user',
+          automationId: 'automation-example',
+          projectId: 'project-example',
+          hostRef: 'local',
+          createdAt: 1,
         },
-        {
-          id: 'remove-deployment',
-          timeoutMs: RUNTIME_TIMEOUT_MS,
-          run: async () => removeDeployment(client, automationId),
-        },
-        {
-          id: 'purge-automation-rows',
-          timeoutMs: PURGE_TIMEOUT_MS,
-          run: async () => purgeAutomationRows(db, automationId),
-        },
-      ]);
-    },
-    async forget({ operation, db, markAbandoned }) {
+      },
+    ],
+    describe: (input) => ({ entityName: input.entityName, hostLabel: input.hostLabel }),
+    projectId: (input) => input.projectId ?? undefined,
+    hostRef: (input) => input.hostRef,
+    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
+    purge: async ({ input, db }) => {
       db.transaction((tx) => {
-        markAbandoned(tx);
-        if (operation.entityKey) {
-          tx.delete(automationRuns)
-            .where(eq(automationRuns.automationId, operation.entityKey))
-            .run();
-          tx.delete(automations).where(eq(automations.id, operation.entityKey)).run();
-        }
+        tx.delete(automationRuns).where(eq(automationRuns.automationId, input.automationId)).run();
+        tx.delete(automations).where(eq(automations.id, input.automationId)).run();
       });
     },
+    reconcile: (context) => reconcileAutomationCleanups(context),
   };
 }
 
-export async function enqueueDeleteAutomation(operations: OperationsEngine, automationId: string) {
-  return operations.submit(async ({ db, clock }) => {
-    const [automation] = await db
-      .select({
-        id: automations.id,
-        name: automations.name,
-        projectId: automations.projectId,
-      })
-      .from(automations)
-      .where(and(eq(automations.id, automationId), isNull(automations.deletedAt)))
-      .limit(1);
-    if (!automation) {
-      return err({
-        type: 'automation-not-found',
-        automationId,
-        message: `Automation ${automationId} was not found`,
-      });
-    }
-
-    const [project] = automation.projectId
-      ? await db
-          .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
-          .from(projects)
-          .where(eq(projects.id, automation.projectId))
-          .limit(1)
-      : [];
-    const createdAt = clock.now();
-    return ok({
-      outcome: 'enqueue' as const,
-      draft: {
-        kind: 'delete-automation' as const,
-        projectId: automation.projectId,
-        entityKey: automation.id,
-        hostRef: project?.sshConnectionId ?? 'local',
-        payload: {
-          version: '2' as const,
-          source: 'user' as const,
-          entityName: automation.name,
-          hostLabel: project?.sshConnectionId ? project.name : undefined,
-        },
-        createdAt,
-      },
-      options: {
-        claims: deleteAutomationClaims(automation.id),
-        precondition: automation.projectId
-          ? (tx) => projectIsActive(tx, automation.projectId!)
-          : undefined,
-        tombstone: (tx) =>
-          tx
-            .update(automations)
-            .set({ deletedAt: createdAt, updatedAt: createdAt })
-            .where(and(eq(automations.id, automation.id), isNull(automations.deletedAt)))
-            .run().changes,
-      },
+export async function enqueueDeleteAutomation(
+  operations: OperationsEngineLike,
+  automationId: string
+) {
+  const [automation] = await operations.db
+    .select({ id: automations.id, name: automations.name, projectId: automations.projectId })
+    .from(automations)
+    .where(and(eq(automations.id, automationId), isNull(automations.deletedAt)))
+    .limit(1);
+  if (!automation) {
+    return err({
+      type: 'automation-not-found',
+      automationId,
+      message: `Automation ${automationId} was not found`,
     });
+  }
+  const [project] = automation.projectId
+    ? await operations.db
+        .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
+        .from(projects)
+        .where(eq(projects.id, automation.projectId))
+        .limit(1)
+    : [];
+  const createdAt = Date.now();
+  const input: DeleteAutomationOperationInput = {
+    version: '1',
+    source: 'user',
+    automationId: automation.id,
+    projectId: automation.projectId,
+    hostRef: project?.sshConnectionId ?? 'local',
+    entityName: automation.name,
+    hostLabel: project?.sshConnectionId ? project.name : undefined,
+    createdAt,
+  };
+  return operations.submitWithTombstone(deleteAutomationOperation, input, {
+    precondition: automation.projectId
+      ? (tx) => projectIsActive(tx, automation.projectId!)
+      : undefined,
+    tombstone: (tx) =>
+      tx
+        .update(automations)
+        .set({ deletedAt: createdAt, updatedAt: createdAt })
+        .where(and(eq(automations.id, automation.id), isNull(automations.deletedAt)))
+        .run().changes,
+    revertTombstone: (tx) => {
+      tx.update(automations)
+        .set({ deletedAt: null, updatedAt: Date.now() })
+        .where(eq(automations.id, automation.id))
+        .run();
+    },
   });
 }
 
-function deleteAutomationClaims(automationId: string): OperationClaimResource[] {
-  return [{ kind: 'automation', id: automationId }];
-}
+type OperationsEngineLike = {
+  db: AppDb;
+  submitWithTombstone<D extends typeof deleteAutomationOperation>(
+    definition: D,
+    input: DeleteAutomationOperationInput,
+    options?: OperationSubmitOptions
+  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
+};
 
-function projectIsActive(
-  tx: Parameters<NonNullable<OperationInsertOptions['precondition']>>[0],
-  projectId: string
-) {
+function projectIsActive(tx: DrizzleTx, projectId: string) {
   const active =
     tx
       .select({ id: projects.id })
@@ -171,77 +216,59 @@ function projectIsActive(
       .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
       .limit(1)
       .get() !== undefined;
-  return active
-    ? undefined
-    : {
-        type: 'project-deleting',
-        message: 'Project is being deleted.',
-      };
+  return active ? undefined : { type: 'project-deleting', message: 'Project is being deleted.' };
 }
 
 export async function submitReconcilerAutomationCleanup(
-  submit: OperationSubmit,
-  automationId: string
-): Promise<void> {
-  await submit(async ({ db, clock }) => {
-    const [automation] = await db
-      .select({
-        id: automations.id,
-        name: automations.name,
-        projectId: automations.projectId,
-        deletedAt: automations.deletedAt,
-      })
-      .from(automations)
-      .where(eq(automations.id, automationId))
-      .limit(1);
-    if (!automation) return ok({ outcome: 'existing' as const });
+  _submit: OperationReconcileContext['submit'],
+  _automationId: string
+): Promise<void> {}
 
+export async function submitReconcilerAutomationCleanups(
+  _submit: OperationReconcileContext['submit'],
+  db: AppDb
+): Promise<void> {
+  void db;
+}
+
+async function reconcileAutomationCleanups(context: OperationReconcileContext): Promise<void> {
+  for (const automationId of await listTombstonedAutomationIds(context.db)) {
+    if (await context.hasActiveKey(deleteAutomationOperation.key(exampleInput(automationId))))
+      continue;
+    const [automation] = await context.db
+      .select({ id: automations.id, name: automations.name, projectId: automations.projectId })
+      .from(automations)
+      .where(and(eq(automations.id, automationId), isNotNull(automations.deletedAt)))
+      .limit(1);
+    if (!automation) continue;
     const [project] = automation.projectId
-      ? await db
+      ? await context.db
           .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
           .from(projects)
           .where(eq(projects.id, automation.projectId))
           .limit(1)
       : [];
-    const createdAt = clock.now();
-    const payload = {
-      version: '2',
+    await context.submit(deleteAutomationOperation, {
+      version: '1',
       source: 'reconciler',
+      automationId,
+      projectId: automation.projectId,
+      hostRef: project?.sshConnectionId ?? 'local',
       entityName: automation.name,
       hostLabel: project?.name,
-    } as const;
-    return ok({
-      outcome: 'enqueue' as const,
-      draft: {
-        kind: 'delete-automation' as const,
-        status: 'awaiting-confirmation' as const,
-        projectId: automation.projectId,
-        entityKey: automation.id,
-        hostRef: project?.sshConnectionId ?? 'local',
-        payload,
-        confirmationReason: 'reconciler-proposed',
-        createdAt,
-      },
-      options: {
-        tombstone: (tx) => {
-          tx.update(automations)
-            .set({ deletedAt: automation.deletedAt ?? createdAt, updatedAt: createdAt })
-            .where(eq(automations.id, automation.id))
-            .run();
-          return 1;
-        },
-      },
+      createdAt: context.clock.now(),
     });
-  });
+  }
 }
 
-export async function submitReconcilerAutomationCleanups(
-  submit: OperationSubmit,
-  db: AppDb
-): Promise<void> {
-  for (const automationId of await listTombstonedAutomationIds(db)) {
-    await submitReconcilerAutomationCleanup(submit, automationId);
-  }
+function exampleInput(automationId: string): DeleteAutomationOperationInput {
+  return {
+    version: '1',
+    source: 'reconciler',
+    automationId,
+    hostRef: 'local',
+    createdAt: 1,
+  };
 }
 
 async function resolveRuntimeClient(

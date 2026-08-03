@@ -569,6 +569,8 @@ export async function bootServices(
       },
     },
     definitions: createOperationDefinitions({
+      db,
+      initiatedBy: desktopClientId,
       deleteTask: {
         getMementosRuntimeClient,
         lifecycleCleanup,

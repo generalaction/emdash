@@ -1,6 +1,7 @@
 import type { SqliteConnection, StoreHandle } from '@primitives/sqlite-store/api';
 import {
   canTransition,
+  isTerminalStatus,
   type NewOperationRecord,
   type OperationRecord,
   type OperationRecordPatch,
@@ -240,6 +241,33 @@ export class SqliteOperationStore implements OperationStore {
     this.journal(id, record.status, record.status, 'adoption', emitted);
   }
 
+  prune(ids: readonly string[]): void {
+    if (ids.length === 0) {
+      return;
+    }
+
+    const placeholders = ids.map(() => '?').join(', ');
+    const records = this.connection.all<Pick<OperationRow, 'id' | 'status'>>(
+      `SELECT id, status FROM operations WHERE id IN (${placeholders})`,
+      ids
+    );
+    for (const record of records) {
+      if (!isTerminalStatus(record.status)) {
+        throw new Error(`Cannot prune non-terminal operation '${record.id}'`);
+      }
+    }
+
+    this.connection.run(
+      `DELETE FROM operation_claims WHERE operation_id IN (${placeholders})`,
+      ids
+    );
+    this.connection.run(
+      `DELETE FROM operation_transitions WHERE operation_id IN (${placeholders})`,
+      ids
+    );
+    this.connection.run(`DELETE FROM operations WHERE id IN (${placeholders})`, ids);
+  }
+
   listNonTerminalSync(): OperationRecord[] {
     return this.listRows(
       `SELECT * FROM operations WHERE status NOT IN (${terminalPlaceholders()}) ORDER BY seq ASC`,
@@ -387,6 +415,10 @@ class SqliteOperationStoreTx implements OperationStoreTx {
 
   reparent(id: string, parentId: string): void {
     this.store.reparent(id, parentId, this.emitted);
+  }
+
+  prune(ids: readonly string[]): void {
+    this.store.prune(ids);
   }
 
   listNonTerminal(): OperationRecord[] {

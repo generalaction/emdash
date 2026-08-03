@@ -1,41 +1,77 @@
-import { ok, err } from '@emdash/shared';
+import { createOperationHandler, defineOperation } from '@emdash/core/primitives/kernel/api';
+import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
+import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import z from 'zod';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { projectSubject } from '@core/features/projects/contributions/subject';
-import { deleteTaskClaims } from '@core/features/tasks/api/node/delete-task-claims';
+import {
+  deleteTaskOperation,
+  type DeleteTaskOperationInput,
+} from '@core/features/tasks/api/node/delete-task-operation';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
-import { defineOperationKindPayloadSchema } from '@core/primitives/operations/api';
+import { projectKernelResource } from '@core/primitives/operations/api/resources';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
-import { defineOperationContribution } from '@core/services/operations/api';
+import type {
+  OperationDefinition,
+  OperationReconcileContext,
+  OperationSubmitOptions,
+} from '@core/services/operations/node';
 import {
+  confirmInput,
   isOperationStale,
-  operationNeedsConfirmation,
-  runOperationActions,
-  type OperationDefinition,
-  type OperationRelatedInsert,
-  type OperationSubmit,
-  type OperationsEngine,
+  needsConfirmation,
+  operationErrorSchema,
+  operationResultSchema,
+  operationRetryPolicy,
+  runOperationStage,
 } from '@core/services/operations/node';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 const PURGE_TIMEOUT_MS = 30_000;
-const deleteProjectOperationPayload = defineOperationKindPayloadSchema({
-  entityName: z.string().optional(),
-  hostLabel: z.string().optional(),
+
+const deleteProjectInputSchema = defineVersionedSchema()
+  .initial(
+    '1',
+    z.object({
+      version: z.literal('1'),
+      source: z.enum(['user', 'reconciler']),
+      projectId: z.string(),
+      hostRef: z.literal('local'),
+      entityName: z.string().optional(),
+      hostLabel: z.string().optional(),
+      confirmedAt: z.number().int().nonnegative().optional(),
+      createdAt: z.number().int().nonnegative(),
+    })
+  )
+  .build();
+
+export type DeleteProjectOperationInput = typeof deleteProjectInputSchema.Type;
+
+export const deleteProjectOperation = defineOperation({
+  name: 'delete-project',
+  input: deleteProjectInputSchema,
+  result: operationResultSchema,
+  error: operationErrorSchema,
+  key: (input) => `project:${input.projectId}`,
+  claims: (input) => projectKernelResource.mutates({ projectId: input.projectId }),
+  describe: (input) => input.entityName ?? input.projectId,
+  retry: operationRetryPolicy,
 });
 
-export const deleteProjectOperationContribution = defineOperationContribution({
-  kind: 'delete-project',
-  payload: deleteProjectOperationPayload,
-  create: createDeleteProjectOperationDefinition,
-});
+export const deleteProjectOperationContribution = {
+  create: (dependencies: DeleteProjectOperationDependencies, runtime: OperationRuntime) => [
+    createDeleteProjectOperationDefinition(dependencies, runtime),
+  ],
+};
 
 export type DeleteProjectOperationDependencies = {
   automations: Pick<AutomationsService, 'removeProjectDeployments'>;
@@ -46,63 +82,122 @@ export type DeleteProjectOperationDependencies = {
   telemetry: Pick<TelemetryService, 'capture'>;
 };
 
+type OperationRuntime = { db: AppDb; clock: Clock; initiatedBy?: string };
+
 export function createDeleteProjectOperationDefinition(
-  dependencies: DeleteProjectOperationDependencies
-): OperationDefinition {
-  return {
-    kind: 'delete-project',
-    entityKind: 'project',
-    async describe({ operation, db }) {
-      const [project] = operation.projectId
-        ? await db.select().from(projects).where(eq(projects.id, operation.projectId)).limit(1)
+  dependencies: DeleteProjectOperationDependencies,
+  runtime: OperationRuntime
+): OperationDefinition<typeof deleteProjectOperation> {
+  const handler = createOperationHandler(deleteProjectOperation, async (ctx) => {
+    if (ctx.input.source === 'reconciler' && !ctx.input.confirmedAt) {
+      needsConfirmation(ctx, 'reconciler-proposed');
+    }
+    if (isOperationStale(ctx.input, runtime.clock.now())) {
+      needsConfirmation(ctx, 'stale');
+    }
+    const taskRows = await runtime.db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.projectId, ctx.input.projectId), isNull(tasks.deletedAt)));
+    const workspaceIds = taskRows
+      .map((task) => task.workspaceId)
+      .filter((id): id is string => !!id);
+    const workspaceRows =
+      workspaceIds.length > 0
+        ? await runtime.db.select().from(workspaces).where(inArray(workspaces.id, workspaceIds))
         : [];
-      return { entityName: project?.name };
-    },
-    async run(runContext) {
-      const { operation, clock, db } = runContext;
-      if (isOperationStale(operation, clock.now())) {
-        return operationNeedsConfirmation('stale');
+    const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
+    const [project] = await runtime.db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, ctx.input.projectId))
+      .limit(1);
+    const claimedWorkspaceIds = new Set<string>();
+    for (const task of taskRows) {
+      const workspace = task.workspaceId ? workspaceById.get(task.workspaceId) : undefined;
+      const workspaceAlreadyClaimed =
+        task.workspaceId !== null && claimedWorkspaceIds.has(task.workspaceId);
+      if (task.workspaceId !== null) claimedWorkspaceIds.add(task.workspaceId);
+      runtime.db.transaction((tx) => {
+        tx.update(tasks)
+          .set({ deletedAt: new Date(runtime.clock.now()).toISOString() })
+          .where(and(eq(tasks.id, task.id), isNull(tasks.deletedAt)))
+          .run();
+      });
+      const child: DeleteTaskOperationInput = {
+        version: '1',
+        source: ctx.input.source,
+        taskId: task.id,
+        projectId: ctx.input.projectId,
+        workspaceId: task.workspaceId,
+        hostRef: workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local',
+        entityName: task.name,
+        hostLabel: project?.name,
+        projectPath: project?.path,
+        workspacePath: workspace?.path ?? undefined,
+        branchName: workspace?.branchName ?? undefined,
+        deleteWorktree: true,
+        deleteBranch: false,
+        workspaceShared: workspaceAlreadyClaimed,
+        confirmedAt: ctx.input.confirmedAt,
+        createdAt: runtime.clock.now(),
+      };
+      const childResult = await ctx.run(deleteTaskOperation, child);
+      if (!childResult.success) {
+        throw new Error(`Child delete task operation failed: ${childResult.error.kind}`);
       }
-      return runOperationActions(
-        runContext,
-        [
-          {
-            id: 'purge-project-row',
-            timeoutMs: PURGE_TIMEOUT_MS,
-            run: async () => {
-              if (!operation.projectId) return;
-              await purgeProjectLocalState(
-                operation.projectId,
-                db,
-                async () => {
-                  await db.delete(projects).where(eq(projects.id, operation.projectId!));
-                },
-                dependencies
-              );
-            },
+    }
+    await runOperationStage(ctx, {
+      id: 'purge-project-row',
+      timeoutMs: PURGE_TIMEOUT_MS,
+      clock: runtime.clock,
+      classifyError: classifyWorkspaceOperationError,
+      run: async () => {
+        await purgeProjectLocalState(
+          ctx.input.projectId,
+          runtime.db,
+          async () => {
+            await runtime.db.delete(projects).where(eq(projects.id, ctx.input.projectId));
           },
-        ],
-        { classifyError: classifyWorkspaceOperationError }
-      );
-    },
-    async forget({ operation, db, markAbandoned }) {
-      if (!operation.projectId) {
-        db.transaction((tx) => markAbandoned(tx));
-        return;
-      }
-      const projectId = operation.projectId;
+          dependencies
+        );
+      },
+    });
+    return { ok: true as const };
+  });
+
+  return {
+    definition: deleteProjectOperation,
+    handler,
+    entityKind: 'project',
+    examples: [
+      {
+        definition: deleteProjectOperation,
+        input: {
+          version: '1',
+          source: 'user',
+          projectId: 'project-example',
+          hostRef: 'local',
+          createdAt: 1,
+        },
+      },
+    ],
+    describe: (input) => ({ entityName: input.entityName, hostLabel: input.hostLabel }),
+    projectId: (input) => input.projectId,
+    hostRef: (input) => input.hostRef,
+    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
+    purge: async ({ input, db }) => {
       await purgeProjectLocalState(
-        projectId,
+        input.projectId,
         db,
         async () => {
           db.transaction((tx) => {
-            markAbandoned(tx);
             const workspaceRows = tx
               .select({ id: tasks.workspaceId })
               .from(tasks)
-              .where(eq(tasks.projectId, projectId))
+              .where(eq(tasks.projectId, input.projectId))
               .all();
-            tx.delete(tasks).where(eq(tasks.projectId, projectId)).run();
+            tx.delete(tasks).where(eq(tasks.projectId, input.projectId)).run();
             const workspaceIds = workspaceRows
               .map((row) => row.id)
               .filter((id): id is string => id !== null);
@@ -116,112 +211,44 @@ export function createDeleteProjectOperationDefinition(
                 )
                 .run();
             }
-            tx.delete(projects).where(eq(projects.id, projectId)).run();
+            tx.delete(projects).where(eq(projects.id, input.projectId)).run();
           });
         },
         dependencies
       );
     },
+    reconcile: (context) => reconcileProjectCleanups(context),
   };
 }
 
-export async function enqueueDeleteProject(operations: OperationsEngine, projectId: string) {
-  const result = await operations.submit(async ({ db, clock }) => {
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-      .limit(1);
-    if (!project) {
-      return err({
-        type: 'project-not-found',
-        message: `Project ${projectId} was not found`,
-      });
-    }
-    const taskRows = await db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
-    const workspaceIds = taskRows
-      .map((task) => task.workspaceId)
-      .filter((id): id is string => !!id);
-    const workspaceRows =
-      workspaceIds.length > 0
-        ? await db.select().from(workspaces).where(inArray(workspaces.id, workspaceIds))
-        : [];
-    const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
-    const claimedWorkspaceIds = new Set<string>();
-    const createdAt = clock.now();
-    const related: OperationRelatedInsert[] = [
-      ...taskRows.map<OperationRelatedInsert>((task) => {
-        const workspace = task.workspaceId ? workspaceById.get(task.workspaceId) : undefined;
-        const hostRef = workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local';
-        const workspaceAlreadyClaimed =
-          task.workspaceId !== null && claimedWorkspaceIds.has(task.workspaceId);
-        if (task.workspaceId !== null) claimedWorkspaceIds.add(task.workspaceId);
-        return {
-          draft: {
-            kind: 'delete-task' as const,
-            projectId,
-            taskId: task.id,
-            workspaceId: task.workspaceId,
-            entityKey: task.id,
-            hostRef,
-            payload: {
-              version: '2' as const,
-              source: 'user' as const,
-              entityName: task.name,
-              hostLabel: project.name,
-              deleteWorktree: true,
-              deleteBranch: false,
-            },
-            createdAt,
-          },
-          options: {
-            claims: deleteTaskClaims({
-              projectId,
-              taskId: task.id,
-              workspaceId: task.workspaceId,
-              branchName: workspace?.branchName ?? undefined,
-              hostRef,
-              workspacePath: workspace?.path ?? undefined,
-              workspaceShared: workspaceAlreadyClaimed,
-            }),
-            tombstone: (tx) =>
-              tx
-                .update(tasks)
-                .set({ deletedAt: new Date(createdAt).toISOString() })
-                .where(and(eq(tasks.id, task.id), isNull(tasks.deletedAt)))
-                .run().changes,
-          },
-        };
-      }),
-    ];
-    return ok({
-      outcome: 'enqueue' as const,
-      draft: {
-        kind: 'delete-project' as const,
-        projectId,
-        entityKey: projectId,
-        hostRef: 'local',
-        payload: {
-          version: '2' as const,
-          source: 'user' as const,
-          entityName: project.name,
-        },
-        createdAt,
-      },
-      options: {
-        claims: [{ kind: 'project', id: projectId }],
-        tombstone: (tx) =>
-          tx
-            .update(projects)
-            .set({ deletedAt: new Date(createdAt).toISOString() })
-            .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-            .run().changes,
-      },
-      related,
-    });
+export async function enqueueDeleteProject(operations: OperationsEngineLike, projectId: string) {
+  const [project] = await operations.db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+    .limit(1);
+  if (!project) {
+    return err({ type: 'project-not-found', message: `Project ${projectId} was not found` });
+  }
+  const createdAt = Date.now();
+  const input: DeleteProjectOperationInput = {
+    version: '1',
+    source: 'user',
+    projectId,
+    hostRef: 'local',
+    entityName: project.name,
+    createdAt,
+  };
+  const result = await operations.submitWithTombstone(deleteProjectOperation, input, {
+    tombstone: (tx) =>
+      tx
+        .update(projects)
+        .set({ deletedAt: new Date(createdAt).toISOString() })
+        .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+        .run().changes,
+    revertTombstone: (tx) => {
+      tx.update(projects).set({ deletedAt: null }).where(eq(projects.id, projectId)).run();
+    },
   });
   if (result.success) {
     appDbPokes.projects.poke({ projectId });
@@ -230,42 +257,42 @@ export async function enqueueDeleteProject(operations: OperationsEngine, project
   return result;
 }
 
+type OperationsEngineLike = {
+  db: AppDb;
+  submitWithTombstone<D extends typeof deleteProjectOperation>(
+    definition: D,
+    input: DeleteProjectOperationInput,
+    options?: OperationSubmitOptions
+  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
+};
+
 export async function submitReconcilerProjectCleanup(
-  submit: OperationSubmit,
-  projectId: string
-): Promise<void> {
-  await submit(async ({ db }) => {
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.id, projectId), isNotNull(projects.deletedAt)))
-      .limit(1);
-    if (!project) return ok({ outcome: 'existing' as const });
-    return ok({
-      outcome: 'enqueue' as const,
-      draft: {
-        kind: 'delete-project' as const,
-        status: 'awaiting-confirmation' as const,
-        projectId,
-        entityKey: projectId,
-        hostRef: 'local',
-        payload: {
-          version: '2' as const,
-          source: 'reconciler' as const,
-          entityName: project.name,
-        },
-        confirmationReason: 'reconciler-proposed' as const,
-      },
-      options: {},
+  _submit: OperationReconcileContext['submit'],
+  _projectId: string
+): Promise<void> {}
+
+async function reconcileProjectCleanups(context: OperationReconcileContext): Promise<void> {
+  const rows = await context.db.select().from(projects).where(isNotNull(projects.deletedAt));
+  for (const project of rows) {
+    if (await context.hasActiveKey(deleteProjectOperation.key(exampleInput(project.id)))) continue;
+    await context.submit(deleteProjectOperation, {
+      version: '1',
+      source: 'reconciler',
+      projectId: project.id,
+      hostRef: 'local',
+      entityName: project.name,
+      createdAt: context.clock.now(),
     });
-  });
-  appDbPokes.projects.poke({ projectId });
-  appDbPokes.tasks.poke({ projectId });
+  }
+}
+
+function exampleInput(projectId: string): DeleteProjectOperationInput {
+  return { version: '1', source: 'reconciler', projectId, hostRef: 'local', createdAt: 1 };
 }
 
 async function purgeProjectLocalState(
   projectId: string,
-  db: Parameters<OperationDefinition['run']>[0]['db'],
+  db: AppDb,
   purgeDatabaseRows: () => Promise<void>,
   dependencies: DeleteProjectOperationDependencies
 ): Promise<void> {
