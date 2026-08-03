@@ -608,6 +608,15 @@ describe('BrowserWebContentsRegistry', () => {
         dom.window.eval(script)
       );
 
+      const snapshot = await registry.performVerificationAction(lease, {
+        kind: 'accessibility-snapshot',
+      });
+      expect(snapshot.result).toMatchObject({
+        ok: true,
+        observation: { kind: 'accessibility-snapshot' },
+      });
+      expect(JSON.stringify(snapshot.result)).not.toContain('super-secret');
+
       const query = await registry.performVerificationAction(lease, {
         kind: 'accessibility-query',
         target: { role: 'input', name: 'Password' },

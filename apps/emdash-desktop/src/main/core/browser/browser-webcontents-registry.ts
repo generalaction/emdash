@@ -891,11 +891,11 @@ const ACCESSIBILITY_SNAPSHOT_SCRIPT = `(() => {
     const name = element.getAttribute('aria-label') || element.getAttribute('name') || element.textContent?.trim() || '';
     if (!name && !element.getAttribute('data-testid')) continue;
     const line = [role, name.slice(0, 512), element.getAttribute('data-testid') || ''].join(' | ');
-    if (size + line.length + 1 > 65536) return { snapshot: lines.join('\n'), truncated: true };
+    if (size + line.length + 1 > 65536) return { snapshot: lines.join('\\n'), truncated: true };
     lines.push(line);
     size += line.length + 1;
   }
-  return { snapshot: lines.join('\n'), truncated: false };
+  return { snapshot: lines.join('\\n'), truncated: false };
 })()`;
 
 const ACCESSIBILITY_QUERY_FUNCTION = `(input) => {
