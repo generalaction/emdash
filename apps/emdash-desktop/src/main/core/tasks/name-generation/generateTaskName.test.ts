@@ -34,6 +34,22 @@ describe('generateTaskName', () => {
     });
   });
 
+  describe('non-Latin titles', () => {
+    it('preserves Japanese characters instead of collapsing to a generic slug', () => {
+      const result = generateTaskName({ title: '日本語でタスク名をつける' });
+      expect(result).toBeTruthy();
+      expect(result).not.toContain('/');
+      expect(result).toBe('日本語でタスク名をつける');
+    });
+
+    it('sanitizes unsafe characters in Japanese titles', () => {
+      const result = generateTaskName({ title: 'ログイン / バグ修正 (#123)' });
+      expect(result).toBeTruthy();
+      expect(result).not.toContain('/');
+      expect(result).not.toMatch(/^-|-$/);
+    });
+  });
+
   describe('random generation (no title)', () => {
     it('generates a random friendly name when no input provided', () => {
       const result = generateTaskName({});
