@@ -44,7 +44,6 @@ import {
 const SESSION_TIMEOUT_MS = 30_000;
 const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
 const PURGE_TIMEOUT_MS = 30_000;
-const UNKNOWN_BRANCH_SENTINEL = 'HEAD';
 
 const workspaceOperationInputSchema = defineVersionedSchema()
   .initial(
@@ -296,7 +295,7 @@ export async function enqueueDeleteWorkspace(
     ? await operations.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
     : [];
   const createdAt = Date.now();
-  const input = workspaceInput('delete-workspace', {
+  const input = workspaceInput({
     projectId: project?.id,
     taskId: task?.id,
     workspaceId,
@@ -341,9 +340,37 @@ export async function enqueueArchiveWorkspace(
 }
 
 export async function submitReconcilerWorkspaceCleanup(
-  _submit: OperationReconcileContext['submit'],
-  _input: ArchiveWorkspaceInput
-): Promise<void> {}
+  context: OperationReconcileContext,
+  input: ArchiveWorkspaceInput
+): Promise<void> {
+  const entityKey = input.workspaceId ?? `workspace-path:${input.workspacePath}`;
+  if (await context.hasActiveKey(deleteWorkspaceOperation.key(exampleWorkspaceInput(entityKey)))) {
+    return;
+  }
+  const [project] = await context.db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, input.projectId))
+    .limit(1);
+  await context.submit(
+    deleteWorkspaceOperation,
+    workspaceInput({
+      projectId: input.projectId,
+      workspaceId: input.workspaceId,
+      entityKey,
+      hostRef: project?.sshConnectionId ?? 'local',
+      entityName: input.workspacePath,
+      hostLabel: project?.name,
+      projectPath: project?.path,
+      workspacePath: input.workspacePath,
+      branchName: input.branchName,
+      deleteWorktree: true,
+      deleteBranch: false,
+      source: 'reconciler',
+      createdAt: context.clock.now(),
+    })
+  );
+}
 
 async function enqueueWorkspacePathOperation<
   D extends typeof deleteWorkspaceOperation | typeof archiveWorkspaceOperation,
@@ -376,7 +403,7 @@ async function enqueueWorkspacePathOperation<
   }
   const createdAt = Date.now();
   const entityKey = input.workspaceId ?? `workspace-path:${input.workspacePath}`;
-  const opInput = workspaceInput(definition.name, {
+  const opInput = workspaceInput({
     projectId: input.projectId,
     workspaceId: input.workspaceId,
     entityKey,
@@ -385,9 +412,7 @@ async function enqueueWorkspacePathOperation<
     hostLabel: project.name,
     projectPath: project.path,
     workspacePath: input.workspacePath,
-    branchName:
-      input.branchName ??
-      (definition.name === 'delete-workspace' ? UNKNOWN_BRANCH_SENTINEL : undefined),
+    branchName: input.branchName,
     deleteWorktree: definition.name === 'delete-workspace' ? true : undefined,
     deleteBranch: definition.name === 'delete-workspace' ? false : undefined,
     createdAt,
@@ -444,11 +469,14 @@ function workspaceDescriptor<
     examples: [
       {
         definition,
-        input: workspaceInput(definition.name, {
+        input: workspaceInput({
           projectId: 'project-example',
           workspaceId: 'workspace-example',
           entityKey: 'workspace-example',
           hostRef: 'local',
+          projectPath: '/repo',
+          workspacePath: '/repo/.worktrees/workspace-example',
+          branchName: 'workspace-example',
           createdAt: 1,
         }) as InputOf<D>,
       },
@@ -548,7 +576,7 @@ async function reconcileWorkspaceCleanups(context: OperationReconcileContext): P
     if (!project) continue;
     await context.submit(
       deleteWorkspaceOperation,
-      workspaceInput('delete-workspace', {
+      workspaceInput({
         projectId: project.id,
         taskId: task?.id,
         workspaceId: workspace.id,
@@ -569,14 +597,13 @@ async function reconcileWorkspaceCleanups(context: OperationReconcileContext): P
 }
 
 function workspaceInput(
-  _kind: string,
   input: Omit<WorkspaceOperationInput, 'version' | 'source'> & { source?: 'user' | 'reconciler' }
 ): WorkspaceOperationInput {
   return { version: '1', source: input.source ?? 'user', ...input };
 }
 
 function exampleWorkspaceInput(entityKey: string): WorkspaceOperationInput {
-  return workspaceInput('delete-workspace', {
+  return workspaceInput({
     entityKey,
     hostRef: 'local',
     createdAt: 1,

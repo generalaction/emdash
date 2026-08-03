@@ -499,6 +499,8 @@ function operationChipLabel(operation: OperationDisplayState): string {
     case 'waiting':
     case 'waiting-children':
       return 'Waiting';
+    case 'succeeded':
+      return 'Done';
     case 'blocked-host-offline':
     case 'awaiting-confirmation':
     case 'failed':
@@ -515,6 +517,7 @@ function operationChipClass(operation: OperationDisplayState): string {
       return `${base} border-border text-foreground-muted`;
     case 'waiting':
     case 'waiting-children':
+    case 'succeeded':
       return `${base} border-border text-foreground-muted`;
     case 'blocked-host-offline':
     case 'awaiting-confirmation':

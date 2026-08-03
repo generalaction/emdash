@@ -1,5 +1,7 @@
+import type { ConflictPolicy } from '@emdash/core/primitives/kernel/api';
 import { operationStoreSqlite, SqliteOperationStore } from '@emdash/core/primitives/kernel/sqlite';
 import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type {
@@ -16,6 +18,8 @@ export type CreateOperationsEngineDeps = {
   sshManager: OperationsSshManager;
   notifications: OperationsNotificationPublisher;
   definitions: OperationDefinition[];
+  conflictPolicies: readonly ConflictPolicy[];
+  logger: Pick<Logger, 'warn'>;
   initiatedBy?: string;
   clock?: Clock;
 };

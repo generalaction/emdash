@@ -248,6 +248,8 @@ export function cleanupStatusLabel(cleanup: OperationDisplayState): string {
       return 'Waiting for workspace';
     case 'waiting-children':
       return 'Waiting for related cleanup';
+    case 'succeeded':
+      return 'Done';
   }
 }
 
@@ -255,6 +257,7 @@ export function cleanupStatusPillClass(cleanup: OperationDisplayState): string {
   switch (cleanup.status) {
     case 'queued':
     case 'running':
+    case 'succeeded':
       return 'border-border text-foreground-muted';
     case 'waiting':
     case 'waiting-children':

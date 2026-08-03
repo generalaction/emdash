@@ -1,6 +1,7 @@
 import {
   defineConflictPolicy,
   type AnyOperationDefinition,
+  type ConflictPolicy,
 } from '@emdash/core/primitives/kernel/api';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import {
@@ -38,9 +39,14 @@ export type OperationDefinitionOptions = {
   cleanupSessions: CleanupSessionsDependencies;
 };
 
+export type DesktopOperationDefinitions = {
+  definitions: OperationDefinition[];
+  conflictPolicies: readonly ConflictPolicy[];
+};
+
 export function createOperationDefinitions(
   options: OperationDefinitionOptions
-): OperationDefinition[] {
+): DesktopOperationDefinitions {
   const runtime = {
     db: options.db,
     clock: options.clock ?? systemClock,
@@ -57,7 +63,7 @@ export function createOperationDefinitions(
   const policy = createDesktopConflictPolicy(
     definitions.map((definition) => definition.definition)
   );
-  return [{ ...definitions[0]!, conflictPolicies: [policy] }, ...definitions.slice(1)];
+  return { definitions, conflictPolicies: [policy] };
 }
 
 export function createDesktopConflictPolicy(definitions: readonly AnyOperationDefinition[]) {
@@ -68,6 +74,12 @@ export function createDesktopConflictPolicy(definitions: readonly AnyOperationDe
     return definition;
   };
   return defineConflictPolicy((on) => {
+    on(get('delete-task'), get('delete-task')).queue();
+    on(get('delete-automation'), get('delete-automation')).queue();
+    on(get('delete-workspace'), get('delete-workspace')).queue();
+    on(get('archive-workspace'), get('archive-workspace')).queue();
+    on(get('delete-project'), get('delete-project')).queue();
+    on(get('cleanup-sessions'), get('cleanup-sessions')).queue();
     on(get('delete-task'), get('cleanup-sessions')).supersede();
     on(get('cleanup-sessions'), get('delete-task')).reject();
     on(get('delete-workspace'), get('delete-task')).queue();

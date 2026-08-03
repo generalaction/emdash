@@ -1,11 +1,14 @@
 import {
+  claimsCollide,
   displayStatus,
   isTerminalStatus,
   operationTreeView,
   type AnyOperationDefinition,
+  type ConflictPolicy,
   type InputOf,
   type OperationHandler,
   type OperationRecord,
+  type OperationTreeNode,
   type ProgressSink,
   type ResourceClaim,
 } from '@emdash/core/primitives/kernel/api';
@@ -26,6 +29,7 @@ import {
 } from '@emdash/core/primitives/operations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { family, query, type Family, type Query } from '@emdash/wire';
 import type { OperationPayload } from '@core/primitives/operations/api';
@@ -49,6 +53,7 @@ const RECENT_SETTLED_WINDOW_MS = OPERATION_RETENTION_MS;
 const RECONCILER_INTERVAL_MS = 10 * 60_000;
 const WAIT_FOR_IDLE_TIMEOUT_MS = 10_000;
 const WAIT_FOR_IDLE_POLL_MS = 25;
+const FORGET_SETTLE_TIMEOUT_MS = 5_000;
 
 type OperationMutation = Result<OperationMutationResult, OperationMutationError>;
 
@@ -59,6 +64,8 @@ export type OperationsEngineDeps = {
   sshManager: OperationsSshManager;
   notifications: OperationsNotificationPublisher;
   definitions: OperationDefinition[];
+  conflictPolicies: readonly ConflictPolicy[];
+  logger: Pick<Logger, 'warn'>;
   initiatedBy?: string;
   clock?: Clock;
 };
@@ -69,6 +76,7 @@ export class OperationsEngine {
   private readonly store: SqliteOperationStore;
   private readonly sshManager: OperationsSshManager;
   private readonly notifications: OperationsNotificationPublisher;
+  private readonly logger: Pick<Logger, 'warn'>;
   private readonly definitions: Map<string, OperationDefinition>;
   private readonly kernel: KernelOperationEngine;
   private readonly clock: Clock;
@@ -82,6 +90,7 @@ export class OperationsEngine {
     this.store = deps.store;
     this.sshManager = deps.sshManager;
     this.notifications = deps.notifications;
+    this.logger = deps.logger;
     this.clock = deps.clock ?? systemClock;
     this.initiatedBy = deps.initiatedBy;
     this.definitions = new Map(
@@ -89,7 +98,7 @@ export class OperationsEngine {
     );
     this.kernel = createOperationEngine({
       store: deps.store,
-      registry: this.createRegistry(deps.definitions),
+      registry: this.createRegistry(deps.definitions, deps.conflictPolicies),
       progress: this.createProgressSink(),
       clock: {
         now: () => this.clock.now(),
@@ -122,7 +131,9 @@ export class OperationsEngine {
       this.sshManager.off('connection-event', onConnection);
     });
     const interval = setInterval(() => {
-      void this.sweep().catch(() => undefined);
+      void this.sweep().catch((error: unknown) => {
+        this.logger.warn('operations reconciler sweep failed', { error: String(error) });
+      });
     }, RECONCILER_INTERVAL_MS);
     this.scope.add(() => clearInterval(interval));
     await this.sweep();
@@ -172,17 +183,23 @@ export class OperationsEngine {
         message: `Operation ${record.name} input is invalid`,
       });
     }
-    const confirmed = needsConfirmation(record)
+    const confirmation = needsConfirmation(record);
+    const confirmed = confirmation
       ? descriptor.confirmedInput(
           parsed.data,
           this.clock.now(),
-          needsConfirmation(record)!.reason as OperationConfirmationReason
+          confirmation.reason as OperationConfirmationReason
         )
       : parsed.data;
     const submitted = await this.kernel.submit(descriptor.definition, confirmed, {
       initiator: { kind: 'user', action: 'retry-operation' },
     });
     if (!submitted.success) return err(admissionError(submitted.error));
+    const oldRecords = await this.collectSubtree(record.id);
+    const terminalIds = oldRecords
+      .filter((oldRecord) => isTerminalStatus(oldRecord.status))
+      .map((oldRecord) => oldRecord.id);
+    void this.pruneTerminalRecordsWhenIdle(terminalIds, descriptor.projectId(confirmed));
     this.refreshOperationTrees(descriptor.projectId(confirmed));
     return ok({ operationId: submitted.data.id });
   }
@@ -197,6 +214,7 @@ export class OperationsEngine {
     }
 
     await this.cancelTree(root.id);
+    await this.waitForSubtreeSettlement(root.id, FORGET_SETTLE_TIMEOUT_MS);
     const records = await this.collectSubtree(root.id);
     for (const record of records) {
       if (record.id !== root.id && (await this.wasAdopted(record.id))) {
@@ -227,21 +245,14 @@ export class OperationsEngine {
     while (this.clock.now() < deadline) {
       const active = (await this.kernel.query({ active: true })).records;
       if (active.length === 0) return;
-      await new Promise((resolve) => setTimeout(resolve, WAIT_FOR_IDLE_POLL_MS));
+      await this.clock.sleep(WAIT_FOR_IDLE_POLL_MS);
     }
     throw new Error('Timed out waiting for operations to become idle');
   }
 
   async hasClaimConflict(claims: readonly ResourceClaim[]): Promise<boolean> {
-    for (const claim of claims) {
-      const page = await this.kernel.query({
-        resource: { key: claim.key },
-        active: true,
-        limit: 1,
-      });
-      if (page.records.length > 0) return true;
-    }
-    return false;
+    const active = await this.kernel.query({ active: true });
+    return active.records.some((record) => claimsCollide(claims, record.claims));
   }
 
   async shutdown(): Promise<void> {
@@ -297,13 +308,16 @@ export class OperationsEngine {
     });
   }
 
-  private createRegistry(definitions: readonly OperationDefinition[]): OperationRegistry {
+  private createRegistry(
+    definitions: readonly OperationDefinition[],
+    conflictPolicies: readonly ConflictPolicy[]
+  ): OperationRegistry {
     return {
       definitions: definitions.map((definition) => definition.definition),
       handlers: definitions.map(
         (definition) => definition.handler as OperationHandler<AnyOperationDefinition>
       ),
-      conflictPolicies: definitions.flatMap((definition) => definition.conflictPolicies ?? []),
+      conflictPolicies,
     };
   }
 
@@ -318,28 +332,22 @@ export class OperationsEngine {
             totalSteps: update.stages.length,
           });
         }
-        this.refreshOperationTrees(this.projectIdFromRecordId(update.operationId));
+        void this.refreshOperationTreeForRecord(update.operationId);
       },
       end: (operationId) => {
         this.progress.delete(operationId);
-        this.refreshOperationTrees(this.projectIdFromRecordId(operationId));
+        void this.refreshOperationTreeForRecord(operationId);
       },
     };
   }
 
   private async loadOperationTrees(key: OperationTreeKey): Promise<OperationTreeList> {
-    const active = await this.kernel.query({ active: true });
-    const terminal = await this.kernel.query({
-      settledAfter: this.clock.now() - RECENT_SETTLED_WINDOW_MS,
-    });
-    const byId = new Map(
-      [...active.records, ...terminal.records].map((record) => [record.id, record])
-    );
-    const records = [...byId.values()].filter((record) => {
+    const records = (await this.kernel.query({})).records.filter((record) => {
       if (
         isTerminalStatus(record.status) &&
         record.status !== 'failed' &&
-        record.status !== 'rejected'
+        record.status !== 'rejected' &&
+        record.updatedAt < this.clock.now() - RECENT_SETTLED_WINDOW_MS
       ) {
         return false;
       }
@@ -350,18 +358,19 @@ export class OperationsEngine {
       return key.projectId === undefined || descriptor.projectId(parsed.data) === key.projectId;
     });
 
-    const nodes = operationTreeView(records);
+    const nodes = operationTreeView(records).filter((node) => this.shouldRetainTree(node));
     return Object.fromEntries(
       nodes.map((node) => {
         const root = this.toDisplayState(node.record);
-        const children = node.children.map((child) => this.toDisplayState(child.record));
+        const children = flattenTreeChildren(node).map((child) => this.toDisplayState(child));
+        const allNodes = [root, ...children];
         const tree: OperationTree = {
           root,
           children,
           rollup: {
-            total: 1 + children.length,
-            done: [root, ...children].filter((item) => item.status !== 'failed').length,
-            status: rollupStatus([root, ...children]),
+            total: allNodes.length,
+            done: allNodes.filter((item) => item.status === 'succeeded').length,
+            status: rollupStatus(allNodes),
           },
         };
         return [root.operationId, tree];
@@ -414,6 +423,7 @@ export class OperationsEngine {
     if (status.kind === 'waiting') return { ...base, status: 'waiting' };
     if (status.kind === 'running') return { ...base, status: 'running' };
     if (status.kind === 'waiting-children') return { ...base, status: 'waiting-children' };
+    if (status.kind === 'succeeded') return { ...base, status: 'succeeded' };
     if (status.kind === 'failed' || status.kind === 'rejected') {
       return { ...base, status: 'failed', error: base.error ?? 'Operation failed' };
     }
@@ -435,8 +445,26 @@ export class OperationsEngine {
     return parsed?.status === 'ok' && descriptor ? descriptor.hostRef(parsed.data) : 'local';
   }
 
-  private projectIdFromRecordId(_operationId: string): string | undefined {
-    return undefined;
+  private async refreshOperationTreeForRecord(operationId: string): Promise<void> {
+    const record = await this.kernel.get(operationId);
+    if (!record) {
+      this.refreshOperationTrees();
+      return;
+    }
+    const descriptor = this.definitions.get(record.name);
+    const parsed = descriptor?.definition.input.safeParse(record.input);
+    if (!descriptor || parsed?.status !== 'ok') {
+      this.refreshOperationTrees();
+      return;
+    }
+    this.refreshOperationTrees(descriptor.projectId(parsed.data));
+  }
+
+  private shouldRetainTree(node: OperationTreeNode): boolean {
+    return flattenTreeRecords(node).some((record) => {
+      if (!isTerminalStatus(record.status)) return true;
+      return record.status === 'failed' || record.status === 'rejected';
+    });
   }
 
   private async getRoot(operationId: string): Promise<OperationRecord | undefined> {
@@ -468,6 +496,15 @@ export class OperationsEngine {
     }
   }
 
+  private async waitForSubtreeSettlement(operationId: string, timeoutMs: number): Promise<void> {
+    const deadline = this.clock.now() + timeoutMs;
+    while (this.clock.now() < deadline) {
+      const records = await this.collectSubtree(operationId);
+      if (records.every((record) => isTerminalStatus(record.status))) return;
+      await this.clock.sleep(WAIT_FOR_IDLE_POLL_MS);
+    }
+  }
+
   private async wasAdopted(operationId: string): Promise<boolean> {
     return (await this.store.listTransitions(operationId)).some(
       (transition) => transition.cause === 'adoption'
@@ -483,6 +520,7 @@ export class OperationsEngine {
   }
 
   private async sweep(): Promise<void> {
+    const openKeys = await this.loadOpenOperationKeys();
     const context: OperationReconcileContext = {
       db: this.db,
       clock: this.clock,
@@ -490,8 +528,7 @@ export class OperationsEngine {
         await this.submitReconciler(definition, input, options);
       },
       hasActiveKey: async (key) => {
-        const active = await this.kernel.query({ active: true });
-        return active.records.some((record) => record.key === key);
+        return openKeys.has(key);
       },
     };
 
@@ -501,7 +538,18 @@ export class OperationsEngine {
     await this.pruneRetainedRecords();
   }
 
+  private async loadOpenOperationKeys(): Promise<Set<string>> {
+    const records = (await this.kernel.query({})).records;
+    return new Set(
+      records
+        .filter((record) => !isTerminalStatus(record.status) || needsConfirmation(record))
+        .map((record) => record.key)
+    );
+  }
+
   private async pruneRetainedRecords(): Promise<void> {
+    const active = await this.kernel.query({ active: true });
+    if (active.records.length > 0) return;
     const records = (await this.kernel.query({})).records;
     const pruneIds = records
       .filter((record) => {
@@ -510,10 +558,25 @@ export class OperationsEngine {
         const parsed = descriptor?.definition.input.safeParse(record.input);
         if (parsed?.status !== 'ok') return true;
         if (needsConfirmation(record)) return false;
+        if (record.status === 'cancelled') return true;
         return record.updatedAt < this.clock.now() - OPERATION_RETENTION_MS;
       })
       .map((record) => record.id);
     await this.store.transaction((tx) => tx.prune(pruneIds));
+  }
+
+  private async pruneTerminalRecordsWhenIdle(
+    ids: readonly string[],
+    projectId?: string
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    try {
+      await this.waitForIdle();
+      await this.store.transaction((tx) => tx.prune(ids));
+      this.refreshOperationTrees(projectId);
+    } catch (error) {
+      this.logger.warn('operations prune after retry failed', { error: String(error) });
+    }
   }
 
   private maybePublishProposalNotification<D extends AnyOperationDefinition>(
@@ -525,16 +588,17 @@ export class OperationsEngine {
     const descriptor = this.definitions.get(definition.name);
     if (!descriptor || definition.name === 'cleanup-sessions') return;
     const description = descriptor.describe(input);
+    const payload: OperationPayload = {
+      version: '2',
+      source: 'reconciler',
+      entityName: description.entityName,
+      workspacePath: description.workspacePath,
+      branchName: description.branchName,
+      hostLabel: description.hostLabel,
+    };
     this.notifications.publishPendingCleanup({
       operationId,
-      payload: {
-        version: '2',
-        source: 'reconciler',
-        entityName: description.entityName,
-        workspacePath: description.workspacePath,
-        branchName: description.branchName,
-        hostLabel: description.hostLabel,
-      } as OperationPayload,
+      payload,
       hostRef: descriptor.hostRef(input),
       reason: 'reconciler-proposed',
     });
@@ -586,24 +650,47 @@ function fallbackDisplay(record: OperationRecord): OperationDisplayState {
     hostRef: 'local',
     createdAt: record.createdAt,
     attempt: record.attempt,
-    status: record.status === 'failed' || record.status === 'rejected' ? 'failed' : 'queued',
+    status:
+      record.status === 'failed' || record.status === 'rejected'
+        ? 'failed'
+        : record.status === 'succeeded'
+          ? 'succeeded'
+          : 'queued',
     error: record.error?.message ?? 'Operation failed',
   };
 }
 
 function admissionError(error: { kind: string; conflicts?: OperationRecord[]; name?: string }) {
-  if (error.kind === 'conflict') {
-    return {
-      type: 'resource-claimed',
-      message: `Operation conflicts with ${error.conflicts?.[0]?.name ?? 'another operation'}`,
-    };
+  switch (error.kind) {
+    case 'conflict':
+      return {
+        type: 'resource-claimed',
+        message: `Operation conflicts with ${error.conflicts?.[0]?.name ?? 'another operation'}`,
+      };
+    case 'duplicate':
+      return { type: 'operation-duplicate', message: 'Operation is already queued' };
+    case 'unknown-definition':
+    case 'missing-handler':
+      return {
+        type: 'operation-not-found',
+        message: error.name ? `Operation ${error.name} is unknown` : 'Operation is unknown',
+      };
+    default:
+      return {
+        type: 'operation-rejected',
+        message: error.name ? `Operation ${error.name} cannot be submitted` : 'Operation failed',
+      };
   }
-  return {
-    type: error.kind,
-    message: error.name ? `Operation ${error.name} cannot be submitted` : 'Operation failed',
-  };
 }
 
 function operationTreeKey(key: OperationTreeKey): string {
   return JSON.stringify({ projectId: key.projectId });
+}
+
+function flattenTreeRecords(node: OperationTreeNode): OperationRecord[] {
+  return [node.record, ...node.children.flatMap(flattenTreeRecords)];
+}
+
+function flattenTreeChildren(node: OperationTreeNode): OperationRecord[] {
+  return node.children.flatMap(flattenTreeRecords);
 }

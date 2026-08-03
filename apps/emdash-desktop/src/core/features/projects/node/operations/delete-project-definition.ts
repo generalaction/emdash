@@ -98,7 +98,7 @@ export function createDeleteProjectOperationDefinition(
     const taskRows = await runtime.db
       .select()
       .from(tasks)
-      .where(and(eq(tasks.projectId, ctx.input.projectId), isNull(tasks.deletedAt)));
+      .where(eq(tasks.projectId, ctx.input.projectId));
     const workspaceIds = taskRows
       .map((task) => task.workspaceId)
       .filter((id): id is string => !!id);
@@ -265,11 +265,6 @@ type OperationsEngineLike = {
     options?: OperationSubmitOptions
   ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
 };
-
-export async function submitReconcilerProjectCleanup(
-  _submit: OperationReconcileContext['submit'],
-  _projectId: string
-): Promise<void> {}
 
 async function reconcileProjectCleanups(context: OperationReconcileContext): Promise<void> {
   const rows = await context.db.select().from(projects).where(isNotNull(projects.deletedAt));

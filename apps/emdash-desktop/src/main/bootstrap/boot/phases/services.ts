@@ -11,8 +11,6 @@ import { getPlugin, getPluginMetadata } from '@core/features/agents/api/node/plu
 import { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { buildAutomationDeployment } from '@core/features/automations/node/deployment-builder';
-import { submitReconcilerAutomationCleanup } from '@core/features/automations/node/operations/delete-automation-definition';
-import { listTombstonedAutomationIds } from '@core/features/automations/node/repo';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
@@ -50,7 +48,6 @@ import {
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
-import { submitReconcilerProjectCleanup } from '@core/features/projects/node/operations/delete-project-definition';
 import {
   getProjectById,
   getProjectByPath,
@@ -58,7 +55,6 @@ import {
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import { submitReconcilerTaskCleanup } from '@core/features/tasks/node/operations/delete-task-definition';
 import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
 import { installTaskTelemetry } from '@core/features/telemetry/node/task-telemetry';
 import { desktopHostEvents } from '@core/features/workbench/node/event-host';
@@ -548,12 +544,77 @@ export async function bootServices(
     sessions: lifecycleSessions,
   };
   const desktopClientId = await getDesktopClientId();
+  const operationDefinitions = createOperationDefinitions({
+    db,
+    initiatedBy: desktopClientId,
+    deleteTask: {
+      getMementosRuntimeClient,
+      lifecycleCleanup,
+      lifecycleContext,
+      sessionCleanup: lifecycleSessions,
+      telemetry: telemetryService,
+      unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
+    },
+    deleteAutomation: { runtimes },
+    workspaceLifecycle,
+    deleteProject: {
+      automations: automationsService,
+      getMementosRuntimeClient,
+      logger: log,
+      projects: projectManager,
+      pullRequests: pullRequestsRegistration,
+      telemetry: telemetryService,
+    },
+    cleanupSessions: {
+      agentStatus: agentStatusService,
+      createSessionIntentStores: createDesktopSessionIntentStores,
+      lifecycle: {
+        resolveTargets: lifecycleSessions.resolve,
+        killAcp: lifecycleSessions.killAcp,
+        killTerminals: lifecycleSessions.killTerminals,
+      },
+      logger: log,
+      resolveLifecycleOperationContext: (database, operation) =>
+        resolveLifecycleOperationContext(lifecycleContext, database, operation, {
+          resolveRuntimeConfig: true,
+        }),
+      submitReconcilerWorkspaceCleanup,
+      listProjectWorkspaces: (projectId) =>
+        listProjectWorkspaces(
+          {
+            db,
+            runtimes,
+            taskSessions: taskSessionManager,
+          },
+          projectId
+        ),
+      shouldProposeWorkspaceCleanup,
+      getProjectTerminals: (projectId) => projectManager.getProject(projectId)?.terminals,
+      runtimeSessions: {
+        listAcpConversationIds: async () => {
+          const snapshot = await clients.acp.sessions.state(undefined, 'list').snapshot();
+          return Object.keys(snapshot.data);
+        },
+        listTuiConversationIds: async () => {
+          const tui = await getTuiAgentsRuntimeClient();
+          const snapshot = await tui.sessions.state(undefined, 'list').snapshot();
+          return Object.keys(snapshot.data);
+        },
+        listTerminalSessions: async () => {
+          const terminals = await getTerminalsRuntimeClient();
+          const snapshot = await terminals.sessions.state(undefined, 'list').snapshot();
+          return Object.values(snapshot.data);
+        },
+      },
+    },
+  });
   const operations = await createOperationsEngine({
     scope: appScope,
     db,
     databasePath: resolveOperationsDatabasePath(),
     sshManager: infrastructure.ssh.manager,
     initiatedBy: desktopClientId,
+    logger: log,
     notifications: {
       publishPendingCleanup({ operationId, payload, hostRef, reason }) {
         notificationService.publish({
@@ -568,74 +629,8 @@ export async function bootServices(
         });
       },
     },
-    definitions: createOperationDefinitions({
-      db,
-      initiatedBy: desktopClientId,
-      deleteTask: {
-        getMementosRuntimeClient,
-        lifecycleCleanup,
-        lifecycleContext,
-        sessionCleanup: lifecycleSessions,
-        telemetry: telemetryService,
-        unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
-      },
-      deleteAutomation: { runtimes },
-      workspaceLifecycle,
-      deleteProject: {
-        automations: automationsService,
-        getMementosRuntimeClient,
-        logger: log,
-        projects: projectManager,
-        pullRequests: pullRequestsRegistration,
-        telemetry: telemetryService,
-      },
-      cleanupSessions: {
-        agentStatus: agentStatusService,
-        createSessionIntentStores: createDesktopSessionIntentStores,
-        lifecycle: {
-          resolveTargets: lifecycleSessions.resolve,
-          killAcp: lifecycleSessions.killAcp,
-          killTerminals: lifecycleSessions.killTerminals,
-        },
-        logger: log,
-        resolveLifecycleOperationContext: (database, operation) =>
-          resolveLifecycleOperationContext(lifecycleContext, database, operation, {
-            resolveRuntimeConfig: true,
-          }),
-        listTombstonedAutomationIds,
-        submitReconcilerProjectCleanup,
-        submitReconcilerAutomationCleanup,
-        submitReconcilerTaskCleanup,
-        submitReconcilerWorkspaceCleanup,
-        listProjectWorkspaces: (projectId) =>
-          listProjectWorkspaces(
-            {
-              db,
-              runtimes,
-              taskSessions: taskSessionManager,
-            },
-            projectId
-          ),
-        shouldProposeWorkspaceCleanup,
-        getProjectTerminals: (projectId) => projectManager.getProject(projectId)?.terminals,
-        runtimeSessions: {
-          listAcpConversationIds: async () => {
-            const snapshot = await clients.acp.sessions.state(undefined, 'list').snapshot();
-            return Object.keys(snapshot.data);
-          },
-          listTuiConversationIds: async () => {
-            const tui = await getTuiAgentsRuntimeClient();
-            const snapshot = await tui.sessions.state(undefined, 'list').snapshot();
-            return Object.keys(snapshot.data);
-          },
-          listTerminalSessions: async () => {
-            const terminals = await getTerminalsRuntimeClient();
-            const snapshot = await terminals.sessions.state(undefined, 'list').snapshot();
-            return Object.values(snapshot.data);
-          },
-        },
-      },
-    }),
+    definitions: operationDefinitions.definitions,
+    conflictPolicies: operationDefinitions.conflictPolicies,
   });
   setOperationsEngine(operations);
   registerProviderTokenHandlers();

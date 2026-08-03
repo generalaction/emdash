@@ -136,7 +136,7 @@ function defaultOperationError(error: unknown, timedOut: boolean): OperationErro
     type: 'failed',
     code,
     message: error instanceof Error ? error.message : String(error),
-    retryable: !timedOut,
+    retryable: true,
   };
 }
 

@@ -209,7 +209,11 @@ export function createDeleteTaskOperationDefinition(
           source: 'user',
           taskId: 'task-example',
           projectId: 'project-example',
+          workspaceId: 'workspace-example',
           hostRef: 'local',
+          projectPath: '/repo',
+          workspacePath: '/repo/.worktrees/task-example',
+          branchName: 'task-example',
           deleteWorktree: true,
           deleteBranch: false,
           workspaceShared: false,
@@ -331,13 +335,6 @@ function projectIsActive(tx: DrizzleTx, projectId: string) {
       };
 }
 
-export async function submitReconcilerTaskCleanup(
-  _submit: OperationReconcileContext['submit'],
-  taskId: string
-): Promise<void> {
-  void taskId;
-}
-
 async function reconcileTaskCleanups(context: OperationReconcileContext): Promise<void> {
   const rows = await context.db.select().from(tasks).where(isNotNull(tasks.deletedAt));
   for (const task of rows) {
@@ -360,17 +357,16 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
       .from(projects)
       .where(eq(projects.id, task.projectId))
       .limit(1);
-    if (!project) continue;
     await context.submit(deleteTaskOperation, {
       version: '1',
       source: 'reconciler',
       taskId: task.id,
       projectId: task.projectId,
       workspaceId: task.workspaceId,
-      hostRef: workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local',
+      hostRef: workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local',
       entityName: task.name,
-      hostLabel: project.name,
-      projectPath: project.path,
+      hostLabel: project?.name,
+      projectPath: project?.path,
       workspacePath: workspace?.path ?? undefined,
       branchName: workspace?.branchName ?? undefined,
       deleteWorktree: true,

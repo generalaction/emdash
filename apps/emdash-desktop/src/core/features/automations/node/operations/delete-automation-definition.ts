@@ -219,18 +219,6 @@ function projectIsActive(tx: DrizzleTx, projectId: string) {
   return active ? undefined : { type: 'project-deleting', message: 'Project is being deleted.' };
 }
 
-export async function submitReconcilerAutomationCleanup(
-  _submit: OperationReconcileContext['submit'],
-  _automationId: string
-): Promise<void> {}
-
-export async function submitReconcilerAutomationCleanups(
-  _submit: OperationReconcileContext['submit'],
-  db: AppDb
-): Promise<void> {
-  void db;
-}
-
 async function reconcileAutomationCleanups(context: OperationReconcileContext): Promise<void> {
   for (const automationId of await listTombstonedAutomationIds(context.db)) {
     if (await context.hasActiveKey(deleteAutomationOperation.key(exampleInput(automationId))))

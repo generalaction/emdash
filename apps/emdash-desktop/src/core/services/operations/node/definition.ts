@@ -1,6 +1,5 @@
 import type {
   AnyOperationDefinition,
-  ConflictPolicy,
   InputOf,
   OperationHandler,
   OperationRecord,
@@ -91,7 +90,6 @@ export type OperationDefinition<D extends AnyOperationDefinition = AnyOperationD
   handler: OperationHandler<D>;
   entityKind: OperationEntityKind;
   examples: readonly { definition: D; input: InputOf<D> }[];
-  conflictPolicies?: readonly ConflictPolicy[];
   describe(input: InputOf<D>): OperationDescription;
   projectId(input: InputOf<D>): string | undefined;
   hostRef(input: InputOf<D>): string;
