@@ -24,7 +24,15 @@ function makeInsertChain(captureValues?: unknown[]) {
   return {
     values: (vals: unknown) => {
       captureValues?.push(vals);
-      return { run: mocks.insertRun };
+      return {
+        run: mocks.insertRun,
+        returning: () => ({
+          get: () => {
+            mocks.insertRun();
+            return vals;
+          },
+        }),
+      };
     },
   };
 }
