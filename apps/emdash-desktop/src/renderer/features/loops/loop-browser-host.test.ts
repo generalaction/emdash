@@ -197,6 +197,25 @@ describe('LoopBrowserHost', () => {
     });
   });
 
+  it('replaces a stale lease when main reissues the same run with preserved ownership', async () => {
+    await act(async () => root.render(React.createElement(LoopBrowserHost)));
+    act(() => dispatch(loopBrowserRequestChannel.name, request));
+
+    const replacement = {
+      ...request,
+      browserId: 'browser-2',
+      partition: `${LOOP_BROWSER_DISPOSABLE_PARTITION_PREFIX}run-1-replacement`,
+      requestedAt: '2026-07-11T12:05:00.000Z',
+    };
+    act(() => dispatch(loopBrowserRequestChannel.name, replacement));
+
+    expect(latestHostProps).toMatchObject({
+      browserId: replacement.browserId,
+      partition: replacement.partition,
+      src: replacement.previewUrl,
+    });
+  });
+
   it('ignores stale close messages and acknowledges exact teardown after cleanup', async () => {
     await act(async () => root.render(React.createElement(LoopBrowserHost)));
     act(() => dispatch(loopBrowserRequestChannel.name, request));

@@ -29,7 +29,19 @@ export function LoopBrowserHost() {
       setEntries((current) => {
         if (retiredLeases.current.has(lifecycleKey(parsed.data))) return current;
         const existing = current.get(parsed.data.verificationRunId);
-        if (existing) return current;
+        if (existing) {
+          if (
+            sameLease(existing.request, parsed.data) ||
+            !sameVerificationOwner(existing.request, parsed.data) ||
+            existing.request.browserId === parsed.data.browserId ||
+            existing.request.partition === parsed.data.partition
+          ) {
+            return current;
+          }
+          const next = new Map(current);
+          next.set(parsed.data.verificationRunId, { request: parsed.data });
+          return next;
+        }
         for (const entry of current.values()) {
           if (
             entry.request.browserId === parsed.data.browserId ||
@@ -169,6 +181,25 @@ function sameLease(
     left.taskId === right.taskId &&
     left.workspaceId === right.workspaceId &&
     left.partition === right.partition &&
+    left.allowedPreviewOrigin === right.allowedPreviewOrigin
+  );
+}
+
+function sameVerificationOwner(
+  left: Pick<
+    LoopBrowserRequestMessage,
+    'verificationRunId' | 'projectId' | 'taskId' | 'workspaceId' | 'allowedPreviewOrigin'
+  >,
+  right: Pick<
+    LoopBrowserRequestMessage,
+    'verificationRunId' | 'projectId' | 'taskId' | 'workspaceId' | 'allowedPreviewOrigin'
+  >
+): boolean {
+  return (
+    left.verificationRunId === right.verificationRunId &&
+    left.projectId === right.projectId &&
+    left.taskId === right.taskId &&
+    left.workspaceId === right.workspaceId &&
     left.allowedPreviewOrigin === right.allowedPreviewOrigin
   );
 }
