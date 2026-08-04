@@ -94,6 +94,9 @@ describe('independent clean-room E2E prompt', () => {
     expect(prompt).toContain('Credentials supplied through the bound task environment');
     expect(prompt).toContain('you may read them at runtime and enter them through the application');
     expect(prompt).toContain('running ordinary process diagnostics is not by itself a failure');
+    expect(prompt).toContain('If ephemeral diagnostic output exposes a credential');
+    expect(prompt).toContain('redact it and continue');
+    expect(prompt).toContain('Only raw values retained');
     expect(prompt).toContain('intentionally copy raw credential values into durable evidence');
     expect(prompt).toContain(E2E_CORRECTION_READY_PREFIX);
     expect(prompt).toContain(E2E_PASSED_SENTINEL);
