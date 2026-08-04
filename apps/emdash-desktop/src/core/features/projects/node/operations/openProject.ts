@@ -4,7 +4,7 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
   projectHostRef,
   type OpenProjectError,
@@ -13,7 +13,6 @@ import {
 import type { AppDb } from '@core/services/app-db/node/db';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { getProjectById } from './getProjects';
-import { fileKeyForAbsolutePath } from './project-path-status';
 
 export async function openProject(
   db: AppDb,

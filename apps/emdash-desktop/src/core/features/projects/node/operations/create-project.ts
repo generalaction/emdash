@@ -7,7 +7,7 @@ import { log } from '@emdash/shared/logger';
 import { sql } from 'drizzle-orm';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { CreateProjectResult } from '@core/primitives/projects/api';
 import type {
   CreateProjectParams,
@@ -21,7 +21,6 @@ import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { ensureProjectRepository } from './create-project-utils';
 import { projectFromRow } from './getProjects';
 import { getProjectByPath } from './getProjects';
-import { fileKeyForAbsolutePath } from './project-path-status';
 import { getProjectPathStatus } from './project-path-status';
 import { registerRepositoryWorkspace } from './register-repository-workspace';
 
