@@ -7,6 +7,8 @@ export interface DirectoryHistoryState {
 
 export interface DirectoryHistory {
   readonly path: string;
+  readonly backPath: string | null;
+  readonly forwardPath: string | null;
   readonly canGoBack: boolean;
   readonly canGoForward: boolean;
   navigate(path: string): void;
@@ -50,6 +52,9 @@ export function useDirectoryHistory(initialPath: string): DirectoryHistory {
 
   return {
     path,
+    backPath: state.index > 0 ? (state.entries[state.index - 1] ?? null) : null,
+    forwardPath:
+      state.index < state.entries.length - 1 ? (state.entries[state.index + 1] ?? null) : null,
     canGoBack: state.index > 0,
     canGoForward: state.index < state.entries.length - 1,
     navigate: React.useCallback((nextPath: string) => {
