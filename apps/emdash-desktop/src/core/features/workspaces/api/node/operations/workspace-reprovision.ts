@@ -4,7 +4,6 @@ import { err } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import {
-  hostCreateWorktreeOperation,
   hostReprovisionWorktreeOperation,
   type HostCreateWorktreeInput,
   type HostRemoveWorktreeInput,
@@ -74,47 +73,44 @@ export async function enqueueWorkspaceReprovision(
     createdAt,
   };
 
-  if (options.removeFirst) {
-    const removeInput: HostRemoveWorktreeInput = {
-      version: '1',
-      source: 'user',
-      hostOperationId: randomUUID(),
-      hostRef,
-      repoPath: project.repoPath,
-      projectId: task.projectId,
-      workspaceId,
-      entityName: task.name,
+  const removeInput: HostRemoveWorktreeInput = {
+    version: '1',
+    source: 'user',
+    hostOperationId: randomUUID(),
+    hostRef,
+    repoPath: project.repoPath,
+    projectId: task.projectId,
+    workspaceId,
+    entityName: task.name,
+    workspacePath: workspace.path,
+    branchName,
+    deleteBranch: false,
+    deactivateConsumers: 'all',
+    prediction: compileRemoveWorktreePrediction({
+      now: createdAt,
       workspacePath: workspace.path,
       branchName,
       deleteBranch: false,
-      deactivateConsumers: 'all',
-      prediction: compileRemoveWorktreePrediction({
-        now: createdAt,
-        workspacePath: workspace.path,
-        branchName,
-        deleteBranch: false,
-        observed: workspace,
-      }),
-      createdAt,
-    };
-    return operations.submit(hostReprovisionWorktreeOperation, {
-      version: '1',
-      source: 'user',
-      hostOperationId: randomUUID(),
-      hostRef,
-      repoPath: project.repoPath,
-      projectId: task.projectId,
-      workspaceId,
-      entityName: task.name,
-      workspacePath: workspace.path,
-      prediction: removeInput.prediction,
-      createdAt,
-      remove: removeInput,
-      create: createInput,
-    });
-  }
-
-  return operations.submit(hostCreateWorktreeOperation, createInput);
+      observed: workspace,
+    }),
+    createdAt,
+  };
+  return operations.submit(hostReprovisionWorktreeOperation, {
+    version: '1',
+    source: 'user',
+    hostOperationId: randomUUID(),
+    hostRef,
+    repoPath: project.repoPath,
+    projectId: task.projectId,
+    workspaceId,
+    entityName: task.name,
+    workspacePath: workspace.path,
+    removeFirst: options.removeFirst ?? false,
+    prediction: options.removeFirst ? removeInput.prediction : createInput.prediction,
+    createdAt,
+    remove: removeInput,
+    create: createInput,
+  });
 }
 
 function compileGitOperation(git: GitSetup): Pick<HostCreateWorktreeInput, 'startPoint' | 'fetch'> {

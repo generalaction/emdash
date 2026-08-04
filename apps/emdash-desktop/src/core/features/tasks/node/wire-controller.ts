@@ -195,6 +195,7 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       id: workspaces.id,
       path: workspaces.path,
       observedStatus: workspaces.observedStatus,
+      observedData: workspaces.observedData,
       linesAdded: workspaces.linesAdded,
       linesDeleted: workspaces.linesDeleted,
     })
@@ -209,7 +210,14 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       )
     ),
     workspaceById: Object.fromEntries(
-      rows.map((row) => [row.id, { path: row.path, observedStatus: row.observedStatus }])
+      rows.map((row) => [
+        row.id,
+        {
+          path: row.path,
+          observedStatus: row.observedStatus,
+          corruptionReason: row.observedData?.corruptionReason,
+        },
+      ])
     ),
   };
 }

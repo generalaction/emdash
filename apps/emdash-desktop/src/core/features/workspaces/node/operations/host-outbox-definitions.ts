@@ -181,8 +181,10 @@ export function createHostReprovisionWorktreeDefinition(): OperationDefinition<
   typeof hostReprovisionWorktreeOperation
 > {
   const handler = createOperationHandler(hostReprovisionWorktreeOperation, async (ctx) => {
-    const removed = await ctx.run(hostRemoveWorktreeOperation, ctx.input.remove);
-    if (!removed.success) throw new Error(`Worktree removal failed: ${removed.error.kind}`);
+    if (ctx.input.removeFirst !== false) {
+      const removed = await ctx.run(hostRemoveWorktreeOperation, ctx.input.remove);
+      if (!removed.success) throw new Error(`Worktree removal failed: ${removed.error.kind}`);
+    }
     const created = await ctx.run(hostCreateWorktreeOperation, ctx.input.create);
     if (!created.success) throw new Error(`Worktree creation failed: ${created.error.kind}`);
     return { ok: true as const };
@@ -197,6 +199,7 @@ export function createHostReprovisionWorktreeDefinition(): OperationDefinition<
     workspaceId: 'workspace-example',
     entityName: 'Example',
     workspacePath: '/repo/.worktrees/example',
+    removeFirst: true,
     prediction: { compiledAt: 1, observedAsOf: null, stages: [] },
     createdAt: 1,
     remove: {

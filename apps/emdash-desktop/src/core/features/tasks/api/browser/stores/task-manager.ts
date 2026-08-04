@@ -389,7 +389,7 @@ export class TaskManagerStore {
     await this.provisionTask(params.id);
   }
 
-  async provisionTask(taskId: string): Promise<void> {
+  async provisionTask(taskId: string, operationId?: string): Promise<void> {
     await appState.projects.mountProject(this.projectId);
     await this.loadTasks();
 
@@ -404,7 +404,7 @@ export class TaskManagerStore {
       task.errorMessage = undefined;
     });
 
-    const promise = this._doProvision(taskId).finally(() => {
+    const promise = this._doProvision(taskId, operationId).finally(() => {
       this._provisionPromises.delete(taskId);
     });
 
@@ -412,7 +412,7 @@ export class TaskManagerStore {
     return promise;
   }
 
-  private async _doProvision(taskId: string): Promise<void> {
+  private async _doProvision(taskId: string, operationId?: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task || !isUnprovisioned(task)) return;
 
@@ -432,7 +432,7 @@ export class TaskManagerStore {
     // Activation gates on registry/outbox state, then assembles and registers the task session.
     const client = await getWorkspacesWireClient();
     const jobs = createLiveJobReplica(workspacesWireContract.provision, client.provision);
-    const lease = await jobs.start({ workspaceId: wsId, taskId });
+    const lease = await jobs.start({ workspaceId: wsId, taskId, operationId });
     const job = await lease.ready();
 
     let result:

@@ -43,6 +43,7 @@ export class TaskStore implements TaskState {
   workspacePath: string | null = null;
   workspaceSshConnectionId: string | undefined;
   workspaceObservedStatus: 'present' | 'missing' | 'corrupted' | null = null;
+  workspaceCorruptionReason: string | undefined;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -73,6 +74,7 @@ export class TaskStore implements TaskState {
       workspacePath: observable,
       workspaceSshConnectionId: observable,
       workspaceObservedStatus: observable,
+      workspaceCorruptionReason: observable,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
@@ -86,9 +88,11 @@ export class TaskStore implements TaskState {
   setWorkspaceProjection(projection?: {
     path: string | null;
     observedStatus: 'present' | 'missing' | 'corrupted' | null;
+    corruptionReason?: string;
   }): void {
     this.workspacePath = projection?.path ?? this.workspacePath;
     this.workspaceObservedStatus = projection?.observedStatus ?? null;
+    this.workspaceCorruptionReason = projection?.corruptionReason;
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {

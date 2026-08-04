@@ -103,6 +103,7 @@ export type TaskStatsData = {
     {
       path: string | null;
       observedStatus: 'present' | 'missing' | 'corrupted' | null;
+      corruptionReason?: string;
     }
   >;
 };

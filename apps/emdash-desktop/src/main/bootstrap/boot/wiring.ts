@@ -133,8 +133,13 @@ export function createDesktopWireOptions(
     workspacePlacement: services.workspacePlacement,
     workspaceSnapshotSync: services.workspaceSnapshotSync,
     workspaces: {
-      async provisionTask(taskId, signal) {
-        const result = await taskService.provisionWorkspace(services.operations, taskId, signal);
+      async provisionTask(taskId, signal, operationId) {
+        const result = await taskService.provisionWorkspace(
+          services.operations,
+          taskId,
+          signal,
+          operationId
+        );
         return result.success
           ? result
           : { success: false, error: provisionWorkspaceErrorToWorkspaceError(result.error) };

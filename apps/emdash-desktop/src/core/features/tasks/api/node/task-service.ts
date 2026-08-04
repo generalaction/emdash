@@ -10,7 +10,10 @@ import type { ProvisionResult as SessionProvisionResult } from '@core/features/p
 import { buildTaskFromWorkspace } from '@core/features/tasks/api/node/task-provider-assembly';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
-import { decideWorkspaceActivation } from '@core/features/tasks/api/node/workspace-activation-gate';
+import {
+  decideWorkspaceActivation,
+  didOperationSettleAfterWorkspaceUpdate,
+} from '@core/features/tasks/api/node/workspace-activation-gate';
 import {
   hostCreateWorktreeOperation,
   hostReprovisionWorktreeOperation,
@@ -20,6 +23,7 @@ import {
   deactivateWorkspaceParticipants,
   type WorkspaceLifecycleParticipant,
 } from '@core/features/workspaces/api/node/lifecycle-participants';
+import { enqueueWorkspaceReprovision } from '@core/features/workspaces/api/node/operations/workspace-reprovision';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { tryAcquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
@@ -126,7 +130,8 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async provisionWorkspace(
     operations: OperationsEngine,
     taskId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    expectedOperationId?: string
   ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
     const [row] = await this.dependencies.db
       .select()
@@ -149,7 +154,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
-    const result = await this._activateWorkspace(operations, row, signal);
+    const result = await this._activateWorkspace(operations, row, signal, expectedOperationId);
     if (!result.success) return err(result.error);
 
     await this._registerAndPersist(taskId, result.data);
@@ -178,26 +183,78 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   private async _activateWorkspace(
     operations: OperationsEngine,
     taskRow: typeof tasks.$inferSelect,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    expectedOperationId?: string
   ): Promise<Result<ActivatedTask, ProvisionWorkspaceError>> {
     if (!taskRow.workspaceId) return err({ type: 'missing-workspace' });
     const registry = createWorkspaceRegistry(this.dependencies.db);
     const workspaceRow = registry.getLive(taskRow.workspaceId);
     if (!workspaceRow?.path) return err({ type: 'missing-workspace' });
 
-    const operation =
-      workspaceRow.observedStatus === 'present'
+    let operation = expectedOperationId
+      ? await operations.getForWorkspace(
+          expectedOperationId,
+          [hostCreateWorktreeOperation.name, hostReprovisionWorktreeOperation.name],
+          workspaceRow.id
+        )
+      : workspaceRow.observedStatus === 'present'
         ? undefined
         : (
             await Promise.all([
-              operations.latestForWorkspace(hostCreateWorktreeOperation.name, workspaceRow.id),
-              operations.latestForWorkspace(hostReprovisionWorktreeOperation.name, workspaceRow.id),
+              operations.latestForWorkspace(hostCreateWorktreeOperation.name, workspaceRow.id, {
+                rootOnly: true,
+              }),
+              operations.latestForWorkspace(
+                hostReprovisionWorktreeOperation.name,
+                workspaceRow.id,
+                { rootOnly: true }
+              ),
             ])
           )
             .filter((candidate) => candidate !== undefined)
             .sort((left, right) => right.seq - left.seq)[0];
+    if (expectedOperationId && !operation) {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'activation-gate',
+        stepErrorType: 'operation-missing',
+        message: 'The requested workspace operation was not found',
+      });
+    }
+    if (
+      workspaceRow.observedStatus === null &&
+      !operation &&
+      workspaceRow.config?.workspace.kind === 'new-worktree'
+    ) {
+      const recovered = await enqueueWorkspaceReprovision(
+        operations,
+        this.dependencies.projects,
+        workspaceRow.id
+      );
+      if (!recovered.success) {
+        return err({
+          type: 'setup-failed',
+          stepKind: 'activation-gate',
+          stepErrorType: recovered.error.type,
+          message: recovered.error.message,
+        });
+      }
+      operation = recovered.data.operationId
+        ? await operations.getForWorkspace(
+            recovered.data.operationId,
+            [hostReprovisionWorktreeOperation.name],
+            workspaceRow.id
+          )
+        : undefined;
+    }
+    const workspaceObservationBoundary =
+      workspaceRow.observedData?.desktopObservedAt ?? workspaceRow.updatedAt;
     const decision = decideWorkspaceActivation({
       observedStatus: workspaceRow.observedStatus,
+      explicitOperation:
+        expectedOperationId !== undefined ||
+        (operation?.name === hostReprovisionWorktreeOperation.name &&
+          didOperationSettleAfterWorkspaceUpdate(operation, workspaceObservationBoundary)),
       createOperation: operation,
     });
     if (decision.kind === 'refuse') {
@@ -261,24 +318,35 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       this.dependencies.lifecycleParticipants,
       access.data.identity
     );
-    const built = await buildTaskFromWorkspace(
-      task,
-      {
-        id: workspaceRow.id,
-        host: access.data.identity.host,
-        path: workspaceRow.path,
-        configPath: project.configPathForDirectory(workspaceRow.path),
-        files: access.data.files,
-        settings: project.settings,
-        tuiAgents: access.data.client.tuiAgents,
-      },
-      project.projectId,
-      project.repoPath,
-      project.settings,
-      this.dependencies.createConversationProvider,
-      workspaceRow.branchName ??
-        (workspaceRow.config ? (deriveBranchName(workspaceRow.config.git) ?? undefined) : undefined)
-    );
+    let built: Awaited<ReturnType<typeof buildTaskFromWorkspace>>;
+    try {
+      built = await buildTaskFromWorkspace(
+        task,
+        {
+          id: workspaceRow.id,
+          host: access.data.identity.host,
+          path: workspaceRow.path,
+          configPath: project.configPathForDirectory(workspaceRow.path),
+          files: access.data.files,
+          settings: project.settings,
+          tuiAgents: access.data.client.tuiAgents,
+        },
+        project.projectId,
+        project.repoPath,
+        project.settings,
+        this.dependencies.createConversationProvider,
+        workspaceRow.branchName ??
+          (workspaceRow.config
+            ? (deriveBranchName(workspaceRow.config.git) ?? undefined)
+            : undefined)
+      );
+    } catch (error) {
+      await deactivateWorkspaceParticipants(
+        this.dependencies.lifecycleParticipants,
+        access.data.identity
+      );
+      throw error;
+    }
     if (!built.success) {
       await deactivateWorkspaceParticipants(
         this.dependencies.lifecycleParticipants,

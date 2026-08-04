@@ -139,6 +139,7 @@ const hostReprovisionWorktreeInputSchema = defineVersionedSchema()
     z.object({
       ...hostOutboxBaseFields,
       workspacePath: z.string().min(1),
+      removeFirst: z.boolean().optional(),
       remove: hostRemoveWorktreeInputSchema.schema,
       create: hostCreateWorktreeInputSchema.schema,
     })

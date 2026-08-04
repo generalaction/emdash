@@ -48,6 +48,7 @@ const testInputSchema = defineVersionedSchema()
       key: z.string(),
       hostRef: serializedHostRefSchema,
       projectId: z.string().optional(),
+      workspaceId: z.string().optional(),
       workspacePath: z.string().optional(),
       claimKey: z.string().optional(),
       fail: z.boolean().optional(),
@@ -144,6 +145,40 @@ describe('OperationsEngine', () => {
     await expectProjectDeletedAt('project-2', null);
   });
 
+  it('reverts tombstones when kernel admission throws after the app-db write', async () => {
+    fixture = await openFixture('empty');
+    await insertProject('project-1');
+    handle = await createTestEngine({});
+    const kernel = (
+      handle.engine as unknown as {
+        kernel: { submit(...args: unknown[]): Promise<unknown> };
+      }
+    ).kernel;
+    vi.spyOn(kernel, 'submit').mockRejectedValueOnce(new Error('operations database unavailable'));
+
+    const submitted = await handle.engine.submitWithTombstone(
+      testOperation,
+      testInput({ key: 'first' }),
+      {
+        tombstone: (tx) =>
+          tx
+            .update(projects)
+            .set({ deletedAt: 'deleted' })
+            .where(eq(projects.id, 'project-1'))
+            .run().changes,
+        revertTombstone: (tx) => {
+          tx.update(projects).set({ deletedAt: null }).where(eq(projects.id, 'project-1')).run();
+        },
+      }
+    );
+
+    expect(submitted).toEqual({
+      success: false,
+      error: { type: 'operation-rejected', message: 'operations database unavailable' },
+    });
+    await expectProjectDeletedAt('project-1', null);
+  });
+
   it('does not accumulate rejected reconciler proposals and prunes the old record on retry', async () => {
     fixture = await openFixture('empty');
     const publishPendingCleanup = vi.fn();
@@ -189,6 +224,48 @@ describe('OperationsEngine', () => {
     expect(tree?.root.status).toBe('succeeded');
     expect(tree?.children[0]).toMatchObject({ status: 'failed' });
     expect(tree?.rollup).toMatchObject({ total: 2, done: 1, status: 'failed' });
+  });
+
+  it('finds the latest workspace operation beyond the first query page', async () => {
+    fixture = await openFixture('empty');
+    handle = await createTestEngine({ ssh: createSshManager(false) });
+    const remoteHost = formatHostRef(hostRef('remote', 'remote-pagination'));
+    for (let index = 0; index <= 500; index += 1) {
+      const submitted = await handle.engine.submit(
+        testOperation,
+        testInput({
+          key: `operation-${index}`,
+          hostRef: remoteHost,
+          workspaceId: index === 500 ? 'workspace-target' : 'workspace-other',
+        })
+      );
+      if (!submitted.success) throw new Error(JSON.stringify({ index, error: submitted.error }));
+    }
+
+    const latest = await handle.engine.latestForWorkspace(testOperation.name, 'workspace-target');
+
+    expect(latest?.key).toBe('test:operation-500');
+  });
+
+  it('can ignore newer child operations when selecting a workspace root', async () => {
+    fixture = await openFixture('empty');
+    handle = await createTestEngine({});
+    await handle.engine.submit(
+      testOperation,
+      testInput({ key: 'root', workspaceId: 'workspace-target' })
+    );
+    await handle.engine.waitForIdle();
+    await handle.engine.submit(
+      parentOperation,
+      testInput({ key: 'parent', workspaceId: 'workspace-target' })
+    );
+    await handle.engine.waitForIdle();
+
+    const latest = await handle.engine.latestForWorkspace(testOperation.name, 'workspace-target', {
+      rootOnly: true,
+    });
+
+    expect(latest?.key).toBe('test:root');
   });
 
   async function createTestEngine(options: {
@@ -258,6 +335,7 @@ function parentOperationDefinition(): OperationDefinition<typeof parentOperation
         testOperation,
         testInput({
           key: `${ctx.input.key}:child`,
+          workspaceId: ctx.input.workspaceId,
           workspacePath: ctx.input.workspacePath,
           fail: true,
         })
@@ -277,6 +355,7 @@ function testInput(input: Partial<TestInput> & { key: string }): TestInput {
     key: input.key,
     hostRef: input.hostRef ?? formatHostRef(LOCAL_HOST_REF),
     projectId: input.projectId,
+    workspaceId: input.workspaceId,
     workspacePath: input.workspacePath,
     claimKey: input.claimKey,
     fail: input.fail,

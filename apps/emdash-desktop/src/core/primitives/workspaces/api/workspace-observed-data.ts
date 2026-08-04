@@ -14,6 +14,7 @@ const v1Schema = z.object({
   ahead: z.number().int().nonnegative().optional(),
   behind: z.number().int().nonnegative().optional(),
   corruptionReason: z.string().optional(),
+  desktopObservedAt: z.string().optional(),
 });
 
 export const workspaceObservedData = defineVersionedSchema().initial('1', v1Schema).build();

@@ -60,6 +60,24 @@ describe('reprovision worktree operation', () => {
     expect(run).toHaveBeenNthCalledWith(1, expect.anything(), input.remove);
     expect(run).toHaveBeenNthCalledWith(2, expect.anything(), input.create);
   });
+
+  it('creates without removing for a non-destructive reprovision', async () => {
+    const definition = createHostReprovisionWorktreeDefinition();
+    const input = { ...definition.examples[0]!.input, removeFirst: false };
+    const run = vi.fn().mockResolvedValue({ success: true, data: { ok: true } });
+
+    await expect(
+      definition.handler.run({
+        input,
+        operationId: 'reprovision-1',
+        attempt: 0,
+        signal: new AbortController().signal,
+        run,
+      } as never)
+    ).resolves.toEqual({ ok: true });
+    expect(run).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledWith(expect.anything(), input.create);
+  });
 });
 
 function removeWorktreeInput(

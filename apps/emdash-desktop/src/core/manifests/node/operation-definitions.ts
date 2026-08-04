@@ -87,7 +87,15 @@ export function createDesktopConflictPolicy(descriptors: readonly OperationDefin
     // Keep this pairwise matrix explicit: future pairs may dedupe or supersede.
     for (const first of definitions) {
       for (const second of definitions) {
-        on(get(first), get(second)).queue();
+        const pair = on(get(first), get(second));
+        if (
+          first === hostReprovisionWorktreeOperation &&
+          second === hostReprovisionWorktreeOperation
+        ) {
+          pair.reject();
+        } else {
+          pair.queue();
+        }
       }
     }
   });

@@ -80,7 +80,7 @@ export const createWorktreeStagePlan = defineOperationStagePlan<
     kind: 'expansion',
     id: 'preserve-files',
     expand: (context) =>
-      !context.existing && context.preservePatterns.length > 0
+      context.preservePatterns.length > 0
         ? [
             {
               id: 'copy-preserved-files',

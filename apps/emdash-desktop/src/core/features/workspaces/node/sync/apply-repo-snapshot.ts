@@ -28,6 +28,7 @@ export interface ApplyRepoSnapshotInput {
   db: AppDb;
   repository: RepositoryWorkspaceRow;
   snapshot: WorkspaceHostRepoSnapshot;
+  desktopObservedAt?: string;
   projectId?: string;
 }
 
@@ -61,6 +62,7 @@ function applyRepoSnapshotTx(
   now: string
 ): ApplyRepoSnapshotResult {
   const observedAt = new Date(input.snapshot.scannedAt).toISOString();
+  const desktopObservedAt = input.desktopObservedAt ?? now;
   const activeRows = loadActiveRows(tx, input.repository.id);
   const annotations = loadAnnotations(
     tx,
@@ -93,8 +95,12 @@ function applyRepoSnapshotTx(
     {
       observedStatus: input.snapshot.repository.status,
       observedData: input.snapshot.repository.corruptionReason
-        ? { version: '1', corruptionReason: input.snapshot.repository.corruptionReason }
-        : { version: '1' },
+        ? {
+            version: '1',
+            corruptionReason: input.snapshot.repository.corruptionReason,
+            desktopObservedAt,
+          }
+        : { version: '1', desktopObservedAt },
       lastObservedAt: observedAt,
     },
     tx
@@ -102,7 +108,7 @@ function applyRepoSnapshotTx(
 
   for (const observation of input.snapshot.worktrees) {
     const path = formatAbsolute(observation.path);
-    const observedData = observedDataFor(observation);
+    const observedData = observedDataFor(observation, desktopObservedAt);
     let row = byPath.get(path);
     if (!row && observation.adminName) {
       row = byAdminName.get(observation.adminName);
@@ -122,6 +128,7 @@ function applyRepoSnapshotTx(
         path,
         observation,
         observedAt,
+        desktopObservedAt,
         now
       );
       rows.push(inserted);
@@ -155,6 +162,11 @@ function applyRepoSnapshotTx(
         row.id,
         {
           observedStatus: 'missing',
+          observedData: {
+            ...row.observedData,
+            version: '1',
+            desktopObservedAt,
+          },
           lastObservedAt: observedAt,
         },
         tx
@@ -164,7 +176,15 @@ function applyRepoSnapshotTx(
       registry.untrack(
         [row.id],
         now,
-        { observedStatus: 'missing', lastObservedAt: observedAt },
+        {
+          observedStatus: 'missing',
+          observedData: {
+            ...row.observedData,
+            version: '1',
+            desktopObservedAt,
+          },
+          lastObservedAt: observedAt,
+        },
         tx
       );
       counts.untracked += 1;
@@ -221,6 +241,7 @@ function adoptWorktree(
   path: string,
   observation: WorkspaceHostRepoSnapshot['worktrees'][number],
   observedAt: string,
+  desktopObservedAt: string,
   now: string
 ): ActiveWorkspaceRow {
   const values: WorkspaceInsert = {
@@ -235,7 +256,7 @@ function adoptWorktree(
     branchName: null,
     observedStatus: observation.status,
     observedGitBranch: observation.branch,
-    observedData: observedDataFor(observation),
+    observedData: observedDataFor(observation, desktopObservedAt),
     lastObservedAt: observedAt,
     createdAt: now,
     updatedAt: now,
@@ -249,10 +270,12 @@ function adoptWorktree(
 }
 
 function observedDataFor(
-  observation: WorkspaceHostRepoSnapshot['worktrees'][number]
+  observation: WorkspaceHostRepoSnapshot['worktrees'][number],
+  desktopObservedAt: string
 ): WorkspaceObservedData {
   return {
     version: '1',
+    desktopObservedAt,
     ...(observation.adminName ? { adminName: observation.adminName } : {}),
     ...(observation.dirty !== undefined ? { dirty: observation.dirty } : {}),
     ...(observation.diffStats ? { diffStats: observation.diffStats } : {}),

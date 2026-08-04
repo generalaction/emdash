@@ -94,6 +94,16 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     );
   }
 
+  if (kind === 'provisioning' && taskStore) {
+    return <TaskProvisionLoader projectId={projectId} taskId={taskId} taskStore={taskStore} />;
+  }
+
+  if (kind === 'provision-error' && taskStore) {
+    return (
+      <TaskProvisionLoader projectId={projectId} taskId={taskId} taskStore={taskStore} error />
+    );
+  }
+
   if (
     taskStore?.state === 'unprovisioned' &&
     (taskStore.workspaceObservedStatus === 'missing' ||
@@ -102,19 +112,10 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <MissingWorkspaceState
         status={taskStore.workspaceObservedStatus}
+        reason={taskStore.workspaceCorruptionReason}
         reprovision={() => reprovisionWorkspace(projectId, taskId, workspaceId!, false)}
         removeAndReprovision={() => reprovisionWorkspace(projectId, taskId, workspaceId!, true)}
       />
-    );
-  }
-
-  if (kind === 'provisioning' && taskStore) {
-    return <TaskProvisionLoader projectId={projectId} taskId={taskId} taskStore={taskStore} />;
-  }
-
-  if (kind === 'provision-error' && taskStore) {
-    return (
-      <TaskProvisionLoader projectId={projectId} taskId={taskId} taskStore={taskStore} error />
     );
   }
 
@@ -218,10 +219,12 @@ function TaskWorkspaceOperation({
 
 function MissingWorkspaceState({
   status,
+  reason,
   reprovision,
   removeAndReprovision,
 }: {
   status: 'missing' | 'corrupted';
+  reason?: string;
   reprovision?: () => Promise<void>;
   removeAndReprovision?: () => Promise<void>;
 }) {
@@ -233,6 +236,7 @@ function MissingWorkspaceState({
       <p className="max-w-sm text-xs text-foreground-muted">
         Emdash could not activate this workspace. Re-provision it or remove the task.
       </p>
+      {reason && <p className="max-w-sm text-xs text-foreground-destructive">{reason}</p>}
       {reprovision && removeAndReprovision && (
         <div className="mt-2 flex gap-2">
           <Button size="sm" variant="outline" onClick={() => void reprovision()}>
@@ -255,7 +259,10 @@ async function reprovisionWorkspace(
 ): Promise<void> {
   if (
     removeFirst &&
-    !window.confirm('Remove the current workspace contents and create it again?')
+    !window.confirm(
+      'Remove this workspace and permanently discard any uncommitted files or changes, then ' +
+        're-provision it? This cannot be undone.'
+    )
   ) {
     return;
   }
@@ -265,7 +272,7 @@ async function reprovisionWorkspace(
       ? await client.removeAndReprovision({ workspaceId })
       : await client.reprovision({ workspaceId });
     if (!result.success) throw new Error(result.error.message);
-    await getTaskManagerStore(projectId)?.provisionTask(taskId);
+    await getTaskManagerStore(projectId)?.provisionTask(taskId, result.data.operationId);
   } catch (error) {
     toast.error('Could not re-provision workspace', {
       description: error instanceof Error ? error.message : String(error),

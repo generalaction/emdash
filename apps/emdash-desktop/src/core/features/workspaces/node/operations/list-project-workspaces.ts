@@ -331,6 +331,7 @@ async function scanAndApplyRepositorySnapshot(
     if (!repoRoot.success) throw new Error(`Repository path is not absolute: ${repository.path}`);
     const runtime = await dependencies.runtimes.client(projectWorkspaceHost(project));
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    const desktopObservedAt = new Date().toISOString();
     const result = await runtime.data.workspaceHost.snapshotRepository({
       repoRoot: repoRoot.data,
       tier: 'presence',
@@ -340,6 +341,7 @@ async function scanAndApplyRepositorySnapshot(
       db: dependencies.db,
       repository,
       snapshot: result.data,
+      desktopObservedAt,
       projectId: project.id,
     });
     return { scannedAt: new Date(result.data.scannedAt).toISOString() };

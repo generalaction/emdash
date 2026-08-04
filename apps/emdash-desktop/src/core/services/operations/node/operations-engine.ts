@@ -320,15 +320,37 @@ export class OperationsEngine {
 
   async latestForWorkspace(
     operationName: string,
+    workspaceId: string,
+    options: { rootOnly?: boolean } = {}
+  ): Promise<OperationRecord | undefined> {
+    const limit = 500;
+    let after: { seq: number } | undefined;
+    let latest: OperationRecord | undefined;
+    for (;;) {
+      const page = await this.kernel.query({ name: [operationName], after, limit });
+      for (const record of page.records) {
+        if (options.rootOnly && record.parentId !== undefined) continue;
+        const parsed = this.parseRecord(record);
+        if (parsed && (parsed.input as { workspaceId?: string }).workspaceId === workspaceId) {
+          latest = record;
+        }
+      }
+      if (page.records.length < limit) return latest;
+      after = { seq: page.records[page.records.length - 1]!.seq };
+    }
+  }
+
+  async getForWorkspace(
+    operationId: string,
+    operationNames: readonly string[],
     workspaceId: string
   ): Promise<OperationRecord | undefined> {
-    const page = await this.kernel.query({ name: [operationName], limit: 500 });
-    return page.records
-      .filter((record) => {
-        const parsed = this.parseRecord(record);
-        return parsed && (parsed.input as { workspaceId?: string }).workspaceId === workspaceId;
-      })
-      .sort((left, right) => right.seq - left.seq)[0];
+    const record = await this.kernel.get(operationId);
+    if (!record || !operationNames.includes(record.name)) return undefined;
+    const parsed = this.parseRecord(record);
+    return parsed && (parsed.input as { workspaceId?: string }).workspaceId === workspaceId
+      ? record
+      : undefined;
   }
 
   async waitForTerminal(
@@ -368,9 +390,20 @@ export class OperationsEngine {
     const tombstoneError = this.applyPreconditionAndTombstone(opts.options);
     if (tombstoneError) return err(tombstoneError);
 
-    const submitted = await this.kernel.submit(definition, input, {
-      initiator: opts.initiator,
-    });
+    let submitted: Awaited<ReturnType<KernelOperationEngine['submit']>>;
+    try {
+      submitted = await this.kernel.submit(definition, input, {
+        initiator: opts.initiator,
+      });
+    } catch (error) {
+      if (opts.revertOnReject && opts.options.revertTombstone) {
+        this.db.transaction((tx) => opts.options.revertTombstone?.(tx));
+      }
+      return err({
+        type: 'operation-rejected',
+        message: error instanceof Error ? error.message : 'Operation submission failed',
+      });
+    }
     if (!submitted.success) {
       if (opts.revertOnReject && opts.options.revertTombstone) {
         this.db.transaction((tx) => opts.options.revertTombstone?.(tx));

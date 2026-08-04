@@ -156,6 +156,7 @@ export class WorkspaceSnapshotSyncService implements SnapshotRequester {
     const host = hostRefFromParts(repository.location, repository.sshConnectionId);
     const client = await this.options.runtimes.client(host);
     if (!client.success) return;
+    const desktopObservedAt = new Date().toISOString();
     const result = await client.data.workspaceHost.snapshotRepository({
       repoRoot: parsedPath.data,
       tier,
@@ -169,6 +170,7 @@ export class WorkspaceSnapshotSyncService implements SnapshotRequester {
       db: this.options.db,
       repository,
       snapshot: result.data,
+      desktopObservedAt,
       projectId: project?.id,
     });
   }
