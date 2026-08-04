@@ -15,15 +15,10 @@ export function createGitProcedures(
     ensureRepository: (input) => runtime.provisioning.ensureRepository(input.path, input.options),
     cloneRepository: {
       run: (input, context) =>
-        runtime.provisioning.cloneRepository(
-          input.repositoryUrl,
-          input.targetPath,
-          {
-            signal: context.signal,
-            onProgress: context.progress,
-          },
-          { initialize: input.initialize }
-        ),
+        runtime.provisioning.cloneRepository(input.repositoryUrl, input.targetPath, {
+          signal: context.signal,
+          onProgress: context.progress,
+        }),
     },
     repository: {
       ...createRepositoryProcedures(runtime.repository),

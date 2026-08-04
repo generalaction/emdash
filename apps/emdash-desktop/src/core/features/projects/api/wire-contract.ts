@@ -48,7 +48,7 @@ export const projectCreationErrorSchema = z.object({
 });
 
 export const projectCreationProgressSchema = z.object({
-  phase: z.enum(['cloning', 'initializing', 'registering']),
+  phase: z.enum(['cloning', 'registering']),
   percent: z.number().int().min(0).max(100).optional(),
   message: z.string().optional(),
 });
@@ -56,10 +56,6 @@ export const projectCreationProgressSchema = z.object({
 export const projectCreationStateSchema = z.discriminatedUnion('phase', [
   z.object({
     phase: z.literal('cloning'),
-    message: z.string().optional(),
-  }),
-  z.object({
-    phase: z.literal('initializing'),
     message: z.string().optional(),
   }),
   z.object({
@@ -93,7 +89,6 @@ export const createProjectFromRemoteInputSchema = z.object({
   repositoryUrl: z.string().min(1),
   targetPath: z.string().min(1),
   name: z.string().min(1),
-  description: z.string().optional(),
 });
 
 export const projectDirectoryTreeKeySchema = z.discriminatedUnion('type', [

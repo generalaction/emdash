@@ -96,7 +96,6 @@ describe('createProjectFromRemote', () => {
     expect(mocks.runRuntimeLiveJob.mock.calls[0]?.[2]).toEqual({
       repositoryUrl: 'https://github.com/acme/repo.git',
       targetPath: hostPathFromNative('/remote/repo'),
-      initialize: undefined,
     });
     expect(mocks.createProject).toHaveBeenCalledWith(dependencies, {
       type: 'ssh',

@@ -70,14 +70,12 @@ export async function createProjectFromRemote(
       {
         repositoryUrl: input.repositoryUrl,
         targetPath: hostPathFromNative(input.targetPath),
-        initialize:
-          input.mode === 'new' ? { name: input.name, description: input.description } : undefined,
       },
       (progress) => {
         const mapped = cloneProgressToCreationProgress(progress);
         ctx.progress(mapped);
         publishCreationState(input.projectId, {
-          phase: mapped.phase === 'initializing' ? 'initializing' : 'cloning',
+          phase: 'cloning',
           message: mapped.message,
         });
       },
@@ -192,12 +190,6 @@ function hostRefForProjectHost(host: ProjectHostParams): HostRef {
 }
 
 function cloneProgressToCreationProgress(progress: GitTransferProgress): ProjectCreationProgress {
-  if (progress.phase === 'initialize') {
-    return {
-      phase: 'initializing',
-      message: progress.detail ?? 'Initializing repository…',
-    };
-  }
   return {
     phase: 'cloning',
     percent: progress.percent,

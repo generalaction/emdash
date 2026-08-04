@@ -179,7 +179,9 @@ describe('GitHubRepositoryServiceImpl', () => {
         isPrivate: false,
       });
 
-      expect(octokit.rest.repos.createForAuthenticatedUser).toHaveBeenCalled();
+      expect(octokit.rest.repos.createForAuthenticatedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'new', private: false, auto_init: true })
+      );
       expect(result).toEqual({
         url: 'https://github.com/testuser/new',
         cloneUrl: 'https://github.com/testuser/new.git',
@@ -204,7 +206,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       await repoService.createRepository({ name: 'new', owner: 'acme', isPrivate: true });
 
       expect(octokit.rest.repos.createInOrg).toHaveBeenCalledWith(
-        expect.objectContaining({ org: 'acme', name: 'new', private: true })
+        expect.objectContaining({ org: 'acme', name: 'new', private: true, auto_init: true })
       );
     });
 

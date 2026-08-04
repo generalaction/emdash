@@ -114,6 +114,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
       name: params.name,
       description: params.description,
       private: params.isPrivate,
+      auto_init: true,
     };
 
     const { data } = isCurrentUser
