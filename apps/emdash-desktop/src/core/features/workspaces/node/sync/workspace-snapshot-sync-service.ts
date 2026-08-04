@@ -51,6 +51,26 @@ export class WorkspaceSnapshotSyncService {
     }
   }
 
+  /** Repo addressed by host + path, e.g. after a host operation completes. */
+  async requestRepoPath(hostRefValue: string, repoPath: string, tier: SyncTier): Promise<void> {
+    const rows = await this.options.db
+      .select({ id: workspaces.id })
+      .from(workspaces)
+      .where(
+        and(
+          isNull(workspaces.parentId),
+          eq(workspaces.path, repoPath),
+          isNull(workspaces.untrackedAt),
+          hostRefValue === 'local'
+            ? isNull(workspaces.sshConnectionId)
+            : eq(workspaces.sshConnectionId, hostRefValue)
+        )
+      );
+    for (const row of rows) {
+      this.requestSync(row.id, tier);
+    }
+  }
+
   async requestHost(connectionId: string, tier: SyncTier): Promise<void> {
     const rows = await this.options.db
       .select({ id: workspaces.id })

@@ -12,6 +12,11 @@ export function getOperationsEngine(): OperationsEngine {
   return handle.engine;
 }
 
+/** For consumers constructed before the engine (e.g. infrastructure services). */
+export function tryGetOperationsEngine(): OperationsEngine | undefined {
+  return handle?.engine;
+}
+
 export async function disposeOperationsEngine(): Promise<void> {
   const current = handle;
   handle = undefined;

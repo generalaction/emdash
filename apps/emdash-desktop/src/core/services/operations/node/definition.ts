@@ -9,6 +9,7 @@ import type {
   OperationConfirmationReason,
   OperationEntityKind,
   OperationMutationError,
+  OperationPrediction,
 } from '@emdash/core/primitives/operations/api';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { OperationKind, OperationPayload } from '@core/primitives/operations/api';
@@ -93,6 +94,8 @@ export type OperationDefinition<D extends AnyOperationDefinition = AnyOperationD
   describe(input: InputOf<D>): OperationDescription;
   projectId(input: InputOf<D>): string | undefined;
   hostRef(input: InputOf<D>): string;
+  /** Desktop-compiled preview of a queued host operation; discarded once running. */
+  prediction?(input: InputOf<D>): OperationPrediction | undefined;
   confirmedInput(
     input: InputOf<D>,
     confirmedAt: number,

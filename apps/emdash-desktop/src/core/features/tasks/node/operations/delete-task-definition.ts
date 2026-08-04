@@ -3,22 +3,15 @@ import { createOperationHandler } from '@emdash/core/primitives/kernel/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, type Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
-import { and, eq, isNotNull, isNull, ne, or } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm';
 import {
   deleteTaskOperation,
   type DeleteTaskOperationInput,
 } from '@core/features/tasks/api/node/delete-task-operation';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
-import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
-import {
-  deactivateLifecycleWorkspace,
-  lifecycleWorkspaceIsDirty,
-  lifecycleWorkspaceIsUnused,
-  teardownLifecycleWorkspace,
-} from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
-import type { LifecycleCleanupDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
+import { enqueueDeleteWorkspace } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
@@ -30,17 +23,10 @@ import type {
   OperationReconcileContext,
   OperationSubmitOptions,
 } from '@core/services/operations/node';
-import {
-  confirmInput,
-  isOperationStale,
-  isResumedOperation,
-  needsConfirmation,
-  runOperationStage,
-} from '@core/services/operations/node';
+import { confirmInput, needsConfirmation, runOperationStage } from '@core/services/operations/node';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 const SESSION_TIMEOUT_MS = 30_000;
-const WORKSPACE_TIMEOUT_MS = 5 * 60_000;
 const PURGE_TIMEOUT_MS = 30_000;
 
 export const deleteTaskOperationContribution = {
@@ -57,7 +43,6 @@ export type DeleteTaskInput = {
 
 export type DeleteTaskOperationDependencies = {
   lifecycleContext: LifecycleOperationContextDependencies;
-  lifecycleCleanup: LifecycleCleanupDependencies;
   getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
   sessionCleanup: {
     resolve(
@@ -90,6 +75,12 @@ type LifecycleSessionTargets = {
   tmuxSessionNames: string[];
 };
 
+/**
+ * Desktop-plane task deletion: tombstone confirmed at enqueue, this handler
+ * kills the task's agent sessions (best effort — the host session GC reaps
+ * anything unreachable) and purges desktop rows. Worktree removal is a
+ * separate `host-remove-worktree` outbox entry enqueued alongside it.
+ */
 export function createDeleteTaskOperationDefinition(
   dependencies: DeleteTaskOperationDependencies,
   runtime: OperationRuntime
@@ -105,87 +96,34 @@ export function createDeleteTaskOperationDefinition(
       dependencies.lifecycleContext,
       runtime.db,
       operation,
-      { resolveRuntimeConfig: true }
+      { resolveRuntimeConfig: false }
     );
-    const [targets, otherTaskRows] = await Promise.all([
-      sessionCleanup.resolve(runtime.db, operation, context),
-      context.task?.workspaceId
-        ? runtime.db
-            .select({ id: tasks.id })
-            .from(tasks)
-            .where(
-              and(
-                eq(tasks.workspaceId, context.task.workspaceId),
-                ne(tasks.id, context.task.id),
-                isNull(tasks.deletedAt)
-              )
-            )
-            .limit(1)
-        : Promise.resolve([]),
-    ]);
-    const workspaceSharedWithLiveTasks = otherTaskRows.length > 0;
-    const shouldTeardown =
-      input.deleteWorktree !== false &&
-      !workspaceSharedWithLiveTasks &&
-      (context.workspace?.kind === 'worktree' || context.workspace?.kind === 'byoi') &&
-      !!context.workspace.path;
 
-    if (context.task && isOperationStale(input, runtime.clock.now())) {
-      needsConfirmation(ctx, 'stale');
-    }
-    if (
-      context.task &&
-      shouldTeardown &&
-      isResumedOperation(input, ctx.attempt, runtime.clock.now()) &&
-      !input.confirmedAt &&
-      (await lifecycleWorkspaceIsDirty(dependencies.lifecycleCleanup, operation, context))
-    ) {
-      needsConfirmation(ctx, 'workspace-modified');
-    }
+    await runOperationStage(ctx, {
+      id: 'kill-sessions',
+      timeoutMs: SESSION_TIMEOUT_MS,
+      clock: runtime.clock,
+      run: async () => {
+        // Best effort: an unreachable host must not block desktop deletion.
+        // The host reaps orphaned sessions when the worktree is removed.
+        try {
+          const targets = await sessionCleanup.resolve(runtime.db, operation, context);
+          if (targets.acpConversationIds.length > 0) {
+            await sessionCleanup.killAcp(runtime.db, operation, targets);
+          }
+          if (
+            targets.tuiConversationIds.length > 0 ||
+            targets.terminalSessionIds.length > 0 ||
+            targets.tmuxSessionNames.length > 0
+          ) {
+            await sessionCleanup.killTerminals(runtime.db, operation, context, targets);
+          }
+        } catch {
+          // Swallowed by design; see stage comment.
+        }
+      },
+    });
 
-    if (targets.acpConversationIds.length > 0) {
-      await runOperationStage(ctx, {
-        id: 'kill-acp-sessions',
-        timeoutMs: SESSION_TIMEOUT_MS,
-        clock: runtime.clock,
-        run: async () => sessionCleanup.killAcp(runtime.db, operation, targets),
-      });
-    }
-    if (
-      targets.tuiConversationIds.length > 0 ||
-      targets.terminalSessionIds.length > 0 ||
-      targets.tmuxSessionNames.length > 0
-    ) {
-      await runOperationStage(ctx, {
-        id: 'kill-tui-sessions',
-        timeoutMs: SESSION_TIMEOUT_MS,
-        clock: runtime.clock,
-        run: async () => sessionCleanup.killTerminals(runtime.db, operation, context, targets),
-      });
-    }
-    if (context.task && context.workspace?.path) {
-      await runOperationStage(ctx, {
-        id: 'deactivate-workspace',
-        timeoutMs: WORKSPACE_TIMEOUT_MS,
-        clock: runtime.clock,
-        classifyError: classifyWorkspaceOperationError,
-        run: async (signal, stage) =>
-          deactivateLifecycleWorkspace(dependencies.lifecycleCleanup, operation, context, {
-            signal,
-            onWaitingChange: (waiting) => stage.progress(waiting ? 0.5 : 0),
-          }),
-      });
-    }
-    if (context.task && shouldTeardown) {
-      await runOperationStage(ctx, {
-        id: 'teardown-workspace',
-        timeoutMs: WORKSPACE_TIMEOUT_MS,
-        clock: runtime.clock,
-        classifyError: classifyWorkspaceOperationError,
-        run: async () =>
-          teardownLifecycleWorkspace(dependencies.lifecycleCleanup, runtime.db, operation, context),
-      });
-    }
     if (context.task) {
       await runOperationStage(ctx, {
         id: 'purge-task-rows',
@@ -228,7 +166,9 @@ export function createDeleteTaskOperationDefinition(
       hostLabel: input.hostLabel,
     }),
     projectId: (input) => input.projectId,
-    hostRef: (input) => input.hostRef,
+    // Desktop-plane operation: never gated on host reachability. The session
+    // kill is best effort; the workspace host owns worktree/session removal.
+    hostRef: () => 'local',
     confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     purge: async ({ input, db }) => {
       db.transaction((tx) => {
@@ -276,6 +216,7 @@ export async function enqueueDeleteTask(operations: OperationsEngineLike, input:
         )
         .limit(1)
     : [];
+  const workspaceShared = otherTaskRows.length > 0;
   const hostRef = workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local';
   const operationInput: DeleteTaskOperationInput = {
     version: '1',
@@ -291,7 +232,7 @@ export async function enqueueDeleteTask(operations: OperationsEngineLike, input:
     branchName: workspace?.branchName ?? undefined,
     deleteWorktree: input.deleteWorktree ?? true,
     deleteBranch: input.deleteBranch ?? false,
-    workspaceShared: otherTaskRows.length > 0,
+    workspaceShared,
     createdAt,
   };
   const result = await operations.submitWithTombstone(deleteTaskOperation, operationInput, {
@@ -306,14 +247,22 @@ export async function enqueueDeleteTask(operations: OperationsEngineLike, input:
       tx.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, task.id)).run();
     },
   });
-  if (result.success) appDbPokes.tasks.poke({ projectId, taskId: input.taskId });
+  if (result.success) {
+    appDbPokes.tasks.poke({ projectId, taskId: input.taskId });
+    // Shared-workspace guard is an enqueue-time registry query: another live
+    // task on the row means unlink only — no host removal.
+    if (task.workspaceId && !workspaceShared && input.deleteWorktree !== false) {
+      await enqueueDeleteWorkspace(operations, task.workspaceId, {
+        deleteBranch: input.deleteBranch ?? false,
+      });
+    }
+  }
   return result;
 }
 
-type OperationsEngineLike = {
-  db: AppDb;
-  submitWithTombstone<D extends typeof deleteTaskOperation>(
-    definition: D,
+type OperationsEngineLike = Parameters<typeof enqueueDeleteWorkspace>[0] & {
+  submitWithTombstone(
+    definition: typeof deleteTaskOperation,
     input: DeleteTaskOperationInput,
     options?: OperationSubmitOptions
   ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
@@ -369,7 +318,9 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
       projectPath: project?.path,
       workspacePath: workspace?.path ?? undefined,
       branchName: workspace?.branchName ?? undefined,
-      deleteWorktree: true,
+      // Reconciler proposals only purge desktop rows; worktree removal is an
+      // enqueue-time decision that already happened (or was declined).
+      deleteWorktree: false,
       deleteBranch: false,
       workspaceShared: false,
       createdAt: context.clock.now(),
@@ -418,11 +369,9 @@ async function purgeTaskRows(
   >
 ): Promise<void> {
   if (!operation.taskId) return;
-  const purgeWorkspace =
-    !!operation.workspaceId &&
-    operation.payload.deleteWorktree !== false &&
-    (await lifecycleWorkspaceIsUnused(db, operation.workspaceId));
-  if (purgeWorkspace && context.workspacePath) {
+  const workspaceUntracked =
+    !!operation.workspaceId && (await lifecycleWorkspaceIsUntracked(db, operation.workspaceId));
+  if (workspaceUntracked && context.workspacePath) {
     const workspace = hostFileRefFromNativePath(
       context.workspacePath,
       operation.hostRef === 'local' ? undefined : operation.hostRef
@@ -431,21 +380,20 @@ async function purgeTaskRows(
   }
   db.transaction((tx) => {
     tx.delete(tasks).where(eq(tasks.id, operation.taskId!)).run();
-    if (operation.workspaceId && purgeWorkspace) {
-      tx.delete(workspaces)
-        .where(
-          and(
-            eq(workspaces.id, operation.workspaceId),
-            or(ne(workspaces.kind, 'project-root'), isNull(workspaces.kind))
-          )
-        )
-        .run();
-    }
   });
   await purgeTaskLocalState(
     { projectId: operation.projectId, taskId: operation.taskId },
     dependencies
   );
+}
+
+async function lifecycleWorkspaceIsUntracked(db: AppDb, workspaceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ untrackedAt: workspaces.untrackedAt })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+  return row !== undefined && row.untrackedAt !== null;
 }
 
 async function purgeTaskLocalState(

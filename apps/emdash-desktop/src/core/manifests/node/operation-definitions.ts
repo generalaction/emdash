@@ -17,14 +17,9 @@ import {
   type DeleteTaskOperationDependencies,
 } from '@core/features/tasks/node/operations/delete-task-definition';
 import {
-  cleanupSessionsOperationContribution,
-  type CleanupSessionsDependencies,
-} from '@core/features/workspaces/node/operations/cleanup-sessions-definition';
-import {
-  archiveWorkspaceOperationContribution,
-  deleteWorkspaceOperationContribution,
-  type WorkspaceLifecycleDependencies,
-} from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
+  hostOutboxOperationContribution,
+  type HostOutboxDependencies,
+} from '@core/features/workspaces/node/operations/host-outbox-definitions';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationDefinition } from '@core/services/operations/node';
 
@@ -35,8 +30,7 @@ export type OperationDefinitionOptions = {
   deleteAutomation: DeleteAutomationOperationDependencies;
   deleteProject: DeleteProjectOperationDependencies;
   deleteTask: DeleteTaskOperationDependencies;
-  workspaceLifecycle: WorkspaceLifecycleDependencies;
-  cleanupSessions: CleanupSessionsDependencies;
+  hostOutbox: HostOutboxDependencies;
 };
 
 export type DesktopOperationDefinitions = {
@@ -55,10 +49,8 @@ export function createOperationDefinitions(
   const definitions = [
     ...deleteTaskOperationContribution.create(options.deleteTask, runtime),
     ...deleteAutomationOperationContribution.create(options.deleteAutomation, runtime),
-    ...deleteWorkspaceOperationContribution.create(options.workspaceLifecycle, runtime),
-    ...archiveWorkspaceOperationContribution.create(options.workspaceLifecycle, runtime),
     ...deleteProjectOperationContribution.create(options.deleteProject, runtime),
-    ...cleanupSessionsOperationContribution.create(options.cleanupSessions, runtime),
+    ...hostOutboxOperationContribution.create(options.hostOutbox, runtime),
   ];
   const policy = createDesktopConflictPolicy(
     definitions.map((definition) => definition.definition)
@@ -73,36 +65,21 @@ export function createDesktopConflictPolicy(definitions: readonly AnyOperationDe
     if (!definition) throw new Error(`Missing operation definition '${name}'`);
     return definition;
   };
+  const names = [
+    'delete-task',
+    'delete-automation',
+    'delete-project',
+    'host-remove-worktree',
+    'host-create-worktree',
+    'host-remove-repository',
+  ] as const;
   return defineConflictPolicy((on) => {
-    on(get('delete-task'), get('delete-task')).queue();
-    on(get('delete-automation'), get('delete-automation')).queue();
-    on(get('delete-workspace'), get('delete-workspace')).queue();
-    on(get('archive-workspace'), get('archive-workspace')).queue();
-    on(get('delete-project'), get('delete-project')).queue();
-    on(get('cleanup-sessions'), get('cleanup-sessions')).queue();
-    on(get('delete-task'), get('cleanup-sessions')).supersede();
-    on(get('cleanup-sessions'), get('delete-task')).reject();
-    on(get('delete-workspace'), get('delete-task')).queue();
-    on(get('delete-task'), get('delete-workspace')).queue();
-    on(get('archive-workspace'), get('delete-task')).queue();
-    on(get('delete-task'), get('archive-workspace')).queue();
-    on(get('archive-workspace'), get('delete-workspace')).queue();
-    on(get('delete-workspace'), get('archive-workspace')).queue();
-    on(get('delete-project'), get('delete-task')).queue();
-    on(get('delete-task'), get('delete-project')).queue();
-    on(get('delete-project'), get('delete-workspace')).queue();
-    on(get('delete-workspace'), get('delete-project')).queue();
-    on(get('delete-project'), get('archive-workspace')).queue();
-    on(get('archive-workspace'), get('delete-project')).queue();
-    on(get('delete-project'), get('cleanup-sessions')).queue();
-    on(get('cleanup-sessions'), get('delete-project')).queue();
-    on(get('delete-workspace'), get('cleanup-sessions')).queue();
-    on(get('cleanup-sessions'), get('delete-workspace')).queue();
-    on(get('archive-workspace'), get('cleanup-sessions')).queue();
-    on(get('cleanup-sessions'), get('archive-workspace')).queue();
-    on(get('delete-project'), get('delete-automation')).queue();
-    on(get('delete-automation'), get('delete-project')).queue();
-    on(get('cleanup-sessions'), get('delete-automation')).queue();
-    on(get('delete-automation'), get('cleanup-sessions')).queue();
+    // Every colliding pair queues: desktop deletions are fast and outbox
+    // entries serialize per resource, so FIFO ordering is always safe.
+    for (const first of names) {
+      for (const second of names) {
+        on(get(first), get(second)).queue();
+      }
+    }
   });
 }

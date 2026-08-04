@@ -22,6 +22,11 @@ export const operationsContract = defineContract({
     data: operationMutationResultSchema,
     error: operationMutationErrorSchema,
   }),
+  cancel: fallible({
+    input: operationIdInputSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
+  }),
   operationTrees: liveModel({
     key: operationTreeKeySchema,
     states: {

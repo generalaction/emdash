@@ -3,14 +3,7 @@ import {
   type OperationStatus,
 } from '@emdash/core/primitives/operations/api';
 
-export const operationKinds = [
-  'delete-task',
-  'delete-automation',
-  'delete-workspace',
-  'archive-workspace',
-  'delete-project',
-  'cleanup-sessions',
-] as const;
+export const operationKinds = ['delete-task', 'delete-automation', 'delete-project'] as const;
 
 export type OperationKind = (typeof operationKinds)[number];
 

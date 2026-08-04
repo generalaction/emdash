@@ -115,6 +115,16 @@ export async function prepareCreateTask(
       const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
       const legacyType = isRemote ? 'project-ssh' : 'local';
 
+      // Task creation is UX-gated on host availability: the outbox absorbs
+      // transient disconnects mid-operation, but starting new work against an
+      // offline host is refused outright. Deletions never hit this gate.
+      if (isRemote && sshConnectionId && !operations.hostIsReachable(sshConnectionId)) {
+        return err({
+          type: 'provision-failed',
+          message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
+        });
+      }
+
       newWorkspaceValues = {
         id: workspaceId,
         kind: 'worktree',

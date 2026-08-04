@@ -6,6 +6,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import {
   projects,
   sshConnections as sshConnectionsTable,
+  workspaces,
   type SshConnectionInsert,
 } from '@core/services/app-db/node/schema';
 import {
@@ -30,11 +31,17 @@ type MachinesLog = {
   warn(message: string, metadata?: Record<string, unknown>): void;
 };
 
+type MachinesOperations = {
+  cancelPendingForHost(hostRef: string): Promise<number>;
+};
+
 export interface MachinesServiceDeps {
   db: AppDb;
   credentials: MachinesCredentials;
   ssh: MachinesSshRuntime;
   log: MachinesLog;
+  /** Late-bound: the operations engine boots after infrastructure services. */
+  getOperations?: () => MachinesOperations | undefined;
   createId?: () => string;
   now?: () => number;
 }
@@ -197,6 +204,22 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       const projectNames = referencingProjects.map((project) => project.name).join(', ');
       throw new Error(`SSH connection is used by ${projectNames}`);
     }
+
+    // Forget-host cascade: cancel every queued outbox entry targeting this
+    // host and untrack its registry rows. Untrack never deletes host state.
+    await this.deps
+      .getOperations?.()
+      ?.cancelPendingForHost(id)
+      .catch((error: unknown) => {
+        this.deps.log.warn('MachinesService.deleteMachine: error cancelling pending operations', {
+          connectionId: id,
+          error: String(error),
+        });
+      });
+    await this.deps.db
+      .update(workspaces)
+      .set({ untrackedAt: new Date(this.now()).toISOString() })
+      .where(and(eq(workspaces.sshConnectionId, id), isNull(workspaces.untrackedAt)));
 
     await this.deps.ssh.dropConnection(id).catch((error: unknown) => {
       this.deps.log.warn('MachinesService.deleteMachine: error disconnecting', {

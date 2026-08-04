@@ -180,7 +180,14 @@ export class WorkspaceHostRuntime {
       ],
       limit: 500,
     });
-    return page.records.find((record) => record.key === operationId);
+    // A terminal record can coexist with a fresh resubmission under the same
+    // client operation id; the latest record is the authoritative view.
+    return page.records
+      .filter((record) => record.key === operationId)
+      .reduce<OperationRecord | undefined>(
+        (latest, record) => (latest === undefined || record.seq > latest.seq ? record : latest),
+        undefined
+      );
   }
 
   private viewFor(record: OperationRecord): WorkspaceHostOperationView {
@@ -190,7 +197,7 @@ export class WorkspaceHostRuntime {
       kernelOperationId: record.id,
       verb: verbForRecord(record),
       status: record.status,
-      stages: progress?.stages ?? [],
+      stages: progress?.stages ?? stagesFromOutcome(record),
       updatedAt: record.updatedAt,
       ...(record.error
         ? {
@@ -214,6 +221,30 @@ function definitionFor(request: WorkspaceHostOperationInput) {
     case 'host.removeRepository':
       return removeRepositoryOperation;
   }
+}
+
+/**
+ * The live progress map only covers in-flight attempts; terminal views
+ * reconstruct their stage list from the persisted outcome summary so late
+ * watchers (e.g. a desktop reconnecting after completion) still see stages.
+ */
+function stagesFromOutcome(record: OperationRecord): WorkspaceHostOperationView['stages'] {
+  const outcome = record.outcome;
+  if (!outcome) return [];
+  const stages: WorkspaceHostOperationView['stages'] = outcome.completedStages.map((id) => ({
+    id,
+    label: id,
+    status: 'succeeded' as const,
+  }));
+  if (outcome.failedStage) {
+    stages.push({
+      id: outcome.failedStage,
+      label: outcome.failedStage,
+      status: 'failed' as const,
+      ...(record.error ? { error: { message: record.error.message } } : {}),
+    });
+  }
+  return stages;
 }
 
 function verbForRecord(record: OperationRecord): WorkspaceHostOperationView['verb'] {

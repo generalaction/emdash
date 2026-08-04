@@ -3,11 +3,11 @@ import { describe, expect, test } from 'vitest';
 import { deleteAutomationOperation } from '@core/features/automations/node/operations/delete-automation-definition';
 import { deleteProjectOperation } from '@core/features/projects/node/operations/delete-project-definition';
 import { deleteTaskOperation } from '@core/features/tasks/api/node/delete-task-operation';
-import { cleanupSessionsOperation } from '@core/features/workspaces/node/operations/cleanup-sessions-definition';
 import {
-  archiveWorkspaceOperation,
-  deleteWorkspaceOperation,
-} from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
+  hostCreateWorktreeOperation,
+  hostRemoveRepositoryOperation,
+  hostRemoveWorktreeOperation,
+} from '@core/features/workspaces/api/node/host-outbox-operations';
 import { createDesktopConflictPolicy } from './operation-definitions';
 
 describe('desktop operation conflict policy', () => {
@@ -32,34 +32,45 @@ describe('desktop operation conflict policy', () => {
         },
       },
       {
-        definition: deleteWorkspaceOperation,
+        definition: hostRemoveWorktreeOperation,
         input: {
           version: '1',
           source: 'user',
+          hostOperationId: 'host-op-1',
+          hostRef: 'local',
+          repoPath: '/repo',
           projectId: 'project-1',
           workspaceId: 'workspace-1',
-          entityKey: 'workspace-1',
-          hostRef: 'local',
-          projectPath: '/repo',
           workspacePath: '/repo/.worktrees/task-1',
           branchName: 'task-1',
-          deleteWorktree: true,
           deleteBranch: false,
           createdAt: 1,
         },
       },
       {
-        definition: archiveWorkspaceOperation,
+        definition: hostCreateWorktreeOperation,
         input: {
           version: '1',
           source: 'user',
+          hostOperationId: 'host-op-2',
+          hostRef: 'local',
+          repoPath: '/repo',
           projectId: 'project-1',
           workspaceId: 'workspace-1',
-          entityKey: 'workspace-1',
-          hostRef: 'local',
-          projectPath: '/repo',
           workspacePath: '/repo/.worktrees/task-1',
           branchName: 'task-1',
+          createdAt: 1,
+        },
+      },
+      {
+        definition: hostRemoveRepositoryOperation,
+        input: {
+          version: '1',
+          source: 'user',
+          hostOperationId: 'host-op-3',
+          hostRef: 'local',
+          repoPath: '/repo',
+          projectId: 'project-1',
           createdAt: 1,
         },
       },
@@ -70,21 +81,6 @@ describe('desktop operation conflict policy', () => {
           source: 'user',
           projectId: 'project-1',
           hostRef: 'local',
-          createdAt: 1,
-        },
-      },
-      {
-        definition: cleanupSessionsOperation,
-        input: {
-          version: '1',
-          source: 'reconciler',
-          entityId: 'session-1',
-          projectId: 'project-1',
-          hostRef: 'local',
-          acpConversationIds: ['conversation-1'],
-          tuiConversationIds: [],
-          terminalSessionIds: [],
-          tmuxSessionNames: [],
           createdAt: 1,
         },
       },

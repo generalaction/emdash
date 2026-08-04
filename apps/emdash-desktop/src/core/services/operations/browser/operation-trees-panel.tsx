@@ -1,5 +1,7 @@
 import type {
   OperationDisplayState,
+  OperationPrediction,
+  OperationStageDisplay,
   OperationTree,
   OperationTreeRollupStatus,
 } from '@emdash/core/primitives/operations/api';
@@ -10,38 +12,64 @@ import { cn } from '@core/primitives/ui/browser/cn';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 
+type PanelAction = 'retry' | 'forget' | 'cancel';
+
+const ACTION_TOASTS: Record<
+  PanelAction,
+  { success: string; description: string; failure: string }
+> = {
+  retry: {
+    success: 'Cleanup resumed',
+    description: 'The cleanup will continue in the background.',
+    failure: 'Could not resume cleanup',
+  },
+  forget: {
+    success: 'Cleanup forgotten',
+    description: 'Emdash removed its records without deleting files on the host.',
+    failure: 'Could not forget cleanup',
+  },
+  cancel: {
+    success: 'Operation cancelled',
+    description: 'The queued operation will not run. Nothing was changed on the host.',
+    failure: 'Could not cancel operation',
+  },
+};
+
 export function OperationTreesPanel({
   trees,
   retry,
   forget,
+  cancel,
   className,
 }: {
   trees: OperationTree[];
   retry(operationId: string): Promise<void>;
   forget(operationId: string): Promise<void>;
+  cancel?(operationId: string): Promise<void>;
   className?: string;
 }) {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   if (trees.length === 0) return null;
   const attention = trees.some((tree) => treeNeedsAttention(tree));
 
-  const runAction = async (
-    action: 'retry' | 'forget',
-    cleanup: OperationDisplayState
-  ): Promise<void> => {
+  const actions: Record<PanelAction, ((operationId: string) => Promise<void>) | undefined> = {
+    retry,
+    forget,
+    cancel,
+  };
+  const runAction = async (action: PanelAction, cleanup: OperationDisplayState): Promise<void> => {
+    const perform = actions[action];
+    if (!perform) return;
     setPendingAction(`${action}:${cleanup.operationId}`);
     try {
-      await (action === 'retry' ? retry(cleanup.operationId) : forget(cleanup.operationId));
+      await perform(cleanup.operationId);
       toast({
-        title: action === 'retry' ? 'Cleanup resumed' : 'Cleanup forgotten',
-        description:
-          action === 'retry'
-            ? 'The cleanup will continue in the background.'
-            : 'Emdash removed its records without deleting files on the host.',
+        title: ACTION_TOASTS[action].success,
+        description: ACTION_TOASTS[action].description,
       });
     } catch (error) {
       toast({
-        title: action === 'retry' ? 'Could not resume cleanup' : 'Could not forget cleanup',
+        title: ACTION_TOASTS[action].failure,
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       });
@@ -93,6 +121,7 @@ export function OperationTreesPanel({
                 pendingAction={pendingAction}
                 rollup={treeProgressLabel(tree)}
                 runAction={runAction}
+                cancellable={cancel !== undefined}
               />
               {tree.children.map((child) => (
                 <OperationCleanupRow
@@ -100,6 +129,7 @@ export function OperationTreesPanel({
                   cleanup={child}
                   pendingAction={pendingAction}
                   runAction={runAction}
+                  cancellable={cancel !== undefined}
                   indented
                 />
               ))}
@@ -116,19 +146,25 @@ function OperationCleanupRow({
   pendingAction,
   runAction,
   rollup,
+  cancellable = false,
   indented = false,
 }: {
   cleanup: OperationDisplayState;
   pendingAction: string | null;
-  runAction(action: 'retry' | 'forget', cleanup: OperationDisplayState): Promise<void>;
+  runAction(action: PanelAction, cleanup: OperationDisplayState): Promise<void>;
   rollup?: string;
+  cancellable?: boolean;
   indented?: boolean;
 }) {
   const retryKey = `retry:${cleanup.operationId}`;
   const forgetKey = `forget:${cleanup.operationId}`;
+  const cancelKey = `cancel:${cleanup.operationId}`;
   const retryable = cleanupIsRetryable(cleanup);
   const forgettable = cleanupIsForgettable(cleanup);
+  const showCancel = cancellable && cleanupIsCancellable(cleanup);
   const confirmationReason = cleanupConfirmationReason(cleanup);
+  const prediction = cleanupPrediction(cleanup);
+  const stages = cleanupStages(cleanup);
   return (
     <div className={cn('flex flex-wrap items-center gap-3 py-1', indented && 'pl-5')}>
       <div className="min-w-0 flex-1">
@@ -162,8 +198,10 @@ function OperationCleanupRow({
         {cleanup.error && (
           <div className="mt-0.5 truncate text-foreground-destructive">{cleanup.error}</div>
         )}
+        {stages && <OperationStageRows stages={stages} />}
+        {!stages && prediction && <OperationPredictionRows prediction={prediction} />}
       </div>
-      {(retryable || forgettable) && (
+      {(retryable || forgettable || showCancel) && (
         <div className="flex shrink-0 items-center gap-2">
           {retryable && (
             <Button
@@ -174,6 +212,17 @@ function OperationCleanupRow({
             >
               {pendingAction === retryKey && <Spinner className="size-3.5" />}
               Clean up now
+            </Button>
+          )}
+          {showCancel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pendingAction !== null}
+              onClick={() => void runAction('cancel', cleanup)}
+            >
+              {pendingAction === cancelKey && <Spinner className="size-3.5" />}
+              Cancel
             </Button>
           )}
           {forgettable && (
@@ -193,20 +242,121 @@ function OperationCleanupRow({
   );
 }
 
+/** Live stage journal for a running or failed operation. */
+function OperationStageRows({ stages }: { stages: readonly OperationStageDisplay[] }) {
+  if (stages.length === 0) return null;
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {stages.map((stage) => (
+        <li key={stage.id} className="flex items-center gap-1.5 text-foreground-muted">
+          <span className="w-3 text-center" aria-hidden>
+            {stageStatusGlyph(stage.status)}
+          </span>
+          <span
+            className={cn(
+              'truncate',
+              stage.status === 'failed' && 'text-foreground-destructive',
+              stage.status === 'running' && 'text-foreground'
+            )}
+          >
+            {stage.label}
+          </span>
+          {stage.error && (
+            <span className="truncate text-foreground-destructive">— {stage.error.message}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Desktop-compiled preview for a queued host operation. Rendered dimmed with a
+ * staleness caption; replaced wholesale by the host's own stage stream once
+ * the operation runs.
+ */
+function OperationPredictionRows({ prediction }: { prediction: OperationPrediction }) {
+  if (prediction.stages.length === 0) return null;
+  return (
+    <div className="mt-1 opacity-60">
+      <ul className="space-y-0.5">
+        {prediction.stages.map((stage) => (
+          <li key={stage.id} className="flex items-center gap-1.5 text-foreground-muted">
+            <span className="w-3 text-center" aria-hidden>
+              ○
+            </span>
+            <span className="truncate">{stage.label}</span>
+            {stage.basis === 'assumed' && <span className="text-[10px] uppercase">assumed</span>}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-0.5 text-[11px] italic">{predictionCaption(prediction)}</p>
+    </div>
+  );
+}
+
+function predictionCaption(prediction: OperationPrediction): string {
+  if (prediction.observedAsOf === null) {
+    return 'Planned — the host decides what actually runs.';
+  }
+  return `Planned — based on what was last seen ${relativeTime(prediction.observedAsOf)}. The host decides.`;
+}
+
+function stageStatusGlyph(status: OperationStageDisplay['status']): string {
+  switch (status) {
+    case 'succeeded':
+      return '✓';
+    case 'failed':
+      return '✕';
+    case 'running':
+      return '●';
+    case 'skipped':
+      return '–';
+    case 'pending':
+      return '○';
+  }
+}
+
+function cleanupPrediction(cleanup: OperationDisplayState): OperationPrediction | undefined {
+  if (
+    cleanup.status === 'queued' ||
+    cleanup.status === 'waiting' ||
+    cleanup.status === 'blocked-host-offline'
+  ) {
+    return cleanup.prediction;
+  }
+  return undefined;
+}
+
+function cleanupStages(
+  cleanup: OperationDisplayState
+): readonly OperationStageDisplay[] | undefined {
+  if (cleanup.status === 'running' || cleanup.status === 'failed') return cleanup.stages;
+  return undefined;
+}
+
+export function cleanupIsCancellable(cleanup: OperationDisplayState): boolean {
+  return (
+    cleanup.status === 'queued' ||
+    cleanup.status === 'waiting' ||
+    cleanup.status === 'blocked-host-offline'
+  );
+}
+
 export function operationKindLabel(kind: string): string {
   switch (kind) {
     case 'delete-task':
       return 'Deleting task';
     case 'delete-automation':
       return 'Deleting automation';
-    case 'delete-workspace':
-      return 'Deleting workspace';
-    case 'archive-workspace':
-      return 'Archiving workspace';
     case 'delete-project':
       return 'Deleting project';
-    case 'cleanup-sessions':
-      return 'Cleaning up sessions';
+    case 'host-remove-worktree':
+      return 'Removing worktree';
+    case 'host-create-worktree':
+      return 'Creating worktree';
+    case 'host-remove-repository':
+      return 'Removing repository';
     default:
       return 'Cleaning up';
   }

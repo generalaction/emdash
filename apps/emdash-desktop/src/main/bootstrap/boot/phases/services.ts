@@ -55,14 +55,11 @@ import {
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
 import { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
+import type { DeleteTaskOperationDependencies } from '@core/features/tasks/node/operations/delete-task-definition';
 import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
 import { installTaskTelemetry } from '@core/features/telemetry/node/task-telemetry';
 import { desktopHostEvents } from '@core/features/workbench/node/event-host';
-import {
-  lifecycleWorkspaceIsUnused,
-  WorkspaceInUseError,
-} from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
-import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
+import { deactivateWorkspaceConsumers } from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
 import {
   loadProjectWorktreeDirectory,
   WorkspacePlacementResolver,
@@ -73,12 +70,6 @@ import {
   createWorkspaceLifecycleParticipants,
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/node/lifecycle-participants';
-import { listProjectWorkspaces } from '@core/features/workspaces/node/operations/list-project-workspaces';
-import {
-  submitReconcilerWorkspaceCleanup,
-  type WorkspaceLifecycleDependencies,
-} from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
-import { shouldProposeWorkspaceCleanup } from '@core/features/workspaces/node/operations/workspace-reconciliation-policy';
 import { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
@@ -106,6 +97,7 @@ import {
   resolveLifecycleSessionTargets,
   type SessionCleanupDependencies,
 } from '@main/core/runtime/operations/session-cleanup';
+import { sweepSessionHygiene } from '@main/core/runtime/operations/session-hygiene';
 import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
@@ -504,15 +496,6 @@ export async function bootServices(
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
   const sessionCleanupDependencies: SessionCleanupDependencies = {
-    async assertWorkspaceDeleteAllowed(database, operation) {
-      if (
-        operation.kind === 'delete-workspace' &&
-        operation.workspaceId &&
-        !(await lifecycleWorkspaceIsUnused(database, operation.workspaceId))
-      ) {
-        throw new WorkspaceInUseError();
-      }
-    },
     getAcpRuntimeClient: async () => clients.acp,
     getProjectTerminals: (projectId: string) => projectManager.getProject(projectId)?.terminals,
     getTerminalsRuntimeClient,
@@ -522,12 +505,7 @@ export async function bootServices(
     projects: projectManager,
     workspaceBootstrap: workspaceBootstrapService,
   };
-  const lifecycleCleanup = {
-    projects: projectManager,
-    runtimes,
-    unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
-  };
-  const lifecycleSessions: WorkspaceLifecycleDependencies['sessions'] = {
+  const lifecycleSessions: DeleteTaskOperationDependencies['sessionCleanup'] = {
     resolve: (database, operation, context) =>
       resolveLifecycleSessionTargets(sessionCleanupDependencies, database, operation, context),
     killAcp: (database, operation, targets) =>
@@ -541,25 +519,21 @@ export async function bootServices(
         targets
       ),
   };
-  const workspaceLifecycle = {
-    cleanup: lifecycleCleanup,
-    lifecycleContext,
-    sessions: lifecycleSessions,
-  };
   const desktopClientId = await getDesktopClientId();
+  // The snapshot sync service is constructed after the operations engine; the
+  // outbox definitions capture it through this late-bound reference.
+  const workspaceSnapshotSyncRef: { current?: WorkspaceSnapshotSyncService } = {};
   const operationDefinitions = createOperationDefinitions({
     db,
     initiatedBy: desktopClientId,
     deleteTask: {
       getMementosRuntimeClient,
-      lifecycleCleanup,
       lifecycleContext,
       sessionCleanup: lifecycleSessions,
       telemetry: telemetryService,
       unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
     },
     deleteAutomation: { runtimes },
-    workspaceLifecycle,
     deleteProject: {
       automations: automationsService,
       getMementosRuntimeClient,
@@ -568,47 +542,17 @@ export async function bootServices(
       pullRequests: pullRequestsRegistration,
       telemetry: telemetryService,
     },
-    cleanupSessions: {
-      agentStatus: agentStatusService,
-      createSessionIntentStores: createDesktopSessionIntentStores,
-      lifecycle: {
-        resolveTargets: lifecycleSessions.resolve,
-        killAcp: lifecycleSessions.killAcp,
-        killTerminals: lifecycleSessions.killTerminals,
+    hostOutbox: {
+      runtimes,
+      requestSnapshot: ({ hostRef, repoPath }) => {
+        void workspaceSnapshotSyncRef.current?.requestRepoPath(hostRef, repoPath, 'full');
       },
-      logger: log,
-      resolveLifecycleOperationContext: (database, operation) =>
-        resolveLifecycleOperationContext(lifecycleContext, database, operation, {
-          resolveRuntimeConfig: true,
-        }),
-      submitReconcilerWorkspaceCleanup,
-      listProjectWorkspaces: (projectId) =>
-        listProjectWorkspaces(
-          {
-            db,
-            runtimes,
-            taskSessions: taskSessionManager,
-          },
-          projectId
+      deactivateWorkspace: (input, options) =>
+        deactivateWorkspaceConsumers(
+          { runtimes },
+          { ...input, initiatedBy: desktopClientId },
+          options
         ),
-      shouldProposeWorkspaceCleanup,
-      getProjectTerminals: (projectId) => projectManager.getProject(projectId)?.terminals,
-      runtimeSessions: {
-        listAcpConversationIds: async () => {
-          const snapshot = await clients.acp.sessions.state(undefined, 'list').snapshot();
-          return Object.keys(snapshot.data);
-        },
-        listTuiConversationIds: async () => {
-          const tui = await getTuiAgentsRuntimeClient();
-          const snapshot = await tui.sessions.state(undefined, 'list').snapshot();
-          return Object.keys(snapshot.data);
-        },
-        listTerminalSessions: async () => {
-          const terminals = await getTerminalsRuntimeClient();
-          const snapshot = await terminals.sessions.state(undefined, 'list').snapshot();
-          return Object.values(snapshot.data);
-        },
-      },
     },
   });
   const operations = await createOperationsEngine({
@@ -641,6 +585,25 @@ export async function bootServices(
     runtimes,
     scope: appScope,
     onError: (context, error) => log.warn(context, { error }),
+  });
+  workspaceSnapshotSyncRef.current = workspaceSnapshotSync;
+  const sessionHygieneDependencies = {
+    agentStatus: agentStatusService,
+    createSessionIntentStores: createDesktopSessionIntentStores,
+    logger: log,
+  };
+  const sessionHygieneInterval = setInterval(
+    () => {
+      void sweepSessionHygiene(db, sessionHygieneDependencies).catch((error) => {
+        log.warn('session hygiene sweep failed', { error: String(error) });
+      });
+    },
+    10 * 60 * 1000
+  );
+  sessionHygieneInterval.unref?.();
+  appScope.add(() => clearInterval(sessionHygieneInterval));
+  void sweepSessionHygiene(db, sessionHygieneDependencies).catch((error) => {
+    log.warn('session hygiene sweep failed', { error: String(error) });
   });
   const handleWorkspaceSnapshotSshEvent = (event: { type: string; connectionId?: string }) => {
     if (event.connectionId && (event.type === 'connected' || event.type === 'reconnected')) {

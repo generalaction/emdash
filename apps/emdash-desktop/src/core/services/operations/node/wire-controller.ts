@@ -6,6 +6,7 @@ export function createOperationsWireController(operations: OperationsEngine) {
   return createController(operationsContract, {
     retry: ({ operationId }) => operations.retry(operationId),
     forget: ({ operationId }) => operations.forget(operationId),
+    cancel: ({ operationId }) => operations.cancel(operationId),
     operationTrees: createOperationTreesProvider(operations),
   });
 }

@@ -1,25 +1,15 @@
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
-import {
-  hostFileRefFromNativePath,
-  nativePathFromHost,
-} from '@core/primitives/desktop-runtime/api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import {
-  conversations,
-  tasks,
-  terminals,
-  type WorkspaceRow,
-} from '@core/services/app-db/node/schema';
+import { conversations, terminals, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { LifecycleOperationParams } from '@core/services/operations/node';
-import { createDesktopSessionIntentStores } from '@main/core/runtime/session-intent-stores';
 import type {
   AcpRuntimeClient,
   TerminalsRuntimeClient,
   TuiAgentsRuntimeClient,
 } from '@main/gateway/desktop-workers';
-import { log } from '@main/lib/logger';
 
 export type LifecycleSessionTargets = {
   acpConversationIds: string[];
@@ -34,7 +24,6 @@ export type LifecycleSessionContext = {
 };
 
 export type SessionCleanupDependencies = {
-  assertWorkspaceDeleteAllowed(db: AppDb, operation: LifecycleOperationParams): Promise<void>;
   getAcpRuntimeClient(): Promise<AcpRuntimeClient>;
   getProjectTerminals(
     projectId: string
@@ -47,17 +36,24 @@ type SessionTargetSets = {
   [K in keyof LifecycleSessionTargets]: Set<string>;
 };
 
+/**
+ * Resolves the task-scoped sessions a delete-task operation should stop.
+ * Path-scoped session cleanup is the workspace host's job (the removeWorktree
+ * verb kills sessions under the worktree path).
+ */
 export async function resolveLifecycleSessionTargets(
-  dependencies: SessionCleanupDependencies,
+  _dependencies: SessionCleanupDependencies,
   db: AppDb,
   operation: LifecycleOperationParams,
-  context: LifecycleSessionContext,
-  options: { includeRuntimeTargets?: boolean } = {}
+  _context: LifecycleSessionContext
 ): Promise<LifecycleSessionTargets> {
-  const targets = payloadTargets(operation);
-  if (operation.kind === 'cleanup-sessions') return toArrays(targets);
-
-  const taskIds = await taskIdsForOperation(db, operation, context);
+  const targets: SessionTargetSets = {
+    acpConversationIds: new Set(),
+    tuiConversationIds: new Set(),
+    terminalSessionIds: new Set(),
+    tmuxSessionNames: new Set(),
+  };
+  const taskIds = operation.taskId ? [operation.taskId] : [];
   if (taskIds.length > 0) {
     const [acpRows, tuiRows, terminalRows] = await Promise.all([
       db
@@ -99,24 +95,15 @@ export async function resolveLifecycleSessionTargets(
     }
   }
 
-  if (
-    options.includeRuntimeTargets !== false &&
-    operation.kind !== 'delete-task' &&
-    context.workspacePath
-  ) {
-    await addRuntimePathTargets(dependencies, targets, operation, context.workspacePath);
-  }
-
   return toArrays(targets);
 }
 
 export async function killLifecycleAcpSessions(
   dependencies: SessionCleanupDependencies,
-  db: AppDb,
-  operation: LifecycleOperationParams,
+  _db: AppDb,
+  _operation: LifecycleOperationParams,
   targets: LifecycleSessionTargets
 ): Promise<void> {
-  await dependencies.assertWorkspaceDeleteAllowed(db, operation);
   if (targets.acpConversationIds.length === 0) return;
   const client = await dependencies.getAcpRuntimeClient();
   for (const conversationId of targets.acpConversationIds) {
@@ -129,12 +116,11 @@ export async function killLifecycleAcpSessions(
 
 export async function killLifecycleTerminalSessions(
   dependencies: SessionCleanupDependencies,
-  db: AppDb,
+  _db: AppDb,
   operation: LifecycleOperationParams,
   context: LifecycleSessionContext,
   targets: LifecycleSessionTargets
 ): Promise<void> {
-  await dependencies.assertWorkspaceDeleteAllowed(db, operation);
   if (targets.tuiConversationIds.length > 0) {
     const tui = await dependencies.getTuiAgentsRuntimeClient();
     for (const conversationId of targets.tuiConversationIds) {
@@ -165,15 +151,6 @@ export async function killLifecycleTerminalSessions(
   await projectTerminals.killTmuxSessions({ sessionNames: targets.tmuxSessionNames });
 }
 
-function payloadTargets(operation: LifecycleOperationParams): SessionTargetSets {
-  return {
-    acpConversationIds: new Set(operation.payload.acpConversationIds ?? []),
-    tuiConversationIds: new Set(operation.payload.tuiConversationIds ?? []),
-    terminalSessionIds: new Set(operation.payload.terminalSessionIds ?? []),
-    tmuxSessionNames: new Set(operation.payload.tmuxSessionNames ?? []),
-  };
-}
-
 function toArrays(targets: SessionTargetSets): LifecycleSessionTargets {
   return {
     acpConversationIds: [...targets.acpConversationIds],
@@ -181,74 +158,6 @@ function toArrays(targets: SessionTargetSets): LifecycleSessionTargets {
     terminalSessionIds: [...targets.terminalSessionIds],
     tmuxSessionNames: [...targets.tmuxSessionNames],
   };
-}
-
-async function taskIdsForOperation(
-  db: AppDb,
-  operation: LifecycleOperationParams,
-  context: LifecycleSessionContext
-): Promise<string[]> {
-  if (operation.kind === 'delete-task') {
-    return operation.taskId ? [operation.taskId] : [];
-  }
-  const workspaceId = operation.workspaceId ?? context.workspace?.id;
-  if (!workspaceId) return [];
-  const rows = await db
-    .select({ id: tasks.id })
-    .from(tasks)
-    .where(eq(tasks.workspaceId, workspaceId));
-  return rows.map((row) => row.id);
-}
-
-async function addRuntimePathTargets(
-  dependencies: SessionCleanupDependencies,
-  targets: SessionTargetSets,
-  operation: LifecycleOperationParams,
-  workspacePath: string
-): Promise<void> {
-  const terminalScan = dependencies
-    .getTerminalsRuntimeClient()
-    .then((client) => client.sessions.state(undefined, 'list').snapshot())
-    .then((snapshot) => {
-      for (const session of Object.values(snapshot.data)) {
-        const sessionHostRef =
-          session.key.workspace.host.type === 'local' ? 'local' : session.key.workspace.host.id;
-        if (
-          sessionHostRef === operation.hostRef &&
-          nativePathFromHost(session.key.workspace.path) === workspacePath
-        ) {
-          targets.terminalSessionIds.add(session.key.id);
-        }
-      }
-    })
-    .catch((error) => {
-      log.warn('lifecycle operation could not scan terminal runtime sessions', {
-        workspacePath,
-        error: String(error),
-      });
-    });
-
-  const stores = createDesktopSessionIntentStores();
-  const intentScans = [
-    { store: stores.acp, target: targets.acpConversationIds },
-    {
-      store: stores.tuiAgents,
-      target: targets.tuiConversationIds,
-      tmuxTarget: targets.tmuxSessionNames,
-    },
-  ].map(async ({ store, target, tmuxTarget }) => {
-    const result = await store.list();
-    if (!result.success) return;
-    for (const intent of result.data) {
-      if (readIntentStringField(intent.payload, 'cwd') === workspacePath) {
-        target.add(intent.conversationId);
-        const tmuxSessionName = readIntentStringField(intent.payload, 'tmuxSessionName');
-        if (tmuxSessionName) tmuxTarget?.add(tmuxSessionName);
-      }
-    }
-  });
-
-  await Promise.all([terminalScan, ...intentScans]);
 }
 
 function isMissingError(error: unknown): boolean {
@@ -262,10 +171,4 @@ function errorMessage(error: unknown): string {
     return String(error.message);
   }
   return String(error);
-}
-
-function readIntentStringField(value: unknown, key: string): string | undefined {
-  if (typeof value !== 'object' || value === null) return undefined;
-  const field = (value as Record<string, unknown>)[key];
-  return typeof field === 'string' ? field : undefined;
 }

@@ -1,5 +1,6 @@
 import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import { enqueueDeleteWorkspacePath } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import type {
   ProjectWorkspaceActionResult,
   ProjectWorkspaceActionSummary,
@@ -13,7 +14,6 @@ import {
   projectWorkspaceHost,
   type ListProjectWorkspacesDependencies,
 } from './list-project-workspaces';
-import { enqueueDeleteWorkspacePath } from './workspace-lifecycle-definitions';
 
 export async function deleteProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies & {

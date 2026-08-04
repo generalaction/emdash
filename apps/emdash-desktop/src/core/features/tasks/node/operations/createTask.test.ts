@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
   getProject: vi.fn(),
   select: vi.fn(),
   hasClaimConflict: vi.fn(),
+  hostIsReachable: vi.fn(),
 }));
 const operations = {
   hasClaimConflict: mocks.hasClaimConflict,
+  hostIsReachable: mocks.hostIsReachable,
 } as never;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
 const projects = { getProject: mocks.getProject };
@@ -81,6 +83,7 @@ describe('createTask', () => {
     vi.clearAllMocks();
     mocks.getProject.mockReturnValue({});
     mocks.hasClaimConflict.mockResolvedValue(false);
+    mocks.hostIsReachable.mockReturnValue(true);
     setupTransactionMock();
     setupSelectMock();
   });
@@ -248,6 +251,34 @@ describe('createTask', () => {
       expect(wsInsert.location).toBe('remote');
       expect(wsInsert.type).toBe('project-ssh');
       expect(wsInsert.sshConnectionId).toBe('conn-1');
+    });
+
+    it('refuses creation when the remote host is unreachable', async () => {
+      setupSelectMock('ssh', 'conn-1');
+      mocks.hostIsReachable.mockReturnValue(false);
+      const { captured } = setupTransactionMock();
+
+      const result = await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/ssh',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.type).toBe('provision-failed');
+      }
+      expect(mocks.hostIsReachable).toHaveBeenCalledWith('conn-1');
+      expect(captured).toHaveLength(0);
     });
   });
 

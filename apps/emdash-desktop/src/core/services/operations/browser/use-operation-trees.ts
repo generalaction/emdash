@@ -10,6 +10,7 @@ export type OperationTreesClient = {
   operationTrees: LiveModelClientHandle<OperationsContract['operationTrees']>;
   retry(input: { operationId: string }): Promise<OperationMutationResponse>;
   forget(input: { operationId: string }): Promise<OperationMutationResponse>;
+  cancel(input: { operationId: string }): Promise<OperationMutationResponse>;
 };
 
 type OperationTreesRemote = RemoteModel<typeof operationsContract.operationTrees>;
@@ -24,6 +25,7 @@ export function useOperationTrees(
   trees: OperationTree[];
   retry(operationId: string): Promise<void>;
   forget(operationId: string): Promise<void>;
+  cancel(operationId: string): Promise<void>;
 } {
   const key = useMemo(() => ({ projectId }), [projectId]);
   const treeListState = useRemoteModelState(
@@ -59,7 +61,15 @@ export function useOperationTrees(
     [getClient]
   );
 
-  return { trees, retry, forget };
+  const cancel = useCallback(
+    async (operationId: string) => {
+      const result = await (await getClient()).cancel({ operationId });
+      if (!result.success) throw new Error(result.error.message);
+    },
+    [getClient]
+  );
+
+  return { trees, retry, forget, cancel };
 }
 
 function getOperationTreesRemote(

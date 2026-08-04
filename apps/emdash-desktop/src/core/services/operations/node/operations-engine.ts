@@ -23,6 +23,7 @@ import {
   type OperationConfirmationReason,
   type OperationDisplayState,
   type OperationMutationError,
+  type OperationStageDisplay,
   type OperationTree,
   type OperationTreeKey,
   type OperationTreeList,
@@ -204,6 +205,51 @@ export class OperationsEngine {
     return ok({ operationId: submitted.data.id });
   }
 
+  /**
+   * Cancels a queued (never-dispatched) operation. Running operations are not
+   * cancellable through this path — the outbox contract is pending-only
+   * cancellation; use `forget` for terminal cleanup.
+   */
+  async cancel(operationId: string): Promise<OperationMutation> {
+    const record = await this.kernel.get(operationId);
+    if (!record) {
+      return err({
+        type: 'operation-not-found',
+        message: `Operation ${operationId} was not found`,
+      });
+    }
+    if (record.status !== 'pending') {
+      return err({
+        type: 'operation-not-cancellable',
+        message: 'Only queued operations can be cancelled',
+      });
+    }
+    await this.kernel.cancel(operationId);
+    this.refreshOperationTrees();
+    return ok({ operationId });
+  }
+
+  /**
+   * Forget-host cascade: cancels every queued operation targeting the host so
+   * its rows can be untracked without leaving orphaned outbox entries.
+   */
+  async cancelPendingForHost(hostRef: string): Promise<number> {
+    const active = await this.kernel.query({ active: true });
+    let cancelled = 0;
+    for (const record of active.records) {
+      if (record.status !== 'pending') continue;
+      if (this.hostRefFromRecord(record) !== hostRef) continue;
+      await this.kernel.cancel(record.id);
+      cancelled += 1;
+    }
+    if (cancelled > 0) this.refreshOperationTrees();
+    return cancelled;
+  }
+
+  hostIsReachable(hostRef: string): boolean {
+    return this.hostIsOnline(hostRef);
+  }
+
   async forget(operationId: string): Promise<OperationMutation> {
     const root = await this.getRoot(operationId);
     if (!root) {
@@ -330,6 +376,13 @@ export class OperationsEngine {
             currentStep: current?.id,
             completedSteps: update.stages.filter((stage) => stage.status === 'succeeded').length,
             totalSteps: update.stages.length,
+            stages: update.stages.map((stage) => ({
+              id: stage.id,
+              label: stage.label,
+              status: stage.status,
+              progress: stage.progress,
+              error: stage.error,
+            })),
           });
         }
         void this.refreshOperationTreeForRecord(update.operationId);
@@ -409,6 +462,7 @@ export class OperationsEngine {
       totalSteps: progress?.totalSteps,
       error: record.error?.message,
     };
+    const prediction = descriptor.prediction?.(parsed.data);
     if (rejected) {
       return {
         ...base,
@@ -418,16 +472,23 @@ export class OperationsEngine {
       };
     }
     if (status.kind === 'deferred' && status.reason === 'gated') {
-      return { ...base, status: 'blocked-host-offline' };
+      return { ...base, status: 'blocked-host-offline', prediction };
     }
-    if (status.kind === 'waiting') return { ...base, status: 'waiting' };
-    if (status.kind === 'running') return { ...base, status: 'running' };
+    if (status.kind === 'waiting') return { ...base, status: 'waiting', prediction };
+    if (status.kind === 'running') {
+      return { ...base, status: 'running', stages: progress?.stages };
+    }
     if (status.kind === 'waiting-children') return { ...base, status: 'waiting-children' };
     if (status.kind === 'succeeded') return { ...base, status: 'succeeded' };
     if (status.kind === 'failed' || status.kind === 'rejected') {
-      return { ...base, status: 'failed', error: base.error ?? 'Operation failed' };
+      return {
+        ...base,
+        status: 'failed',
+        error: base.error ?? 'Operation failed',
+        stages: progress?.stages,
+      };
     }
-    return { ...base, status: 'queued' };
+    return { ...base, status: 'queued', prediction };
   }
 
   private refreshOperationTrees(projectId?: string): void {
@@ -586,7 +647,7 @@ export class OperationsEngine {
   ): void {
     if (!isReconcilerInput(input)) return;
     const descriptor = this.definitions.get(definition.name);
-    if (!descriptor || definition.name === 'cleanup-sessions') return;
+    if (!descriptor) return;
     const description = descriptor.describe(input);
     const payload: OperationPayload = {
       version: '2',
@@ -609,6 +670,7 @@ type OperationProgressSummary = {
   currentStep?: string;
   completedSteps: number;
   totalSteps: number;
+  stages?: OperationStageDisplay[];
 };
 
 function needsConfirmation(

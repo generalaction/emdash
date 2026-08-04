@@ -10,6 +10,7 @@ import { SshConnectionsModel } from '@core/services/ssh/node/connections-model';
 import type { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 import { SshService, type SshServiceDeps } from '@core/services/ssh/node/ssh-service';
+import { tryGetOperationsEngine } from '@main/core/operations/operations-engine-instance';
 
 export interface CreateSshServiceDeps {
   scope: Scope;
@@ -42,6 +43,7 @@ export function createSshService(deps: CreateSshServiceDeps): SshServiceHandle {
     credentials: deps.credentials,
     ssh,
     log: deps.logger,
+    getOperations: tryGetOperationsEngine,
   });
 
   scope.add(() => manager.disconnectAll());

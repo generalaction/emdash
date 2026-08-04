@@ -22,6 +22,10 @@ import {
   type WorkspaceSliceError,
 } from '@core/features/workspaces/api';
 import {
+  enqueueArchiveWorkspace,
+  enqueueDeleteWorkspace,
+} from '@core/features/workspaces/api/node/operations/workspace-removal';
+import {
   runCloneRepositoryProvision,
   type CloneRepositoryProvisionInput,
 } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
@@ -41,10 +45,6 @@ import { tasks } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
-import {
-  enqueueArchiveWorkspace,
-  enqueueDeleteWorkspace,
-} from './operations/workspace-lifecycle-definitions';
 
 type BootstrapKey = { workspaceId: string };
 type BootstrapState = Cell<WorkspaceBootstrapState>;
