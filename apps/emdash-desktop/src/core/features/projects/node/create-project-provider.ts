@@ -15,7 +15,6 @@ import {
   type ProjectProviderTransport,
 } from '@core/features/projects/api/node/project-provider';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import {
   hostPathFromNative,
   nativePathFromHost,
@@ -68,7 +67,6 @@ export type CreateProjectProviderDependencies = {
   }>;
   backfillGitHubAccount(provider: ProjectProvider): Promise<void>;
   taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>;
-  workspacePlacement: WorkspacePlacementResolver;
 };
 
 export async function createProvider(
@@ -81,7 +79,6 @@ export async function createProvider(
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
     const git = runtime.data.git;
     const filesClient = runtime.data.files;
-    const workspace = runtime.data.workspace;
     const terminals = runtime.data.terminals;
     const projectFiles = filesClientScope(filesClient, project.path);
     const repository = repositorySelector(project.path);
@@ -168,11 +165,9 @@ export async function createProvider(
       fetchService,
       hasRepository,
       git,
-      workspace,
       terminals,
       repository,
       dependencies.taskSessions,
-      dependencies.workspacePlacement,
       () => {}
     );
     await backfillGitHubAccount(dependencies, provider);

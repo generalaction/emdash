@@ -1,23 +1,17 @@
-import { randomUUID } from 'node:crypto';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type {
   GitBranchRef,
   GitRemotesState,
   RepositorySelector,
 } from '@emdash/core/runtimes/git/api';
-import { submitAndFollowWorkspaceOperation } from '@emdash/core/runtimes/workspace/api';
 import type { Unsubscribe } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import type { WorkspaceType } from '@core/features/workspaces/api/node/workspace-factory';
-import {
-  hostFileRefFromNativePath,
-  nativePathFromHost,
-} from '@core/primitives/desktop-runtime/api';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   projectHostRef,
   type Project,
@@ -27,7 +21,6 @@ import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type {
   GitRuntimeClient,
   TerminalsRuntimeClient,
-  WorkspaceRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 
@@ -97,7 +90,6 @@ export class ProjectProvider implements Disposable {
   readonly hasRepository: boolean;
   readonly files: FilesClientScope;
   readonly projectConfigPath: string;
-  readonly workspace: WorkspaceRuntimeClient;
   readonly terminals: TerminalsRuntimeClient;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
@@ -112,11 +104,9 @@ export class ProjectProvider implements Disposable {
     private readonly gitRepositoryFetchService: GitRepositoryFetchPort,
     hasRepository: boolean,
     git: GitRuntimeClient,
-    workspace: WorkspaceRuntimeClient,
     terminals: TerminalsRuntimeClient,
     repository: RepositorySelector,
     private readonly taskSessions: Pick<TaskSessionManager, 'teardownAllForProject'>,
-    private readonly workspacePlacement: WorkspacePlacementResolver,
     private readonly _releaseProjectLeases: () => void | Promise<void>
   ) {
     this.type = transport.kind;
@@ -129,7 +119,6 @@ export class ProjectProvider implements Disposable {
     this._resolveProjectPath = transport.resolveProjectPath;
     this._configPathForDirectory = transport.configPathForDirectory;
     this.git = git;
-    this.workspace = workspace;
     this.terminals = terminals;
     this.repository = repository;
     this.gitRepository = gitRepository;
@@ -172,46 +161,6 @@ export class ProjectProvider implements Disposable {
         candidate.head.name === taskBranch
     );
     return worktree ? nativePathFromHost(worktree.worktreePath) : null;
-  }
-
-  async removeTaskWorktree(taskBranch: string): Promise<void> {
-    const worktreePath = await this.findTaskWorktree(taskBranch);
-    if (worktreePath) {
-      const pool = await this.workspacePlacement.resolveWorktreePool(this.project);
-      if (!pool.success) throw new Error(pool.error.message);
-
-      const connectionId = this.project.type === 'ssh' ? this.project.connectionId : undefined;
-      const workspace = hostFileRefFromNativePath(worktreePath, connectionId);
-      const result = await submitAndFollowWorkspaceOperation(this.workspace, {
-        requestId: randomUUID(),
-        kind: 'teardown',
-        workspace,
-        params: {
-          kind: 'teardown',
-          input: {
-            workspace,
-            force: true,
-            lifecycle: {
-              ref: {
-                kind: 'worktree',
-                repoPath: this.repoPath,
-                path: worktreePath,
-                branchName: taskBranch,
-              },
-              context: {
-                repoPath: this.repoPath,
-                preservePatterns: [],
-                worktreePoolPath: pool.data,
-              },
-              deleteBranch: false,
-            },
-          },
-        },
-      });
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-    }
   }
 
   async release(): Promise<void> {

@@ -1,9 +1,6 @@
-import type { LegacyWorkspaceAutomation } from '@emdash/core/runtimes/workspace/api';
 import { eq } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
-import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
-import type { WorkspaceBootstrapService } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
@@ -24,12 +21,10 @@ export type LifecycleOperationContext = {
   workspaceKind?: WorkspaceRow['kind'];
   branchName?: string;
   preservePatterns: string[];
-  automation?: LegacyWorkspaceAutomation;
 };
 
 export type LifecycleOperationContextDependencies = {
   projects: Pick<ProjectSessionManager, 'getProject'>;
-  workspaceBootstrap: Pick<WorkspaceBootstrapService, 'resolveLegacyAutomation'>;
 };
 
 export async function resolveLifecycleOperationContext(
@@ -52,12 +47,6 @@ export async function resolveLifecycleOperationContext(
   const provider = projectId ? dependencies.projects.getProject(projectId) : undefined;
   const settings = options.resolveRuntimeConfig ? await provider?.settings.get() : undefined;
   const workspacePath = workspace?.path ?? operation.payload.workspacePath;
-  const automation =
-    options.resolveRuntimeConfig && provider && workspacePath && task
-      ? await dependencies.workspaceBootstrap
-          .resolveLegacyAutomation(provider, workspacePath, mapTaskRowToTask(task))
-          .catch(() => undefined)
-      : undefined;
 
   return {
     task,
@@ -70,6 +59,5 @@ export async function resolveLifecycleOperationContext(
       (workspace ? getProvisionedWorkspaceBranch(workspace) : undefined) ??
       operation.payload.branchName,
     preservePatterns: settings?.preservePatterns ?? [],
-    automation,
   };
 }

@@ -1,8 +1,6 @@
-import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, type Result } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
-import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { taskStoreContributions } from '@core/manifests/browser/task-scoped-stores';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {
@@ -39,14 +37,12 @@ export class TaskStore implements TaskState {
   data: UnregisteredTaskData | Task;
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
-  provisionProgressMessage: string | null = null;
-  provisionProgress: WorkspaceBootstrapProgress | null = null;
-  provisionError: WorkspaceError | null = null;
 
   /** The workspace ID for this task session — null when unprovisioned. */
   workspaceId: string | null = null;
   workspacePath: string | null = null;
   workspaceSshConnectionId: string | undefined;
+  workspaceObservedStatus: 'present' | 'missing' | 'corrupted' | null = null;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -76,6 +72,7 @@ export class TaskStore implements TaskState {
       workspaceId: observable,
       workspacePath: observable,
       workspaceSshConnectionId: observable,
+      workspaceObservedStatus: observable,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
@@ -84,6 +81,14 @@ export class TaskStore implements TaskState {
       { projectId, taskId: data.id, task: this, projectStores },
       taskStoreContributions
     );
+  }
+
+  setWorkspaceProjection(projection?: {
+    path: string | null;
+    observedStatus: 'present' | 'missing' | 'corrupted' | null;
+  }): void {
+    this.workspacePath = projection?.path ?? this.workspacePath;
+    this.workspaceObservedStatus = projection?.observedStatus ?? null;
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {
@@ -107,9 +112,6 @@ export class TaskStore implements TaskState {
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
-    this.provisionProgressMessage = null;
-    this.provisionProgress = null;
-    this.provisionError = null;
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -120,9 +122,6 @@ export class TaskStore implements TaskState {
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
-    this.provisionProgressMessage = null;
-    this.provisionProgress = null;
-    this.provisionError = null;
   }
 
   transitionToDryUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -131,9 +130,6 @@ export class TaskStore implements TaskState {
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
-    this.provisionProgressMessage = null;
-    this.provisionProgress = null;
-    this.provisionError = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
@@ -144,9 +140,6 @@ export class TaskStore implements TaskState {
     this.state = 'unregistered';
     this.phase = 'creating';
     this.errorMessage = undefined;
-    this.provisionProgressMessage = null;
-    this.provisionProgress = null;
-    this.provisionError = null;
   }
 
   activate(): void {

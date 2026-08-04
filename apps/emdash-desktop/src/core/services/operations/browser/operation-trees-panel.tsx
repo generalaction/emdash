@@ -142,6 +142,14 @@ export function OperationTreesPanel({
   );
 }
 
+export function OperationStatusDetails({ operation }: { operation: OperationDisplayState }) {
+  const stages = cleanupStages(operation);
+  const prediction = cleanupPrediction(operation);
+  if (stages) return <OperationStageRows stages={stages} />;
+  if (prediction) return <OperationPredictionRows prediction={prediction} />;
+  return null;
+}
+
 function OperationCleanupRow({
   cleanup,
   pendingAction,

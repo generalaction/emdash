@@ -2,7 +2,7 @@ import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica } from '@emdash/wire';
-import { observe, optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire';
+import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
@@ -20,12 +20,8 @@ import {
   formatPushErrorDetail,
 } from '@core/features/tasks/api/browser/utils';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
-import {
-  workspacesWireContract,
-  type WorkspaceBootstrapState,
-} from '@core/features/workspaces/api';
+import { workspacesWireContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
-import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';
 import {
@@ -150,10 +146,6 @@ export class TaskManagerStore {
   private _taskListData: TaskListData | null = null;
   private _taskStats: TaskStatsData = { byWorkspaceId: {} };
   private _taskListAttemptScope: Scope | null = null;
-  private _bootstrapRemotePromise: Promise<
-    RemoteModel<typeof workspacesWireContract.bootstrap>
-  > | null = null;
-  private _bootstrapScopes = new Map<string, Scope>();
   private readonly _taskMutations: TaskStoreMutations = {
     rename: (task, name) => this._renameTask(task, name),
     updateStatus: (task, status) => this._updateTaskStatus(task, status),
@@ -255,25 +247,25 @@ export class TaskManagerStore {
       getRowId: (row) => row.id,
       create: (row) => {
         const task = this._taskFromRow(row);
-        return createUnprovisionedTask(task, this.projectStores, this._taskMutations);
+        const store = createUnprovisionedTask(task, this.projectStores, this._taskMutations);
+        store.setWorkspaceProjection(
+          task.workspaceId ? this._taskStats.workspaceById?.[task.workspaceId] : undefined
+        );
+        return store;
       },
       update: (current, row) => {
         const task = this._taskFromRow(row);
+        current.setWorkspaceProjection(
+          task.workspaceId ? this._taskStats.workspaceById?.[task.workspaceId] : undefined
+        );
         if (isUnregistered(current)) {
           current.transitionToUnprovisioned(task);
-          if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
           return;
         }
         if (!isDeepEqual(current.data, task)) current.data = task;
-        if (task.workspaceId) this._watchWorkspaceBootstrap(task.id, task.workspaceId);
       },
       shouldKeepMissing: (_taskId, task) => isUnregistered(task),
-      onAppear: (_store, row) => {
-        if (row.workspaceId) this._watchWorkspaceBootstrap(row.id, row.workspaceId);
-      },
       remove: (task, taskId) => {
-        void this._bootstrapScopes.get(taskId)?.dispose();
-        this._bootstrapScopes.delete(taskId);
         task.dispose();
         appState.navigation.invalidateSubject(taskSubject({ taskId }));
       },
@@ -294,8 +286,13 @@ export class TaskManagerStore {
     for (const workspaceId of new Set([
       ...Object.keys(previous.byWorkspaceId),
       ...Object.keys(next.byWorkspaceId),
+      ...Object.keys(previous.workspaceById ?? {}),
+      ...Object.keys(next.workspaceById ?? {}),
     ])) {
-      if (!isDeepEqual(previous.byWorkspaceId[workspaceId], next.byWorkspaceId[workspaceId])) {
+      if (
+        !isDeepEqual(previous.byWorkspaceId[workspaceId], next.byWorkspaceId[workspaceId]) ||
+        !isDeepEqual(previous.workspaceById?.[workspaceId], next.workspaceById?.[workspaceId])
+      ) {
         changedWorkspaceIds.add(workspaceId);
       }
     }
@@ -310,6 +307,7 @@ export class TaskManagerStore {
         if (!isDeepEqual(task.data.workspaceGit, workspaceGit)) {
           task.data = { ...task.data, workspaceGit };
         }
+        task.setWorkspaceProjection(next.workspaceById?.[workspaceId]);
       }
     });
   }
@@ -379,9 +377,6 @@ export class TaskManagerStore {
         ) {
           current.workspaceId = result.data.task.workspaceId;
         }
-        if (result.data.task.workspaceId) {
-          this._watchWorkspaceBootstrap(result.data.task.id, result.data.task.workspaceId);
-        }
       }
     });
 
@@ -407,9 +402,6 @@ export class TaskManagerStore {
     runInAction(() => {
       task.phase = 'provision';
       task.errorMessage = undefined;
-      task.provisionError = null;
-      task.provisionProgress = null;
-      task.provisionProgressMessage = null;
     });
 
     const promise = this._doProvision(taskId).finally(() => {
@@ -432,19 +424,12 @@ export class TaskManagerStore {
         if (current && isUnprovisioned(current)) {
           current.phase = 'provision-error';
           current.errorMessage = message;
-          current.provisionError = {
-            type: 'missing-workspace',
-            message,
-          };
         }
       });
       return;
     }
 
-    // Single-phase provision: workspace bootstrap + task provider construction + registration.
-    workspaceRegistry.setBootstrapState(wsId, { kind: 'resolving' });
-    this._watchWorkspaceBootstrap(taskId, wsId);
-
+    // Activation gates on registry/outbox state, then assembles and registers the task session.
     const client = await getWorkspacesWireClient();
     const jobs = createLiveJobReplica(workspacesWireContract.provision, client.provision);
     const lease = await jobs.start({ workspaceId: wsId, taskId });
@@ -464,19 +449,15 @@ export class TaskManagerStore {
 
     if (!result.success) {
       const message = formatProvisionWorkspaceError(result.error);
-      workspaceRegistry.setBootstrapState(wsId, { kind: 'error', message });
       runInAction(() => {
         const current = this.tasks.get(taskId);
         if (current && isUnprovisioned(current)) {
           current.phase = 'provision-error';
           current.errorMessage = message;
-          current.provisionError = result.error;
         }
       });
       return;
     }
-
-    workspaceRegistry.setBootstrapState(wsId, { kind: 'ready' });
 
     const taskBeforeTransition = this.tasks.get(taskId);
     if (taskBeforeTransition && isUnprovisioned(taskBeforeTransition)) {
@@ -519,87 +500,6 @@ export class TaskManagerStore {
         current.activate();
       }
     });
-  }
-
-  private _watchWorkspaceBootstrap(taskId: string, workspaceId: string): void {
-    if (this._bootstrapScopes.has(taskId)) return;
-    const scope = this._taskListScope.child(`workspace-bootstrap:${workspaceId}`);
-    this._bootstrapScopes.set(taskId, scope);
-
-    void (async () => {
-      const bootstrapRemote = await this._getBootstrapRemote();
-      if (this._bootstrapScopes.get(taskId) !== scope) {
-        await scope.dispose();
-        return;
-      }
-      const member = bootstrapRemote({ workspaceId });
-      observe(
-        member.states.state,
-        (current) => {
-          if (!current.value) return;
-          this._handleBootstrapState(taskId, current.value);
-        },
-        { scope }
-      );
-    })().catch((error: unknown) => {
-      log.warn('Failed to watch workspace bootstrap state', { error });
-      this._bootstrapScopes.delete(taskId);
-      void scope.dispose();
-    });
-  }
-
-  private _handleBootstrapState(taskId: string, state: WorkspaceBootstrapState): void {
-    const store = this.tasks.get(taskId);
-    if (!store) return;
-
-    if (state.status === 'provisioning' && isUnprovisioned(store)) {
-      const workspaceId = store.data.workspaceId;
-      if (workspaceId) {
-        workspaceRegistry.setBootstrapState(workspaceId, { kind: 'resolving' });
-      }
-      runInAction(() => {
-        store.phase = 'provision';
-        store.provisionProgress = state.progress ?? null;
-        store.provisionError = null;
-        store.provisionProgressMessage = state.progress?.message ?? 'Setting up workspace…';
-      });
-      return;
-    }
-
-    if (state.status === 'error' && isUnprovisioned(store)) {
-      const message = formatProvisionWorkspaceError(state.error);
-      runInAction(() => {
-        store.phase = 'provision-error';
-        store.errorMessage = message;
-        store.provisionProgress = state.progress ?? store.provisionProgress;
-        store.provisionProgressMessage = state.progress?.message ?? store.provisionProgressMessage;
-        store.provisionError = state.error;
-      });
-      return;
-    }
-
-    if (state.status === 'ready') {
-      void this._doHandleProvisioned(
-        taskId,
-        state.result.path,
-        state.result.workspaceId,
-        state.result.sshConnectionId
-      );
-    }
-  }
-
-  private async _getBootstrapRemote(): Promise<
-    RemoteModel<typeof workspacesWireContract.bootstrap>
-  > {
-    if (!this._bootstrapRemotePromise) {
-      this._bootstrapRemotePromise = getWorkspacesWireClient().then((client) =>
-        remote(workspacesWireContract.bootstrap, client.bootstrap, {
-          scope: this._taskListScope,
-          lingerMs: 15_000,
-        })
-      );
-    }
-    return this._bootstrapRemotePromise;
   }
 
   async teardownTask(taskId: string): Promise<void> {
@@ -838,8 +738,5 @@ export class TaskManagerStore {
     void this._taskListAttemptScope?.dispose();
     void this._taskListRemote?.dispose();
     void this._taskStatsRemote?.dispose();
-    for (const scope of this._bootstrapScopes.values()) void scope.dispose();
-    this._bootstrapScopes.clear();
-    this._bootstrapRemotePromise = null;
   }
 }

@@ -1,14 +1,5 @@
-import { observable } from 'mobx';
 import { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import type { WorkspaceScopedStoreContext } from '@core/features/workspaces/contributions/browser/workspace-stores';
-import type { WorkspaceResolution } from '@core/primitives/workspaces/api';
-
-export type WorkspaceBootstrapState =
-  | { kind: 'pending' }
-  | { kind: 'resolving' }
-  | { kind: 'needs-resolution'; resolution: WorkspaceResolution }
-  | { kind: 'ready' }
-  | { kind: 'error'; message: string };
 
 type WorkspaceRegistryEntry = {
   store: WorkspaceStore;
@@ -18,9 +9,6 @@ type WorkspaceRegistryEntry = {
 
 export class WorkspaceRegistryStore {
   private readonly entries = new Map<string, WorkspaceRegistryEntry>();
-  /** Observable map of workspace bootstrap states, keyed by workspaceId. */
-  private readonly bootstrapStates = observable.map<string, WorkspaceBootstrapState>();
-
   acquire(context: WorkspaceScopedStoreContext): WorkspaceStore {
     const existing = this.entries.get(context.workspaceId);
     if (existing) {
@@ -57,20 +45,7 @@ export class WorkspaceRegistryStore {
     if (entry.refCount <= 0) {
       entry.store.dispose();
       this.entries.delete(workspaceId);
-      this.bootstrapStates.delete(workspaceId);
     }
-  }
-
-  // -------------------------------------------------------------------------
-  // Bootstrap state
-  // -------------------------------------------------------------------------
-
-  setBootstrapState(workspaceId: string, state: WorkspaceBootstrapState): void {
-    this.bootstrapStates.set(workspaceId, state);
-  }
-
-  bootstrapStateFor(workspaceId: string): WorkspaceBootstrapState | undefined {
-    return this.bootstrapStates.get(workspaceId);
   }
 }
 

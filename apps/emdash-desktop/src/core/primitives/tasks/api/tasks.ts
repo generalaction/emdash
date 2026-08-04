@@ -98,6 +98,13 @@ export type TaskListData = {
 
 export type TaskStatsData = {
   byWorkspaceId: Record<string, { linesAdded: number; linesDeleted: number }>;
+  workspaceById?: Record<
+    string,
+    {
+      path: string | null;
+      observedStatus: 'present' | 'missing' | 'corrupted' | null;
+    }
+  >;
 };
 
 export type TaskBootstrapStatus =

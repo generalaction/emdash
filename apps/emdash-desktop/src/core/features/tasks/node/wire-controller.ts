@@ -193,6 +193,8 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
   const rows = await db
     .select({
       id: workspaces.id,
+      path: workspaces.path,
+      observedStatus: workspaces.observedStatus,
       linesAdded: workspaces.linesAdded,
       linesDeleted: workspaces.linesDeleted,
     })
@@ -205,6 +207,9 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
           ? []
           : [[row.id, { linesAdded: row.linesAdded, linesDeleted: row.linesDeleted ?? 0 }]]
       )
+    ),
+    workspaceById: Object.fromEntries(
+      rows.map((row) => [row.id, { path: row.path, observedStatus: row.observedStatus }])
     ),
   };
 }
