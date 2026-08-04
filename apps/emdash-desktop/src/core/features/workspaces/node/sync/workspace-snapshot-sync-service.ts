@@ -1,9 +1,15 @@
+import {
+  hostRefFromParts,
+  isLocalHostRef,
+  parseHostRef,
+  sshConnectionIdOf,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { parseAbsolute } from '@emdash/core/primitives/path/api';
 import type { WorkspaceHostSnapshotTier } from '@emdash/core/runtimes/workspace-host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { and, eq, isNull } from 'drizzle-orm';
-import { hostRefFromWorkspaceRow } from '@core/features/workspaces/api/node/workspace-host-ref';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, workspaces, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import { applyRepoSnapshot } from './apply-repo-snapshot';
@@ -52,7 +58,13 @@ export class WorkspaceSnapshotSyncService {
   }
 
   /** Repo addressed by host + path, e.g. after a host operation completes. */
-  async requestRepoPath(hostRefValue: string, repoPath: string, tier: SyncTier): Promise<void> {
+  async requestRepoPath(
+    hostRefValue: SerializedHostRef,
+    repoPath: string,
+    tier: SyncTier
+  ): Promise<void> {
+    const host = parseHostRef(hostRefValue);
+    const connectionId = sshConnectionIdOf(host);
     const rows = await this.options.db
       .select({ id: workspaces.id })
       .from(workspaces)
@@ -61,9 +73,9 @@ export class WorkspaceSnapshotSyncService {
           isNull(workspaces.parentId),
           eq(workspaces.path, repoPath),
           isNull(workspaces.untrackedAt),
-          hostRefValue === 'local'
+          isLocalHostRef(host)
             ? isNull(workspaces.sshConnectionId)
-            : eq(workspaces.sshConnectionId, hostRefValue)
+            : eq(workspaces.sshConnectionId, connectionId!)
         )
       );
     for (const row of rows) {
@@ -131,7 +143,7 @@ export class WorkspaceSnapshotSyncService {
     const parsedPath = parseAbsolute(repository.path);
     if (!parsedPath.success) return;
 
-    const host = hostRefFromWorkspaceRow(repository);
+    const host = hostRefFromParts(repository.location, repository.sshConnectionId);
     const client = await this.options.runtimes.client(host);
     if (!client.success) return;
     const result = await client.data.workspaceHost.snapshotRepository({

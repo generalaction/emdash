@@ -1,4 +1,9 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
+import {
+  parseHostRef,
+  sshConnectionIdOf,
+  type HostRef,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { submitAndFollowWorkspaceOperation } from '@emdash/core/runtimes/workspace/api';
 import {
   runtimeResolveErrorAsError,
@@ -18,7 +23,7 @@ export type LifecycleCleanupDependencies = {
 export async function deactivateWorkspaceConsumers(
   dependencies: Pick<LifecycleCleanupDependencies, 'runtimes'>,
   input: {
-    hostRef: string;
+    hostRef: SerializedHostRef;
     workspacePath: string;
     consumers: 'all' | readonly string[];
     operationId: string;
@@ -28,7 +33,7 @@ export async function deactivateWorkspaceConsumers(
 ): Promise<void> {
   const workspace = hostFileRefFromNativePath(
     input.workspacePath,
-    input.hostRef === 'local' ? undefined : input.hostRef
+    sshConnectionIdOf(parseHostRef(input.hostRef))
   );
   const client = await resolveWorkspaceRuntimeClient(dependencies, workspace.host);
   const consumerIds =

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
 import type { ResourceClaim } from '@emdash/core/primitives/kernel/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -118,7 +119,11 @@ export async function prepareCreateTask(
       // Task creation is UX-gated on host availability: the outbox absorbs
       // transient disconnects mid-operation, but starting new work against an
       // offline host is refused outright. Deletions never hit this gate.
-      if (isRemote && sshConnectionId && !operations.hostIsReachable(sshConnectionId)) {
+      if (
+        isRemote &&
+        sshConnectionId &&
+        !operations.hostIsReachable(formatHostRef(hostRef('remote', sshConnectionId)))
+      ) {
         return err({
           type: 'provision-failed',
           message: 'The workspace host is offline. Reconnect the machine to create new tasks.',

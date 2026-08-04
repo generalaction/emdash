@@ -1,6 +1,6 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
+import { hostRefFromParts } from '@emdash/core/primitives/host/api';
 import { describe, expect, it, vi } from 'vitest';
-import { hostRefFromWorkspaceRow } from '@core/features/workspaces/api/node/workspace-host-ref';
 import {
   WorkspaceIdentityService,
   workspaceHostStorage,
@@ -150,12 +150,8 @@ describe('WorkspaceIdentityService', () => {
   });
 
   it('derives host refs from canonical workspace row fields', () => {
-    expect(hostRefFromWorkspaceRow({ location: 'local', sshConnectionId: null })).toEqual(
-      LOCAL_HOST_REF
-    );
-    expect(hostRefFromWorkspaceRow({ location: 'remote', sshConnectionId: 'ssh-1' })).toEqual(
-      hostRef('remote', 'ssh-1')
-    );
+    expect(hostRefFromParts('local', null)).toEqual(LOCAL_HOST_REF);
+    expect(hostRefFromParts('remote', 'ssh-1')).toEqual(hostRef('remote', 'ssh-1'));
   });
 
   it('maps canonical host refs back to legacy workspace storage fields', () => {

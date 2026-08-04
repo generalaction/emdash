@@ -1,4 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import {
+  formatHostRef,
+  hostRef,
+  LOCAL_HOST_REF,
+  serializedHostRefSchema,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { createOperationHandler, defineOperation } from '@emdash/core/primitives/kernel/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import { err, type Result } from '@emdash/shared';
@@ -51,7 +58,7 @@ const deleteProjectInputSchema = defineVersionedSchema()
       version: z.literal('1'),
       source: z.enum(['user', 'reconciler']),
       projectId: z.string(),
-      hostRef: z.literal('local'),
+      hostRef: serializedHostRefSchema,
       entityName: z.string().optional(),
       hostLabel: z.string().optional(),
       confirmedAt: z.number().int().nonnegative().optional(),
@@ -136,7 +143,7 @@ export function createDeleteProjectOperationDefinition(
         taskId: task.id,
         projectId: ctx.input.projectId,
         workspaceId: task.workspaceId,
-        hostRef: workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local',
+        hostRef: serializedOperationHostRef(workspace?.sshConnectionId ?? project?.sshConnectionId),
         entityName: task.name,
         hostLabel: project?.name,
         projectPath: project?.path,
@@ -185,7 +192,7 @@ export function createDeleteProjectOperationDefinition(
           version: '1',
           source: 'user',
           projectId: 'project-example',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           createdAt: 1,
         },
       },
@@ -246,7 +253,7 @@ export async function enqueueDeleteProject(operations: OperationsEngineLike, pro
     version: '1',
     source: 'user',
     projectId,
-    hostRef: 'local',
+    hostRef: formatHostRef(LOCAL_HOST_REF),
     entityName: project.name,
     createdAt,
   };
@@ -341,7 +348,7 @@ async function enqueueProvenanceWorktreeRemovals(
       version: '1',
       source: 'user',
       hostOperationId: randomUUID(),
-      hostRef: row.sshConnectionId ?? project.sshConnectionId ?? 'local',
+      hostRef: serializedOperationHostRef(row.sshConnectionId ?? project.sshConnectionId),
       repoPath: project.path,
       projectId: project.id,
       workspaceId: row.id,
@@ -385,7 +392,7 @@ async function reconcileProjectCleanups(context: OperationReconcileContext): Pro
       version: '1',
       source: 'reconciler',
       projectId: project.id,
-      hostRef: 'local',
+      hostRef: formatHostRef(LOCAL_HOST_REF),
       entityName: project.name,
       createdAt: context.clock.now(),
     });
@@ -393,7 +400,17 @@ async function reconcileProjectCleanups(context: OperationReconcileContext): Pro
 }
 
 function exampleInput(projectId: string): DeleteProjectOperationInput {
-  return { version: '1', source: 'reconciler', projectId, hostRef: 'local', createdAt: 1 };
+  return {
+    version: '1',
+    source: 'reconciler',
+    projectId,
+    hostRef: formatHostRef(LOCAL_HOST_REF),
+    createdAt: 1,
+  };
+}
+
+function serializedOperationHostRef(connectionId: string | null | undefined): SerializedHostRef {
+  return formatHostRef(connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF);
 }
 
 async function purgeProjectLocalState(

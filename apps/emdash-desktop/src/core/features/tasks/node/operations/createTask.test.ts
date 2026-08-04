@@ -1,3 +1,4 @@
+import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@core/services/app-db/node/schema';
 import { createTask } from './createTask';
@@ -277,7 +278,9 @@ describe('createTask', () => {
       if (!result.success) {
         expect(result.error.type).toBe('provision-failed');
       }
-      expect(mocks.hostIsReachable).toHaveBeenCalledWith('conn-1');
+      expect(mocks.hostIsReachable).toHaveBeenCalledWith(
+        formatHostRef(hostRef('remote', 'conn-1'))
+      );
       expect(captured).toHaveLength(0);
     });
   });

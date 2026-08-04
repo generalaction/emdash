@@ -1,4 +1,9 @@
-import { LOCAL_HOST_REF, hostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  formatHostRef,
+  LOCAL_HOST_REF,
+  parseHostRef,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import {
   createOperationHandler,
   type HandlerContext,
@@ -36,14 +41,14 @@ const DEACTIVATE_TIMEOUT_MS = 5 * 60_000;
 export type HostOutboxDependencies = {
   runtimes: Pick<RuntimeBroker, 'client'>;
   /** Requests a full snapshot of the affected repository after a verb lands. */
-  requestSnapshot?(input: { hostRef: string; repoPath: string }): void;
+  requestSnapshot?(input: { hostRef: SerializedHostRef; repoPath: string }): void;
   /**
    * Releases workspace-runtime consumers (running teardown scripts) before the
    * host removes a worktree. Runs only while the host is reachable.
    */
   deactivateWorkspace?(
     input: {
-      hostRef: string;
+      hostRef: SerializedHostRef;
       workspacePath: string;
       consumers: 'all' | readonly string[];
       operationId: string;
@@ -116,7 +121,7 @@ export function createHostRemoveWorktreeDefinition(
       version: '1',
       source: 'user',
       hostOperationId: 'host-op-example',
-      hostRef: 'local',
+      hostRef: formatHostRef(LOCAL_HOST_REF),
       repoPath: '/repo',
       workspacePath: '/repo/.worktrees/example',
       branchName: 'example',
@@ -153,7 +158,7 @@ export function createHostCreateWorktreeDefinition(
       version: '1',
       source: 'user',
       hostOperationId: 'host-op-example',
-      hostRef: 'local',
+      hostRef: formatHostRef(LOCAL_HOST_REF),
       repoPath: '/repo',
       workspacePath: '/repo/.worktrees/example',
       branchName: 'example',
@@ -186,7 +191,7 @@ export function createHostRemoveRepositoryDefinition(
       version: '1',
       source: 'user',
       hostOperationId: 'host-op-example',
-      hostRef: 'local',
+      hostRef: formatHostRef(LOCAL_HOST_REF),
       repoPath: '/repo',
       createdAt: 1,
     },
@@ -218,7 +223,7 @@ async function runHostVerb(
   input: HostOutboxInput,
   request: WorkspaceHostOperationInput
 ): Promise<WorkspaceHostOperationView> {
-  const client = await dependencies.runtimes.client(hostFromOperationRef(input.hostRef));
+  const client = await dependencies.runtimes.client(parseHostRef(input.hostRef));
   if (!client.success) {
     throw Object.assign(new Error(`Host ${input.hostRef} is unavailable`), {
       code: 'host-unreachable',
@@ -273,10 +278,6 @@ function parseHostPath(ctx: HandlerCtx, path: string) {
     });
   }
   return parsed.data;
-}
-
-function hostFromOperationRef(ref: string): HostRef {
-  return ref === 'local' ? LOCAL_HOST_REF : hostRef('remote', ref);
 }
 
 function hostOutboxDescriptor<D extends HostOutboxOperation>(

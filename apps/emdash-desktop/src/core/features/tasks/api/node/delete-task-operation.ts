@@ -1,3 +1,4 @@
+import { serializedHostRefSchema } from '@emdash/core/primitives/host/api';
 import { defineOperation } from '@emdash/core/primitives/kernel/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import z from 'zod';
@@ -17,7 +18,7 @@ const deleteTaskInputSchema = defineVersionedSchema()
       taskId: z.string(),
       projectId: z.string(),
       workspaceId: z.string().nullable().optional(),
-      hostRef: z.string(),
+      hostRef: serializedHostRefSchema,
       entityName: z.string().optional(),
       hostLabel: z.string().optional(),
       projectPath: z.string().optional(),

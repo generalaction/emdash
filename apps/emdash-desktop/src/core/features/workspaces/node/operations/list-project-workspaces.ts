@@ -1,4 +1,4 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
+import { hostRefFromParts, type HostRef } from '@emdash/core/primitives/host/api';
 import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
 import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
 import {
@@ -8,7 +8,6 @@ import {
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
-import { hostRefFromWorkspaceRow } from '@core/features/workspaces/api/node/workspace-host-ref';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
@@ -405,12 +404,14 @@ function pathKeyFor(host: HostRef, value: string): string {
 }
 
 function workspaceHost(workspace: WorkspaceRow, fallback: HostRef): HostRef {
-  return workspace.location === null ? fallback : hostRefFromWorkspaceRow(workspace);
+  return workspace.location === null
+    ? fallback
+    : hostRefFromParts(workspace.location, workspace.sshConnectionId);
 }
 
 export function projectWorkspaceHost(project: ProjectWorkspaceProjectRow): HostRef {
-  return hostRefFromWorkspaceRow({
-    location: project.repositoryWorkspaceLocation,
-    sshConnectionId: project.repositoryWorkspaceSshConnectionId,
-  });
+  return hostRefFromParts(
+    project.repositoryWorkspaceLocation,
+    project.repositoryWorkspaceSshConnectionId
+  );
 }

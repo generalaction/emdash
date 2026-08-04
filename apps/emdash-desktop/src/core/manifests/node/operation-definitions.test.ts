@@ -1,3 +1,4 @@
+import { formatHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { lintConflictPolicyCompleteness } from '@emdash/core/primitives/kernel/testing';
 import { describe, expect, test } from 'vitest';
 import { deleteAutomationOperation } from '@core/features/automations/node/operations/delete-automation-definition';
@@ -21,7 +22,7 @@ describe('desktop operation conflict policy', () => {
           taskId: 'task-1',
           projectId: 'project-1',
           workspaceId: 'workspace-1',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           projectPath: '/repo',
           workspacePath: '/repo/.worktrees/task-1',
           branchName: 'task-1',
@@ -37,7 +38,7 @@ describe('desktop operation conflict policy', () => {
           version: '1',
           source: 'user',
           hostOperationId: 'host-op-1',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           repoPath: '/repo',
           projectId: 'project-1',
           workspaceId: 'workspace-1',
@@ -53,7 +54,7 @@ describe('desktop operation conflict policy', () => {
           version: '1',
           source: 'user',
           hostOperationId: 'host-op-2',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           repoPath: '/repo',
           projectId: 'project-1',
           workspaceId: 'workspace-1',
@@ -68,7 +69,7 @@ describe('desktop operation conflict policy', () => {
           version: '1',
           source: 'user',
           hostOperationId: 'host-op-3',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           repoPath: '/repo',
           projectId: 'project-1',
           createdAt: 1,
@@ -80,7 +81,7 @@ describe('desktop operation conflict policy', () => {
           version: '1',
           source: 'user',
           projectId: 'project-1',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           createdAt: 1,
         },
       },
@@ -91,7 +92,7 @@ describe('desktop operation conflict policy', () => {
           source: 'user',
           automationId: 'automation-1',
           projectId: 'project-1',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           createdAt: 1,
         },
       },

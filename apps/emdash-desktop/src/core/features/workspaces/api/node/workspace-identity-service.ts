@@ -1,10 +1,10 @@
 import {
   hostRefEquals,
+  hostRefFromParts,
   hostRefKey,
   sshConnectionIdOf,
   type HostRef,
 } from '@emdash/core/primitives/host/api';
-import { hostRefFromWorkspaceRow } from './workspace-host-ref';
 
 export type WorkspaceIdentity = Readonly<{
   workspaceId: string;
@@ -100,7 +100,7 @@ export class WorkspaceIdentityService {
 function identityFromRow(row: WorkspaceIdentityRow): WorkspaceIdentity | null {
   return {
     workspaceId: row.workspaceId,
-    host: hostRefFromWorkspaceRow(row),
+    host: hostRefFromParts(row.location, row.sshConnectionId),
     path: row.path,
     projectId: row.projectId,
   };

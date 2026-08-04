@@ -5,3 +5,8 @@ export type HostRef = Readonly<{
   type: HostType;
   id: string;
 }>;
+
+/** Canonical durable/wire encoding produced by `formatHostRef`. */
+export type SerializedHostRef = string & {
+  readonly __serializedHostRef: 'SerializedHostRef';
+};

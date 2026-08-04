@@ -1,3 +1,4 @@
+import { formatHostRef, hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isOperationRejectedError, type StageContext } from '@emdash/core/primitives/kernel/api';
 import type {
   WorkspaceHostOperationInput,
@@ -25,7 +26,7 @@ function removeWorktreeInput(
     version: '1',
     source: 'user',
     hostOperationId: 'host-op-1',
-    hostRef: 'local',
+    hostRef: formatHostRef(LOCAL_HOST_REF),
     repoPath: '/repo',
     workspacePath: '/repo/.worktrees/example',
     branchName: 'example',
@@ -146,7 +147,10 @@ describe('host outbox removeWorktree definition', () => {
       'submit-host-operation',
       'host:remove-worktree',
     ]);
-    expect(requestSnapshot).toHaveBeenCalledWith({ hostRef: 'local', repoPath: '/repo' });
+    expect(requestSnapshot).toHaveBeenCalledWith({
+      hostRef: formatHostRef(LOCAL_HOST_REF),
+      repoPath: '/repo',
+    });
   });
 
   it('rejects non-retryably when the host operation terminally fails', async () => {
@@ -198,7 +202,7 @@ describe('host outbox removeWorktree definition', () => {
         err({ type: 'host-unavailable', message: 'offline' }) as unknown as RuntimeSession,
     } satisfies Pick<RuntimeBroker, 'client'>;
     const definition = createHostRemoveWorktreeDefinition({ runtimes, pollIntervalMs: 0 }, runtime);
-    const input = removeWorktreeInput({ hostRef: 'ssh-1' });
+    const input = removeWorktreeInput({ hostRef: formatHostRef(hostRef('remote', 'ssh-1')) });
     const { ctx, rejections } = fakeCtx(input);
 
     await expect(definition.handler.run(ctx)).rejects.toMatchObject({
@@ -233,7 +237,7 @@ describe('host outbox removeWorktree definition', () => {
 
     expect(deactivateWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
-        hostRef: 'local',
+        hostRef: formatHostRef(LOCAL_HOST_REF),
         workspacePath: '/repo/.worktrees/example',
         consumers: ['task-1'],
       }),

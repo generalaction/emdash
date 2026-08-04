@@ -1,3 +1,4 @@
+import { formatHostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { describe, expect, test } from 'vitest';
 import { deleteTaskKernelClaims, projectClaimKey, workspaceKernelClaims } from './resources';
 
@@ -14,7 +15,7 @@ describe('desktop operation kernel resources', () => {
           branchName: 'feature/a',
         },
         worktree: {
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           repoPath: '/repo',
           worktreePath: '/repo/.worktrees/feature',
         },
@@ -25,9 +26,9 @@ describe('desktop operation kernel resources', () => {
         ['project', 'project:project-1', 'intent-exclusive', true],
         ['workspace', 'workspace:workspace-1', 'exclusive', false],
         ['branch', 'branch:project-1:feature%2Fa', 'exclusive', false],
-        ['worktree', 'worktree:local:%2Frepo%2F.worktrees%2Ffeature', 'exclusive', false],
-        ['repo', 'repo:local:%2Frepo', 'intent-exclusive', true],
-        ['host', 'host:local', 'intent-exclusive', true],
+        ['worktree', 'worktree:local%3Alocal:%2Frepo%2F.worktrees%2Ffeature', 'exclusive', false],
+        ['repo', 'repo:local%3Alocal:%2Frepo', 'intent-exclusive', true],
+        ['host', 'host:local%3Alocal', 'intent-exclusive', true],
       ])
     );
   });

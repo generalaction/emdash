@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { formatHostRef, hostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
@@ -32,7 +33,7 @@ type MachinesLog = {
 };
 
 type MachinesOperations = {
-  cancelPendingForHost(hostRef: string): Promise<number>;
+  cancelPendingForHost(hostRef: SerializedHostRef): Promise<number>;
 };
 
 export interface MachinesServiceDeps {
@@ -209,7 +210,7 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
     // host and untrack its registry rows. Untrack never deletes host state.
     await this.deps
       .getOperations?.()
-      ?.cancelPendingForHost(id)
+      ?.cancelPendingForHost(formatHostRef(hostRef('remote', id)))
       .catch((error: unknown) => {
         this.deps.log.warn('MachinesService.deleteMachine: error cancelling pending operations', {
           connectionId: id,

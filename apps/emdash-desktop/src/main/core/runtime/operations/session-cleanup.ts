@@ -1,3 +1,4 @@
+import { parseHostRef, sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
@@ -135,7 +136,7 @@ export async function killLifecycleTerminalSessions(
     const terminalClient = await dependencies.getTerminalsRuntimeClient();
     const workspace = hostFileRefFromNativePath(
       context.workspacePath,
-      operation.hostRef === 'local' ? undefined : operation.hostRef
+      sshConnectionIdOf(parseHostRef(operation.hostRef))
     );
     for (const sessionId of targets.terminalSessionIds) {
       const result = await terminalClient.kill({ key: { workspace, id: sessionId } });

@@ -1,4 +1,10 @@
-import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  formatHostRef,
+  hostRef,
+  LOCAL_HOST_REF,
+  parseHostRef,
+  serializedHostRefSchema,
+} from '@emdash/core/primitives/host/api';
 import { createOperationHandler, defineOperation } from '@emdash/core/primitives/kernel/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import {
@@ -40,7 +46,7 @@ const deleteAutomationInputSchema = defineVersionedSchema()
       source: z.enum(['user', 'reconciler']),
       automationId: z.string(),
       projectId: z.string().nullable().optional(),
-      hostRef: z.string(),
+      hostRef: serializedHostRefSchema,
       entityName: z.string().optional(),
       hostLabel: z.string().optional(),
       confirmedAt: z.number().int().nonnegative().optional(),
@@ -127,7 +133,7 @@ export function createDeleteAutomationOperationDefinition(
           source: 'user',
           automationId: 'automation-example',
           projectId: 'project-example',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           createdAt: 1,
         },
       },
@@ -175,7 +181,9 @@ export async function enqueueDeleteAutomation(
     source: 'user',
     automationId: automation.id,
     projectId: automation.projectId,
-    hostRef: project?.sshConnectionId ?? 'local',
+    hostRef: formatHostRef(
+      project?.sshConnectionId ? hostRef('remote', project.sshConnectionId) : LOCAL_HOST_REF
+    ),
     entityName: automation.name,
     hostLabel: project?.sshConnectionId ? project.name : undefined,
     createdAt,
@@ -241,7 +249,9 @@ async function reconcileAutomationCleanups(context: OperationReconcileContext): 
       source: 'reconciler',
       automationId,
       projectId: automation.projectId,
-      hostRef: project?.sshConnectionId ?? 'local',
+      hostRef: formatHostRef(
+        project?.sshConnectionId ? hostRef('remote', project.sshConnectionId) : LOCAL_HOST_REF
+      ),
       entityName: automation.name,
       hostLabel: project?.name,
       createdAt: context.clock.now(),
@@ -254,7 +264,7 @@ function exampleInput(automationId: string): DeleteAutomationOperationInput {
     version: '1',
     source: 'reconciler',
     automationId,
-    hostRef: 'local',
+    hostRef: formatHostRef(LOCAL_HOST_REF),
     createdAt: 1,
   };
 }
@@ -263,13 +273,9 @@ async function resolveRuntimeClient(
   runtimes: Pick<RuntimeBroker, 'client'>,
   hostRefKey: string
 ): Promise<HostRuntimesClient['automations']> {
-  const result = await runtimes.client(hostFromOperationHostRef(hostRefKey));
+  const result = await runtimes.client(parseHostRef(hostRefKey));
   if (!result.success) throw runtimeResolveErrorAsError(result.error);
   return result.data.automations;
-}
-
-function hostFromOperationHostRef(value: string): HostRef {
-  return value === 'local' ? LOCAL_HOST_REF : hostRef('remote', value);
 }
 
 async function cancelActiveRuns(

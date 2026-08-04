@@ -1,3 +1,4 @@
+import type { SerializedHostRef } from '@emdash/core/primitives/host/api';
 import type {
   AnyOperationDefinition,
   InputOf,
@@ -34,7 +35,7 @@ export type OperationInputSource = 'user' | 'reconciler';
 export type OperationInputBase = {
   version: '1';
   source: OperationInputSource;
-  hostRef: string;
+  hostRef: SerializedHostRef;
   projectId?: string | null;
   entityName?: string;
   hostLabel?: string;
@@ -51,7 +52,7 @@ export type LifecycleOperationParams = {
   taskId?: string | null;
   workspaceId?: string | null;
   entityKey?: string | null;
-  hostRef: string;
+  hostRef: SerializedHostRef;
   payload: Partial<OperationPayload>;
   confirmedAt?: number | null;
   createdAt: number;
@@ -93,7 +94,7 @@ export type OperationDefinition<D extends AnyOperationDefinition = AnyOperationD
   examples: readonly { definition: D; input: InputOf<D> }[];
   describe(input: InputOf<D>): OperationDescription;
   projectId(input: InputOf<D>): string | undefined;
-  hostRef(input: InputOf<D>): string;
+  hostRef(input: InputOf<D>): SerializedHostRef;
   /** Desktop-compiled preview of a queued host operation; discarded once running. */
   prediction?(input: InputOf<D>): OperationPrediction | undefined;
   confirmedInput(
@@ -131,7 +132,7 @@ export type OperationsSshManager = {
 export type PendingCleanupNotification = {
   operationId: string;
   payload: OperationPayload;
-  hostRef: string;
+  hostRef: SerializedHostRef;
   reason: OperationConfirmationReason;
 };
 

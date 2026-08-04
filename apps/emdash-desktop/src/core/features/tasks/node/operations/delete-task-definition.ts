@@ -1,4 +1,12 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
+import {
+  formatHostRef,
+  hostRef,
+  LOCAL_HOST_REF,
+  parseHostRef,
+  sshConnectionIdOf,
+  type HostRef,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { createOperationHandler } from '@emdash/core/primitives/kernel/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, type Result } from '@emdash/shared';
@@ -148,7 +156,7 @@ export function createDeleteTaskOperationDefinition(
           taskId: 'task-example',
           projectId: 'project-example',
           workspaceId: 'workspace-example',
-          hostRef: 'local',
+          hostRef: formatHostRef(LOCAL_HOST_REF),
           projectPath: '/repo',
           workspacePath: '/repo/.worktrees/task-example',
           branchName: 'task-example',
@@ -168,7 +176,7 @@ export function createDeleteTaskOperationDefinition(
     projectId: (input) => input.projectId,
     // Desktop-plane operation: never gated on host reachability. The session
     // kill is best effort; the workspace host owns worktree/session removal.
-    hostRef: () => 'local',
+    hostRef: () => formatHostRef(LOCAL_HOST_REF),
     confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     purge: async ({ input, db }) => {
       db.transaction((tx) => {
@@ -217,7 +225,9 @@ export async function enqueueDeleteTask(operations: OperationsEngineLike, input:
         .limit(1)
     : [];
   const workspaceShared = otherTaskRows.length > 0;
-  const hostRef = workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local';
+  const hostRef = serializedOperationHostRef(
+    workspace?.sshConnectionId ?? project?.sshConnectionId
+  );
   const operationInput: DeleteTaskOperationInput = {
     version: '1',
     source: 'user',
@@ -312,7 +322,7 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
       taskId: task.id,
       projectId: task.projectId,
       workspaceId: task.workspaceId,
-      hostRef: workspace?.sshConnectionId ?? project?.sshConnectionId ?? 'local',
+      hostRef: serializedOperationHostRef(workspace?.sshConnectionId ?? project?.sshConnectionId),
       entityName: task.name,
       hostLabel: project?.name,
       projectPath: project?.path,
@@ -374,7 +384,7 @@ async function purgeTaskRows(
   if (workspaceUntracked && context.workspacePath) {
     const workspace = hostFileRefFromNativePath(
       context.workspacePath,
-      operation.hostRef === 'local' ? undefined : operation.hostRef
+      sshConnectionIdOf(parseHostRef(operation.hostRef))
     );
     await dependencies.unregisterFileSearchRoot(workspace.path, workspace.host);
   }
@@ -418,10 +428,14 @@ function exampleTaskInput(taskId: string): DeleteTaskOperationInput {
     source: 'reconciler',
     taskId,
     projectId: 'project-example',
-    hostRef: 'local',
+    hostRef: formatHostRef(LOCAL_HOST_REF),
     deleteWorktree: true,
     deleteBranch: false,
     workspaceShared: false,
     createdAt: 1,
   };
+}
+
+function serializedOperationHostRef(connectionId: string | null | undefined): SerializedHostRef {
+  return formatHostRef(connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF);
 }

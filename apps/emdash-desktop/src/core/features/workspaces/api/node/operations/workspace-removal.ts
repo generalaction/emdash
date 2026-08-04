@@ -1,4 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import {
+  formatHostRef,
+  hostRef,
+  LOCAL_HOST_REF,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import type { InputOf } from '@emdash/core/primitives/kernel/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -66,7 +72,7 @@ export async function enqueueDeleteWorkspace(
     projectId: project?.id,
     projectName: project?.name,
     repoPath: project?.path ?? (await parentRepoPath(operations.db, workspace)),
-    hostRef: workspace.sshConnectionId ?? project?.sshConnectionId ?? 'local',
+    hostRef: serializedOperationHostRef(workspace.sshConnectionId ?? project?.sshConnectionId),
     requireUnused: true,
     deleteBranch: options.deleteBranch ?? false,
   });
@@ -119,7 +125,7 @@ async function enqueueWorkspacePathRemoval(
     projectId: project.id,
     projectName: project.name,
     repoPath: project.path,
-    hostRef: workspace?.sshConnectionId ?? project.sshConnectionId ?? 'local',
+    hostRef: serializedOperationHostRef(workspace?.sshConnectionId ?? project.sshConnectionId),
     requireUnused: options.requireUnused && input.workspaceId !== undefined,
   });
 }
@@ -133,7 +139,7 @@ async function enqueueWorkspaceRemoval(
     projectId: string | undefined;
     projectName: string | undefined;
     repoPath: string | undefined;
-    hostRef: string;
+    hostRef: SerializedHostRef;
     requireUnused: boolean;
     deleteBranch?: boolean;
   }
@@ -279,4 +285,8 @@ function projectIsDeletedInTransaction(tx: DrizzleTx, projectId: string): boolea
       .limit(1)
       .get() === undefined
   );
+}
+
+function serializedOperationHostRef(connectionId: string | null | undefined): SerializedHostRef {
+  return formatHostRef(connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF);
 }

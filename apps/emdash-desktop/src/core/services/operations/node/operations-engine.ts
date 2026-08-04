@@ -1,4 +1,12 @@
 import {
+  formatHostRef,
+  isLocalHostRef,
+  LOCAL_HOST_REF,
+  parseHostRef,
+  sshConnectionIdOf,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
+import {
   claimsCollide,
   displayStatus,
   isTerminalStatus,
@@ -233,7 +241,7 @@ export class OperationsEngine {
    * Forget-host cascade: cancels every queued operation targeting the host so
    * its rows can be untracked without leaving orphaned outbox entries.
    */
-  async cancelPendingForHost(hostRef: string): Promise<number> {
+  async cancelPendingForHost(hostRef: SerializedHostRef): Promise<number> {
     const active = await this.kernel.query({ active: true });
     let cancelled = 0;
     for (const record of active.records) {
@@ -246,7 +254,7 @@ export class OperationsEngine {
     return cancelled;
   }
 
-  hostIsReachable(hostRef: string): boolean {
+  hostIsReachable(hostRef: SerializedHostRef): boolean {
     return this.hostIsOnline(hostRef);
   }
 
@@ -496,14 +504,19 @@ export class OperationsEngine {
     operationsPokes.trees.poke(poke);
   }
 
-  private hostIsOnline(hostRef: string): boolean {
-    return hostRef === 'local' || this.sshManager.isConnected(hostRef);
+  private hostIsOnline(hostRef: SerializedHostRef): boolean {
+    const parsed = parseHostRef(hostRef);
+    if (isLocalHostRef(parsed)) return true;
+    const connectionId = sshConnectionIdOf(parsed);
+    return connectionId !== undefined && this.sshManager.isConnected(connectionId);
   }
 
-  private hostRefFromRecord(record: OperationRecord): string {
+  private hostRefFromRecord(record: OperationRecord): SerializedHostRef {
     const descriptor = this.definitions.get(record.name);
     const parsed = descriptor?.definition.input.safeParse(record.input);
-    return parsed?.status === 'ok' && descriptor ? descriptor.hostRef(parsed.data) : 'local';
+    return parsed?.status === 'ok' && descriptor
+      ? descriptor.hostRef(parsed.data)
+      : formatHostRef(LOCAL_HOST_REF);
   }
 
   private async refreshOperationTreeForRecord(operationId: string): Promise<void> {
@@ -709,7 +722,7 @@ function fallbackDisplay(record: OperationRecord): OperationDisplayState {
     operationKind: record.name,
     entityId: record.key,
     entityKind: 'project',
-    hostRef: 'local',
+    hostRef: formatHostRef(LOCAL_HOST_REF),
     createdAt: record.createdAt,
     attempt: record.attempt,
     status:

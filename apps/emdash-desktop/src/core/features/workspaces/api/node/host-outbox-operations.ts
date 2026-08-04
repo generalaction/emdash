@@ -1,3 +1,4 @@
+import { serializedHostRefSchema } from '@emdash/core/primitives/host/api';
 import {
   branchKernelResource as hostBranchKernelResource,
   repoKernelResource,
@@ -28,8 +29,8 @@ const hostOutboxBaseFields = {
   source: z.enum(['user', 'reconciler']),
   /** Desktop-minted UUID; the idempotency key toward the host. */
   hostOperationId: z.string().min(1),
-  /** 'local' or an SSH connection id. */
-  hostRef: z.string().min(1),
+  /** Canonical serialized HostRef. */
+  hostRef: serializedHostRefSchema,
   repoPath: z.string().min(1),
   projectId: z.string().optional(),
   workspaceId: z.string().optional(),

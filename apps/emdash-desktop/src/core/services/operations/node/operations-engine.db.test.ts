@@ -2,6 +2,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  formatHostRef,
+  hostRef,
+  LOCAL_HOST_REF,
+  serializedHostRefSchema,
+} from '@emdash/core/primitives/host/api';
+import {
   createOperationHandler,
   defineOperation,
   defineResource,
@@ -40,7 +46,7 @@ const testInputSchema = defineVersionedSchema()
       version: z.literal('1'),
       source: z.enum(['user', 'reconciler']),
       key: z.string(),
-      hostRef: z.string(),
+      hostRef: serializedHostRefSchema,
       projectId: z.string().optional(),
       workspacePath: z.string().optional(),
       claimKey: z.string().optional(),
@@ -99,7 +105,11 @@ describe('OperationsEngine', () => {
 
     const first = await handle.engine.submitWithTombstone(
       testOperation,
-      testInput({ key: 'first', hostRef: 'remote-1', claimKey: 'shared' }),
+      testInput({
+        key: 'first',
+        hostRef: formatHostRef(hostRef('remote', 'remote-1')),
+        claimKey: 'shared',
+      }),
       {
         tombstone: (tx) =>
           tx
@@ -271,7 +281,7 @@ function testInput(input: Partial<TestInput> & { key: string }): TestInput {
     version: '1',
     source: input.source ?? 'user',
     key: input.key,
-    hostRef: input.hostRef ?? 'local',
+    hostRef: input.hostRef ?? formatHostRef(LOCAL_HOST_REF),
     projectId: input.projectId,
     workspacePath: input.workspacePath,
     claimKey: input.claimKey,
@@ -311,7 +321,7 @@ function createSshManager(initiallyConnected: boolean): OperationsSshManager & {
       listener = undefined;
     },
     isConnected(connectionId) {
-      return connectionId === 'local' || connected;
+      return connected;
     },
     connect() {
       connected = true;
