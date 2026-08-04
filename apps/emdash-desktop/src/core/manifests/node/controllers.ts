@@ -84,10 +84,7 @@ import { createOperationsWireController } from '@core/services/operations/node/w
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
 import { createRemoteMachineWireController } from '@core/services/remote-machine/node/wire-controller';
-import type {
-  MementosRuntimeClient,
-  WorkspaceRuntimeClient,
-} from '@core/services/runtime-broker/api/clients';
+import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { AppSettingsService } from '@core/services/settings/node';
 import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import {
@@ -125,7 +122,6 @@ export type DesktopControllerContext = {
   readonly runtimeClients: {
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
     getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient>;
-    getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   };
   readonly scope: Scope;
   readonly search: SearchService;
@@ -142,7 +138,7 @@ export type DesktopControllerContext = {
   readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
-    'db' | 'getWorkspaceRuntimeClient' | 'operations' | 'runtimes' | 'workspaceIdentity'
+    'db' | 'operations' | 'runtimes' | 'workspaceIdentity'
   >;
 };
 
@@ -275,13 +271,12 @@ export const desktopNodeControllers = {
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, operations, runtimeClients, scope, workspaces, runtimes, workspaceIdentity }) =>
+    create: ({ db, operations, scope, workspaces, runtimes, workspaceIdentity }) =>
       controllerFromImpl(
         desktopDomainContracts.workspaces,
         createWorkspacesWireController({
           ...workspaces,
           db,
-          getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
           operations,
           runtimes,
           workspaceIdentity,
@@ -290,21 +285,11 @@ export const desktopNodeControllers = {
       ),
   },
   projects: {
-    create: ({
-      db,
-      operations,
-      projects,
-      projectSettings,
-      runtimeClients,
-      runtimes,
-      scope,
-      workspacePlacement,
-    }) =>
+    create: ({ db, operations, projects, projectSettings, runtimes, scope, workspacePlacement }) =>
       controllerFromImpl(
         desktopDomainContracts.projects,
         createProjectsWireController({
           db,
-          getWorkspaceRuntimeClient: runtimeClients.getWorkspaceRuntimeClient,
           operations,
           placement: workspacePlacement,
           projects,

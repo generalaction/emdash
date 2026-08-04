@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
 
-vi.mock('@core/features/workspaces/api/node/workspace-bootstrap-service', () => ({
-  runCloneRepositoryProvision: vi.fn(),
-}));
-
 vi.mock('@core/services/app-db/node/schema', () => ({
   tasks: {},
   workspaces: {},

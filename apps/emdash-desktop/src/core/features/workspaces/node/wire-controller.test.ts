@@ -6,10 +6,6 @@ import type { workspacesWireContract } from '../api';
 import type { WorkspacesIdentityResolver, WorkspacesRuntimeBroker } from '../api/runtime-adapter';
 import { createWorkspacesWireController } from './wire-controller';
 
-vi.mock('@core/features/workspaces/api/node/workspace-bootstrap-service', () => ({
-  runCloneRepositoryProvision: vi.fn(),
-}));
-
 vi.mock('@core/services/app-db/node/schema', () => ({
   tasks: {},
   workspaces: {},
@@ -28,7 +24,6 @@ describe('createWorkspacesWireController', () => {
     }));
     const controller = createWorkspacesWireController({
       db: {} as never,
-      getWorkspaceRuntimeClient: vi.fn(),
       operations: {} as never,
       provisionTask: vi.fn(),
       reprovisionWorkspace: vi.fn(),
@@ -62,7 +57,6 @@ describe('createWorkspacesWireController', () => {
     };
     const controller = createWorkspacesWireController({
       db: {} as never,
-      getWorkspaceRuntimeClient: vi.fn(),
       operations: {} as never,
       provisionTask: vi.fn(),
       reprovisionWorkspace: vi.fn(),
@@ -96,7 +90,6 @@ describe('createWorkspacesWireController', () => {
     );
     const controller = createWorkspacesWireController({
       db: {} as never,
-      getWorkspaceRuntimeClient: vi.fn(),
       operations: {} as never,
       provisionTask,
       reprovisionWorkspace: vi.fn(),
@@ -127,7 +120,7 @@ describe('createWorkspacesWireController', () => {
       })
     );
 
-    expect(provisionTask).toHaveBeenCalledWith('task-1', expect.any(AbortSignal));
+    expect(provisionTask).toHaveBeenCalledWith('task-1', expect.any(AbortSignal), undefined);
     await controller.dispose();
   });
 });

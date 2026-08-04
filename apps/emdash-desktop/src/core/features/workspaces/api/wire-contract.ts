@@ -3,7 +3,6 @@ import {
   operationMutationResultSchema,
 } from '@emdash/core/primitives/operations/api';
 import {
-  bootstrapRepositoryInitializeSchema,
   cleanWorkspaceArtifactsResultSchema,
   workspaceOperationResultSchema,
   workspaceStateSchema,
@@ -36,24 +35,12 @@ export const workspaceProvisionResultSchema = z.object({
   sshConnectionId: z.string().optional(),
 });
 
-export const workspaceCloneProvisionResultSchema = z.object({
-  path: z.string(),
-});
-
 export const workspaceSliceErrorSchema = z.union([runtimeResolveErrorSchema, workspaceErrorSchema]);
 
 export const provisionWorkspaceByIdInputSchema = z.object({
   workspaceId: z.string(),
   taskId: z.string().optional(),
   operationId: z.string().optional(),
-});
-
-export const provisionCloneWorkspaceInputSchema = z.object({
-  url: z.string().min(1),
-  destination: z.string().min(1),
-  remoteName: z.string().min(1).optional(),
-  depth: z.number().int().positive().optional(),
-  initialize: bootstrapRepositoryInitializeSchema.optional(),
 });
 
 const workspaceIdInputSchema = z.object({
@@ -120,12 +107,6 @@ export const workspacesWireContract = defineContract({
     data: operationMutationResultSchema,
     error: operationMutationErrorSchema,
   }),
-  provisionClone: liveJob({
-    input: provisionCloneWorkspaceInputSchema,
-    progress: workspaceBootstrapProgressSchema,
-    result: workspaceCloneProvisionResultSchema,
-    error: workspaceSliceErrorSchema,
-  }),
   reconcile: fallible({
     input: workspaceIdInputSchema,
     data: workspaceRuntimeOperationResultSchema,
@@ -151,7 +132,6 @@ export const workspacesWireContract = defineContract({
 export type WorkspaceBootstrapStep = z.infer<typeof workspaceBootstrapStepSchema>;
 export type WorkspaceBootstrapProgress = z.infer<typeof workspaceBootstrapProgressSchema>;
 export type WorkspaceProvisionResult = z.infer<typeof workspaceProvisionResultSchema>;
-export type WorkspaceCloneProvisionResult = z.infer<typeof workspaceCloneProvisionResultSchema>;
 export type WorkspaceRuntimeState = z.infer<typeof workspaceRuntimeStateSchema>;
 export type WorkspaceSliceError = z.infer<typeof workspaceSliceErrorSchema>;
 export type WorkspacesWireContract = typeof workspacesWireContract;

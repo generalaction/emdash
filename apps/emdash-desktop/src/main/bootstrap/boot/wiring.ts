@@ -115,7 +115,6 @@ export function createDesktopWireOptions(
     runtimeClients: {
       getMementosRuntimeClient: async () => runtimes.clients.mementos,
       getPullRequestsRuntimeClient: async () => runtimes.clients.pullRequests,
-      getWorkspaceRuntimeClient: async () => runtimes.clients.workspace,
     },
     settingsRuntime: {
       setKeyboardSettings: (settings) => browserWebContentsRegistry.setKeyboardSettings(settings),
