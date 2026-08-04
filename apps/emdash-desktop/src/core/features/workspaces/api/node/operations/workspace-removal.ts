@@ -1,17 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import {
-  formatHostRef,
-  hostRef,
-  LOCAL_HOST_REF,
-  type SerializedHostRef,
-} from '@emdash/core/primitives/host/api';
-import type { InputOf } from '@emdash/core/primitives/kernel/api';
+import { formatHostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import {
   hostRemoveWorktreeOperation,
   type HostRemoveWorktreeInput,
 } from '@core/features/workspaces/api/node/host-outbox-operations';
+import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
@@ -19,7 +14,7 @@ import {
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
-import type { OperationSubmitOptions } from '@core/services/operations/node';
+import { enqueueTombstoned, type OperationSubmitter } from '@core/services/operations/api/node';
 import { compileRemoveWorktreePrediction } from './compile-host-outbox-prediction';
 
 /**
@@ -36,17 +31,8 @@ export type ArchiveWorkspaceInput = {
   branchName?: string;
 };
 
-type OperationsEngineLike = {
-  db: AppDb;
-  submitWithTombstone(
-    definition: typeof hostRemoveWorktreeOperation,
-    input: InputOf<typeof hostRemoveWorktreeOperation>,
-    options?: OperationSubmitOptions
-  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
-};
-
 export async function enqueueDeleteWorkspace(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   workspaceId: string,
   options: { deleteBranch?: boolean } = {}
 ) {
@@ -72,28 +58,28 @@ export async function enqueueDeleteWorkspace(
     projectId: project?.id,
     projectName: project?.name,
     repoPath: project?.path ?? (await parentRepoPath(operations.db, workspace)),
-    hostRef: serializedOperationHostRef(workspace.sshConnectionId ?? project?.sshConnectionId),
+    hostRef: formatHostRef(operationHostRef({ workspace, project })),
     requireUnused: true,
     deleteBranch: options.deleteBranch ?? false,
   });
 }
 
 export async function enqueueDeleteWorkspacePath(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   input: ArchiveWorkspaceInput
 ) {
   return enqueueWorkspacePathRemoval(operations, input, { requireUnused: true });
 }
 
 export async function enqueueArchiveWorkspace(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   input: ArchiveWorkspaceInput
 ) {
   return enqueueWorkspacePathRemoval(operations, input, { requireUnused: false });
 }
 
 async function enqueueWorkspacePathRemoval(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   input: ArchiveWorkspaceInput,
   options: { requireUnused: boolean }
 ) {
@@ -121,13 +107,13 @@ async function enqueueWorkspacePathRemoval(
     projectId: project.id,
     projectName: project.name,
     repoPath: project.path,
-    hostRef: serializedOperationHostRef(workspace?.sshConnectionId ?? project.sshConnectionId),
+    hostRef: formatHostRef(operationHostRef({ workspace, project })),
     requireUnused: options.requireUnused && input.workspaceId !== undefined,
   });
 }
 
 async function enqueueWorkspaceRemoval(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   params: {
     workspace: WorkspaceRow | undefined;
     workspacePath: string | undefined;
@@ -164,45 +150,48 @@ async function enqueueWorkspaceRemoval(
     return ok({});
   }
 
-  const input: HostRemoveWorktreeInput = {
-    version: '1',
-    source: 'user',
-    hostOperationId: randomUUID(),
-    hostRef: params.hostRef,
-    repoPath: params.repoPath,
-    projectId: params.projectId,
-    workspaceId,
-    entityName: params.workspacePath,
-    hostLabel: params.projectName,
-    workspacePath: params.workspacePath,
-    branchName: params.branchName,
-    deleteBranch: params.deleteBranch ?? false,
-    deactivateConsumers: 'all',
-    prediction: compileRemoveWorktreePrediction({
-      now: createdAt,
-      workspacePath: params.workspacePath,
+  return enqueueTombstoned(operations, {
+    definition: hostRemoveWorktreeOperation,
+    load: () => params,
+    notFound: () => ({ type: 'workspace-not-found', message: 'Workspace was not found.' }),
+    buildInput: (): HostRemoveWorktreeInput => ({
+      version: '1',
+      source: 'user',
+      hostOperationId: randomUUID(),
+      hostRef: params.hostRef,
+      repoPath: params.repoPath!,
+      projectId: params.projectId,
+      workspaceId,
+      entityName: params.workspacePath,
+      hostLabel: params.projectName,
+      workspacePath: params.workspacePath!,
       branchName: params.branchName,
       deleteBranch: params.deleteBranch ?? false,
-      observed: params.workspace,
+      deactivateConsumers: 'all',
+      prediction: compileRemoveWorktreePrediction({
+        now: createdAt,
+        workspacePath: params.workspacePath!,
+        branchName: params.branchName,
+        deleteBranch: params.deleteBranch ?? false,
+        observed: params.workspace,
+      }),
+      createdAt,
     }),
-    createdAt,
-  };
-  const result = await operations.submitWithTombstone(hostRemoveWorktreeOperation, input, {
     precondition: (tx) =>
       workspacePrecondition(tx, {
         projectId: params.projectId,
         workspaceId,
         requireUnused: params.requireUnused,
       }),
-    tombstone: workspaceId
-      ? (tx) => registry.untrack([workspaceId], new Date(createdAt).toISOString(), undefined, tx)
-      : undefined,
-    revertTombstone: workspaceId
-      ? (tx) => void registry.revertUntrack([workspaceId], tx)
-      : undefined,
+    tombstone: (tx) =>
+      workspaceId
+        ? registry.untrack([workspaceId], new Date(createdAt).toISOString(), undefined, tx)
+        : 1,
+    revert: (tx) => {
+      if (workspaceId) registry.revertUntrack([workspaceId], tx);
+    },
+    poke: () => appDbPokes.workspaces.poke({ projectId: params.projectId }),
   });
-  if (result.success) appDbPokes.workspaces.poke({ projectId: params.projectId });
-  return result;
 }
 
 function untrackWorkspaceInline(
@@ -274,8 +263,4 @@ function projectIsDeletedInTransaction(tx: DrizzleTx, projectId: string): boolea
       .limit(1)
       .get() === undefined
   );
-}
-
-function serializedOperationHostRef(connectionId: string | null | undefined): SerializedHostRef {
-  return formatHostRef(connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF);
 }

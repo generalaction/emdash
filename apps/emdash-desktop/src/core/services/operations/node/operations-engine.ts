@@ -149,6 +149,17 @@ export class OperationsEngine {
     this.refreshOperationTrees();
   }
 
+  async submit<D extends AnyOperationDefinition>(
+    definition: D,
+    input: InputOf<D>
+  ): Promise<OperationMutation> {
+    return this.submitKernel(definition, input, {
+      initiator: { kind: 'user', action: definition.name },
+      options: {},
+      revertOnReject: false,
+    });
+  }
+
   async submitWithTombstone<D extends AnyOperationDefinition>(
     definition: D,
     input: InputOf<D>,

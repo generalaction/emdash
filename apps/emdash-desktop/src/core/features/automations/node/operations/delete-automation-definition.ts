@@ -1,6 +1,5 @@
 import {
   formatHostRef,
-  hostRef,
   LOCAL_HOST_REF,
   parseHostRef,
   serializedHostRefSchema,
@@ -12,17 +11,17 @@ import {
   type HostRuntimesClient,
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
-import { err, type Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import z from 'zod';
+import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import { automationKernelResource } from '@core/primitives/operations/api/resources';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { automationRuns, automations, projects } from '@core/services/app-db/node/schema';
+import { enqueueTombstoned, type OperationSubmitter } from '@core/services/operations/api/node';
 import type {
   OperationDefinition,
   OperationReconcileContext,
-  OperationSubmitOptions,
 } from '@core/services/operations/node';
 import {
   confirmInput,
@@ -153,52 +152,51 @@ export function createDeleteAutomationOperationDefinition(
 }
 
 export async function enqueueDeleteAutomation(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   automationId: string
 ) {
-  const [automation] = await operations.db
-    .select({ id: automations.id, name: automations.name, projectId: automations.projectId })
-    .from(automations)
-    .where(and(eq(automations.id, automationId), isNull(automations.deletedAt)))
-    .limit(1);
-  if (!automation) {
-    return err({
-      type: 'automation-not-found',
-      automationId,
-      message: `Automation ${automationId} was not found`,
-    });
-  }
-  const [project] = automation.projectId
-    ? await operations.db
-        .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
-        .from(projects)
-        .where(eq(projects.id, automation.projectId))
-        .limit(1)
-    : [];
   const createdAt = Date.now();
-  const input: DeleteAutomationOperationInput = {
-    version: '1',
-    source: 'user',
-    automationId: automation.id,
-    projectId: automation.projectId,
-    hostRef: formatHostRef(
-      project?.sshConnectionId ? hostRef('remote', project.sshConnectionId) : LOCAL_HOST_REF
-    ),
-    entityName: automation.name,
-    hostLabel: project?.sshConnectionId ? project.name : undefined,
-    createdAt,
-  };
-  return operations.submitWithTombstone(deleteAutomationOperation, input, {
-    precondition: automation.projectId
-      ? (tx) => projectIsActive(tx, automation.projectId!)
-      : undefined,
-    tombstone: (tx) =>
+  return enqueueTombstoned(operations, {
+    definition: deleteAutomationOperation,
+    load: async () => {
+      const [automation] = await operations.db
+        .select({ id: automations.id, name: automations.name, projectId: automations.projectId })
+        .from(automations)
+        .where(and(eq(automations.id, automationId), isNull(automations.deletedAt)))
+        .limit(1);
+      if (!automation) return undefined;
+      const [project] = automation.projectId
+        ? await operations.db
+            .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
+            .from(projects)
+            .where(eq(projects.id, automation.projectId))
+            .limit(1)
+        : [];
+      return { automation, project };
+    },
+    notFound: () => ({
+      type: 'automation-not-found',
+      message: `Automation ${automationId} was not found`,
+    }),
+    buildInput: ({ automation, project }): DeleteAutomationOperationInput => ({
+      version: '1',
+      source: 'user',
+      automationId: automation.id,
+      projectId: automation.projectId,
+      hostRef: formatHostRef(operationHostRef({ project })),
+      entityName: automation.name,
+      hostLabel: project?.sshConnectionId ? project.name : undefined,
+      createdAt,
+    }),
+    precondition: (tx, { automation }) =>
+      automation.projectId ? projectIsActive(tx, automation.projectId) : undefined,
+    tombstone: (tx, { automation }) =>
       tx
         .update(automations)
         .set({ deletedAt: createdAt, updatedAt: createdAt })
         .where(and(eq(automations.id, automation.id), isNull(automations.deletedAt)))
         .run().changes,
-    revertTombstone: (tx) => {
+    revert: (tx, { automation }) => {
       tx.update(automations)
         .set({ deletedAt: null, updatedAt: Date.now() })
         .where(eq(automations.id, automation.id))
@@ -206,15 +204,6 @@ export async function enqueueDeleteAutomation(
     },
   });
 }
-
-type OperationsEngineLike = {
-  db: AppDb;
-  submitWithTombstone<D extends typeof deleteAutomationOperation>(
-    definition: D,
-    input: DeleteAutomationOperationInput,
-    options?: OperationSubmitOptions
-  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
-};
 
 function projectIsActive(tx: DrizzleTx, projectId: string) {
   const active =
@@ -249,9 +238,7 @@ async function reconcileAutomationCleanups(context: OperationReconcileContext): 
       source: 'reconciler',
       automationId,
       projectId: automation.projectId,
-      hostRef: formatHostRef(
-        project?.sshConnectionId ? hostRef('remote', project.sshConnectionId) : LOCAL_HOST_REF
-      ),
+      hostRef: formatHostRef(operationHostRef({ project })),
       entityName: automation.name,
       hostLabel: project?.name,
       createdAt: context.clock.now(),

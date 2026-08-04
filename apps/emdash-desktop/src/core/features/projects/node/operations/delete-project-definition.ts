@@ -1,14 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import {
   formatHostRef,
-  hostRef,
   LOCAL_HOST_REF,
   serializedHostRefSchema,
-  type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
 import { createOperationHandler, defineOperation } from '@emdash/core/primitives/kernel/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
-import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
@@ -27,6 +24,7 @@ import {
   type HostRemoveWorktreeInput,
 } from '@core/features/workspaces/api/node/host-outbox-operations';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
+import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import { compileRemoveWorktreePrediction } from '@core/features/workspaces/api/node/operations/compile-host-outbox-prediction';
 import {
   createWorkspaceRegistry,
@@ -38,10 +36,10 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks } from '@core/services/app-db/node/schema';
+import { enqueueTombstoned, type OperationSubmitter } from '@core/services/operations/api/node';
 import type {
   OperationDefinition,
   OperationReconcileContext,
-  OperationSubmitOptions,
 } from '@core/services/operations/node';
 import {
   confirmInput,
@@ -148,7 +146,7 @@ export function createDeleteProjectOperationDefinition(
         taskId: task.id,
         projectId: ctx.input.projectId,
         workspaceId: task.workspaceId,
-        hostRef: serializedOperationHostRef(workspace?.sshConnectionId ?? project?.sshConnectionId),
+        hostRef: formatHostRef(operationHostRef({ workspace, project })),
         entityName: task.name,
         hostLabel: project?.name,
         projectPath: project?.path,
@@ -243,53 +241,74 @@ export function createDeleteProjectOperationDefinition(
   };
 }
 
-export async function enqueueDeleteProject(operations: OperationsEngineLike, projectId: string) {
-  const [project] = await operations.db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-    .limit(1);
-  if (!project) {
-    return err({ type: 'project-not-found', message: `Project ${projectId} was not found` });
-  }
+export async function enqueueDeleteProject(operations: OperationSubmitter, projectId: string) {
   const createdAt = Date.now();
   const registry = createWorkspaceRegistry(operations.db, {
     now: () => new Date(createdAt).toISOString(),
   });
-  const registryRows = await loadProjectRegistryRows(operations.db, project);
-  const registryIds = registryRows.map((row) => row.id);
-  const input: DeleteProjectOperationInput = {
-    version: '1',
-    source: 'user',
-    projectId,
-    hostRef: formatHostRef(LOCAL_HOST_REF),
-    entityName: project.name,
-    createdAt,
-  };
-  const result = await operations.submitWithTombstone(deleteProjectOperation, input, {
-    tombstone: (tx) => {
+  let loaded:
+    | {
+        project: typeof projects.$inferSelect;
+        registryRows: ProjectRegistryRow[];
+      }
+    | undefined;
+  const result = await enqueueTombstoned(operations, {
+    definition: deleteProjectOperation,
+    load: async () => {
+      const [project] = await operations.db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+        .limit(1);
+      if (!project) return undefined;
+      const registryRows = await loadProjectRegistryRows(operations.db, project);
+      loaded = { project, registryRows };
+      return loaded;
+    },
+    notFound: () => ({
+      type: 'project-not-found',
+      message: `Project ${projectId} was not found`,
+    }),
+    buildInput: ({ project }): DeleteProjectOperationInput => ({
+      version: '1',
+      source: 'user',
+      projectId,
+      hostRef: formatHostRef(LOCAL_HOST_REF),
+      entityName: project.name,
+      createdAt,
+    }),
+    tombstone: (tx, { registryRows }) => {
       const changes = tx
         .update(projects)
         .set({ deletedAt: new Date(createdAt).toISOString() })
         .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
         .run().changes;
+      const registryIds = registryRows.map((row) => row.id);
       if (changes > 0 && registryIds.length > 0) {
         registry.untrack(registryIds, new Date(createdAt).toISOString(), undefined, tx);
       }
       return changes;
     },
-    revertTombstone: (tx) => {
+    revert: (tx, { registryRows }) => {
       tx.update(projects).set({ deletedAt: null }).where(eq(projects.id, projectId)).run();
+      const registryIds = registryRows.map((row) => row.id);
       if (registryIds.length > 0) {
         registry.revertUntrack(registryIds, tx);
       }
     },
+    poke: () => {
+      appDbPokes.projects.poke({ projectId });
+      appDbPokes.tasks.poke({ projectId });
+      appDbPokes.workspaces.poke({ projectId });
+    },
   });
-  if (result.success) {
-    appDbPokes.projects.poke({ projectId });
-    appDbPokes.tasks.poke({ projectId });
-    appDbPokes.workspaces.poke({ projectId });
-    await enqueueProvenanceWorktreeRemovals(operations, project, registryRows, createdAt);
+  if (result.success && loaded) {
+    await enqueueProvenanceWorktreeRemovals(
+      operations,
+      loaded.project,
+      loaded.registryRows,
+      createdAt
+    );
   }
   return result;
 }
@@ -340,7 +359,7 @@ async function loadProjectRegistryRows(
  * emdash never removes artifacts it did not create as part of a bulk delete.
  */
 async function enqueueProvenanceWorktreeRemovals(
-  operations: OperationsEngineLike,
+  operations: OperationSubmitter,
   project: { id: string; name: string; path: string; sshConnectionId: string | null },
   registryRows: readonly ProjectRegistryRow[],
   createdAt: number
@@ -351,7 +370,7 @@ async function enqueueProvenanceWorktreeRemovals(
       version: '1',
       source: 'user',
       hostOperationId: randomUUID(),
-      hostRef: serializedOperationHostRef(row.sshConnectionId ?? project.sshConnectionId),
+      hostRef: formatHostRef(operationHostRef({ workspace: row, project })),
       repoPath: project.path,
       projectId: project.id,
       workspaceId: row.id,
@@ -372,20 +391,9 @@ async function enqueueProvenanceWorktreeRemovals(
     };
     // Rows are already untracked by the project tombstone; admission rejects
     // (e.g. duplicate key) are tolerable — the worktree stays on the host.
-    await operations.submitWithTombstone(hostRemoveWorktreeOperation, input);
+    await operations.submit(hostRemoveWorktreeOperation, input);
   }
 }
-
-type OperationsEngineLike = {
-  db: AppDb;
-  submitWithTombstone<D extends typeof deleteProjectOperation | typeof hostRemoveWorktreeOperation>(
-    definition: D,
-    input: D extends typeof deleteProjectOperation
-      ? DeleteProjectOperationInput
-      : HostRemoveWorktreeInput,
-    options?: OperationSubmitOptions
-  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
-};
 
 async function reconcileProjectCleanups(context: OperationReconcileContext): Promise<void> {
   const rows = await context.db.select().from(projects).where(isNotNull(projects.deletedAt));
@@ -410,10 +418,6 @@ function exampleInput(projectId: string): DeleteProjectOperationInput {
     hostRef: formatHostRef(LOCAL_HOST_REF),
     createdAt: 1,
   };
-}
-
-function serializedOperationHostRef(connectionId: string | null | undefined): SerializedHostRef {
-  return formatHostRef(connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF);
 }
 
 async function purgeProjectLocalState(

@@ -1,15 +1,12 @@
 import {
   formatHostRef,
-  hostRef,
   LOCAL_HOST_REF,
   parseHostRef,
   sshConnectionIdOf,
   type HostRef,
-  type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
 import { createOperationHandler } from '@emdash/core/primitives/kernel/api';
 import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import { err, type Result } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm';
 import {
@@ -17,6 +14,7 @@ import {
   type DeleteTaskOperationInput,
 } from '@core/features/tasks/api/node/delete-task-operation';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
+import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import { enqueueDeleteWorkspace } from '@core/features/workspaces/api/node/operations/workspace-removal';
@@ -29,11 +27,11 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks } from '@core/services/app-db/node/schema';
+import { enqueueTombstoned, type OperationSubmitter } from '@core/services/operations/api/node';
 import type {
   LifecycleOperationParams,
   OperationDefinition,
   OperationReconcileContext,
-  OperationSubmitOptions,
 } from '@core/services/operations/node';
 import { confirmInput, needsConfirmation, runOperationStage } from '@core/services/operations/node';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
@@ -192,91 +190,88 @@ export function createDeleteTaskOperationDefinition(
   };
 }
 
-export async function enqueueDeleteTask(operations: OperationsEngineLike, input: DeleteTaskInput) {
+export async function enqueueDeleteTask(operations: OperationSubmitter, input: DeleteTaskInput) {
   const createdAt = Date.now();
-  const [task] = await operations.db
-    .select()
-    .from(tasks)
-    .where(and(eq(tasks.id, input.taskId), isNull(tasks.deletedAt)))
-    .limit(1);
-  if (!task) {
-    return err({ type: 'task-not-found', message: `Task ${input.taskId} was not found` });
-  }
-  const projectId = task.projectId;
-  const workspace = task.workspaceId
-    ? createWorkspaceRegistry(operations.db).getLive(task.workspaceId)
-    : undefined;
-  const [project] = await operations.db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, task.projectId))
-    .limit(1);
-  const otherTaskRows = task.workspaceId
-    ? await operations.db
-        .select({ id: tasks.id })
+  let workspaceIdForRemoval: string | undefined;
+  let workspaceShared = false;
+  const result = await enqueueTombstoned(operations, {
+    definition: deleteTaskOperation,
+    load: async () => {
+      const [task] = await operations.db
+        .select()
         .from(tasks)
-        .where(
-          and(
-            eq(tasks.workspaceId, task.workspaceId),
-            ne(tasks.id, task.id),
-            isNull(tasks.deletedAt)
-          )
-        )
-        .limit(1)
-    : [];
-  const workspaceShared = otherTaskRows.length > 0;
-  const hostRef = serializedOperationHostRef(
-    workspace?.sshConnectionId ?? project?.sshConnectionId
-  );
-  const operationInput: DeleteTaskOperationInput = {
-    version: '1',
-    source: 'user',
-    taskId: task.id,
-    projectId: task.projectId,
-    workspaceId: task.workspaceId,
-    hostRef,
-    entityName: task.name,
-    hostLabel: project?.sshConnectionId ? project.name : undefined,
-    projectPath: project?.path,
-    workspacePath: workspace?.path ?? undefined,
-    branchName: workspace?.branchName ?? undefined,
-    deleteWorktree: input.deleteWorktree ?? true,
-    deleteBranch: input.deleteBranch ?? false,
-    workspaceShared,
-    createdAt,
-  };
-  const result = await operations.submitWithTombstone(deleteTaskOperation, operationInput, {
-    precondition: (tx) => projectIsActive(tx, task.projectId),
-    tombstone: (tx) =>
+        .where(and(eq(tasks.id, input.taskId), isNull(tasks.deletedAt)))
+        .limit(1);
+      if (!task) return undefined;
+      const workspace = task.workspaceId
+        ? createWorkspaceRegistry(operations.db).getLive(task.workspaceId)
+        : undefined;
+      const [project] = await operations.db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, task.projectId))
+        .limit(1);
+      const otherTaskRows = task.workspaceId
+        ? await operations.db
+            .select({ id: tasks.id })
+            .from(tasks)
+            .where(
+              and(
+                eq(tasks.workspaceId, task.workspaceId),
+                ne(tasks.id, task.id),
+                isNull(tasks.deletedAt)
+              )
+            )
+            .limit(1)
+        : [];
+      workspaceIdForRemoval = task.workspaceId ?? undefined;
+      workspaceShared = otherTaskRows.length > 0;
+      return { task, workspace, project, workspaceShared };
+    },
+    notFound: () => ({
+      type: 'task-not-found',
+      message: `Task ${input.taskId} was not found`,
+    }),
+    buildInput: ({ task, workspace, project, workspaceShared }): DeleteTaskOperationInput => ({
+      version: '1',
+      source: 'user',
+      taskId: task.id,
+      projectId: task.projectId,
+      workspaceId: task.workspaceId,
+      hostRef: formatHostRef(operationHostRef({ workspace, project })),
+      entityName: task.name,
+      hostLabel: project?.sshConnectionId ? project.name : undefined,
+      projectPath: project?.path,
+      workspacePath: workspace?.path ?? undefined,
+      branchName: workspace?.branchName ?? undefined,
+      deleteWorktree: input.deleteWorktree ?? true,
+      deleteBranch: input.deleteBranch ?? false,
+      workspaceShared,
+      createdAt,
+    }),
+    precondition: (tx, { task }) => projectIsActive(tx, task.projectId),
+    tombstone: (tx, { task }) =>
       tx
         .update(tasks)
         .set({ deletedAt: new Date(createdAt).toISOString() })
         .where(and(eq(tasks.id, task.id), isNull(tasks.deletedAt)))
         .run().changes,
-    revertTombstone: (tx) => {
+    revert: (tx, { task }) => {
       tx.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, task.id)).run();
     },
+    poke: ({ task }) => appDbPokes.tasks.poke({ projectId: task.projectId, taskId: task.id }),
   });
   if (result.success) {
-    appDbPokes.tasks.poke({ projectId, taskId: input.taskId });
     // Shared-workspace guard is an enqueue-time registry query: another live
     // task on the row means unlink only — no host removal.
-    if (task.workspaceId && !workspaceShared && input.deleteWorktree !== false) {
-      await enqueueDeleteWorkspace(operations, task.workspaceId, {
+    if (workspaceIdForRemoval && !workspaceShared && input.deleteWorktree !== false) {
+      await enqueueDeleteWorkspace(operations, workspaceIdForRemoval, {
         deleteBranch: input.deleteBranch ?? false,
       });
     }
   }
   return result;
 }
-
-type OperationsEngineLike = Parameters<typeof enqueueDeleteWorkspace>[0] & {
-  submitWithTombstone(
-    definition: typeof deleteTaskOperation,
-    input: DeleteTaskOperationInput,
-    options?: OperationSubmitOptions
-  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
-};
 
 function projectIsActive(tx: DrizzleTx, projectId: string) {
   const active =
@@ -322,7 +317,7 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
       taskId: task.id,
       projectId: task.projectId,
       workspaceId: task.workspaceId,
-      hostRef: serializedOperationHostRef(workspace?.sshConnectionId ?? project?.sshConnectionId),
+      hostRef: formatHostRef(operationHostRef({ workspace, project })),
       entityName: task.name,
       hostLabel: project?.name,
       projectPath: project?.path,
@@ -434,8 +429,4 @@ function exampleTaskInput(taskId: string): DeleteTaskOperationInput {
     workspaceShared: false,
     createdAt: 1,
   };
-}
-
-function serializedOperationHostRef(connectionId: string | null | undefined): SerializedHostRef {
-  return formatHostRef(connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF);
 }
