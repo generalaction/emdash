@@ -1585,6 +1585,7 @@ describe('native browser verifier', () => {
     expect(prompts).not.toContain('opaque-value-8427');
     expect(prompts).not.toContain('opaque-value-9538');
     expect(prompts).toContain('Accept cookies to continue');
+    expect(prompts).toContain('Diagnostics are the final inspection step');
     expect(prompts).not.toContain('file:///');
     expect(prompts).not.toContain('data:text');
     expect(prompts).not.toContain('javascript:');

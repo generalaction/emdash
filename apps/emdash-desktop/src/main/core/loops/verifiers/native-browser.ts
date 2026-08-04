@@ -860,12 +860,16 @@ function buildObservationPrompt(
   actionKind: string,
   result: LoopBrowserActionResult | RotationObservation
 ): string {
+  const nextStep =
+    actionKind === 'diagnostics'
+      ? 'Diagnostics are the final inspection step. Return an honest native browser terminal sentinel now unless one narrowly necessary allowlisted action remains; do not continue deliberating without a response.'
+      : 'Request exactly one next allowlisted action, or end with exactly one native browser terminal sentinel on its own final line.';
   return `The native Electron browser returned this bounded, redacted result for the one requested action:
 <emdash-loop-browser-result>
 ${serializePromptJson({ actionId, actionKind, result })}
 </emdash-loop-browser-result>
 
-The previous action will not be replayed automatically. Request exactly one next allowlisted action, or end with exactly one native browser terminal sentinel on its own final line.`;
+The previous action will not be replayed automatically. ${nextStep}`;
 }
 
 async function sendControlledPrompt(
