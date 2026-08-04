@@ -140,6 +140,39 @@ describe('LoopBrowserHost', () => {
     });
   });
 
+  it('re-attests readiness when authentication returns to the preview origin', async () => {
+    await act(async () => root.render(React.createElement(LoopBrowserHost)));
+    act(() => dispatch(loopBrowserRequestChannel.name, request));
+
+    const loginAdapter = {
+      currentUrl: () => 'https://accounts.example.test/agent-login',
+    } as BrowserWebviewAdapter;
+    act(() =>
+      (
+        latestHostProps?.onBound as
+          | ((binding: { adapter: BrowserWebviewAdapter }) => void)
+          | undefined
+      )?.({ adapter: loginAdapter })
+    );
+    expect(ipc.emitted).toEqual([]);
+
+    const previewAdapter = {
+      currentUrl: () => request.previewUrl,
+    } as BrowserWebviewAdapter;
+    act(() =>
+      (
+        latestHostProps?.onLocationChange as
+          | ((binding: { adapter: BrowserWebviewAdapter }) => void)
+          | undefined
+      )?.({ adapter: previewAdapter })
+    );
+    expect(ipc.emitted).toHaveLength(1);
+    expect(ipc.emitted.at(-1)).toMatchObject({
+      name: 'loop-browser:ready',
+      message: { currentUrl: request.previewUrl },
+    });
+  });
+
   it('keeps an active lease immutable when its run id is replayed with new ownership', async () => {
     await act(async () => root.render(React.createElement(LoopBrowserHost)));
     act(() => dispatch(loopBrowserRequestChannel.name, request));

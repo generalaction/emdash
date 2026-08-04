@@ -130,6 +130,30 @@ describe('BrowserWebviewHost', () => {
     expect(onBindFailed).toHaveBeenCalledOnce();
   });
 
+  it('reports later top-level and in-page locations after the webview is bound', async () => {
+    const onBound = vi.fn();
+    const onLocationChange = vi.fn();
+    await act(async () => renderHost({ registration: 'main', onBound, onLocationChange }));
+    const webview = container.querySelector<HTMLElement>('webview')!;
+    let currentUrl = 'https://accounts.example.test/agent-login';
+    prepareWebview(webview);
+    Object.assign(webview, { getURL: () => currentUrl });
+
+    await act(async () => webview.dispatchEvent(new dom.window.Event('dom-ready')));
+    expect(onBound).toHaveBeenCalledOnce();
+    expect(onLocationChange).not.toHaveBeenCalled();
+
+    currentUrl = 'http://127.0.0.1:4173/settings';
+    await act(async () => webview.dispatchEvent(new dom.window.Event('did-navigate')));
+    expect(onLocationChange).toHaveBeenCalledOnce();
+    expect(onLocationChange.mock.calls[0]?.[0].adapter.currentUrl()).toBe(currentUrl);
+
+    currentUrl = 'http://127.0.0.1:4173/settings/vocabulary';
+    await act(async () => webview.dispatchEvent(new dom.window.Event('did-navigate-in-page')));
+    expect(onLocationChange).toHaveBeenCalledTimes(2);
+    expect(onLocationChange.mock.calls[1]?.[0].adapter.currentUrl()).toBe(currentUrl);
+  });
+
   it('keeps the same webview alive while hidden and disposes one lifecycle exactly once', async () => {
     const onDisposed = vi.fn();
     await act(async () => renderHost({ registration: 'main', onDisposed }));

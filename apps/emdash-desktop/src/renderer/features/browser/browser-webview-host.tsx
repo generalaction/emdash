@@ -32,6 +32,7 @@ export type BrowserWebviewHostProps = {
   className?: string;
   onWebviewChange?: (webview: BrowserWebviewElement | null) => void;
   onBound?: (binding: BrowserWebviewBinding) => void;
+  onLocationChange?: (binding: BrowserWebviewBinding) => void;
   onBindFailed?: () => void;
   onDisposed?: () => void;
 };
@@ -47,13 +48,26 @@ export function BrowserWebviewHost({
   className,
   onWebviewChange,
   onBound,
+  onLocationChange,
   onBindFailed,
   onDisposed,
 }: BrowserWebviewHostProps) {
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const generationRef = useRef(0);
-  const callbacksRef = useRef({ onWebviewChange, onBound, onBindFailed, onDisposed });
-  callbacksRef.current = { onWebviewChange, onBound, onBindFailed, onDisposed };
+  const callbacksRef = useRef({
+    onWebviewChange,
+    onBound,
+    onLocationChange,
+    onBindFailed,
+    onDisposed,
+  });
+  callbacksRef.current = {
+    onWebviewChange,
+    onBound,
+    onLocationChange,
+    onBindFailed,
+    onDisposed,
+  };
   const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
   const registrationIdentity = `${browserId}\u0000${partition}`;
   const [registeredIdentity, setRegisteredIdentity] = useState<string | null>(
@@ -142,10 +156,22 @@ export function BrowserWebviewHost({
       void bindWebview();
     };
 
+    const handleLocationChange = () => {
+      if (disposed || !bound || webviewRef.current !== webviewElement) return;
+      callbacksRef.current.onLocationChange?.({
+        adapter: createBrowserWebviewAdapter(webviewElement),
+        webview: webviewElement,
+      });
+    };
+
     webviewElement.addEventListener('dom-ready', handleDomReady);
+    webviewElement.addEventListener('did-navigate', handleLocationChange);
+    webviewElement.addEventListener('did-navigate-in-page', handleLocationChange);
     return () => {
       disposed = true;
       webviewElement.removeEventListener('dom-ready', handleDomReady);
+      webviewElement.removeEventListener('did-navigate', handleLocationChange);
+      webviewElement.removeEventListener('did-navigate-in-page', handleLocationChange);
     };
   }, [browserId, lifecycleKey, webviewElement]);
 

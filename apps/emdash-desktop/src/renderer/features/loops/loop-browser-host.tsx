@@ -80,26 +80,29 @@ export function LoopBrowserHost() {
           registration="main"
           hidden
           allowPopups={false}
-          onBound={({ adapter }) => {
-            const ready = loopBrowserReadyMessageSchema.safeParse({
-              type: 'ready',
-              verificationRunId: request.verificationRunId,
-              browserId: request.browserId,
-              projectId: request.projectId,
-              taskId: request.taskId,
-              workspaceId: request.workspaceId,
-              partition: request.partition,
-              allowedPreviewOrigin: request.allowedPreviewOrigin,
-              currentUrl: adapter.currentUrl(),
-              readyAt: new Date().toISOString(),
-            });
-            if (ready.success) events.emit(loopBrowserReadyChannel, ready.data);
-          }}
+          onBound={({ adapter }) => emitReady(request, adapter.currentUrl())}
+          onLocationChange={({ adapter }) => emitReady(request, adapter.currentUrl())}
           onDisposed={() => acknowledgeClose(request, pendingClose.current)}
         />
       ))}
     </>
   );
+}
+
+function emitReady(request: LoopBrowserRequestMessage, currentUrl: string): void {
+  const ready = loopBrowserReadyMessageSchema.safeParse({
+    type: 'ready',
+    verificationRunId: request.verificationRunId,
+    browserId: request.browserId,
+    projectId: request.projectId,
+    taskId: request.taskId,
+    workspaceId: request.workspaceId,
+    partition: request.partition,
+    allowedPreviewOrigin: request.allowedPreviewOrigin,
+    currentUrl,
+    readyAt: new Date().toISOString(),
+  });
+  if (ready.success) events.emit(loopBrowserReadyChannel, ready.data);
 }
 
 function acknowledgeClose(
