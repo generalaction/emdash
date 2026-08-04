@@ -6,6 +6,8 @@ import type { AgentConfigContract } from '@emdash/core/runtimes/agent-config/api
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
 import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
 import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
+import type { ConversationsContract } from '@emdash/core/runtimes/conversations/api';
+import { conversationsComponent } from '@emdash/core/runtimes/conversations/node';
 import type { FileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
@@ -42,6 +44,7 @@ export type WorkspaceServerRuntimeClients = {
   acp: ContractClient<AcpApiContract>;
   agentConfig: ContractClient<AgentConfigContract>;
   automations: ContractClient<AutomationsContract>;
+  conversations: ContractClient<ConversationsContract>;
   fileSearch: ContractClient<FileSearchContract>;
   files: ContractClient<FilesContract>;
   git: ContractClient<GitContract>;
@@ -106,6 +109,16 @@ export async function createWorkspaceServerRuntimeHost(
     validate: options.validate,
   });
 
+  // The conversations index depends on nothing and spawns first (spec §3.4). Default
+  // supervision (restart on failure) is deliberate: a durable index should come back.
+  const conversationsPromise = workerHost.spawn(conversationsComponent, {
+    name: 'conversations',
+    executable: workspaceWorkerPath('conversations'),
+    env,
+    dependencies: {},
+    config: { databasePath: paths.conversationsDatabase },
+    shutdownGraceMs: 3_000,
+  });
   const watcherPromise = workerHost.spawn(fsWatchComponent, {
     name: 'fs-watch',
     executable: workspaceWorkerPath('fs-watch'),
@@ -172,14 +185,16 @@ export async function createWorkspaceServerRuntimeHost(
     },
   });
 
-  const [watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] = await Promise.all([
-    watcherPromise,
-    terminalsPromise,
-    resourceUsagePromise,
-    acpPromise,
-    agentConfigPromise,
-    tuiAgentsPromise,
-  ]);
+  const [conversations, watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] =
+    await Promise.all([
+      conversationsPromise,
+      watcherPromise,
+      terminalsPromise,
+      resourceUsagePromise,
+      acpPromise,
+      agentConfigPromise,
+      tuiAgentsPromise,
+    ]);
 
   const filesPromise = workerHost.spawn(filesComponent, {
     name: 'files',
@@ -241,6 +256,7 @@ export async function createWorkspaceServerRuntimeHost(
       acp,
       agentConfig,
       automations,
+      conversations,
       fileSearch,
       files,
       git,

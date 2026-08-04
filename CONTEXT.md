@@ -27,7 +27,12 @@ A git worktree of a Repository on a host.
 A working directory on a host that emdash tracks — a repository, a worktree, or a plain directory. The place sessions and agents run in.
 
 **Session**:
-A running process (terminal or agent conversation) attached to a Workspace on a host. Host-owned; dies with its workspace.
+A running process (terminal or agent process) attached to a Workspace on a host. Host-owned; dies with its workspace.
+_Avoid_: Conversation (that is the durable record a session carries forward)
+
+**Conversation**:
+A durable record of an agent exchange, attached to a Workspace. One Conversation outlives its Sessions — the successive live processes that carry it; resuming starts a new Session of the same Conversation. Identified by its own id for its whole life; any provider session handle it holds is a last-observed pointer, not its identity.
+_Avoid_: Session (a conversation is not a process), using the provider's session id as the conversation's identity
 
 ### Desktop concepts
 
@@ -69,6 +74,10 @@ A registered Workspace that a reachable host reports as gone. Rows with any desk
 **Tracked / Untracked**:
 Whether a host artifact has a Registry entry. Untracking is a desktop decision about the Registry; deleting is a Host operation against the artifact.
 
+**Identity lost**:
+A Registry row whose Host can no longer be decoded — a remote row whose SSH connection was deleted, or a row with no location. Never reinterpreted as local: host-mutating flows refuse, a Project whose Repository row is identity-lost is skipped like a missing one, reads surface the loss rather than guess.
+_Avoid_: Falling back to local, empty connection ids
+
 ### Operations
 
 **Host operation**:
@@ -79,6 +88,10 @@ A durable mutation of desktop-owned records (tasks, projects, links). Completes 
 
 **Outbox**:
 The desktop's durable queue of Host operations awaiting their host (the kernel's host-gated operations). Survives restarts, drains on reconnect, and is cancelled when the host is forgotten.
+
+**Host claim**:
+An exclusive claim on a Host's kernel resource — the designated admission guard for host-level verbs. Artifact operations propagate intent claims to their Host, so an exclusive host claim conflicts with all in-flight work on that host. Claims guard admission only: the Outbox still cancels when the host is forgotten, and referential checks ("does anything still point here") stay data checks.
+_Avoid_: Using claims to block forgetting, ad-hoc per-verb host guards
 
 **Plan preview**:
 A desktop-compiled, non-authoritative prediction of how the host will expand a Host operation, shown for UI steps while offline. The host's actual expansion replaces it when execution starts.

@@ -5,6 +5,8 @@ import type { AgentConfigContract } from '@emdash/core/runtimes/agent-config/api
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
 import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
 import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
+import type { ConversationsContract } from '@emdash/core/runtimes/conversations/api';
+import { conversationsComponent } from '@emdash/core/runtimes/conversations/node';
 import type { FileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
@@ -55,6 +57,7 @@ import { desktopWorkerPath } from './worker-paths';
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;
 export type AgentConfigRuntimeClient = ContractClient<AgentConfigContract>;
 export type AutomationsRuntimeClient = ContractClient<AutomationsContract>;
+export type ConversationsRuntimeClient = ContractClient<ConversationsContract>;
 export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
@@ -70,6 +73,7 @@ export type DesktopRuntimeClients = {
   readonly acp: AcpRuntimeClient;
   readonly agentConfig: AgentConfigRuntimeClient;
   readonly automations: AutomationsRuntimeClient;
+  readonly conversations: ConversationsRuntimeClient;
   readonly fileSearch: FileSearchRuntimeClient;
   readonly files: FilesRuntimeClient;
   readonly git: GitRuntimeClient;
@@ -180,6 +184,18 @@ async function startDesktopWorkersWithHost(
       config: {},
     }
   );
+  // The conversations index depends on nothing and spawns first (spec §3.4). Default
+  // supervision (restart on failure) is deliberate: a durable index should come back.
+  const conversationsWorker = host.create(conversationsComponent, {
+    name: 'conversations',
+    executable: desktopWorkerPath('conversations'),
+    env: process.env,
+    dependencies: {},
+    config: {
+      databasePath: join(app.getPath('userData'), 'conversations.db'),
+    },
+    shutdownGraceMs: 3_000,
+  });
   const mementosWorker = host.create(mementosComponent, {
     name: 'mementos',
     executable: desktopWorkerPath('mementos'),
@@ -227,6 +243,7 @@ async function startDesktopWorkersWithHost(
 
   const watcherReady = fsWatchWorker.ready();
   const acpReady = acpWorker.ready();
+  const conversationsReady = conversationsWorker.ready();
   const agentConfigReady = agentConfigWorker.ready();
   const mementosReady = mementosWorker.ready();
   const pullRequestsReady = pullRequestsWorker.ready();
@@ -331,6 +348,7 @@ async function startDesktopWorkersWithHost(
     acp,
     agentConfig,
     automationsResult,
+    conversations,
     fileSearch,
     files,
     git,
@@ -344,6 +362,7 @@ async function startDesktopWorkersWithHost(
     acpReady,
     agentConfigReady,
     automationsReady,
+    conversationsReady,
     fileSearchReady,
     filesReady,
     gitReady,
@@ -363,6 +382,7 @@ async function startDesktopWorkersWithHost(
       acp,
       agentConfig,
       automations,
+      conversations,
       fileSearch,
       files,
       git,

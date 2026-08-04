@@ -57,6 +57,10 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     acp: forwardContractImpl(workspaceWireContract.acp, deps.runtimes.acp),
     agentConfig: forwardContractImpl(workspaceWireContract.agentConfig, deps.runtimes.agentConfig),
     automations: forwardContractImpl(workspaceWireContract.automations, deps.runtimes.automations),
+    conversations: forwardContractImpl(
+      workspaceWireContract.conversations,
+      deps.runtimes.conversations
+    ),
     fileSearch: forwardContractImpl(workspaceWireContract.fileSearch, deps.runtimes.fileSearch),
     files: forwardContractImpl(workspaceWireContract.files, deps.runtimes.files),
     git: forwardContractImpl(workspaceWireContract.git, deps.runtimes.git),

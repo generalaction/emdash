@@ -6,6 +6,7 @@ const runtimeIds = [
   'acp',
   'agent-config',
   'automations',
+  'conversations',
   'file-search',
   'files',
   'git',

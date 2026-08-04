@@ -65,6 +65,8 @@ export default defineConfig({
     'runtimes-agent-config-node': 'src/runtimes/agent-config/node/index.ts',
     'runtimes-automations-api': 'src/runtimes/automations/api/index.ts',
     'runtimes-automations-node': 'src/runtimes/automations/node/index.ts',
+    'runtimes-conversations-api': 'src/runtimes/conversations/api/index.ts',
+    'runtimes-conversations-node': 'src/runtimes/conversations/node/index.ts',
     'runtimes-tui-agents-api': 'src/runtimes/tui-agents/api/index.ts',
     'runtimes-tui-agents-node': 'src/runtimes/tui-agents/node/index.ts',
     'runtimes-terminals-api': 'src/runtimes/terminals/api/index.ts',

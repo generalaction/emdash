@@ -2,6 +2,7 @@ import { basename, extname } from 'node:path';
 import { acpWorker } from '../../../../packages/core/src/runtimes/acp/api/worker';
 import { agentConfigWorker } from '../../../../packages/core/src/runtimes/agent-config/api/worker';
 import { automationsWorker } from '../../../../packages/core/src/runtimes/automations/api/worker';
+import { conversationsWorker } from '../../../../packages/core/src/runtimes/conversations/api/worker';
 import { fileSearchWorker } from '../../../../packages/core/src/runtimes/file-search/api/worker';
 import { filesWorker } from '../../../../packages/core/src/runtimes/files/api/worker';
 import { gitWorker } from '../../../../packages/core/src/runtimes/git/api/worker';
@@ -31,6 +32,10 @@ export const workspaceWorkers = {
   [agentConfigWorker.id]: workspaceRuntimeWorker(
     agentConfigWorker,
     'src/gateway/entries/agent-config.ts'
+  ),
+  [conversationsWorker.id]: workspaceRuntimeWorker(
+    conversationsWorker,
+    '../../packages/core/src/runtimes/conversations/node/runtime-entry.ts'
   ),
   [fsWatchWorker.id]: workspaceRuntimeWorker(
     fsWatchWorker,
