@@ -1,3 +1,4 @@
+import { EMDASH_CONFIG_FILE } from '@emdash/core/primitives/emdash-config/api';
 import type { ScriptWorkflowState } from '@emdash/core/runtimes/terminals/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica, ReplicaLog } from '@emdash/wire';
@@ -10,7 +11,6 @@ import { getTerminalsClient } from '@core/features/terminals/api/browser/client'
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
-import { PROJECT_CONFIG_FILE } from '@core/primitives/project-settings/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -161,7 +161,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       if (this._disposed) unsubscribe();
       else this._unsubscribes.push(unsubscribe);
     });
-    void watchFileContent(this.workspaceId, PROJECT_CONFIG_FILE, () => {
+    void watchFileContent(this.workspaceId, EMDASH_CONFIG_FILE, () => {
       this.reloadIfLoaded();
     })
       .then((unsubscribe) => {

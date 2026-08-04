@@ -39,6 +39,13 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.workspace.operationLog.kind).toBe('liveModel');
   });
 
+  it('mounts workspace-host initialization and notices without changing their protocol shape', () => {
+    expect(workspaceWireContract.workspaceHost.initializeWorkspace.kind).toBe('procedure');
+    expect(workspaceWireContract.workspaceHost.runWorkspaceScript.kind).toBe('procedure');
+    expect(workspaceWireContract.workspaceHost.notices.kind).toBe('liveModel');
+    expect(workspaceWireContract.workspaceHost.notices.id).toBe('workspaceHost.notices');
+  });
+
   it('mounts port forwards under the portForwards domain', () => {
     expect(workspaceWireContract.portForwards.inspect.kind).toBe('procedure');
   });

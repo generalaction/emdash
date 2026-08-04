@@ -1,3 +1,7 @@
+import {
+  DEFAULT_PRESERVE_PATTERNS,
+  emdashConfigSchema,
+} from '@emdash/core/primitives/emdash-config/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type {
@@ -7,10 +11,8 @@ import type {
 import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
 import {
   baseProjectSettingsSchema,
-  DEFAULT_PRESERVE_PATTERNS,
   legacyBaseProjectSettingsSchema,
   projectSettingsSchema,
-  shareableProjectSettingsSchema,
   type BaseProjectSettings,
   type ProjectSettings,
   type ShareableProjectSettings,
@@ -82,9 +84,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         });
         return false;
       }
-      const parsed = shareableProjectSettingsSchema.safeParse(
-        parseJsonObject(content.data.content)
-      );
+      const parsed = emdashConfigSchema.safeParse(parseJsonObject(content.data.content));
       if (!parsed.success) {
         log.warn('Failed to inspect shared project settings during initialization', {
           error: parsed.error,
@@ -145,7 +145,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       }),
       shareable: readJson(
         row.shareableProjectSettingsJson,
-        shareableProjectSettingsSchema,
+        emdashConfigSchema,
         'shareable project settings'
       ),
       legacyConfigMigratedAt: row.legacyConfigMigratedAt,
@@ -207,7 +207,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
 
     const base = baseProjectSettingsSchema.parse(nextSettings);
-    const shareable = shareableProjectSettingsSchema.parse(nextSettings);
+    const shareable = emdashConfigSchema.parse(nextSettings);
 
     try {
       await this.ensure();
@@ -239,7 +239,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       const shareable = row
         ? readJson(
             row.shareableProjectSettingsJson,
-            shareableProjectSettingsSchema,
+            emdashConfigSchema,
             'shareable project settings'
           )
         : {};

@@ -47,7 +47,11 @@ function fakeCtx(input: HostRemoveWorktreeInput) {
     signal: controller.signal,
     stage: async <T>(id: string, _label: string, work: (stage: StageContext) => Promise<T>) => {
       try {
-        const value = await work({ progress: () => {}, signal: controller.signal });
+        const value = await work({
+          progress: () => {},
+          fail: () => {},
+          signal: controller.signal,
+        });
         stages.push({ id, status: 'succeeded' });
         return value;
       } catch (error) {

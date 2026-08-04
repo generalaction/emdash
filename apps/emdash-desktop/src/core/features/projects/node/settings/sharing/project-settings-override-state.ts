@@ -1,8 +1,8 @@
+import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
 import { log } from '@emdash/shared/logger';
 import {
   emptyProjectSettingsOverrideState,
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
-  shareableProjectSettingsSchema,
   type ProjectSettingsOverrideState,
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
@@ -32,7 +32,7 @@ export async function computeProjectSettingsOverrideState(
         });
         continue;
       }
-      const parsed = shareableProjectSettingsSchema.safeParse(JSON.parse(content.data.content));
+      const parsed = emdashConfigSchema.safeParse(JSON.parse(content.data.content));
       if (!parsed.success) continue;
 
       for (const field of SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS) {

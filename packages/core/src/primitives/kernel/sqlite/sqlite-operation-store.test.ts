@@ -34,6 +34,30 @@ describe('SqliteOperationStore', () => {
     expect(transitions).toEqual(['submit']);
   });
 
+  test('upgrades persisted v1 outcomes when records are read', async () => {
+    const store = makeStore();
+    await store.transaction((tx) => {
+      const record = tx.insert(newRecord('legacy-outcome'));
+      tx.transition(record.id, 'pending', 'failed', 'settle', {
+        outcome: {
+          version: '1',
+          completedStages: ['inspect'],
+          failedStage: 'teardown',
+        } as never,
+      });
+    });
+
+    await expect(store.get('legacy-outcome')).resolves.toMatchObject({
+      outcome: {
+        version: '2',
+        stages: [
+          { id: 'inspect', label: 'inspect', status: 'succeeded' },
+          { id: 'teardown', label: 'teardown', status: 'failed' },
+        ],
+      },
+    });
+  });
+
   test('migrations are incrementally equivalent', async () => {
     await expect(
       assertIncrementalMigrationEquivalence(operationStoreSqlite, migrations.length)

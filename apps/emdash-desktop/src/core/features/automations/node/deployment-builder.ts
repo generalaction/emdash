@@ -1,3 +1,7 @@
+import {
+  DEFAULT_PRESERVE_PATTERNS,
+  emdashConfigSchema,
+} from '@emdash/core/primitives/emdash-config/api';
 import { hostRefEquals } from '@emdash/core/primitives/host/api';
 import { hostFileRef } from '@emdash/core/primitives/path/api';
 import type { AutomationDeployment } from '@emdash/core/runtimes/automations/api';
@@ -9,9 +13,7 @@ import { getLocalTimeZone } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
   baseProjectSettingsSchema,
-  DEFAULT_PRESERVE_PATTERNS,
   legacyBaseProjectSettingsSchema,
-  shareableProjectSettingsSchema,
 } from '@core/primitives/project-settings/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -217,7 +219,7 @@ async function loadDeploymentProjectSettings(
       ...withoutLegacyRemote,
       baseRemote: withoutLegacyRemote.baseRemote ?? remote,
     });
-    const shareable = shareableProjectSettingsSchema.parse(JSON.parse(row.shareable));
+    const shareable = emdashConfigSchema.parse(JSON.parse(row.shareable));
     return {
       baseRemote: base.baseRemote ?? 'origin',
       preservePatterns: shareable.preservePatterns ?? [...DEFAULT_PRESERVE_PATTERNS],

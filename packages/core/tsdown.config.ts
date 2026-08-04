@@ -18,6 +18,7 @@ export default defineConfig({
     'primitives-terminal-shell-api': 'src/primitives/terminal-shell/api/index.ts',
     'primitives-kv-node': 'src/primitives/kv/node/index.ts',
     'primitives-agent-env-api': 'src/primitives/agent-env/api/index.ts',
+    'primitives-emdash-config-api': 'src/primitives/emdash-config/api/index.ts',
     'primitives-plugin-fs-api': 'src/primitives/plugin-fs/api/index.ts',
     'primitives-versioned-schema-api': 'src/primitives/versioned-schema/api/index.ts',
     'primitives-operations-api': 'src/primitives/operations/api/index.ts',

@@ -129,6 +129,31 @@ describe('BoundExec', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_500));
     expect(isProcessAlive(pid)).toBe(false);
   });
+
+  it('awaits process-group termination when cancelled', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'emdash-shared-exec-cancel-'));
+    const pidPath = path.join(cwd, 'child.pid');
+    const controller = new AbortController();
+    const execution = createBoundExec({ file: process.execPath, cwd }).exec(
+      [
+        '-e',
+        [
+          "const { spawn } = require('node:child_process');",
+          "const fs = require('node:fs');",
+          `const child = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 10000)"], { stdio: 'ignore' });`,
+          `fs.writeFileSync(${JSON.stringify(pidPath)}, String(child.pid));`,
+          'setInterval(() => {}, 10_000);',
+        ].join(' '),
+      ],
+      { signal: controller.signal }
+    );
+    const pid = Number.parseInt(await waitForFile(pidPath), 10);
+
+    controller.abort();
+
+    await expect(execution).rejects.toMatchObject({ name: 'AbortError' });
+    expect(isProcessAlive(pid)).toBe(false);
+  });
 });
 
 function isProcessAlive(pid: number): boolean {
@@ -138,4 +163,15 @@ function isProcessAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+async function waitForFile(filePath: string): Promise<string> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      return await readFile(filePath, 'utf8');
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  throw new Error(`Timed out waiting for ${filePath}`);
 }

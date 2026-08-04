@@ -34,6 +34,8 @@ export const operationStageDisplaySchema = operationStageSchema.extend({
   status: operationStageStatusSchema,
   progress: z.number().min(0).max(1).optional(),
   error: z.object({ message: z.string() }).optional(),
+  /** The stage failed, but its handler deliberately allowed the operation to continue. */
+  nonFatal: z.literal(true).optional(),
 });
 
 export const operationPredictedStageSchema = operationStageSchema.extend({

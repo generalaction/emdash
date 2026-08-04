@@ -94,6 +94,51 @@ describe('createOperationEngine', () => {
     await scope.dispose();
   });
 
+  test('records an explicitly non-fatal failed stage while completing the operation', async () => {
+    const definition = op('best-effort');
+    const handler = createOperationHandler(definition, async (ctx) => {
+      await ctx.stage('cleanup', 'Cleanup', async (stage) => {
+        stage.fail(new Error('cleanup failed'));
+      });
+      return { ok: true };
+    });
+    const { engine, progress } = engineFor([handler]);
+
+    const submitted = await engine.submit(
+      definition,
+      { key: 'a' },
+      { initiator: { kind: 'reconciler', probe: 'cleanup' } }
+    );
+    expect(submitted.success).toBe(true);
+    if (!submitted.success) return;
+
+    await expect(submitted.data.result).resolves.toEqual({
+      success: true,
+      data: { ok: true },
+    });
+    expect(progress.published.at(-1)?.stages).toEqual([
+      {
+        id: 'cleanup',
+        label: 'Cleanup',
+        status: 'failed',
+        nonFatal: true,
+        error: { message: 'cleanup failed' },
+      },
+    ]);
+    expect((await engine.get(submitted.data.id))?.outcome).toEqual({
+      version: '2',
+      stages: [
+        {
+          id: 'cleanup',
+          label: 'Cleanup',
+          status: 'failed',
+          nonFatal: true,
+          error: { message: 'cleanup failed' },
+        },
+      ],
+    });
+  });
+
   test('retries with backoff and preserves the claim until success', async () => {
     const definition = op('flaky');
     let attempts = 0;

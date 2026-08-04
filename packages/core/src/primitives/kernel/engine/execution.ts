@@ -106,13 +106,24 @@ export async function runOperationAttempt<D extends AnyOperationDefinition>(
             stage.progress = fraction;
             publish();
           },
+          fail: (error) => {
+            stage.status = 'failed';
+            stage.nonFatal = true;
+            stage.error = {
+              message: error instanceof Error ? error.message : String(error),
+            };
+            publish();
+          },
         });
-        stage.status = 'succeeded';
-        stage.progress = 1;
+        if (stage.status === 'running') {
+          stage.status = 'succeeded';
+          stage.progress = 1;
+        }
         publish();
         return value;
       } catch (error) {
         stage.status = 'failed';
+        delete stage.nonFatal;
         stage.error = { message: error instanceof Error ? error.message : String(error) };
         publish();
         throw error;
@@ -253,17 +264,14 @@ function outcomeFromStages(
   facts: Record<string, unknown>
 ): OperationOutcomeSummary {
   return {
-    version: '1',
-    failedStage: stages.find((stage) => stage.status === 'failed')?.id,
-    completedStages: stages
-      .filter((stage) => stage.status === 'succeeded')
-      .map((stage) => stage.id),
+    version: '2',
+    stages: cloneStages(stages),
     facts: Object.keys(facts).length > 0 ? facts : undefined,
   };
 }
 
 function emptyOutcome(): OperationOutcomeSummary {
-  return { version: '1', completedStages: [] };
+  return { version: '2', stages: [] };
 }
 
 function cloneStages(stages: readonly OperationStage[]): OperationStage[] {

@@ -1,7 +1,7 @@
-import type { HandlerContext } from '@primitives/kernel/api';
+import type { HandlerContext, StageContext } from '@primitives/kernel/api';
 import type { ExecutableOperationStage, OperationStagePlan } from '@primitives/operations/api';
 
-type StageExecutor = (stage: ExecutableOperationStage) => Promise<void>;
+type StageExecutor = (stage: ExecutableOperationStage, context: StageContext) => Promise<void>;
 
 export async function executeStagePlan<TContext>(
   ctx: Pick<HandlerContext<unknown, unknown>, 'stage'>,
@@ -14,7 +14,7 @@ export async function executeStagePlan<TContext>(
     for (const stage of stages) {
       const execute = executors[stage.executor];
       if (!execute) throw new Error(`No executor for operation stage '${stage.executor}'`);
-      await ctx.stage(stage.id, stage.label, () => execute(stage));
+      await ctx.stage(stage.id, stage.label, (stageContext) => execute(stage, stageContext));
     }
   }
 }

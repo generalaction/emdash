@@ -1,5 +1,5 @@
+import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import {
-  DEFAULT_PRESERVE_PATTERNS,
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
   type ProjectSettings,
   type ShareableProjectSettings,

@@ -1,3 +1,4 @@
+import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { remoteNameFromQualifiedRef } from '@core/primitives/git/api';
@@ -5,7 +6,6 @@ import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
   legacyProjectConfigSchema,
-  shareableProjectSettingsSchema,
   type BaseProjectSettings,
   type ShareableProjectSettings,
 } from '@core/primitives/project-settings/api';
@@ -115,7 +115,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   );
   const currentShareable = readJson(
     row.shareableProjectSettingsJson,
-    shareableProjectSettingsSchema,
+    emdashConfigSchema,
     'shareable project settings'
   );
   const { remote, ...currentSettings } = current;
@@ -149,7 +149,7 @@ export async function migrateLegacyProjectSettingsIfNeeded({
 
   if (legacy && !shareableAlreadyMigrated) {
     if ((await git?.isFileCleanlyTracked(configPath)) === false) {
-      const legacyShareable = shareableProjectSettingsSchema.parse(legacy);
+      const legacyShareable = emdashConfigSchema.parse(legacy);
       nextShareable = mergeShareableProjectSettings(currentShareable, legacyShareable);
     }
   }

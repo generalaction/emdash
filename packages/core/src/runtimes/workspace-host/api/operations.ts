@@ -101,8 +101,13 @@ export type RemoveWorktreeStagePlanContext = {
   workspacePath: string;
   deleteBranch: boolean;
   branchName?: string;
+  teardownScript?: string;
 };
-type RemoveWorktreeStageExecutor = 'kill-sessions' | 'remove-worktree' | 'delete-branch';
+type RemoveWorktreeStageExecutor =
+  | 'kill-sessions'
+  | 'teardown'
+  | 'remove-worktree'
+  | 'delete-branch';
 
 export const removeWorktreeStagePlan = defineOperationStagePlan<
   RemoveWorktreeStagePlanContext,
@@ -115,6 +120,21 @@ export const removeWorktreeStagePlan = defineOperationStagePlan<
       label: 'Kill sessions under worktree',
       executor: 'kill-sessions',
     },
+  },
+  {
+    kind: 'expansion',
+    id: 'teardown-script',
+    expand: (context) =>
+      context.teardownScript
+        ? [
+            {
+              id: 'teardown',
+              label: 'Run teardown script',
+              targetPath: context.workspacePath,
+              executor: 'teardown' as const,
+            },
+          ]
+        : [],
   },
   {
     kind: 'expansion',

@@ -2,6 +2,7 @@ import type { SqliteConnection, StoreHandle } from '@primitives/sqlite-store/api
 import {
   canTransition,
   isTerminalStatus,
+  operationOutcomeSummarySchema,
   type NewOperationRecord,
   type OperationRecord,
   type OperationRecordPatch,
@@ -455,7 +456,7 @@ function decodeRecord(row: OperationRow, claims: ResourceClaim[]): OperationReco
     result: decodeOptionalJson(row.result),
     rejectedError: decodeOptionalJson(row.rejected_error),
     error: decodeOptionalJson(row.error) as OperationRecord['error'],
-    outcome: decodeOptionalJson(row.outcome) as OperationRecord['outcome'],
+    outcome: decodeOutcome(row.outcome),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -475,6 +476,16 @@ function decodeJson(value: string): unknown {
 
 function decodeOptionalJson(value: string | null): unknown {
   return value === null ? undefined : JSON.parse(value);
+}
+
+function decodeOutcome(value: string | null): OperationRecord['outcome'] {
+  const decoded = decodeOptionalJson(value);
+  if (decoded === undefined) return undefined;
+  const parsed = operationOutcomeSummarySchema.safeParse(decoded);
+  if (parsed.status !== 'ok') {
+    throw new Error(`Stored operation outcome could not be parsed: ${parsed.status}`);
+  }
+  return parsed.data;
 }
 
 function terminalStatusesParams(): string[] {

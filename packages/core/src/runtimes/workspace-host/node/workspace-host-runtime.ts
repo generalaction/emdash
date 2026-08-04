@@ -8,16 +8,23 @@ import { type OperationProgress, type OperationRecord } from '@primitives/kernel
 import { createOperationEngine, type OperationEngine } from '@primitives/kernel/engine';
 import { SqliteOperationStore, operationStoreSqlite } from '@primitives/kernel/sqlite';
 import { projectOperationStages } from '@primitives/operations/api';
+import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
 import {
   createWorktreeOperation,
   removeRepositoryOperation,
   removeWorktreeOperation,
   workspaceHostContract,
   type WorkspaceHostError,
+  type WorkspaceHostInitializeRequest,
+  type WorkspaceHostInitializeResult,
+  type WorkspaceHostNotice,
+  type WorkspaceHostNoticesList,
   type WorkspaceHostOperationInput,
   type WorkspaceHostOperationView,
   type WorkspaceHostOperationsList,
   type WorkspaceHostRepoSnapshot,
+  type WorkspaceHostRunScriptRequest,
+  type WorkspaceHostRunScriptResult,
   type WorkspaceHostSnapshotRequest,
   type WorkspaceHostSubmitOperationResult,
 } from '../api';
@@ -28,10 +35,14 @@ import {
   type GitExecFactory,
 } from './handlers';
 import { scanRepository, type ScanRepositoryOptions } from './scanner/scan-repository';
+import { WorkspaceInitManager, type WorkspaceNotice } from './session-init/workspace-init-manager';
 import type { WorkspaceHostSessionClients } from './session/session-cleanup';
 
 export type WorkspaceHostOperationsLiveHost = LeasedLiveModelProvider<
   typeof workspaceHostContract.operations
+>;
+export type WorkspaceHostNoticesLiveHost = LeasedLiveModelProvider<
+  typeof workspaceHostContract.notices
 >;
 
 export interface WorkspaceHostRuntimeOptions {
@@ -45,8 +56,11 @@ export interface WorkspaceHostRuntimeOptions {
 
 export class WorkspaceHostRuntime {
   readonly operationsHost: WorkspaceHostOperationsLiveHost;
+  readonly noticesHost: WorkspaceHostNoticesLiveHost;
 
   private readonly operationLog: Cell<WorkspaceHostOperationsList>;
+  private readonly noticesLog: Cell<WorkspaceHostNoticesList>;
+  private readonly initManager: WorkspaceInitManager;
   private readonly engine: OperationEngine;
   private readonly store: SqliteOperationStore;
   private readonly handle: ReturnType<typeof operationStoreSqlite.open>;
@@ -61,6 +75,25 @@ export class WorkspaceHostRuntime {
       { list: this.operationLog },
       { publish: { list: 'diff' } }
     );
+    this.noticesLog = cell({} satisfies WorkspaceHostNoticesList);
+    this.noticesHost = expose(
+      workspaceHostContract.notices,
+      { list: this.noticesLog },
+      { publish: { list: 'diff' } }
+    );
+    this.initManager = new WorkspaceInitManager({
+      now: this.now,
+      onNoticesChanged: (notices) => {
+        this.noticesLog.set(
+          Object.fromEntries(
+            Object.entries(notices).map(([workspacePath, workspaceNotices]) => [
+              workspacePath,
+              workspaceNotices.map(noticeView),
+            ])
+          )
+        );
+      },
+    });
 
     const dbPath = join(options.stateDirectory, 'workspace-host-operations.db');
     mkdirSync(dirname(dbPath), { recursive: true });
@@ -79,6 +112,7 @@ export class WorkspaceHostRuntime {
       createRemoveWorktreeHandler({
         sessions: options.sessions,
         createGitExec: options.createGitExec,
+        initManager: this.initManager,
       }),
       createRemoveRepositoryHandler({
         sessions: options.sessions,
@@ -144,8 +178,58 @@ export class WorkspaceHostRuntime {
     return ok(record ? this.viewFor(record) : null);
   }
 
+  async initializeWorkspace(
+    request: WorkspaceHostInitializeRequest,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceHostInitializeResult, WorkspaceHostError>> {
+    try {
+      const result = await this.initManager.initialize(
+        formatWorkspacePath(request.workspacePath),
+        signal
+      );
+      return ok({
+        active: true,
+        prepare: result.prepare,
+        notices: result.notices.map(noticeView),
+      });
+    } catch (error) {
+      return err({
+        type: 'filesystem-error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async runWorkspaceScript(
+    request: WorkspaceHostRunScriptRequest,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceHostRunScriptResult, WorkspaceHostError>> {
+    try {
+      const workspacePath = formatWorkspacePath(request.workspacePath);
+      if (!this.initManager.isActive(workspacePath)) {
+        return err({
+          type: 'operation-rejected',
+          code: 'workspace-not-active',
+          message: `Workspace ${workspacePath} must be initialized before running scripts`,
+        });
+      }
+      const result = await this.initManager.runConfiguredScript(
+        workspacePath,
+        request.script,
+        signal
+      );
+      return ok(result);
+    } catch (error) {
+      return err({
+        type: 'filesystem-error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   async dispose(): Promise<void> {
     await this.engine.shutdown();
+    await this.initManager.dispose();
     this.handle.close();
   }
 
@@ -211,6 +295,25 @@ export class WorkspaceHostRuntime {
         : {}),
     };
   }
+}
+
+function noticeView(notice: WorkspaceNotice): WorkspaceHostNotice {
+  const path = parseAbsolute(notice.path, {
+    profile: { style: isWindowsPath(notice.path) ? 'win32' : 'posix' },
+  });
+  if (!path.success) throw new Error(`Workspace notice has invalid path: ${notice.path}`);
+  return {
+    ...notice,
+    path: path.data,
+  };
+}
+
+function formatWorkspacePath(path: HostAbsolutePath): string {
+  return formatAbsolute(path, { separator: path.root.kind === 'posix' ? '/' : '\\' });
+}
+
+function isWindowsPath(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/u.test(path) || path.startsWith('\\\\');
 }
 
 function definitionFor(request: WorkspaceHostOperationInput) {

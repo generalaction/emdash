@@ -7,6 +7,7 @@ import {
   type WorkspaceHostError,
 } from '../../api';
 import type { WorkspaceHostSessionClients } from '../session/session-cleanup';
+import { validateWorktreePath } from '../worktree-path-safety';
 import { executeStagePlan } from './execute-stage-plan';
 import {
   branchExists,
@@ -26,6 +27,14 @@ export function createCreateWorktreeHandler(deps: CreateWorktreeHandlerDeps) {
     const repoPath = formatAbsolute(ctx.input.repoPath);
     const worktreePath = formatAbsolute(ctx.input.worktreePath);
     const exec = createExec(repoPath);
+    const safe = await validateWorktreePath({
+      repoPath,
+      targetPath: worktreePath,
+      mutation: 'create',
+      signal: ctx.signal,
+      createGitExec: createExec,
+    });
+    if (!safe.success) ctx.reject(safe.error);
 
     const planContext = {
       workspacePath: worktreePath,

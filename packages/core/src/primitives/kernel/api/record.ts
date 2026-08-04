@@ -92,6 +92,28 @@ export interface OperationErrorSummary {
   code?: string;
 }
 
+const persistedOperationStageSchema: z.ZodType<PersistedOperationStage> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    label: z.string(),
+    status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
+    progress: z.number().min(0).max(1).optional(),
+    error: z.object({ message: z.string() }).optional(),
+    nonFatal: z.literal(true).optional(),
+    substages: z.array(persistedOperationStageSchema).optional(),
+  })
+);
+
+export interface PersistedOperationStage {
+  id: string;
+  label: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
+  progress?: number;
+  error?: { message: string };
+  nonFatal?: true;
+  substages?: PersistedOperationStage[];
+}
+
 export const operationOutcomeSummarySchema = defineVersionedSchema()
   .initial(
     '1',
@@ -100,6 +122,34 @@ export const operationOutcomeSummarySchema = defineVersionedSchema()
       failedStage: z.string().optional(),
       completedStages: z.array(z.string()),
       facts: z.record(z.string(), z.unknown()).optional(),
+    })
+  )
+  .version(
+    '2',
+    z.object({
+      version: z.literal('2'),
+      stages: z.array(persistedOperationStageSchema),
+      facts: z.record(z.string(), z.unknown()).optional(),
+    }),
+    (previous) => ({
+      version: '2' as const,
+      stages: [
+        ...previous.completedStages.map((id) => ({
+          id,
+          label: id,
+          status: 'succeeded' as const,
+        })),
+        ...(previous.failedStage && !previous.completedStages.includes(previous.failedStage)
+          ? [
+              {
+                id: previous.failedStage,
+                label: previous.failedStage,
+                status: 'failed' as const,
+              },
+            ]
+          : []),
+      ],
+      facts: previous.facts,
     })
   )
   .build();

@@ -1,21 +1,6 @@
+import { emdashConfigSchema, type EmdashConfig } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import z from 'zod';
-
-export const PROJECT_CONFIG_FILE = '.emdash.json';
-
-export function isProjectConfigPath(filePath: string): boolean {
-  const normalized = filePath.replace(/\\/g, '/');
-  return normalized === PROJECT_CONFIG_FILE || normalized.endsWith(`/${PROJECT_CONFIG_FILE}`);
-}
-
-export const DEFAULT_PRESERVE_PATTERNS = [
-  '.env',
-  '.env.keys',
-  '.env.local',
-  '.env.*.local',
-  '.envrc',
-  'docker-compose.override.yml',
-] as const;
 
 export const defaultBranchSettingSchema = z.union([
   z.string(),
@@ -24,28 +9,7 @@ export const defaultBranchSettingSchema = z.union([
 
 export type DefaultBranchSetting = z.infer<typeof defaultBranchSettingSchema>;
 
-const preservePatternsSchema = z
-  .array(z.string())
-  .transform((patterns) => patterns.filter((pattern) => pattern !== PROJECT_CONFIG_FILE));
-
-export const shareableProjectScriptsSettingsSchema = z.object({
-  prepare: z.string().optional(),
-  setup: z.string().optional(),
-  run: z.string().optional(),
-  teardown: z.string().optional(),
-});
-
-export const shareableProjectSettingsSchema = z.object({
-  preservePatterns: preservePatternsSchema.optional(),
-  shellSetup: z.string().optional(),
-  scripts: shareableProjectScriptsSettingsSchema.optional(),
-});
-
-export const shareableProjectSettingsWithDefaultsSchema = shareableProjectSettingsSchema.extend({
-  preservePatterns: preservePatternsSchema.default([...DEFAULT_PRESERVE_PATTERNS]),
-});
-
-export type ShareableProjectSettings = z.infer<typeof shareableProjectSettingsSchema>;
+export type ShareableProjectSettings = EmdashConfig;
 
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
@@ -71,17 +35,9 @@ export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend(
   remote: z.string().optional(),
 });
 
-export const projectSettingsSchema = baseProjectSettingsSchema.merge(
-  shareableProjectSettingsSchema
-);
+export const projectSettingsSchema = baseProjectSettingsSchema.merge(emdashConfigSchema);
 
-export const legacyProjectConfigSchema = legacyBaseProjectSettingsSchema.merge(
-  shareableProjectSettingsSchema
-);
-
-export function defaultShareableProjectSettings(): ShareableProjectSettings {
-  return shareableProjectSettingsWithDefaultsSchema.parse({});
-}
+export const legacyProjectConfigSchema = legacyBaseProjectSettingsSchema.merge(emdashConfigSchema);
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 

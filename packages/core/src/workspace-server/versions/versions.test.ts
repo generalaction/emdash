@@ -80,6 +80,15 @@ describe('negotiateProtocol', () => {
       expect(result.compatible).toBe(true);
     });
 
+    it('negotiates pre-workspace-init clients down below the 7.2 feature level', () => {
+      const result = negotiateProtocol('7.1.0');
+      expect(result).toEqual({
+        compatible: true,
+        agreedVersion: '7.1.0',
+        agreedMinor: 1,
+      });
+    });
+
     it('requires older major clients to upgrade for breaking contract changes', () => {
       const result = negotiateProtocol('3.0.0');
 

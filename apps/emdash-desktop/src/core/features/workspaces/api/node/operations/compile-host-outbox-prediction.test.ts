@@ -31,6 +31,7 @@ describe('host outbox prediction stage plans', () => {
       workspacePath: '/repo/task',
       branchName: 'task',
       deleteBranch: true,
+      teardownScript: 'pnpm teardown',
     };
     const prediction = compileRemoveWorktreePrediction({ now: 1, ...context });
 

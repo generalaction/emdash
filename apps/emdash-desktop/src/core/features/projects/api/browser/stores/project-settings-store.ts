@@ -1,8 +1,8 @@
+import { EMDASH_CONFIG_FILE } from '@emdash/core/primitives/emdash-config/api';
 import type { Result } from '@emdash/shared';
 import { watchFileContent } from '@core/features/editor/api/browser/files';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import {
-  PROJECT_CONFIG_FILE,
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
   type ProjectConfigMigration,
@@ -40,7 +40,7 @@ export class ProjectSettingsStore {
     }, [{ kind: 'demand' }]);
 
     if (repositoryWorkspaceId) {
-      void watchFileContent(repositoryWorkspaceId, PROJECT_CONFIG_FILE, () => {
+      void watchFileContent(repositoryWorkspaceId, EMDASH_CONFIG_FILE, () => {
         this.pageData.invalidate();
       })
         .then((unsubscribe) => {

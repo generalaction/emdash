@@ -12,7 +12,8 @@ describe('runOperationStage', () => {
         operationId: 'operation-1',
         attempt: 0,
         signal: parent.signal,
-        stage: async (_id, _label, work) => work({ signal: parent.signal, progress: vi.fn() }),
+        stage: async (_id, _label, work) =>
+          work({ signal: parent.signal, progress: vi.fn(), fail: vi.fn() }),
         run: vi.fn(),
         spawn: vi.fn(),
         reject: vi.fn((error) => {
@@ -52,7 +53,11 @@ describe('runOperationStage', () => {
           attempt: 0,
           signal: new AbortController().signal,
           stage: async (_id, _label, work) =>
-            work({ signal: new AbortController().signal, progress: vi.fn() }),
+            work({
+              signal: new AbortController().signal,
+              progress: vi.fn(),
+              fail: vi.fn(),
+            }),
           run: vi.fn(),
           spawn: vi.fn(),
           reject,

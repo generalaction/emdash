@@ -19,6 +19,7 @@ export function compileRemoveWorktreePrediction(input: {
   workspacePath: string;
   branchName?: string;
   deleteBranch: boolean;
+  teardownScript?: string;
   observed?: PredictionObservationRow | null;
 }): OperationPrediction {
   const observedPresent = input.observed?.observedStatus === 'present';
@@ -26,6 +27,7 @@ export function compileRemoveWorktreePrediction(input: {
     workspacePath: input.workspacePath,
     deleteBranch: input.deleteBranch,
     branchName: input.branchName,
+    teardownScript: input.teardownScript,
   }).map(
     (stage): OperationPredictedStage => ({
       id: stage.id,

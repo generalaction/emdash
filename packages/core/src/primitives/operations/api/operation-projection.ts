@@ -82,8 +82,9 @@ export function projectOperationDisplay(
 ): OperationDisplayState {
   const parsed = input.parsedInputs.get(record.id);
   const progress = input.progress.get(record.id);
-  const stages = progress?.stages.map(toDisplayStage);
-  const current = progress?.stages.at(-1);
+  const projectedStages = projectOperationStages(record, progress);
+  const stages = projectedStages.length > 0 ? projectedStages : undefined;
+  const current = projectedStages.at(-1);
   const base = {
     operationId: record.id,
     operationKind: record.name,
@@ -99,8 +100,8 @@ export function projectOperationDisplay(
     createdAt: record.createdAt,
     attempt: record.attempt,
     currentStep: current?.id,
-    completedSteps: progress?.stages.filter((stage) => stage.status === 'succeeded').length,
-    totalSteps: progress?.stages.length,
+    completedSteps: stages?.filter((stage) => stage.status === 'succeeded').length,
+    totalSteps: stages?.length,
     error: record.error?.message,
   };
   const confirmation = operationNeedsConfirmationErrorSchema.safeParse(record.rejectedError);
@@ -140,20 +141,7 @@ export function projectOperationStages(
   if (progress) return progress.stages.map(toDisplayStage);
   const outcome = record.outcome;
   if (!outcome) return [];
-  const stages: OperationProgress['stages'] = outcome.completedStages.map((id) => ({
-    id,
-    label: id,
-    status: 'succeeded',
-  }));
-  if (outcome.failedStage) {
-    stages.push({
-      id: outcome.failedStage,
-      label: outcome.failedStage,
-      status: 'failed',
-      ...(record.error ? { error: { message: record.error.message } } : {}),
-    });
-  }
-  return stages;
+  return outcome.stages.map(toDisplayStage);
 }
 
 function toDisplayStage(
@@ -165,6 +153,7 @@ function toDisplayStage(
     status: stage.status,
     progress: stage.progress,
     error: stage.error,
+    nonFatal: stage.nonFatal,
     substages: stage.substages?.map(toDisplayStage),
   };
 }

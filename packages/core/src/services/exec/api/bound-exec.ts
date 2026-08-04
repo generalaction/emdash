@@ -72,7 +72,7 @@ class ProcessBoundExec implements BoundExec {
       const spawnOptions: SpawnOptionsWithoutStdio = {
         cwd: options.cwd ?? this.cwd,
         env: composeEnv(this.env, options.env),
-        signal: options.signal,
+        detached: process.platform !== 'win32',
       };
       const child = spawnProcess(this.file, args, spawnOptions);
       const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
@@ -81,6 +81,8 @@ class ProcessBoundExec implements BoundExec {
       let stderrBytes = 0;
       let settled = false;
       let stopped = false;
+      let terminationError: Error | undefined;
+      let terminationPromise: Promise<void> | undefined;
 
       const stdoutText = (): string => {
         if (sink.kind === 'text') return sink.chunks.join('');
@@ -90,15 +92,45 @@ class ProcessBoundExec implements BoundExec {
       const fail = (error: unknown): void => {
         if (settled) return;
         settled = true;
+        cleanup();
         reject(error);
       };
       const failExec = (exitCode: number | null, stderrOverride?: string): void => {
         fail(new ExecError(this.file, args, exitCode, stdoutText(), stderrOverride ?? stderr));
       };
 
-      const timeout = createTimeout(child, options, () => {
-        failExec(null, `Timed out after ${options.timeoutMs}ms`);
-      });
+      const startTermination = (error: Error): void => {
+        if (settled || terminationError) return;
+        terminationError = error;
+        terminationPromise = terminateProcessGroup(child);
+      };
+      const timeout = options.timeoutMs
+        ? setTimeout(() => {
+            startTermination(
+              new ExecError(
+                this.file,
+                args,
+                null,
+                stdoutText(),
+                `Timed out after ${options.timeoutMs}ms`
+              )
+            );
+          }, options.timeoutMs)
+        : undefined;
+      const abort = () => {
+        startTermination(
+          Object.assign(new Error('The operation was aborted'), {
+            name: 'AbortError',
+          })
+        );
+      };
+      options.signal?.addEventListener('abort', abort, { once: true });
+      if (options.signal?.aborted) abort();
+
+      function cleanup(): void {
+        if (timeout) clearTimeout(timeout);
+        options.signal?.removeEventListener('abort', abort);
+      }
 
       if (sink.kind !== 'buffer') child.stdout?.setEncoding('utf8');
       child.stderr?.setEncoding('utf8');
@@ -134,7 +166,7 @@ class ProcessBoundExec implements BoundExec {
       });
 
       child.on('error', (error) => {
-        clearExecTimeout(timeout);
+        if (terminationError) return;
         if (error.name === 'AbortError') {
           fail(error);
           return;
@@ -142,9 +174,15 @@ class ProcessBoundExec implements BoundExec {
         failExec(null, error instanceof Error ? error.message : String(error));
       });
 
-      child.on('close', (code) => {
-        clearExecTimeout(timeout);
+      child.on('close', async (code) => {
+        cleanup();
         if (settled) return;
+        if (terminationError) {
+          await terminationPromise;
+          settled = true;
+          reject(terminationError);
+          return;
+        }
         settled = true;
         const exitCode = code ?? 0;
         if (exitCode === 0 || (sink.kind === 'stream' && stopped)) {
@@ -166,31 +204,42 @@ function composeEnv(
   return overlay ? { ...base, ...overlay } : base;
 }
 
-type TimeoutHandle = {
-  timeout: ReturnType<typeof setTimeout>;
-  killTimeout?: ReturnType<typeof setTimeout>;
-};
-
-function createTimeout(
-  child: ReturnType<typeof spawnProcess>,
-  options: ExecOptions,
-  onTimeout: () => void
-): TimeoutHandle | undefined {
-  if (!options.timeoutMs) return undefined;
-  const handle: TimeoutHandle = {
-    timeout: setTimeout(() => {
-      child.kill();
-      handle.killTimeout = setTimeout(() => {
-        child.kill('SIGKILL');
-      }, TIMEOUT_KILL_GRACE_MS);
-      onTimeout();
-    }, options.timeoutMs),
-  };
-  return handle;
+async function terminateProcessGroup(child: ReturnType<typeof spawnProcess>): Promise<void> {
+  signalProcessGroup(child, 'SIGTERM');
+  if (await waitForProcessGroupExit(child, TIMEOUT_KILL_GRACE_MS)) return;
+  signalProcessGroup(child, 'SIGKILL');
+  await waitForProcessGroupExit(child, TIMEOUT_KILL_GRACE_MS);
 }
 
-function clearExecTimeout(handle: TimeoutHandle | undefined): void {
-  if (!handle) return;
-  clearTimeout(handle.timeout);
-  if (handle.killTimeout) clearTimeout(handle.killTimeout);
+function signalProcessGroup(child: ReturnType<typeof spawnProcess>, signal: NodeJS.Signals): void {
+  if (child.pid && process.platform !== 'win32') {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // The process may have exited between the timeout and the signal.
+    }
+  }
+  child.kill(signal);
+}
+
+async function waitForProcessGroupExit(
+  child: ReturnType<typeof spawnProcess>,
+  timeoutMs: number
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (processGroupIsAlive(child) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return !processGroupIsAlive(child);
+}
+
+function processGroupIsAlive(child: ReturnType<typeof spawnProcess>): boolean {
+  if (!child.pid) return false;
+  try {
+    process.kill(process.platform === 'win32' ? child.pid : -child.pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }

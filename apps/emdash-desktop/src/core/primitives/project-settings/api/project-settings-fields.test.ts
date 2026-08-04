@@ -1,5 +1,6 @@
+import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PRESERVE_PATTERNS, type ProjectSettings } from './project-settings';
+import type { ProjectSettings } from './project-settings';
 import { hasConfiguredShareableProjectSettings } from './project-settings-fields';
 
 describe('hasConfiguredShareableProjectSettings', () => {

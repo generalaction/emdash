@@ -37,6 +37,11 @@ export interface HandlerContext<TInput, TError = unknown> {
 
 export interface StageContext {
   progress(fraction: number): void;
+  /**
+   * Records a failed stage without failing the enclosing operation.
+   * Use only for explicitly best-effort stages whose failure is surfaced separately.
+   */
+  fail(error: unknown): void;
   signal: AbortSignal;
 }
 

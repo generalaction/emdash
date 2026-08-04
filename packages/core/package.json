@@ -77,6 +77,10 @@
       "types": "./dist/primitives-agent-env-api.d.mts",
       "default": "./dist/primitives-agent-env-api.mjs"
     },
+    "./primitives/emdash-config/api": {
+      "types": "./dist/primitives-emdash-config-api.d.mts",
+      "default": "./dist/primitives-emdash-config-api.mjs"
+    },
     "./primitives/plugin-fs/api": {
       "types": "./dist/primitives-plugin-fs-api.d.mts",
       "default": "./dist/primitives-plugin-fs-api.mjs"

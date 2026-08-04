@@ -46,8 +46,10 @@ export class HostStageFailedError extends Error {
  * `ctx.stage`. Host stages execute sequentially, so each is mirrored as one
  * desktop stage that resolves when the host stage terminates.
  *
- * Throws `HostStageFailedError` for a failed host stage (deterministic) and a
- * plain `Error` for polling/transport failures (retryable by the kernel).
+ * Throws `HostStageFailedError` for a fatal failed host stage (deterministic).
+ * Explicitly non-fatal host failures are mirrored with `StageContext.fail()`
+ * while following continues to the host operation's successful terminal view.
+ * Polling/transport failures throw a plain retryable error.
  */
 export async function followHostOperation(
   ctx: Pick<HandlerContext<unknown, unknown>, 'stage' | 'signal'>,
@@ -90,7 +92,13 @@ async function mirrorStage(
     let current = stage;
     for (;;) {
       if (current.status === 'succeeded' || current.status === 'skipped') return;
-      if (current.status === 'failed') throw new HostStageFailedError(current, view);
+      if (current.status === 'failed') {
+        if (current.nonFatal) {
+          stageCtx.fail(current.error?.message ?? `${current.label} failed on the host`);
+          return;
+        }
+        throw new HostStageFailedError(current, view);
+      }
       if (typeof current.progress === 'number') stageCtx.progress(current.progress);
       // The host operation ended while this stage never terminated (e.g. the
       // host handler aborted between stages); let the terminal view decide.

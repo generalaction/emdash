@@ -33,9 +33,16 @@ function fakeCtx() {
         label: string,
         work: (stage: StageContext) => Promise<T>
       ): Promise<T> => {
+        let failed = false;
         try {
-          const value = await work({ progress: () => {}, signal: controller.signal });
-          journal.push({ id, label, status: 'succeeded' });
+          const value = await work({
+            progress: () => {},
+            fail: () => {
+              failed = true;
+            },
+            signal: controller.signal,
+          });
+          journal.push({ id, label, status: failed ? 'failed' : 'succeeded' });
           return value;
         } catch (error) {
           journal.push({ id, label, status: 'failed' });
@@ -166,6 +173,40 @@ describe('followHostOperation', () => {
     ).rejects.toThrow(HostStageFailedError);
     expect(journal).toEqual([
       { id: 'host:remove-worktree', label: 'Remove worktree', status: 'failed' },
+    ]);
+  });
+
+  it('keeps following when a non-fatal host stage fails', async () => {
+    const { ctx, journal } = fakeCtx();
+    const source = scriptedSource([
+      view('running', [
+        {
+          id: 'teardown',
+          label: 'Run teardown script',
+          status: 'failed',
+          nonFatal: true,
+          error: { message: 'teardown failed' },
+        },
+        { id: 'remove-worktree', label: 'Remove worktree', status: 'running' },
+      ]),
+      view('succeeded', [
+        {
+          id: 'teardown',
+          label: 'Run teardown script',
+          status: 'failed',
+          nonFatal: true,
+          error: { message: 'teardown failed' },
+        },
+        { id: 'remove-worktree', label: 'Remove worktree', status: 'succeeded' },
+      ]),
+    ]);
+
+    await expect(
+      followHostOperation(ctx, source, { operationId: OPERATION_ID, clock: immediateClock() })
+    ).resolves.toMatchObject({ status: 'succeeded' });
+    expect(journal).toEqual([
+      { id: 'host:teardown', label: 'Run teardown script', status: 'failed' },
+      { id: 'host:remove-worktree', label: 'Remove worktree', status: 'succeeded' },
     ]);
   });
 

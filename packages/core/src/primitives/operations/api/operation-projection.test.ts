@@ -5,7 +5,11 @@ import type {
   OperationStatus,
 } from '@primitives/kernel/api';
 import { describe, expect, it } from 'vitest';
-import { projectOperationDisplay, type ParsedOperationProjection } from './operation-projection';
+import {
+  projectOperationDisplay,
+  projectOperationStages,
+  type ParsedOperationProjection,
+} from './operation-projection';
 
 describe('operation projection', () => {
   it.each([
@@ -81,6 +85,40 @@ describe('operation projection', () => {
       totalSteps: 1,
       stages: [{ id: 'scan', status: 'running', progress: 0.5 }],
     });
+  });
+
+  it('projects ordered stage details from the durable outcome after progress ends', () => {
+    const stages = projectOperationStages(
+      record({
+        status: 'succeeded',
+        outcome: {
+          version: '2',
+          stages: [
+            { id: 'inspect', label: 'Inspect worktrees', status: 'succeeded', progress: 1 },
+            {
+              id: 'teardown',
+              label: 'Run teardown script',
+              status: 'failed',
+              nonFatal: true,
+              error: { message: 'teardown failed' },
+            },
+            { id: 'remove', label: 'Remove worktree', status: 'succeeded', progress: 1 },
+          ],
+        },
+      })
+    );
+
+    expect(stages).toEqual([
+      { id: 'inspect', label: 'Inspect worktrees', status: 'succeeded', progress: 1 },
+      {
+        id: 'teardown',
+        label: 'Run teardown script',
+        status: 'failed',
+        nonFatal: true,
+        error: { message: 'teardown failed' },
+      },
+      { id: 'remove', label: 'Remove worktree', status: 'succeeded', progress: 1 },
+    ]);
   });
 });
 

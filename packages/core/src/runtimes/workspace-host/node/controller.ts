@@ -23,7 +23,10 @@ export function createWorkspaceHostController(
       snapshotRepository: (input) => runtime.snapshotRepository(input),
       submitOperation: (input) => runtime.submitOperation(input),
       getOperation: (input) => runtime.getOperation(input.operationId),
+      initializeWorkspace: (input, meta) => runtime.initializeWorkspace(input, meta.signal),
+      runWorkspaceScript: (input, meta) => runtime.runWorkspaceScript(input, meta.signal),
       operations: runtime.operationsHost,
+      notices: runtime.noticesHost,
     }),
     options.validate ?? 'inputs'
   );

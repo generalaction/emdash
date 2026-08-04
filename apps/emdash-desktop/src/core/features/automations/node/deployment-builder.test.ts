@@ -1,9 +1,9 @@
+import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { hostFileRef } from '@emdash/core/primitives/path/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@core/primitives/automations/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import { DEFAULT_PRESERVE_PATTERNS } from '@core/primitives/project-settings/api';
 import { buildAutomationDeployment } from './deployment-builder';
 
 const mocks = vi.hoisted(() => ({
