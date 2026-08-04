@@ -1,5 +1,5 @@
+import path from 'node:path';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -21,15 +21,22 @@ function makeResolver(options: {
   home?: string;
   existingPaths?: string[];
   registeredPaths?: string[];
+  missingParents?: string[];
   appOverrides?: Record<string, string>;
   projectOverride?: string;
 }) {
   const existingPaths = new Set(options.existingPaths ?? []);
   const registeredPaths = new Set(options.registeredPaths ?? []);
+  const missingParents = new Set(options.missingParents ?? []);
   const getHomeDir = vi.fn().mockResolvedValue(hostPathFromNative(options.home ?? '/home/jona'));
   const exists = vi.fn(async ({ root, relative }) => {
-    expect(relative).toBe(ROOT_RELATIVE_PATH);
-    return ok(existingPaths.has(nativePathFromHost(root)));
+    const parent = nativePathFromHost(root);
+    if (missingParents.has(parent)) {
+      return err({ type: 'not-found' as const, path: '' });
+    }
+    const candidate =
+      relative === '' ? parent : path.posix.join(parent, relative.replaceAll('\\', '/'));
+    return ok(existingPaths.has(candidate));
   });
   const broker = {
     client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } } })),
@@ -80,6 +87,32 @@ describe('WorkspacePlacementResolver', () => {
     expect(result).toMatchObject({
       success: true,
       data: expect.stringMatching(/^\/home\/remote\/fast-worktrees\/emdash-[a-f0-9]{8}$/u),
+    });
+  });
+
+  it('resolves a new path under an existing parent', async () => {
+    const { resolver, exists } = makeResolver({ home: '/home/jona' });
+
+    await expect(
+      resolver.resolveRepositoryDestination(LOCAL_HOST_REF, 'emdash', '/chosen')
+    ).resolves.toEqual({ success: true, data: '/chosen/emdash' });
+    expect(exists).toHaveBeenCalledWith(
+      expect.objectContaining({
+        root: hostPathFromNative('/chosen'),
+        relative: 'emdash',
+      })
+    );
+  });
+
+  it('treats a missing parent directory as an available candidate', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/jona',
+      missingParents: ['/home/jona/emdash/repositories'],
+    });
+
+    await expect(resolver.resolveRepositoryDestination(LOCAL_HOST_REF, 'api')).resolves.toEqual({
+      success: true,
+      data: '/home/jona/emdash/repositories/api',
     });
   });
 

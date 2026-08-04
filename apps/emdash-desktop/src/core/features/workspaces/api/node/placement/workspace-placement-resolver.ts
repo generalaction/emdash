@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
-import { ROOT_RELATIVE_PATH, type HostAbsolutePath } from '@emdash/core/primitives/path/api';
+import { type HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import {
   defaultRepositoriesRoot,
   defaultWorktreesRoot,
@@ -13,7 +13,11 @@ import type {
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { eq } from 'drizzle-orm';
-import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import {
+  fileKeyForAbsolutePath,
+  hostPathFromNative,
+  nativePathFromHost,
+} from '@core/primitives/desktop-runtime/api';
 import { safePathSegment } from '@core/primitives/path-name/api';
 import {
   legacyBaseProjectSettingsSchema,
@@ -100,13 +104,14 @@ export class WorkspacePlacementResolver {
       const candidateName = suffix === 1 ? baseName : `${baseName}-${suffix}`;
       const candidate = pathApi.join(rootResult.data, candidateName);
       const [exists, registeredProject] = await Promise.all([
-        session.data.files.fs.exists({
-          root: hostPathFromNative(candidate),
-          relative: ROOT_RELATIVE_PATH,
-        }),
+        session.data.files.fs.exists(fileKeyForAbsolutePath(hostPathFromNative(candidate))),
         this.dependencies.findProjectByPath(host, candidate),
       ]);
       if (!exists.success) {
+        if (exists.error.type === 'not-found') {
+          if (!registeredProject) return ok(candidate);
+          continue;
+        }
         return err({
           type: 'filesystem-unavailable',
           path: candidate,
