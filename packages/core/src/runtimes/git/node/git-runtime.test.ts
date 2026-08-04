@@ -268,6 +268,27 @@ describe('GitRuntime', () => {
     }
   });
 
+  it('creates a missing destination parent before cloning', async () => {
+    const source = await makeRepo();
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-clone-parent-'));
+    const target = path.join(root, 'missing', 'nested', 'repo');
+    const runtime = new GitRuntime();
+
+    try {
+      const result = await runtime.provisioning.cloneRepository(source, hostPath(target));
+
+      expect(result).toMatchObject({ success: true });
+      if (!result.success) return;
+      expect(result.data).toMatchObject({
+        kind: 'repository',
+        rootPath: hostPath(await realpath(target)),
+        baseRef: 'origin/main',
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('deduplicates repositories by common git dir across linked checkout leases', async () => {
     const repo = await makeRepo();
     const linked = await mkdtemp(path.join(tmpdir(), 'emdash-shared-runtime-linked-'));

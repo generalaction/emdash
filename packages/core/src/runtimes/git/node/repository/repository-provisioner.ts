@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
 import type { HostAbsolutePath } from '@primitives/path/api';
@@ -74,6 +75,7 @@ export class GitRepositoryProvisioner {
     let nativeTargetPath: string;
     try {
       nativeTargetPath = toNativeAbsolutePath(targetPath);
+      await mkdir(path.dirname(nativeTargetPath), { recursive: true });
       await execGitWithProgress(
         this.exec.withCwd(path.dirname(nativeTargetPath)),
         ['clone', '--progress', repositoryUrl, nativeTargetPath],
