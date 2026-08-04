@@ -13,8 +13,8 @@ import {
   isMountedProject,
   isUnmountedProject,
   isUnregisteredProject,
+  type ProjectCreationStage,
   type ProjectStore,
-  type UnregisteredProjectPhase,
 } from '@core/features/projects/api/browser/stores/project';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { projectViewDef } from '@core/features/projects/contributions/views';
@@ -122,11 +122,11 @@ export class ProjectManagerStore {
       getRowId: (project) => project.id,
       create: (project) => {
         toMount.push(project.id);
-        return createUnmountedProject(project, 'idle');
+        return createUnmountedProject(project, { kind: 'idle' });
       },
       update: (current, project) => {
         if (isUnregisteredProject(current)) {
-          current.transitionToUnmounted(project, 'idle');
+          current.transitionToUnmounted(project, { kind: 'idle' });
           toMount.push(project.id);
           return;
         }
@@ -178,7 +178,7 @@ export class ProjectManagerStore {
           createUnregisteredProject(
             projectId,
             data.name,
-            initialCreationPhase(data.mode),
+            { kind: 'running', stage: initialCreationStage(data.mode) },
             data.mode
           )
         );
@@ -206,7 +206,12 @@ export class ProjectManagerStore {
       this.pendingCreationIds.add(projectId);
       this.projects.set(
         projectId,
-        createUnregisteredProject(projectId, data.name, initialCreationPhase(data.mode), data.mode)
+        createUnregisteredProject(
+          projectId,
+          data.name,
+          { kind: 'running', stage: initialCreationStage(data.mode) },
+          data.mode
+        )
       );
     });
 
@@ -366,9 +371,7 @@ export class ProjectManagerStore {
     if (!project || !isUnmountedProject(project)) return Promise.resolve();
 
     runInAction(() => {
-      project.phase = 'opening';
-      project.error = undefined;
-      project.errorCode = undefined;
+      project.unmounted = { kind: 'opening' };
     });
 
     const promise = getDesktopWireClient()
@@ -378,16 +381,20 @@ export class ProjectManagerStore {
           runInAction(() => {
             const current = this.projects.get(projectId);
             if (current && isUnmountedProject(current)) {
-              current.phase = 'error';
               if (openResult.error.type === 'path-not-found') {
-                current.error = openResult.error.path;
-                current.errorCode = 'path-not-found';
+                current.unmounted = {
+                  kind: 'failed',
+                  message: openResult.error.path,
+                  code: 'path-not-found',
+                };
               } else if (openResult.error.type === 'ssh-disconnected') {
-                current.error = openResult.error.connectionId;
-                current.errorCode = 'ssh-disconnected';
+                current.unmounted = {
+                  kind: 'failed',
+                  message: openResult.error.connectionId,
+                  code: 'ssh-disconnected',
+                };
               } else {
-                current.error = openResult.error.message;
-                current.errorCode = undefined;
+                current.unmounted = { kind: 'failed', message: openResult.error.message };
               }
             }
           });
@@ -439,9 +446,10 @@ export class ProjectManagerStore {
         runInAction(() => {
           const current = this.projects.get(projectId);
           if (current && isUnmountedProject(current)) {
-            current.phase = 'error';
-            current.error = err instanceof Error ? err.message : String(err);
-            current.errorCode = undefined;
+            current.unmounted = {
+              kind: 'failed',
+              message: err instanceof Error ? err.message : String(err),
+            };
           }
         });
         throw err;
@@ -516,7 +524,8 @@ export class ProjectManagerStore {
     for (const store of this.projects.values()) {
       if (
         isUnmountedProject(store) &&
-        store.errorCode === 'ssh-disconnected' &&
+        store.unmounted.kind === 'failed' &&
+        store.unmounted.code === 'ssh-disconnected' &&
         store.data.type === 'ssh'
       ) {
         connectionIds.add(store.data.connectionId);
@@ -548,7 +557,8 @@ export class ProjectManagerStore {
     for (const [projectId, store] of this.projects) {
       if (
         isUnmountedProject(store) &&
-        store.errorCode === 'ssh-disconnected' &&
+        store.unmounted.kind === 'failed' &&
+        store.unmounted.code === 'ssh-disconnected' &&
         store.data.type === 'ssh' &&
         store.data.connectionId === connectionId
       ) {
@@ -574,12 +584,10 @@ export class ProjectManagerStore {
       const current = this.projects.get(projectId);
       if (!current || !current.data || current.data.type !== 'ssh') return;
       if (isMountedProject(current)) {
-        current.transitionToUnmounted(newData, 'opening');
+        current.transitionToUnmounted(newData, { kind: 'opening' });
       } else if (isUnmountedProject(current)) {
         current.data = newData;
-        current.phase = 'opening';
-        current.error = undefined;
-        current.errorCode = undefined;
+        current.unmounted = { kind: 'opening' };
       }
     });
 
@@ -607,9 +615,9 @@ export class ProjectManagerStore {
     runInAction(() => {
       const current = this.projects.get(id);
       if (current) {
-        current.transitionToUnmounted(project, 'opening');
+        current.transitionToUnmounted(project, { kind: 'opening' });
       } else {
-        this.projects.set(id, createUnmountedProject(project, 'opening'));
+        this.projects.set(id, createUnmountedProject(project, { kind: 'opening' }));
       }
     });
     void this.mountProject(id);
@@ -745,16 +753,13 @@ export class ProjectManagerStore {
 
   private _updatePhase(
     id: string,
-    phase: UnregisteredProjectPhase,
+    stage: ProjectCreationStage,
     progress?: ProjectCreationProgress
   ): void {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
-        store.phase = phase;
-        store.failedPhase = undefined;
-        store.progressMessage = progress?.message;
-        store.progressPercent = progress?.percent;
+        store.updateCreationProgress(stage, progress);
       }
     });
   }
@@ -763,16 +768,13 @@ export class ProjectManagerStore {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
-        if (store.phase !== 'error') {
-          store.failedPhase = store.phase;
-        }
-        store.phase = 'error';
-        store.error =
+        const message =
           error.type === 'not-repository'
             ? 'Directory is not a git repository. Enable "Initialize git repository" to continue.'
             : error.type === 'inspect-failed'
               ? `Could not inspect directory: ${error.message}`
               : error.message;
+        store.failCreation(message);
       }
     });
   }
@@ -781,17 +783,13 @@ export class ProjectManagerStore {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
-        if (store.phase !== 'error') {
-          store.failedPhase = store.phase;
-        }
-        store.phase = 'error';
-        store.error = error instanceof Error ? error.message : String(error);
+        store.failCreation(error instanceof Error ? error.message : String(error));
       }
     });
   }
 }
 
-function initialCreationPhase(mode: ModeData['mode']): UnregisteredProjectPhase {
+function initialCreationStage(mode: ModeData['mode']): ProjectCreationStage {
   switch (mode) {
     case 'pick':
       return 'registering';

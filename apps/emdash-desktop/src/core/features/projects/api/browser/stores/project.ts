@@ -11,15 +11,26 @@ import {
   type ScopedStoreValue,
 } from '@core/primitives/scoped-stores/browser';
 
-export type UnregisteredProjectPhase =
-  | 'creating-repo' // gh api — new mode only
-  | 'cloning' // git clone
-  | 'registering' // db insert
-  | 'error';
+export type ProjectCreationStage = 'creating-repo' | 'cloning' | 'registering';
 
-export type ProjectCreationStage = Exclude<UnregisteredProjectPhase, 'error'>;
+export type CreationStatus =
+  | {
+      kind: 'running';
+      stage: ProjectCreationStage;
+      progressMessage?: string;
+      progressPercent?: number;
+    }
+  | { kind: 'failed'; stage: ProjectCreationStage; message: string };
 
-export type UnmountedProjectPhase = 'opening' | 'error' | 'closing' | 'idle';
+export type UnmountedStatus =
+  | { kind: 'idle' }
+  | { kind: 'opening' }
+  | { kind: 'closing' }
+  | {
+      kind: 'failed';
+      message: string;
+      code?: 'path-not-found' | 'ssh-disconnected';
+    };
 
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
@@ -55,8 +66,7 @@ export class MountedProject {
 
 /**
  * Container class — holds a stable reference in the ObservableMap across all
- * lifecycle transitions. Transitioning replaces `mountedProject` atomically
- * rather than nulling out individual fields.
+ * lifecycle transitions. Transitioning replaces each state's payload atomically.
  */
 export class ProjectStore {
   state: 'unregistered' | 'unmounted' | 'mounted';
@@ -64,12 +74,8 @@ export class ProjectStore {
   name: string | null;
   data: LocalProject | SshProject | null;
   createdAt: string;
-  phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
-  failedPhase: ProjectCreationStage | undefined = undefined;
-  error: string | undefined = undefined;
-  progressMessage: string | undefined = undefined;
-  progressPercent: number | undefined = undefined;
-  errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
+  creation: CreationStatus | null;
+  unmounted: UnmountedStatus | null;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
 
@@ -78,7 +84,8 @@ export class ProjectStore {
     id: string,
     name: string | null,
     data: LocalProject | SshProject | null,
-    phase: UnregisteredProjectPhase | UnmountedProjectPhase | null,
+    creation: CreationStatus | null,
+    unmounted: UnmountedStatus | null,
     mode: ProjectMode | null = null
   ) {
     this.state = state;
@@ -86,9 +93,14 @@ export class ProjectStore {
     this.name = name;
     this.data = data;
     this.createdAt = data?.createdAt ?? new Date().toISOString();
-    this.phase = phase;
+    this.creation = creation;
+    this.unmounted = unmounted;
     this.mode = mode;
-    makeAutoObservable(this, { mountedProject: observable.ref });
+    makeAutoObservable(this, {
+      creation: observable.ref,
+      mountedProject: observable.ref,
+      unmounted: observable.ref,
+    });
   }
 
   transitionToMounted(mountedProject: MountedProject): void {
@@ -98,17 +110,13 @@ export class ProjectStore {
     this.name = mountedProject.data.name;
     this.createdAt = mountedProject.data.createdAt;
     this.state = 'mounted';
-    this.phase = null;
-    this.failedPhase = undefined;
-    this.error = undefined;
-    this.progressMessage = undefined;
-    this.progressPercent = undefined;
-    this.errorCode = undefined;
+    this.creation = null;
+    this.unmounted = null;
   }
 
   transitionToUnmounted(
     data: LocalProject | SshProject,
-    phase: UnmountedProjectPhase = 'opening'
+    unmounted: UnmountedStatus = { kind: 'opening' }
   ): void {
     this.mountedProject?.dispose();
     this.mountedProject = null;
@@ -117,18 +125,14 @@ export class ProjectStore {
     this.name = data.name;
     this.createdAt = data.createdAt;
     this.state = 'unmounted';
-    this.phase = phase;
-    this.failedPhase = undefined;
-    this.error = undefined;
-    this.progressMessage = undefined;
-    this.progressPercent = undefined;
-    this.errorCode = undefined;
+    this.creation = null;
+    this.unmounted = unmounted;
   }
 
   transitionToUnregistered(
     id: string,
     name: string,
-    phase: UnregisteredProjectPhase,
+    creation: CreationStatus,
     mode: ProjectMode
   ): void {
     this.mountedProject?.dispose();
@@ -137,12 +141,26 @@ export class ProjectStore {
     this.id = id;
     this.name = name;
     this.state = 'unregistered';
-    this.phase = phase;
+    this.creation = creation;
+    this.unmounted = null;
     this.mode = mode;
-    this.failedPhase = undefined;
-    this.error = undefined;
-    this.progressMessage = undefined;
-    this.progressPercent = undefined;
+  }
+
+  updateCreationProgress(
+    stage: ProjectCreationStage,
+    progress?: { message?: string; percent?: number }
+  ): void {
+    this.creation = {
+      kind: 'running',
+      stage,
+      progressMessage: progress?.message,
+      progressPercent: progress?.percent,
+    };
+  }
+
+  failCreation(message: string): void {
+    if (this.creation === null || this.creation.kind === 'failed') return;
+    this.creation = { kind: 'failed', stage: this.creation.stage, message };
   }
 }
 
@@ -150,20 +168,14 @@ export type UnregisteredProject = ProjectStore & {
   state: 'unregistered';
   id: string;
   name: string;
-  phase: UnregisteredProjectPhase;
+  creation: CreationStatus;
   mode: ProjectMode;
-  failedPhase: ProjectCreationStage | undefined;
-  error: string | undefined;
-  progressMessage: string | undefined;
-  progressPercent: number | undefined;
 };
 
 export type UnmountedProject = ProjectStore & {
   state: 'unmounted';
   data: LocalProject | SshProject;
-  phase: UnmountedProjectPhase;
-  error: string | undefined;
-  errorCode: 'path-not-found' | 'ssh-disconnected' | undefined;
+  unmounted: UnmountedStatus;
 };
 
 export function isUnregisteredProject(p: ProjectStore): p is UnregisteredProject {
@@ -185,15 +197,15 @@ export function isMountedProject(p: ProjectStore): p is ProjectStore & {
 export function createUnregisteredProject(
   id: string,
   name: string,
-  phase: UnregisteredProjectPhase,
+  creation: CreationStatus,
   mode: ProjectMode = 'pick'
 ): ProjectStore {
-  return new ProjectStore('unregistered', id, name, null, phase, mode);
+  return new ProjectStore('unregistered', id, name, null, creation, null, mode);
 }
 
 export function createUnmountedProject(
   data: LocalProject | SshProject,
-  phase: UnmountedProjectPhase = 'opening'
+  unmounted: UnmountedStatus = { kind: 'opening' }
 ): ProjectStore {
-  return new ProjectStore('unmounted', data.id, data.name, data, phase);
+  return new ProjectStore('unmounted', data.id, data.name, data, null, unmounted);
 }

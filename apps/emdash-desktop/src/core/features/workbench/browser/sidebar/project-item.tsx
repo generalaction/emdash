@@ -15,7 +15,7 @@ import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hoo
 import {
   isUnmountedProject,
   isUnregisteredProject,
-  type UnregisteredProject,
+  type ProjectCreationStage,
 } from '@core/features/projects/api/browser/stores/project';
 import {
   getProjectStore,
@@ -50,11 +50,10 @@ import {
   SidebarMenuRow,
 } from './sidebar-primitives';
 
-const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProject['phase'], string> = {
+const UNREGISTERED_STAGE_LABEL: Record<ProjectCreationStage, string> = {
   'creating-repo': 'Creating repository…',
   cloning: 'Cloning…',
   registering: 'Registering…',
-  error: 'Failed',
 };
 
 export const SidebarProjectItem = observer(function SidebarProjectItem({
@@ -101,7 +100,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const sshConnectionState = sshConnectionId ? appState.machines.stateFor(sshConnectionId) : null;
   const displayedSshConnectionState: ConnectionState | null =
     isUnmountedProject(project) &&
-    project.errorCode === 'ssh-disconnected' &&
+    project.unmounted.kind === 'failed' &&
+    project.unmounted.code === 'ssh-disconnected' &&
     sshConnectionState !== 'connected'
       ? 'disconnected'
       : sshConnectionState;
@@ -112,7 +112,10 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
-    const label = UNREGISTERED_PHASE_LABEL[project.phase] ?? 'Loading…';
+    const label =
+      project.creation.kind === 'failed'
+        ? 'Failed'
+        : UNREGISTERED_STAGE_LABEL[project.creation.stage];
     return (
       <Tooltip>
         <TooltipTrigger>

@@ -1,7 +1,10 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
-import { isUnregisteredProject } from '@core/features/projects/api/browser/stores/project';
+import {
+  isUnmountedProject,
+  isUnregisteredProject,
+} from '@core/features/projects/api/browser/stores/project';
 import {
   getProjectManagerStore,
   getProjectStore,
@@ -22,6 +25,10 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
   const displayName = projectDisplayName(store) ?? 'this project';
+  const unmountedFailure =
+    store && isUnmountedProject(store) && store.unmounted.kind === 'failed'
+      ? store.unmounted
+      : null;
 
   if (kind === 'creating' && store && isUnregisteredProject(store)) {
     return <PendingProjectStatus project={store} />;
@@ -34,7 +41,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   if (kind === 'path_not_found') {
     return (
       <ProjectPathNotFoundPanel
-        path={store?.error ?? ''}
+        path={unmountedFailure?.message ?? ''}
         projectId={projectId}
         title={displayName}
       />
@@ -42,7 +49,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   if (kind === 'ssh_disconnected') {
-    const connectionId = store?.error ?? '';
+    const connectionId = unmountedFailure?.message ?? '';
     return <ProjectSshDisconnectedPanel connectionId={connectionId} projectId={projectId} />;
   }
 

@@ -30,7 +30,9 @@ describe('probeCanElevate', () => {
   });
 });
 
-function createExec(options: { uid?: string; sudo?: boolean | 'password' } = {}): IExecutionContext {
+function createExec(
+  options: { uid?: string; sudo?: boolean | 'password' } = {}
+): IExecutionContext {
   return {
     root: '',
     supportsLocalSpawn: true,

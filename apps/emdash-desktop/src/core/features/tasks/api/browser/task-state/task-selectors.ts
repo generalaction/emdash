@@ -70,8 +70,8 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   if (!projectStore) return 'missing';
 
   if (isUnmountedProject(projectStore)) {
-    if (projectStore.phase === 'opening') return 'project-mounting';
-    if (projectStore.phase === 'error') return 'project-error';
+    if (projectStore.unmounted.kind === 'opening') return 'project-mounting';
+    if (projectStore.unmounted.kind === 'failed') return 'project-error';
     return 'project-mounting';
   }
 

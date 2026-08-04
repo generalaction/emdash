@@ -3,7 +3,9 @@ import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectCreationProgress } from '@core/features/projects/api';
 import {
+  createUnregisteredProject,
   createUnmountedProject,
+  isUnmountedProject,
   isUnregisteredProject,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
@@ -278,7 +280,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(result.kind).toBe('creating');
     const pendingProject = store.projects.get('optimistic-project');
     expect(pendingProject && isUnregisteredProject(pendingProject)).toBe(true);
-    expect(pendingProject?.phase).toBe('registering');
+    expect(pendingProject?.creation).toEqual({ kind: 'running', stage: 'registering' });
     expect(store.pendingCreationIds.has('optimistic-project')).toBe(true);
     expect(mocks.inspectProjectPath).toHaveBeenCalledTimes(1);
 
@@ -399,9 +401,12 @@ describe('ProjectManagerStore project creation', () => {
     const pendingProject = store.projects.get('optimistic-project');
     expect(pendingProject && isUnregisteredProject(pendingProject)).toBe(true);
     if (pendingProject && isUnregisteredProject(pendingProject)) {
-      expect(pendingProject.phase).toBe('cloning');
-      expect(pendingProject.progressMessage).toBe('Receiving objects: 42%');
-      expect(pendingProject.progressPercent).toBe(42);
+      expect(pendingProject.creation).toEqual({
+        kind: 'running',
+        stage: 'cloning',
+        progressMessage: 'Receiving objects: 42%',
+        progressPercent: 42,
+      });
     }
 
     resolveResult(
@@ -412,6 +417,24 @@ describe('ProjectManagerStore project creation', () => {
       })
     );
     if (result.kind === 'creating') await result.completion;
+  });
+
+  it('keeps the first creation failure and its captured stage', () => {
+    const project = createUnregisteredProject(
+      'optimistic-project',
+      'Project',
+      { kind: 'running', stage: 'cloning' },
+      'clone'
+    );
+
+    project.failCreation('Clone failed');
+    project.failCreation('Registration failed');
+
+    expect(project.creation).toEqual({
+      kind: 'failed',
+      stage: 'cloning',
+      message: 'Clone failed',
+    });
   });
 
   it('cancels remote creation and removes the pending project', async () => {
@@ -565,12 +588,14 @@ describe('ProjectManagerStore project creation', () => {
   it('retries SSH-disconnected projects without mounting before the connection is ready', async () => {
     const store = new ProjectManagerStore();
     const project = sshProject();
-    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
-    const projectStore = store.projects.get(project.id);
-    if (!projectStore) throw new Error('Expected project store');
-    projectStore.phase = 'error';
-    projectStore.error = project.connectionId;
-    projectStore.errorCode = 'ssh-disconnected';
+    store.projects.set(
+      project.id,
+      createUnmountedProject(project, {
+        kind: 'failed',
+        message: project.connectionId,
+        code: 'ssh-disconnected',
+      })
+    );
 
     store.retryDisconnectedSshProjects({ force: true });
     await Promise.resolve();
@@ -582,12 +607,14 @@ describe('ProjectManagerStore project creation', () => {
   it('mounts SSH-disconnected projects after a connection-ready notification', async () => {
     const store = new ProjectManagerStore();
     const project = sshProject();
-    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
-    const projectStore = store.projects.get(project.id);
-    if (!projectStore) throw new Error('Expected project store');
-    projectStore.phase = 'error';
-    projectStore.error = project.connectionId;
-    projectStore.errorCode = 'ssh-disconnected';
+    store.projects.set(
+      project.id,
+      createUnmountedProject(project, {
+        kind: 'failed',
+        message: project.connectionId,
+        code: 'ssh-disconnected',
+      })
+    );
 
     store.onSshConnectionReady('ssh-1');
 
@@ -600,12 +627,14 @@ describe('ProjectManagerStore project creation', () => {
     mocks.sshStateFor.mockReturnValue('connected');
     const store = new ProjectManagerStore();
     const project = sshProject();
-    store.projects.set(project.id, createUnmountedProject(project, 'idle'));
-    const projectStore = store.projects.get(project.id);
-    if (!projectStore) throw new Error('Expected project store');
-    projectStore.phase = 'error';
-    projectStore.error = project.connectionId;
-    projectStore.errorCode = 'ssh-disconnected';
+    store.projects.set(
+      project.id,
+      createUnmountedProject(project, {
+        kind: 'failed',
+        message: project.connectionId,
+        code: 'ssh-disconnected',
+      })
+    );
 
     store.retryDisconnectedSshProjects({ force: true });
 
@@ -613,6 +642,26 @@ describe('ProjectManagerStore project creation', () => {
     await vi.waitFor(() =>
       expect(mocks.openProject).toHaveBeenCalledWith({ projectId: project.id })
     );
+  });
+
+  it('stores SSH-disconnected mount failures as an atomic unmounted payload', async () => {
+    mocks.openProject.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'ssh-disconnected', connectionId: 'ssh-1' },
+    });
+    const store = new ProjectManagerStore();
+    const project = sshProject();
+    store.projects.set(project.id, createUnmountedProject(project, { kind: 'idle' }));
+
+    await store.mountProject(project.id);
+
+    const projectStore = store.projects.get(project.id);
+    expect(projectStore && isUnmountedProject(projectStore)).toBe(true);
+    expect(projectStore?.unmounted).toEqual({
+      kind: 'failed',
+      message: 'ssh-1',
+      code: 'ssh-disconnected',
+    });
   });
 
   it('does not write GitHub account settings when creation did not specify one', async () => {
@@ -660,10 +709,12 @@ describe('ProjectManagerStore project creation', () => {
     const project = store.projects.get('optimistic-project');
     expect(project && isUnregisteredProject(project)).toBe(true);
     if (project && isUnregisteredProject(project)) {
-      expect(project.phase).toBe('error');
-      expect(project.error).toBe(
-        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
-      );
+      expect(project.creation).toEqual({
+        kind: 'failed',
+        stage: 'registering',
+        message:
+          'Directory is not a git repository. Enable "Initialize git repository" to continue.',
+      });
     }
   });
 
@@ -699,8 +750,11 @@ describe('ProjectManagerStore project creation', () => {
     const project = store.projects.get('optimistic-project');
     expect(project && isUnregisteredProject(project)).toBe(true);
     if (project && isUnregisteredProject(project)) {
-      expect(project.phase).toBe('error');
-      expect(project.error).toBe('Could not inspect directory: Permission denied');
+      expect(project.creation).toEqual({
+        kind: 'failed',
+        stage: 'registering',
+        message: 'Could not inspect directory: Permission denied',
+      });
     }
   });
 
@@ -814,9 +868,10 @@ describe('ProjectManagerStore project creation', () => {
   });
 
   it('deletes a newly created GitHub repository with the selected account if clone fails', async () => {
-    mocks.projectWireResult = Promise.reject(
-      new LiveJobFailedError({ type: 'clone-failed', message: 'Clone failed' })
-    );
+    let rejectResult: (error: unknown) => void = () => {};
+    mocks.projectWireResult = new Promise<LocalProject>((_, reject) => {
+      rejectResult = reject;
+    });
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -834,12 +889,20 @@ describe('ProjectManagerStore project creation', () => {
     );
 
     expect(result.kind).toBe('creating');
+    await vi.waitFor(() => expect(mocks.projectWireProgressCallbacks).toHaveLength(1));
+    mocks.projectWireProgressCallbacks[0]?.({ phase: 'cloning' });
+    rejectResult(new LiveJobFailedError({ type: 'clone-failed', message: 'Clone failed' }));
     if (result.kind === 'creating') {
       await expect(result.completion).resolves.toEqual({
         success: false,
         error: { type: 'clone-failed', message: 'Clone failed' },
       });
     }
+    expect(store.projects.get('optimistic-project')?.creation).toEqual({
+      kind: 'failed',
+      stage: 'cloning',
+      message: 'Clone failed',
+    });
 
     expect(mocks.deleteGithubRepository).toHaveBeenCalledWith({
       owner: 'acme',

@@ -39,10 +39,10 @@ export function projectViewKind(store: ProjectStore | undefined): ProjectViewKin
   if (!store) return 'missing';
   if (isUnregisteredProject(store)) return 'creating';
   if (isUnmountedProject(store)) {
-    if (store.phase === 'opening') return 'bootstrapping';
-    if (store.phase === 'error') {
-      if (store.errorCode === 'path-not-found') return 'path_not_found';
-      if (store.errorCode === 'ssh-disconnected') return 'ssh_disconnected';
+    if (store.unmounted.kind === 'opening') return 'bootstrapping';
+    if (store.unmounted.kind === 'failed') {
+      if (store.unmounted.code === 'path-not-found') return 'path_not_found';
+      if (store.unmounted.code === 'ssh-disconnected') return 'ssh_disconnected';
       return 'mount_error';
     }
     return 'idle_unmounted';
@@ -81,11 +81,11 @@ export function projectDisplayName(store: ProjectStore | undefined): string | un
 }
 
 export function unmountedMountErrorMessage(store: ProjectStore | undefined): string {
-  if (store && isUnmountedProject(store) && store.phase === 'error') {
-    if (store.errorCode === 'path-not-found') {
-      return `No project found at ${store.error ?? 'the configured path'}`;
+  if (store && isUnmountedProject(store) && store.unmounted.kind === 'failed') {
+    if (store.unmounted.code === 'path-not-found') {
+      return `No project found at ${store.unmounted.message || 'the configured path'}`;
     }
-    return store.error ?? 'Failed to open project';
+    return store.unmounted.message || 'Failed to open project';
   }
   return 'Failed to open project';
 }
