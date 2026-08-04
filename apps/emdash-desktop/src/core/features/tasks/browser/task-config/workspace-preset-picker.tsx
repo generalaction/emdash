@@ -56,7 +56,6 @@ export function WorkspacePresetPicker({
   value,
   onValueChange,
   hasPR,
-  isWorkspaceProviderEnabled,
   hasExistingWorkspaces,
   worktreesDisabledReason,
   disabled,
@@ -64,8 +63,7 @@ export function WorkspacePresetPicker({
   const { showPrPresets } = useTaskConfig();
 
   const options: PresetOption[] = WORKSPACE_PRESETS.filter(
-    (preset) =>
-      (showPrPresets || !preset.requiresPR) && (!preset.requiresBYOI || isWorkspaceProviderEnabled)
+    (preset) => (showPrPresets || !preset.requiresPR) && !preset.requiresBYOI
   ).map((preset) => ({
     ...preset,
     disabledReason:

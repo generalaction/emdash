@@ -64,6 +64,7 @@ const hostCreateWorktreeInputSchema = defineVersionedSchema()
       branchName: z.string().min(1),
       startPoint: z.string().optional(),
       fetch: z.boolean().optional(),
+      preservePatterns: z.array(z.string()).default([]),
     })
   )
   .build();
@@ -132,6 +133,30 @@ export const hostCreateWorktreeOperation = defineOperation({
   retry: HOST_OUTBOX_RETRY,
 });
 
+const hostReprovisionWorktreeInputSchema = defineVersionedSchema()
+  .initial(
+    '1',
+    z.object({
+      ...hostOutboxBaseFields,
+      workspacePath: z.string().min(1),
+      remove: hostRemoveWorktreeInputSchema.schema,
+      create: hostCreateWorktreeInputSchema.schema,
+    })
+  )
+  .build();
+
+export type HostReprovisionWorktreeInput = typeof hostReprovisionWorktreeInputSchema.Type;
+
+export const hostReprovisionWorktreeOperation = defineOperation({
+  name: 'host-reprovision-worktree',
+  input: hostReprovisionWorktreeInputSchema,
+  result: operationResultSchema,
+  error: operationErrorSchema,
+  key: (input) => `outbox:reprovision-worktree:${input.hostRef}:${input.workspacePath}`,
+  claims: (input) => hostCreateWorktreeOperation.claims(input.create),
+  describe: (input) => input.entityName ?? input.workspacePath,
+});
+
 export const hostRemoveRepositoryOperation = defineOperation({
   name: 'host-remove-repository',
   input: hostRemoveRepositoryInputSchema,
@@ -149,5 +174,6 @@ export const hostRemoveRepositoryOperation = defineOperation({
 export const hostOutboxOperationNames = [
   hostRemoveWorktreeOperation.name,
   hostCreateWorktreeOperation.name,
+  hostReprovisionWorktreeOperation.name,
   hostRemoveRepositoryOperation.name,
 ] as const;

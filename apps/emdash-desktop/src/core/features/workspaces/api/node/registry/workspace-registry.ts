@@ -67,6 +67,31 @@ export class WorkspaceRegistry {
     return row;
   }
 
+  findLiveByPath(
+    location: NonNullable<WorkspaceRow['location']>,
+    sshConnectionId: string | null,
+    path: string,
+    tx?: DrizzleTx
+  ): WorkspaceRow | undefined {
+    const hostIdentity =
+      sshConnectionId === null
+        ? isNull(workspaces.sshConnectionId)
+        : eq(workspaces.sshConnectionId, sshConnectionId);
+    return this.source(tx)
+      .select()
+      .from(workspaces)
+      .where(
+        and(
+          eq(workspaces.location, location),
+          hostIdentity,
+          eq(workspaces.path, path),
+          liveWorkspaces()
+        )
+      )
+      .limit(1)
+      .get();
+  }
+
   register(values: WorkspaceInsert, tx?: DrizzleTx): WorkspaceRow {
     const now = this.now();
     return this.source(tx)

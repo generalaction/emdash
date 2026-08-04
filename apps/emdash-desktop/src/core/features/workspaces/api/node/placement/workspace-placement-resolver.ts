@@ -49,7 +49,7 @@ export class WorkspacePlacementResolver {
 
   constructor(private readonly dependencies: PlacementResolverDependencies) {}
 
-  async resolveWorktreePool(project: Project): Promise<Result<string, WorkspacePlacementError>> {
+  async resolveWorktreeRoot(project: Project): Promise<Result<string, WorkspacePlacementError>> {
     const host = projectHostRef(project);
     const homeResult = await this.getHomeDirectory(host);
     if (!homeResult.success) return homeResult;
@@ -62,6 +62,12 @@ export class WorkspacePlacementResolver {
       : ok(defaultWorktreesRoot(homeResult.data));
     if (!rootResult.success) return rootResult;
 
+    return rootResult;
+  }
+
+  async resolveWorktreePool(project: Project): Promise<Result<string, WorkspacePlacementError>> {
+    const rootResult = await this.resolveWorktreeRoot(project);
+    if (!rootResult.success) return rootResult;
     return ok(
       deriveWorktreePoolPath({
         worktreesRoot: rootResult.data,

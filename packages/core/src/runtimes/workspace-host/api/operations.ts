@@ -35,8 +35,14 @@ export type CreateWorktreeStagePlanContext = {
   workspacePath: string;
   fetch: boolean;
   existing: boolean;
+  preservePatterns: readonly string[];
 };
-type CreateWorktreeStageExecutor = 'inspect' | 'fetch' | 'add-worktree' | 'verify';
+type CreateWorktreeStageExecutor =
+  | 'inspect'
+  | 'fetch'
+  | 'add-worktree'
+  | 'verify'
+  | 'copy-preserved-files';
 
 export const createWorktreeStagePlan = defineOperationStagePlan<
   CreateWorktreeStagePlanContext,
@@ -69,6 +75,21 @@ export const createWorktreeStagePlan = defineOperationStagePlan<
               executor: 'verify' as const,
             },
           ],
+  },
+  {
+    kind: 'expansion',
+    id: 'preserve-files',
+    expand: (context) =>
+      !context.existing && context.preservePatterns.length > 0
+        ? [
+            {
+              id: 'copy-preserved-files',
+              label: 'Copy preserved files',
+              targetPath: context.workspacePath,
+              executor: 'copy-preserved-files' as const,
+            },
+          ]
+        : [],
   },
 ]);
 

@@ -49,11 +49,13 @@ export function compileCreateWorktreePrediction(input: {
   workspacePath: string;
   branchName: string;
   fetch?: boolean;
+  preservePatterns?: readonly string[];
 }): OperationPrediction {
   const stages = expandOperationStagePlan(createWorktreeStagePlan, {
     workspacePath: input.workspacePath,
     fetch: input.fetch ?? false,
     existing: false,
+    preservePatterns: input.preservePatterns ?? [],
   }).map(
     (stage): OperationPredictedStage => ({
       id: stage.id,

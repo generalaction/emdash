@@ -21,6 +21,7 @@ import {
 } from '@core/features/tasks/node/operations/delete-task-definition';
 import {
   hostCreateWorktreeOperation,
+  hostReprovisionWorktreeOperation,
   hostRemoveRepositoryOperation,
   hostRemoveWorktreeOperation,
 } from '@core/features/workspaces/api/node/host-outbox-operations';
@@ -79,6 +80,7 @@ export function createDesktopConflictPolicy(descriptors: readonly OperationDefin
     deleteProjectOperation,
     hostRemoveWorktreeOperation,
     hostCreateWorktreeOperation,
+    hostReprovisionWorktreeOperation,
     hostRemoveRepositoryOperation,
   ];
   return defineConflictPolicy((on) => {

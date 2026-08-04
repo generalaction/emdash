@@ -18,9 +18,11 @@ import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Clock } from '@emdash/shared/scheduling';
 import {
   hostCreateWorktreeOperation,
+  hostReprovisionWorktreeOperation,
   hostRemoveRepositoryOperation,
   hostRemoveWorktreeOperation,
   type HostCreateWorktreeInput,
+  type HostReprovisionWorktreeInput,
   type HostRemoveRepositoryInput,
   type HostRemoveWorktreeInput,
 } from '@core/features/workspaces/api/node/host-outbox-operations';
@@ -63,6 +65,7 @@ type OperationRuntime = { db: AppDb; clock: Clock; initiatedBy?: string };
 type HostOutboxOperation =
   | typeof hostRemoveWorktreeOperation
   | typeof hostCreateWorktreeOperation
+  | typeof hostReprovisionWorktreeOperation
   | typeof hostRemoveRepositoryOperation;
 
 export const hostOutboxOperationContribution = {
@@ -72,6 +75,7 @@ export const hostOutboxOperationContribution = {
   ): readonly OperationDefinition[] => [
     createHostRemoveWorktreeDefinition(dependencies, runtime),
     createHostCreateWorktreeDefinition(dependencies, runtime),
+    createHostReprovisionWorktreeDefinition(),
     createHostRemoveRepositoryDefinition(dependencies, runtime),
   ],
 };
@@ -152,6 +156,7 @@ export function createHostCreateWorktreeDefinition(
         branchName: input.branchName,
         startPoint: input.startPoint,
         fetch: input.fetch,
+        preservePatterns: input.preservePatterns,
       },
     });
     return { ok: true as const };
@@ -166,8 +171,64 @@ export function createHostCreateWorktreeDefinition(
       repoPath: '/repo',
       workspacePath: '/repo/.worktrees/example',
       branchName: 'example',
+      preservePatterns: [],
       createdAt: 1,
     },
+  });
+}
+
+export function createHostReprovisionWorktreeDefinition(): OperationDefinition<
+  typeof hostReprovisionWorktreeOperation
+> {
+  const handler = createOperationHandler(hostReprovisionWorktreeOperation, async (ctx) => {
+    const removed = await ctx.run(hostRemoveWorktreeOperation, ctx.input.remove);
+    if (!removed.success) throw new Error(`Worktree removal failed: ${removed.error.kind}`);
+    const created = await ctx.run(hostCreateWorktreeOperation, ctx.input.create);
+    if (!created.success) throw new Error(`Worktree creation failed: ${created.error.kind}`);
+    return { ok: true as const };
+  });
+  const example: HostReprovisionWorktreeInput = {
+    version: '1',
+    source: 'user',
+    hostOperationId: 'desktop-reprovision-example',
+    hostRef: formatHostRef(LOCAL_HOST_REF),
+    repoPath: '/repo',
+    projectId: 'project-example',
+    workspaceId: 'workspace-example',
+    entityName: 'Example',
+    workspacePath: '/repo/.worktrees/example',
+    prediction: { compiledAt: 1, observedAsOf: null, stages: [] },
+    createdAt: 1,
+    remove: {
+      version: '1',
+      source: 'user',
+      hostOperationId: 'host-remove-example',
+      hostRef: formatHostRef(LOCAL_HOST_REF),
+      repoPath: '/repo',
+      projectId: 'project-example',
+      workspaceId: 'workspace-example',
+      workspacePath: '/repo/.worktrees/example',
+      branchName: 'example',
+      deleteBranch: false,
+      createdAt: 1,
+    },
+    create: {
+      version: '1',
+      source: 'user',
+      hostOperationId: 'host-create-example',
+      hostRef: formatHostRef(LOCAL_HOST_REF),
+      repoPath: '/repo',
+      projectId: 'project-example',
+      workspaceId: 'workspace-example',
+      workspacePath: '/repo/.worktrees/example',
+      branchName: 'example',
+      preservePatterns: [],
+      createdAt: 1,
+    },
+  };
+  return hostOutboxDescriptor(hostReprovisionWorktreeOperation, handler, {
+    displayName: 'Re-provisioning worktree',
+    example,
   });
 }
 

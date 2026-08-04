@@ -149,6 +149,7 @@ export const createWorktreeInputV1Schema = workspaceHostOperationInputBaseSchema
   branchName: z.string().min(1),
   startPoint: z.string().min(1).optional(),
   fetch: z.boolean().optional(),
+  preservePatterns: z.array(z.string()).default([]),
 });
 export type CreateWorktreeInput = z.infer<typeof createWorktreeInputV1Schema>;
 

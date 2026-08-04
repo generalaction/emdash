@@ -13,7 +13,12 @@ import {
 
 describe('host outbox prediction stage plans', () => {
   it('uses the create-worktree plan', () => {
-    const context = { workspacePath: '/repo/task', fetch: true, existing: false };
+    const context = {
+      workspacePath: '/repo/task',
+      fetch: true,
+      existing: false,
+      preservePatterns: [],
+    };
     const prediction = compileCreateWorktreePrediction({
       now: 1,
       workspacePath: context.workspacePath,

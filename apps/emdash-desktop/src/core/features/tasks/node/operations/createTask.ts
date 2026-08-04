@@ -1,12 +1,19 @@
 import crypto from 'node:crypto';
 import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
 import type { ResourceClaim } from '@emdash/core/primitives/kernel/api';
+import { compileWorktreePayload } from '@emdash/core/runtimes/workspace-host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/api/node';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import {
+  hostCreateWorktreeOperation,
+  type HostCreateWorktreeInput,
+} from '@core/features/workspaces/api/node/host-outbox-operations';
+import { compileCreateWorktreePrediction } from '@core/features/workspaces/api/node/operations/compile-host-outbox-prediction';
+import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import {
   createWorkspaceRegistry,
   type WorkspaceRegistry,
@@ -15,7 +22,6 @@ import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import {
   branchKernelClaim,
-  projectKernelResource,
   workspaceKernelResource,
 } from '@core/primitives/operations/api/resources';
 import type {
@@ -37,6 +43,7 @@ export interface PreparedCreateTask {
   initialStatus: TaskLifecycleStatus;
   workspaceId: string;
   newWorkspaceValues: WorkspaceInsert | null;
+  createWorktreeInput?: HostCreateWorktreeInput;
   convInsert: ConvInsert | undefined;
 }
 
@@ -49,9 +56,11 @@ export async function prepareCreateTask(
   db: AppDb,
   projectSessions: Pick<ProjectSessionManager, 'getProject'>,
   operations: OperationsEngine,
+  placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   params: CreateTaskParams
 ): Promise<Result<PreparedCreateTask, CreateTaskError>> {
-  if (!projectSessions.getProject(params.projectId)) {
+  const project = projectSessions.getProject(params.projectId);
+  if (!project) {
     return err({ type: 'project-not-found' });
   }
 
@@ -60,6 +69,7 @@ export async function prepareCreateTask(
 
   let workspaceId: string;
   let newWorkspaceValues: WorkspaceInsert | null = null;
+  let createWorktreeInput: HostCreateWorktreeInput | undefined;
 
   const wsTarget = workspaceConfig.workspace;
   const branchName =
@@ -68,9 +78,7 @@ export async function prepareCreateTask(
       : workspaceConfig.git.kind === 'pr-branch'
         ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
         : undefined;
-  const claimResources: ResourceClaim[] = [
-    ...projectKernelResource.mutates({ projectId: params.projectId }),
-  ];
+  const claimResources: ResourceClaim[] = [];
   if (wsTarget.kind === 'repository-instance') {
     claimResources.push(
       ...workspaceKernelResource.mutates({
@@ -96,13 +104,10 @@ export async function prepareCreateTask(
     workspaceId = crypto.randomUUID();
 
     if (wsTarget.kind === 'byoi') {
-      newWorkspaceValues = {
-        id: workspaceId,
-        kind: 'byoi',
-        location: 'remote',
-        type: 'byoi',
-        config: workspaceConfig,
-      };
+      return err({
+        type: 'provision-failed',
+        message: 'BYOI workspaces are no longer supported.',
+      });
     } else {
       // 'new-worktree' — derive location from the project.
       const [projectRow] = await db
@@ -134,6 +139,37 @@ export async function prepareCreateTask(
         });
       }
 
+      if (!branchName) {
+        return err({
+          type: 'provision-failed',
+          message: 'A Git branch is required when creating a worktree.',
+        });
+      }
+      const root = await placement.resolveWorktreeRoot(project.project);
+      if (!root.success) {
+        return err({
+          type: 'provision-failed',
+          message: root.error.message,
+        });
+      }
+      const settings = await project.settings.get();
+      const compiled = compileWorktreePayload({
+        repoPath: project.repoPath,
+        worktreeRoot: root.data,
+        branchName,
+        preservePatterns: settings.preservePatterns,
+      });
+      const registry = createWorkspaceRegistry(db);
+      const workspacePath = allocateRegistryPath(
+        registry,
+        location,
+        sshConnectionId,
+        compiled.worktreePath
+      );
+      const gitOperation = compileGitOperation(workspaceConfig.git);
+      const serializedHostRef = formatHostRef(project.host);
+      const now = Date.now();
+
       newWorkspaceValues = {
         id: workspaceId,
         kind: 'worktree',
@@ -142,6 +178,30 @@ export async function prepareCreateTask(
         parentId: projectRow?.repositoryWorkspaceId ?? null,
         type: legacyType,
         config: workspaceConfig,
+        path: workspacePath,
+      };
+      createWorktreeInput = {
+        version: '1',
+        source: 'user',
+        hostOperationId: crypto.randomUUID(),
+        hostRef: serializedHostRef,
+        repoPath: project.repoPath,
+        projectId: params.projectId,
+        workspaceId,
+        entityName: params.taskConfig.name,
+        workspacePath,
+        branchName,
+        startPoint: gitOperation.startPoint,
+        fetch: gitOperation.fetch,
+        preservePatterns: compiled.preservePatterns,
+        prediction: compileCreateWorktreePrediction({
+          now,
+          workspacePath,
+          branchName,
+          fetch: gitOperation.fetch,
+          preservePatterns: compiled.preservePatterns,
+        }),
+        createdAt: now,
       };
     }
   }
@@ -180,7 +240,14 @@ export async function prepareCreateTask(
     };
   }
 
-  return ok({ params, initialStatus, workspaceId, newWorkspaceValues, convInsert });
+  return ok({
+    params,
+    initialStatus,
+    workspaceId,
+    newWorkspaceValues,
+    createWorktreeInput,
+    convInsert,
+  });
 }
 
 /**
@@ -250,6 +317,13 @@ export function finalizeCreateTask(
   }
 
   appDbPokes.tasks.poke({ projectId: prepared.params.projectId, taskId: prepared.params.id });
+  if (prepared.newWorkspaceValues) {
+    appDbPokes.workspaces.poke({
+      projectId: prepared.params.projectId,
+      taskId: prepared.params.id,
+      workspaceId: prepared.workspaceId,
+    });
+  }
   return { task: { ...task, workspaceId: prepared.workspaceId }, initialConversation };
 }
 
@@ -257,17 +331,69 @@ export async function createTask(
   db: AppDb,
   projects: Pick<ProjectSessionManager, 'getProject'>,
   operations: OperationsEngine,
+  placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
-  const prepared = await prepareCreateTask(db, projects, operations, params);
+  const prepared = await prepareCreateTask(db, projects, operations, placement, params);
   if (!prepared.success) return prepared;
 
   let taskRow!: TaskRow;
   let convRow: ConversationRow | undefined;
   const registry = createWorkspaceRegistry(db);
-  db.transaction((tx) => {
-    ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry));
-  });
+  if (prepared.data.createWorktreeInput) {
+    const submitted = await operations.submitWithTombstone(
+      hostCreateWorktreeOperation,
+      prepared.data.createWorktreeInput,
+      {
+        tombstone: (tx) => {
+          ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry));
+          return 1;
+        },
+        revertTombstone: (tx) => {
+          registry.untrack([prepared.data.workspaceId], new Date().toISOString(), undefined, tx);
+          tx.delete(conversations).where(eq(conversations.taskId, params.id)).run();
+          tx.delete(tasks).where(eq(tasks.id, params.id)).run();
+        },
+      }
+    );
+    if (!submitted.success) {
+      return err({ type: 'provision-failed', message: submitted.error.message });
+    }
+  } else {
+    db.transaction((tx) => {
+      ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry));
+    });
+  }
 
   return ok(finalizeCreateTask(prepared.data, taskRow, convRow));
+}
+
+function allocateRegistryPath(
+  registry: WorkspaceRegistry,
+  location: NonNullable<WorkspaceInsert['location']>,
+  sshConnectionId: string | null,
+  basePath: string
+): string {
+  for (let suffix = 1; ; suffix += 1) {
+    const candidate = suffix === 1 ? basePath : `${basePath}-${suffix}`;
+    if (!registry.findLiveByPath(location, sshConnectionId, candidate)) return candidate;
+  }
+}
+
+function compileGitOperation(
+  git: CreateTaskParams['workspaceConfig']['git']
+): Pick<HostCreateWorktreeInput, 'startPoint' | 'fetch'> {
+  if (git.kind === 'create-branch') {
+    return {
+      startPoint:
+        git.fromBranch.type === 'remote'
+          ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
+          : git.fromBranch.branch,
+      fetch: git.fromBranch.type === 'remote',
+    };
+  }
+  if (git.kind === 'pr-branch') {
+    return { startPoint: git.taskBranch ? git.headBranch : undefined, fetch: true };
+  }
+  return {};
 }

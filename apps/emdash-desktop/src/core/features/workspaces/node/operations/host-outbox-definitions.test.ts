@@ -10,7 +10,10 @@ import { DisposableTimerHandle, type Clock } from '@emdash/shared/scheduling';
 import { describe, expect, it, vi } from 'vitest';
 import type { HostRemoveWorktreeInput } from '@core/features/workspaces/api/node/host-outbox-operations';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { createHostRemoveWorktreeDefinition } from './host-outbox-definitions';
+import {
+  createHostRemoveWorktreeDefinition,
+  createHostReprovisionWorktreeDefinition,
+} from './host-outbox-definitions';
 
 const testClock: Clock = {
   now: () => 0,
@@ -18,6 +21,46 @@ const testClock: Clock = {
   schedule: () => new DisposableTimerHandle(() => {}),
   sleep: async () => {},
 };
+
+describe('reprovision worktree operation', () => {
+  it('does not create when removal fails', async () => {
+    const definition = createHostReprovisionWorktreeDefinition();
+    const input = definition.examples[0]!.input;
+    const run = vi.fn().mockResolvedValue({
+      success: false,
+      error: { kind: 'failed', error: { message: 'remove failed' } },
+    });
+
+    await expect(
+      definition.handler.run({
+        input,
+        operationId: 'reprovision-1',
+        attempt: 0,
+        signal: new AbortController().signal,
+        run,
+      } as never)
+    ).rejects.toThrow('Worktree removal failed');
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('creates only after removal succeeds', async () => {
+    const definition = createHostReprovisionWorktreeDefinition();
+    const input = definition.examples[0]!.input;
+    const run = vi.fn().mockResolvedValue({ success: true, data: { ok: true } });
+
+    await expect(
+      definition.handler.run({
+        input,
+        operationId: 'reprovision-1',
+        attempt: 0,
+        signal: new AbortController().signal,
+        run,
+      } as never)
+    ).resolves.toEqual({ ok: true });
+    expect(run).toHaveBeenNthCalledWith(1, expect.anything(), input.remove);
+    expect(run).toHaveBeenNthCalledWith(2, expect.anything(), input.create);
+  });
+});
 
 function removeWorktreeInput(
   overrides: Partial<HostRemoveWorktreeInput> = {}

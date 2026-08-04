@@ -8,6 +8,7 @@ import {
 } from '../../api';
 import type { WorkspaceHostSessionClients } from '../session/session-cleanup';
 import { validateWorktreePath } from '../worktree-path-safety';
+import { copyPreservedFiles } from './copy-preserved-files';
 import { executeStagePlan } from './execute-stage-plan';
 import {
   branchExists,
@@ -40,11 +41,27 @@ export function createCreateWorktreeHandler(deps: CreateWorktreeHandlerDeps) {
       workspacePath: worktreePath,
       fetch: ctx.input.fetch ?? false,
       existing: false,
+      preservePatterns: ctx.input.preservePatterns,
     };
     await executeStagePlan(ctx, createWorktreeStagePlan, planContext, {
       inspect: async () => {
         const paths = await listWorktreePaths(exec);
         planContext.existing = paths.has(worktreePath);
+        if (planContext.existing) {
+          const branch = (
+            await createExec(worktreePath).exec(['branch', '--show-current'], {
+              signal: ctx.signal,
+            })
+          ).stdout.trim();
+          if (branch !== ctx.input.branchName) {
+            ctx.reject(
+              error(
+                `Worktree ${worktreePath} is checked out on ${branch || 'a detached HEAD'}, ` +
+                  `not ${ctx.input.branchName}`
+              )
+            );
+          }
+        }
       },
       fetch: async () => {
         await exec.exec(['fetch', '--all', '--prune'], { signal: ctx.signal });
@@ -68,6 +85,16 @@ export function createCreateWorktreeHandler(deps: CreateWorktreeHandlerDeps) {
         if (!paths.has(worktreePath)) {
           ctx.reject(error(`Worktree was not listed after creation: ${worktreePath}`));
         }
+      },
+      'copy-preserved-files': async (_stage, stageContext) => {
+        const warnings = await copyPreservedFiles({
+          repoPath,
+          worktreePath,
+          patterns: ctx.input.preservePatterns,
+          git: exec,
+          signal: ctx.signal,
+        });
+        if (warnings.length > 0) stageContext.fail(warnings.join('\n'));
       },
     });
 

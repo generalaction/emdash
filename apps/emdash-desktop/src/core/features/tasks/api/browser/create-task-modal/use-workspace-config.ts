@@ -104,7 +104,7 @@ function defaultMode(
   initialMode: WorkspaceMode | undefined
 ): WorkspaceMode {
   if (worktreesDisabled) return 'existing';
-  return initialMode ?? 'new-worktree';
+  return !initialMode || initialMode === 'sandbox' ? 'new-worktree' : initialMode;
 }
 
 function defaultPreset(opts: {
@@ -119,7 +119,9 @@ function defaultPreset(opts: {
     }
     return 'repo-root';
   }
-  return opts.initialPresetId ?? defaultPresetForMode(opts.mode, opts.hasPR);
+  return opts.initialPresetId && opts.initialPresetId !== 'sandbox'
+    ? opts.initialPresetId
+    : defaultPresetForMode(opts.mode, opts.hasPR);
 }
 
 /** Derives the WorkspaceMode that owns a given preset. */
@@ -230,14 +232,18 @@ export function useWorkspaceConfig(opts: {
   }
 
   const setMode = (next: WorkspaceMode) => {
-    const normalizedMode = worktreesDisabled && next === 'new-worktree' ? 'existing' : next;
+    const supportedMode = next === 'sandbox' ? 'new-worktree' : next;
+    const normalizedMode =
+      worktreesDisabled && supportedMode === 'new-worktree' ? 'existing' : supportedMode;
     setModeRaw(normalizedMode);
     setPresetIdRaw(defaultPreset({ mode: normalizedMode, hasPR, worktreesDisabled }));
     if (normalizedMode !== 'existing') setSelectedWorkspaceId(null);
   };
 
   const setPresetId = (id: WorkspacePresetId) => {
-    const normalizedId = worktreesDisabled && presetRequiresCommits(id) ? 'repo-root' : id;
+    const supportedId = id === 'sandbox' ? 'new-worktree' : id;
+    const normalizedId =
+      worktreesDisabled && presetRequiresCommits(supportedId) ? 'repo-root' : supportedId;
     setPresetIdRaw(normalizedId);
     setModeRaw(modeForPreset(normalizedId));
     // Clear selected workspace when leaving 'existing' presets.

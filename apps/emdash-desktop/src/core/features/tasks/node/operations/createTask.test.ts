@@ -1,7 +1,7 @@
 import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@core/services/app-db/node/schema';
-import { createTask } from './createTask';
+import { createTask as createTaskOperation } from './createTask';
 
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
@@ -9,13 +9,27 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   hasClaimConflict: vi.fn(),
   hostIsReachable: vi.fn(),
+  submitWithTombstone: vi.fn(),
+  resolveWorktreeRoot: vi.fn(),
+  registryRows: [] as unknown[],
 }));
 const operations = {
   hasClaimConflict: mocks.hasClaimConflict,
   hostIsReachable: mocks.hostIsReachable,
+  submitWithTombstone: mocks.submitWithTombstone,
 } as never;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
 const projects = { getProject: mocks.getProject };
+const placement = { resolveWorktreeRoot: mocks.resolveWorktreeRoot };
+
+function createTask(
+  _db: typeof db,
+  _projects: typeof projects,
+  _operations: typeof operations,
+  params: Parameters<typeof createTaskOperation>[4]
+) {
+  return createTaskOperation(db, projects, operations, placement, params);
+}
 
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {
   return {
@@ -52,42 +66,76 @@ function setupTransactionMock() {
 
   mocks.transaction.mockImplementation((cb: (tx: unknown) => void) => {
     captured.length = 0;
-    cb({
-      insert: () => ({
-        values: (vals: unknown) => {
-          captured.push(vals);
-          return {
-            returning: () => ({
-              all: () => [makeTaskRow(vals as Partial<TaskRow>)],
-              get: () => vals,
-            }),
-            run: () => {},
-          };
-        },
-      }),
-    });
+    return cb(fakeTx(captured));
   });
+  mocks.submitWithTombstone.mockImplementation(
+    async (_definition: unknown, _input: unknown, options: { tombstone(tx: unknown): number }) => {
+      options.tombstone(fakeTx(captured));
+      return { success: true, data: { operationId: 'operation-1' } };
+    }
+  );
 
   return { captured };
 }
 
+function fakeTx(captured: unknown[]) {
+  return {
+    insert: () => ({
+      values: (vals: unknown) => {
+        captured.push(vals);
+        return {
+          returning: () => ({
+            all: () => [makeTaskRow(vals as Partial<TaskRow>)],
+            get: () => vals,
+          }),
+          run: () => {},
+        };
+      },
+    }),
+    update: () => ({
+      set: () => ({ where: () => ({ run: () => ({ changes: 1 }) }) }),
+    }),
+    delete: () => ({ where: () => ({ run: () => ({ changes: 1 }) }) }),
+  };
+}
+
 /** Sets up db.select to return a local project row. */
 function setupSelectMock(workspaceProvider = 'local', sshConnectionId: string | null = null) {
-  mocks.select.mockReturnValue({
-    from: () => ({
-      where: () => ({
-        limit: () => Promise.resolve([{ workspaceProvider, sshConnectionId }]),
-      }),
-    }),
-  });
+  mocks.select.mockImplementation((selection?: unknown) =>
+    selection
+      ? {
+          from: () => ({
+            where: () => ({
+              limit: () =>
+                Promise.resolve([
+                  { workspaceProvider, sshConnectionId, repositoryWorkspaceId: 'repo-workspace' },
+                ]),
+            }),
+          }),
+        }
+      : {
+          from: () => ({
+            where: () => ({
+              limit: () => ({ get: () => mocks.registryRows.shift() }),
+            }),
+          }),
+        }
+  );
 }
 
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getProject.mockReturnValue({});
+    mocks.getProject.mockReturnValue({
+      project: { id: 'project-1', path: '/repo', workspaceProvider: 'local' },
+      repoPath: '/repo',
+      host: hostRef('local', 'local'),
+      settings: { get: vi.fn(async () => ({ preservePatterns: ['.env'] })) },
+    });
     mocks.hasClaimConflict.mockResolvedValue(false);
     mocks.hostIsReachable.mockReturnValue(true);
+    mocks.resolveWorktreeRoot.mockResolvedValue({ success: true, data: '/worktrees' });
+    mocks.registryRows.length = 0;
     setupTransactionMock();
     setupSelectMock();
   });
@@ -229,6 +277,19 @@ describe('createTask', () => {
       expect(wsInsert.kind).toBe('worktree');
       expect(wsInsert.location).toBe('local');
       expect(wsInsert.config).toEqual(workspaceConfig);
+      expect(wsInsert.path).toMatch(/^\/worktrees\/repo-[a-f0-9]{8}\/feature-test$/u);
+      expect(wsInsert.key).toBeUndefined();
+      expect(mocks.submitWithTombstone).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'host-create-worktree' }),
+        expect.objectContaining({
+          repoPath: '/repo',
+          workspacePath: wsInsert.path,
+          branchName: 'feature/test',
+          startPoint: 'main',
+          preservePatterns: ['.env'],
+        }),
+        expect.any(Object)
+      );
     });
 
     it('sets location=remote and type=project-ssh for SSH projects', async () => {
@@ -286,12 +347,89 @@ describe('createTask', () => {
       );
       expect(captured).toHaveLength(0);
     });
+
+    it('suffixes paths against live Registry rows without probing the host', async () => {
+      mocks.registryRows.push({ id: 'existing' });
+
+      await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/test',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(mocks.submitWithTombstone).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          workspacePath: expect.stringMatching(/\/feature-test-2$/u),
+        }),
+        expect.anything()
+      );
+    });
+
+    it('untracks the Registry row and rolls back task rows when enqueue is rejected', async () => {
+      const { captured } = setupTransactionMock();
+      const mutationRuns = vi.fn(() => ({ changes: 1 }));
+      mocks.submitWithTombstone.mockImplementationOnce(
+        async (
+          _definition: unknown,
+          _input: unknown,
+          options: {
+            tombstone(tx: unknown): number;
+            revertTombstone(tx: unknown): void;
+          }
+        ) => {
+          const tx = {
+            ...fakeTx(captured),
+            update: () => ({
+              set: () => ({ where: () => ({ run: mutationRuns }) }),
+            }),
+            delete: () => ({ where: () => ({ run: mutationRuns }) }),
+          };
+          options.tombstone(tx);
+          options.revertTombstone(tx);
+          return {
+            success: false,
+            error: { type: 'operation-conflict', message: 'conflict' },
+          };
+        }
+      );
+
+      const result = await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/test',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: { type: 'provision-failed', message: 'conflict' },
+      });
+      expect(mutationRuns).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe('byoi workspace target', () => {
-    it('inserts a workspace row with kind=byoi and location=remote', async () => {
+    it('refuses BYOI creation without inserting a workspace', async () => {
       const { captured } = setupTransactionMock();
-      await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, operations, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -302,10 +440,11 @@ describe('createTask', () => {
         },
       });
 
-      const wsInsert = captured[1] as Record<string, unknown>;
-      expect(wsInsert.kind).toBe('byoi');
-      expect(wsInsert.type).toBe('byoi');
-      expect(wsInsert.location).toBe('remote');
+      expect(result).toEqual({
+        success: false,
+        error: { type: 'provision-failed', message: 'BYOI workspaces are no longer supported.' },
+      });
+      expect(captured).toEqual([]);
     });
   });
 });
