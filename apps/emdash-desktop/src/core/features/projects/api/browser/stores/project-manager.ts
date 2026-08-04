@@ -21,7 +21,6 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
@@ -313,7 +312,7 @@ export class ProjectManagerStore {
             break;
           }
 
-          const projectResult = await this._cloneInitializeAndCreateGitHubProject({
+          const projectResult = await this._cloneAndCreateGitHubProject({
             projectType,
             projectId,
             targetPath,
@@ -705,7 +704,7 @@ export class ProjectManagerStore {
     }
   }
 
-  private async _cloneInitializeAndCreateGitHubProject(opts: {
+  private async _cloneAndCreateGitHubProject(opts: {
     projectType: ProjectType;
     projectId: string;
     targetPath: string;
@@ -714,14 +713,6 @@ export class ProjectManagerStore {
     repositoryNameWithOwner: string;
     githubAccountId?: string;
   }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
-    if (opts.projectType.type === 'ssh') {
-      await this._rollbackCreatedGitHubRepository(
-        opts.repositoryNameWithOwner,
-        opts.githubAccountId
-      );
-      return err(remoteRuntimeUnavailable(opts.projectType.connectionId, 'projects'));
-    }
-
     let result: Result<LocalProject | SshProject, ProjectCreationError>;
     try {
       result = await this._createProjectFromRemote({

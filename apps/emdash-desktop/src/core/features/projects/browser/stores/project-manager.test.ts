@@ -849,6 +849,54 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.createProject).not.toHaveBeenCalled();
   });
 
+  it('starts new-project cloning on the SSH host and rolls back GitHub if it fails', async () => {
+    mocks.projectWireResult = Promise.reject(
+      new LiveJobFailedError({ type: 'clone-failed', message: 'Remote clone failed' })
+    );
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'ssh', connectionId: 'ssh-1' },
+      {
+        mode: 'new',
+        name: 'Project',
+        path: '/remote/parent',
+        repositoryName: 'project',
+        repositoryOwner: 'acme',
+        repositoryVisibility: 'private',
+        githubAccountId: 'github.com:42',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    expect(result.kind).toBe('creating');
+    if (result.kind === 'creating') {
+      await expect(result.completion).resolves.toEqual({
+        success: false,
+        error: { type: 'clone-failed', message: 'Remote clone failed' },
+      });
+    }
+
+    expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
+      type: 'ssh',
+      connectionId: 'ssh-1',
+      path: '/remote/parent/Project',
+    });
+    expect(mocks.projectWireCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: { type: 'ssh', connectionId: 'ssh-1' },
+        mode: 'new',
+        repositoryUrl: 'https://github.com/acme/project.git',
+        targetPath: '/remote/parent/Project',
+      })
+    );
+    expect(mocks.deleteGithubRepository).toHaveBeenCalledWith({
+      owner: 'acme',
+      name: 'project',
+      accountId: 'github.com:42',
+    });
+  });
+
   it('does not attempt GitHub repository rollback when repository creation fails', async () => {
     mocks.createGithubRepository.mockResolvedValueOnce({
       success: false,
