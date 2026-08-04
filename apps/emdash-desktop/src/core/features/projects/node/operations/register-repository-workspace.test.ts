@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
+import { registerRepositoryWorkspace } from './register-repository-workspace';
 
 const mocks = vi.hoisted(() => ({
   selectAll: vi.fn(),
@@ -79,7 +79,7 @@ const sshProject = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
-describe('ensureRepositoryWorkspace', () => {
+describe('registerRepositoryWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -87,7 +87,7 @@ describe('ensureRepositoryWorkspace', () => {
   it('returns existing repositoryWorkspaceId without entering a transaction', () => {
     mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: 'ws-existing-1' }]);
 
-    const result = ensureRepositoryWorkspace(db, localProject);
+    const result = registerRepositoryWorkspace(db, localProject);
 
     expect(result).toBe('ws-existing-1');
     expect(mocks.transaction).not.toHaveBeenCalled();
@@ -115,7 +115,7 @@ describe('ensureRepositoryWorkspace', () => {
       return fn(tx);
     });
 
-    const result = ensureRepositoryWorkspace(db, localProject);
+    const result = registerRepositoryWorkspace(db, localProject);
 
     expect(typeof result).toBe('string');
     expect(result.length).toBeGreaterThan(0);
@@ -148,7 +148,7 @@ describe('ensureRepositoryWorkspace', () => {
       return fn(tx);
     });
 
-    ensureRepositoryWorkspace(db, sshProject);
+    registerRepositoryWorkspace(db, sshProject);
 
     const wsInsert = insertedValues[0] as Record<string, unknown>;
     expect(wsInsert.kind).toBe('project-root');
@@ -168,7 +168,7 @@ describe('ensureRepositoryWorkspace', () => {
       return fn(tx);
     });
 
-    const result = ensureRepositoryWorkspace(db, localProject);
+    const result = registerRepositoryWorkspace(db, localProject);
 
     expect(result).toBe('ws-race-winner');
     expect(mocks.insertRun).not.toHaveBeenCalled();
@@ -192,7 +192,7 @@ describe('ensureRepositoryWorkspace', () => {
       return fn(tx);
     });
 
-    const result = ensureRepositoryWorkspace(db, localProject);
+    const result = registerRepositoryWorkspace(db, localProject);
 
     expect(result).toBe('ws-orphan-existing');
     expect(mocks.insertRun).not.toHaveBeenCalled();

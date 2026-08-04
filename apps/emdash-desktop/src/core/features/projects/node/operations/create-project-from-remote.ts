@@ -1,33 +1,33 @@
 import { readdir, rm, stat } from 'node:fs/promises';
-import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { gitContract, type GitTransferProgress } from '@emdash/core/runtimes/git/api';
 import { log } from '@emdash/shared/logger';
-import type { LiveJobContext } from '@emdash/wire';
+import { LiveJobCancelledError, type LiveJobContext } from '@emdash/wire';
 import type {
   CreateProjectFromRemoteInput,
+  ProjectCreationJobError,
+  ProjectCreationProgress,
   ProjectCreationState,
 } from '@core/features/projects/api';
 import {
   type CreateProjectDependencies,
   createProject,
 } from '@core/features/projects/node/operations/create-project';
-import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
-import { runCloneRepositoryProvision } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { LocalProject } from '@core/primitives/projects/api';
-import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
+import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
 
 export type ProjectCreationPublisher = (projectId: string, state: ProjectCreationState) => void;
 
 export async function createProjectFromRemote(
-  dependencies: CreateProjectDependencies & {
-    getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
-  },
+  dependencies: CreateProjectDependencies,
   input: CreateProjectFromRemoteInput,
-  ctx: LiveJobContext<WorkspaceBootstrapProgress>,
+  ctx: LiveJobContext<ProjectCreationProgress>,
   publishCreationState: ProjectCreationPublisher
 ) {
   const targetStatus = await inspectTarget(input.targetPath);
   if (targetStatus === 'non-empty') {
-    const error = workspaceError(
+    const error = creationError(
       'destination-not-empty',
       `Clone destination is not empty: ${input.targetPath}`
     );
@@ -36,45 +36,59 @@ export async function createProjectFromRemote(
   }
   const targetExistedBeforeClone = targetStatus === 'empty-directory';
   publishCreationState(input.projectId, { phase: 'cloning', message: 'Cloning repository…' });
-  const clone = await runCloneRepositoryProvision(dependencies.getWorkspaceRuntimeClient, {
-    url: input.repositoryUrl,
-    destination: input.targetPath,
-    initialize:
-      input.mode === 'new'
-        ? {
-            name: input.name,
-            description: input.description,
-          }
-        : undefined,
-    signal: ctx.signal,
-    onProgress(progress) {
-      ctx.progress(progress);
+
+  const runtime = await dependencies.runtimes.client(LOCAL_HOST_REF);
+  if (!runtime.success) {
+    const error = creationError(runtime.error.type, runtime.error.message);
+    publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
+    return { success: false as const, error };
+  }
+
+  let clone: Awaited<ReturnType<typeof runRuntimeLiveJob<typeof gitContract.cloneRepository>>>;
+  try {
+    clone = await runRuntimeLiveJob(
+      gitContract.cloneRepository,
+      runtime.data.git.cloneRepository,
+      {
+        repositoryUrl: input.repositoryUrl,
+        targetPath: hostPathFromNative(input.targetPath),
+        initialize:
+          input.mode === 'new' ? { name: input.name, description: input.description } : undefined,
+      },
+      (progress) => {
+        const mapped = cloneProgressToCreationProgress(progress);
+        ctx.progress(mapped);
+        publishCreationState(input.projectId, {
+          phase: mapped.phase === 'initializing' ? 'initializing' : 'cloning',
+          message: mapped.message,
+        });
+      },
+      { signal: ctx.signal }
+    );
+  } catch (error) {
+    if (error instanceof LiveJobCancelledError || ctx.signal.aborted) {
+      if (!targetExistedBeforeClone) await cleanupCancelledCloneTarget(input.targetPath);
+      const cancelled = creationError('cancelled', 'Project creation was cancelled');
       publishCreationState(input.projectId, {
-        phase: creationPhaseForProgress(input, progress),
-        message: progress.message,
+        phase: 'error',
+        message: cancelled.message,
+        error: cancelled,
       });
-    },
-  });
-  if (!clone.success) {
-    if (clone.error.type === 'cancelled' && !targetExistedBeforeClone) {
-      await cleanupCancelledCloneTarget(input.targetPath);
+      return { success: false as const, error: cancelled };
     }
-    publishCreationState(input.projectId, {
-      phase: 'error',
-      message: clone.error.message,
-      error: clone.error,
-    });
-    return clone;
+    throw error;
+  }
+  if (!clone.success) {
+    const error = creationError(clone.error.type, clone.error.message);
+    publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
+    return { success: false as const, error };
   }
 
   publishCreationState(input.projectId, {
     phase: 'registering',
     message: 'Registering project…',
   });
-  ctx.progress({
-    step: 'initialising-workspace',
-    message: 'Registering project…',
-  });
+  ctx.progress({ phase: 'registering', message: 'Registering project…' });
   const project = await createProject(dependencies, {
     type: 'local',
     id: input.projectId,
@@ -82,7 +96,7 @@ export async function createProjectFromRemote(
     path: input.targetPath,
   });
   if (!project.success) {
-    const error = projectErrorToWorkspaceError(project.error);
+    const error = projectErrorToCreationError(project.error);
     publishCreationState(input.projectId, {
       phase: 'error',
       message: error.message,
@@ -91,7 +105,7 @@ export async function createProjectFromRemote(
     return { success: false as const, error };
   }
   if (project.data.type !== 'local') {
-    const error = workspaceError('invalid-project-type', 'Expected a local project');
+    const error = creationError('invalid-project-type', 'Expected a local project');
     publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
     return { success: false as const, error };
   }
@@ -124,47 +138,50 @@ async function cleanupCancelledCloneTarget(path: string): Promise<void> {
   }
 }
 
-function creationPhaseForProgress(
-  input: CreateProjectFromRemoteInput,
-  progress: WorkspaceBootstrapProgress
-): 'cloning' | 'initializing' {
-  if (input.mode !== 'new') return 'cloning';
-  const activeStage =
-    progress.operation?.stages.find((stage) => stage.status === 'running') ??
-    progress.operation?.stages.find((stage) => stage.status === 'pending');
-  return (activeStage?.id.startsWith('git-clone') ?? true) ? 'cloning' : 'initializing';
+function cloneProgressToCreationProgress(progress: GitTransferProgress): ProjectCreationProgress {
+  if (progress.phase === 'initialize') {
+    return {
+      phase: 'initializing',
+      message: progress.detail ?? 'Initializing repository…',
+    };
+  }
+  return {
+    phase: 'cloning',
+    percent: progress.percent,
+    message: progress.detail ? `${progress.phase}: ${progress.detail}` : progress.phase,
+  };
 }
 
-function workspaceError(type: string, message: string): WorkspaceError {
+function creationError(type: string, message: string): ProjectCreationJobError {
   return { type, message };
 }
 
-function projectErrorToWorkspaceError(error: unknown): WorkspaceError {
+function projectErrorToCreationError(error: unknown): ProjectCreationJobError {
   if (
     typeof error === 'object' &&
     error !== null &&
     typeof (error as { type?: unknown }).type === 'string'
   ) {
     const projectError = error as { type: string; path?: string; message?: string };
-    return workspaceError(
+    return creationError(
       projectError.type,
       projectError.message ??
         `Project creation failed${projectError.path ? `: ${projectError.path}` : ''}`
     );
   }
-  return unknownToWorkspaceError(error);
+  return unknownToProjectCreationError(error);
 }
 
-export function unknownToWorkspaceError(error: unknown): WorkspaceError {
+export function unknownToProjectCreationError(error: unknown): ProjectCreationJobError {
   if (
     typeof error === 'object' &&
     error !== null &&
     typeof (error as { type?: unknown }).type === 'string' &&
     typeof (error as { message?: unknown }).message === 'string'
   ) {
-    return error as WorkspaceError;
+    return error as ProjectCreationJobError;
   }
-  return workspaceError(
+  return creationError(
     'project-creation-failed',
     error instanceof Error ? error.message : String(error)
   );

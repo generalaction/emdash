@@ -3,7 +3,6 @@ import {
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { log } from '@emdash/shared/logger';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
@@ -13,7 +12,6 @@ import {
 } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
-import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 import { getProjectById } from './getProjects';
 import { fileKeyForAbsolutePath } from './project-path-status';
 
@@ -45,17 +43,7 @@ export async function openProject(
       : err({ type: 'error', message: result.error.message });
   }
 
-  // Ensure the project has a shared repository-root workspace row.
-  // This is idempotent and handles both new projects and pre-migration rows.
-  let repositoryWorkspaceId: string | null = null;
-  try {
-    repositoryWorkspaceId = ensureRepositoryWorkspace(db, project);
-  } catch (error) {
-    log.warn('openProject: ensureRepositoryWorkspace failed (non-fatal)', {
-      projectId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  return ok({ repositoryWorkspaceId });
+  // The repository workspace row is registered eagerly at project creation;
+  // pre-migration rows are backfilled by the release migration train.
+  return ok({ repositoryWorkspaceId: project.repositoryWorkspaceId ?? null });
 }

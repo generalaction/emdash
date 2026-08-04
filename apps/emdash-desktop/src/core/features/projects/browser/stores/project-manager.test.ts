@@ -1,13 +1,13 @@
 import { LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import type * as Wire from '@emdash/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ProjectCreationProgress } from '@core/features/projects/api';
 import {
   createUnmountedProject,
   isUnregisteredProject,
   type ProjectStore,
 } from '@core/features/projects/api/browser/stores/project';
 import { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
-import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   projectWireCreate: vi.fn(),
   projectWireCancel: vi.fn(),
   projectWireDelete: vi.fn(),
-  projectWireProgressCallbacks: [] as Array<(progress: WorkspaceBootstrapProgress) => void>,
+  projectWireProgressCallbacks: [] as Array<(progress: ProjectCreationProgress) => void>,
   projectWireResult: undefined as Promise<LocalProject> | undefined,
   resolveRepositoryDestination: vi.fn(),
   deleteMementoSubject: vi.fn(),
@@ -173,7 +173,7 @@ describe('ProjectManagerStore project creation', () => {
                   path: input.targetPath,
                 })
               ),
-            onProgress: (cb: (progress: WorkspaceBootstrapProgress) => void) => {
+            onProgress: (cb: (progress: ProjectCreationProgress) => void) => {
               mocks.projectWireProgressCallbacks.push(cb);
               return vi.fn();
             },
@@ -359,7 +359,7 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.projectWireCreate).not.toHaveBeenCalled();
   });
 
-  it('stores remote creation operation progress on the pending project', async () => {
+  it('stores remote creation progress on the pending project', async () => {
     let resolveResult: (project: LocalProject) => void = () => {};
     mocks.projectWireResult = new Promise<LocalProject>((resolve) => {
       resolveResult = resolve;
@@ -379,29 +379,19 @@ describe('ProjectManagerStore project creation', () => {
 
     await vi.waitFor(() => expect(mocks.projectWireProgressCallbacks).toHaveLength(1));
 
-    const progress: WorkspaceBootstrapProgress = {
-      step: 'setting-up-workspace',
-      message: 'Cloning repository',
-      operation: {
-        operationId: 'operation-1',
-        kind: 'provision',
-        stages: [
-          {
-            id: 'git-clone',
-            label: 'Cloning repository',
-            status: 'running',
-            progress: { percent: 42, message: 'Receiving objects' },
-          },
-        ],
-      },
+    const progress: ProjectCreationProgress = {
+      phase: 'cloning',
+      percent: 42,
+      message: 'Receiving objects: 42%',
     };
     mocks.projectWireProgressCallbacks[0]?.(progress);
 
     const pendingProject = store.projects.get('optimistic-project');
     expect(pendingProject && isUnregisteredProject(pendingProject)).toBe(true);
     if (pendingProject && isUnregisteredProject(pendingProject)) {
-      expect(pendingProject.progressMessage).toBe('Cloning repository');
-      expect(pendingProject.operation).toStrictEqual(progress.operation);
+      expect(pendingProject.phase).toBe('cloning');
+      expect(pendingProject.progressMessage).toBe('Receiving objects: 42%');
+      expect(pendingProject.progressPercent).toBe(42);
     }
 
     resolveResult(

@@ -7,7 +7,6 @@ import {
   portableRelativePathSchema,
 } from '@emdash/core/primitives/path/api';
 import { fileTreeModelSchema, fsErrorSchema } from '@emdash/core/runtimes/files/api';
-import { workspaceErrorSchema } from '@emdash/core/runtimes/workspace/api';
 import type { Result } from '@emdash/shared';
 import {
   defineContract,
@@ -20,7 +19,6 @@ import {
   procedure,
 } from '@emdash/wire';
 import z from 'zod';
-import { workspaceBootstrapProgressSchema } from '@core/features/workspaces/api';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,
@@ -44,6 +42,17 @@ import {
   type UpdateProjectSettingsError,
 } from '@core/primitives/projects/api';
 
+export const projectCreationErrorSchema = z.object({
+  type: z.string(),
+  message: z.string(),
+});
+
+export const projectCreationProgressSchema = z.object({
+  phase: z.enum(['cloning', 'initializing', 'registering']),
+  percent: z.number().int().min(0).max(100).optional(),
+  message: z.string().optional(),
+});
+
 export const projectCreationStateSchema = z.discriminatedUnion('phase', [
   z.object({
     phase: z.literal('cloning'),
@@ -64,7 +73,7 @@ export const projectCreationStateSchema = z.discriminatedUnion('phase', [
   z.object({
     phase: z.literal('error'),
     message: z.string(),
-    error: workspaceErrorSchema.optional(),
+    error: projectCreationErrorSchema.optional(),
   }),
 ]);
 
@@ -233,9 +242,9 @@ export const projectsWireContract = defineContract({
   }),
   create: liveJob({
     input: createProjectFromRemoteInputSchema,
-    progress: workspaceBootstrapProgressSchema,
+    progress: projectCreationProgressSchema,
     result: localProjectSchema,
-    error: workspaceErrorSchema,
+    error: projectCreationErrorSchema,
   }),
   delete: fallible({
     input: projectIdInputSchema,
@@ -245,6 +254,8 @@ export const projectsWireContract = defineContract({
 });
 
 export type ProjectCreationState = z.infer<typeof projectCreationStateSchema>;
+export type ProjectCreationJobError = z.infer<typeof projectCreationErrorSchema>;
+export type ProjectCreationProgress = z.infer<typeof projectCreationProgressSchema>;
 export type CreateProjectFromRemoteInput = z.infer<typeof createProjectFromRemoteInputSchema>;
 export type ProjectHostParams = z.infer<typeof projectHostParamsSchema>;
 export type ProjectsWireContract = typeof projectsWireContract;

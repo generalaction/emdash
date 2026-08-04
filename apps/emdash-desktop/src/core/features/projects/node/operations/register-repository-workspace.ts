@@ -9,17 +9,18 @@ import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 
 /**
- * Ensures the project has a `project-root` workspace row and sets
+ * Eagerly registers the project's `project-root` workspace row and sets
  * `projects.repositoryWorkspaceId` if it is not already set.
  *
  * This is idempotent and race-safe — the INSERT and UPDATE are wrapped in a
- * transaction. If a concurrent call already inserted a workspace with the same
- * key, we recover by looking up the existing row by key and linking it.
+ * transaction. If a previous partial failure left an orphaned workspace row
+ * with the same key, we recover by looking up the existing row and linking it.
  *
- * Called from `createProjectOnHost` (so the returned project already carries the ID) and from
- * `openProject` (for pre-migration rows).
+ * Called only from `createProjectOnHost`: project creation is the sole
+ * registration site. Pre-existing rows without a repository workspace are
+ * backfilled by the release migration train.
  */
-export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | SshProject): string {
+export function registerRepositoryWorkspace(db: AppDb, project: LocalProject | SshProject): string {
   const [row] = db
     .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
     .from(projects)
@@ -75,7 +76,7 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
       .where(and(eq(projects.id, project.id), isNull(projects.deletedAt)))
       .run();
 
-    log.info('ensureRepositoryWorkspace: created project-root workspace', {
+    log.info('registerRepositoryWorkspace: created project-root workspace', {
       projectId: project.id,
       workspaceId: resolvedId,
       reusedExisting: !!existingWs,

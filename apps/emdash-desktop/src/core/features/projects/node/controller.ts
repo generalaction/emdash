@@ -8,7 +8,6 @@ import type {
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { OperationsEngine } from '@core/services/operations/node';
-import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { CreateProjectDependencies } from './operations/create-project';
 import { createProject, inspectProjectPath } from './operations/create-project';
 import { deleteProject } from './operations/deleteProject';
@@ -21,7 +20,6 @@ import { countProjectsUsingGithubAccount } from './settings/count-projects-using
 
 export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'projects'> & {
   operations: OperationsEngine;
-  getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   placement: WorkspacePlacementResolver;
   projectSettings: ProjectSettingsService;
   projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;

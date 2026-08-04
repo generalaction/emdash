@@ -9,7 +9,6 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 import { ensureProjectRepository } from './create-project-utils';
-import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 import { projectFromRow } from './getProjects';
 
 export type InitializeRepositoryDependencies = {
@@ -71,15 +70,6 @@ export async function initializeRepository(
     log.warn('initializeRepository: failed to reopen project after initializing repository', {
       projectId,
       error: openResult.error.message,
-    });
-  }
-
-  try {
-    project.repositoryWorkspaceId = ensureRepositoryWorkspace(dependencies.db, project);
-  } catch (error) {
-    log.warn('initializeRepository: ensureRepositoryWorkspace failed (non-fatal)', {
-      projectId: project.id,
-      error: error instanceof Error ? error.message : String(error),
     });
   }
 

@@ -1,17 +1,15 @@
-import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import {
   SteppedLoader,
+  SteppedLoaderProgress,
   type SteppedLoaderProps,
-  type SteppedLoaderStep,
 } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
+import type { ReactNode } from 'react';
 import { type UnregisteredProject } from '@core/features/projects/api/browser/stores/project';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { bootstrapProgressToSteppedLoader } from '@renderer/lib/provisioning/bootstrap-stepped-loader';
 
 type Stage = 'creating-repo' | 'cloning' | 'registering';
 
@@ -79,56 +77,34 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
 function projectToSteppedLoader(
   project: UnregisteredProject
 ): Pick<SteppedLoaderProps, 'steps' | 'activeStepId' | 'status'> {
-  const error = project.phase === 'error' ? projectError(project) : null;
-  if (project.operation) {
-    const progress = projectProgress(project);
-    const model = bootstrapProgressToSteppedLoader(progress, error);
-    const steps = projectSteps(project, model.steps);
-    const activeStepId = project.phase === 'registering' ? 'registering' : model.activeStepId;
-    return {
-      steps,
-      activeStepId,
-      status: error ? 'error' : project.phase === 'registering' ? 'loading' : model.status,
-    };
-  }
-
   const stages = STAGES_BY_MODE[project.mode];
   const activeStage = project.phase === 'error' ? stages.at(-1) : (project.phase as Stage);
   const activeStepId = activeStage ?? stages[0];
+  const activeChildren = progressChildren(project);
   return {
-    steps: stages.map((stage) => ({ id: stage, name: STAGE_LABELS[stage] })),
+    steps: stages.map((stage) => ({
+      id: stage,
+      name: STAGE_LABELS[stage],
+      children: stage === activeStepId ? activeChildren : undefined,
+    })),
     activeStepId,
-    status: error ? 'error' : 'loading',
+    status: project.phase === 'error' ? 'error' : 'loading',
   };
 }
 
-function projectProgress(project: UnregisteredProject): WorkspaceBootstrapProgress {
-  return {
-    step: project.phase === 'registering' ? 'initialising-workspace' : 'setting-up-workspace',
-    message: project.progressMessage ?? STAGE_LABELS.cloning,
-    operation: project.operation,
-  };
-}
-
-function projectSteps(
-  project: UnregisteredProject,
-  runtimeSteps: SteppedLoaderStep[]
-): SteppedLoaderStep[] {
-  const steps =
-    project.mode === 'new'
-      ? [{ id: 'creating-repo', name: STAGE_LABELS['creating-repo'] }, ...runtimeSteps]
-      : runtimeSteps;
-
-  if (steps.some((step) => step.id === 'registering')) {
-    return steps;
+function progressChildren(project: UnregisteredProject): ReactNode {
+  if (project.phase === 'error' || project.progressPercent === undefined) {
+    return undefined;
   }
 
-  return [...steps, { id: 'registering', name: STAGE_LABELS.registering }];
-}
-
-function projectError(project: UnregisteredProject): WorkspaceError {
-  return {
-    type: 'project-creation-failed',
-    message: project.error ?? 'Project creation failed',
-  };
+  const percent = Math.max(0, Math.min(100, Math.round(project.progressPercent)));
+  const label = STAGE_LABELS[(project.phase as Stage) ?? 'cloning'] ?? STAGE_LABELS.cloning;
+  return (
+    <SteppedLoaderProgress
+      percent={percent}
+      leftLabel={project.progressMessage ?? label}
+      rightLabel={`${percent}%`}
+      aria-label={label}
+    />
+  );
 }

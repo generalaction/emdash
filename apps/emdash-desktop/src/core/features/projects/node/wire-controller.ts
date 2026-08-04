@@ -23,7 +23,7 @@ import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
-  unknownToWorkspaceError,
+  unknownToProjectCreationError,
 } from './operations/create-project-from-remote';
 import { enqueueDeleteProject } from './operations/delete-project-definition';
 
@@ -86,7 +86,7 @@ export function createProjectsWireController(
       directoryTree: createDirectoryTreeModelProvider(dependencies),
       create: {
         run: (input, ctx) => runCreateProjectFromRemote(dependencies, creation, input, ctx),
-        toError: unknownToWorkspaceError,
+        toError: unknownToProjectCreationError,
       },
       delete: (input) => enqueueDeleteProject(operations, input.projectId),
     },

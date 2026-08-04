@@ -1,4 +1,3 @@
-import type { WorkspaceOperationProgress } from '@emdash/core/runtimes/workspace/api';
 import { makeAutoObservable, observable } from 'mobx';
 import { type ProjectScopedStoreContext } from '@core/features/projects/contributions/project-stores';
 import { projectSubject } from '@core/features/projects/contributions/subject';
@@ -66,7 +65,7 @@ export class ProjectStore {
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
   progressMessage: string | undefined = undefined;
-  operation: WorkspaceOperationProgress | undefined = undefined;
+  progressPercent: number | undefined = undefined;
   errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
@@ -99,7 +98,7 @@ export class ProjectStore {
     this.phase = null;
     this.error = undefined;
     this.progressMessage = undefined;
-    this.operation = undefined;
+    this.progressPercent = undefined;
     this.errorCode = undefined;
   }
 
@@ -117,7 +116,7 @@ export class ProjectStore {
     this.phase = phase;
     this.error = undefined;
     this.progressMessage = undefined;
-    this.operation = undefined;
+    this.progressPercent = undefined;
     this.errorCode = undefined;
   }
 
@@ -137,7 +136,7 @@ export class ProjectStore {
     this.mode = mode;
     this.error = undefined;
     this.progressMessage = undefined;
-    this.operation = undefined;
+    this.progressPercent = undefined;
   }
 }
 
@@ -149,7 +148,7 @@ export type UnregisteredProject = ProjectStore & {
   mode: ProjectMode;
   error: string | undefined;
   progressMessage: string | undefined;
-  operation: WorkspaceOperationProgress | undefined;
+  progressPercent: number | undefined;
 };
 
 export type UnmountedProject = ProjectStore & {

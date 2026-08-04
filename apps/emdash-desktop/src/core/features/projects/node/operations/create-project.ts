@@ -19,11 +19,11 @@ import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { ensureProjectRepository } from './create-project-utils';
-import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 import { projectFromRow } from './getProjects';
 import { getProjectByPath } from './getProjects';
 import { fileKeyForAbsolutePath } from './project-path-status';
 import { getProjectPathStatus } from './project-path-status';
+import { registerRepositoryWorkspace } from './register-repository-workspace';
 
 export type CreateProjectOnHostParams = {
   id?: string;
@@ -126,9 +126,9 @@ async function createProjectOnHost(
   await dependencies.projects.openProject(project);
 
   try {
-    project.repositoryWorkspaceId = ensureRepositoryWorkspace(dependencies.db, project);
+    project.repositoryWorkspaceId = registerRepositoryWorkspace(dependencies.db, project);
   } catch (error) {
-    log.warn('createProjectOnHost: ensureRepositoryWorkspace failed (non-fatal)', {
+    log.warn('createProjectOnHost: registerRepositoryWorkspace failed (non-fatal)', {
       projectId: project.id,
       error: error instanceof Error ? error.message : String(error),
     });

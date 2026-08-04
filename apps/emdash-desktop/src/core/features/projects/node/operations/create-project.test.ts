@@ -5,11 +5,11 @@ import { createProject } from './create-project';
 import { initializeRepository } from './initialize-repository';
 
 const mocks = vi.hoisted(() => ({
-  ensureRepositoryWorkspace: vi.fn(),
+  registerRepositoryWorkspace: vi.fn(),
 }));
 
-vi.mock('./ensure-repository-workspace', () => ({
-  ensureRepositoryWorkspace: mocks.ensureRepositoryWorkspace,
+vi.mock('./register-repository-workspace', () => ({
+  registerRepositoryWorkspace: mocks.registerRepositoryWorkspace,
 }));
 
 describe('project creation without a git repository', () => {
@@ -29,7 +29,7 @@ describe('project creation without a git repository', () => {
     ensureRepository = vi.fn();
     closeProject = vi.fn().mockResolvedValue(ok());
     openProject = vi.fn().mockResolvedValue(ok({}));
-    mocks.ensureRepositoryWorkspace.mockReturnValue('repo-workspace-1');
+    mocks.registerRepositoryWorkspace.mockReturnValue('repo-workspace-1');
     dependencies = {
       db: createFakeDb(rows),
       runtimes: {
@@ -81,7 +81,7 @@ describe('project creation without a git repository', () => {
       baseRef: null,
       workspaceProvider: 'local',
       sshConnectionId: null,
-      repositoryWorkspaceId: null,
+      repositoryWorkspaceId: 'repo-workspace-1',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       deletedAt: null,

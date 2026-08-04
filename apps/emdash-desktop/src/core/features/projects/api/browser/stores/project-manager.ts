@@ -5,7 +5,7 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
-import { projectsWireContract } from '@core/features/projects/api';
+import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';
 import {
   MountedProject,
   createUnmountedProject,
@@ -21,7 +21,6 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import type { WorkspaceBootstrapProgress } from '@core/features/workspaces/api';
 import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
@@ -686,7 +685,7 @@ export class ProjectManagerStore {
     const unsubscribe = job.onProgress((progress) => {
       this._updatePhase(
         opts.projectId,
-        progress.step === 'initialising-workspace' ? 'registering' : 'cloning',
+        progress.phase === 'registering' ? 'registering' : 'cloning',
         progress
       );
     });
@@ -751,14 +750,14 @@ export class ProjectManagerStore {
   private _updatePhase(
     id: string,
     phase: UnregisteredProjectPhase,
-    progress?: WorkspaceBootstrapProgress
+    progress?: ProjectCreationProgress
   ): void {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
         store.phase = phase;
         store.progressMessage = progress?.message;
-        store.operation = progress?.operation;
+        store.progressPercent = progress?.percent;
       }
     });
   }
