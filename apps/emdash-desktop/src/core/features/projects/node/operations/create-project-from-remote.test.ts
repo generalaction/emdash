@@ -1,5 +1,5 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { createProjectFromRemote } from './create-project-from-remote';
@@ -110,5 +110,42 @@ describe('createProjectFromRemote', () => {
       data: expect.objectContaining({ type: 'ssh', connectionId: 'ssh-1' }),
     });
     expect(publish).toHaveBeenCalledWith('project-1', expect.objectContaining({ phase: 'ready' }));
+  });
+
+  it('reports host filesystem inspection errors without starting a clone', async () => {
+    exists.mockResolvedValueOnce(err({ type: 'permission-denied', path: '/remote/repo' } as const));
+    const progress = vi.fn();
+    const publish = vi.fn();
+
+    const result = await createProjectFromRemote(
+      dependencies,
+      {
+        projectId: 'project-1',
+        host: { type: 'ssh', connectionId: 'ssh-1' },
+        mode: 'clone',
+        repositoryUrl: 'https://github.com/acme/repo.git',
+        targetPath: '/remote/repo',
+        name: 'repo',
+      },
+      { signal: new AbortController().signal, progress } as never,
+      publish
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'inspect-failed',
+        message: 'permission-denied: /remote/repo',
+      },
+    });
+    expect(mocks.runRuntimeLiveJob).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith('project-1', {
+      phase: 'error',
+      message: 'permission-denied: /remote/repo',
+      error: {
+        type: 'inspect-failed',
+        message: 'permission-denied: /remote/repo',
+      },
+    });
   });
 });

@@ -3,6 +3,7 @@ import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract, type GitTransferProgress } from '@emdash/core/runtimes/git/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { LiveJobCancelledError, type LiveJobContext } from '@emdash/wire';
 import type {
@@ -18,6 +19,7 @@ import {
 } from '@core/features/projects/node/operations/create-project';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { Project } from '@core/primitives/projects/api';
+import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
 
 export type ProjectCreationPublisher = (projectId: string, state: ProjectCreationState) => void;
@@ -39,7 +41,16 @@ export async function createProjectFromRemote(
   }
 
   const files = runtime.data.files;
-  const targetStatus = await inspectTarget(files, input.targetPath);
+  const targetInspection = await inspectTarget(files, input.targetPath);
+  if (!targetInspection.success) {
+    publishCreationState(input.projectId, {
+      phase: 'error',
+      message: targetInspection.error.message,
+      error: targetInspection.error,
+    });
+    return { success: false as const, error: targetInspection.error };
+  }
+  const targetStatus = targetInspection.data;
   if (targetStatus === 'non-empty') {
     const error = creationError(
       'destination-not-empty',
@@ -132,26 +143,32 @@ export async function createProjectFromRemote(
 async function inspectTarget(
   files: HostFiles,
   path: string
-): Promise<'missing' | 'empty-directory' | 'non-empty'> {
+): Promise<Result<'missing' | 'empty-directory' | 'non-empty', ProjectCreationJobError>> {
   const key = fileKeyForAbsolutePath(hostPathFromNative(path));
   const exists = await files.fs.exists(key);
   if (!exists.success) {
-    return exists.error.type === 'not-found' ? 'missing' : 'non-empty';
+    return exists.error.type === 'not-found'
+      ? ok('missing')
+      : err(creationError('inspect-failed', fsErrorMessage(exists.error)));
   }
-  if (!exists.data) return 'missing';
+  if (!exists.data) return ok('missing');
 
   const pathEntry = await files.fs.stat(key);
   if (!pathEntry.success) {
-    return pathEntry.error.type === 'not-found' ? 'missing' : 'non-empty';
+    return pathEntry.error.type === 'not-found'
+      ? ok('missing')
+      : err(creationError('inspect-failed', fsErrorMessage(pathEntry.error)));
   }
-  if (pathEntry.data.type !== 'directory') return 'non-empty';
+  if (pathEntry.data.type !== 'directory') return ok('non-empty');
 
   const listed = await runRuntimeLiveJob(filesContract.fs.enumerate, files.fs.enumerate, {
     root: hostPathFromNative(path),
     relative: ROOT_RELATIVE_PATH,
   });
-  if (!listed.success) return 'non-empty';
-  return listed.data.paths.length === 0 ? 'empty-directory' : 'non-empty';
+  if (!listed.success) {
+    return err(creationError('inspect-failed', fsErrorMessage(listed.error)));
+  }
+  return ok(listed.data.paths.length === 0 ? 'empty-directory' : 'non-empty');
 }
 
 async function cleanupCancelledCloneTarget(files: HostFiles, path: string): Promise<void> {
