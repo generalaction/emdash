@@ -8,6 +8,7 @@ import type {
   E2ERequiredChecksResult,
   RunCleanRoomE2EGateInput,
 } from './clean-room-e2e-gate';
+import { CLEAN_ROOM_E2E_PROMPT_TIMEOUT_MS } from './clean-room-e2e-gate';
 import {
   BASE_COMMIT,
   FEATURE_COMMIT,
@@ -63,6 +64,18 @@ describe('CleanRoomE2EGate', () => {
       'destroy:1',
       `feature:1:${FEATURE_COMMIT}`,
     ]);
+  });
+
+  it('gives each E2E ACP prompt a bounded deadline when the caller has no deadline', async () => {
+    const harness = makeHarness([{ finalText: 'Green.\n<<<LOOP:E2E_PASSED>>>' }]);
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    const request = vi.mocked(harness.dependencies.session.sendE2EPrompt).mock.calls[0]?.[0];
+    expect(request?.deadlineAt).toBe(
+      Date.parse('2026-07-12T01:02:03.000Z') + CLEAN_ROOM_E2E_PROMPT_TIMEOUT_MS
+    );
   });
 
   it('reports a native-browser failure before a passing validation summary', async () => {

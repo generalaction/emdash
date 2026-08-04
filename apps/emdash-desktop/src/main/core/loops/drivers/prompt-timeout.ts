@@ -30,6 +30,7 @@ export async function sendPromptWithTimeout(input: {
   timeoutMs: number;
   failureMessage: string;
   timeoutLabel: string;
+  cancelOnTimeout?: boolean;
 }): Promise<Result<PromptResult, LoopSessionDriverError>> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const promptPromise = input.driver
@@ -43,7 +44,9 @@ export async function sendPromptWithTimeout(input: {
 
   const timeoutPromise = new Promise<Result<PromptResult, LoopSessionDriverError>>((resolve) => {
     timeout = setTimeout(() => {
-      void input.driver.cancelPrompt(input.conversationId).catch(() => {});
+      if (input.cancelOnTimeout !== false) {
+        void input.driver.cancelPrompt(input.conversationId).catch(() => {});
+      }
       resolve(
         err({
           kind: 'prompt-failed',

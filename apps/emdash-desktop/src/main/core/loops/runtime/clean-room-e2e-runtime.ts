@@ -32,9 +32,14 @@ import {
 import { CleanRoomWorkspaceService } from '../clean-room/clean-room-workspace-service';
 import { DurableCleanRoomCleanupJournal } from '../clean-room/durable-cleanup-journal';
 import { FeatureSnapshotService } from '../clean-room/feature-snapshot-service';
+import { sendPromptWithTimeout } from '../drivers/prompt-timeout';
 import type { LoopSessionDriver } from '../drivers/session-driver';
 import { LoopEvidenceStore } from '../evidence/loop-evidence-store';
-import { CleanRoomE2EGate, type E2EGateDependencyError } from '../gates/clean-room-e2e-gate';
+import {
+  CLEAN_ROOM_E2E_PROMPT_TIMEOUT_MS,
+  CleanRoomE2EGate,
+  type E2EGateDependencyError,
+} from '../gates/clean-room-e2e-gate';
 import { sameE2EDurableProgress } from '../gates/clean-room-e2e-progress';
 import { CleanRoomE2ERequiredChecksAdapter } from '../gates/clean-room-e2e-required-checks';
 import { e2eProgressStore } from '../operations/e2e-progress-store';
@@ -395,7 +400,19 @@ export async function runCleanRoomE2EPhase(input: {
         });
       },
       sendE2EPrompt: async (request) => {
-        const sent = await input.driver.sendPrompt(request.conversationId, request.prompt);
+        const sent = await sendPromptWithTimeout({
+          driver: input.driver,
+          conversationId: request.conversationId,
+          prompt: request.prompt,
+          timeoutMs: Math.max(
+            1,
+            (request.deadlineAt ?? Date.now() + CLEAN_ROOM_E2E_PROMPT_TIMEOUT_MS) - Date.now()
+          ),
+          failureMessage: 'Clean-room E2E prompt failed',
+          timeoutLabel: 'Clean-room E2E prompt',
+          // The gate owns exact-session cancellation and quiescence after this port settles.
+          cancelOnTimeout: false,
+        });
         return sent.success
           ? ok({
               attemptId: request.attemptId,
