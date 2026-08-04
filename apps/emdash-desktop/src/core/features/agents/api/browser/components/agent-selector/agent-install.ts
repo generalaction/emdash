@@ -1,3 +1,4 @@
+import { formatCommandOutputTail } from '@emdash/core/primitives/host-dependencies/api';
 import { match } from 'ts-pattern';
 import type { AgentInstallError, AgentUpdateError } from '@core/primitives/agents/api';
 
@@ -11,7 +12,10 @@ export type AgentInstallActionState = {
 export function getAgentInstallErrorMessage(error: AgentInstallError): string {
   return match(error)
     .with({ type: 'permission-denied' }, (e) => e.message)
-    .with({ type: 'command-failed' }, (e) => (e.output ? `${e.message} ${e.output}` : e.message))
+    .with({ type: 'command-failed' }, (e) => {
+      const tail = formatCommandOutputTail(e.output);
+      return tail ? `${e.message}\n${tail}` : e.message;
+    })
     .with({ type: 'pty-open-failed' }, (e) => e.message)
     .with({ type: 'unknown-dependency' }, (e) => `Unknown dependency: ${e.id}`)
     .with({ type: 'no-install-command' }, (e) => `No install command is available for ${e.id}.`)
@@ -57,7 +61,10 @@ export type AgentUpdateActionState = {
 export function getAgentUpdateErrorMessage(error: AgentUpdateError): string {
   return match(error)
     .with({ type: 'permission-denied' }, (e) => e.message)
-    .with({ type: 'command-failed' }, (e) => (e.output ? `${e.message} ${e.output}` : e.message))
+    .with({ type: 'command-failed' }, (e) => {
+      const tail = formatCommandOutputTail(e.output);
+      return tail ? `${e.message}\n${tail}` : e.message;
+    })
     .with({ type: 'pty-open-failed' }, (e) => e.message)
     .with({ type: 'unknown-dependency' }, (e) => `Unknown dependency: ${e.id}`)
     .with({ type: 'no-update-strategy' }, (e) => `No update strategy is available for ${e.id}.`)

@@ -1,4 +1,5 @@
 import { ok, err, type Result, type Serializable } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import {
   cell,
   createController,
@@ -30,6 +31,7 @@ import {
 import type { KeyValueStore } from '@primitives/kv/api';
 import { hostDependenciesContract } from '@services/host-dependencies/api';
 import {
+  probeCanElevate,
   resolveAllCommandPaths,
   resolveCommandPath,
   resolveRealpath,
@@ -50,6 +52,7 @@ export type HostDependenciesComponentConfig = z.output<
 export type CreateHostDependenciesComponentOptions = {
   store: KeyValueStore;
   exec: IExecutionContext;
+  logger?: Logger;
 };
 
 type SelectionDocument = {
@@ -78,6 +81,7 @@ export function createHostDependenciesComponent(options: CreateHostDependenciesC
         definitions: config.definitions,
         store: options.store,
         exec,
+        logger: options.logger,
       });
       scope.add(() => runtime.dispose());
 
@@ -119,6 +123,7 @@ type RuntimeDeps = {
   definitions: HostDependencyDefinition[];
   store: KeyValueStore;
   exec: IExecutionContext;
+  logger?: Logger;
 };
 
 export class HostDependenciesRuntime {
@@ -135,6 +140,7 @@ export class HostDependenciesRuntime {
     this.current = cell<HostDependencySnapshot>({
       hostId: deps.hostId,
       generation: 0,
+      canElevate: null,
       dependencies: {},
     });
     this.host = expose(
@@ -198,6 +204,7 @@ export class HostDependenciesRuntime {
         if (!view.success) throw view.error;
         snapshot.dependencies[id] = view.data;
       } else {
+        snapshot.canElevate = await probeCanElevate(this.deps.exec);
         const dependencies: Record<string, HostDependencyView> = {};
         for (const depId of this.definitions.keys()) {
           const view = await this.getView(depId, { force: true });
@@ -270,6 +277,16 @@ export class HostDependenciesRuntime {
     ctx.progress({ phase: 'resolving' });
     const option = selectInstallOption(installOptionsForPlatform(definition), method);
     if (!option) return err({ type: 'no-install-command', id });
+    if (option.requiresElevation) {
+      const canElevate = await probeCanElevate(this.deps.exec);
+      if (canElevate === false) {
+        return err({
+          type: 'permission-denied',
+          id,
+          message: `Installing ${id} requires administrator privileges on this host.`,
+        });
+      }
+    }
     const installerProbe = await resolveInstallerTool(option.method, this.deps.exec);
     if (installerProbe && !installerProbe.found) {
       return err({
@@ -294,19 +311,18 @@ export class HostDependenciesRuntime {
         { signal: ctx.signal }
       );
       if (result.exitCode !== 0) {
-        return err({
-          type: 'command-failed',
-          message: `Install command exited with code ${result.exitCode ?? 'unknown'}`,
-          output,
-          exitCode: result.exitCode,
-        });
+        return err(this.commandFailedError(id, option.command, result.exitCode, output));
       }
     } catch (error) {
-      return err({
-        type: 'command-failed',
-        message: error instanceof Error ? error.message : String(error),
-        output,
-      });
+      return err(
+        this.commandFailedError(
+          id,
+          option.command,
+          null,
+          output,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
     }
 
     try {
@@ -413,6 +429,27 @@ export class HostDependenciesRuntime {
 
   private storeKey(): string {
     return `${STORE_KEY_PREFIX}:${this.deps.hostId}:selections`;
+  }
+
+  private commandFailedError(
+    id: DependencyId,
+    command: string,
+    exitCode: number | null | undefined,
+    output: string,
+    message?: string
+  ): HostDependencyError {
+    this.deps.logger?.error('Host dependency install command failed', {
+      id,
+      command,
+      exitCode: exitCode ?? null,
+      output,
+    });
+    return {
+      type: 'command-failed',
+      message: message ?? `Install command exited with code ${exitCode ?? 'unknown'}`,
+      output,
+      exitCode: exitCode ?? null,
+    };
   }
 }
 

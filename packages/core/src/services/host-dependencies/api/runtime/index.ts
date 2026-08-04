@@ -1,4 +1,5 @@
 export {
+  probeCanElevate,
   resolveAllCommandPaths,
   resolveCommandPath,
   resolveRealpath,

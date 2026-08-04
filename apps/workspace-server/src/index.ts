@@ -61,6 +61,7 @@ async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Dis
       env: shellEnv.env,
       refreshShellEnv: () => shellEnv.refresh(),
       validate: workspaceServerWireValidationPolicy(),
+      logger,
     });
     const controller = withValidation(
       workspaceWireContract,

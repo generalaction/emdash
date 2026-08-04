@@ -138,6 +138,8 @@ function hostDependencyErrorAsError(error: HostDependencyError): Error {
       return new Error(`No update command is available for ${error.id}`);
     case 'installer-missing':
       return new Error(`Installer is missing: ${error.tool}`);
+    case 'permission-denied':
+      return new Error(error.message);
     case 'command-failed':
       return new Error(error.message);
     case 'io':

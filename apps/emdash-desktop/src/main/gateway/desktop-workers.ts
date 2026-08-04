@@ -137,6 +137,7 @@ async function startDesktopWorkersWithHost(
   const hostDependencies = createHostDependenciesComponent({
     store: desktopKeyValueStore,
     exec: new NodeExecutionContext({ env: process.env, refreshShellEnv: refreshUserEnv }),
+    logger: log,
   }).create({
     scope: workerScope,
     dependencies: {},

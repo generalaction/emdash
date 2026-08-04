@@ -1,7 +1,14 @@
 import type { HostDependencyDefinition } from '@primitives/host-dependencies/api';
 
 const aptInstallCommand = (packages: string) =>
-  `if command -v sudo >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y ${packages}; else apt-get update && apt-get install -y ${packages}; fi`;
+  `sudo apt-get update && sudo apt-get install -y ${packages}`;
+
+const aptInstallOption = (packages: string) => ({
+  method: 'apt' as const,
+  command: aptInstallCommand(packages),
+  recommended: true,
+  requiresElevation: true,
+});
 
 export const GIT_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   id: 'git',
@@ -11,7 +18,7 @@ export const GIT_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   installDocs: 'https://git-scm.com/downloads',
   installCommands: {
     macos: [{ method: 'homebrew', command: 'brew install git', recommended: true }],
-    linux: [{ method: 'apt', command: aptInstallCommand('git'), recommended: true }],
+    linux: [aptInstallOption('git')],
     windows: [{ method: 'winget', command: 'winget install --id Git.Git', recommended: true }],
   },
   status: 'active',
@@ -25,7 +32,7 @@ export const RIPGREP_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   installDocs: 'https://github.com/BurntSushi/ripgrep#installation',
   installCommands: {
     macos: [{ method: 'homebrew', command: 'brew install ripgrep', recommended: true }],
-    linux: [{ method: 'apt', command: aptInstallCommand('ripgrep'), recommended: true }],
+    linux: [aptInstallOption('ripgrep')],
     windows: [
       {
         method: 'winget',
@@ -45,7 +52,7 @@ export const NODE_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   installDocs: 'https://nodejs.org/en/download',
   installCommands: {
     macos: [{ method: 'homebrew', command: 'brew install node', recommended: true }],
-    linux: [{ method: 'apt', command: aptInstallCommand('nodejs npm'), recommended: true }],
+    linux: [aptInstallOption('nodejs npm')],
     windows: [
       { method: 'winget', command: 'winget install --id OpenJS.NodeJS.LTS', recommended: true },
     ],
@@ -61,7 +68,7 @@ export const NPM_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   installDocs: 'https://docs.npmjs.com/downloading-and-installing-node-js-and-npm',
   installCommands: {
     macos: [{ method: 'homebrew', command: 'brew install node', recommended: true }],
-    linux: [{ method: 'apt', command: aptInstallCommand('npm'), recommended: true }],
+    linux: [aptInstallOption('npm')],
     windows: [
       { method: 'winget', command: 'winget install --id OpenJS.NodeJS.LTS', recommended: true },
     ],
@@ -77,7 +84,7 @@ export const TMUX_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   installDocs: 'https://github.com/tmux/tmux/wiki/Installing',
   installCommands: {
     macos: [{ method: 'homebrew', command: 'brew install tmux', recommended: true }],
-    linux: [{ method: 'apt', command: aptInstallCommand('tmux'), recommended: true }],
+    linux: [aptInstallOption('tmux')],
   },
   status: 'active',
 };
@@ -89,7 +96,7 @@ export const CURL_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   binaryNames: ['curl'],
   installDocs: 'https://curl.se/download.html',
   installCommands: {
-    linux: [{ method: 'apt', command: aptInstallCommand('curl'), recommended: true }],
+    linux: [aptInstallOption('curl')],
     windows: [{ method: 'winget', command: 'winget install --id cURL.cURL', recommended: true }],
   },
   status: 'active',

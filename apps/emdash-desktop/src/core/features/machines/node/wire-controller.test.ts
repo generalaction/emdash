@@ -131,6 +131,7 @@ function hostDependencySnapshot(views: HostDependencyView[]): HostDependencySnap
   return {
     hostId: 'test-host',
     generation: 1,
+    canElevate: null,
     dependencies: Object.fromEntries(views.map((view) => [view.definition.id, view])),
   };
 }

@@ -1,3 +1,4 @@
+import { formatCommandOutputTail } from '@emdash/core/primitives/host-dependencies/api';
 import type {
   HostDependencyError,
   InstallMethod,
@@ -146,8 +147,12 @@ export function getHostDependencyErrorMessage(error: HostDependencyError): strin
       return `No update command is available for ${error.id}.`;
     case 'installer-missing':
       return `Installer is missing: ${error.tool}.`;
-    case 'command-failed':
+    case 'permission-denied':
       return error.message;
+    case 'command-failed': {
+      const tail = formatCommandOutputTail(error.output);
+      return tail ? `${error.message}\n${tail}` : error.message;
+    }
     case 'io':
       return error.message;
   }

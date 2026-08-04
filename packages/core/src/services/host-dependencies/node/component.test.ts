@@ -28,6 +28,32 @@ const definition: HostDependencyDefinition = {
   status: 'active',
 };
 
+const elevatedDefinition: HostDependencyDefinition = {
+  id: 'git',
+  name: 'Git',
+  category: 'core',
+  binaryNames: ['git'],
+  installCommands: {
+    linux: [
+      {
+        method: 'apt',
+        command: 'sudo apt-get update && sudo apt-get install -y git',
+        recommended: true,
+        requiresElevation: true,
+      },
+    ],
+    macos: [
+      {
+        method: 'apt',
+        command: 'sudo apt-get update && sudo apt-get install -y git',
+        recommended: true,
+        requiresElevation: true,
+      },
+    ],
+  },
+  status: 'active',
+};
+
 describe('HostDependenciesRuntime.runInstallCommand', () => {
   it('runs the selected install command and returns the refreshed view', async () => {
     const { exec } = createFakeExec({ installedAfterStreaming: true });
@@ -67,7 +93,12 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
 
     expect(result).toEqual({
       success: false,
-      error: { type: 'command-failed', message: 'installer failed', output: 'install output' },
+      error: {
+        type: 'command-failed',
+        message: 'installer failed',
+        output: 'install output',
+        exitCode: null,
+      },
     });
   });
 
@@ -121,12 +152,79 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
       error: { type: 'not-detected-after-install', id: 'fake-agent', output: 'install output' },
     });
   });
+
+  it('returns permission-denied when elevation is required and the host cannot elevate', async () => {
+    const { exec } = createFakeExec({ canElevate: false });
+    const runtime = createRuntime(exec, [elevatedDefinition]);
+
+    const result = await runtime.runInstallCommand('git', 'apt', {
+      signal: new AbortController().signal,
+      progress: vi.fn(),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'permission-denied',
+        id: 'git',
+        message: 'Installing git requires administrator privileges on this host.',
+      },
+    });
+    expect(exec.execStreaming).not.toHaveBeenCalled();
+  });
+
+  it('runs elevated installs when the host can elevate', async () => {
+    const { exec } = createFakeExec({
+      canElevate: true,
+      installedAfterStreaming: true,
+      binaryName: 'git',
+    });
+    const runtime = createRuntime(exec, [elevatedDefinition]);
+
+    const result = await runtime.runInstallCommand('git', 'apt', {
+      signal: new AbortController().signal,
+      progress: vi.fn(),
+    });
+
+    expect(result.success).toBe(true);
+    expect(exec.execStreaming).toHaveBeenCalledWith(
+      '/bin/sh',
+      ['-c', 'sudo apt-get update && sudo apt-get install -y git'],
+      expect.any(Function),
+      { signal: expect.any(AbortSignal) }
+    );
+  });
 });
 
-function createRuntime(exec: IExecutionContext): HostDependenciesRuntime {
+describe('HostDependenciesRuntime.refresh', () => {
+  it('includes canElevate on a full refresh snapshot', async () => {
+    const { exec } = createFakeExec({ canElevate: true });
+    const runtime = createRuntime(exec);
+
+    const result = await runtime.refresh();
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.canElevate).toBe(true);
+  });
+
+  it('reports canElevate false when sudo is unavailable', async () => {
+    const { exec } = createFakeExec({ canElevate: false });
+    const runtime = createRuntime(exec);
+
+    const result = await runtime.refresh();
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.canElevate).toBe(false);
+  });
+});
+
+function createRuntime(
+  exec: IExecutionContext,
+  definitions: HostDependencyDefinition[] = [definition]
+): HostDependenciesRuntime {
   return new HostDependenciesRuntime({
     hostId: 'test-host',
-    definitions: [definition],
+    definitions,
     store: createMemoryKeyValueStore(),
     exec,
   });
@@ -137,24 +235,45 @@ function createFakeExec(options: {
   failStreaming?: boolean;
   exitCode?: number;
   installerMissing?: boolean;
+  canElevate?: boolean;
+  binaryName?: string;
 }): {
   exec: IExecutionContext;
 } {
   let installed = false;
+  const binaryName = options.binaryName ?? 'fake-agent';
   const exec: IExecutionContext = {
     root: '',
     supportsLocalSpawn: true,
     exec: vi.fn(async (command, args = []) => {
+      if (command === 'id' && args[0] === '-u') {
+        return { stdout: options.canElevate === true ? '0\n' : '1000\n', stderr: '' };
+      }
+      if (command === 'which' && args[0] === 'sudo') {
+        if (options.canElevate === false) throw new Error('not found');
+        return { stdout: '/usr/bin/sudo\n', stderr: '' };
+      }
+      if (
+        (command === '/usr/bin/sudo' || command === 'sudo') &&
+        args[0] === '-n' &&
+        args[1] === 'true'
+      ) {
+        if (options.canElevate === false) throw new Error('sudo: a password is required');
+        return { stdout: '', stderr: '' };
+      }
       if (command === 'which' && args[0] === 'npm') {
         if (options.installerMissing) throw new Error('not found');
         return { stdout: '/usr/bin/npm\n', stderr: '' };
       }
-      if (command === 'which' && args[0] === '-a' && args[1] === 'fake-agent') {
-        if (!installed) throw new Error('not found');
-        return { stdout: '/usr/local/bin/fake-agent\n', stderr: '' };
+      if (command === 'which' && args[0] === 'apt-get') {
+        return { stdout: '/usr/bin/apt-get\n', stderr: '' };
       }
-      if (command === 'realpath' && args[0] === '/usr/local/bin/fake-agent') {
-        return { stdout: '/usr/local/bin/fake-agent\n', stderr: '' };
+      if (command === 'which' && args[0] === '-a' && args[1] === binaryName) {
+        if (!installed) throw new Error('not found');
+        return { stdout: `/usr/local/bin/${binaryName}\n`, stderr: '' };
+      }
+      if (command === 'realpath' && args[0] === `/usr/local/bin/${binaryName}`) {
+        return { stdout: `/usr/local/bin/${binaryName}\n`, stderr: '' };
       }
       throw new Error(`Unexpected exec: ${command} ${args.join(' ')}`);
     }),

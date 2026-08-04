@@ -75,6 +75,11 @@ export const hostDependencyErrorSchema = z.discriminatedUnion('type', [
     method: installMethodSchema,
   }),
   z.object({
+    type: z.literal('permission-denied'),
+    id: dependencyIdSchema,
+    message: z.string(),
+  }),
+  z.object({
     type: z.literal('command-failed'),
     message: z.string(),
     output: z.string(),
@@ -100,6 +105,7 @@ export type HostDependencyView = z.output<typeof hostDependencyViewSchema>;
 export const hostDependencySnapshotSchema = z.object({
   hostId: z.string(),
   generation: z.number().int().nonnegative(),
+  canElevate: z.boolean().nullable(),
   dependencies: z.record(dependencyIdSchema, hostDependencyViewSchema),
 });
 export type HostDependencySnapshot = z.output<typeof hostDependencySnapshotSchema>;

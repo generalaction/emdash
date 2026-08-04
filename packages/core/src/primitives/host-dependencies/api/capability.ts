@@ -43,6 +43,7 @@ export const installCommandOptionSchema = z.object({
   command: z.string().min(1),
   label: z.string().optional(),
   recommended: z.boolean().optional(),
+  requiresElevation: z.boolean().optional(),
   updateCommand: z.string().optional(),
   uninstallCommand: z.string().optional(),
 });

@@ -215,6 +215,8 @@ function toAgentInstallError(error: HostDependencyError, id: AgentProviderId): A
     case 'no-install-command':
     case 'installer-missing':
       return error;
+    case 'permission-denied':
+      return { type: 'permission-denied', message: error.message, output: '' };
     case 'not-detected-after-install':
       return {
         type: 'command-failed',
@@ -241,7 +243,5 @@ function toAgentInstallError(error: HostDependencyError, id: AgentProviderId): A
       return { type: 'no-install-command', id: error.id };
     case 'io':
       return { type: 'command-failed', message: error.message, output: '' };
-    default:
-      return { type: 'command-failed', message: `Failed to install ${id}`, output: '' };
   }
 }

@@ -32,6 +32,7 @@ import {
 } from '@emdash/core/services/host-dependencies/node';
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Scope } from '@emdash/shared/concurrency';
+import type { Logger } from '@emdash/shared/logger';
 import type { ValidatePolicy } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost } from '@emdash/wire/worker';
@@ -64,6 +65,7 @@ export type CreateWorkspaceServerRuntimeHostOptions = {
   env?: NodeJS.ProcessEnv;
   refreshShellEnv?: () => Promise<void>;
   validate?: ValidatePolicy;
+  logger?: Logger;
 };
 
 const SESSION_IDLE_MS = 60 * 60_000;
@@ -93,6 +95,7 @@ export async function createWorkspaceServerRuntimeHost(
   const hostDependencies = createHostDependenciesComponent({
     store: createJsonFileKeyValueStore({ path: paths.hostDependenciesStore }),
     exec: new NodeExecutionContext({ env, refreshShellEnv: options.refreshShellEnv }),
+    logger: options.logger,
   }).create({
     scope: options.scope.child('host-dependencies'),
     dependencies: {},
