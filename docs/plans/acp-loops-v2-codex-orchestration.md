@@ -1414,6 +1414,10 @@ fresh recreated green run becomes the final success report.
   was emitted while the renderer host was unavailable and expired with `ready-timeout` before any
   native assertion. Make browser-host requests replay-safe until exact ready acknowledgement and
   reserve attempt twenty for the unchanged mandatory fresh replay.
+- [x] 2026-08-04: The first attempt-twenty restart failed before allocation because prerequisite
+  recovery required terminal Review's older checkpoint to equal the E2E-integrated checkpoint.
+  Accept only an exact, unique chain of completed correction attempts from the reviewed checkpoint
+  to the current non-terminal E2E checkpoint, then restart attempt twenty without changing Summario.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.

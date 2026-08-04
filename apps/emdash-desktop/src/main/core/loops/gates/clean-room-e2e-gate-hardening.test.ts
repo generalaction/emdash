@@ -149,6 +149,75 @@ describe('CleanRoomE2EGate hardening', () => {
     });
   });
 
+  it('accepts a restarted E2E phase whose durable correction chain advanced past Review', () => {
+    if (!defaultInput.loop.state || defaultInput.loop.state.version !== '2') {
+      throw new Error('Expected current Loop state authority.');
+    }
+    const correctionAttempt = {
+      ...historicalE2EAttempt(1),
+      status: 'completed' as const,
+      checkpointAfter: FIX_COMMIT,
+      error: undefined,
+    };
+    const retryHandoffs = [
+      {
+        source: 'Clean-room E2E correction',
+        handoff: {
+          summary: 'Integrated one correction.',
+          risks: [],
+          remainingWork: ['Run a fresh replay.'],
+          artifacts: [],
+          createdAt: '2026-07-12T00:22:00.000Z',
+        },
+      },
+    ];
+    const normalized = safeNormalizeInput({
+      ...defaultInput,
+      checkpointCommit: FIX_COMMIT,
+      intermediateFailures: retryHandoffs,
+      loop: loopWithState({
+        expectedFeatureHead: FIX_COMMIT,
+        checkpointCommit: FIX_COMMIT,
+        e2eAttemptsConsumed: 1,
+        sessionAttempts: [...defaultInput.loop.state.sessionAttempts, correctionAttempt],
+      }),
+      phase: {
+        ...phase,
+        attempts: 1,
+        state: {
+          version: '2',
+          checkpointCommit: FIX_COMMIT,
+          handoff: null,
+          retryHandoffs,
+          result: null,
+        },
+      },
+    });
+    if (!normalized.success) throw new Error(normalized.error.message);
+
+    expect(
+      validatePrerequisites({ phases: prerequisitePhases(true) }, normalized.data)
+    ).toBeUndefined();
+  });
+
+  it('rejects a restarted E2E checkpoint without an exact durable correction chain', () => {
+    const normalized = safeNormalizeInput({
+      ...defaultInput,
+      checkpointCommit: FIX_COMMIT,
+      loop: loopWithState({
+        expectedFeatureHead: FIX_COMMIT,
+        checkpointCommit: FIX_COMMIT,
+      }),
+    });
+    if (!normalized.success) throw new Error(normalized.error.message);
+
+    expect(
+      validatePrerequisites({ phases: prerequisitePhases(true) }, normalized.data)
+    ).toMatchObject({
+      type: 'prerequisite-order-invalid',
+    });
+  });
+
   it('contains a throwing raw checkpoint getter without rereading invalid input', async () => {
     const harness = makeHarness([{ finalText: '<<<LOOP:E2E_PASSED>>>' }]);
     const hostileInput = Object.defineProperty({ ...defaultInput }, 'checkpointCommit', {

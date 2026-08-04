@@ -123,7 +123,8 @@ export function validatePrerequisites(
   const finalState = loopPhaseStateInputSchema.parse(value.phases.at(-1)!.state);
   if (
     workCount < 1 ||
-    finalState.checkpointCommit !== input.checkpointCommit ||
+    (finalState.checkpointCommit !== input.checkpointCommit &&
+      !hasDurableE2ECorrectionChain(finalState.checkpointCommit!, input.checkpointCommit, input)) ||
     reviewCount !== (input.terminalGates.review ? 1 : 0)
   ) {
     return {
@@ -132,6 +133,49 @@ export function validatePrerequisites(
     };
   }
   return undefined;
+}
+
+function hasDurableE2ECorrectionChain(
+  reviewedCheckpoint: string,
+  expectedCheckpoint: string,
+  input: NormalizedInput
+): boolean {
+  const phaseState =
+    input.phase.state === null || input.phase.state === undefined
+      ? null
+      : loopPhaseStateInputSchema.safeParse(input.phase.state);
+  if (
+    phaseState === null ||
+    !phaseState.success ||
+    !hasCanonicalPhaseState(input.phase.state) ||
+    phaseState.data.result !== null ||
+    phaseState.data.checkpointCommit !== expectedCheckpoint ||
+    phaseState.data.retryHandoffs.length === 0
+  ) {
+    return false;
+  }
+
+  const seen = new Set([reviewedCheckpoint]);
+  let checkpoint = reviewedCheckpoint;
+  const sessionAttempts = input.progress.current.loopState.sessionAttempts;
+  for (let index = 0; index < sessionAttempts.length; index += 1) {
+    const candidates = sessionAttempts.filter(
+      (attempt) =>
+        attempt.purpose === 'e2e' &&
+        attempt.phaseId === input.phase.id &&
+        attempt.status === 'completed' &&
+        attempt.verificationRunId !== undefined &&
+        attempt.checkpointBefore === checkpoint &&
+        attempt.checkpointAfter !== undefined &&
+        attempt.checkpointAfter !== checkpoint
+    );
+    if (candidates.length !== 1) return false;
+    checkpoint = candidates[0]!.checkpointAfter!;
+    if (checkpoint === expectedCheckpoint) return true;
+    if (seen.has(checkpoint)) return false;
+    seen.add(checkpoint);
+  }
+  return false;
 }
 
 export function verificationProgress(input: {
