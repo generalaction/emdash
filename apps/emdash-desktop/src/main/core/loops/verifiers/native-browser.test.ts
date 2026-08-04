@@ -16,6 +16,7 @@ import {
   NATIVE_BROWSER_CORRECTION_REQUIRED_PREFIX,
   NATIVE_BROWSER_FAILED_PREFIX,
   NATIVE_BROWSER_PASSED_SENTINEL,
+  NATIVE_BROWSER_TURN_TIMEOUT_MS,
   parseNativeBrowserTerminal,
   type NativeBrowserSessionHandle,
   type NativeBrowserVerifierDependencies,
@@ -743,6 +744,49 @@ describe('native browser verifier', () => {
     const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
     expect(prompts[2]).toContain('Protocol repair 1 of 2');
     expect(prompts[2]).toContain('return exactly one allowlisted action block');
+  });
+
+  it('cancels and repairs one stalled ACP turn without executing a partial action', async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = makeHarness({
+        context: { promptTimeoutMs: NATIVE_BROWSER_TURN_TIMEOUT_MS * 3 },
+      });
+      const heldPrompt =
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>();
+      let promptIndex = 0;
+      harness.nestedDriver.sendPrompt = vi.fn(async () => {
+        promptIndex += 1;
+        if (promptIndex === 1) return await heldPrompt.promise;
+        if (promptIndex === 2) {
+          return ok({ finalText: actionBlock({ kind: 'accessibility-snapshot' }) });
+        }
+        return ok({ finalText: NATIVE_BROWSER_PASSED_SENTINEL });
+      });
+      harness.nestedDriver.cancelPrompt = vi.fn(async () => {
+        heldPrompt.resolve(err({ kind: 'prompt-failed', message: 'cancelled stalled turn' }));
+        return ok(undefined);
+      });
+
+      const runPromise = harness.verifier.run(harness.ctx);
+      await waitForCall(vi.mocked(harness.nestedDriver.sendPrompt));
+      expect(harness.performAction).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(NATIVE_BROWSER_TURN_TIMEOUT_MS);
+      const result = await runPromise;
+
+      expect(result.success, JSON.stringify(result)).toBe(true);
+      expect(harness.nestedDriver.cancelPrompt).toHaveBeenCalledWith('nested-conversation');
+      expect(harness.performAction).toHaveBeenCalledTimes(1);
+      expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
+        kind: 'prompt-timeout-repair',
+        message: 'Cancelled stalled native verifier turn 1 without executing an action',
+      });
+      const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[1]).toContain('Stalled-turn recovery 1 of 2');
+      expect(prompts[1]).toContain('No action from it was executed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('parses only one safe terminal sentinel on the final line', () => {

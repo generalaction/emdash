@@ -39,8 +39,10 @@ const id = 'agent-browser' as const;
 const label = 'Native Browser Preview';
 
 const DEFAULT_NATIVE_BROWSER_TIMEOUT_MS = 30 * 60 * 1_000;
+export const NATIVE_BROWSER_TURN_TIMEOUT_MS = 8 * 60 * 1_000;
 const MAX_NATIVE_BROWSER_ACTIONS = 128;
 const MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS = 2;
+const MAX_NATIVE_BROWSER_STALL_REPAIRS = 2;
 const MAX_TRUSTED_ENVIRONMENT_BYTES = 64 * 1024;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
@@ -138,6 +140,8 @@ class NativeBrowserVerifierFailure extends Error {
 }
 
 class NativeBrowserProtocolFailure extends Error {}
+
+class NativeBrowserPromptTimeout extends Error {}
 
 class NativeBrowserRunControl {
   readonly signal: AbortSignal;
@@ -418,16 +422,39 @@ async function runNativeBrowserVerification(
     let prompt = buildInitialPrompt(ctx, binding, activeSession);
     let successfulObservations = 0;
     let protocolRepairs = 0;
+    let stallRepairs = 0;
     const actionIds = new Set<string>();
     let finalText = '';
 
     for (let turnIndex = 0; turnIndex < MAX_NATIVE_BROWSER_ACTIONS + 1; turnIndex += 1) {
-      const promptResult = await sendControlledPrompt(
-        nestedSession.driver,
-        nestedSession.conversationId,
-        prompt,
-        control
-      );
+      let promptResult: Awaited<ReturnType<LoopSessionDriver['sendPrompt']>>;
+      try {
+        promptResult = await sendControlledPrompt(
+          nestedSession.driver,
+          nestedSession.conversationId,
+          prompt,
+          control
+        );
+      } catch (error) {
+        if (!(error instanceof NativeBrowserPromptTimeout)) throw error;
+        if (stallRepairs >= MAX_NATIVE_BROWSER_STALL_REPAIRS) {
+          throw new NativeBrowserVerifierFailure(
+            'command-failed',
+            `Native browser ACP stalled after ${MAX_NATIVE_BROWSER_STALL_REPAIRS} bounded turn recoveries`
+          );
+        }
+        stallRepairs += 1;
+        await waitForEvidenceOperation(
+          () =>
+            runEvidence.appendIntermediateFailure({
+              kind: 'prompt-timeout-repair',
+              message: `Cancelled stalled native verifier turn ${stallRepairs} without executing an action`,
+            }),
+          control
+        );
+        prompt = buildStallRepairPrompt(stallRepairs);
+        continue;
+      }
       if (!promptResult.success) {
         throw new NativeBrowserVerifierFailure(
           control.wasAborted ? control.abortKind : 'command-failed',
@@ -840,6 +867,12 @@ function buildProtocolRepairPrompt(reason: string, attempt: number): string {
 Protocol repair ${attempt} of ${MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Never combine actions or combine an action with a terminal outcome. If you intended a sequence, request only its next single action and wait for the bounded observation.`;
 }
 
+function buildStallRepairPrompt(attempt: number): string {
+  return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed.
+
+Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Do not repeat prior deliberation, combine actions, or claim that a cancelled action ran.`;
+}
+
 function buildInitialPrompt(
   ctx: VerifierRunContext,
   binding: TrustedNativeBrowserBinding,
@@ -912,8 +945,18 @@ async function sendControlledPrompt(
 ) {
   control.assertActive();
   const promptPromise = driver.sendPrompt(conversationId, prompt);
+  let turnTimeout: ReturnType<typeof setTimeout> | undefined;
+  const turnPromise = Promise.race([
+    promptPromise,
+    new Promise<never>((_resolve, reject) => {
+      turnTimeout = setTimeout(
+        () => reject(new NativeBrowserPromptTimeout('Native browser ACP turn timed out')),
+        NATIVE_BROWSER_TURN_TIMEOUT_MS
+      );
+    }),
+  ]);
   try {
-    return await control.wait(promptPromise);
+    return await control.wait(turnPromise);
   } catch (error) {
     if (control.wasAborted) {
       let cancellationPromise: ReturnType<LoopSessionDriver['cancelPrompt']>;
@@ -948,8 +991,35 @@ async function sendControlledPrompt(
           'cancelled'
         );
       }
+    } else if (error instanceof NativeBrowserPromptTimeout) {
+      let cancellationPromise: ReturnType<LoopSessionDriver['cancelPrompt']>;
+      try {
+        cancellationPromise = driver.cancelPrompt(conversationId);
+      } catch (cancellationError) {
+        cancellationPromise = Promise.reject(cancellationError);
+      }
+      const [cancellation] = await Promise.all([
+        settlePromise(cancellationPromise),
+        settlePromise(promptPromise),
+      ]);
+      const cancellationError = !cancellation.success
+        ? cancellation.error
+        : !cancellation.value.success
+          ? cancellation.value.error.message
+          : null;
+      if (cancellationError !== null) {
+        throw new NativeBrowserVerifierFailure(
+          'execution-error',
+          `Native browser ACP turn timed out\nCleanup recovery required: ${safeText(
+            cancellationError,
+            'Nested ACP cancellation was not acknowledged'
+          )}`
+        );
+      }
     }
     throw error;
+  } finally {
+    if (turnTimeout !== undefined) clearTimeout(turnTimeout);
   }
 }
 
