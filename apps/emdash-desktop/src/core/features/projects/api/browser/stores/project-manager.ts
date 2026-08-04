@@ -761,6 +761,7 @@ export class ProjectManagerStore {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
         store.phase = phase;
+        store.failedPhase = undefined;
         store.progressMessage = progress?.message;
         store.progressPercent = progress?.percent;
       }
@@ -771,6 +772,9 @@ export class ProjectManagerStore {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
+        if (store.phase !== 'error') {
+          store.failedPhase = store.phase;
+        }
         store.phase = 'error';
         store.error =
           error.type === 'not-repository'
@@ -786,6 +790,9 @@ export class ProjectManagerStore {
     runInAction(() => {
       const store = this.projects.get(id);
       if (store && isUnregisteredProject(store)) {
+        if (store.phase !== 'error') {
+          store.failedPhase = store.phase;
+        }
         store.phase = 'error';
         store.error = error instanceof Error ? error.message : String(error);
       }

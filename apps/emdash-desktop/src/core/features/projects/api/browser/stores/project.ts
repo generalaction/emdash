@@ -17,6 +17,8 @@ export type UnregisteredProjectPhase =
   | 'registering' // db insert
   | 'error';
 
+export type ProjectCreationStage = Exclude<UnregisteredProjectPhase, 'error'>;
+
 export type UnmountedProjectPhase = 'opening' | 'error' | 'closing' | 'idle';
 
 export type ProjectMode = 'pick' | 'clone' | 'new';
@@ -63,6 +65,7 @@ export class ProjectStore {
   data: LocalProject | SshProject | null;
   createdAt: string;
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
+  failedPhase: ProjectCreationStage | undefined = undefined;
   error: string | undefined = undefined;
   progressMessage: string | undefined = undefined;
   progressPercent: number | undefined = undefined;
@@ -96,6 +99,7 @@ export class ProjectStore {
     this.createdAt = mountedProject.data.createdAt;
     this.state = 'mounted';
     this.phase = null;
+    this.failedPhase = undefined;
     this.error = undefined;
     this.progressMessage = undefined;
     this.progressPercent = undefined;
@@ -114,6 +118,7 @@ export class ProjectStore {
     this.createdAt = data.createdAt;
     this.state = 'unmounted';
     this.phase = phase;
+    this.failedPhase = undefined;
     this.error = undefined;
     this.progressMessage = undefined;
     this.progressPercent = undefined;
@@ -134,6 +139,7 @@ export class ProjectStore {
     this.state = 'unregistered';
     this.phase = phase;
     this.mode = mode;
+    this.failedPhase = undefined;
     this.error = undefined;
     this.progressMessage = undefined;
     this.progressPercent = undefined;
@@ -146,6 +152,7 @@ export type UnregisteredProject = ProjectStore & {
   name: string;
   phase: UnregisteredProjectPhase;
   mode: ProjectMode;
+  failedPhase: ProjectCreationStage | undefined;
   error: string | undefined;
   progressMessage: string | undefined;
   progressPercent: number | undefined;

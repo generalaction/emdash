@@ -78,7 +78,8 @@ function projectToSteppedLoader(
   project: UnregisteredProject
 ): Pick<SteppedLoaderProps, 'steps' | 'activeStepId' | 'status'> {
   const stages = STAGES_BY_MODE[project.mode];
-  const activeStage = project.phase === 'error' ? stages.at(-1) : (project.phase as Stage);
+  const activeStage =
+    project.phase === 'error' ? (project.failedPhase ?? stages.at(-1)) : (project.phase as Stage);
   const activeStepId = activeStage ?? stages[0];
   const activeChildren = progressChildren(project);
   return {
