@@ -140,6 +140,9 @@ async function adoptRunOnce(
 
   const workspacePath = nativePathFromHost(runtimeRun.data.workspace.path);
   const workspaceStorage = workspaceHostStorage(workspaceHost);
+  const workspaceKind =
+    runtimeRun.data.configSnapshot.workspace.kind === 'worktree' ? 'worktree' : 'project-root';
+  const parentId = workspaceKind === 'worktree' ? project.repositoryWorkspaceId : null;
   const workspaceKey = computeWorkspaceKey(
     workspaceStorage.type,
     workspacePath,
@@ -187,10 +190,10 @@ async function adoptRunOnce(
             type: workspaceStorage.type,
             location: workspaceStorage.location,
             sshConnectionId: workspaceStorage.sshConnectionId,
+            parentId,
             path: workspacePath,
             config: storedWorkspaceConfig,
-            branchName: runtimeRun.data.branchName,
-            deletedAt: null,
+            untrackedAt: null,
             updatedAt: sql`CURRENT_TIMESTAMP`,
           })
           .where(eq(workspaces.id, workspaceId))
@@ -201,15 +204,12 @@ async function adoptRunOnce(
             id: workspaceId,
             key: workspaceKey,
             type: workspaceStorage.type,
-            kind:
-              runtimeRun.data.configSnapshot.workspace.kind === 'worktree'
-                ? 'worktree'
-                : 'project-root',
+            kind: workspaceKind,
             location: workspaceStorage.location,
             sshConnectionId: workspaceStorage.sshConnectionId,
+            parentId,
             path: workspacePath,
             config: storedWorkspaceConfig,
-            branchName: runtimeRun.data.branchName,
           })
           .run();
       }

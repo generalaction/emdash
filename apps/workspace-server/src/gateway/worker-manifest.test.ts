@@ -12,6 +12,7 @@ const runtimeIds = [
   'resource-usage',
   'terminals',
   'tui-agents',
+  'workspace-host',
   'workspace',
 ] as const;
 

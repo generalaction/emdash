@@ -1,4 +1,4 @@
-import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
 import type { GitWorktreesState } from '@emdash/core/runtimes/git/api';
 import {
@@ -8,6 +8,7 @@ import {
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
+import { hostRefFromWorkspaceRow } from '@core/features/workspaces/api/node/workspace-host-ref';
 import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
@@ -28,6 +29,8 @@ export type ProjectWorkspaceProjectRow = {
   workspaceProvider: string;
   sshConnectionId: string | null;
   repositoryWorkspaceId: string | null;
+  repositoryWorkspaceLocation: 'local' | 'remote' | null;
+  repositoryWorkspaceSshConnectionId: string | null;
 };
 
 export type ListProjectWorkspacesDependencies = {
@@ -45,6 +48,8 @@ type WorkspaceRow = {
   path: string | null;
   branchName: string | null;
   config: WorkspaceConfig | null;
+  observedStatus: 'present' | 'missing' | 'corrupted' | null;
+  lastObservedAt: string | null;
 };
 
 type TaskRow = {
@@ -215,16 +220,24 @@ async function buildCandidateRow(
     canDelete: candidate.kind !== 'root' && !remote && !byoi,
     hasActiveSessions,
     lastActivityAt,
+    observedStatus: candidate.workspace?.observedStatus ?? undefined,
+    lastObservedAt: candidate.workspace?.lastObservedAt ?? undefined,
     errors: [],
   };
 
-  if (!exists || candidate.prunable) {
+  const observedMissing = candidate.workspace?.observedStatus === 'missing';
+  const observedCorrupted = candidate.workspace?.observedStatus === 'corrupted';
+  if (!exists || candidate.prunable || observedMissing || observedCorrupted) {
     return {
       ...base,
       pathState: 'missing',
       pathIssue: {
-        kind: exists ? 'prunable' : 'path-gone',
-        ...(candidate.prunableReason ? { reason: candidate.prunableReason } : {}),
+        kind: candidate.prunable || observedCorrupted ? 'prunable' : 'path-gone',
+        ...(candidate.prunableReason
+          ? { reason: candidate.prunableReason }
+          : observedCorrupted
+            ? { reason: 'Host inventory reported this worktree as corrupted.' }
+            : {}),
       },
       canDelete: candidate.kind !== 'root' && !remote && !byoi,
     };
@@ -253,7 +266,30 @@ export async function getProjectWorkspaceProject(
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
   if (!project) throw new Error('Project was not found.');
-  return project;
+  const repositoryWorkspace =
+    project.repositoryWorkspaceId !== null
+      ? await getRepositoryWorkspaceHostRow(db, project.repositoryWorkspaceId)
+      : null;
+  return {
+    ...project,
+    repositoryWorkspaceLocation: repositoryWorkspace?.location ?? null,
+    repositoryWorkspaceSshConnectionId: repositoryWorkspace?.sshConnectionId ?? null,
+  };
+}
+
+async function getRepositoryWorkspaceHostRow(
+  db: AppDb,
+  workspaceId: string
+): Promise<{ location: 'local' | 'remote' | null; sshConnectionId: string | null } | null> {
+  const [workspace] = await db
+    .select({
+      location: workspaces.location,
+      sshConnectionId: workspaces.sshConnectionId,
+    })
+    .from(workspaces)
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)))
+    .limit(1);
+  return workspace ?? null;
 }
 
 async function getWorkspaceRows(db: AppDb): Promise<WorkspaceRow[]> {
@@ -267,9 +303,11 @@ async function getWorkspaceRows(db: AppDb): Promise<WorkspaceRow[]> {
       path: workspaces.path,
       branchName: workspaces.branchName,
       config: workspaces.config,
+      observedStatus: workspaces.observedStatus,
+      lastObservedAt: workspaces.lastObservedAt,
     })
     .from(workspaces)
-    .where(and(isNotNull(workspaces.path), isNull(workspaces.deletedAt)))) as WorkspaceRow[];
+    .where(and(isNotNull(workspaces.path), isNull(workspaces.untrackedAt)))) as WorkspaceRow[];
 }
 
 async function getTaskRows(db: AppDb, projectId: string): Promise<TaskRow[]> {
@@ -367,12 +405,12 @@ function pathKeyFor(host: HostRef, value: string): string {
 }
 
 function workspaceHost(workspace: WorkspaceRow, fallback: HostRef): HostRef {
-  if (workspace.sshConnectionId) return hostRef('remote', workspace.sshConnectionId);
-  return workspace.location === 'remote' ? fallback : LOCAL_HOST_REF;
+  return workspace.location === null ? fallback : hostRefFromWorkspaceRow(workspace);
 }
 
 export function projectWorkspaceHost(project: ProjectWorkspaceProjectRow): HostRef {
-  if (project.workspaceProvider !== 'ssh') return LOCAL_HOST_REF;
-  if (!project.sshConnectionId) throw new Error('Remote project has no SSH connection.');
-  return hostRef('remote', project.sshConnectionId);
+  return hostRefFromWorkspaceRow({
+    location: project.repositoryWorkspaceLocation,
+    sshConnectionId: project.repositoryWorkspaceSshConnectionId,
+  });
 }

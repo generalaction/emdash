@@ -281,7 +281,7 @@ export async function enqueueDeleteWorkspace(
   const [workspace] = await operations.db
     .select()
     .from(workspaces)
-    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)))
     .limit(1);
   if (!workspace) {
     return err({ type: 'workspace-not-found', message: `Workspace ${workspaceId} was not found` });
@@ -316,11 +316,11 @@ export async function enqueueDeleteWorkspace(
     tombstone: (tx) =>
       tx
         .update(workspaces)
-        .set({ deletedAt: new Date(createdAt).toISOString() })
-        .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
+        .set({ untrackedAt: new Date(createdAt).toISOString() })
+        .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)))
         .run().changes,
     revertTombstone: (tx) => {
-      tx.update(workspaces).set({ deletedAt: null }).where(eq(workspaces.id, workspaceId)).run();
+      tx.update(workspaces).set({ untrackedAt: null }).where(eq(workspaces.id, workspaceId)).run();
     },
   });
 }
@@ -392,7 +392,7 @@ async function enqueueWorkspacePathOperation<
     ? await operations.db
         .select()
         .from(workspaces)
-        .where(and(eq(workspaces.id, input.workspaceId), isNull(workspaces.deletedAt)))
+        .where(and(eq(workspaces.id, input.workspaceId), isNull(workspaces.untrackedAt)))
         .limit(1)
     : [];
   if (input.workspaceId && !workspace) {
@@ -429,15 +429,15 @@ async function enqueueWorkspacePathOperation<
         ? (tx) =>
             tx
               .update(workspaces)
-              .set({ deletedAt: new Date(createdAt).toISOString() })
-              .where(and(eq(workspaces.id, input.workspaceId!), isNull(workspaces.deletedAt)))
+              .set({ untrackedAt: new Date(createdAt).toISOString() })
+              .where(and(eq(workspaces.id, input.workspaceId!), isNull(workspaces.untrackedAt)))
               .run().changes
         : undefined,
     revertTombstone:
       tombstoneWorkspace && input.workspaceId
         ? (tx) => {
             tx.update(workspaces)
-              .set({ deletedAt: null })
+              .set({ untrackedAt: null })
               .where(eq(workspaces.id, input.workspaceId!))
               .run();
           }
@@ -557,7 +557,7 @@ async function runSessionStages(
 }
 
 async function reconcileWorkspaceCleanups(context: OperationReconcileContext): Promise<void> {
-  const rows = await context.db.select().from(workspaces).where(isNotNull(workspaces.deletedAt));
+  const rows = await context.db.select().from(workspaces).where(isNotNull(workspaces.untrackedAt));
   for (const workspace of rows) {
     const entityKey = workspace.id;
     if (

@@ -42,7 +42,7 @@ vi.mock('@core/services/app-db/node/schema', () => ({
     path: 'workspaces.path',
     branchName: 'workspaces.branchName',
     config: 'workspaces.config',
-    deletedAt: 'workspaces.deletedAt',
+    untrackedAt: 'workspaces.untrackedAt',
   },
 }));
 
@@ -86,6 +86,9 @@ describe('listProjectWorkspaces', () => {
     try {
       select
         .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: root }]))
+        .mockReturnValueOnce(
+          repositoryWorkspaceHostRows([{ location: 'local', sshConnectionId: null }])
+        )
         .mockReturnValueOnce(workspaceRows([]))
         .mockReturnValueOnce(taskRows([]));
 
@@ -149,6 +152,9 @@ describe('listProjectWorkspaces', () => {
           },
         ])
       )
+      .mockReturnValueOnce(
+        repositoryWorkspaceHostRows([{ location: 'remote', sshConnectionId: 'ssh-1' }])
+      )
       .mockReturnValueOnce(workspaceRows([]))
       .mockReturnValueOnce(taskRows([]));
 
@@ -206,6 +212,9 @@ describe('listProjectWorkspaces', () => {
       };
       select
         .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: root }]))
+        .mockReturnValueOnce(
+          repositoryWorkspaceHostRows([{ location: 'local', sshConnectionId: null }])
+        )
         .mockReturnValueOnce(
           workspaceRows([
             {
@@ -290,6 +299,9 @@ describe('listProjectWorkspaces', () => {
       };
       select
         .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: root }]))
+        .mockReturnValueOnce(
+          repositoryWorkspaceHostRows([{ location: 'local', sshConnectionId: null }])
+        )
         .mockReturnValueOnce(workspaceRows([]))
         .mockReturnValueOnce(taskRows([]));
 
@@ -315,6 +327,7 @@ function projectQuery(
     path: string;
     workspaceProvider?: string;
     sshConnectionId?: string | null;
+    repositoryWorkspaceId?: string | null;
   }>
 ) {
   return {
@@ -326,8 +339,20 @@ function projectQuery(
             path: row.path,
             workspaceProvider: row.workspaceProvider ?? 'local',
             sshConnectionId: row.sshConnectionId ?? null,
-            repositoryWorkspaceId: null,
+            repositoryWorkspaceId: row.repositoryWorkspaceId ?? `${row.id}-repository-workspace`,
           })),
+      }),
+    }),
+  };
+}
+
+function repositoryWorkspaceHostRows(
+  rows: Array<{ location: 'local' | 'remote' | null; sshConnectionId: string | null }>
+) {
+  return {
+    from: () => ({
+      where: () => ({
+        limit: async () => rows,
       }),
     }),
   };

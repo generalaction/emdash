@@ -68,6 +68,7 @@ export type TuiSessionResumeState = z.infer<typeof tuiSessionResumeStateSchema>;
 export const tuiSessionStateSchema = z.object({
   conversationId: z.string(),
   providerId: z.string().optional(),
+  cwd: z.string().optional(),
   /** Provider-native session id, published from the provider hook stream. */
   sessionId: z.string().nullable(),
   status: z.enum(['starting', 'running', 'exited']),

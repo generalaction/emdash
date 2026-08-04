@@ -17,6 +17,8 @@ import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
+import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
+import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
@@ -65,6 +67,7 @@ export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
 export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
+export type WorkspaceHostRuntimeClient = ContractClient<WorkspaceHostContract>;
 
 export type DesktopRuntimeClients = {
   readonly acp: AcpRuntimeClient;
@@ -80,6 +83,7 @@ export type DesktopRuntimeClients = {
   readonly terminals: TerminalsRuntimeClient;
   readonly tuiAgents: TuiAgentsRuntimeClient;
   readonly workspace: WorkspaceRuntimeClient;
+  readonly workspaceHost: WorkspaceHostRuntimeClient;
 };
 
 export type DesktopRuntimeWorkers = {
@@ -306,6 +310,25 @@ async function startDesktopWorkersWithHost(
       return await worker.ready();
     }
   );
+  const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
+    async ([acp, terminals, tuiAgents]) => {
+      const worker = host.create(workspaceHostComponent, {
+        name: 'workspace-host',
+        executable: desktopWorkerPath('workspace-host'),
+        env: process.env,
+        dependencies: {
+          acp,
+          terminals,
+          tuiAgents: tuiAgents.client,
+        },
+        config: {
+          stateDirectory: join(app.getPath('userData'), 'workspace-host'),
+        },
+        supervision: { restart: 'never' },
+      });
+      return await worker.ready();
+    }
+  );
   const automationsReady = Promise.all([workspaceReady, acpReady, tuiAgentsReady]).then(
     async ([workspace, acp, tuiAgents]) => {
       const paths = automationRuntimePaths(resolveDatabasePath());
@@ -338,6 +361,7 @@ async function startDesktopWorkersWithHost(
     terminals,
     tuiAgentsResult,
     workspace,
+    workspaceHost,
   ] = await Promise.all([
     acpReady,
     agentConfigReady,
@@ -351,6 +375,7 @@ async function startDesktopWorkersWithHost(
     terminalsReady,
     tuiAgentsReady,
     workspaceReady,
+    workspaceHostReady,
   ]);
   const automations = automationsResult.client;
   const tuiAgents = tuiAgentsResult.client;
@@ -371,6 +396,7 @@ async function startDesktopWorkersWithHost(
       terminals,
       tuiAgents,
       workspace,
+      workspaceHost,
     },
     workers: {
       acp: acpWorker,

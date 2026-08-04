@@ -155,7 +155,6 @@ describe('remote automation run adoption', () => {
       location: 'remote',
       sshConnectionId: 'ssh-1',
       path: workspacePath,
-      branchName: 'review-changes-run-1',
     });
 
     const [task] = await fixture.db.select().from(tasks).where(eq(tasks.automationRunId, 'run-1'));

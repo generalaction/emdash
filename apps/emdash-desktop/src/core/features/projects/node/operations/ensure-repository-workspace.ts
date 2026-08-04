@@ -52,7 +52,7 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
     const [existingWs] = tx
       .select({ id: workspaces.id })
       .from(workspaces)
-      .where(and(eq(workspaces.key, key), isNull(workspaces.deletedAt)))
+      .where(and(eq(workspaces.key, key), isNull(workspaces.untrackedAt)))
       .limit(1)
       .all();
 

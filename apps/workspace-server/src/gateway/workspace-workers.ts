@@ -18,6 +18,8 @@ import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
+import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
+import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
 import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
@@ -48,6 +50,7 @@ export type WorkspaceServerRuntimeClients = {
   terminals: ContractClient<TerminalsContract>;
   tuiAgents: ContractClient<TuiAgentsContract>;
   workspace: ContractClient<WorkspaceContract>;
+  workspaceHost: ContractClient<WorkspaceHostContract>;
 };
 
 export type WorkspaceServerRuntimeHost = {
@@ -213,12 +216,21 @@ export async function createWorkspaceServerRuntimeHost(
     config: { operationRecordsFilePath: paths.workspaceOperationLogFile },
     supervision: { restart: 'never' },
   });
+  const workspaceHostPromise = workerHost.spawn(workspaceHostComponent, {
+    name: 'workspace-host',
+    executable: workspaceWorkerPath('workspace-host'),
+    env,
+    dependencies: { acp, terminals, tuiAgents },
+    config: { stateDirectory: paths.workspaceHostStateDirectory },
+    supervision: { restart: 'never' },
+  });
 
-  const [files, fileSearch, git, workspace] = await Promise.all([
+  const [files, fileSearch, git, workspace, workspaceHost] = await Promise.all([
     filesPromise,
     fileSearchPromise,
     gitPromise,
     workspacePromise,
+    workspaceHostPromise,
   ]);
   const automations = await workerHost.spawn(createAutomationsComponent(), {
     name: 'automations',
@@ -245,6 +257,7 @@ export async function createWorkspaceServerRuntimeHost(
       terminals,
       tuiAgents,
       workspace,
+      workspaceHost,
     },
     hostDependencies: hostDependencies.client,
   };

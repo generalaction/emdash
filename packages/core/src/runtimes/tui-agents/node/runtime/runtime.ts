@@ -389,6 +389,7 @@ export class TuiAgentsRuntime {
     this.syncSessionState({
       conversationId: config.input.conversationId,
       providerId: config.input.providerId,
+      cwd: config.input.cwd,
       sessionId: config.input.sessionId,
       status: 'starting',
       cols: config.input.cols,
@@ -470,6 +471,7 @@ export class TuiAgentsRuntime {
             this.syncSessionState({
               conversationId: config.input.conversationId,
               providerId: config.input.providerId,
+              cwd: config.input.cwd,
               sessionId: this.currentProviderSessionId(
                 config.input.conversationId,
                 config.input.sessionId
@@ -510,6 +512,7 @@ export class TuiAgentsRuntime {
     this.syncSessionState({
       conversationId: config.input.conversationId,
       providerId: config.input.providerId,
+      cwd: config.input.cwd,
       sessionId: this.currentProviderSessionId(config.input.conversationId, config.input.sessionId),
       status: 'running',
       pid: pty.getPid(),
@@ -566,6 +569,7 @@ export class TuiAgentsRuntime {
     this.syncSessionState({
       conversationId: config.input.conversationId,
       providerId: config.input.providerId,
+      cwd: config.input.cwd,
       sessionId: config.input.sessionId,
       status: 'exited',
       cols: config.input.cols,
@@ -775,6 +779,7 @@ export class TuiAgentsRuntime {
       draft[conversationId] = {
         conversationId,
         providerId: config.input.providerId,
+        cwd: config.input.cwd,
         sessionId: config.input.sessionId,
         status: 'exited',
         cols: config.input.cols,

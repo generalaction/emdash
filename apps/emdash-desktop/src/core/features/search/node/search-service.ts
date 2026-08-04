@@ -306,7 +306,7 @@ export class SearchService {
       const [ws] = await this.deps.db
         .select({ branchName: workspaces.branchName })
         .from(workspaces)
-        .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.deletedAt)))
+        .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.untrackedAt)))
         .limit(1);
       branchName = ws?.branchName ?? undefined;
     }
@@ -437,7 +437,7 @@ export class SearchService {
         .from(tasks)
         .leftJoin(
           workspaces,
-          and(eq(tasks.workspaceId, workspaces.id), isNull(workspaces.deletedAt))
+          and(eq(tasks.workspaceId, workspaces.id), isNull(workspaces.untrackedAt))
         )
         .where(isNull(tasks.deletedAt))
         .all();

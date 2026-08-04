@@ -79,10 +79,12 @@ import {
   type WorkspaceLifecycleDependencies,
 } from '@core/features/workspaces/node/operations/workspace-lifecycle-definitions';
 import { shouldProposeWorkspaceCleanup } from '@core/features/workspaces/node/operations/workspace-reconciliation-policy';
+import { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
+import { operationsPokes } from '@core/services/operations/node/pokes';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
@@ -157,6 +159,7 @@ export type ServicesBundle = {
   readonly taskSessions: TaskSessionManager;
   readonly workspaceBootstrap: WorkspaceBootstrapService;
   readonly workspacePlacement: WorkspacePlacementResolver;
+  readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
 };
 
 export async function bootServices(
@@ -633,6 +636,31 @@ export async function bootServices(
     conflictPolicies: operationDefinitions.conflictPolicies,
   });
   setOperationsEngine(operations);
+  const workspaceSnapshotSync = new WorkspaceSnapshotSyncService({
+    db,
+    runtimes,
+    scope: appScope,
+    onError: (context, error) => log.warn(context, { error }),
+  });
+  const handleWorkspaceSnapshotSshEvent = (event: { type: string; connectionId?: string }) => {
+    if (event.connectionId && (event.type === 'connected' || event.type === 'reconnected')) {
+      void workspaceSnapshotSync.requestHost(event.connectionId, 'presence');
+    }
+  };
+  infrastructure.ssh.manager.on('connection-event', handleWorkspaceSnapshotSshEvent);
+  appScope.add(() => {
+    infrastructure.ssh.manager.off('connection-event', handleWorkspaceSnapshotSshEvent);
+  });
+  const unsubscribeWorkspaceSnapshotProjects = projectManager.on('projectOpened', (projectId) => {
+    void workspaceSnapshotSync.requestProject(projectId, 'full');
+  });
+  appScope.add(unsubscribeWorkspaceSnapshotProjects);
+  const unsubscribeWorkspaceSnapshotOperations = operationsPokes.trees
+    .subscription()
+    .subscribe(() => {
+      void workspaceSnapshotSync.requestAll('presence');
+    });
+  appScope.add(unsubscribeWorkspaceSnapshotOperations);
   registerProviderTokenHandlers();
   return {
     account: accountService,
@@ -651,5 +679,6 @@ export async function bootServices(
     taskSessions: taskSessionManager,
     workspaceBootstrap: workspaceBootstrapService,
     workspacePlacement,
+    workspaceSnapshotSync,
   };
 }

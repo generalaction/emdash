@@ -56,7 +56,7 @@ export async function getProjectWorkspaces(
         eq(tasks.projectId, projectId),
         isNull(tasks.archivedAt),
         isNull(tasks.deletedAt),
-        isNull(workspaces.deletedAt)
+        isNull(workspaces.untrackedAt)
       )
     );
 
@@ -67,7 +67,7 @@ export async function getProjectWorkspaces(
     const [row] = await db
       .select()
       .from(workspaces)
-      .where(and(eq(workspaces.id, repositoryWorkspaceId), isNull(workspaces.deletedAt)))
+      .where(and(eq(workspaces.id, repositoryWorkspaceId), isNull(workspaces.untrackedAt)))
       .limit(1);
     repoWsRow = row;
   }

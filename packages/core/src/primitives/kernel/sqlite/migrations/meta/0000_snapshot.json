@@ -46,17 +46,12 @@
       "indexes": {
         "operation_claims_operation_idx": {
           "name": "operation_claims_operation_idx",
-          "columns": [
-            "operation_id"
-          ],
+          "columns": ["operation_id"],
           "isUnique": false
         },
         "operation_claims_resource_key_idx": {
           "name": "operation_claims_resource_key_idx",
-          "columns": [
-            "resource",
-            "key"
-          ],
+          "columns": ["resource", "key"],
           "isUnique": false
         }
       },
@@ -65,12 +60,8 @@
           "name": "operation_claims_operation_id_operations_id_fk",
           "tableFrom": "operation_claims",
           "tableTo": "operations",
-          "columnsFrom": [
-            "operation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["operation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -121,16 +112,12 @@
       "indexes": {
         "operation_transitions_operation_idx": {
           "name": "operation_transitions_operation_idx",
-          "columns": [
-            "operation_id"
-          ],
+          "columns": ["operation_id"],
           "isUnique": false
         },
         "operation_transitions_at_idx": {
           "name": "operation_transitions_at_idx",
-          "columns": [
-            "at"
-          ],
+          "columns": ["at"],
           "isUnique": false
         }
       },
@@ -139,12 +126,8 @@
           "name": "operation_transitions_operation_id_operations_id_fk",
           "tableFrom": "operation_transitions",
           "tableTo": "operations",
-          "columnsFrom": [
-            "operation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["operation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -279,31 +262,22 @@
       "indexes": {
         "operations_id_idx": {
           "name": "operations_id_idx",
-          "columns": [
-            "id"
-          ],
+          "columns": ["id"],
           "isUnique": true
         },
         "operations_status_idx": {
           "name": "operations_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "operations_key_idx": {
           "name": "operations_key_idx",
-          "columns": [
-            "key"
-          ],
+          "columns": ["key"],
           "isUnique": false
         },
         "operations_parent_status_idx": {
           "name": "operations_parent_status_idx",
-          "columns": [
-            "parent_id",
-            "status"
-          ],
+          "columns": ["parent_id", "status"],
           "isUnique": false
         }
       },

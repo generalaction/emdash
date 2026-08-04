@@ -131,6 +131,7 @@ export function createDesktopWireOptions(
     updateOperations,
     workspaceIdentity: database.workspaceIdentity,
     workspacePlacement: services.workspacePlacement,
+    workspaceSnapshotSync: services.workspaceSnapshotSync,
     workspaces: {
       async provisionTask(taskId) {
         const result = await taskService.provisionWorkspace(taskId);

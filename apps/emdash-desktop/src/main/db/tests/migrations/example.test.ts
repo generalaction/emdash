@@ -55,8 +55,8 @@ describe('baseline fixture integrity', () => {
     const [{ value: projectCount }] = await fixture.db.select({ value: count() }).from(projects);
     const [{ value: taskCount }] = await fixture.db.select({ value: count() }).from(tasks);
 
-    expect(projectCount).toBe(2);
-    expect(taskCount).toBe(4);
+    expect(projectCount).toBe(3);
+    expect(taskCount).toBe(5);
   });
 
   it('starts clean with the empty fixture', async () => {

@@ -19,7 +19,9 @@ import { linkedIssue } from '@core/primitives/linked-issues/api';
 import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
+import { workspaceObservedData } from '@core/primitives/workspaces/api';
 import { workspaceProviderData } from '@core/primitives/workspaces/api';
+import type { WorkspaceKind } from '@core/primitives/workspaces/api';
 import { notificationPayload } from '@root/src/core/services/notifications/api';
 import type { StoredBranch } from './stored-branch';
 import { versionedJsonColumn } from './versioned-column';
@@ -78,6 +80,9 @@ export const projects = sqliteTable(
     remotePathIdx: uniqueIndex('idx_projects_remote_path')
       .on(table.sshConnectionId, table.path)
       .where(sql`${table.workspaceProvider} = 'ssh' AND ${table.deletedAt} IS NULL`),
+    repositoryWorkspaceIdIdx: uniqueIndex('idx_projects_repository_workspace_id')
+      .on(table.repositoryWorkspaceId)
+      .where(sql`${table.repositoryWorkspaceId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
     sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
   })
 );
@@ -192,29 +197,46 @@ export const workspaces = sqliteTable(
     key: text('key'),
     type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(), // @deprecated — use kind + location
     /** Describes the nature of the workspace: a git worktree, the project root, or BYOI. */
-    kind: text('kind').$type<'worktree' | 'project-root' | 'byoi'>(),
+    kind: text('kind').$type<WorkspaceKind>(),
     /** Where the workspace runs: on the local machine or over SSH. */
     location: text('location').$type<'local' | 'remote'>(),
     /** FK to ssh_connections; only set when location = 'remote'. */
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
+    /** Parent repository registry row for git worktrees. */
+    parentId: text('parent_id'),
     data: versionedJsonColumn(workspaceProviderData)('data'),
     path: text('path'),
     config: versionedJsonColumn(workspaceConfig)('config'),
     branchName: text('branch_name'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
+    observedStatus: text('observed_status').$type<'present' | 'missing' | 'corrupted'>(),
+    observedGitBranch: text('observed_git_branch'),
+    observedData: versionedJsonColumn(workspaceObservedData)('observed_data'),
+    lastObservedAt: text('last_observed_at'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
-    deletedAt: text('deleted_at'),
+    untrackedAt: text('deleted_at'),
   },
   (table) => ({
     keyIdx: uniqueIndex('idx_workspaces_key').on(table.key).where(isNotNull(table.key)),
+    localPathIdx: uniqueIndex('idx_workspaces_local_path')
+      .on(table.path)
+      .where(
+        sql`${table.location} = 'local' AND ${table.untrackedAt} IS NULL AND ${table.path} IS NOT NULL`
+      ),
+    remotePathIdx: uniqueIndex('idx_workspaces_remote_path')
+      .on(table.sshConnectionId, table.path)
+      .where(
+        sql`${table.location} = 'remote' AND ${table.untrackedAt} IS NULL AND ${table.path} IS NOT NULL`
+      ),
+    parentIdIdx: index('idx_workspaces_parent_id').on(table.parentId),
   })
 );
 

@@ -193,7 +193,7 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       linesDeleted: workspaces.linesDeleted,
     })
     .from(workspaces)
-    .where(and(inArray(workspaces.id, workspaceIds), isNull(workspaces.deletedAt)));
+    .where(and(inArray(workspaces.id, workspaceIds), isNull(workspaces.untrackedAt)));
   return {
     byWorkspaceId: Object.fromEntries(
       rows.flatMap((row) =>

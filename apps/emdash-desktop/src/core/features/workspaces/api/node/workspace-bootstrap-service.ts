@@ -344,7 +344,7 @@ export class WorkspaceBootstrapService {
     const [wsRow] = await this.db
       .select()
       .from(workspaces)
-      .where(and(eq(workspaces.id, row.workspaceId), isNull(workspaces.deletedAt)))
+      .where(and(eq(workspaces.id, row.workspaceId), isNull(workspaces.untrackedAt)))
       .limit(1);
     if (!wsRow) return err({ type: 'missing-workspace' });
 
@@ -369,7 +369,7 @@ export class WorkspaceBootstrapService {
     path: string,
     type: WorkspaceType,
     connectionId?: string,
-    branchName?: string
+    _branchName?: string
   ): Promise<string> {
     const key = type !== 'byoi' ? computeWorkspaceKey(type, path, connectionId) : null;
 
@@ -377,7 +377,7 @@ export class WorkspaceBootstrapService {
       const [existing] = await this.db
         .select()
         .from(workspaces)
-        .where(and(eq(workspaces.key, key), isNull(workspaces.deletedAt)));
+        .where(and(eq(workspaces.key, key), isNull(workspaces.untrackedAt)));
       if (existing && existing.id !== workspaceId) {
         return existing.id;
       }
@@ -385,8 +385,8 @@ export class WorkspaceBootstrapService {
 
     await this.db
       .update(workspaces)
-      .set({ path, key, branchName: branchName ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)));
+      .set({ path, key, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)));
     this.dependencies.workspaceIdentity.invalidate(workspaceId);
     return workspaceId;
   }

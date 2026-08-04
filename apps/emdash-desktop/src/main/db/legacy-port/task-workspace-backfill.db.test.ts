@@ -173,10 +173,14 @@ describe('ensureImportedTaskWorkspaces', () => {
       .orderBy(tasks.id);
     const workspaceIds = importedTasks.map((task) => task.workspaceId);
     const workspaceRows = await fixture.db.select().from(workspaces);
+    const worktreeRows = workspaceRows.filter((workspace) => workspace.kind === 'worktree');
+    const repositoryRows = workspaceRows.filter((workspace) => workspace.kind === 'project-root');
 
     expect(workspaceIds.every(Boolean)).toBe(true);
     expect(new Set(workspaceIds).size).toBe(2);
-    expect(workspaceRows).toHaveLength(2);
+    expect(worktreeRows).toHaveLength(2);
+    expect(repositoryRows).toHaveLength(2);
+    expect(worktreeRows.every((workspace) => workspace.parentId !== null)).toBe(true);
   });
 
   it('reuses an existing repository workspace by key', async () => {

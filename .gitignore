@@ -71,6 +71,7 @@ Thumbs.db
 .notes/
 .notes
 .claude/
+.scratch/
 
 # Checkouts directory
 .checkouts/

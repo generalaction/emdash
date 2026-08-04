@@ -10,12 +10,14 @@ import {
   type ListProjectWorkspacesDependencies,
 } from './operations/list-project-workspaces';
 import { measureProjectWorkspaces } from './operations/measure-project-workspaces';
+import type { WorkspaceSnapshotSyncService } from './sync/workspace-snapshot-sync-service';
 import type { WorkspaceScanCache } from './workspace-scan-cache';
 
 export type ProjectWorkspaceOperationDependencies = ListProjectWorkspacesDependencies & {
   operations: OperationsEngine;
   taskService: Pick<TaskService, 'deleteTask'>;
   workspaceScanCache: WorkspaceScanCache;
+  workspaceSnapshotSync?: Pick<WorkspaceSnapshotSyncService, 'requestProject'>;
 };
 
 export function createProjectWorkspaceOperations(
@@ -39,6 +41,7 @@ export function createProjectWorkspaceOperations(
     invalidateWorkspaceScanCache: (input: { projectId?: string; path?: string }) => {
       if (input.projectId) {
         dependencies.workspaceScanCache.evict(input.projectId, input.path);
+        void dependencies.workspaceSnapshotSync?.requestProject(input.projectId, 'full');
       } else if (input.path) {
         dependencies.workspaceScanCache.evictPath(input.path);
       }

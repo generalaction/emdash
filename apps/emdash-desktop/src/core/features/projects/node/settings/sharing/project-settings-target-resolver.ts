@@ -7,7 +7,7 @@ import type {
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
-import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { WorkspaceConfig, WorkspaceKind } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   projects as projectsTable,
@@ -44,7 +44,7 @@ type TaskTargetRow = {
   id: string;
   name: string;
   workspaceId: string | null;
-  workspaceKind: 'worktree' | 'project-root' | 'byoi' | null;
+  workspaceKind: WorkspaceKind | null;
   workspaceBranchName: string | null;
   workspaceConfig: WorkspaceConfig | null;
 };
@@ -121,7 +121,7 @@ export async function resolveAllProjectSettingsTargets(
     .from(tasksTable)
     .leftJoin(
       workspacesTable,
-      and(eq(tasksTable.workspaceId, workspacesTable.id), isNull(workspacesTable.deletedAt))
+      and(eq(tasksTable.workspaceId, workspacesTable.id), isNull(workspacesTable.untrackedAt))
     )
     .where(and(eq(tasksTable.projectId, project.projectId), isNull(tasksTable.deletedAt)));
 

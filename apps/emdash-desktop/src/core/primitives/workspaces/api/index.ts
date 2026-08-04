@@ -3,6 +3,7 @@ export * from './describe-setup-steps';
 export * from './project-workspace';
 export * from './project-workspaces';
 export * from './workspace-config';
+export * from './workspace-observed-data';
 export * from './workspace-presets';
 export * from './workspace-provider-data';
 export * from './workspace-setup-spec';

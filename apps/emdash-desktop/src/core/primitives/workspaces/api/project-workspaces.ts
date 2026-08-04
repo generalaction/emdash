@@ -42,6 +42,8 @@ export type ProjectWorkspaceRow = {
   canDelete: boolean;
   hasActiveSessions: boolean;
   lastActivityAt?: string;
+  observedStatus?: 'present' | 'missing' | 'corrupted';
+  lastObservedAt?: string;
   errors: { path: string; message: string }[];
 };
 

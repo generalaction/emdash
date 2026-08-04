@@ -70,6 +70,7 @@ export function RepositoryHeader({
               </span>
               <span>{usageLabel(usage, loadingUsage)}</span>
               {usage && <span>{formatBytes(usage.artifactBytes)} artifacts</span>}
+              <span>{syncLabel(rootRow.lastObservedAt)}</span>
             </div>
           </div>
         </div>
@@ -95,6 +96,20 @@ export function RepositoryHeader({
 function usageLabel(usage: ProjectWorkspaceUsage | undefined, loading: boolean): string {
   if (usage) return formatBytes(usage.totalBytes);
   return loading ? 'Loading usage...' : 'Usage unavailable';
+}
+
+function syncLabel(lastObservedAt: string | undefined): string {
+  if (!lastObservedAt) return 'Not synced yet';
+  const timestamp = Date.parse(lastObservedAt);
+  if (!Number.isFinite(timestamp)) return 'Sync time unknown';
+  const elapsedMs = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 1) return 'Synced just now';
+  if (minutes < 60) return `Synced ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Synced ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `Synced ${days}d ago`;
 }
 
 function runtimeStatusLabel(status: WorkspaceIconStatus): string {

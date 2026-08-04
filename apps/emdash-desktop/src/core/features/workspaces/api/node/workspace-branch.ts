@@ -9,8 +9,9 @@ type WorkspaceBranchRow = {
 };
 
 export function getProvisionedWorkspaceBranch(workspace: WorkspaceBranchRow): string | null {
-  if (workspace.kind === 'project-root' || workspace.kind === 'byoi') return null;
-  if (workspace.kind === 'path') return null;
+  if (workspace.kind === 'project-root' || workspace.kind === 'repository') return null;
+  if (workspace.kind === 'path' || workspace.kind === 'directory') return null;
+  if (workspace.kind === 'byoi') return null;
 
   if (workspace.config) return deriveBranchName(workspace.config.git);
   if (workspace.kind === 'worktree') return workspace.branchName ?? null;

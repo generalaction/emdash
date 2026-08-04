@@ -1,11 +1,10 @@
 import {
-  hostRef,
   hostRefEquals,
   hostRefKey,
-  LOCAL_HOST_REF,
   sshConnectionIdOf,
   type HostRef,
 } from '@emdash/core/primitives/host/api';
+import { hostRefFromWorkspaceRow } from './workspace-host-ref';
 
 export type WorkspaceIdentity = Readonly<{
   workspaceId: string;
@@ -99,22 +98,12 @@ export class WorkspaceIdentityService {
 }
 
 function identityFromRow(row: WorkspaceIdentityRow): WorkspaceIdentity | null {
-  const remote = isRemoteWorkspaceRow(row);
-  const connectionId = row.sshConnectionId;
-  if (remote && !connectionId) return null;
-  const host = remote && connectionId ? hostRef('remote', connectionId) : LOCAL_HOST_REF;
   return {
     workspaceId: row.workspaceId,
-    host,
+    host: hostRefFromWorkspaceRow(row),
     path: row.path,
     projectId: row.projectId,
   };
-}
-
-export function isRemoteWorkspaceRow(
-  row: Pick<WorkspaceIdentityRow, 'location' | 'type'>
-): boolean {
-  return row.location === 'remote' || row.type === 'project-ssh';
 }
 
 export function workspaceHostStorage(host: HostRef): WorkspaceHostStorage {

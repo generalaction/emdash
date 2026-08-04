@@ -1,6 +1,5 @@
 import { and, eq, isNull, type SQL } from 'drizzle-orm';
 import {
-  isRemoteWorkspaceRow,
   WorkspaceIdentityService,
   type WorkspaceIdentityRow,
   type WorkspaceIdentitySource,
@@ -42,17 +41,14 @@ async function loadWorkspaceRows(db: AppDb, predicate: SQL): Promise<WorkspaceId
       path: workspaces.path,
     })
     .from(workspaces)
-    .where(and(predicate, isNull(workspaces.deletedAt)));
+    .where(and(predicate, isNull(workspaces.untrackedAt)));
 
   const resolved = await Promise.all(
     rows.map(async (row): Promise<WorkspaceIdentityRow | null> => {
       if (!row.path) return null;
       const projectId = await resolveWorkspaceProjectId(db, row.workspaceId);
       if (!projectId) return null;
-      const sshConnectionId =
-        row.sshConnectionId ??
-        (isRemoteWorkspaceRow(row) ? await resolveProjectSshConnectionId(db, projectId) : null);
-      return { ...row, path: row.path, projectId, sshConnectionId };
+      return { ...row, path: row.path, projectId };
     })
   );
   return resolved.filter((row): row is WorkspaceIdentityRow => row !== null);
@@ -72,13 +68,4 @@ async function resolveWorkspaceProjectId(db: AppDb, workspaceId: string): Promis
     .where(and(eq(projects.repositoryWorkspaceId, workspaceId), isNull(projects.deletedAt)))
     .limit(1);
   return projectRows[0]?.projectId ?? null;
-}
-
-async function resolveProjectSshConnectionId(db: AppDb, projectId: string): Promise<string | null> {
-  const rows = await db
-    .select({ sshConnectionId: projects.sshConnectionId })
-    .from(projects)
-    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-    .limit(1);
-  return rows[0]?.sshConnectionId ?? null;
 }

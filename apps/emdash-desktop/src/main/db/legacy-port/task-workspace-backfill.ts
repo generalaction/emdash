@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
@@ -11,6 +11,10 @@ type ProjectWorkspaceFields = {
   workspaceProvider: string;
   sshConnectionId: string | null;
   repositoryWorkspaceId: string | null;
+};
+
+type TableInfoRow = {
+  name: string;
 };
 
 function deriveWorkspaceLocation(project: {
@@ -49,6 +53,98 @@ function buildImportedWorktreeKey(
   );
 }
 
+function insertRepositoryWorkspace(
+  tx: DrizzleTx,
+  input: {
+    id: string;
+    kind: string;
+    location: string;
+    sshConnectionId: string | null;
+    type: string;
+    path: string;
+    key: string;
+  }
+): void {
+  tx.run(sql`
+    INSERT INTO workspaces (id, kind, location, ssh_connection_id, type, path, key)
+    VALUES (
+      ${input.id},
+      ${input.kind},
+      ${input.location},
+      ${input.sshConnectionId},
+      ${input.type},
+      ${input.path},
+      ${input.key}
+    )
+  `);
+}
+
+function insertWorktreeWorkspace(
+  tx: DrizzleTx,
+  input: {
+    id: string;
+    kind: string;
+    location: string;
+    sshConnectionId: string | null;
+    parentId: string | null;
+    type: string;
+    key: string;
+    branchName: string;
+    config: WorkspaceConfig;
+  }
+): void {
+  if (input.parentId) {
+    tx.run(sql`
+      INSERT INTO workspaces (
+        id,
+        kind,
+        location,
+        ssh_connection_id,
+        parent_id,
+        type,
+        key,
+        branch_name,
+        config
+      )
+      VALUES (
+        ${input.id},
+        ${input.kind},
+        ${input.location},
+        ${input.sshConnectionId},
+        ${input.parentId},
+        ${input.type},
+        ${input.key},
+        ${input.branchName},
+        ${JSON.stringify(input.config)}
+      )
+    `);
+    return;
+  }
+
+  tx.run(sql`
+    INSERT INTO workspaces (
+      id,
+      kind,
+      location,
+      ssh_connection_id,
+      type,
+      key,
+      branch_name,
+      config
+    )
+    VALUES (
+      ${input.id},
+      ${input.kind},
+      ${input.location},
+      ${input.sshConnectionId},
+      ${input.type},
+      ${input.key},
+      ${input.branchName},
+      ${JSON.stringify(input.config)}
+    )
+  `);
+}
+
 function ensureRepositoryWorkspace(tx: DrizzleTx, project: ProjectWorkspaceFields): string {
   if (project.repositoryWorkspaceId) {
     const [existingWorkspace] = tx
@@ -78,17 +174,15 @@ function ensureRepositoryWorkspace(tx: DrizzleTx, project: ProjectWorkspaceField
   const workspaceId = existingByKey?.id ?? randomUUID();
 
   if (!existingByKey) {
-    tx.insert(workspaces)
-      .values({
-        id: workspaceId,
-        kind: 'project-root',
-        location: location.location,
-        sshConnectionId: location.sshConnectionId,
-        type: location.type,
-        path: project.projectPath,
-        key,
-      })
-      .run();
+    insertRepositoryWorkspace(tx, {
+      id: workspaceId,
+      kind: 'project-root',
+      location: location.location,
+      sshConnectionId: location.sshConnectionId,
+      type: location.type,
+      path: project.projectPath,
+      key,
+    });
   }
 
   tx.update(projects)
@@ -97,6 +191,11 @@ function ensureRepositoryWorkspace(tx: DrizzleTx, project: ProjectWorkspaceField
     .run();
 
   return workspaceId;
+}
+
+function workspaceColumnExists(appDb: AppDb, columnName: string): boolean {
+  const rows = appDb.all(sql`PRAGMA table_info(workspaces)`) as TableInfoRow[];
+  return rows.some((row) => row.name === columnName);
 }
 
 function findExistingWorktreeWorkspace(
@@ -144,6 +243,8 @@ function findExistingWorktreeWorkspace(
  * alone.
  */
 export function ensureImportedTaskWorkspaces(appDb: AppDb): void {
+  const supportsWorkspaceParentId = workspaceColumnExists(appDb, 'parent_id');
+
   appDb.transaction((tx) => {
     const rows = tx
       .select({
@@ -175,6 +276,8 @@ export function ensureImportedTaskWorkspaces(appDb: AppDb): void {
       let workspaceId: string;
 
       if (row.taskBranch) {
+        const repositoryWorkspaceId = ensureRepositoryWorkspace(tx, project);
+        repositoryWorkspaceIdByProjectId.set(row.projectId, repositoryWorkspaceId);
         const location = deriveWorkspaceLocation(project);
         const existingWorkspaceId = findExistingWorktreeWorkspace(
           tx,
@@ -185,17 +288,21 @@ export function ensureImportedTaskWorkspaces(appDb: AppDb): void {
         workspaceId = existingWorkspaceId ?? randomUUID();
 
         if (!existingWorkspaceId) {
-          tx.insert(workspaces)
-            .values({
-              id: workspaceId,
-              kind: 'worktree',
-              location: location.location,
-              sshConnectionId: location.sshConnectionId,
-              type: location.type,
-              key: buildImportedWorktreeKey(project, row.taskBranch, location),
-              branchName: row.taskBranch,
-              config: buildImportedWorktreeConfig(row.taskBranch),
-            })
+          insertWorktreeWorkspace(tx, {
+            id: workspaceId,
+            kind: 'worktree',
+            location: location.location,
+            sshConnectionId: location.sshConnectionId,
+            parentId: supportsWorkspaceParentId ? repositoryWorkspaceId : null,
+            type: location.type,
+            key: buildImportedWorktreeKey(project, row.taskBranch, location),
+            branchName: row.taskBranch,
+            config: buildImportedWorktreeConfig(row.taskBranch),
+          });
+        } else if (supportsWorkspaceParentId) {
+          tx.update(workspaces)
+            .set({ parentId: repositoryWorkspaceId })
+            .where(and(eq(workspaces.id, existingWorkspaceId), isNull(workspaces.parentId)))
             .run();
         }
       } else {

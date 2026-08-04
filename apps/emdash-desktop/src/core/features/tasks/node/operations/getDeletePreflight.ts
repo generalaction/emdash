@@ -30,7 +30,7 @@ async function getTaskPreflight(
   const [ws] = await db
     .select()
     .from(workspaces)
-    .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.deletedAt)))
+    .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.untrackedAt)))
     .limit(1);
   if (!ws) return noWorktreeResult;
 

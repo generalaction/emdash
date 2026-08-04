@@ -104,6 +104,7 @@ export async function prepareCreateTask(
         .select({
           workspaceProvider: projects.workspaceProvider,
           sshConnectionId: projects.sshConnectionId,
+          repositoryWorkspaceId: projects.repositoryWorkspaceId,
         })
         .from(projects)
         .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
@@ -119,6 +120,7 @@ export async function prepareCreateTask(
         kind: 'worktree',
         location,
         sshConnectionId,
+        parentId: projectRow?.repositoryWorkspaceId ?? null,
         type: legacyType,
         config: workspaceConfig,
       };

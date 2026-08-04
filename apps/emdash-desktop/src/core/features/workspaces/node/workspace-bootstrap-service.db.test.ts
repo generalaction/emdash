@@ -281,7 +281,7 @@ describe('WorkspaceBootstrapService', () => {
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
       expect(ws.path).toBe('/worktrees/task-branch');
-      expect(ws.branchName).toBe('task/branch');
+      expect(ws.branchName).toBeNull();
     });
 
     it('does not acquire an explicit worktree from a stale path without branch intent', async () => {
@@ -387,7 +387,7 @@ describe('WorkspaceBootstrapService', () => {
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
       expect(ws.path).toBe('/worktrees/task-branch');
-      expect(ws.branchName).toBe('task/branch');
+      expect(ws.branchName).toBeNull();
     });
 
     it('recovers a legacy workspace with stale path from task branch intent', async () => {
@@ -448,7 +448,7 @@ describe('WorkspaceBootstrapService', () => {
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
       expect(ws.path).toBe('/worktrees/task-branch');
-      expect(ws.branchName).toBe('task/branch');
+      expect(ws.branchName).toBeNull();
     });
   });
 });

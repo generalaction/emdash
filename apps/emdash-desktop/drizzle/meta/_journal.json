@@ -204,6 +204,27 @@
       "when": 1785781301701,
       "tag": "0028_mighty_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1785801268923,
+      "tag": "0029_nasty_thena",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1785801290945,
+      "tag": "0030_registry_workspace_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1785801345470,
+      "tag": "0031_gorgeous_warstar",
+      "breakpoints": true
     }
   ]
 }

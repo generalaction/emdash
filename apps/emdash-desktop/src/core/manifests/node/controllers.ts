@@ -67,6 +67,7 @@ import {
   createProjectSettingsWireController,
   createProjectWorkspacesWireController,
 } from '@core/features/workspaces/node/project-wire-controllers';
+import type { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
@@ -138,6 +139,7 @@ export type DesktopControllerContext = {
   readonly updateOperations: UpdateOperations;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspacePlacement: WorkspacePlacementResolver;
+  readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
     'db' | 'getWorkspaceRuntimeClient' | 'operations' | 'runtimes' | 'workspaceIdentity'
@@ -193,7 +195,7 @@ export const desktopNodeControllers = {
       createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: ({ db, operations, runtimes, taskService, taskSessions }) =>
+    create: ({ db, operations, runtimes, taskService, taskSessions, workspaceSnapshotSync }) =>
       createProjectWorkspacesWireController({
         db,
         operations,
@@ -201,6 +203,7 @@ export const desktopNodeControllers = {
         taskService,
         taskSessions,
         workspaceScanCache,
+        workspaceSnapshotSync,
       }),
   },
   promptLibrary: {

@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { classifyWorkspaceOperationError } from './operation-error-classifier';
 
 describe('classifyWorkspaceOperationError', () => {
-  it('maps workspace-busy errors to awaiting confirmation with holders', () => {
+  it('maps workspace-busy errors to needs confirmation with holders', () => {
     const error = Object.assign(new Error('Workspace is busy'), {
       code: 'workspace-busy',
       holders: ['task-1', 'task-2'],
     });
 
     expect(classifyWorkspaceOperationError(error)).toEqual({
-      type: 'awaiting-confirmation',
+      type: 'needs-confirmation',
       reason: 'workspace-busy',
       message: 'Workspace is busy Active holders: task-1, task-2',
     });

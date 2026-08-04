@@ -46,9 +46,10 @@ export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
           id: workspaces.id,
           linesAdded: workspaces.linesAdded,
           linesDeleted: workspaces.linesDeleted,
+          observedData: workspaces.observedData,
         })
         .from(workspaces)
-        .where(and(inArray(workspaces.id, wsIds), isNull(workspaces.deletedAt)))
+        .where(and(inArray(workspaces.id, wsIds), isNull(workspaces.untrackedAt)))
     : [];
   const wsByWsId = new Map(wsRows.map((r) => [r.id, r]));
   const runProjections = await getRunProjectionsByRunIds(db, runIds);
@@ -65,10 +66,27 @@ export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
         convByTask.get(row.id) ?? {},
         row.automationRunId ? runMetaByRunId.get(row.automationRunId) : undefined
       ),
-      workspaceGit:
-        ws?.linesAdded != null
-          ? { linesAdded: ws.linesAdded, linesDeleted: ws.linesDeleted ?? 0 }
-          : undefined,
+      workspaceGit: workspaceGitStats(ws),
     };
   });
+}
+
+function workspaceGitStats(
+  workspace:
+    | {
+        linesAdded: number | null;
+        linesDeleted: number | null;
+        observedData?: { diffStats?: { added?: number; deleted?: number } } | null;
+      }
+    | undefined
+): Task['workspaceGit'] {
+  if (workspace?.observedData?.diffStats) {
+    return {
+      linesAdded: workspace.observedData.diffStats.added ?? 0,
+      linesDeleted: workspace.observedData.diffStats.deleted ?? 0,
+    };
+  }
+  return workspace?.linesAdded != null
+    ? { linesAdded: workspace.linesAdded, linesDeleted: workspace.linesDeleted ?? 0 }
+    : undefined;
 }

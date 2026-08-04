@@ -657,6 +657,7 @@ export class SessionManager implements InboundRouter {
     const summary: SessionSummary = {
       conversationId: input.conversationId,
       providerId: input.providerId,
+      cwd: input.cwd,
       lifecycle: state.lifecycle,
       isGenerating: state.isGenerating,
       lastStopReason: cell?.sessionState.lastStopReason ?? null,

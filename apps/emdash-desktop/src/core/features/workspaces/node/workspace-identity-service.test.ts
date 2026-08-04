@@ -1,7 +1,7 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import { describe, expect, it, vi } from 'vitest';
+import { hostRefFromWorkspaceRow } from '@core/features/workspaces/api/node/workspace-host-ref';
 import {
-  isRemoteWorkspaceRow,
   WorkspaceIdentityService,
   workspaceHostStorage,
   type WorkspaceIdentityRow,
@@ -144,13 +144,18 @@ describe('WorkspaceIdentityService', () => {
       createSource([{ ...remoteRow, sshConnectionId: null }])
     );
 
-    expect(await service.resolve(remoteRow.workspaceId)).toBeNull();
+    await expect(service.resolve(remoteRow.workspaceId)).rejects.toThrow(
+      'Remote workspace row has no SSH connection.'
+    );
   });
 
-  it('derives remote rows from either location or workspace type', () => {
-    expect(isRemoteWorkspaceRow({ type: 'byoi', location: 'remote' })).toBe(true);
-    expect(isRemoteWorkspaceRow({ type: 'project-ssh', location: 'local' })).toBe(true);
-    expect(isRemoteWorkspaceRow({ type: 'local', location: 'local' })).toBe(false);
+  it('derives host refs from canonical workspace row fields', () => {
+    expect(hostRefFromWorkspaceRow({ location: 'local', sshConnectionId: null })).toEqual(
+      LOCAL_HOST_REF
+    );
+    expect(hostRefFromWorkspaceRow({ location: 'remote', sshConnectionId: 'ssh-1' })).toEqual(
+      hostRef('remote', 'ssh-1')
+    );
   });
 
   it('maps canonical host refs back to legacy workspace storage fields', () => {
