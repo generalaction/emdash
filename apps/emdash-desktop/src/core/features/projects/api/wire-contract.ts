@@ -130,6 +130,14 @@ export const projectsWireContract = defineContract({
     input: projectHostParamsSchema,
     output: z.string(),
   }),
+  getDefaultRepositoriesRoot: procedure({
+    input: projectHostParamsSchema,
+    output: z.custom<Result<string, ProjectPlacementError>>(),
+  }),
+  ensureDefaultRepositoriesRoot: procedure({
+    input: projectHostParamsSchema,
+    output: z.custom<Result<string, ProjectPlacementError>>(),
+  }),
   createHostDirectory: fallible({
     input: z.object({
       host: projectHostParamsSchema,

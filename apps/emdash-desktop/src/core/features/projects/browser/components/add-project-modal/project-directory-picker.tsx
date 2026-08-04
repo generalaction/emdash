@@ -2,6 +2,7 @@ import {
   ROOT_RELATIVE_PATH,
   joinAbsolute,
   joinPortableRelativePath,
+  portableRelativePathDirname,
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '@emdash/core/primitives/path/api';
@@ -27,8 +28,7 @@ import {
   type RemoteModel,
   type RemoteMember,
 } from '@emdash/wire';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   projectsWireContract,
   type ProjectHostParams,
@@ -54,6 +54,10 @@ export type ProjectDirectoryPickerClient = ContractClient<
 type ProjectDirectoryPickerProps = {
   strategy: Strategy;
   connectionId?: string;
+  initialPath?: string;
+  homePath: string;
+  homePending: boolean;
+  homeError: Error | null;
   value: string;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   onSelect(path: string): void;
@@ -62,21 +66,38 @@ type ProjectDirectoryPickerProps = {
 export function ProjectDirectoryPicker({
   strategy,
   connectionId,
+  initialPath,
+  homePath,
+  homePending,
+  homeError,
   value,
   getProjectsClient,
   onSelect,
 }: ProjectDirectoryPickerProps) {
   const host = useMemo(() => projectHostParams(strategy, connectionId), [connectionId, strategy]);
-  const homeQuery = useQuery({
-    queryKey: ['projectHostHomeDir', host],
-    queryFn: async () => {
-      if (!host) throw new Error('Select a machine connection before browsing directories.');
-      return (await getProjectsClient()).getHostHomeDir(host);
+  const history = useDirectoryHistory(initialPath || homePath);
+  const historyBackPath = history.backPath;
+  const historyForwardPath = history.forwardPath;
+  const historyBack = history.back;
+  const historyForward = history.forward;
+  const historyNavigate = history.navigate;
+  const navigate = useCallback(
+    (path: string) => {
+      historyNavigate(path);
+      onSelect(path);
     },
-    enabled: !!host,
-  });
-  const homePath = homeQuery.data ?? '';
-  const history = useDirectoryHistory(homePath);
+    [historyNavigate, onSelect]
+  );
+  const goBack = useCallback(() => {
+    if (!historyBackPath) return;
+    historyBack();
+    onSelect(historyBackPath);
+  }, [historyBack, historyBackPath, onSelect]);
+  const goForward = useCallback(() => {
+    if (!historyForwardPath) return;
+    historyForward();
+    onSelect(historyForwardPath);
+  }, [historyForward, historyForwardPath, onSelect]);
   const root = useMemo(() => (homePath ? hostPathFromNative(homePath) : null), [homePath]);
   const sessionId = useMemo(() => crypto.randomUUID(), []);
   const tree = useProjectDirectoryTree(host, root, sessionId, getProjectsClient);
@@ -84,10 +105,23 @@ export function ProjectDirectoryPicker({
     if (!root || !history.path) return ROOT_RELATIVE_PATH;
     return relativePathWithin(root, hostPathFromNative(history.path));
   }, [history.path, root]);
-  const reveal = useRevealDirectory(tree.member, currentRelativePath);
+  const handleRevealNotFound = useCallback(
+    (missingPath: PortableRelativePath) => {
+      if (!root) return false;
+      const parentPath = portableRelativePathDirname(missingPath);
+      if (parentPath === null) return false;
+      const parent = joinAbsolute(root, parentPath);
+      if (!parent.success) return false;
+      navigate(nativePathFromHost(parent.data));
+      return true;
+    },
+    [navigate, root]
+  );
+  const reveal = useRevealDirectory(tree.member, currentRelativePath, handleRevealNotFound);
+
   const listing = directoryListing({
-    homePending: homeQuery.isPending,
-    homeError: homeQuery.error,
+    homePending,
+    homeError,
     syncError: tree.error ?? reveal.error,
     pending: reveal.pending,
     model: tree.model,
@@ -152,9 +186,9 @@ export function ProjectDirectoryPicker({
       selectedPath={value || null}
       canGoBack={history.canGoBack}
       canGoForward={history.canGoForward}
-      onBack={history.back}
-      onForward={history.forward}
-      onNavigate={history.navigate}
+      onBack={goBack}
+      onForward={goForward}
+      onNavigate={navigate}
       onSelect={(path) => {
         if (path) onSelect(path);
       }}
@@ -254,7 +288,8 @@ function useProjectDirectoryTree(
 
 function useRevealDirectory(
   member: DirectoryTreeMember | null,
-  path: PortableRelativePath
+  path: PortableRelativePath,
+  onNotFound: (path: PortableRelativePath) => boolean
 ): { pending: boolean; error: string | null } {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +305,7 @@ function useRevealDirectory(
       try {
         const mutation = await currentMember.mutations.reveal({ path, depth: 2 });
         if (!mutation.result.success) {
+          if (mutation.result.error.type === 'not-found' && onNotFound(path)) return;
           throw new Error(fsErrorMessage(mutation.result.error));
         }
         await mutation.settled;
@@ -285,7 +321,7 @@ function useRevealDirectory(
     return () => {
       cancelled = true;
     };
-  }, [member, path]);
+  }, [member, onNotFound, path]);
 
   return { pending, error };
 }

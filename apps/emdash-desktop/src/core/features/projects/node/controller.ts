@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
@@ -11,6 +12,7 @@ import type { OperationsEngine } from '@core/services/operations/node';
 import type { CreateProjectDependencies } from './operations/create-project';
 import { createProject, inspectProjectPath } from './operations/create-project';
 import { deleteProject } from './operations/deleteProject';
+import { ensureDefaultRepositoriesRoot } from './operations/ensure-default-repositories-root';
 import { getProjects } from './operations/getProjects';
 import { initializeRepository } from './operations/initialize-repository';
 import { openProject } from './operations/openProject';
@@ -35,6 +37,9 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
     initializeRepository: (projectId: string) => initializeRepository(dependencies, projectId),
     resolveRepositoryDestination: (input: Parameters<typeof resolveRepositoryDestination>[1]) =>
       resolveRepositoryDestination(placement, input),
+    getDefaultRepositoriesRoot: (host: HostRef) => placement.resolveRepositoriesRoot(host),
+    ensureDefaultRepositoriesRoot: (host: HostRef) =>
+      ensureDefaultRepositoriesRoot(dependencies, host),
     getProjects: () => getProjects(db),
     deleteProject: (projectId: string) => deleteProject(operations, projectId),
     getProjectSettingsPage: (projectId: string) =>

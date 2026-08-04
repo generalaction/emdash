@@ -13,6 +13,7 @@ interface DirectoryFieldProps {
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
   onPathChange: (path: string) => void;
   placeholder?: string;
+  ensureDefaultRoot?: boolean;
 }
 
 export function DirectoryField({
@@ -24,6 +25,7 @@ export function DirectoryField({
   path = '',
   getProjectsClient,
   placeholder = 'Select a directory',
+  ensureDefaultRoot = false,
 }: DirectoryFieldProps) {
   const openDirectorySelectorModal = useOpenModal('directorySelectorModal');
   const disabled = strategy === 'ssh' && !connectionId;
@@ -34,6 +36,7 @@ export function DirectoryField({
       const outcome = await openDirectorySelectorModal({
         connectionId,
         initialPath: path || undefined,
+        ensureDefaultRoot,
         getProjectsClient,
       });
       if (outcome.success) onPathChange(outcome.data.path);

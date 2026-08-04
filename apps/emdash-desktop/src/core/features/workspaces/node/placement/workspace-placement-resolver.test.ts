@@ -24,11 +24,15 @@ function makeResolver(options: {
   missingParents?: string[];
   appOverrides?: Record<string, string>;
   projectOverride?: string;
+  homeError?: Error;
 }) {
   const existingPaths = new Set(options.existingPaths ?? []);
   const registeredPaths = new Set(options.registeredPaths ?? []);
   const missingParents = new Set(options.missingParents ?? []);
-  const getHomeDir = vi.fn().mockResolvedValue(hostPathFromNative(options.home ?? '/home/jona'));
+  const getHomeDir = vi.fn(async () => {
+    if (options.homeError) throw options.homeError;
+    return hostPathFromNative(options.home ?? '/home/jona');
+  });
   const exists = vi.fn(async ({ root, relative }) => {
     const parent = nativePathFromHost(root);
     if (missingParents.has(parent)) {
@@ -59,6 +63,36 @@ function makeResolver(options: {
 }
 
 describe('WorkspacePlacementResolver', () => {
+  it('resolves the default repositories root on the target host', async () => {
+    const { resolver } = makeResolver({ home: '/home/remote' });
+
+    await expect(resolver.resolveRepositoriesRoot(hostRef('remote', 'ssh-1'))).resolves.toEqual({
+      success: true,
+      data: '/home/remote/emdash/repositories',
+    });
+  });
+
+  it('expands the configured repositories root against the target host home', async () => {
+    const { resolver } = makeResolver({
+      home: '/home/remote',
+      appOverrides: { defaultProjectsDirectory: '~/source' },
+    });
+
+    await expect(resolver.resolveRepositoriesRoot(hostRef('remote', 'ssh-1'))).resolves.toEqual({
+      success: true,
+      data: '/home/remote/source',
+    });
+  });
+
+  it('propagates host-home failures while resolving the repositories root', async () => {
+    const { resolver } = makeResolver({ homeError: new Error('home unavailable') });
+
+    await expect(resolver.resolveRepositoriesRoot(LOCAL_HOST_REF)).resolves.toEqual({
+      success: false,
+      error: { type: 'host-home-unavailable', message: 'home unavailable' },
+    });
+  });
+
   it('derives the project pool from the target host default', async () => {
     const { resolver, getHomeDir } = makeResolver({ home: '/home/jona' });
 

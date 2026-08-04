@@ -80,19 +80,29 @@ export class WorkspacePlacementResolver {
     );
   }
 
+  async resolveRepositoriesRoot(host: HostRef): Promise<Result<string, WorkspacePlacementError>> {
+    const homeResult = await this.getHomeDirectory(host);
+    if (!homeResult.success) return homeResult;
+
+    const configuredRoot = await this.getExplicitAppRoot('defaultProjectsDirectory');
+    return configuredRoot
+      ? resolveConfiguredRoot(configuredRoot, homeResult.data)
+      : ok(defaultRepositoriesRoot(homeResult.data));
+  }
+
   async resolveRepositoryDestination(
     host: HostRef,
     name: string,
     chosenDir?: string
   ): Promise<Result<string, WorkspacePlacementError>> {
-    const homeResult = await this.getHomeDirectory(host);
-    if (!homeResult.success) return homeResult;
-
-    const configuredRoot =
-      chosenDir?.trim() || (await this.getExplicitAppRoot('defaultProjectsDirectory'));
-    const rootResult = configuredRoot
-      ? resolveConfiguredRoot(configuredRoot, homeResult.data)
-      : ok(defaultRepositoriesRoot(homeResult.data));
+    let rootResult: Result<string, WorkspacePlacementError>;
+    if (chosenDir?.trim()) {
+      const homeResult = await this.getHomeDirectory(host);
+      if (!homeResult.success) return homeResult;
+      rootResult = resolveConfiguredRoot(chosenDir, homeResult.data);
+    } else {
+      rootResult = await this.resolveRepositoriesRoot(host);
+    }
     if (!rootResult.success) return rootResult;
 
     const session = await this.dependencies.broker.client(host);

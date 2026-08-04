@@ -82,6 +82,7 @@ export function CreateNewPanel({
   selectedAccount,
   onAccountChange,
   onOpenAccountSettings,
+  ensureDefaultRoot,
 }: {
   strategy: Strategy;
   connectionId?: string;
@@ -92,6 +93,7 @@ export function CreateNewPanel({
   selectedAccount: GitHubAccountSummary | null;
   onAccountChange: (accountId: string) => void;
   onOpenAccountSettings: () => void;
+  ensureDefaultRoot: boolean;
 }) {
   const repositoryNameId = useId();
 
@@ -156,6 +158,7 @@ export function CreateNewPanel({
             path={state.path}
             onPathChange={state.setPath}
             getProjectsClient={getProjectsClient}
+            ensureDefaultRoot={ensureDefaultRoot}
             title="Select a local project"
             message="Select a project directory to open"
           />
@@ -170,11 +173,13 @@ export function ClonePanel({
   connectionId,
   state,
   getProjectsClient,
+  ensureDefaultRoot,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: CloneModeState;
   getProjectsClient(): Promise<ProjectDirectoryPickerClient>;
+  ensureDefaultRoot: boolean;
 }) {
   const repositoryUrlId = useId();
   return (
@@ -201,6 +206,7 @@ export function ClonePanel({
             path={state.path}
             onPathChange={state.setPath}
             getProjectsClient={getProjectsClient}
+            ensureDefaultRoot={ensureDefaultRoot}
             title="Select a local project"
             message="Select a project directory to open"
           />

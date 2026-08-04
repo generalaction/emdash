@@ -56,6 +56,10 @@ export function createProjectsWireController(
       initializeRepository: ({ projectId }) => projectOperations.initializeRepository(projectId),
       resolveRepositoryDestination: (input) =>
         projectOperations.resolveRepositoryDestination(input),
+      getDefaultRepositoriesRoot: (host) =>
+        projectOperations.getDefaultRepositoriesRoot(hostRefForProjectHost(host)),
+      ensureDefaultRepositoriesRoot: (host) =>
+        projectOperations.ensureDefaultRepositoriesRoot(hostRefForProjectHost(host)),
       deleteProject: ({ projectId }) => projectOperations.deleteProject(projectId),
       getProjectSettingsPage: ({ projectId }) =>
         projectOperations.getProjectSettingsPage(projectId),

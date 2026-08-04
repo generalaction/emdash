@@ -4,6 +4,7 @@ import { DownloadIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
+import type { ProjectHostParams } from '@core/features/projects/api';
 import { createRequiredGitHubAccountSelectState } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
   getProjectManagerStore,
@@ -14,7 +15,6 @@ import type {
   ProjectType,
 } from '@core/features/projects/browser/stores/project-creation-types';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
@@ -106,9 +106,23 @@ export const AddProjectModal = observer(function AddProjectModal({
     }
   };
 
-  const { value: localProjectSettings } = useAppSettingsKey('localProject');
-  const defaultPath =
-    strategy === 'local' ? (localProjectSettings?.defaultProjectsDirectory ?? '') : '';
+  const defaultRepositoriesRootQuery = useQuery({
+    queryKey: ['projectDefaultRepositoriesRoot', strategy, selectedConnectionId],
+    queryFn: async () => {
+      let host: ProjectHostParams = { type: 'local' };
+      if (strategy === 'ssh') {
+        if (!selectedConnectionId) {
+          throw new Error('Select a machine connection before resolving the repositories root.');
+        }
+        host = { type: 'ssh', connectionId: selectedConnectionId };
+      }
+      const result = await (await getProjectsClient()).getDefaultRepositoriesRoot(host);
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    enabled: strategy === 'local' || !!selectedConnectionId,
+  });
+  const defaultPath = defaultRepositoriesRootQuery.data ?? '';
 
   const githubAccountsQuery = useGitHubAccounts();
   const githubAccounts = githubAccountsQuery.data;
@@ -352,6 +366,10 @@ export const AddProjectModal = observer(function AddProjectModal({
             selectedAccount={githubAccountSelect.selectedAccount}
             onAccountChange={setGithubAccountOverride}
             onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
+            ensureDefaultRoot={
+              defaultRepositoriesRootQuery.data !== undefined &&
+              newState.path === defaultRepositoriesRootQuery.data
+            }
           />
         )}
         {mode === 'clone' && (
@@ -360,6 +378,10 @@ export const AddProjectModal = observer(function AddProjectModal({
             connectionId={selectedConnectionId}
             state={cloneState}
             getProjectsClient={getProjectsClient}
+            ensureDefaultRoot={
+              defaultRepositoriesRootQuery.data !== undefined &&
+              cloneState.path === defaultRepositoriesRootQuery.data
+            }
           />
         )}
       </DialogContentArea>
