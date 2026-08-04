@@ -30,6 +30,8 @@ export type OperationInputBase = {
   source: OperationInputSource;
   hostRef: SerializedHostRef;
   projectId?: string | null;
+  taskId?: string | null;
+  workspaceId?: string | null;
   entityName?: string;
   hostLabel?: string;
   workspacePath?: string;

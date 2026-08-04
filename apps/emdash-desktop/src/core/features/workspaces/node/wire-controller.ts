@@ -1,13 +1,8 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
-  cell,
-  expose,
-  family,
   type Contract,
   type ContractImpl,
-  type Cell,
-  type LeasedLiveModelProvider,
   type LiveModelProvider,
   type LiveJobContext,
   type LiveSource,
@@ -16,7 +11,6 @@ import { and, eq, isNull } from 'drizzle-orm';
 import {
   workspacesWireContract,
   type WorkspaceBootstrapProgress,
-  type WorkspaceBootstrapState,
   type WorkspaceCloneProvisionResult,
   type WorkspaceProvisionResult,
   type WorkspaceSliceError,
@@ -46,30 +40,23 @@ import type { OperationsEngine } from '@core/services/operations/node';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 
-type BootstrapKey = { workspaceId: string };
-type BootstrapState = Cell<WorkspaceBootstrapState>;
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
 
 export type WorkspacesWireTaskProvisioner = (
-  taskId: string
+  taskId: string,
+  signal?: AbortSignal
 ) => Promise<Result<WorkspaceProvisionResult, WorkspaceSliceError>>;
-
-export type WorkspacesWireTaskReadySubscription = (
-  handler: (taskId: string, result: WorkspaceProvisionResult) => void
-) => () => void;
-
-export type WorkspacesWireTaskProgressSubscription = (
-  handler: (progress: WorkspaceBootstrapProgress & { taskId: string }) => void
-) => () => void;
 
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
   getWorkspaceRuntimeClient(): Promise<WorkspaceRuntimeClient>;
   operations: OperationsEngine;
   provisionTask: WorkspacesWireTaskProvisioner;
-  onTaskProvisionProgress: WorkspacesWireTaskProgressSubscription;
-  onTaskWorkspaceReady: WorkspacesWireTaskReadySubscription;
+  reprovisionWorkspace(
+    workspaceId: string,
+    options?: { removeFirst?: boolean }
+  ): ReturnType<OperationsEngine['submit']>;
   runtimes: WorkspacesRuntimeBroker;
   workspaceIdentity: WorkspacesIdentityResolver;
 };
@@ -79,42 +66,19 @@ export type WorkspacesWireController = {
   dispose(): Promise<void>;
 };
 
-type ActiveProvisionJob = {
-  workspaceId: string;
-  progress(progress: WorkspaceBootstrapProgress): void;
-};
-
-type BootstrapProvider = {
-  provider: LeasedLiveModelProvider<typeof workspacesWireContract.bootstrap>;
-  publish(workspaceId: string, next: WorkspaceBootstrapState): void;
-  retain(workspaceId: string): () => void;
-  dispose(): Promise<void>;
-};
-
 export function createWorkspacesWireController(
   options: CreateWorkspacesWireControllerOptions
 ): WorkspacesWireController {
-  const bootstrap = createBootstrapProvider();
-  const activeProvisionJobs = new Map<string, ActiveProvisionJob>();
-  const unsubscribeProgress = options.onTaskProvisionProgress((progress) => {
-    void publishTaskProgress(options.db, activeProvisionJobs, bootstrap, progress.taskId, {
-      step: progress.step,
-      message: progress.message,
-      operation: progress.operation,
-    });
-  });
-  const unsubscribeReady = options.onTaskWorkspaceReady((taskId, result) => {
-    void publishTaskReady(options.db, bootstrap, taskId, result);
-  });
-
   return {
     impl: {
       runtime: createWorkspaceRuntimeProvider(options),
-      bootstrap: bootstrap.provider,
       provision: {
-        run: (input, ctx) => runProvisionJob(options, bootstrap, activeProvisionJobs, input, ctx),
+        run: (input, ctx) => runProvisionJob(options, input, ctx.signal),
         toError: unknownToWorkspaceError,
       },
+      reprovision: (input) => options.reprovisionWorkspace(input.workspaceId),
+      removeAndReprovision: (input) =>
+        options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
       provisionClone: {
         run: (input, ctx) => runProvisionCloneJob(options, input, ctx),
         toError: unknownToWorkspaceError,
@@ -146,12 +110,7 @@ export function createWorkspacesWireController(
       delete: (input) => enqueueDeleteWorkspace(options.operations, input.workspaceId),
       archive: (input) => enqueueArchiveWorkspace(options.operations, input),
     },
-    async dispose() {
-      unsubscribeProgress();
-      unsubscribeReady();
-      activeProvisionJobs.clear();
-      await bootstrap.dispose();
-    },
+    async dispose() {},
   };
 }
 
@@ -216,70 +175,19 @@ function mapWorkspaceResult(
   return ok({ ...data, workspaceId });
 }
 
-function createBootstrapProvider(): BootstrapProvider {
-  const states = family<BootstrapKey, BootstrapState>(
-    () => cell<WorkspaceBootstrapState>({ status: 'unprovisioned' }),
-    { name: 'workspace-bootstrap' }
-  );
-  const provider = expose(workspacesWireContract.bootstrap, {
-    state: (key, scope) => {
-      const release = states.retain(key);
-      scope.add(release);
-      return states(key);
-    },
-  });
-  return {
-    provider,
-    publish(workspaceId, next) {
-      states({ workspaceId }).set(next);
-    },
-    retain(workspaceId) {
-      return states.retain({ workspaceId });
-    },
-    async dispose() {
-      await provider.dispose();
-      await states.dispose();
-    },
-  };
-}
-
 async function runProvisionJob(
   options: CreateWorkspacesWireControllerOptions,
-  bootstrap: BootstrapProvider,
-  activeProvisionJobs: Map<string, ActiveProvisionJob>,
   input: { workspaceId: string; taskId?: string },
-  ctx: LiveJobContext<WorkspaceBootstrapProgress>
+  signal?: AbortSignal
 ): Promise<Result<WorkspaceProvisionResult, WorkspaceSliceError>> {
-  const releaseBootstrap = bootstrap.retain(input.workspaceId);
-  let taskId: string | undefined;
-  try {
-    taskId = input.taskId ?? (await resolveTaskIdForWorkspace(options.db, input.workspaceId));
-    if (!taskId) {
-      const error = workspaceError(
-        'missing-task',
-        `No task is linked to workspace ${input.workspaceId}`
-      );
-      bootstrap.publish(input.workspaceId, { status: 'error', error });
-      return { success: false, error };
-    }
-
-    activeProvisionJobs.set(taskId, {
-      workspaceId: input.workspaceId,
-      progress: ctx.progress,
-    });
-    bootstrap.publish(input.workspaceId, { status: 'provisioning' });
-
-    const result = await options.provisionTask(taskId);
-    if (!result.success) {
-      bootstrap.publish(input.workspaceId, { status: 'error', error: result.error });
-      return result;
-    }
-    bootstrap.publish(input.workspaceId, { status: 'ready', result: result.data });
-    return result;
-  } finally {
-    if (taskId) activeProvisionJobs.delete(taskId);
-    releaseBootstrap();
+  const taskId = input.taskId ?? (await resolveTaskIdForWorkspace(options.db, input.workspaceId));
+  if (!taskId) {
+    return {
+      success: false,
+      error: workspaceError('missing-task', `No task is linked to workspace ${input.workspaceId}`),
+    };
   }
+  return options.provisionTask(taskId, signal);
 }
 
 async function runProvisionCloneJob(
@@ -296,31 +204,6 @@ async function runProvisionCloneJob(
   });
 }
 
-async function publishTaskProgress(
-  db: AppDb,
-  activeProvisionJobs: Map<string, ActiveProvisionJob>,
-  bootstrap: BootstrapProvider,
-  taskId: string,
-  progress: WorkspaceBootstrapProgress
-): Promise<void> {
-  const active = activeProvisionJobs.get(taskId);
-  const workspaceId = active?.workspaceId ?? (await resolveWorkspaceIdForTask(db, taskId));
-  if (!workspaceId) return;
-  active?.progress(progress);
-  bootstrap.publish(workspaceId, { status: 'provisioning', progress });
-}
-
-async function publishTaskReady(
-  db: AppDb,
-  bootstrap: BootstrapProvider,
-  taskId: string,
-  result: WorkspaceProvisionResult
-): Promise<void> {
-  const workspaceId = result.workspaceId || (await resolveWorkspaceIdForTask(db, taskId));
-  if (!workspaceId) return;
-  bootstrap.publish(workspaceId, { status: 'ready', result });
-}
-
 async function resolveTaskIdForWorkspace(
   db: AppDb,
   workspaceId: string
@@ -331,15 +214,6 @@ async function resolveTaskIdForWorkspace(
     .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
     .limit(1);
   return row?.id;
-}
-
-async function resolveWorkspaceIdForTask(db: AppDb, taskId: string): Promise<string | undefined> {
-  const [row] = await db
-    .select({ workspaceId: tasks.workspaceId })
-    .from(tasks)
-    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
-    .limit(1);
-  return row?.workspaceId ?? undefined;
 }
 
 function workspaceError(type: string, message: string): WorkspacesRuntimeError {

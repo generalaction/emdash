@@ -1,14 +1,32 @@
+import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import { parseAbsolute } from '@emdash/core/primitives/path/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import type { ProvisionResult as SessionProvisionResult } from '@core/features/projects/api/node/project-provider';
+import { buildTaskFromWorkspace } from '@core/features/tasks/api/node/task-provider-assembly';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import { decideWorkspaceActivation } from '@core/features/tasks/api/node/workspace-activation-gate';
+import {
+  hostCreateWorktreeOperation,
+  hostReprovisionWorktreeOperation,
+} from '@core/features/workspaces/api/node/host-outbox-operations';
+import {
+  activateWorkspaceParticipants,
+  deactivateWorkspaceParticipants,
+  type WorkspaceLifecycleParticipant,
+} from '@core/features/workspaces/api/node/lifecycle-participants';
+import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
-import type {
-  WorkspaceBootstrapService,
-  WorkspaceBootstrapResult,
-} from '@core/features/workspaces/api/node/workspace-bootstrap-service';
+import { tryAcquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
+import { deriveBranchName } from '@core/features/workspaces/api/node/workspace-branch';
+import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
+import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type {
@@ -37,9 +55,13 @@ import { restoreTask } from '../../node/operations/restoreTask';
 import { setTaskPinned } from '../../node/operations/setTaskPinned';
 import { updateLinkedIssue } from '../../node/operations/updateLinkedIssue';
 import { updateTaskStatus } from '../../node/operations/updateTaskStatus';
-import type { TeardownTaskError } from '../../node/provision-task-error';
+import type { TeardownTaskError } from './task-session-manager';
 
 type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
+type ActivatedTask = SessionProvisionResult & {
+  path: string;
+  runtimeWorkspace: ReturnType<typeof hostFileRefFromNativePath>;
+};
 
 export type TaskLifecycleHooks = {
   'task:created': (task: Task, params: CreateTaskParams) => void | Promise<void>;
@@ -59,10 +81,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       db: AppDb;
       projects: Pick<ProjectSessionManager, 'getProject'>;
       sessions: TaskSessionManager;
-      workspaceBootstrap: WorkspaceBootstrapService;
-      workspaceIdentity: {
-        resolve(workspaceId: string): Promise<{ path: string } | null>;
-      };
+      workspacePlacement: WorkspacePlacementResolver;
+      runtimes: RuntimeBroker;
+      lifecycleParticipants: readonly WorkspaceLifecycleParticipant[];
+      createConversationProvider(options: TaskProviderOpts): ConversationProvider;
+      workspaceIdentity: WorkspaceIdentityService;
     }
   ) {}
 
@@ -78,6 +101,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       this.dependencies.db,
       this.dependencies.projects,
       operations,
+      this.dependencies.workspacePlacement,
       params
     );
     if (result.success) {
@@ -100,7 +124,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
    * can publish durable status to renderer replicas.
    */
   async provisionWorkspace(
-    taskId: string
+    operations: OperationsEngine,
+    taskId: string,
+    signal?: AbortSignal
   ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
     const [row] = await this.dependencies.db
       .select()
@@ -123,15 +149,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
-    const result = await this.dependencies.workspaceBootstrap.ensureWorkspaceSetupForTask(taskId);
+    const result = await this._activateWorkspace(operations, row, signal);
     if (!result.success) return err(result.error);
 
     await this._registerAndPersist(taskId, result.data);
 
     const provisionResult: ProvisionResult = {
       path: result.data.path,
-      workspaceId: result.data.workspaceId,
-      sshConnectionId: result.data.sshConnectionId,
+      workspaceId: result.data.persistData.workspaceId,
+      sshConnectionId: result.data.persistData.sshConnectionId,
     };
 
     this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
@@ -142,11 +168,139 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
    * Phases 1+2 combined: provisions workspace then session.
    * Used by the automation path which runs entirely in the main process.
    */
-  async launch(taskId: string): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
-    return this.provisionWorkspace(taskId);
+  async launch(
+    operations: OperationsEngine,
+    taskId: string
+  ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
+    return this.provisionWorkspace(operations, taskId);
   }
 
-  private async _registerAndPersist(taskId: string, data: WorkspaceBootstrapResult): Promise<void> {
+  private async _activateWorkspace(
+    operations: OperationsEngine,
+    taskRow: typeof tasks.$inferSelect,
+    signal?: AbortSignal
+  ): Promise<Result<ActivatedTask, ProvisionWorkspaceError>> {
+    if (!taskRow.workspaceId) return err({ type: 'missing-workspace' });
+    const registry = createWorkspaceRegistry(this.dependencies.db);
+    const workspaceRow = registry.getLive(taskRow.workspaceId);
+    if (!workspaceRow?.path) return err({ type: 'missing-workspace' });
+
+    const operation =
+      workspaceRow.observedStatus === 'present'
+        ? undefined
+        : (
+            await Promise.all([
+              operations.latestForWorkspace(hostCreateWorktreeOperation.name, workspaceRow.id),
+              operations.latestForWorkspace(hostReprovisionWorktreeOperation.name, workspaceRow.id),
+            ])
+          )
+            .filter((candidate) => candidate !== undefined)
+            .sort((left, right) => right.seq - left.seq)[0];
+    const decision = decideWorkspaceActivation({
+      observedStatus: workspaceRow.observedStatus,
+      createOperation: operation,
+    });
+    if (decision.kind === 'refuse') {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'activation-gate',
+        stepErrorType: decision.reason,
+        message: operation?.error?.message ?? `Workspace is ${decision.reason}`,
+      });
+    }
+    if (decision.kind === 'await-operation') {
+      const settled = await operations.waitForTerminal(decision.operationId, signal);
+      if (signal?.aborted) {
+        return err({ type: 'cancelled', message: 'Workspace activation was cancelled' });
+      }
+      if (settled?.status !== 'succeeded') {
+        return err({
+          type: 'setup-failed',
+          stepKind: 'activation-gate',
+          stepErrorType: settled?.status ?? 'operation-missing',
+          message: settled?.error?.message ?? 'Workspace creation did not complete',
+        });
+      }
+    }
+
+    const access = await tryAcquireWorkspaceRuntime(
+      this.dependencies.runtimes,
+      this.dependencies.workspaceIdentity,
+      workspaceRow.id
+    );
+    if (!access.success) return access;
+    if (!access.data) return err({ type: 'missing-workspace' });
+    const workspacePath = parseAbsolute(workspaceRow.path);
+    if (!workspacePath.success) {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'activation-gate',
+        stepErrorType: 'invalid-path',
+        message: workspacePath.error.message,
+      });
+    }
+    const initialized = await access.data.client.workspaceHost.initializeWorkspace(
+      {
+        workspacePath: workspacePath.data,
+      },
+      signal ? { signal } : undefined
+    );
+    if (!initialized.success) {
+      return err({
+        type: 'setup-failed',
+        stepKind: 'initialize-workspace',
+        stepErrorType: initialized.error.type,
+        message: initialized.error.message,
+      });
+    }
+
+    const task = mapTaskRowToTask(taskRow);
+    const project = this.dependencies.projects.getProject(task.projectId);
+    if (!project) return err({ type: 'missing-workspace' });
+    await activateWorkspaceParticipants(
+      this.dependencies.lifecycleParticipants,
+      access.data.identity
+    );
+    const built = await buildTaskFromWorkspace(
+      task,
+      {
+        id: workspaceRow.id,
+        host: access.data.identity.host,
+        path: workspaceRow.path,
+        configPath: project.configPathForDirectory(workspaceRow.path),
+        files: access.data.files,
+        settings: project.settings,
+        tuiAgents: access.data.client.tuiAgents,
+      },
+      project.projectId,
+      project.repoPath,
+      project.settings,
+      this.dependencies.createConversationProvider,
+      workspaceRow.branchName ??
+        (workspaceRow.config ? (deriveBranchName(workspaceRow.config.git) ?? undefined) : undefined)
+    );
+    if (!built.success) {
+      await deactivateWorkspaceParticipants(
+        this.dependencies.lifecycleParticipants,
+        access.data.identity
+      );
+      return built;
+    }
+    return ok({
+      path: workspaceRow.path,
+      runtimeWorkspace: hostFileRefFromNativePath(
+        workspaceRow.path,
+        sshConnectionIdOf(access.data.identity.host)
+      ),
+      taskProvider: built.data.taskProvider,
+      persistData: {
+        workspaceId: workspaceRow.id,
+        sshConnectionId: sshConnectionIdOf(access.data.identity.host),
+      },
+    });
+  }
+
+  private async _registerAndPersist(taskId: string, data: ActivatedTask): Promise<void> {
     const [row] = await this.dependencies.db
       .select()
       .from(tasks)
@@ -162,22 +316,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
     await this.dependencies.db
       .update(tasks)
-      .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: data.workspaceId })
+      .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: data.persistData.workspaceId })
       .where(eq(tasks.id, taskId));
     appDbPokes.tasks.poke({ projectId: task.projectId, taskId });
-
-    // BYOI: persist the provider data (remote workspace ID, connection details) returned by
-    // the provision script so it can be reused on the next session.
-    if (data.workspaceProviderData) {
-      createWorkspaceRegistry(this.dependencies.db).annotate(data.workspaceId, {
-        data: data.workspaceProviderData,
-      });
-      appDbPokes.workspaces.poke({
-        projectId: task.projectId,
-        taskId,
-        workspaceId: data.workspaceId,
-      });
-    }
   }
 
   async teardown(

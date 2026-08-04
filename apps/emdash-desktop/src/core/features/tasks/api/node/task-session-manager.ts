@@ -1,11 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import { hostRefKey, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import type {
-  DeactivateWorkspaceInput,
-  TeardownWorkspaceInput,
-} from '@emdash/core/runtimes/workspace/api';
-import { submitAndFollowWorkspaceOperation } from '@emdash/core/runtimes/workspace/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import {
   runtimeResolveErrorAsError,
@@ -18,30 +12,26 @@ import {
   type LifecycleRegistryStateChange,
 } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
-import { runWithTimeout } from '@emdash/shared/scheduling';
+import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import type {
   ProvisionResult,
   TaskProvider,
   WorkspaceProviderData,
 } from '@core/features/projects/api/node/project-provider';
 import { getTaskSessionLeafIds } from '@core/features/tasks/node/session-targets';
-import type { WorkspaceBootstrapResult } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { TaskBootstrapStatus } from '@core/primitives/tasks/api';
 import type { WorkspaceType as SharedWorkspaceType } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
-import {
-  formatProvisionTaskError,
-  formatTeardownTaskError,
-  TASK_TIMEOUT_MS,
-  toTeardownError,
-  type ProvisionTaskError,
-  type TeardownTaskError,
-} from '../../node/provision-task-error';
+
+const TASK_TIMEOUT_MS = 600_000;
+
+export type ProvisionTaskError = { type: 'error'; message: string };
+export type TeardownTaskError =
+  | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'error'; message: string };
 
 export type WorkspaceHint = {
   id: string;
@@ -54,7 +44,6 @@ type TeardownMode = 'detach' | 'terminate';
 type StoredTask = ProvisionResult & { projectId: string };
 type RuntimeStoredTask = StoredTask & {
   runtimeWorkspace?: HostFileRef;
-  automation?: WorkspaceBootstrapResult['postActivationAutomation'];
 };
 type TaskStartInput = { taskId: string; stored: RuntimeStoredTask };
 type TaskLifecycleState = LifecycleRegistryState<
@@ -108,12 +97,11 @@ export type TaskManagerHooks = {
 export type TaskTeardownMode = TeardownMode | 'archive';
 
 export async function executeTeardown(
-  dependencies: TaskSessionManagerDependencies,
+  _dependencies: TaskSessionManagerDependencies,
   task: TaskProvider,
-  workspaceId: string,
+  _workspaceId: string,
   mode: TaskTeardownMode,
-  runtimeWorkspace?: HostFileRef,
-  automation?: WorkspaceBootstrapResult['postActivationAutomation']
+  _runtimeWorkspace?: HostFileRef
 ): Promise<void> {
   if (mode === 'detach') {
     // Keep the tmux sessions and agent processes alive for a later remount.
@@ -122,15 +110,6 @@ export async function executeTeardown(
     // 'terminate' and 'archive' both reap the tmux sessions and agent processes.
     await task.conversations.destroyAll();
   }
-  await deactivateWorkspaceConsumer(
-    dependencies,
-    task.taskId,
-    workspaceId,
-    mode === 'detach' ? 'detach' : 'stop',
-    mode === 'terminate',
-    automation,
-    runtimeWorkspace
-  );
 }
 
 async function cleanupDetachedSessions(
@@ -158,69 +137,6 @@ async function cleanupDetachedSessions(
   if (sessionNames.length > 0) {
     await runtime.data.terminals.killTmuxSessions({ sessionNames });
   }
-}
-
-async function deactivateWorkspaceConsumer(
-  dependencies: TaskSessionManagerDependencies,
-  taskId: string,
-  workspaceId: string,
-  strategy: 'stop' | 'detach',
-  teardown: boolean,
-  automation?: WorkspaceBootstrapResult['postActivationAutomation'],
-  runtimeWorkspace?: HostFileRef
-): Promise<void> {
-  const identity = await dependencies.workspaceIdentity.resolve(workspaceId);
-  const workspace =
-    identity && hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
-  const target = workspace ?? runtimeWorkspace;
-  if (!target) return;
-  const runtime = await dependencies.runtimes.client(target.host);
-  if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-  await runWorkspaceDeactivateJob(runtime.data.workspace, {
-    workspace: target,
-    consumerId: taskId,
-    strategy,
-    automation: strategy === 'stop' ? automation : undefined,
-  });
-  const snapshot = await runtime.data.workspace.workspace
-    .state(target, 'state')
-    .asLiveSource()
-    .snapshot();
-  const hasConsumers =
-    ((snapshot.data as { consumers?: readonly unknown[] }).consumers?.length ?? 0) > 0;
-  if (hasConsumers) return;
-  if (identity) await dependencies.deactivateWorkspaceParticipants(identity);
-  if (teardown) {
-    await runWorkspaceTeardownJob(runtime.data.workspace, {
-      workspace: target,
-      force: false,
-      automation,
-    });
-  }
-}
-
-async function runWorkspaceDeactivateJob(
-  client: WorkspaceRuntimeClient,
-  input: DeactivateWorkspaceInput
-): Promise<void> {
-  await submitAndFollowWorkspaceOperation(client, {
-    requestId: randomUUID(),
-    kind: 'deactivate',
-    workspace: input.workspace,
-    params: { kind: 'deactivate', input },
-  });
-}
-
-async function runWorkspaceTeardownJob(
-  client: WorkspaceRuntimeClient,
-  input: TeardownWorkspaceInput
-): Promise<void> {
-  await submitAndFollowWorkspaceOperation(client, {
-    requestId: randomUUID(),
-    kind: 'teardown',
-    workspace: input.workspace,
-    params: { kind: 'teardown', input },
-  });
 }
 
 export class TaskSessionManager {
@@ -254,18 +170,17 @@ export class TaskSessionManager {
    */
   async registerTask(
     taskId: string,
-    result: WorkspaceBootstrapResult,
+    result: ProvisionResult & { runtimeWorkspace?: HostFileRef },
     projectId: string
   ): Promise<void> {
     const stored: RuntimeStoredTask = {
       taskProvider: result.taskProvider,
       runtimeWorkspace: result.runtimeWorkspace,
-      automation: result.postActivationAutomation,
       persistData: {
-        workspaceId: result.workspaceId,
-        sshConnectionId: result.sshConnectionId,
-        worktreeGitDir: result.worktreeGitDir,
-        workspaceProviderData: result.workspaceProviderData as WorkspaceProviderData | undefined,
+        ...result.persistData,
+        workspaceProviderData: result.persistData.workspaceProviderData as
+          | WorkspaceProviderData
+          | undefined,
       },
       projectId,
     };
@@ -280,8 +195,8 @@ export class TaskSessionManager {
       projectId,
       taskId,
       branchName: result.taskProvider.taskBranch,
-      workspaceId: result.workspaceId,
-      worktreeGitDir: result.worktreeGitDir,
+      workspaceId: result.persistData.workspaceId,
+      worktreeGitDir: result.persistData.worktreeGitDir,
     });
   }
 
@@ -299,6 +214,30 @@ export class TaskSessionManager {
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
     const taskIds = Array.from(this._tasksByProject.get(projectId) ?? []);
     await Promise.all(taskIds.map((id) => this.teardownTask(id, mode)));
+  }
+
+  async destroySessionsAt(hostRef: SerializedHostRef, workspacePath: string): Promise<void> {
+    const taskIds = [...this._tasksByProject.values()].flatMap((ids) => [...ids]);
+    let matchedIdentity: WorkspaceIdentity | undefined;
+    for (const taskId of taskIds) {
+      const stored = this._lifecycle.get(taskId);
+      if (!stored) continue;
+      const identity = await this.dependencies.workspaceIdentity.resolve(
+        stored.persistData.workspaceId
+      );
+      if (identity?.path !== workspacePath || hostRefKey(identity.host) !== hostRef) continue;
+      matchedIdentity = identity;
+      await stored.taskProvider.conversations.destroyAll().catch((error) => {
+        log.warn('TaskManager: failed to destroy sessions before workspace operation', {
+          taskId,
+          error: String(error),
+        });
+      });
+      await this._lifecycle.forceRemove(taskId, 'workspace operation');
+    }
+    if (matchedIdentity) {
+      await this.dependencies.deactivateWorkspaceParticipants(matchedIdentity);
+    }
   }
 
   getTask(taskId: string): TaskProvider | undefined {
@@ -323,7 +262,7 @@ export class TaskSessionManager {
       case 'starting':
         return { status: 'bootstrapping' };
       case 'start-failed':
-        return { status: 'error', message: formatProvisionTaskError(state.error) };
+        return { status: 'error', message: state.error.message };
       case 'idle':
       case 'disposed':
         return { status: 'not-started' };
@@ -336,7 +275,7 @@ export class TaskSessionManager {
       case 'stopping':
         return { status: 'bootstrapping' };
       case 'stop-failed':
-        return { status: 'error', message: formatTeardownTaskError(state.error) };
+        return { status: 'error', message: state.error.message };
       case 'idle':
       case 'starting':
       case 'ready':
@@ -348,20 +287,27 @@ export class TaskSessionManager {
 
   private async stopTask(
     taskId: string,
-    { taskProvider, persistData, projectId, runtimeWorkspace, automation }: RuntimeStoredTask,
+    { taskProvider, persistData, projectId, runtimeWorkspace }: RuntimeStoredTask,
     mode: TaskTeardownMode
   ): Promise<Result<void, TeardownTaskError>> {
     try {
       await runWithTimeout(
-        () =>
-          executeTeardown(
+        async () => {
+          await executeTeardown(
             this.dependencies,
             taskProvider,
             persistData.workspaceId,
             mode,
-            runtimeWorkspace,
-            automation
-          ),
+            runtimeWorkspace
+          );
+          this.removeTaskFromProjectIndex(projectId, taskId);
+          if (!this.hasOtherTaskForWorkspace(taskId, persistData.workspaceId)) {
+            const identity = await this.dependencies.workspaceIdentity.resolve(
+              persistData.workspaceId
+            );
+            if (identity) await this.dependencies.deactivateWorkspaceParticipants(identity);
+          }
+        },
         {
           timeoutMs: TASK_TIMEOUT_MS,
         }
@@ -381,23 +327,43 @@ export class TaskSessionManager {
           error: String(cleanupError),
         });
       });
-      return { success: false as const, error: toTeardownError(e) };
+      return {
+        success: false as const,
+        error:
+          e instanceof TimeoutError
+            ? { type: 'timeout', message: e.message, timeout: e.durationMs }
+            : { type: 'error', message: e instanceof Error ? e.message : String(e) },
+      };
     }
+  }
+
+  private hasOtherTaskForWorkspace(taskId: string, workspaceId: string): boolean {
+    for (const taskIds of this._tasksByProject.values()) {
+      for (const candidateId of taskIds) {
+        if (candidateId === taskId) continue;
+        if (this._lifecycle.get(candidateId)?.persistData.workspaceId === workspaceId) return true;
+      }
+    }
+    return false;
   }
 
   private handleLifecycleStateChanged(change: TaskLifecycleStateChange): void {
     const stored = taskFromState(change.previous);
     if (!stored || !isRemovedState(change.current)) return;
 
-    const byProject = this._tasksByProject.get(stored.projectId);
-    byProject?.delete(change.key);
-    if (byProject?.size === 0) this._tasksByProject.delete(stored.projectId);
+    this.removeTaskFromProjectIndex(stored.projectId, change.key);
 
     this._hooks.callHookBackground('task:torn-down', {
       projectId: stored.projectId,
       taskId: change.key,
       workspaceId: stored.persistData.workspaceId,
     });
+  }
+
+  private removeTaskFromProjectIndex(projectId: string, taskId: string): void {
+    const byProject = this._tasksByProject.get(projectId);
+    byProject?.delete(taskId);
+    if (byProject?.size === 0) this._tasksByProject.delete(projectId);
   }
 }
 

@@ -1,16 +1,10 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LeasedLiveModelProvider, LiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { describe, expect, it, vi } from 'vitest';
 import type { workspacesWireContract } from '../api';
 import type { WorkspacesIdentityResolver, WorkspacesRuntimeBroker } from '../api/runtime-adapter';
 import { createWorkspacesWireController } from './wire-controller';
-
-vi.mock('@core/features/tasks/node/task-provision-events', () => ({
-  taskProvisionEvents: {
-    on: vi.fn(() => () => {}),
-  },
-}));
 
 vi.mock('@core/features/workspaces/api/node/workspace-bootstrap-service', () => ({
   runCloneRepositoryProvision: vi.fn(),
@@ -37,8 +31,7 @@ describe('createWorkspacesWireController', () => {
       getWorkspaceRuntimeClient: vi.fn(),
       operations: {} as never,
       provisionTask: vi.fn(),
-      onTaskProvisionProgress: () => () => {},
-      onTaskWorkspaceReady: () => () => {},
+      reprovisionWorkspace: vi.fn(),
       runtimes: { client } as unknown as WorkspacesRuntimeBroker,
       workspaceIdentity: {
         resolve,
@@ -72,8 +65,7 @@ describe('createWorkspacesWireController', () => {
       getWorkspaceRuntimeClient: vi.fn(),
       operations: {} as never,
       provisionTask: vi.fn(),
-      onTaskProvisionProgress: () => () => {},
-      onTaskWorkspaceReady: () => () => {},
+      reprovisionWorkspace: vi.fn(),
       runtimes: {
         client: async () => err(resolveError),
       } as unknown as WorkspacesRuntimeBroker,
@@ -95,7 +87,7 @@ describe('createWorkspacesWireController', () => {
     await controller.dispose();
   });
 
-  it('publishes bootstrap state through the exposed provider', async () => {
+  it('activates a task without publishing a bootstrap model', async () => {
     const provisionTask = vi.fn(async () =>
       ok({
         workspaceId: 'workspace-1',
@@ -107,23 +99,13 @@ describe('createWorkspacesWireController', () => {
       getWorkspaceRuntimeClient: vi.fn(),
       operations: {} as never,
       provisionTask,
-      onTaskProvisionProgress: () => () => {},
-      onTaskWorkspaceReady: () => () => {},
+      reprovisionWorkspace: vi.fn(),
       runtimes: { client: vi.fn() } as unknown as WorkspacesRuntimeBroker,
       workspaceIdentity: {
         resolve: vi.fn(),
         resolveProject: vi.fn(),
         findByPath: vi.fn(),
       } as WorkspacesIdentityResolver,
-    });
-
-    const bootstrap = controller.impl.bootstrap as LeasedLiveModelProvider<
-      typeof workspacesWireContract.bootstrap
-    >;
-    const lease = bootstrap.acquireState({ workspaceId: 'workspace-1' }, 'state');
-    const source = await lease.ready();
-    expect(await source.snapshot()).toMatchObject({
-      data: { status: 'unprovisioned' },
     });
 
     await expect(
@@ -145,17 +127,7 @@ describe('createWorkspacesWireController', () => {
       })
     );
 
-    expect(await source.snapshot()).toMatchObject({
-      data: {
-        status: 'ready',
-        result: {
-          workspaceId: 'workspace-1',
-          path: '/repo/worktree',
-        },
-      },
-    });
-
-    await lease.release();
+    expect(provisionTask).toHaveBeenCalledWith('task-1', expect.any(AbortSignal));
     await controller.dispose();
   });
 });

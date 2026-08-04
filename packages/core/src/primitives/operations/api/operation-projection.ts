@@ -18,6 +18,7 @@ import { rollupStatus, type OperationTree, type OperationTreeList } from './oper
 export type ParsedOperationProjection = {
   displayName: string;
   entityKind: OperationEntityKind;
+  entityId?: string;
   projectId?: string;
   entityName?: string;
   hostRef: string;
@@ -89,7 +90,7 @@ export function projectOperationDisplay(
     operationId: record.id,
     operationKind: record.name,
     displayName: parsed?.displayName ?? record.name,
-    entityId: record.key,
+    entityId: parsed?.entityId ?? record.key,
     entityKind: parsed?.entityKind ?? ('project' as const),
     projectId: parsed?.projectId,
     entityName: parsed?.entityName,

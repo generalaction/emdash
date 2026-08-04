@@ -1,4 +1,4 @@
-import { deriveBranchName } from '@core/features/tasks/api/node/resolve-workspace-intent';
+import type { GitSetup } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceKind } from '@core/primitives/workspaces/api';
 
@@ -7,6 +7,18 @@ type WorkspaceBranchRow = {
   branchName?: string | null;
   config?: WorkspaceConfig | null;
 };
+
+export function deriveBranchName(git: GitSetup): string | null {
+  switch (git.kind) {
+    case 'none':
+      return null;
+    case 'use-branch':
+    case 'create-branch':
+      return git.branchName;
+    case 'pr-branch':
+      return git.taskBranch ?? git.headBranch;
+  }
+}
 
 export function getProvisionedWorkspaceBranch(workspace: WorkspaceBranchRow): string | null {
   if (workspace.kind === 'project-root' || workspace.kind === 'repository') return null;

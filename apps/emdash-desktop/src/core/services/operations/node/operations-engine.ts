@@ -318,6 +318,31 @@ export class OperationsEngine {
     return active.records.some((record) => claimsCollide(claims, record.claims));
   }
 
+  async latestForWorkspace(
+    operationName: string,
+    workspaceId: string
+  ): Promise<OperationRecord | undefined> {
+    const page = await this.kernel.query({ name: [operationName], limit: 500 });
+    return page.records
+      .filter((record) => {
+        const parsed = this.parseRecord(record);
+        return parsed && (parsed.input as { workspaceId?: string }).workspaceId === workspaceId;
+      })
+      .sort((left, right) => right.seq - left.seq)[0];
+  }
+
+  async waitForTerminal(
+    operationId: string,
+    signal?: AbortSignal
+  ): Promise<OperationRecord | undefined> {
+    for (;;) {
+      if (signal?.aborted) return undefined;
+      const record = await this.kernel.get(operationId);
+      if (!record || isTerminalStatus(record.status)) return record;
+      await this.clock.sleep(WAIT_FOR_IDLE_POLL_MS);
+    }
+  }
+
   async shutdown(): Promise<void> {
     await this.kernel.shutdown();
     this.store.close();
@@ -416,6 +441,11 @@ export class OperationsEngine {
       parsedInputs.set(record.id, {
         displayName: descriptor.displayName,
         entityKind: descriptor.entityKind,
+        entityId:
+          operationInput.workspaceId ??
+          operationInput.taskId ??
+          operationInput.projectId ??
+          record.key,
         projectId: operationInput.projectId ?? undefined,
         entityName: operationInput.entityName,
         hostRef: operationInput.hostRef,

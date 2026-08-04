@@ -42,29 +42,6 @@ export const workspaceCloneProvisionResultSchema = z.object({
 
 export const workspaceSliceErrorSchema = z.union([runtimeResolveErrorSchema, workspaceErrorSchema]);
 
-export const workspaceBootstrapStateSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('unprovisioned'),
-  }),
-  z.object({
-    status: z.literal('provisioning'),
-    progress: workspaceBootstrapProgressSchema.optional(),
-  }),
-  z.object({
-    status: z.literal('ready'),
-    result: workspaceProvisionResultSchema,
-  }),
-  z.object({
-    status: z.literal('error'),
-    progress: workspaceBootstrapProgressSchema.optional(),
-    error: workspaceSliceErrorSchema,
-  }),
-]);
-
-export const workspaceBootstrapKeySchema = z.object({
-  workspaceId: z.string(),
-});
-
 export const provisionWorkspaceByIdInputSchema = z.object({
   workspaceId: z.string(),
   taskId: z.string().optional(),
@@ -126,17 +103,21 @@ export const workspacesWireContract = defineContract({
       state: liveState({ data: workspaceRuntimeStateSchema }),
     },
   }),
-  bootstrap: liveModel({
-    key: workspaceBootstrapKeySchema,
-    states: {
-      state: liveState({ data: workspaceBootstrapStateSchema }),
-    },
-  }),
   provision: liveJob({
     input: provisionWorkspaceByIdInputSchema,
     progress: workspaceBootstrapProgressSchema,
     result: workspaceProvisionResultSchema,
     error: workspaceSliceErrorSchema,
+  }),
+  reprovision: fallible({
+    input: workspaceIdInputSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
+  }),
+  removeAndReprovision: fallible({
+    input: workspaceIdInputSchema,
+    data: operationMutationResultSchema,
+    error: operationMutationErrorSchema,
   }),
   provisionClone: liveJob({
     input: provisionCloneWorkspaceInputSchema,
@@ -170,7 +151,6 @@ export type WorkspaceBootstrapStep = z.infer<typeof workspaceBootstrapStepSchema
 export type WorkspaceBootstrapProgress = z.infer<typeof workspaceBootstrapProgressSchema>;
 export type WorkspaceProvisionResult = z.infer<typeof workspaceProvisionResultSchema>;
 export type WorkspaceCloneProvisionResult = z.infer<typeof workspaceCloneProvisionResultSchema>;
-export type WorkspaceBootstrapState = z.infer<typeof workspaceBootstrapStateSchema>;
 export type WorkspaceRuntimeState = z.infer<typeof workspaceRuntimeStateSchema>;
 export type WorkspaceSliceError = z.infer<typeof workspaceSliceErrorSchema>;
 export type WorkspacesWireContract = typeof workspacesWireContract;

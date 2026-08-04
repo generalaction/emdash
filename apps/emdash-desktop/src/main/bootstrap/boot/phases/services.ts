@@ -59,17 +59,16 @@ import type { DeleteTaskOperationDependencies } from '@core/features/tasks/node/
 import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
 import { installTaskTelemetry } from '@core/features/telemetry/node/task-telemetry';
 import { desktopHostEvents } from '@core/features/workbench/node/event-host';
-import { deactivateWorkspaceConsumers } from '@core/features/workspaces/api/node/operations/lifecycle-cleanup';
+import {
+  createWorkspaceLifecycleParticipants,
+  deactivateWorkspaceParticipants,
+} from '@core/features/workspaces/api/node/lifecycle-participants';
 import {
   loadProjectWorktreeDirectory,
   WorkspacePlacementResolver,
 } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
-import { WorkspaceBootstrapService } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
-import {
-  createWorkspaceLifecycleParticipants,
-  deactivateWorkspaceParticipants,
-} from '@core/features/workspaces/node/lifecycle-participants';
+import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { SnapshotRequester } from '@core/features/workspaces/node/sync/snapshot-requester';
 import { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
@@ -150,7 +149,6 @@ export type ServicesBundle = {
   readonly search: ReturnType<typeof createSearchService>;
   readonly taskService: TaskService;
   readonly taskSessions: TaskSessionManager;
-  readonly workspaceBootstrap: WorkspaceBootstrapService;
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
 };
@@ -166,7 +164,6 @@ export async function bootServices(
   const getPullRequestsRuntimeClient = async () => clients.pullRequests;
   const getTerminalsRuntimeClient = async () => clients.terminals;
   const getTuiAgentsRuntimeClient = async () => clients.tuiAgents;
-  const getWorkspaceRuntimeClient = async () => clients.workspace;
   previewServerService.attachSshRuntime({
     getConnectionState: (connectionId) =>
       infrastructure.ssh.manager.getConnectionState(connectionId),
@@ -250,42 +247,35 @@ export async function bootServices(
     backfillGitHubAccount: async (provider) => {
       await githubAccountBackfill.backfillProject(provider);
     },
-    workspacePlacement,
   });
   const projectSettingsService = new ProjectSettingsService({
     db,
     projects: projectManager,
     workspaceIdentity,
   });
-  const workspaceBootstrapService = new WorkspaceBootstrapService({
-    db,
-    createConversationProvider: (options) =>
-      new TuiConversationProvider(
-        {
-          projectId: options.projectId,
-          taskId: options.taskId,
-          taskPath: options.taskPath,
-          host: options.host,
-          files: options.files,
-          tuiAgents: options.tuiAgents,
-          tmux: options.tmuxEnabled,
-          shellSetup: options.shellSetup,
-          taskEnvVars: options.taskEnvVars,
-        },
-        tuiConversationDependencies
-      ),
-    getWorkspaceRuntimeClient,
-    lifecycleParticipants,
-    placement: workspacePlacement,
-    projects: projectManager,
-    runtimes,
-    workspaceIdentity,
-  });
+  const createConversationProvider = (options: TaskProviderOpts) =>
+    new TuiConversationProvider(
+      {
+        projectId: options.projectId,
+        taskId: options.taskId,
+        taskPath: options.taskPath,
+        host: options.host,
+        files: options.files,
+        tuiAgents: options.tuiAgents,
+        tmux: options.tmuxEnabled,
+        shellSetup: options.shellSetup,
+        taskEnvVars: options.taskEnvVars,
+      },
+      tuiConversationDependencies
+    );
   const taskService = new TaskService({
     db,
     projects: projectManager,
     sessions: taskSessionManager,
-    workspaceBootstrap: workspaceBootstrapService,
+    workspacePlacement,
+    runtimes,
+    lifecycleParticipants,
+    createConversationProvider,
     workspaceIdentity,
   });
   const searchService = createSearchService({
@@ -504,7 +494,6 @@ export async function bootServices(
   };
   const lifecycleContext = {
     projects: projectManager,
-    workspaceBootstrap: workspaceBootstrapService,
   };
   const lifecycleSessions: DeleteTaskOperationDependencies['sessionCleanup'] = {
     resolve: (database, operation, context) =>
@@ -549,12 +538,9 @@ export async function bootServices(
     },
     hostOutbox: {
       runtimes,
-      deactivateWorkspace: (input, options) =>
-        deactivateWorkspaceConsumers(
-          { runtimes },
-          { ...input, initiatedBy: desktopClientId },
-          options
-        ),
+      deactivateWorkspace: async (input) => {
+        await taskSessionManager.destroySessionsAt(input.hostRef, input.workspacePath);
+      },
     },
   });
   const operations = await createOperationsEngine({
@@ -629,7 +615,6 @@ export async function bootServices(
     search: searchService,
     taskService,
     taskSessions: taskSessionManager,
-    workspaceBootstrap: workspaceBootstrapService,
     workspacePlacement,
     workspaceSnapshotSync,
   };
