@@ -149,6 +149,8 @@ export const createWorktreeInputV1Schema = workspaceHostOperationInputBaseSchema
   branchName: z.string().min(1),
   startPoint: z.string().min(1).optional(),
   fetch: z.boolean().optional(),
+  /** When set, push the branch to this remote with upstream tracking after creation. */
+  pushRemote: z.string().min(1).optional(),
   preservePatterns: z.array(z.string()).default([]),
 });
 export type CreateWorktreeInput = z.infer<typeof createWorktreeInputV1Schema>;

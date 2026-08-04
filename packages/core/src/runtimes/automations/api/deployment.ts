@@ -1,13 +1,60 @@
+import { hostAbsolutePathSchema, hostFileRefSchema } from '@primitives/path/api';
 import {
   acpSessionStartInputSchema,
   tuiSessionStartInputSchema,
 } from '@services/session-start/api';
-import { workspaceProvisioningConfigSchema } from '@services/workspace-provisioning/api';
 import { z } from 'zod';
 
 const nonBlankStringSchema = z.string().trim().min(1);
 
 export const automationIdSchema = z.string().min(1);
+
+export const automationGitRemoteSchema = z.object({
+  name: nonBlankStringSchema,
+  url: nonBlankStringSchema,
+});
+
+export const automationGitBranchRefSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('local'),
+    branch: nonBlankStringSchema,
+    remote: automationGitRemoteSchema.optional(),
+  }),
+  z.object({
+    type: z.literal('remote'),
+    branch: nonBlankStringSchema,
+    remote: automationGitRemoteSchema,
+  }),
+]);
+
+export const automationWorktreeConfigSchema = z.object({
+  kind: z.literal('worktree'),
+  repository: hostFileRefSchema,
+  worktreePoolPath: hostAbsolutePathSchema,
+  baseRemote: nonBlankStringSchema,
+  preservePatterns: z.array(nonBlankStringSchema),
+  git: z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('create-branch'),
+      fromBranch: automationGitBranchRefSchema,
+      pushRemote: nonBlankStringSchema.nullable(),
+    }),
+    z.object({
+      kind: z.literal('use-branch'),
+      branchName: nonBlankStringSchema,
+    }),
+  ]),
+});
+
+export const automationDirectoryConfigSchema = z.object({
+  kind: z.literal('directory'),
+  path: hostFileRefSchema,
+});
+
+export const automationWorkspaceConfigSchema = z.discriminatedUnion('kind', [
+  automationWorktreeConfigSchema,
+  automationDirectoryConfigSchema,
+]);
 
 export const automationScheduleSchema = z.object({
   expr: z.string().trim().min(1),
@@ -48,7 +95,7 @@ export const automationDeploymentSchema = z.object({
   name: nonBlankStringSchema,
   schedule: automationScheduleSchema,
   agent: automationAgentConfigSchema,
-  workspace: workspaceProvisioningConfigSchema,
+  workspace: automationWorkspaceConfigSchema,
 });
 
 export const automationRunConfigSnapshotSchema = automationDeploymentSchema.pick({
@@ -59,6 +106,11 @@ export const automationRunConfigSnapshotSchema = automationDeploymentSchema.pick
 });
 
 export type AutomationId = z.infer<typeof automationIdSchema>;
+export type AutomationGitRemote = z.infer<typeof automationGitRemoteSchema>;
+export type AutomationGitBranchRef = z.infer<typeof automationGitBranchRefSchema>;
+export type AutomationWorktreeConfig = z.infer<typeof automationWorktreeConfigSchema>;
+export type AutomationDirectoryConfig = z.infer<typeof automationDirectoryConfigSchema>;
+export type AutomationWorkspaceConfig = z.infer<typeof automationWorkspaceConfigSchema>;
 export type AutomationSchedule = z.infer<typeof automationScheduleSchema>;
 export type AutomationAcpAgentConfig = z.infer<typeof automationAcpAgentConfigSchema>;
 export type AutomationTuiAgentConfig = z.infer<typeof automationTuiAgentConfigSchema>;

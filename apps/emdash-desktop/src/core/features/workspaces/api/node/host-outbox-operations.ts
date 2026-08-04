@@ -64,6 +64,8 @@ const hostCreateWorktreeInputSchema = defineVersionedSchema()
       branchName: z.string().min(1),
       startPoint: z.string().optional(),
       fetch: z.boolean().optional(),
+      /** When set, the host pushes the branch to this remote with upstream tracking. */
+      pushRemote: z.string().min(1).optional(),
       preservePatterns: z.array(z.string()).default([]),
     })
   )

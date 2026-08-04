@@ -35,6 +35,7 @@ export type CreateWorktreeStagePlanContext = {
   workspacePath: string;
   fetch: boolean;
   existing: boolean;
+  pushRemote?: string;
   preservePatterns: readonly string[];
 };
 type CreateWorktreeStageExecutor =
@@ -42,7 +43,8 @@ type CreateWorktreeStageExecutor =
   | 'fetch'
   | 'add-worktree'
   | 'verify'
-  | 'copy-preserved-files';
+  | 'copy-preserved-files'
+  | 'push-branch';
 
 export const createWorktreeStagePlan = defineOperationStagePlan<
   CreateWorktreeStagePlanContext,
@@ -87,6 +89,22 @@ export const createWorktreeStagePlan = defineOperationStagePlan<
               label: 'Copy preserved files',
               targetPath: context.workspacePath,
               executor: 'copy-preserved-files' as const,
+            },
+          ]
+        : [],
+  },
+  {
+    // Runs even when the worktree already existed: a retry after a failed
+    // push must still publish the branch, and re-pushing is a no-op.
+    kind: 'expansion',
+    id: 'push-branch',
+    expand: (context) =>
+      context.pushRemote
+        ? [
+            {
+              id: 'push-branch',
+              label: 'Push branch to remote',
+              executor: 'push-branch' as const,
             },
           ]
         : [],

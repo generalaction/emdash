@@ -130,7 +130,10 @@ describe('createTask', () => {
       project: { id: 'project-1', path: '/repo', workspaceProvider: 'local' },
       repoPath: '/repo',
       host: hostRef('local', 'local'),
-      settings: { get: vi.fn(async () => ({ preservePatterns: ['.env'] })) },
+      settings: {
+        get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
+        getPushRemote: vi.fn(async () => 'origin'),
+      },
     });
     mocks.hasClaimConflict.mockResolvedValue(false);
     mocks.hostIsReachable.mockReturnValue(true);
@@ -286,8 +289,34 @@ describe('createTask', () => {
           workspacePath: wsInsert.path,
           branchName: 'feature/test',
           startPoint: 'main',
+          pushRemote: 'origin',
           preservePatterns: ['.env'],
         }),
+        expect.any(Object)
+      );
+    });
+
+    it('does not request a push when pushBranch is not set', async () => {
+      setupTransactionMock();
+
+      await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/no-push',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(mocks.submitWithTombstone).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ pushRemote: undefined }),
         expect.any(Object)
       );
     });

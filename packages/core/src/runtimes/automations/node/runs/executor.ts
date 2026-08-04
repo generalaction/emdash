@@ -23,6 +23,7 @@ export function createAutomationRunExecutor(
     const provisionResult = await workspacePort.provision({
       workspace: run.configSnapshot.workspace,
       generatedName: run.generatedName,
+      runId: run.id,
       signal,
     });
 

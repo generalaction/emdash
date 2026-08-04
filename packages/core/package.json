@@ -197,6 +197,10 @@
       "types": "./dist/services-script-workflows-api.d.mts",
       "default": "./dist/services-script-workflows-api.mjs"
     },
+    "./services/workspace-host-actions/api": {
+      "types": "./dist/services-workspace-host-actions-api.d.mts",
+      "default": "./dist/services-workspace-host-actions-api.mjs"
+    },
     "./services/fs-watch/node": {
       "types": "./dist/services-fs-watch-node.d.mts",
       "default": "./dist/services-fs-watch-node.mjs"

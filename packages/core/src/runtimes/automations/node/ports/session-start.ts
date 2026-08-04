@@ -2,6 +2,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/api';
 import { formatAbsolute, type HostFileRef } from '@primitives/path/api';
 import type { AcpSessionStartContract, TuiSessionStartContract } from '@services/session-start/api';
+import type { WorkspaceHostActionsContract } from '@services/workspace-host-actions/api';
 import type { AutomationAgentConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
 
@@ -18,6 +19,7 @@ export interface AutomationSessionPort {
 }
 
 export function createSessionPortFromDependencies(dependencies: {
+  workspaceHost: ContractClient<WorkspaceHostActionsContract>;
   acp: ContractClient<AcpSessionStartContract>;
   tui: ContractClient<TuiSessionStartContract>;
 }): AutomationSessionPort {
@@ -28,6 +30,17 @@ export function createSessionPortFromDependencies(dependencies: {
       });
 
       try {
+        // Session-plane init runs start → prepare → activate before any agent
+        // touches the worktree. A failed prepare script is non-fatal (the host
+        // surfaces it through workspace notices); only an initialization error
+        // blocks the session.
+        const initialized = await dependencies.workspaceHost.initializeWorkspace(
+          { workspacePath: input.cwd.path },
+          { signal: input.signal }
+        );
+        if (!initialized.success) {
+          return err({ code: initialized.error.type, message: initialized.error.message });
+        }
         if (input.agent.type === 'acp') {
           const result = await dependencies.acp.startSession(
             {

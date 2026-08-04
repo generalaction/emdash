@@ -36,7 +36,42 @@ describe('createCreateWorktreeHandler idempotency', () => {
   });
 });
 
-function context(): HandlerContext<CreateWorktreeInput, WorkspaceHostError> {
+describe('createCreateWorktreeHandler push', () => {
+  it('pushes the branch with upstream tracking when pushRemote is set', async () => {
+    const exec = fakeExecFactory('feature/task', { worktreeExists: false });
+    const handler = createCreateWorktreeHandler({
+      sessions: {} as never,
+      createGitExec: exec.factory,
+    });
+
+    await expect(handler.run(context({ pushRemote: 'origin' }))).resolves.toEqual({
+      operationId: 'operation-1',
+      changed: true,
+    });
+    expect(exec.repoExec).toHaveBeenCalledWith(
+      ['push', '-u', 'origin', 'feature/task'],
+      expect.anything()
+    );
+  });
+
+  it('does not push when pushRemote is absent', async () => {
+    const exec = fakeExecFactory('feature/task', { worktreeExists: false });
+    const handler = createCreateWorktreeHandler({
+      sessions: {} as never,
+      createGitExec: exec.factory,
+    });
+
+    await handler.run(context());
+    expect(exec.repoExec).not.toHaveBeenCalledWith(
+      expect.arrayContaining(['push']),
+      expect.anything()
+    );
+  });
+});
+
+function context(
+  overrides: Partial<CreateWorktreeInput> = {}
+): HandlerContext<CreateWorktreeInput, WorkspaceHostError> {
   const input: CreateWorktreeInput = {
     version: '1',
     operationId: 'operation-1',
@@ -45,6 +80,7 @@ function context(): HandlerContext<CreateWorktreeInput, WorkspaceHostError> {
     worktreePath: absolute('/worktrees/task'),
     branchName: 'feature/task',
     preservePatterns: [],
+    ...overrides,
   };
   const signal = new AbortController().signal;
   return {
@@ -67,15 +103,25 @@ function context(): HandlerContext<CreateWorktreeInput, WorkspaceHostError> {
   } as never;
 }
 
-function fakeExecFactory(branch: string) {
+function fakeExecFactory(branch: string, options: { worktreeExists?: boolean } = {}) {
+  let worktreeExists = options.worktreeExists ?? true;
   const repoExec = vi.fn(async (args: string[]) => {
+    if (args[0] === 'worktree' && args[1] === 'add') {
+      worktreeExists = true;
+      return { stdout: '', stderr: '' };
+    }
     if (args.join(' ') === 'worktree list --porcelain') {
       return {
         stdout:
           'worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n' +
-          'worktree /worktrees/task\nHEAD def\nbranch refs/heads/feature/task\n\n',
+          (worktreeExists
+            ? 'worktree /worktrees/task\nHEAD def\nbranch refs/heads/feature/task\n\n'
+            : ''),
         stderr: '',
       };
+    }
+    if (args[0] === 'show-ref') {
+      throw new Error('branch does not exist');
     }
     return { stdout: '', stderr: '' };
   });

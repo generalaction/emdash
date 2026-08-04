@@ -41,6 +41,7 @@ export function createCreateWorktreeHandler(deps: CreateWorktreeHandlerDeps) {
       workspacePath: worktreePath,
       fetch: ctx.input.fetch ?? false,
       existing: false,
+      pushRemote: ctx.input.pushRemote,
       preservePatterns: ctx.input.preservePatterns,
     };
     await executeStagePlan(ctx, createWorktreeStagePlan, planContext, {
@@ -95,6 +96,12 @@ export function createCreateWorktreeHandler(deps: CreateWorktreeHandlerDeps) {
           signal: ctx.signal,
         });
         if (warnings.length > 0) stageContext.fail(warnings.join('\n'));
+      },
+      'push-branch': async () => {
+        if (!ctx.input.pushRemote) return;
+        await exec.exec(['push', '-u', ctx.input.pushRemote, ctx.input.branchName], {
+          signal: ctx.signal,
+        });
       },
     });
 

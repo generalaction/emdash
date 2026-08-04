@@ -1,60 +1,85 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createScope } from '@emdash/shared/concurrency';
-import { observe, remote } from '@emdash/wire';
 import type { ContractClient } from '@emdash/wire/api';
-import { formatAbsolute, hostFileRef, parseAbsolute, type HostFileRef } from '@primitives/path/api';
+import { formatHostRef } from '@primitives/host/api';
 import {
-  workspaceProvisioningContract,
-  type WorkspaceProvisioningContract,
-  type WorkspaceProvisioningError,
-  type WorkspaceProvisioningInput,
-  type WorkspaceProvisioningOperationRecord,
-  type WorkspaceProvisioningOperationRecordMap,
-  type WorkspaceProvisioningResult,
-} from '@services/workspace-provisioning/api';
+  formatAbsolute,
+  hostFileRef,
+  parseAbsolute,
+  type HostAbsolutePath,
+  type HostFileRef,
+} from '@primitives/path/api';
+import {
+  compileWorktreePayload,
+  type CreateWorktreeAction,
+  type WorkspaceHostActionsContract,
+  type WorkspaceHostActionView,
+} from '@services/workspace-host-actions/api';
+import type { AutomationWorkspaceConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
+
+const DEFAULT_POLL_INTERVAL_MS = 500;
 
 const CANCELLED_ERROR = {
   code: 'cancelled',
   message: 'Workspace provisioning was cancelled',
 } satisfies AutomationPortError;
 
-const PROVISIONING_CANCELLED_ERROR = {
-  type: 'cancelled',
-  message: 'Workspace provisioning was cancelled',
-} satisfies WorkspaceProvisioningError;
+export type AutomationWorkspaceResult = {
+  workspace: HostFileRef;
+  branchName: string | null;
+};
 
 export interface AutomationWorkspacePort {
-  provision(
-    input: WorkspaceProvisioningInput & { signal: AbortSignal }
-  ): Promise<Result<WorkspaceProvisioningResult, AutomationPortError>>;
+  provision(input: {
+    workspace: AutomationWorkspaceConfig;
+    generatedName: string;
+    runId: string;
+    signal: AbortSignal;
+  }): Promise<Result<AutomationWorkspaceResult, AutomationPortError>>;
 }
 
+export type WorkspacePortOptions = {
+  pollIntervalMs?: number;
+};
+
+/**
+ * Provisions run workspaces through the host's own operation runtime: the run
+ * compiles its worktree payload with the shared pure compiler, submits
+ * `host.createWorktree` (idempotent by the run-derived operation id), and
+ * watches the operation record to a terminal status. The host runtime has no
+ * cancel primitive; an aborted run stops waiting and the idempotent host
+ * operation is left to finish on its own.
+ */
 export function createWorkspacePortFromDependency(
-  client: ContractClient<WorkspaceProvisioningContract>
+  client: ContractClient<WorkspaceHostActionsContract>,
+  options: WorkspacePortOptions = {}
 ): AutomationWorkspacePort {
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   return {
     async provision(input) {
       if (input.signal.aborted) return err(CANCELLED_ERROR);
+      if (input.workspace.kind === 'directory') {
+        return ok({ workspace: input.workspace.path, branchName: null });
+      }
 
       try {
-        const compiled = compileProvisioningInput(input);
-        const result = await submitAndFollowProvisioningOperation(
+        const compiled = compileCreateWorktree(input.workspace, input.generatedName, input.runId);
+        const submitted = await client.submitOperation(compiled.request);
+        if (!submitted.success) {
+          return err({ code: submitted.error.type, message: submitted.error.message });
+        }
+
+        const view = await awaitTerminalView(
           client,
-          {
-            requestId: `provision:${nativePathFromWorkspace(compiled.provisionInput.workspace)}`,
-            kind: 'provision',
-            workspace: compiled.provisionInput.workspace,
-            params: { kind: 'provision', input: compiled.provisionInput },
-          },
-          { signal: input.signal }
+          submitted.data.operationId,
+          input.signal,
+          pollIntervalMs
         );
-        if (!result.success) return err(workspaceErrorToAutomationPortError(result.error));
-        return ok({
-          workspace: compiled.provisionInput.workspace,
-          branchName: compiled.branchName,
-        });
+        if (view === 'aborted') return err(CANCELLED_ERROR);
+        if (view.status !== 'succeeded') return err(viewToPortError(view));
+        return ok({ workspace: compiled.workspace, branchName: compiled.branchName });
       } catch (error) {
+        if (input.signal.aborted) return err(CANCELLED_ERROR);
         return err({
           code: 'workspace_provisioning_failed',
           message: error instanceof Error ? error.message : String(error),
@@ -64,213 +89,125 @@ export function createWorkspacePortFromDependency(
   };
 }
 
-function workspaceErrorToAutomationPortError(
-  error: WorkspaceProvisioningError
-): AutomationPortError {
-  if (error.type === 'cancelled') return CANCELLED_ERROR;
-  return { code: error.type, message: error.message };
-}
-
-type CompiledProvisioningInput = {
-  provisionInput: {
-    workspace: HostFileRef;
-    lifecycle?: unknown;
-  };
-  branchName: string | null;
+type CompiledCreateWorktree = {
+  request: CreateWorktreeAction;
+  workspace: HostFileRef;
+  branchName: string;
 };
 
-function compileProvisioningInput(input: WorkspaceProvisioningInput): CompiledProvisioningInput {
-  if (input.workspace.kind === 'directory') {
-    return { provisionInput: { workspace: input.workspace.path }, branchName: null };
-  }
-
-  const repositoryPath = nativePathFromWorkspace(input.workspace.repository);
-  const worktreePoolPath = formatAbsolute(input.workspace.worktreePoolPath, {
-    separator: input.workspace.worktreePoolPath.root.kind === 'posix' ? '/' : '\\',
+function compileCreateWorktree(
+  config: Extract<AutomationWorkspaceConfig, { kind: 'worktree' }>,
+  generatedName: string,
+  runId: string
+): CompiledCreateWorktree {
+  const branchName = config.git.kind === 'create-branch' ? generatedName : config.git.branchName;
+  const compiled = compileWorktreePayload({
+    repoPath: nativePath(config.repository.path),
+    worktreeRoot: nativePath(parentPath(config.worktreePoolPath)),
+    branchName,
+    preservePatterns: config.preservePatterns,
   });
-  const branchName =
-    input.workspace.git.kind === 'create-branch'
-      ? input.generatedName
-      : input.workspace.git.branchName;
-  const workspacePath = joinNativePath(
-    worktreePoolPath,
-    sanitizeBranchName(branchName),
-    input.workspace.worktreePoolPath.root.kind === 'posix' ? 'posix' : 'win32'
-  );
-  const workspace = workspaceFromNativePath(workspacePath, input.workspace.repository.host);
+  const worktreePath = parseNativePath(compiled.worktreePath);
 
   return {
     branchName,
-    provisionInput: {
-      workspace,
-      lifecycle: {
-        ref: {
-          kind: 'worktree',
-          repoPath: repositoryPath,
-          path: workspacePath,
-          branchName,
-        },
-        context: {
-          repoPath: repositoryPath,
-          preservePatterns: input.workspace.preservePatterns,
-          worktreePoolPath,
-        },
-        setupPlan: {
-          steps:
-            input.workspace.git.kind === 'create-branch'
-              ? createBranchPlanSteps(input.workspace.git, branchName, workspacePath)
-              : [
-                  plannedStep('add-worktree', 'Add worktree', {
-                    branchName,
-                    path: workspacePath,
-                  }),
-                  plannedStep('copy-preserved-files', 'Copy preserved files', {}),
-                ],
-        },
+    workspace: hostFileRef(config.repository.host, worktreePath),
+    request: {
+      verb: 'host.createWorktree',
+      input: {
+        version: '1',
+        operationId: `automation-run:${runId}`,
+        hostId: formatHostRef(config.repository.host),
+        repoPath: config.repository.path,
+        worktreePath,
+        branchName,
+        ...compileGitOperation(config.git),
+        preservePatterns: compiled.preservePatterns,
       },
     },
   };
 }
 
-function createBranchPlanSteps(
-  git: Extract<WorkspaceProvisioningInput['workspace'], { kind: 'worktree' }>['git'] & {
-    kind: 'create-branch';
-  },
-  branchName: string,
-  workspacePath: string
-) {
-  const steps = [];
-  if (git.fromBranch.type === 'remote') {
-    const remoteName = git.fromBranch.remote.name;
-    const fromRef = `${remoteName}/${git.fromBranch.branch}`;
-    steps.push(
-      plannedStep('git-fetch', 'Fetch branch', {
-        remote: remoteName,
-        refspec: `+refs/heads/${git.fromBranch.branch}:refs/remotes/${remoteName}/${git.fromBranch.branch}`,
-        noTags: true,
-        filter: 'blob:none',
-      }),
-      plannedStep('create-local-branch', 'Create branch', { branchName, fromRef, noTrack: true }),
-      plannedStep('set-branch-base', 'Set branch base', { branchName, baseRef: fromRef })
-    );
-  } else {
-    steps.push(
-      plannedStep('create-local-branch', 'Create branch', {
-        branchName,
-        fromRef: git.fromBranch.branch,
-        noTrack: true,
-      }),
-      plannedStep('set-branch-base', 'Set branch base', {
-        branchName,
-        baseRef: git.fromBranch.branch,
-      })
-    );
-  }
-  steps.push(
-    plannedStep('add-worktree', 'Add worktree', { branchName, path: workspacePath }),
-    plannedStep('copy-preserved-files', 'Copy preserved files', {})
-  );
-  if (git.pushRemote) {
-    steps.push(
-      plannedStep('push-branch', 'Push branch', {
-        branchName,
-        remote: git.pushRemote,
-        setUpstream: true,
-      })
-    );
-  }
-  return steps;
-}
-
-function plannedStep(kind: string, label: string, args: unknown) {
+function compileGitOperation(
+  git: Extract<AutomationWorkspaceConfig, { kind: 'worktree' }>['git']
+): { startPoint?: string; fetch?: boolean; pushRemote?: string } {
+  if (git.kind !== 'create-branch') return {};
   return {
-    id: `${kind}:1`,
-    label,
-    step: { kind, args },
+    startPoint:
+      git.fromBranch.type === 'remote'
+        ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
+        : git.fromBranch.branch,
+    fetch: git.fromBranch.type === 'remote',
+    ...(git.pushRemote !== null && { pushRemote: git.pushRemote }),
   };
 }
 
-async function submitAndFollowProvisioningOperation(
-  client: ContractClient<WorkspaceProvisioningContract>,
-  request: Parameters<ContractClient<WorkspaceProvisioningContract>['submitOperation']>[0],
-  options: { signal?: AbortSignal } = {}
-): Promise<Result<unknown, WorkspaceProvisioningError>> {
-  if (options.signal?.aborted) return err(PROVISIONING_CANCELLED_ERROR);
-  let settled = false;
-  let terminalResolve!: (record: WorkspaceProvisioningOperationRecord) => void;
-  const terminal = new Promise<WorkspaceProvisioningOperationRecord>((resolve) => {
-    terminalResolve = resolve;
-  });
-  const scope = createScope({ label: `workspace-provisioning:${request.requestId}` });
-  const operationLog = remote(workspaceProvisioningContract.operationLog, client.operationLog, {
-    scope,
-    lingerMs: 15_000,
-  });
-  const member = operationLog({});
-  observe(
-    member.states.list,
-    (snapshot) => {
-      const records: WorkspaceProvisioningOperationRecordMap = snapshot.value ?? {};
-      const record = records[request.requestId];
-      if (!record || settled) return;
-      if (isTerminalStatus(record.status)) {
-        settled = true;
-        terminalResolve(record);
-      }
-    },
-    { scope }
-  );
-  const cancel = () => void client.cancelOperation({ requestId: request.requestId });
-  options.signal?.addEventListener('abort', cancel, { once: true });
-  try {
-    await member.states.list.refresh();
-    if (options.signal?.aborted) return err(PROVISIONING_CANCELLED_ERROR);
-    const submitted = await client.submitOperation(request);
-    if (!submitted.success) return err(submitted.error);
-    const record = await terminal;
-    if (record.status === 'succeeded') return ok(record.result?.data);
-    return err(
-      record.error ?? {
-        type: record.status,
-        message: `Workspace operation ${record.status}`,
-      }
-    );
-  } finally {
-    options.signal?.removeEventListener('abort', cancel);
-    await scope.dispose();
+async function awaitTerminalView(
+  client: ContractClient<WorkspaceHostActionsContract>,
+  operationId: string,
+  signal: AbortSignal,
+  pollIntervalMs: number
+): Promise<WorkspaceHostActionView | 'aborted'> {
+  for (;;) {
+    if (signal.aborted) return 'aborted';
+    const result = await client.getOperation({ operationId });
+    if (!result.success) {
+      throw new Error(result.error.message);
+    }
+    if (!result.data) {
+      throw new Error(`Host operation ${operationId} was not found on the host`);
+    }
+    if (isTerminalStatus(result.data.status)) return result.data;
+    await sleep(pollIntervalMs, signal);
   }
 }
 
-function isTerminalStatus(status: string): boolean {
+function isTerminalStatus(status: WorkspaceHostActionView['status']): boolean {
   return (
     status === 'succeeded' ||
     status === 'failed' ||
     status === 'rejected' ||
     status === 'cancelled' ||
-    status === 'suspended'
+    status === 'superseded'
   );
 }
 
-function nativePathFromWorkspace(ref: HostFileRef): string {
-  return formatAbsolute(ref.path, { separator: ref.path.root.kind === 'posix' ? '/' : '\\' });
+function viewToPortError(view: WorkspaceHostActionView): AutomationPortError {
+  if (view.status === 'cancelled') return CANCELLED_ERROR;
+  if (view.error) return { code: view.error.type, message: view.error.message };
+  return { code: view.status, message: `Workspace operation ${view.status}` };
 }
 
-function workspaceFromNativePath(nativePath: string, host: HostFileRef['host']): HostFileRef {
-  const parsed = parseAbsolute(nativePath, {
+function nativePath(path: HostAbsolutePath): string {
+  return formatAbsolute(path, { separator: path.root.kind === 'posix' ? '/' : '\\' });
+}
+
+function parentPath(path: HostAbsolutePath): HostAbsolutePath {
+  if (path.segments.length === 0) return path;
+  return { ...path, segments: path.segments.slice(0, -1) };
+}
+
+function parseNativePath(native: string): HostAbsolutePath {
+  const parsed = parseAbsolute(native, {
     profile: {
-      style: /^[A-Za-z]:[\\/]/u.test(nativePath) ? 'win32' : 'posix',
+      style: /^[A-Za-z]:[\\/]/u.test(native) ? 'win32' : 'posix',
       unicodeNormalization: 'preserve',
     },
   });
   if (!parsed.success) throw new Error(parsed.error.message);
-  return hostFileRef(host, parsed.data);
+  return parsed.data;
 }
 
-function joinNativePath(base: string, segment: string, rootKind: 'posix' | 'win32'): string {
-  const separator = rootKind === 'posix' ? '/' : '\\';
-  return `${base.replace(/[\\/]+$/u, '')}${separator}${segment}`;
-}
-
-function sanitizeBranchName(branchName: string): string {
-  return branchName.replace(/[^a-zA-Z0-9._-]/g, '-');
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }

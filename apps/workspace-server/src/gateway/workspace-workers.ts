@@ -240,7 +240,7 @@ export async function createWorkspaceServerRuntimeHost(
     executable: workspaceWorkerPath('automations'),
     env,
     dependencies: {
-      workspace,
+      workspaceHost,
       acpSessions: acp,
       tuiSessions: tuiAgents,
     },

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
 import type { ResourceClaim } from '@emdash/core/primitives/kernel/api';
-import { compileWorktreePayload } from '@emdash/core/runtimes/workspace-host/api';
+import { compileWorktreePayload } from '@emdash/core/services/workspace-host-actions/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/api/node';
@@ -166,7 +166,10 @@ export async function prepareCreateTask(
         sshConnectionId,
         compiled.worktreePath
       );
-      const gitOperation = compileGitOperation(workspaceConfig.git);
+      const gitOperation = compileGitOperation(
+        workspaceConfig.git,
+        pushRequested(workspaceConfig.git) ? await project.settings.getPushRemote() : undefined
+      );
       const serializedHostRef = formatHostRef(project.host);
       const now = Date.now();
 
@@ -193,12 +196,14 @@ export async function prepareCreateTask(
         branchName,
         startPoint: gitOperation.startPoint,
         fetch: gitOperation.fetch,
+        pushRemote: gitOperation.pushRemote,
         preservePatterns: compiled.preservePatterns,
         prediction: compileCreateWorktreePrediction({
           now,
           workspacePath,
           branchName,
           fetch: gitOperation.fetch,
+          pushRemote: gitOperation.pushRemote,
           preservePatterns: compiled.preservePatterns,
         }),
         createdAt: now,
@@ -380,9 +385,16 @@ function allocateRegistryPath(
   }
 }
 
+function pushRequested(git: CreateTaskParams['workspaceConfig']['git']): boolean {
+  if (git.kind === 'create-branch') return git.pushBranch === true;
+  if (git.kind === 'pr-branch') return git.pushBranch === true && git.taskBranch !== undefined;
+  return false;
+}
+
 function compileGitOperation(
-  git: CreateTaskParams['workspaceConfig']['git']
-): Pick<HostCreateWorktreeInput, 'startPoint' | 'fetch'> {
+  git: CreateTaskParams['workspaceConfig']['git'],
+  pushRemote: string | undefined
+): Pick<HostCreateWorktreeInput, 'startPoint' | 'fetch' | 'pushRemote'> {
   if (git.kind === 'create-branch') {
     return {
       startPoint:
@@ -390,10 +402,11 @@ function compileGitOperation(
           ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
           : git.fromBranch.branch,
       fetch: git.fromBranch.type === 'remote',
+      pushRemote,
     };
   }
   if (git.kind === 'pr-branch') {
-    return { startPoint: git.taskBranch ? git.headBranch : undefined, fetch: true };
+    return { startPoint: git.taskBranch ? git.headBranch : undefined, fetch: true, pushRemote };
   }
   return {};
 }

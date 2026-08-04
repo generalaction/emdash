@@ -1,6 +1,6 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
 import { acpSessionStartContract, tuiSessionStartContract } from '@services/session-start/api';
-import { workspaceProvisioningContract } from '@services/workspace-provisioning/api';
+import { workspaceHostActionsContract } from '@services/workspace-host-actions/api';
 import { z } from 'zod';
 import { automationsContract } from '../api';
 import { createAutomationsController } from './api/controller';
@@ -20,7 +20,7 @@ export function createAutomationsComponent() {
     id: 'automations',
     contract: automationsContract,
     requirements: {
-      workspace: requireContract(workspaceProvisioningContract),
+      workspaceHost: requireContract(workspaceHostActionsContract),
       acpSessions: requireContract(acpSessionStartContract),
       tuiSessions: requireContract(tuiSessionStartContract),
     },
@@ -31,8 +31,9 @@ export function createAutomationsComponent() {
 
       const runtime = new AutomationsRuntime({
         handle,
-        workspacePort: createWorkspacePortFromDependency(dependencies.workspace),
+        workspacePort: createWorkspacePortFromDependency(dependencies.workspaceHost),
         sessionPort: createSessionPortFromDependencies({
+          workspaceHost: dependencies.workspaceHost,
           acp: dependencies.acpSessions,
           tui: dependencies.tuiSessions,
         }),

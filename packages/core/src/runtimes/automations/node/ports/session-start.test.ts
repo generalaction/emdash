@@ -3,15 +3,20 @@ import type { ContractClient } from '@emdash/wire/api';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';
 import type { AcpSessionStartContract, TuiSessionStartContract } from '@services/session-start/api';
+import type { WorkspaceHostActionsContract } from '@services/workspace-host-actions/api';
 import { describe, expect, it, vi } from 'vitest';
 import { createSessionPortFromDependencies } from './session-start';
 
 const cwd = absolute('/tmp/workspace');
 
 describe('createSessionPortFromDependencies', () => {
-  it('maps an ACP automation config to the narrow start dependency', async () => {
+  it('initializes the workspace before mapping an ACP config to the start dependency', async () => {
     const startSession = vi.fn(async () => ok({ sessionId: 'provider-session-1' }));
+    const initializeWorkspace = vi.fn(async () => ok({ active: true as const }));
     const port = createSessionPortFromDependencies({
+      workspaceHost: {
+        initializeWorkspace,
+      } as unknown as ContractClient<WorkspaceHostActionsContract>,
       acp: { startSession } as ContractClient<AcpSessionStartContract>,
       tui: unusedTuiClient(),
     });
@@ -32,6 +37,13 @@ describe('createSessionPortFromDependencies', () => {
     });
 
     expect(result).toEqual(ok({ sessionId: 'provider-session-1' }));
+    expect(initializeWorkspace).toHaveBeenCalledWith(
+      { workspacePath: cwd.path },
+      { signal: expect.any(AbortSignal) }
+    );
+    expect(initializeWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
+      startSession.mock.invocationCallOrder[0]!
+    );
     expect(startSession).toHaveBeenCalledWith(
       {
         input: {
@@ -51,6 +63,7 @@ describe('createSessionPortFromDependencies', () => {
   it('supplies terminal geometry and returns no provider session id for TUI', async () => {
     const startSession = vi.fn(async () => ok({ outcome: 'started' as const }));
     const port = createSessionPortFromDependencies({
+      workspaceHost: initializedWorkspaceHost(),
       acp: unusedAcpClient(),
       tui: { startSession } as ContractClient<TuiSessionStartContract>,
     });
@@ -89,8 +102,34 @@ describe('createSessionPortFromDependencies', () => {
     );
   });
 
+  it('fails without starting a session when workspace initialization fails', async () => {
+    const startSession = vi.fn();
+    const port = createSessionPortFromDependencies({
+      workspaceHost: {
+        initializeWorkspace: async () =>
+          err({ type: 'filesystem-error', message: 'Worktree is missing' }),
+      } as unknown as ContractClient<WorkspaceHostActionsContract>,
+      acp: { startSession } as unknown as ContractClient<AcpSessionStartContract>,
+      tui: unusedTuiClient(),
+    });
+
+    await expect(
+      port.start({
+        conversationId: 'conversation-4',
+        cwd,
+        agent: {
+          type: 'acp',
+          start: { providerId: 'claude', model: null, initialQueue: [{ text: 'Go' }] },
+        },
+        signal: new AbortController().signal,
+      })
+    ).resolves.toEqual(err({ code: 'filesystem-error', message: 'Worktree is missing' }));
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
   it('preserves runtime error tags and maps rejected calls to a port error', async () => {
     const unavailable = createSessionPortFromDependencies({
+      workspaceHost: initializedWorkspaceHost(),
       acp: {
         startSession: async () =>
           err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
@@ -98,6 +137,7 @@ describe('createSessionPortFromDependencies', () => {
       tui: unusedTuiClient(),
     });
     const rejected = createSessionPortFromDependencies({
+      workspaceHost: initializedWorkspaceHost(),
       acp: {
         startSession: async () => {
           throw new Error('connection closed');
@@ -127,6 +167,12 @@ describe('createSessionPortFromDependencies', () => {
     );
   });
 });
+
+function initializedWorkspaceHost(): ContractClient<WorkspaceHostActionsContract> {
+  return {
+    initializeWorkspace: vi.fn(async () => ok({ active: true as const })),
+  } as unknown as ContractClient<WorkspaceHostActionsContract>;
+}
 
 function unusedAcpClient(): ContractClient<AcpSessionStartContract> {
   return { startSession: vi.fn() };

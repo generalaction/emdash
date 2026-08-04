@@ -156,6 +156,7 @@ export function createHostCreateWorktreeDefinition(
         branchName: input.branchName,
         startPoint: input.startPoint,
         fetch: input.fetch,
+        pushRemote: input.pushRemote,
         preservePatterns: input.preservePatterns,
       },
     });

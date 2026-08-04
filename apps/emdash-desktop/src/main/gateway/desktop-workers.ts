@@ -330,15 +330,15 @@ async function startDesktopWorkersWithHost(
       return await worker.ready();
     }
   );
-  const automationsReady = Promise.all([workspaceReady, acpReady, tuiAgentsReady]).then(
-    async ([workspace, acp, tuiAgents]) => {
+  const automationsReady = Promise.all([workspaceHostReady, acpReady, tuiAgentsReady]).then(
+    async ([workspaceHost, acp, tuiAgents]) => {
       const paths = automationRuntimePaths(resolveDatabasePath());
       const worker = host.create(createAutomationsComponent(), {
         name: 'automations',
         executable: desktopWorkerPath('automations'),
         env: process.env,
         dependencies: {
-          workspace,
+          workspaceHost,
           acpSessions: acp,
           tuiSessions: tuiAgents.client,
         },

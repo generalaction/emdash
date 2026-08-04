@@ -1,9 +1,4 @@
 export {
-  compileWorktreePayload,
-  type CompiledWorktreePayload,
-  type CompileWorktreePayloadInput,
-} from './compile-worktree-payload';
-export {
   workspaceHostContract,
   type WorkspaceHostContract,
 } from '@runtimes/workspace-host/api/contract';

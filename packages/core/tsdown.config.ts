@@ -50,6 +50,7 @@ export default defineConfig({
     'services-fs-watch-api': 'src/services/fs-watch/api/index.ts',
     'services-fs-watch-node': 'src/services/fs-watch/node/index.ts',
     'services-script-workflows-api': 'src/services/script-workflows/api/index.ts',
+    'services-workspace-host-actions-api': 'src/services/workspace-host-actions/api/index.ts',
     'runtimes-git-api': 'src/runtimes/git/api/index.ts',
     'runtimes-git-node': 'src/runtimes/git/node/index.ts',
     'runtimes-files-api': 'src/runtimes/files/api/index.ts',
