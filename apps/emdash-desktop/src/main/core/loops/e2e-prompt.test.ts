@@ -82,6 +82,10 @@ describe('independent clean-room E2E prompt', () => {
 
     expect(prompt).toContain('exactly one authoritative native preview verifier');
     expect(prompt).toContain('The coding-session sentinel is only a candidate outcome');
+    expect(prompt).toContain('smallest relevant focused checks');
+    expect(prompt).toContain('Do not run repository-wide test, typecheck, lint, format, or build');
+    expect(prompt).toContain('engine runs the complete authoritative validation-command set');
+    expect(prompt).not.toContain('Run the required unit, integration, and full checks');
     expect(prompt).toContain('fresh destroyed and recreated attempt');
     expect(prompt).not.toContain('Request exactly one browser action');
     expect(prompt).not.toContain('LOOP:NATIVE_BROWSER_ACTION');

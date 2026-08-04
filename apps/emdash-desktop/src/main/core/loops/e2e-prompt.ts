@@ -80,8 +80,8 @@ ${intermediateFailureData}
 </emdash-loop-failure-data>
 
 Required workflow:
-1. Inspect the recreated base-to-checkpoint result independently and run every acceptance check on the bound verification workspace.
-2. Run the required unit, integration, and full checks honestly. Treat missing prerequisites, early server exit, console/network errors, and unobserved behavior as failures.
+1. Inspect the recreated base-to-checkpoint result independently and verify every acceptance criterion on the bound verification workspace with the smallest relevant focused checks and observable interactions.
+2. Do not run repository-wide test, typecheck, lint, format, or build suites in this coding session and do not repeat an already-green focused check. The engine runs the complete authoritative validation-command set immediately after your candidate outcome. Treat missing prerequisites, focused-check failures, early server exit, console/network errors, and unobserved behavior as failures.
 3. Do not emit browser-action blocks. After this coding session returns a candidate outcome, the engine runs the full required checks plus exactly one authoritative native preview verifier bound to this same target. The coding-session sentinel is only a candidate outcome and is never final pass authority.
 4. If you find a product bug, you may fix it only in the bound verification workspace, add tests, rerun focused checks, and create a local correction checkpoint. Do not overwrite or discard earlier failure artifacts.
 5. If you made any repository mutation during this attempt—including modified, added or untracked, or deleted files—or created a correction checkpoint, never use the pass sentinel. End with the correction-ready sentinel so the engine can validate and integrate the fix, retain the failure evidence, destroy this workspace, and recreate it from the frozen base.
