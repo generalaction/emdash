@@ -28,7 +28,7 @@ import type {
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import {
-  localProjectSchema,
+  projectSchema,
   type CreateProjectParams,
   type CreateProjectResult,
   type InitializeRepositoryResult,
@@ -68,7 +68,7 @@ export const projectCreationStateSchema = z.discriminatedUnion('phase', [
   }),
   z.object({
     phase: z.literal('ready'),
-    project: localProjectSchema,
+    project: projectSchema,
   }),
   z.object({
     phase: z.literal('error'),
@@ -81,19 +81,20 @@ export const projectCreationKeySchema = z.object({
   projectId: z.string(),
 });
 
+export const projectHostParamsSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('local') }),
+  z.object({ type: z.literal('ssh'), connectionId: z.string().min(1) }),
+]);
+
 export const createProjectFromRemoteInputSchema = z.object({
   projectId: z.string(),
+  host: projectHostParamsSchema,
   mode: z.enum(['clone', 'new']),
   repositoryUrl: z.string().min(1),
   targetPath: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
 });
-
-export const projectHostParamsSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('local') }),
-  z.object({ type: z.literal('ssh'), connectionId: z.string().min(1) }),
-]);
 
 export const projectDirectoryTreeKeySchema = z.discriminatedUnion('type', [
   z.object({
@@ -243,7 +244,7 @@ export const projectsWireContract = defineContract({
   create: liveJob({
     input: createProjectFromRemoteInputSchema,
     progress: projectCreationProgressSchema,
-    result: localProjectSchema,
+    result: projectSchema,
     error: projectCreationErrorSchema,
   }),
   delete: fallible({

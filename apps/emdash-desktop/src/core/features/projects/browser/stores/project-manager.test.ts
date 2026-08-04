@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   projectWireCancel: vi.fn(),
   projectWireDelete: vi.fn(),
   projectWireProgressCallbacks: [] as Array<(progress: ProjectCreationProgress) => void>,
-  projectWireResult: undefined as Promise<LocalProject> | undefined,
+  projectWireResult: undefined as Promise<LocalProject | SshProject> | undefined,
   resolveRepositoryDestination: vi.fn(),
   deleteMementoSubject: vi.fn(),
   mementoReportError: vi.fn(),
@@ -157,6 +157,7 @@ describe('ProjectManagerStore project creation', () => {
     mocks.createLiveJobReplica.mockReturnValue({
       start: async (input: {
         projectId: string;
+        host: { type: 'local' } | { type: 'ssh'; connectionId: string };
         targetPath: string;
         name: string;
         repositoryUrl: string;
@@ -167,11 +168,18 @@ describe('ProjectManagerStore project creation', () => {
             result:
               mocks.projectWireResult ??
               Promise.resolve(
-                localProject({
-                  id: input.projectId,
-                  name: input.name,
-                  path: input.targetPath,
-                })
+                input.host.type === 'ssh'
+                  ? sshProject({
+                      id: input.projectId,
+                      name: input.name,
+                      path: input.targetPath,
+                      connectionId: input.host.connectionId,
+                    })
+                  : localProject({
+                      id: input.projectId,
+                      name: input.name,
+                      path: input.targetPath,
+                    })
               ),
             onProgress: (cb: (progress: ProjectCreationProgress) => void) => {
               mocks.projectWireProgressCallbacks.push(cb);
@@ -330,7 +338,7 @@ describe('ProjectManagerStore project creation', () => {
     );
   });
 
-  it('returns a typed host-unavailable error for remote clones', async () => {
+  it('starts the clone job with an SSH host for remote clones', async () => {
     const store = new ProjectManagerStore();
 
     const result = await store.startProjectCreation(
@@ -346,17 +354,19 @@ describe('ProjectManagerStore project creation', () => {
 
     expect(result.kind).toBe('creating');
     if (result.kind === 'creating') {
-      await expect(result.completion).resolves.toEqual({
-        success: false,
-        error: {
-          type: 'host-unavailable',
-          host: { type: 'remote', id: 'ssh-1' },
-          message:
-            'Remote projects require the workspace server and are not supported by this build',
-        },
-      });
+      await expect(result.completion).resolves.toEqual({ success: true });
     }
-    expect(mocks.projectWireCreate).not.toHaveBeenCalled();
+    expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
+      type: 'ssh',
+      connectionId: 'ssh-1',
+      path: '/parent/child-project',
+    });
+    expect(mocks.projectWireCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: { type: 'ssh', connectionId: 'ssh-1' },
+        targetPath: '/parent/child-project',
+      })
+    );
   });
 
   it('stores remote creation progress on the pending project', async () => {

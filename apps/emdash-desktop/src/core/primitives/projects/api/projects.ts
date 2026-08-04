@@ -24,32 +24,23 @@ export const localProjectSchema = z.object({
   updatedAt: z.string(),
 });
 
-export type LocalProject = {
-  type: 'local';
-  id: string;
-  name: string;
-  path: string;
-  baseRef: string;
-  /** The workspace ID of this project's repository-root workspace. Set on first mount. */
-  repositoryWorkspaceId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+export const sshProjectSchema = z.object({
+  type: z.literal('ssh'),
+  id: z.string(),
+  name: z.string(),
+  path: z.string(),
+  baseRef: z.string(),
+  connectionId: z.string(),
+  repositoryWorkspaceId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
-export type SshProject = {
-  type: 'ssh';
-  id: string;
-  name: string;
-  path: string;
-  baseRef: string;
-  connectionId: string;
-  /** The workspace ID of this project's repository-root workspace. Set on first mount. */
-  repositoryWorkspaceId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+export const projectSchema = z.discriminatedUnion('type', [localProjectSchema, sshProjectSchema]);
 
-export type Project = LocalProject | SshProject;
+export type LocalProject = z.infer<typeof localProjectSchema>;
+export type SshProject = z.infer<typeof sshProjectSchema>;
+export type Project = z.infer<typeof projectSchema>;
 
 export type CreateLocalProjectParams = {
   type: 'local';

@@ -1,6 +1,8 @@
-import { readdir, rm, stat } from 'node:fs/promises';
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
+import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract, type GitTransferProgress } from '@emdash/core/runtimes/git/api';
+import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { log } from '@emdash/shared/logger';
 import { LiveJobCancelledError, type LiveJobContext } from '@emdash/wire';
 import type {
@@ -8,16 +10,19 @@ import type {
   ProjectCreationJobError,
   ProjectCreationProgress,
   ProjectCreationState,
+  ProjectHostParams,
 } from '@core/features/projects/api';
 import {
   type CreateProjectDependencies,
   createProject,
 } from '@core/features/projects/node/operations/create-project';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import type { LocalProject } from '@core/primitives/projects/api';
+import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import type { Project } from '@core/primitives/projects/api';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
 
 export type ProjectCreationPublisher = (projectId: string, state: ProjectCreationState) => void;
+
+type HostFiles = HostRuntimesClient['files'];
 
 export async function createProjectFromRemote(
   dependencies: CreateProjectDependencies,
@@ -25,7 +30,16 @@ export async function createProjectFromRemote(
   ctx: LiveJobContext<ProjectCreationProgress>,
   publishCreationState: ProjectCreationPublisher
 ) {
-  const targetStatus = await inspectTarget(input.targetPath);
+  const host = hostRefForProjectHost(input.host);
+  const runtime = await dependencies.runtimes.client(host);
+  if (!runtime.success) {
+    const error = creationError(runtime.error.type, runtime.error.message);
+    publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
+    return { success: false as const, error };
+  }
+
+  const files = runtime.data.files;
+  const targetStatus = await inspectTarget(files, input.targetPath);
   if (targetStatus === 'non-empty') {
     const error = creationError(
       'destination-not-empty',
@@ -36,13 +50,6 @@ export async function createProjectFromRemote(
   }
   const targetExistedBeforeClone = targetStatus === 'empty-directory';
   publishCreationState(input.projectId, { phase: 'cloning', message: 'Cloning repository…' });
-
-  const runtime = await dependencies.runtimes.client(LOCAL_HOST_REF);
-  if (!runtime.success) {
-    const error = creationError(runtime.error.type, runtime.error.message);
-    publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
-    return { success: false as const, error };
-  }
 
   let clone: Awaited<ReturnType<typeof runRuntimeLiveJob<typeof gitContract.cloneRepository>>>;
   try {
@@ -67,7 +74,9 @@ export async function createProjectFromRemote(
     );
   } catch (error) {
     if (error instanceof LiveJobCancelledError || ctx.signal.aborted) {
-      if (!targetExistedBeforeClone) await cleanupCancelledCloneTarget(input.targetPath);
+      if (!targetExistedBeforeClone) {
+        await cleanupCancelledCloneTarget(files, input.targetPath);
+      }
       const cancelled = creationError('cancelled', 'Project creation was cancelled');
       publishCreationState(input.projectId, {
         phase: 'error',
@@ -89,12 +98,23 @@ export async function createProjectFromRemote(
     message: 'Registering project…',
   });
   ctx.progress({ phase: 'registering', message: 'Registering project…' });
-  const project = await createProject(dependencies, {
-    type: 'local',
-    id: input.projectId,
-    name: input.name,
-    path: input.targetPath,
-  });
+  const project = await createProject(
+    dependencies,
+    input.host.type === 'ssh'
+      ? {
+          type: 'ssh',
+          id: input.projectId,
+          name: input.name,
+          path: input.targetPath,
+          connectionId: input.host.connectionId,
+        }
+      : {
+          type: 'local',
+          id: input.projectId,
+          name: input.name,
+          path: input.targetPath,
+        }
+  );
   if (!project.success) {
     const error = projectErrorToCreationError(project.error);
     publishCreationState(input.projectId, {
@@ -104,38 +124,54 @@ export async function createProjectFromRemote(
     });
     return { success: false as const, error };
   }
-  if (project.data.type !== 'local') {
-    const error = creationError('invalid-project-type', 'Expected a local project');
-    publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
-    return { success: false as const, error };
-  }
 
   publishCreationState(input.projectId, { phase: 'ready', project: project.data });
-  return { success: true as const, data: project.data satisfies LocalProject };
+  return { success: true as const, data: project.data satisfies Project };
 }
 
-async function inspectTarget(path: string): Promise<'missing' | 'empty-directory' | 'non-empty'> {
-  try {
-    const entry = await stat(path);
-    if (!entry.isDirectory()) return 'non-empty';
-    return (await readdir(path)).length === 0 ? 'empty-directory' : 'non-empty';
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return 'missing';
-    }
-    return 'non-empty';
+async function inspectTarget(
+  files: HostFiles,
+  path: string
+): Promise<'missing' | 'empty-directory' | 'non-empty'> {
+  const key = fileKeyForAbsolutePath(hostPathFromNative(path));
+  const exists = await files.fs.exists(key);
+  if (!exists.success) {
+    return exists.error.type === 'not-found' ? 'missing' : 'non-empty';
   }
+  if (!exists.data) return 'missing';
+
+  const pathEntry = await files.fs.stat(key);
+  if (!pathEntry.success) {
+    return pathEntry.error.type === 'not-found' ? 'missing' : 'non-empty';
+  }
+  if (pathEntry.data.type !== 'directory') return 'non-empty';
+
+  const listed = await runRuntimeLiveJob(filesContract.fs.enumerate, files.fs.enumerate, {
+    root: hostPathFromNative(path),
+    relative: ROOT_RELATIVE_PATH,
+  });
+  if (!listed.success) return 'non-empty';
+  return listed.data.paths.length === 0 ? 'empty-directory' : 'non-empty';
 }
 
-async function cleanupCancelledCloneTarget(path: string): Promise<void> {
+async function cleanupCancelledCloneTarget(files: HostFiles, path: string): Promise<void> {
   try {
-    await rm(path, { recursive: true, force: true });
+    const key = fileKeyForAbsolutePath(hostPathFromNative(path));
+    await files.mutations.delete({
+      root: key.root,
+      path: key.relative,
+      recursive: true,
+    });
   } catch (error) {
     log.warn('Failed to clean up cancelled project clone target', {
       path,
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+function hostRefForProjectHost(host: ProjectHostParams): HostRef {
+  return host.type === 'ssh' ? hostRef('remote', host.connectionId) : LOCAL_HOST_REF;
 }
 
 function cloneProgressToCreationProgress(progress: GitTransferProgress): ProjectCreationProgress {

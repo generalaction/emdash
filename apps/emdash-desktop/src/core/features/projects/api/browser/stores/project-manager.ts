@@ -268,13 +268,12 @@ export class ProjectManagerStore {
         }
 
         case 'clone': {
-          if (projectType.type === 'ssh') {
-            result = err(remoteRuntimeUnavailable(projectType.connectionId, 'projects'));
-            break;
-          }
-
           const projectResult = await this._createProjectFromRemote({
             projectId,
+            host:
+              projectType.type === 'ssh'
+                ? { type: 'ssh', connectionId: projectType.connectionId }
+                : { type: 'local' },
             mode: 'clone',
             repositoryUrl: data.repositoryUrl,
             targetPath,
@@ -666,15 +665,17 @@ export class ProjectManagerStore {
 
   private async _createProjectFromRemote(opts: {
     projectId: string;
+    host: { type: 'local' } | { type: 'ssh'; connectionId: string };
     mode: 'clone' | 'new';
     repositoryUrl: string;
     targetPath: string;
     name: string;
-  }): Promise<Result<LocalProject, ProjectCreationError>> {
+  }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
     const client = await getProjectsWireClient();
     const jobs = createLiveJobReplica(projectsWireContract.create, client.create);
     const lease = await jobs.start({
       projectId: opts.projectId,
+      host: opts.host,
       mode: opts.mode,
       repositoryUrl: opts.repositoryUrl,
       targetPath: opts.targetPath,
@@ -721,10 +722,14 @@ export class ProjectManagerStore {
       return err(remoteRuntimeUnavailable(opts.projectType.connectionId, 'projects'));
     }
 
-    let result: Result<LocalProject, ProjectCreationError>;
+    let result: Result<LocalProject | SshProject, ProjectCreationError>;
     try {
       result = await this._createProjectFromRemote({
         projectId: opts.projectId,
+        host:
+          opts.projectType.type === 'ssh'
+            ? { type: 'ssh', connectionId: opts.projectType.connectionId }
+            : { type: 'local' },
         mode: 'new',
         repositoryUrl: opts.cloneUrl,
         targetPath: opts.targetPath,
