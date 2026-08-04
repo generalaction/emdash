@@ -720,6 +720,31 @@ describe('native browser verifier', () => {
     );
   });
 
+  it('repairs one multi-action turn without executing it and accepts a later terminal outcome', async () => {
+    const harness = makeHarness({
+      responses: [
+        actionBlock({ kind: 'accessibility-snapshot' }),
+        `${actionBlock({ kind: 'keypress', key: 'Tab' })}\n${actionBlock({
+          kind: 'keypress',
+          key: 'Enter',
+        })}`,
+        NATIVE_BROWSER_PASSED_SENTINEL,
+      ],
+    });
+
+    const result = await harness.verifier.run(harness.ctx);
+
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    expect(harness.performAction).toHaveBeenCalledTimes(1);
+    expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
+      kind: 'protocol-repair',
+      message: 'Rejected native verifier protocol turn 1 without executing an action',
+    });
+    const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+    expect(prompts[2]).toContain('Protocol repair 1 of 2');
+    expect(prompts[2]).toContain('return exactly one allowlisted action block');
+  });
+
   it('parses only one safe terminal sentinel on the final line', () => {
     expect(parseNativeBrowserTerminal(NATIVE_BROWSER_PASSED_SENTINEL)).toEqual({ kind: 'passed' });
     expect(

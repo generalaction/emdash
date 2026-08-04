@@ -40,6 +40,7 @@ const label = 'Native Browser Preview';
 
 const DEFAULT_NATIVE_BROWSER_TIMEOUT_MS = 30 * 60 * 1_000;
 const MAX_NATIVE_BROWSER_ACTIONS = 128;
+const MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS = 2;
 const MAX_TRUSTED_ENVIRONMENT_BYTES = 64 * 1024;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
@@ -135,6 +136,8 @@ class NativeBrowserVerifierFailure extends Error {
     super(message);
   }
 }
+
+class NativeBrowserProtocolFailure extends Error {}
 
 class NativeBrowserRunControl {
   readonly signal: AbortSignal;
@@ -414,6 +417,7 @@ async function runNativeBrowserVerification(
     const runEvidence = evidence;
     let prompt = buildInitialPrompt(ctx, binding, activeSession);
     let successfulObservations = 0;
+    let protocolRepairs = 0;
     const actionIds = new Set<string>();
     let finalText = '';
 
@@ -433,7 +437,28 @@ async function runNativeBrowserVerification(
       }
       finalText = promptResult.data.finalText;
       control.assertActive();
-      const turn = parseNativeBrowserTurn(finalText);
+      let turn: NativeBrowserTurn;
+      try {
+        turn = parseNativeBrowserTurn(finalText);
+      } catch (error) {
+        if (
+          !(error instanceof NativeBrowserProtocolFailure) ||
+          protocolRepairs >= MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS
+        ) {
+          throw error;
+        }
+        protocolRepairs += 1;
+        await waitForEvidenceOperation(
+          () =>
+            runEvidence.appendIntermediateFailure({
+              kind: 'protocol-repair',
+              message: `Rejected native verifier protocol turn ${protocolRepairs} without executing an action`,
+            }),
+          control
+        );
+        prompt = buildProtocolRepairPrompt(error.message, protocolRepairs);
+        continue;
+      }
 
       if (turn.kind === 'terminal') {
         if (turn.outcome.kind === 'passed') {
@@ -784,15 +809,13 @@ function parseNativeBrowserTurn(text: string): NativeBrowserTurn {
   const hasActionCandidate = text.includes(NATIVE_BROWSER_ACTION_BEGIN);
   if (hasTerminalCandidate) {
     if (hasActionCandidate) {
-      throw new NativeBrowserVerifierFailure(
-        'command-failed',
+      throw new NativeBrowserProtocolFailure(
         'A native browser turn cannot contain both an action and a terminal outcome'
       );
     }
     const terminal = parseNativeBrowserTerminal(text);
     if (!terminal) {
-      throw new NativeBrowserVerifierFailure(
-        'command-failed',
+      throw new NativeBrowserProtocolFailure(
         'Native browser terminal outcome was malformed, repeated, or not on the final line'
       );
     }
@@ -800,12 +823,21 @@ function parseNativeBrowserTurn(text: string): NativeBrowserTurn {
   }
   const action = parseNativeBrowserAction(text);
   if (!action.success) {
-    throw new NativeBrowserVerifierFailure(
-      'command-failed',
+    throw new NativeBrowserProtocolFailure(
       safeText(action.error.message, 'Native browser action was malformed')
     );
   }
   return { kind: 'action', action: action.data };
+}
+
+function buildProtocolRepairPrompt(reason: string, attempt: number): string {
+  return `Your previous native browser turn was rejected without executing any action because: ${safeText(
+    reason,
+    'the response did not follow the native browser protocol',
+    256
+  )}.
+
+Protocol repair ${attempt} of ${MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Never combine actions or combine an action with a terminal outcome. If you intended a sequence, request only its next single action and wait for the bounded observation.`;
 }
 
 function buildInitialPrompt(
