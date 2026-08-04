@@ -1,4 +1,8 @@
 import { operationStatuses } from '@primitives/kernel/api';
+import {
+  operationStageDisplaySchema,
+  type OperationStageDisplay,
+} from '@primitives/operations/api';
 import { hostAbsolutePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
 
@@ -145,20 +149,11 @@ export const workspaceHostOperationStatusSchema = z.enum(operationStatuses);
 export const workspaceHostOperationStageSchema: z.ZodType<WorkspaceHostOperationStage> = z.lazy(
   () =>
     z.object({
-      id: z.string(),
-      label: z.string(),
-      status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
-      progress: z.number().optional(),
-      error: z.object({ message: z.string() }).optional(),
+      ...operationStageDisplaySchema.shape,
       substages: z.array(workspaceHostOperationStageSchema).optional(),
     })
 );
-export interface WorkspaceHostOperationStage {
-  id: string;
-  label: string;
-  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
-  progress?: number;
-  error?: { message: string };
+export interface WorkspaceHostOperationStage extends OperationStageDisplay {
   substages?: WorkspaceHostOperationStage[];
 }
 

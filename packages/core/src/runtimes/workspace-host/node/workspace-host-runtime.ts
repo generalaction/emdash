@@ -7,6 +7,7 @@ import { peek } from '@emdash/wire';
 import { type OperationProgress, type OperationRecord } from '@primitives/kernel/api';
 import { createOperationEngine, type OperationEngine } from '@primitives/kernel/engine';
 import { SqliteOperationStore, operationStoreSqlite } from '@primitives/kernel/sqlite';
+import { projectOperationStages } from '@primitives/operations/api';
 import {
   createWorktreeOperation,
   removeRepositoryOperation,
@@ -197,7 +198,7 @@ export class WorkspaceHostRuntime {
       kernelOperationId: record.id,
       verb: verbForRecord(record),
       status: record.status,
-      stages: progress?.stages ?? stagesFromOutcome(record),
+      stages: projectOperationStages(record, progress),
       updatedAt: record.updatedAt,
       ...(record.error
         ? {
@@ -221,30 +222,6 @@ function definitionFor(request: WorkspaceHostOperationInput) {
     case 'host.removeRepository':
       return removeRepositoryOperation;
   }
-}
-
-/**
- * The live progress map only covers in-flight attempts; terminal views
- * reconstruct their stage list from the persisted outcome summary so late
- * watchers (e.g. a desktop reconnecting after completion) still see stages.
- */
-function stagesFromOutcome(record: OperationRecord): WorkspaceHostOperationView['stages'] {
-  const outcome = record.outcome;
-  if (!outcome) return [];
-  const stages: WorkspaceHostOperationView['stages'] = outcome.completedStages.map((id) => ({
-    id,
-    label: id,
-    status: 'succeeded' as const,
-  }));
-  if (outcome.failedStage) {
-    stages.push({
-      id: outcome.failedStage,
-      label: outcome.failedStage,
-      status: 'failed' as const,
-      ...(record.error ? { error: { message: record.error.message } } : {}),
-    });
-  }
-  return stages;
 }
 
 function verbForRecord(record: OperationRecord): WorkspaceHostOperationView['verb'] {

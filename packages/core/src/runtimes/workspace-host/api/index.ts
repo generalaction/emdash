@@ -5,13 +5,19 @@ export {
 export {
   createWorktreeInputSchema,
   createWorktreeOperation,
+  createWorktreeStagePlan,
   removeRepositoryInputSchema,
   removeRepositoryOperation,
+  removeRepositoryStagePlan,
   removeWorktreeInputSchema,
   removeWorktreeOperation,
+  removeWorktreeStagePlan,
   workspaceHostOperationDefinitions,
   workspaceHostOperationErrorSchema,
   workspaceHostOperationVoidSchema,
+  type CreateWorktreeStagePlanContext,
+  type RemoveRepositoryStagePlanContext,
+  type RemoveWorktreeStagePlanContext,
 } from '@runtimes/workspace-host/api/operations';
 export {
   createWorktreeInputV1Schema,

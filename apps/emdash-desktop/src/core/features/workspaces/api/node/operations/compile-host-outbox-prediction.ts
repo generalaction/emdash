@@ -1,18 +1,19 @@
+import { expandOperationStagePlan } from '@emdash/core/primitives/operations/api';
 import type {
   OperationPredictedStage,
   OperationPrediction,
 } from '@emdash/core/primitives/operations/api';
+import {
+  createWorktreeStagePlan,
+  removeRepositoryStagePlan,
+  removeWorktreeStagePlan,
+} from '@emdash/core/runtimes/workspace-host/api';
 
 export type PredictionObservationRow = {
   observedStatus?: string | null;
   lastObservedAt?: string | null;
 };
 
-/**
- * Compiles the desktop's non-authoritative preview of a `removeWorktree` verb
- * from registry state. Rendered dimmed in the queued phase; the host's
- * expansion replaces it wholesale once the verb is accepted.
- */
 export function compileRemoveWorktreePrediction(input: {
   now: number;
   workspacePath: string;
@@ -21,27 +22,18 @@ export function compileRemoveWorktreePrediction(input: {
   observed?: PredictionObservationRow | null;
 }): OperationPrediction {
   const observedPresent = input.observed?.observedStatus === 'present';
-  const stages: OperationPredictedStage[] = [
-    {
-      id: 'kill-sessions',
-      label: `Stop sessions under ${input.workspacePath}`,
-      targetPath: input.workspacePath,
-      basis: 'assumed',
-    },
-    {
-      id: `remove-worktree:${input.workspacePath}`,
-      label: `Remove worktree ${input.workspacePath}`,
-      targetPath: input.workspacePath,
-      basis: observedPresent ? 'registry' : 'assumed',
-    },
-  ];
-  if (input.deleteBranch && input.branchName) {
-    stages.push({
-      id: `delete-branch:${input.branchName}`,
-      label: `Delete branch ${input.branchName}`,
-      basis: observedPresent ? 'registry' : 'assumed',
-    });
-  }
+  const stages = expandOperationStagePlan(removeWorktreeStagePlan, {
+    workspacePath: input.workspacePath,
+    deleteBranch: input.deleteBranch,
+    branchName: input.branchName,
+  }).map(
+    (stage): OperationPredictedStage => ({
+      id: stage.id,
+      label: stage.label,
+      targetPath: stage.targetPath,
+      basis: stage.executor === 'kill-sessions' || !observedPresent ? 'assumed' : 'registry',
+    })
+  );
   return {
     compiledAt: input.now,
     observedAsOf: parseObservedAsOf(input.observed),
@@ -49,32 +41,26 @@ export function compileRemoveWorktreePrediction(input: {
   };
 }
 
-/**
- * Prediction for `createWorktree`: always assumed — the artifact does not
- * exist yet, so no registry row can vouch for the expansion.
- */
+/** A create preview assumes the target does not exist; host inspection remains authoritative. */
 export function compileCreateWorktreePrediction(input: {
   now: number;
   workspacePath: string;
   branchName: string;
+  fetch?: boolean;
 }): OperationPrediction {
-  return {
-    compiledAt: input.now,
-    observedAsOf: null,
-    stages: [
-      {
-        id: 'verify-repository',
-        label: 'Verify repository',
-        basis: 'assumed',
-      },
-      {
-        id: `create-worktree:${input.workspacePath}`,
-        label: `Create worktree ${input.workspacePath} on ${input.branchName}`,
-        targetPath: input.workspacePath,
-        basis: 'assumed',
-      },
-    ],
-  };
+  const stages = expandOperationStagePlan(createWorktreeStagePlan, {
+    workspacePath: input.workspacePath,
+    fetch: input.fetch ?? false,
+    existing: false,
+  }).map(
+    (stage): OperationPredictedStage => ({
+      id: stage.id,
+      label: stage.label,
+      targetPath: stage.targetPath,
+      basis: 'assumed',
+    })
+  );
+  return { compiledAt: input.now, observedAsOf: null, stages };
 }
 
 export function compileRemoveRepositoryPrediction(input: {
@@ -82,28 +68,24 @@ export function compileRemoveRepositoryPrediction(input: {
   repoPath: string;
   worktrees: readonly { path: string; observed?: PredictionObservationRow | null }[];
 }): OperationPrediction {
-  const stages: OperationPredictedStage[] = [
-    {
-      id: 'kill-sessions',
-      label: `Stop sessions under ${input.repoPath}`,
-      targetPath: input.repoPath,
-      basis: 'assumed',
-    },
-    ...input.worktrees.map(
-      (worktree): OperationPredictedStage => ({
-        id: `remove-worktree:${worktree.path}`,
-        label: `Remove worktree ${worktree.path}`,
-        targetPath: worktree.path,
-        basis: worktree.observed?.observedStatus === 'present' ? 'registry' : 'assumed',
-      })
-    ),
-    {
-      id: `remove-repository:${input.repoPath}`,
-      label: `Remove repository ${input.repoPath}`,
-      targetPath: input.repoPath,
-      basis: 'registry',
-    },
-  ];
+  const observationByPath = new Map(input.worktrees.map((row) => [row.path, row.observed]));
+  const stages = expandOperationStagePlan(removeRepositoryStagePlan, {
+    repoPath: input.repoPath,
+    worktreePaths: input.worktrees.map((row) => row.path),
+    repositoryMissing: false,
+  }).map(
+    (stage): OperationPredictedStage => ({
+      id: stage.id,
+      label: stage.label,
+      targetPath: stage.targetPath,
+      basis:
+        stage.executor === 'remove-repository' ||
+        (stage.executor === 'remove-worktree' &&
+          observationByPath.get(stage.targetPath ?? '')?.observedStatus === 'present')
+          ? 'registry'
+          : 'assumed',
+    })
+  );
   const observedAsOf = input.worktrees
     .map((worktree) => parseObservedAsOf(worktree.observed))
     .filter((value): value is number => value !== null)

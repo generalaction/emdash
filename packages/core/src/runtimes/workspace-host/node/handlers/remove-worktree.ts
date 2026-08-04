@@ -2,6 +2,7 @@ import { createOperationHandler } from '@primitives/kernel/api';
 import { formatAbsolute } from '@primitives/path/api';
 import {
   removeWorktreeOperation,
+  removeWorktreeStagePlan,
   type WorkspaceHostError,
   type WorkspaceHostOperationResult,
 } from '../../api';
@@ -9,6 +10,7 @@ import {
   killSessionsUnderPath,
   type WorkspaceHostSessionClients,
 } from '../session/session-cleanup';
+import { executeStagePlan, stageTarget } from './execute-stage-plan';
 import {
   defaultGitExecFactory,
   deleteBranchIfExists,
@@ -30,29 +32,38 @@ export function createRemoveWorktreeHandler(deps: RemoveWorktreeHandlerDeps) {
     const exec = createExec(repoPath);
     let changed = false;
 
-    await ctx.stage('kill-sessions', 'Kill sessions under worktree', async () => {
-      const result = await killSessionsUnderPath(deps.sessions, ctx.input.worktreePath);
-      if (!result.success) ctx.reject(result.error);
-    });
-
-    await ctx.stage('remove-worktree', 'Remove git worktree', async () => {
-      const paths = await listWorktreePaths(exec);
-      if (!paths.has(worktreePath)) return;
-      try {
-        await exec.exec(['worktree', 'remove', '--force', worktreePath], { signal: ctx.signal });
-        changed = true;
-      } catch (error) {
-        if (!isMissingGitError(error)) throw error;
+    await executeStagePlan(
+      ctx,
+      removeWorktreeStagePlan,
+      {
+        workspacePath: worktreePath,
+        deleteBranch: ctx.input.deleteBranch ?? false,
+        branchName: ctx.input.branchName,
+      },
+      {
+        'kill-sessions': async () => {
+          const result = await killSessionsUnderPath(deps.sessions, ctx.input.worktreePath);
+          if (!result.success) ctx.reject(result.error);
+        },
+        'remove-worktree': async (stage) => {
+          const target = stageTarget(stage);
+          const paths = await listWorktreePaths(exec);
+          if (!paths.has(target)) return;
+          try {
+            await exec.exec(['worktree', 'remove', '--force', target], { signal: ctx.signal });
+            changed = true;
+          } catch (error) {
+            if (!isMissingGitError(error)) throw error;
+          }
+          await exec.exec(['worktree', 'prune'], { signal: ctx.signal });
+        },
+        'delete-branch': async () => {
+          const branchName = ctx.input.branchName;
+          if (!branchName) throw new Error('Delete-branch stage has no branch name');
+          changed = (await deleteBranchIfExists(exec, branchName)) || changed;
+        },
       }
-      await exec.exec(['worktree', 'prune'], { signal: ctx.signal });
-    });
-
-    if (ctx.input.deleteBranch && ctx.input.branchName) {
-      const branchName = ctx.input.branchName;
-      await ctx.stage('delete-branch', 'Delete git branch', async () => {
-        changed = (await deleteBranchIfExists(exec, branchName)) || changed;
-      });
-    }
+    );
 
     return result(ctx.input.operationId, changed);
   });
