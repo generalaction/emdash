@@ -85,3 +85,15 @@ A desktop-compiled, non-authoritative prediction of how the host will expand a H
 
 **Removal pending**:
 A registered Workspace whose removal has been enqueued but not yet confirmed gone by a host snapshot. Stays visible until confirmation or until its host is forgotten.
+
+**Placement**:
+The desktop policy that picks the intended path for a new Workspace — computed from settings and Registry knowledge only, never by probing the host. The host is the final arbiter of what actually happens at that path.
+_Avoid_: Probing, path reservation (nothing holds a path on the host)
+
+**Activation**:
+The moment a Workspace accepts Sessions. Session start waits for the prepare script to finish, but activation is never blocked by a script failure — failures surface as Workspace notices. Setup runs after activation, concurrent with live sessions; run scripts wait on setup success.
+_Avoid_: Provisioning (that creates the artifact; activation starts using it)
+
+**Workspace notice**:
+A surfaced, non-fatal event about a Workspace's session plane (a failed prepare or setup script). Informational with a re-run affordance — never an operation-log entry, because it mutates no inventory and holds no claims.
+_Avoid_: Operation, error state (the workspace keeps working)
