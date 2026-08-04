@@ -226,6 +226,31 @@ describe('NativeBrowserVerificationService', () => {
     expect(registry.forceCleanupVerificationSession).toHaveBeenCalledOnce();
   });
 
+  it('re-emits a browser request until a remounted renderer host acknowledges it', async () => {
+    const retryingService = new NativeBrowserVerificationService({
+      previewServers: { listForWorkspace: () => previews },
+      registry,
+      transport,
+      configurePartition,
+      idFactory: () => ids.shift() ?? 'fallback-id',
+      requestRetryIntervalMs: 5,
+      readyTimeoutMs: 500,
+      closeTimeoutMs: 500,
+    });
+
+    const pending = retryingService.start({
+      verificationRunId: 'run-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'workspace-1',
+    });
+    await vi.waitFor(() => expect(transport.requests.length).toBeGreaterThan(1));
+    expect(transport.requests[1]).toEqual(transport.requests[0]);
+    transport.ready(readyFor(transport.requests[1]!));
+
+    await expect(pending).resolves.toMatchObject({ success: true });
+  });
+
   it('requires an exact preview id when multiple ready previews exist', async () => {
     previews = [directPreview, { ...directPreview, id: 'preview-2', port: 5173 }];
     await expect(

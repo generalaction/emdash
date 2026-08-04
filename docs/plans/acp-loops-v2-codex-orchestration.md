@@ -1409,6 +1409,11 @@ fresh recreated green run becomes the final success report.
   integrating-fix progress at the correction SHA, but pass the unmodified issued handle plus the
   separate fix commit to integration. Preserve the correction evidence, use attempt eighteen for
   normal integration, and reserve attempt nineteen for the mandatory fresh replay.
+- [x] 2026-08-04: Attempt eighteen independently reproduced and integrated correction `700e936`.
+  Attempt nineteen replayed that clean commit without mutation, but its one-shot browser request
+  was emitted while the renderer host was unavailable and expired with `ready-timeout` before any
+  native assertion. Make browser-host requests replay-safe until exact ready acknowledgement and
+  reserve attempt twenty for the unchanged mandatory fresh replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.

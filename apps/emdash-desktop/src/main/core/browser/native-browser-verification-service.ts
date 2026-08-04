@@ -115,6 +115,7 @@ export class NativeBrowserVerificationService {
   private readonly previewPollIntervalMs: number;
   private readonly previewTimeoutMs: number;
   private readonly readyTimeoutMs: number;
+  private readonly requestRetryIntervalMs: number;
   private readonly closeTimeoutMs: number;
 
   constructor({
@@ -127,6 +128,7 @@ export class NativeBrowserVerificationService {
     previewPollIntervalMs = 50,
     previewTimeoutMs = 10_000,
     readyTimeoutMs = 15_000,
+    requestRetryIntervalMs = 250,
     closeTimeoutMs = 2_000,
   }: {
     previewServers: NativeBrowserVerificationService['previewServers'];
@@ -138,6 +140,7 @@ export class NativeBrowserVerificationService {
     previewPollIntervalMs?: number;
     previewTimeoutMs?: number;
     readyTimeoutMs?: number;
+    requestRetryIntervalMs?: number;
     closeTimeoutMs?: number;
   }) {
     this.previewServers = previewServers;
@@ -149,6 +152,7 @@ export class NativeBrowserVerificationService {
     this.previewPollIntervalMs = previewPollIntervalMs;
     this.previewTimeoutMs = previewTimeoutMs;
     this.readyTimeoutMs = readyTimeoutMs;
+    this.requestRetryIntervalMs = requestRetryIntervalMs;
     this.closeTimeoutMs = closeTimeoutMs;
   }
 
@@ -201,14 +205,19 @@ export class NativeBrowserVerificationService {
     };
     this.active.set(lease.verificationRunId, record);
 
-    const ready = this.waitForReady(lease, input.signal);
-    this.transport.emitRequest({
+    const request: LoopBrowserRequestMessage = {
       type: 'request',
       ...lease,
       previewUrl: session.previewUrl,
       requestedAt: this.now(),
-    });
-    const readyResult = await ready;
+    };
+    const ready = this.waitForReady(lease, input.signal);
+    this.transport.emitRequest(request);
+    const requestRetry = setInterval(
+      () => this.transport.emitRequest(request),
+      this.requestRetryIntervalMs
+    );
+    const readyResult = await ready.finally(() => clearInterval(requestRetry));
     if (!readyResult.success) {
       await this.close(lease, readyResult.error.kind === 'cancelled' ? 'cancelled' : 'failed');
       return readyResult;
