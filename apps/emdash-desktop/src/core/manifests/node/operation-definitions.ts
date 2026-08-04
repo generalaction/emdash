@@ -5,17 +5,25 @@ import {
 } from '@emdash/core/primitives/kernel/api';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import {
+  deleteAutomationOperation,
   deleteAutomationOperationContribution,
   type DeleteAutomationOperationDependencies,
 } from '@core/features/automations/node/operations/delete-automation-definition';
 import {
+  deleteProjectOperation,
   deleteProjectOperationContribution,
   type DeleteProjectOperationDependencies,
 } from '@core/features/projects/node/operations/delete-project-definition';
+import { deleteTaskOperation } from '@core/features/tasks/api/node/delete-task-operation';
 import {
   deleteTaskOperationContribution,
   type DeleteTaskOperationDependencies,
 } from '@core/features/tasks/node/operations/delete-task-definition';
+import {
+  hostCreateWorktreeOperation,
+  hostRemoveRepositoryOperation,
+  hostRemoveWorktreeOperation,
+} from '@core/features/workspaces/api/node/host-outbox-operations';
 import {
   hostOutboxOperationContribution,
   type HostOutboxDependencies,
@@ -52,32 +60,31 @@ export function createOperationDefinitions(
     ...deleteProjectOperationContribution.create(options.deleteProject, runtime),
     ...hostOutboxOperationContribution.create(options.hostOutbox, runtime),
   ];
-  const policy = createDesktopConflictPolicy(
-    definitions.map((definition) => definition.definition)
-  );
+  const policy = createDesktopConflictPolicy(definitions);
   return { definitions, conflictPolicies: [policy] };
 }
 
-export function createDesktopConflictPolicy(definitions: readonly AnyOperationDefinition[]) {
-  const byName = new Map(definitions.map((definition) => [definition.name, definition]));
-  const get = (name: string) => {
-    const definition = byName.get(name);
-    if (!definition) throw new Error(`Missing operation definition '${name}'`);
-    return definition;
+export function createDesktopConflictPolicy(descriptors: readonly OperationDefinition[]) {
+  const byName = new Map(
+    descriptors.map((descriptor) => [descriptor.definition.name, descriptor.definition])
+  );
+  const get = (definition: AnyOperationDefinition) => {
+    const registered = byName.get(definition.name);
+    if (!registered) throw new Error(`Missing operation definition '${definition.name}'`);
+    return registered;
   };
-  const names = [
-    'delete-task',
-    'delete-automation',
-    'delete-project',
-    'host-remove-worktree',
-    'host-create-worktree',
-    'host-remove-repository',
-  ] as const;
+  const definitions = [
+    deleteTaskOperation,
+    deleteAutomationOperation,
+    deleteProjectOperation,
+    hostRemoveWorktreeOperation,
+    hostCreateWorktreeOperation,
+    hostRemoveRepositoryOperation,
+  ];
   return defineConflictPolicy((on) => {
-    // Every colliding pair queues: desktop deletions are fast and outbox
-    // entries serialize per resource, so FIFO ordering is always safe.
-    for (const first of names) {
-      for (const second of names) {
+    // Keep this pairwise matrix explicit: future pairs may dedupe or supersede.
+    for (const first of definitions) {
+      for (const second of definitions) {
         on(get(first), get(second)).queue();
       }
     }

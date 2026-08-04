@@ -118,7 +118,7 @@ function hostView(
 const runtime = { db: {} as AppDb, clock: testClock };
 
 describe('host outbox removeWorktree definition', () => {
-  it('submits the verb with the desktop-minted id, folds stages, and requests a snapshot', async () => {
+  it('submits the verb with the desktop-minted id and folds stages', async () => {
     const { runtimes, submitted } = fakeHost({
       views: [
         hostView('running', [
@@ -129,11 +129,7 @@ describe('host outbox removeWorktree definition', () => {
         ]),
       ],
     });
-    const requestSnapshot = vi.fn();
-    const definition = createHostRemoveWorktreeDefinition(
-      { runtimes, requestSnapshot, pollIntervalMs: 0 },
-      runtime
-    );
+    const definition = createHostRemoveWorktreeDefinition({ runtimes, pollIntervalMs: 0 }, runtime);
     const input = removeWorktreeInput();
     const { ctx, stages } = fakeCtx(input);
 
@@ -147,10 +143,6 @@ describe('host outbox removeWorktree definition', () => {
       'submit-host-operation',
       'host:remove-worktree',
     ]);
-    expect(requestSnapshot).toHaveBeenCalledWith({
-      hostRef: formatHostRef(LOCAL_HOST_REF),
-      repoPath: '/repo',
-    });
   });
 
   it('rejects non-retryably when the host operation terminally fails', async () => {

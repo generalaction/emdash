@@ -19,6 +19,7 @@ const deleteTaskInputSchema = defineVersionedSchema()
       projectId: z.string(),
       workspaceId: z.string().nullable().optional(),
       hostRef: serializedHostRefSchema,
+      targetHostRef: serializedHostRefSchema.optional(),
       entityName: z.string().optional(),
       hostLabel: z.string().optional(),
       projectPath: z.string().optional(),
@@ -35,12 +36,14 @@ const deleteTaskInputSchema = defineVersionedSchema()
 
 export type DeleteTaskOperationInput = typeof deleteTaskInputSchema.Type;
 
+export const deleteTaskOperationKey = (taskId: string) => `task:${taskId}`;
+
 export const deleteTaskOperation = defineOperation({
   name: 'delete-task',
   input: deleteTaskInputSchema,
   result: operationResultSchema,
   error: operationErrorSchema,
-  key: (input) => `task:${input.taskId}`,
+  key: (input) => deleteTaskOperationKey(input.taskId),
   claims: (input) =>
     deleteTaskKernelClaims({
       projectId: input.projectId,
@@ -52,7 +55,7 @@ export const deleteTaskOperation = defineOperation({
       worktree:
         input.projectPath && input.workspacePath
           ? {
-              hostRef: input.hostRef,
+              hostRef: input.targetHostRef ?? input.hostRef,
               repoPath: input.projectPath,
               worktreePath: input.workspacePath,
             }

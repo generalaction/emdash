@@ -73,6 +73,7 @@ const hostRemoveRepositoryInputSchema = defineVersionedSchema()
     '1',
     z.object({
       ...hostOutboxBaseFields,
+      workspacePath: z.string().min(1),
       deleteBranches: z.boolean().optional(),
     })
   )

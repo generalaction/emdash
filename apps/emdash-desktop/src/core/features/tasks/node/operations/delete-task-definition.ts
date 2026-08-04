@@ -11,6 +11,7 @@ import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm';
 import {
   deleteTaskOperation,
+  deleteTaskOperationKey,
   type DeleteTaskOperationInput,
 } from '@core/features/tasks/api/node/delete-task-operation';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
@@ -33,7 +34,12 @@ import type {
   OperationDefinition,
   OperationReconcileContext,
 } from '@core/services/operations/node';
-import { confirmInput, needsConfirmation, runOperationStage } from '@core/services/operations/node';
+import {
+  needsConfirmation,
+  rejectOperationOutcome,
+  runOperationStage,
+  stageOk,
+} from '@core/services/operations/node';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
 const SESSION_TIMEOUT_MS = 30_000;
@@ -100,7 +106,7 @@ export function createDeleteTaskOperationDefinition(
     const { input } = ctx;
     const operation = lifecycleParams(ctx.operationId, input, ctx.attempt, runtime.initiatedBy);
     if (input.source === 'reconciler' && !input.confirmedAt) {
-      needsConfirmation(ctx, 'reconciler-proposed');
+      rejectOperationOutcome(ctx, needsConfirmation('reconciler-proposed'));
     }
     const context = await resolveLifecycleOperationContext(
       dependencies.lifecycleContext,
@@ -131,6 +137,7 @@ export function createDeleteTaskOperationDefinition(
         } catch {
           // Swallowed by design; see stage comment.
         }
+        return stageOk();
       },
     });
 
@@ -139,7 +146,10 @@ export function createDeleteTaskOperationDefinition(
         id: 'purge-task-rows',
         timeoutMs: PURGE_TIMEOUT_MS,
         clock: runtime.clock,
-        run: async () => purgeTaskRows(runtime.db, operation, context, dependencies),
+        run: async () => {
+          await purgeTaskRows(runtime.db, operation, context, dependencies);
+          return stageOk();
+        },
       });
     }
     return { ok: true as const };
@@ -149,6 +159,8 @@ export function createDeleteTaskOperationDefinition(
     definition: deleteTaskOperation,
     handler,
     entityKind: 'task',
+    displayName: 'Deleting task',
+    keyForId: deleteTaskOperationKey,
     examples: [
       {
         definition: deleteTaskOperation,
@@ -169,17 +181,6 @@ export function createDeleteTaskOperationDefinition(
         },
       },
     ],
-    describe: (input) => ({
-      entityName: input.entityName,
-      workspacePath: input.workspacePath,
-      branchName: input.branchName,
-      hostLabel: input.hostLabel,
-    }),
-    projectId: (input) => input.projectId,
-    // Desktop-plane operation: never gated on host reachability. The session
-    // kill is best effort; the workspace host owns worktree/session removal.
-    hostRef: () => formatHostRef(LOCAL_HOST_REF),
-    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     purge: async ({ input, db }) => {
       db.transaction((tx) => {
         tx.delete(tasks).where(eq(tasks.id, input.taskId)).run();
@@ -238,7 +239,8 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
       taskId: task.id,
       projectId: task.projectId,
       workspaceId: task.workspaceId,
-      hostRef: formatHostRef(operationHostRef({ workspace, project })),
+      hostRef: formatHostRef(LOCAL_HOST_REF),
+      targetHostRef: formatHostRef(operationHostRef({ workspace, project })),
       entityName: task.name,
       hostLabel: project?.sshConnectionId ? project.name : undefined,
       projectPath: project?.path,
@@ -292,13 +294,7 @@ function projectIsActive(tx: DrizzleTx, projectId: string) {
 async function reconcileTaskCleanups(context: OperationReconcileContext): Promise<void> {
   const rows = await context.db.select().from(tasks).where(isNotNull(tasks.deletedAt));
   for (const task of rows) {
-    if (
-      await context.hasActiveKey(
-        deleteTaskOperation.key({ ...exampleTaskInput(task.id), projectId: task.projectId })
-      )
-    ) {
-      continue;
-    }
+    if (await context.hasActiveKey(deleteTaskOperationKey(task.id))) continue;
     const [workspace] = task.workspaceId
       ? await context.db
           .select()
@@ -317,7 +313,8 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
       taskId: task.id,
       projectId: task.projectId,
       workspaceId: task.workspaceId,
-      hostRef: formatHostRef(operationHostRef({ workspace, project })),
+      hostRef: formatHostRef(LOCAL_HOST_REF),
+      targetHostRef: formatHostRef(operationHostRef({ workspace, project })),
       entityName: task.name,
       hostLabel: project?.name,
       projectPath: project?.path,
@@ -346,7 +343,7 @@ function lifecycleParams(
     taskId: input.taskId,
     workspaceId: input.workspaceId ?? null,
     entityKey: input.taskId,
-    hostRef: input.hostRef,
+    hostRef: input.targetHostRef ?? input.hostRef,
     payload: {
       version: '2',
       source: input.source,
@@ -415,18 +412,4 @@ async function purgeTaskLocalState(
     project_id: input.projectId ?? undefined,
     task_id: input.taskId,
   });
-}
-
-function exampleTaskInput(taskId: string): DeleteTaskOperationInput {
-  return {
-    version: '1',
-    source: 'reconciler',
-    taskId,
-    projectId: 'project-example',
-    hostRef: formatHostRef(LOCAL_HOST_REF),
-    deleteWorktree: true,
-    deleteBranch: false,
-    workspaceShared: false,
-    createdAt: 1,
-  };
 }

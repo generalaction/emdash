@@ -1,3 +1,5 @@
+import type { OperationStageDisplay } from '@primitives/operations/api';
+
 export interface OperationProgress {
   operationId: string;
   stages: OperationStage[];
@@ -5,12 +7,7 @@ export interface OperationProgress {
   done?: boolean;
 }
 
-export interface OperationStage {
-  id: string;
-  label: string;
-  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
-  progress?: number;
-  error?: { message: string };
+export interface OperationStage extends OperationStageDisplay {
   substages?: OperationStage[];
 }
 

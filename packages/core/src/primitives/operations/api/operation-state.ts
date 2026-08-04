@@ -7,20 +7,36 @@ export const operationConfirmationReasonSchema = z.enum([
   'workspace-busy',
 ]);
 
+export const operationNeedsConfirmationErrorSchema = z.object({
+  type: z.literal('needs-confirmation'),
+  reason: operationConfirmationReasonSchema,
+  message: z.string().optional(),
+});
+
 export const operationEntityKindSchema = z.enum(['task', 'automation', 'workspace', 'project']);
 
-export const operationStageDisplaySchema = z.object({
+/** Canonical identity and presentation fields shared by plans, predictions, and journals. */
+export const operationStageSchema = z.object({
   id: z.string(),
   label: z.string(),
-  status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
+  targetPath: z.string().optional(),
+});
+
+export const operationStageStatusSchema = z.enum([
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'skipped',
+]);
+
+export const operationStageDisplaySchema = operationStageSchema.extend({
+  status: operationStageStatusSchema,
   progress: z.number().min(0).max(1).optional(),
   error: z.object({ message: z.string() }).optional(),
 });
 
-export const operationPredictedStageSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  targetPath: z.string().optional(),
+export const operationPredictedStageSchema = operationStageSchema.extend({
   /** 'registry' = a tracked registry row says so; 'assumed' = e.g. "sessions, if any". */
   basis: z.enum(['registry', 'assumed']),
 });
@@ -40,6 +56,7 @@ export const operationPredictionSchema = z.object({
 const operationDisplayBaseSchema = z.object({
   operationId: z.string(),
   operationKind: z.string(),
+  displayName: z.string(),
   entityId: z.string(),
   entityKind: operationEntityKindSchema,
   projectId: z.string().optional(),
@@ -101,7 +118,10 @@ export const operationMutationResultSchema = z.object({
 });
 
 export type OperationConfirmationReason = z.infer<typeof operationConfirmationReasonSchema>;
+export type OperationNeedsConfirmationError = z.infer<typeof operationNeedsConfirmationErrorSchema>;
 export type OperationEntityKind = z.infer<typeof operationEntityKindSchema>;
+export type OperationStage = z.infer<typeof operationStageSchema>;
+export type OperationStageStatus = z.infer<typeof operationStageStatusSchema>;
 export type OperationStageDisplay = z.infer<typeof operationStageDisplaySchema>;
 export type OperationPredictedStage = z.infer<typeof operationPredictedStageSchema>;
 export type OperationPrediction = z.infer<typeof operationPredictionSchema>;

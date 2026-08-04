@@ -31,7 +31,7 @@ export type OperationTreeRollupStatus = z.infer<typeof operationTreeRollupStatus
 export type OperationTree = z.infer<typeof operationTreeSchema>;
 export type OperationTreeList = z.infer<typeof operationTreeListSchema>;
 
-const ROLLUP_SEVERITY: readonly OperationTreeRollupStatus[] = [
+export const OPERATION_TREE_ROLLUP_SEVERITY: readonly OperationTreeRollupStatus[] = [
   'failed',
   'awaiting-confirmation',
   'blocked-host-offline',
@@ -41,7 +41,7 @@ const ROLLUP_SEVERITY: readonly OperationTreeRollupStatus[] = [
 ];
 
 export function rollupStatus(nodes: readonly OperationDisplayState[]): OperationTreeRollupStatus {
-  for (const status of ROLLUP_SEVERITY) {
+  for (const status of OPERATION_TREE_ROLLUP_SEVERITY) {
     if (nodes.some((node) => node.status === status)) return status;
   }
   return 'queued';

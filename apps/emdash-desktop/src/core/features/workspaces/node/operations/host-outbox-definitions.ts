@@ -28,10 +28,12 @@ import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/n
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationDefinition, OperationError } from '@core/services/operations/node';
 import {
-  confirmInput,
-  failOperation,
   needsConfirmation,
+  rejectOperationOutcome,
+  retryable,
   runOperationStage,
+  stageOk,
+  terminal,
 } from '@core/services/operations/node';
 import { followHostOperation, HostStageFailedError } from './follow-host-operation';
 
@@ -40,8 +42,6 @@ const DEACTIVATE_TIMEOUT_MS = 5 * 60_000;
 
 export type HostOutboxDependencies = {
   runtimes: Pick<RuntimeBroker, 'client'>;
-  /** Requests a full snapshot of the affected repository after a verb lands. */
-  requestSnapshot?(input: { hostRef: SerializedHostRef; repoPath: string }): void;
   /**
    * Releases workspace-runtime consumers (running teardown scripts) before the
    * host removes a worktree. Runs only while the host is reachable.
@@ -90,8 +90,8 @@ export function createHostRemoveWorktreeDefinition(
         timeoutMs: DEACTIVATE_TIMEOUT_MS,
         clock: runtime.clock,
         classifyError: classifyWorkspaceOperationError,
-        run: async (signal, stage) =>
-          dependencies.deactivateWorkspace!(
+        run: async (signal, stage) => {
+          await dependencies.deactivateWorkspace!(
             {
               hostRef: input.hostRef,
               workspacePath: input.workspacePath,
@@ -99,7 +99,9 @@ export function createHostRemoveWorktreeDefinition(
               operationId: ctx.operationId,
             },
             { signal, onWaitingChange: (waiting) => stage.progress(waiting ? 0.5 : 0) }
-          ),
+          );
+          return stageOk();
+        },
       });
     }
     await runHostVerb(ctx, dependencies, runtime, input, {
@@ -117,6 +119,7 @@ export function createHostRemoveWorktreeDefinition(
     return { ok: true as const };
   });
   return hostOutboxDescriptor(hostRemoveWorktreeOperation, handler, {
+    displayName: 'Removing worktree',
     example: {
       version: '1',
       source: 'user',
@@ -154,6 +157,7 @@ export function createHostCreateWorktreeDefinition(
     return { ok: true as const };
   });
   return hostOutboxDescriptor(hostCreateWorktreeOperation, handler, {
+    displayName: 'Creating worktree',
     example: {
       version: '1',
       source: 'user',
@@ -187,12 +191,14 @@ export function createHostRemoveRepositoryDefinition(
     return { ok: true as const };
   });
   return hostOutboxDescriptor(hostRemoveRepositoryOperation, handler, {
+    displayName: 'Removing repository',
     example: {
       version: '1',
       source: 'user',
       hostOperationId: 'host-op-example',
       hostRef: formatHostRef(LOCAL_HOST_REF),
       repoPath: '/repo',
+      workspacePath: '/repo',
       createdAt: 1,
     },
   });
@@ -207,7 +213,7 @@ type HandlerCtx = HandlerContext<HostOutboxInput, OperationError>;
 
 function gateReconcilerProposal(ctx: HandlerCtx, input: HostOutboxInput): void {
   if (input.source === 'reconciler' && !input.confirmedAt) {
-    needsConfirmation(ctx, 'reconciler-proposed');
+    rejectOperationOutcome(ctx, needsConfirmation('reconciler-proposed'));
   }
 }
 
@@ -225,9 +231,10 @@ async function runHostVerb(
 ): Promise<WorkspaceHostOperationView> {
   const client = await dependencies.runtimes.client(parseHostRef(input.hostRef));
   if (!client.success) {
-    throw Object.assign(new Error(`Host ${input.hostRef} is unavailable`), {
-      code: 'host-unreachable',
-    });
+    rejectOperationOutcome(
+      ctx,
+      retryable(`Host ${input.hostRef} is unavailable`, 'host-unreachable')
+    );
   }
   const workspaceHost = client.data.workspaceHost;
 
@@ -239,8 +246,9 @@ async function runHostVerb(
     run: async () => {
       const submitted = await workspaceHost.submitOperation(request);
       if (!submitted.success) {
-        throw Object.assign(new Error(submitted.error.message), { code: submitted.error.type });
+        return retryable(submitted.error.message, submitted.error.type);
       }
+      return stageOk();
     },
   });
 
@@ -253,29 +261,28 @@ async function runHostVerb(
     });
   } catch (error) {
     if (error instanceof HostStageFailedError) {
-      failOperation(ctx, error.message, { code: error.code, retryable: false });
+      rejectOperationOutcome(ctx, terminal(error, error.code));
     }
     throw error;
   }
 
   if (view.status !== 'succeeded') {
-    failOperation(ctx, view.error?.message ?? `Host operation ${view.status}`, {
-      code: view.error?.type ?? 'host-operation-failed',
-      retryable: false,
-    });
+    rejectOperationOutcome(
+      ctx,
+      terminal(
+        view.error?.message ?? `Host operation ${view.status}`,
+        view.error?.type ?? 'host-operation-failed'
+      )
+    );
   }
 
-  dependencies.requestSnapshot?.({ hostRef: input.hostRef, repoPath: input.repoPath });
   return view;
 }
 
 function parseHostPath(ctx: HandlerCtx, path: string) {
   const parsed = parseAbsolute(path);
   if (!parsed.success) {
-    failOperation(ctx, `Invalid host path: ${path}`, {
-      code: 'invalid-host-path',
-      retryable: false,
-    });
+    rejectOperationOutcome(ctx, terminal(`Invalid host path: ${path}`, 'invalid-host-path'));
   }
   return parsed.data;
 }
@@ -283,22 +290,14 @@ function parseHostPath(ctx: HandlerCtx, path: string) {
 function hostOutboxDescriptor<D extends HostOutboxOperation>(
   definition: D,
   handler: ReturnType<typeof createOperationHandler<D>>,
-  options: { example: InputOf<D> }
+  options: { displayName: string; example: InputOf<D> }
 ): OperationDefinition<D> {
   return {
     definition,
     handler,
     entityKind: 'workspace',
+    displayName: options.displayName,
     examples: [{ definition, input: options.example }],
-    describe: (input) => ({
-      entityName: input.entityName,
-      hostLabel: input.hostLabel,
-      workspacePath: 'workspacePath' in input ? input.workspacePath : input.repoPath,
-      branchName: 'branchName' in input ? input.branchName : undefined,
-    }),
-    projectId: (input) => input.projectId,
-    hostRef: (input) => input.hostRef,
     prediction: (input) => input.prediction,
-    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
   };
 }

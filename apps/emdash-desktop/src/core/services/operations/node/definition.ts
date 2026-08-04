@@ -23,13 +23,6 @@ export type OperationProgress = {
   waiting?: boolean;
 };
 
-export type OperationDescription = {
-  entityName?: string;
-  hostLabel?: string;
-  workspacePath?: string;
-  branchName?: string;
-};
-
 export type OperationInputSource = 'user' | 'reconciler';
 
 export type OperationInputBase = {
@@ -40,6 +33,7 @@ export type OperationInputBase = {
   entityName?: string;
   hostLabel?: string;
   workspacePath?: string;
+  repoPath?: string;
   branchName?: string;
   confirmedAt?: number;
   createdAt: number;
@@ -91,17 +85,12 @@ export type OperationDefinition<D extends AnyOperationDefinition = AnyOperationD
   definition: D;
   handler: OperationHandler<D>;
   entityKind: OperationEntityKind;
+  displayName: string;
   examples: readonly { definition: D; input: InputOf<D> }[];
-  describe(input: InputOf<D>): OperationDescription;
-  projectId(input: InputOf<D>): string | undefined;
-  hostRef(input: InputOf<D>): SerializedHostRef;
+  /** Computes a durable key without fabricating a full operation input. */
+  keyForId?(id: string): string;
   /** Desktop-compiled preview of a queued host operation; discarded once running. */
   prediction?(input: InputOf<D>): OperationPrediction | undefined;
-  confirmedInput(
-    input: InputOf<D>,
-    confirmedAt: number,
-    reason: OperationConfirmationReason
-  ): InputOf<D>;
   purge?(context: {
     input: InputOf<D>;
     record: OperationRecord;

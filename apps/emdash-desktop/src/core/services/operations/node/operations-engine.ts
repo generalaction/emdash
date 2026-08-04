@@ -8,15 +8,13 @@ import {
 } from '@emdash/core/primitives/host/api';
 import {
   claimsCollide,
-  displayStatus,
   isTerminalStatus,
-  operationTreeView,
   type AnyOperationDefinition,
   type ConflictPolicy,
   type InputOf,
   type OperationHandler,
+  type OperationProgress,
   type OperationRecord,
-  type OperationTreeNode,
   type ProgressSink,
   type ResourceClaim,
 } from '@emdash/core/primitives/kernel/api';
@@ -27,12 +25,10 @@ import {
 } from '@emdash/core/primitives/kernel/engine';
 import type { SqliteOperationStore } from '@emdash/core/primitives/kernel/sqlite';
 import {
-  rollupStatus,
-  type OperationConfirmationReason,
-  type OperationDisplayState,
+  operationNeedsConfirmationErrorSchema,
+  projectOperationTrees,
+  type ParsedOperationProjection,
   type OperationMutationError,
-  type OperationStageDisplay,
-  type OperationTree,
   type OperationTreeKey,
   type OperationTreeList,
 } from '@emdash/core/primitives/operations/api';
@@ -42,14 +38,17 @@ import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { family, query, type Family, type Query } from '@emdash/wire';
 import type { OperationPayload } from '@core/primitives/operations/api';
+import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   matchOperationProject,
   operationsPokes,
+  publishOperationSettled,
   type OperationTreePoke,
 } from '@core/services/operations/node/pokes';
 import type {
   OperationDefinition,
+  OperationInputBase,
   OperationMutationResult,
   OperationReconcileContext,
   OperationSubmitOptions,
@@ -90,7 +89,7 @@ export class OperationsEngine {
   private readonly kernel: KernelOperationEngine;
   private readonly clock: Clock;
   private readonly initiatedBy: string | undefined;
-  private readonly progress = new Map<string, OperationProgressSummary>();
+  private readonly progress = new Map<string, OperationProgress>();
   private readonly operationTrees: Family<OperationTreeKey, Query<OperationTreeList>>;
 
   constructor(deps: OperationsEngineDeps) {
@@ -139,13 +138,15 @@ export class OperationsEngine {
     this.scope.add(() => {
       this.sshManager.off('connection-event', onConnection);
     });
-    const interval = setInterval(() => {
-      void this.sweep().catch((error: unknown) => {
+    const reconciler = startPeriodicSweep({
+      scope: this.scope,
+      intervalMs: RECONCILER_INTERVAL_MS,
+      run: () => this.sweep(),
+      onError: (error) => {
         this.logger.warn('operations reconciler sweep failed', { error: String(error) });
-      });
-    }, RECONCILER_INTERVAL_MS);
-    this.scope.add(() => clearInterval(interval));
-    await this.sweep();
+      },
+    });
+    await reconciler.runNow();
     this.refreshOperationTrees();
   }
 
@@ -192,25 +193,21 @@ export class OperationsEngine {
         message: `Operation ${operationId} was not found`,
       });
     }
-    const descriptor = this.definitions.get(record.name);
-    if (!descriptor) {
+    if (!this.definitions.has(record.name)) {
       return err({ type: 'operation-not-found', message: `Operation ${record.name} is unknown` });
     }
-    const parsed = descriptor.definition.input.safeParse(record.input);
-    if (parsed.status !== 'ok') {
+    const parsed = this.parseRecord(record);
+    if (!parsed) {
       return err({
         type: 'operation-input-invalid',
         message: `Operation ${record.name} input is invalid`,
       });
     }
+    const { descriptor, input } = parsed;
     const confirmation = needsConfirmation(record);
     const confirmed = confirmation
-      ? descriptor.confirmedInput(
-          parsed.data,
-          this.clock.now(),
-          confirmation.reason as OperationConfirmationReason
-        )
-      : parsed.data;
+      ? ({ ...input, confirmedAt: this.clock.now() } as InputOf<typeof descriptor.definition>)
+      : input;
     const submitted = await this.kernel.submit(descriptor.definition, confirmed, {
       initiator: { kind: 'user', action: 'retry-operation' },
     });
@@ -219,8 +216,9 @@ export class OperationsEngine {
     const terminalIds = oldRecords
       .filter((oldRecord) => isTerminalStatus(oldRecord.status))
       .map((oldRecord) => oldRecord.id);
-    void this.pruneTerminalRecordsWhenIdle(terminalIds, descriptor.projectId(confirmed));
-    this.refreshOperationTrees(descriptor.projectId(confirmed));
+    const inputBase = asOperationInputBase(confirmed);
+    void this.pruneTerminalRecordsWhenIdle(terminalIds, inputBase.projectId ?? undefined);
+    this.refreshOperationTrees(inputBase.projectId ?? undefined);
     return ok({ operationId: submitted.data.id });
   }
 
@@ -355,7 +353,7 @@ export class OperationsEngine {
       return err(admissionError(submitted.error));
     }
     this.maybePublishProposalNotification(submitted.data.id, definition, input);
-    this.refreshOperationTrees(descriptor.projectId(input));
+    this.refreshOperationTrees(asOperationInputBase(input).projectId ?? undefined);
     return ok({ operationId: submitted.data.id });
   }
 
@@ -389,21 +387,7 @@ export class OperationsEngine {
   private createProgressSink(): ProgressSink {
     return {
       publish: (update) => {
-        if (update.stages.length > 0) {
-          const current = update.stages.at(-1);
-          this.progress.set(update.operationId, {
-            currentStep: current?.id,
-            completedSteps: update.stages.filter((stage) => stage.status === 'succeeded').length,
-            totalSteps: update.stages.length,
-            stages: update.stages.map((stage) => ({
-              id: stage.id,
-              label: stage.label,
-              status: stage.status,
-              progress: stage.progress,
-              error: stage.error,
-            })),
-          });
-        }
+        if (update.stages.length > 0) this.progress.set(update.operationId, update);
         void this.refreshOperationTreeForRecord(update.operationId);
       },
       end: (operationId) => {
@@ -413,101 +397,44 @@ export class OperationsEngine {
     };
   }
 
-  private async loadOperationTrees(key: OperationTreeKey): Promise<OperationTreeList> {
-    const records = (await this.kernel.query({})).records.filter((record) => {
-      if (
-        isTerminalStatus(record.status) &&
-        record.status !== 'failed' &&
-        record.status !== 'rejected' &&
-        record.updatedAt < this.clock.now() - RECENT_SETTLED_WINDOW_MS
-      ) {
-        return false;
-      }
-      const descriptor = this.definitions.get(record.name);
-      if (!descriptor) return false;
-      const parsed = descriptor.definition.input.safeParse(record.input);
-      if (parsed.status !== 'ok') return false;
-      return key.projectId === undefined || descriptor.projectId(parsed.data) === key.projectId;
-    });
-
-    const nodes = operationTreeView(records).filter((node) => this.shouldRetainTree(node));
-    return Object.fromEntries(
-      nodes.map((node) => {
-        const root = this.toDisplayState(node.record);
-        const children = flattenTreeChildren(node).map((child) => this.toDisplayState(child));
-        const allNodes = [root, ...children];
-        const tree: OperationTree = {
-          root,
-          children,
-          rollup: {
-            total: allNodes.length,
-            done: allNodes.filter((item) => item.status === 'succeeded').length,
-            status: rollupStatus(allNodes),
-          },
-        };
-        return [root.operationId, tree];
-      })
-    );
+  private parseRecord(record: OperationRecord) {
+    const descriptor = this.definitions.get(record.name);
+    if (!descriptor) return undefined;
+    const parsed = descriptor.definition.input.safeParse(record.input);
+    if (parsed.status !== 'ok') return undefined;
+    return { descriptor, input: parsed.data };
   }
 
-  private toDisplayState(record: OperationRecord): OperationDisplayState {
-    const descriptor = this.definitions.get(record.name);
-    if (!descriptor) {
-      return fallbackDisplay(record);
+  private async loadOperationTrees(key: OperationTreeKey): Promise<OperationTreeList> {
+    const records = (await this.kernel.query({})).records;
+    const parsedInputs = new Map<string, ParsedOperationProjection>();
+    for (const record of records) {
+      const parsed = this.parseRecord(record);
+      if (!parsed) continue;
+      const { descriptor } = parsed;
+      const operationInput = asOperationInputBase(parsed.input);
+      parsedInputs.set(record.id, {
+        displayName: descriptor.displayName,
+        entityKind: descriptor.entityKind,
+        projectId: operationInput.projectId ?? undefined,
+        entityName: operationInput.entityName,
+        hostRef: operationInput.hostRef,
+        hostLabel: operationInput.hostLabel,
+        workspacePath: operationInput.workspacePath,
+        branchName: operationInput.branchName,
+        prediction: descriptor.prediction?.(parsed.input),
+      });
     }
-    const parsed = descriptor.definition.input.safeParse(record.input);
-    if (parsed.status !== 'ok') {
-      return fallbackDisplay(record);
-    }
-    const description = descriptor.describe(parsed.data);
-    const progress = this.progress.get(record.id);
-    const status = displayStatus(record, this.kernel.lastDispatchReport());
-    const rejected = needsConfirmation(record);
-    const base = {
-      operationId: record.id,
-      operationKind: record.name,
-      entityId: record.key,
-      entityKind: descriptor.entityKind,
-      projectId: descriptor.projectId(parsed.data),
-      entityName: description.entityName,
-      hostRef: descriptor.hostRef(parsed.data),
-      hostLabel: description.hostLabel,
-      workspacePath: description.workspacePath,
-      branchName: description.branchName,
-      createdAt: record.createdAt,
-      attempt: record.attempt,
-      currentStep: progress?.currentStep,
-      completedSteps: progress?.completedSteps,
-      totalSteps: progress?.totalSteps,
-      error: record.error?.message,
-    };
-    const prediction = descriptor.prediction?.(parsed.data);
-    if (rejected) {
-      return {
-        ...base,
-        status: 'awaiting-confirmation',
-        confirmationReason: rejected.reason as OperationConfirmationReason,
-        error: rejected.message,
-      };
-    }
-    if (status.kind === 'deferred' && status.reason === 'gated') {
-      return { ...base, status: 'blocked-host-offline', prediction };
-    }
-    if (status.kind === 'waiting') return { ...base, status: 'waiting', prediction };
-    if (status.kind === 'running') {
-      return { ...base, status: 'running', stages: progress?.stages };
-    }
-    if (status.kind === 'waiting-children') return { ...base, status: 'waiting-children' };
-    if (status.kind === 'succeeded') return { ...base, status: 'succeeded' };
-    if (status.kind === 'failed' || status.kind === 'rejected') {
-      return {
-        ...base,
-        status: 'failed',
-        error: base.error ?? 'Operation failed',
-        stages: progress?.stages,
-      };
-    }
-    return { ...base, status: 'queued', prediction };
+    return projectOperationTrees({
+      records,
+      parsedInputs,
+      progress: this.progress,
+      dispatchReport: this.kernel.lastDispatchReport(),
+      now: this.clock.now(),
+      recentSettledWindowMs: RECENT_SETTLED_WINDOW_MS,
+      projectId: key.projectId,
+      fallbackHostRef: formatHostRef(LOCAL_HOST_REF),
+    });
   }
 
   private refreshOperationTrees(projectId?: string): void {
@@ -523,11 +450,8 @@ export class OperationsEngine {
   }
 
   private hostRefFromRecord(record: OperationRecord): SerializedHostRef {
-    const descriptor = this.definitions.get(record.name);
-    const parsed = descriptor?.definition.input.safeParse(record.input);
-    return parsed?.status === 'ok' && descriptor
-      ? descriptor.hostRef(parsed.data)
-      : formatHostRef(LOCAL_HOST_REF);
+    const parsed = this.parseRecord(record);
+    return parsed ? asOperationInputBase(parsed.input).hostRef : formatHostRef(LOCAL_HOST_REF);
   }
 
   private async refreshOperationTreeForRecord(operationId: string): Promise<void> {
@@ -536,20 +460,20 @@ export class OperationsEngine {
       this.refreshOperationTrees();
       return;
     }
-    const descriptor = this.definitions.get(record.name);
-    const parsed = descriptor?.definition.input.safeParse(record.input);
-    if (!descriptor || parsed?.status !== 'ok') {
+    const parsed = this.parseRecord(record);
+    if (!parsed) {
       this.refreshOperationTrees();
       return;
     }
-    this.refreshOperationTrees(descriptor.projectId(parsed.data));
-  }
-
-  private shouldRetainTree(node: OperationTreeNode): boolean {
-    return flattenTreeRecords(node).some((record) => {
-      if (!isTerminalStatus(record.status)) return true;
-      return record.status === 'failed' || record.status === 'rejected';
-    });
+    const input = asOperationInputBase(parsed.input);
+    this.refreshOperationTrees(input.projectId ?? undefined);
+    if (isTerminalStatus(record.status) && input.repoPath) {
+      publishOperationSettled({
+        hostRef: input.hostRef,
+        repoPath: input.repoPath,
+        status: record.status,
+      });
+    }
   }
 
   private async getRoot(operationId: string): Promise<OperationRecord | undefined> {
@@ -597,11 +521,9 @@ export class OperationsEngine {
   }
 
   private async purgeRecord(record: OperationRecord): Promise<void> {
-    const descriptor = this.definitions.get(record.name);
-    if (!descriptor?.purge) return;
-    const parsed = descriptor.definition.input.safeParse(record.input);
-    if (parsed.status !== 'ok') return;
-    await descriptor.purge({ input: parsed.data, record, db: this.db, clock: this.clock });
+    const parsed = this.parseRecord(record);
+    if (!parsed?.descriptor.purge) return;
+    await parsed.descriptor.purge({ input: parsed.input, record, db: this.db, clock: this.clock });
   }
 
   private async sweep(): Promise<void> {
@@ -639,9 +561,7 @@ export class OperationsEngine {
     const pruneIds = records
       .filter((record) => {
         if (!isTerminalStatus(record.status)) return false;
-        const descriptor = this.definitions.get(record.name);
-        const parsed = descriptor?.definition.input.safeParse(record.input);
-        if (parsed?.status !== 'ok') return true;
+        if (!this.parseRecord(record)) return true;
         if (needsConfirmation(record)) return false;
         if (record.status === 'cancelled') return true;
         return record.updatedAt < this.clock.now() - OPERATION_RETENTION_MS;
@@ -672,50 +592,28 @@ export class OperationsEngine {
     if (!isReconcilerInput(input)) return;
     const descriptor = this.definitions.get(definition.name);
     if (!descriptor) return;
-    const description = descriptor.describe(input);
+    const operationInput = asOperationInputBase(input);
     const payload: OperationPayload = {
       version: '2',
       source: 'reconciler',
-      entityName: description.entityName,
-      workspacePath: description.workspacePath,
-      branchName: description.branchName,
-      hostLabel: description.hostLabel,
+      entityName: operationInput.entityName,
+      workspacePath: operationInput.workspacePath,
+      branchName: operationInput.branchName,
+      hostLabel: operationInput.hostLabel,
     };
     this.notifications.publishPendingCleanup({
       operationId,
       payload,
-      hostRef: descriptor.hostRef(input),
+      hostRef: operationInput.hostRef,
       reason: 'reconciler-proposed',
     });
   }
 }
 
-type OperationProgressSummary = {
-  currentStep?: string;
-  completedSteps: number;
-  totalSteps: number;
-  stages?: OperationStageDisplay[];
-};
-
-function needsConfirmation(
-  record: OperationRecord
-): { reason: string; message?: string } | undefined {
+function needsConfirmation(record: OperationRecord) {
   if (record.status !== 'rejected') return undefined;
-  const error = record.rejectedError;
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'type' in error &&
-    error.type === 'needs-confirmation' &&
-    'reason' in error &&
-    typeof error.reason === 'string'
-  ) {
-    return {
-      reason: error.reason,
-      message: 'message' in error && typeof error.message === 'string' ? error.message : undefined,
-    };
-  }
-  return undefined;
+  const parsed = operationNeedsConfirmationErrorSchema.safeParse(record.rejectedError);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function isReconcilerInput(input: unknown): input is { source: 'reconciler' } {
@@ -727,23 +625,8 @@ function isReconcilerInput(input: unknown): input is { source: 'reconciler' } {
   );
 }
 
-function fallbackDisplay(record: OperationRecord): OperationDisplayState {
-  return {
-    operationId: record.id,
-    operationKind: record.name,
-    entityId: record.key,
-    entityKind: 'project',
-    hostRef: formatHostRef(LOCAL_HOST_REF),
-    createdAt: record.createdAt,
-    attempt: record.attempt,
-    status:
-      record.status === 'failed' || record.status === 'rejected'
-        ? 'failed'
-        : record.status === 'succeeded'
-          ? 'succeeded'
-          : 'queued',
-    error: record.error?.message ?? 'Operation failed',
-  };
+function asOperationInputBase(input: unknown): OperationInputBase {
+  return input as OperationInputBase;
 }
 
 function admissionError(error: { kind: string; conflicts?: OperationRecord[]; name?: string }) {
@@ -771,12 +654,4 @@ function admissionError(error: { kind: string; conflicts?: OperationRecord[]; na
 
 function operationTreeKey(key: OperationTreeKey): string {
   return JSON.stringify({ projectId: key.projectId });
-}
-
-function flattenTreeRecords(node: OperationTreeNode): OperationRecord[] {
-  return [node.record, ...node.children.flatMap(flattenTreeRecords)];
-}
-
-function flattenTreeChildren(node: OperationTreeNode): OperationRecord[] {
-  return node.children.flatMap(flattenTreeRecords);
 }

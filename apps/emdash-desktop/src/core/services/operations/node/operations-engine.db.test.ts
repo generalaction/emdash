@@ -24,10 +24,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import z from 'zod';
 import { projects } from '@core/services/app-db/node/schema';
 import {
-  confirmInput,
   needsConfirmation,
   operationErrorSchema,
   operationResultSchema,
+  rejectOperationOutcome,
   type OperationDefinition,
   type OperationsNotificationPublisher,
   type OperationsSshManager,
@@ -236,7 +236,7 @@ function testOperationDefinition(
     handler: createOperationHandler(testOperation, async (ctx) => {
       if (ctx.input.source === 'reconciler' && !ctx.input.confirmedAt) {
         await Promise.resolve();
-        needsConfirmation(ctx, 'reconciler-proposed');
+        rejectOperationOutcome(ctx, needsConfirmation('reconciler-proposed'));
       }
       if (ctx.input.fail) {
         throw new Error('child failed');
@@ -244,11 +244,8 @@ function testOperationDefinition(
       return { ok: true as const };
     }),
     entityKind: 'workspace',
+    displayName: 'Testing cleanup',
     examples: [{ definition: testOperation, input: testInput({ key: 'example' }) }],
-    describe: (input) => ({ entityName: input.key, workspacePath: input.workspacePath }),
-    projectId: (input) => input.projectId,
-    hostRef: (input) => input.hostRef,
-    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     ...(reconcile ? { reconcile } : {}),
   };
 }
@@ -268,11 +265,8 @@ function parentOperationDefinition(): OperationDefinition<typeof parentOperation
       return { ok: true as const };
     }),
     entityKind: 'project',
+    displayName: 'Testing parent cleanup',
     examples: [{ definition: parentOperation, input: testInput({ key: 'parent-example' }) }],
-    describe: (input) => ({ entityName: input.key, workspacePath: input.workspacePath }),
-    projectId: (input) => input.projectId,
-    hostRef: (input) => input.hostRef,
-    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
   };
 }
 

@@ -24,12 +24,13 @@ import type {
   OperationReconcileContext,
 } from '@core/services/operations/node';
 import {
-  confirmInput,
   needsConfirmation,
   operationErrorSchema,
   operationResultSchema,
   operationRetryPolicy,
+  rejectOperationOutcome,
   runOperationStage,
+  stageOk,
 } from '@core/services/operations/node';
 import { listTombstonedAutomationIds, purgeAutomationRows } from '../repo';
 
@@ -56,12 +57,14 @@ const deleteAutomationInputSchema = defineVersionedSchema()
 
 export type DeleteAutomationOperationInput = typeof deleteAutomationInputSchema.Type;
 
+const deleteAutomationKeyForId = (automationId: string) => `automation:${automationId}`;
+
 export const deleteAutomationOperation = defineOperation({
   name: 'delete-automation',
   input: deleteAutomationInputSchema,
   result: operationResultSchema,
   error: operationErrorSchema,
-  key: (input) => `automation:${input.automationId}`,
+  key: (input) => deleteAutomationKeyForId(input.automationId),
   claims: (input) =>
     automationKernelResource.mutates({
       projectId: input.projectId ?? 'global',
@@ -96,26 +99,35 @@ export function createDeleteAutomationOperationDefinition(
 ): OperationDefinition<typeof deleteAutomationOperation> {
   const handler = createOperationHandler(deleteAutomationOperation, async (ctx) => {
     if (ctx.input.source === 'reconciler' && !ctx.input.confirmedAt) {
-      needsConfirmation(ctx, 'reconciler-proposed');
+      rejectOperationOutcome(ctx, needsConfirmation('reconciler-proposed'));
     }
     const client = await resolveRuntimeClient(dependencies.runtimes, ctx.input.hostRef);
     await runOperationStage(ctx, {
       id: 'cancel-active-runs',
       timeoutMs: RUNTIME_TIMEOUT_MS,
       clock: runtime.clock,
-      run: async () => cancelActiveRuns(client, ctx.input.automationId),
+      run: async () => {
+        await cancelActiveRuns(client, ctx.input.automationId);
+        return stageOk();
+      },
     });
     await runOperationStage(ctx, {
       id: 'remove-deployment',
       timeoutMs: RUNTIME_TIMEOUT_MS,
       clock: runtime.clock,
-      run: async () => removeDeployment(client, ctx.input.automationId),
+      run: async () => {
+        await removeDeployment(client, ctx.input.automationId);
+        return stageOk();
+      },
     });
     await runOperationStage(ctx, {
       id: 'purge-automation-rows',
       timeoutMs: PURGE_TIMEOUT_MS,
       clock: runtime.clock,
-      run: async () => purgeAutomationRows(runtime.db, ctx.input.automationId),
+      run: async () => {
+        await purgeAutomationRows(runtime.db, ctx.input.automationId);
+        return stageOk();
+      },
     });
     return { ok: true as const };
   });
@@ -124,6 +136,8 @@ export function createDeleteAutomationOperationDefinition(
     definition: deleteAutomationOperation,
     handler,
     entityKind: 'automation',
+    displayName: 'Deleting automation',
+    keyForId: deleteAutomationKeyForId,
     examples: [
       {
         definition: deleteAutomationOperation,
@@ -137,10 +151,6 @@ export function createDeleteAutomationOperationDefinition(
         },
       },
     ],
-    describe: (input) => ({ entityName: input.entityName, hostLabel: input.hostLabel }),
-    projectId: (input) => input.projectId ?? undefined,
-    hostRef: (input) => input.hostRef,
-    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     purge: async ({ input, db }) => {
       db.transaction((tx) => {
         tx.delete(automationRuns).where(eq(automationRuns.automationId, input.automationId)).run();
@@ -218,8 +228,7 @@ function projectIsActive(tx: DrizzleTx, projectId: string) {
 
 async function reconcileAutomationCleanups(context: OperationReconcileContext): Promise<void> {
   for (const automationId of await listTombstonedAutomationIds(context.db)) {
-    if (await context.hasActiveKey(deleteAutomationOperation.key(exampleInput(automationId))))
-      continue;
+    if (await context.hasActiveKey(deleteAutomationKeyForId(automationId))) continue;
     const [automation] = await context.db
       .select({ id: automations.id, name: automations.name, projectId: automations.projectId })
       .from(automations)
@@ -244,16 +253,6 @@ async function reconcileAutomationCleanups(context: OperationReconcileContext): 
       createdAt: context.clock.now(),
     });
   }
-}
-
-function exampleInput(automationId: string): DeleteAutomationOperationInput {
-  return {
-    version: '1',
-    source: 'reconciler',
-    automationId,
-    hostRef: formatHostRef(LOCAL_HOST_REF),
-    createdAt: 1,
-  };
 }
 
 async function resolveRuntimeClient(

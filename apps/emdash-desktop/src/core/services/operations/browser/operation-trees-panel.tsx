@@ -1,9 +1,10 @@
-import type {
-  OperationDisplayState,
-  OperationPrediction,
-  OperationStageDisplay,
-  OperationTree,
-  OperationTreeRollupStatus,
+import {
+  OPERATION_TREE_ROLLUP_SEVERITY,
+  type OperationDisplayState,
+  type OperationPrediction,
+  type OperationStageDisplay,
+  type OperationTree,
+  type OperationTreeRollupStatus,
 } from '@emdash/core/primitives/operations/api';
 import { AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
@@ -170,7 +171,7 @@ function OperationCleanupRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-medium text-foreground">
-            {operationKindLabel(cleanup.operationKind)} "{cleanup.entityName ?? cleanup.entityId}"
+            {cleanup.displayName} "{cleanup.entityName ?? cleanup.entityId}"
           </span>
           <span
             className={cn(
@@ -343,25 +344,6 @@ export function cleanupIsCancellable(cleanup: OperationDisplayState): boolean {
   );
 }
 
-export function operationKindLabel(kind: string): string {
-  switch (kind) {
-    case 'delete-task':
-      return 'Deleting task';
-    case 'delete-automation':
-      return 'Deleting automation';
-    case 'delete-project':
-      return 'Deleting project';
-    case 'host-remove-worktree':
-      return 'Removing worktree';
-    case 'host-create-worktree':
-      return 'Creating worktree';
-    case 'host-remove-repository':
-      return 'Removing repository';
-    default:
-      return 'Cleaning up';
-  }
-}
-
 export function relativeTime(timestamp: number): string {
   const elapsedMs = Math.max(0, Date.now() - timestamp);
   const minuteMs = 60_000;
@@ -449,7 +431,7 @@ export function worstRollupStatus(
   trees: readonly OperationTree[]
 ): OperationTreeRollupStatus | undefined {
   const statuses = trees.map((tree) => tree.rollup.status);
-  for (const status of ROLLUP_SEVERITY) {
+  for (const status of OPERATION_TREE_ROLLUP_SEVERITY) {
     if (statuses.includes(status)) return status;
   }
   return undefined;
@@ -487,12 +469,3 @@ function cleanupConfirmationReason(cleanup: OperationDisplayState): string | und
       return 'Proposed by automatic cleanup';
   }
 }
-
-const ROLLUP_SEVERITY: readonly OperationTreeRollupStatus[] = [
-  'failed',
-  'awaiting-confirmation',
-  'blocked-host-offline',
-  'running',
-  'waiting',
-  'queued',
-];

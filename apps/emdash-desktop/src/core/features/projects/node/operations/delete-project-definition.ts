@@ -42,13 +42,14 @@ import type {
   OperationReconcileContext,
 } from '@core/services/operations/node';
 import {
-  confirmInput,
   isOperationStale,
   needsConfirmation,
   operationErrorSchema,
   operationResultSchema,
   operationRetryPolicy,
+  rejectOperationOutcome,
   runOperationStage,
+  stageOk,
 } from '@core/services/operations/node';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 
@@ -72,12 +73,14 @@ const deleteProjectInputSchema = defineVersionedSchema()
 
 export type DeleteProjectOperationInput = typeof deleteProjectInputSchema.Type;
 
+const deleteProjectKeyForId = (projectId: string) => `project:${projectId}`;
+
 export const deleteProjectOperation = defineOperation({
   name: 'delete-project',
   input: deleteProjectInputSchema,
   result: operationResultSchema,
   error: operationErrorSchema,
-  key: (input) => `project:${input.projectId}`,
+  key: (input) => deleteProjectKeyForId(input.projectId),
   claims: (input) => projectKernelResource.mutates({ projectId: input.projectId }),
   describe: (input) => input.entityName ?? input.projectId,
   retry: operationRetryPolicy,
@@ -106,10 +109,10 @@ export function createDeleteProjectOperationDefinition(
 ): OperationDefinition<typeof deleteProjectOperation> {
   const handler = createOperationHandler(deleteProjectOperation, async (ctx) => {
     if (ctx.input.source === 'reconciler' && !ctx.input.confirmedAt) {
-      needsConfirmation(ctx, 'reconciler-proposed');
+      rejectOperationOutcome(ctx, needsConfirmation('reconciler-proposed'));
     }
     if (isOperationStale(ctx.input, runtime.clock.now())) {
-      needsConfirmation(ctx, 'stale');
+      rejectOperationOutcome(ctx, needsConfirmation('stale'));
     }
     const taskRows = await runtime.db
       .select()
@@ -146,7 +149,8 @@ export function createDeleteProjectOperationDefinition(
         taskId: task.id,
         projectId: ctx.input.projectId,
         workspaceId: task.workspaceId,
-        hostRef: formatHostRef(operationHostRef({ workspace, project })),
+        hostRef: formatHostRef(LOCAL_HOST_REF),
+        targetHostRef: formatHostRef(operationHostRef({ workspace, project })),
         entityName: task.name,
         hostLabel: project?.name,
         projectPath: project?.path,
@@ -179,6 +183,7 @@ export function createDeleteProjectOperationDefinition(
           },
           dependencies
         );
+        return stageOk();
       },
     });
     return { ok: true as const };
@@ -188,6 +193,8 @@ export function createDeleteProjectOperationDefinition(
     definition: deleteProjectOperation,
     handler,
     entityKind: 'project',
+    displayName: 'Deleting project',
+    keyForId: deleteProjectKeyForId,
     examples: [
       {
         definition: deleteProjectOperation,
@@ -200,10 +207,6 @@ export function createDeleteProjectOperationDefinition(
         },
       },
     ],
-    describe: (input) => ({ entityName: input.entityName, hostLabel: input.hostLabel }),
-    projectId: (input) => input.projectId,
-    hostRef: (input) => input.hostRef,
-    confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     purge: async ({ input, db }) => {
       const registry = createWorkspaceRegistry(db);
       await purgeProjectLocalState(
@@ -398,7 +401,7 @@ async function enqueueProvenanceWorktreeRemovals(
 async function reconcileProjectCleanups(context: OperationReconcileContext): Promise<void> {
   const rows = await context.db.select().from(projects).where(isNotNull(projects.deletedAt));
   for (const project of rows) {
-    if (await context.hasActiveKey(deleteProjectOperation.key(exampleInput(project.id)))) continue;
+    if (await context.hasActiveKey(deleteProjectKeyForId(project.id))) continue;
     await context.submit(deleteProjectOperation, {
       version: '1',
       source: 'reconciler',
@@ -408,16 +411,6 @@ async function reconcileProjectCleanups(context: OperationReconcileContext): Pro
       createdAt: context.clock.now(),
     });
   }
-}
-
-function exampleInput(projectId: string): DeleteProjectOperationInput {
-  return {
-    version: '1',
-    source: 'reconciler',
-    projectId,
-    hostRef: formatHostRef(LOCAL_HOST_REF),
-    createdAt: 1,
-  };
 }
 
 async function purgeProjectLocalState(
