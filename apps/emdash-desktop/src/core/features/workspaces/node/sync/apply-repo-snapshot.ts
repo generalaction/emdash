@@ -253,7 +253,6 @@ function adoptWorktree(
     parentId: repository.id,
     path,
     config: null,
-    branchName: null,
     observedStatus: observation.status,
     observedGitBranch: observation.branch,
     observedData: observedDataFor(observation, desktopObservedAt),

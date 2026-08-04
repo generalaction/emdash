@@ -402,7 +402,7 @@ pnpm run test
  `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
  `scripts.teardown`, and `shellSetup`.
 - Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
-  `pushRemote`, `tmux`, and `workspaceProvider` are DB-backed, not `.emdash.json`.
+  `pushRemote`, and `tmux` are DB-backed, not `.emdash.json`.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
   `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_CLONE_CACHE`, `EMDASH_DISABLE_PTY`,
   `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.

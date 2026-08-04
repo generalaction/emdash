@@ -3,8 +3,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
-import { log } from '@emdash/shared/logger';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
@@ -112,26 +111,49 @@ async function createProjectOnHost(
     .values({
       id: params.id ?? randomUUID(),
       name: params.name,
-      path: gitInfo.rootPath,
-      workspaceProvider: host.type === 'remote' ? 'ssh' : 'local',
-      sshConnectionId: host.type === 'remote' ? host.id : null,
       baseRef: gitInfo.baseRef,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
 
-  const project = projectFromRow(row);
-
-  await dependencies.projects.openProject(project);
-
+  // The repository workspace row owns the project's path and host identity,
+  // so registration is part of creation — a project without one is unusable.
+  // On failure (e.g. the path's repository row is already linked to another
+  // project), remove the just-inserted project row instead of orphaning it.
+  let repositoryWorkspaceId: string;
   try {
-    project.repositoryWorkspaceId = registerRepositoryWorkspace(dependencies.db, project);
+    repositoryWorkspaceId = registerRepositoryWorkspace(dependencies.db, {
+      id: row.id,
+      path: gitInfo.rootPath,
+      host,
+    });
   } catch (error) {
-    log.warn('createProjectOnHost: registerRepositoryWorkspace failed (non-fatal)', {
-      projectId: project.id,
-      error: error instanceof Error ? error.message : String(error),
+    await dependencies.db.delete(projects).where(eq(projects.id, row.id));
+    return err({
+      type: 'invalid-directory',
+      path: gitInfo.rootPath,
+      message:
+        error instanceof Error && error.message.includes('idx_projects_repository_workspace_id')
+          ? 'A project already exists at this path'
+          : `Could not register the project repository: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
+
+  const project = projectFromRow(row, {
+    path: gitInfo.rootPath,
+    location: host.type === 'remote' ? 'remote' : 'local',
+    sshConnectionId: host.type === 'remote' ? host.id : null,
+  });
+  if (!project) {
+    return err({
+      type: 'invalid-directory',
+      path: gitInfo.rootPath,
+      message: 'Project repository path could not be resolved',
+    });
+  }
+  project.repositoryWorkspaceId = repositoryWorkspaceId;
+
+  await dependencies.projects.openProject(project);
 
   projectEvents._emit('project:created', project);
   appDbPokes.projects.poke({ projectId: project.id });

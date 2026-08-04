@@ -1,4 +1,3 @@
-import type { WorkspaceError } from '@emdash/core/runtimes/workspace/api';
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createLiveJobReplica } from '@emdash/wire';
@@ -20,7 +19,7 @@ import {
   type TaskStoreMutations,
 } from '@core/features/tasks/api/browser/stores/task-store';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
-import { workspacesWireContract } from '@core/features/workspaces/api';
+import { workspacesWireContract, type WorkspaceError } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';

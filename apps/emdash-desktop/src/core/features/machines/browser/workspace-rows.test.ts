@@ -1,18 +1,12 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { OperationDisplayState, OperationTree } from '@emdash/core/primitives/operations/api';
-import { hostFileRef, parseAbsolute } from '@emdash/core/primitives/path/api';
-import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
 import { describe, expect, it } from 'vitest';
 import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
 import { joinWorkspaceRows } from './workspace-rows';
 
 describe('joinWorkspaceRows', () => {
-  it('joins id-, path-, and host-path keyed state into one row', () => {
+  it('joins usage, git stats, and kernel operations into one row', () => {
     const joined = joinWorkspaceRows({
       rows: [workspaceRow()],
-      runtimeStatuses: new Map([
-        ['workspace-1', { status: 'tearing-down', phase: 'tearing-down' }],
-      ]),
       usageResults: [
         {
           path: '/repo/task',
@@ -28,19 +22,16 @@ describe('joinWorkspaceRows', () => {
         },
       ],
       operationTrees: [operationTree()],
-      hostOperationRecords: { host: hostOperation() },
     });
 
     expect(joined).toHaveLength(1);
     expect(joined[0]).toMatchObject({
       key: 'workspace-1',
       status: 'tearing-down',
-      runtimePhase: 'tearing-down',
       usage: { totalBytes: 100 },
       gitStats: { added: 2 },
       operationBusy: true,
       operation: { node: { operationId: 'desktop-op' } },
-      hostOperation: { requestId: 'host-op' },
     });
   });
 
@@ -48,12 +39,30 @@ describe('joinWorkspaceRows', () => {
     const row = { ...workspaceRow(), workspaceId: null, hasActiveSessions: true };
     const [joined] = joinWorkspaceRows({
       rows: [row],
-      runtimeStatuses: new Map(),
       operationTrees: [],
-      hostOperationRecords: {},
     });
 
     expect(joined).toMatchObject({ key: row.path, status: 'active', operationBusy: false });
+  });
+
+  it('reports failed operations as errors with their message', () => {
+    const failed: OperationDisplayState = {
+      ...operationDisplay('desktop-op', '/repo/task'),
+      status: 'failed',
+      error: 'worktree removal failed',
+    };
+    const [joined] = joinWorkspaceRows({
+      rows: [workspaceRow()],
+      operationTrees: [
+        { root: failed, children: [], rollup: { total: 1, done: 1, status: 'failed' } },
+      ],
+    });
+
+    expect(joined).toMatchObject({
+      status: 'error',
+      operationErrorMessage: 'worktree removal failed',
+      operationBusy: true,
+    });
   });
 });
 
@@ -95,22 +104,5 @@ function operationDisplay(operationId: string, workspacePath: string): Operation
     createdAt: 1,
     attempt: 0,
     status: 'running',
-  };
-}
-
-function hostOperation(): WorkspaceOperationRecord {
-  const path = parseAbsolute('/repo/task');
-  if (!path.success) throw new Error(path.error.message);
-  const workspace = hostFileRef(LOCAL_HOST_REF, path.data);
-  return {
-    requestId: 'host-op',
-    seq: 1,
-    attempt: 0,
-    kind: 'teardown',
-    workspace,
-    params: { kind: 'teardown', input: { workspace, force: false } },
-    status: 'running',
-    createdAt: 1,
-    updatedAt: 2,
   };
 }

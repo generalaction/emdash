@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
+import { formatHostRef } from '@emdash/core/primitives/host/api';
 import type { ResourceClaim } from '@emdash/core/primitives/kernel/api';
 import { compileWorktreePayload } from '@emdash/core/services/workspace-host-actions/api';
 import { err, ok, type Result } from '@emdash/shared';
@@ -105,28 +105,20 @@ export async function prepareCreateTask(
     workspaceId = crypto.randomUUID();
 
     const [projectRow] = await db
-      .select({
-        workspaceProvider: projects.workspaceProvider,
-        sshConnectionId: projects.sshConnectionId,
-        repositoryWorkspaceId: projects.repositoryWorkspaceId,
-      })
+      .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
       .from(projects)
       .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
       .limit(1);
 
-    const isRemote = projectRow?.workspaceProvider === 'ssh';
+    const isRemote = project.host.type === 'remote';
     const location = isRemote ? 'remote' : 'local';
-    const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
+    const sshConnectionId = isRemote ? project.host.id : null;
     const legacyType = isRemote ? 'project-ssh' : 'local';
 
     // Task creation is UX-gated on host availability: the outbox absorbs
     // transient disconnects mid-operation, but starting new work against an
     // offline host is refused outright. Deletions never hit this gate.
-    if (
-      isRemote &&
-      sshConnectionId &&
-      !operations.hostIsReachable(formatHostRef(hostRef('remote', sshConnectionId)))
-    ) {
+    if (isRemote && !operations.hostIsReachable(formatHostRef(project.host))) {
       return err({
         type: 'provision-failed',
         message: 'The workspace host is offline. Reconnect the machine to create new tasks.',

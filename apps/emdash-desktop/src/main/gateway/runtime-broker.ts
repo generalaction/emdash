@@ -60,7 +60,6 @@ async function resolveDesktopRuntimeClient(
     tuiAgents: clients.tuiAgents,
     agentConfig: clients.agentConfig,
     terminals: clients.terminals,
-    workspace: clients.workspace,
     workspaceHost: clients.workspaceHost,
     resourceUsage: clients.resourceUsage,
     hostDependencies: clients.hostDependencies,

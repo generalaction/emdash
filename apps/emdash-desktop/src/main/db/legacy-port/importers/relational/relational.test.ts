@@ -37,15 +37,15 @@ function createAppDb(): {
     CREATE TABLE projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      path TEXT NOT NULL UNIQUE,
-      workspace_provider TEXT NOT NULL DEFAULT 'local',
       base_ref TEXT,
-      ssh_connection_id TEXT,
       repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
     );
+
+    CREATE UNIQUE INDEX idx_projects_repository_workspace_id ON projects(repository_workspace_id)
+      WHERE repository_workspace_id IS NOT NULL AND deleted_at IS NULL;
 
     CREATE TABLE tasks (
       id TEXT PRIMARY KEY,
@@ -61,10 +61,7 @@ function createAppDb(): {
       last_interacted_at TEXT,
       status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       is_pinned INTEGER NOT NULL DEFAULT 0,
-      workspace_provider TEXT,
       workspace_id TEXT,
-      workspace_provider_data TEXT,
-      workspace_intent TEXT,
       type TEXT NOT NULL DEFAULT 'task',
       automation_run_id TEXT,
       deleted_at TEXT
@@ -72,23 +69,28 @@ function createAppDb(): {
 
     CREATE TABLE workspaces (
       id TEXT PRIMARY KEY,
-      key TEXT,
       type TEXT NOT NULL,
-      data TEXT,
-      path TEXT,
-      lines_added INTEGER,
-      lines_deleted INTEGER,
       kind TEXT,
       location TEXT,
       ssh_connection_id TEXT,
+      path TEXT,
       config TEXT,
-      branch_name TEXT,
+      lines_added INTEGER,
+      lines_deleted INTEGER,
+      parent_id TEXT,
+      observed_status TEXT,
+      observed_git_branch TEXT,
+      observed_data TEXT,
+      last_observed_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      deleted_at TEXT
+      untracked_at TEXT
     );
 
-    CREATE UNIQUE INDEX idx_workspaces_key ON workspaces(key) WHERE key IS NOT NULL;
+    CREATE UNIQUE INDEX idx_workspaces_local_path ON workspaces(path)
+      WHERE location = 'local' AND untracked_at IS NULL AND path IS NOT NULL;
+    CREATE UNIQUE INDEX idx_workspaces_remote_path ON workspaces(ssh_connection_id, path)
+      WHERE location = 'remote' AND untracked_at IS NULL AND path IS NOT NULL;
 
     CREATE TABLE conversations (
       id TEXT PRIMARY KEY,
@@ -210,21 +212,22 @@ describe('legacy-port table passes', () => {
       .run('ssh-beta', 'prod', 'example.com', 22, 'alice');
 
     appSqlite
-      .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
-      )
-      .run('proj-beta-local', 'Beta Local', '/work/repo', 'local', 'main');
+      .prepare(`INSERT INTO workspaces (id, type, kind, location, path) VALUES (?, ?, ?, ?, ?)`)
+      .run('workspace-beta-root', 'local', 'repository', 'local', '/work/repo');
 
     appSqlite
       .prepare(
-        `INSERT INTO workspaces (id, type, kind, location, branch_name, config) VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO projects (id, name, base_ref, repository_workspace_id) VALUES (?, ?, ?, ?)`
       )
+      .run('proj-beta-local', 'Beta Local', 'main', 'workspace-beta-root');
+
+    appSqlite
+      .prepare(`INSERT INTO workspaces (id, type, kind, location, config) VALUES (?, ?, ?, ?, ?)`)
       .run(
         'workspace-beta-existing',
         'local',
         'worktree',
         'local',
-        'feature/shared',
         JSON.stringify({
           version: '2',
           git: { kind: 'use-branch', branchName: 'feature/shared' },
@@ -375,14 +378,13 @@ describe('legacy-port table passes', () => {
 
     const importedWorkspace = appSqlite
       .prepare(
-        `SELECT kind, location, type, ssh_connection_id, branch_name, config FROM workspaces WHERE id = ?`
+        `SELECT kind, location, type, ssh_connection_id, config FROM workspaces WHERE id = ?`
       )
       .get(insertedTask.workspace_id) as {
       kind: string;
       location: string;
       type: string;
       ssh_connection_id: string;
-      branch_name: string;
       config: string;
     };
 
@@ -391,7 +393,6 @@ describe('legacy-port table passes', () => {
       location: 'remote',
       type: 'project-ssh',
       ssh_connection_id: 'ssh-beta',
-      branch_name: 'feature/new-legacy',
     });
     expect(JSON.parse(importedWorkspace.config)).toEqual({
       version: '2',
@@ -639,10 +640,13 @@ describe('legacy-port table passes', () => {
     );
 
     appSqlite
+      .prepare(`INSERT INTO workspaces (id, type, kind, location, path) VALUES (?, ?, ?, ?, ?)`)
+      .run('workspace-existing-root', 'local', 'repository', 'local', '/existing/repo');
+    appSqlite
       .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO projects (id, name, base_ref, repository_workspace_id) VALUES (?, ?, ?, ?)`
       )
-      .run('proj-existing', 'Existing Project', '/existing/repo', 'local', 'main');
+      .run('proj-existing', 'Existing Project', 'main', 'workspace-existing-root');
     appSqlite
       .prepare(
         `INSERT INTO tasks (id, project_id, name, status, source_branch, task_branch) VALUES (?, ?, ?, ?, ?, ?)`

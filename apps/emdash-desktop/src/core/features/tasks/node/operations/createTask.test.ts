@@ -47,10 +47,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     lastInteractedAt: values.lastInteractedAt ?? null,
     statusChangedAt: values.statusChangedAt ?? '2026-05-18 12:00:00',
     isPinned: values.isPinned ?? 0,
-    workspaceProvider: values.workspaceProvider ?? null,
     workspaceId: values.workspaceId ?? null,
-    workspaceProviderData: values.workspaceProviderData ?? null,
-    workspaceIntent: values.workspaceIntent ?? null,
     type: values.type ?? 'task',
     automationRunId: values.automationRunId ?? null,
   };
@@ -99,17 +96,14 @@ function fakeTx(captured: unknown[]) {
   };
 }
 
-/** Sets up db.select to return a local project row. */
-function setupSelectMock(workspaceProvider = 'local', sshConnectionId: string | null = null) {
+/** Sets up db.select to return the project row's repository workspace link. */
+function setupSelectMock() {
   mocks.select.mockImplementation((selection?: unknown) =>
     selection
       ? {
           from: () => ({
             where: () => ({
-              limit: () =>
-                Promise.resolve([
-                  { workspaceProvider, sshConnectionId, repositoryWorkspaceId: 'repo-workspace' },
-                ]),
+              limit: () => Promise.resolve([{ repositoryWorkspaceId: 'repo-workspace' }]),
             }),
           }),
         }
@@ -123,11 +117,24 @@ function setupSelectMock(workspaceProvider = 'local', sshConnectionId: string | 
   );
 }
 
+/** Points the project session mock at a remote (SSH) host. */
+function makeProjectRemote() {
+  mocks.getProject.mockReturnValue({
+    project: { id: 'project-1', path: '/repo' },
+    repoPath: '/repo',
+    host: hostRef('remote', 'conn-1'),
+    settings: {
+      get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
+      getPushRemote: vi.fn(async () => 'origin'),
+    },
+  });
+}
+
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getProject.mockReturnValue({
-      project: { id: 'project-1', path: '/repo', workspaceProvider: 'local' },
+      project: { id: 'project-1', path: '/repo' },
       repoPath: '/repo',
       host: hostRef('local', 'local'),
       settings: {
@@ -322,7 +329,7 @@ describe('createTask', () => {
     });
 
     it('sets location=remote and type=project-ssh for SSH projects', async () => {
-      setupSelectMock('ssh', 'conn-1');
+      makeProjectRemote();
       const { captured } = setupTransactionMock();
 
       await createTask(db, projects, operations, {
@@ -348,7 +355,7 @@ describe('createTask', () => {
     });
 
     it('refuses creation when the remote host is unreachable', async () => {
-      setupSelectMock('ssh', 'conn-1');
+      makeProjectRemote();
       mocks.hostIsReachable.mockReturnValue(false);
       const { captured } = setupTransactionMock();
 

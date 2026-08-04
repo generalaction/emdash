@@ -1,7 +1,6 @@
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import { projects, sshConnections, tasks, workspaces } from '@core/services/app-db/node/schema';
 import { ensureImportedTaskWorkspaces } from './task-workspace-backfill';
 
@@ -19,19 +18,34 @@ describe('ensureImportedTaskWorkspaces', () => {
       username: 'alice',
     });
 
+    await fixture.db.insert(workspaces).values([
+      {
+        id: 'repo-local',
+        type: 'local',
+        kind: 'repository',
+        location: 'local',
+        path: '/repo/local',
+      },
+      {
+        id: 'repo-remote',
+        type: 'project-ssh',
+        kind: 'repository',
+        location: 'remote',
+        sshConnectionId: 'ssh-1',
+        path: '/srv/remote',
+      },
+    ]);
+
     await fixture.db.insert(projects).values([
       {
         id: 'project-local',
         name: 'Local Project',
-        path: '/repo/local',
-        workspaceProvider: 'local',
+        repositoryWorkspaceId: 'repo-local',
       },
       {
         id: 'project-remote',
         name: 'Remote Project',
-        path: '/srv/remote',
-        workspaceProvider: 'ssh',
-        sshConnectionId: 'ssh-1',
+        repositoryWorkspaceId: 'repo-remote',
       },
     ]);
   });
@@ -40,7 +54,7 @@ describe('ensureImportedTaskWorkspaces', () => {
     fixture.close();
   });
 
-  it('creates worktree and repository workspaces for imported tasks', async () => {
+  it('creates worktree workspaces and links imported tasks', async () => {
     await fixture.db.insert(tasks).values([
       {
         id: 'task-root-1',
@@ -73,30 +87,9 @@ describe('ensureImportedTaskWorkspaces', () => {
       .from(tasks)
       .orderBy(tasks.id);
 
-    const rootWorkspaceId = importedTasks.find((task) => task.id === 'task-root-1')?.workspaceId;
-    expect(rootWorkspaceId).toBeTruthy();
-    if (!rootWorkspaceId) throw new Error('expected root workspace id');
-    expect(importedTasks.find((task) => task.id === 'task-root-2')?.workspaceId).toBe(
-      rootWorkspaceId
-    );
-
-    const [project] = await fixture.db
-      .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
-      .from(projects)
-      .where(eq(projects.id, 'project-local'));
-    expect(project.repositoryWorkspaceId).toBe(rootWorkspaceId);
-
-    const [rootWorkspace] = await fixture.db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.id, rootWorkspaceId));
-    expect(rootWorkspace).toMatchObject({
-      kind: 'project-root',
-      location: 'local',
-      type: 'local',
-      path: '/repo/local',
-      key: computeWorkspaceKey('local', '/repo/local'),
-    });
+    // Branch-less imported tasks bind to the project's repository row.
+    expect(importedTasks.find((task) => task.id === 'task-root-1')?.workspaceId).toBe('repo-local');
+    expect(importedTasks.find((task) => task.id === 'task-root-2')?.workspaceId).toBe('repo-local');
 
     const worktreeWorkspaceId = importedTasks.find(
       (task) => task.id === 'task-worktree'
@@ -113,9 +106,8 @@ describe('ensureImportedTaskWorkspaces', () => {
       location: 'remote',
       type: 'project-ssh',
       sshConnectionId: 'ssh-1',
-      branchName: 'feature/imported',
+      parentId: 'repo-remote',
       path: null,
-      key: computeWorkspaceKey('project-ssh', '/srv/remote#feature/imported', 'ssh-1'),
       config: {
         version: '2',
         git: { kind: 'use-branch', branchName: 'feature/imported' },
@@ -142,11 +134,17 @@ describe('ensureImportedTaskWorkspaces', () => {
   });
 
   it('does not reuse worktree workspaces across projects with the same branch', async () => {
+    await fixture.db.insert(workspaces).values({
+      id: 'repo-local-2',
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: '/repo/local-2',
+    });
     await fixture.db.insert(projects).values({
       id: 'project-local-2',
       name: 'Local Project 2',
-      path: '/repo/local-2',
-      workspaceProvider: 'local',
+      repositoryWorkspaceId: 'repo-local-2',
     });
     await fixture.db.insert(tasks).values([
       {
@@ -174,28 +172,23 @@ describe('ensureImportedTaskWorkspaces', () => {
     const workspaceIds = importedTasks.map((task) => task.workspaceId);
     const workspaceRows = await fixture.db.select().from(workspaces);
     const worktreeRows = workspaceRows.filter((workspace) => workspace.kind === 'worktree');
-    const repositoryRows = workspaceRows.filter((workspace) => workspace.kind === 'project-root');
+    const repositoryRows = workspaceRows.filter((workspace) => workspace.kind === 'repository');
 
     expect(workspaceIds.every(Boolean)).toBe(true);
     expect(new Set(workspaceIds).size).toBe(2);
     expect(worktreeRows).toHaveLength(2);
-    expect(repositoryRows).toHaveLength(2);
+    expect(repositoryRows).toHaveLength(3);
     expect(worktreeRows.every((workspace) => workspace.parentId !== null)).toBe(true);
   });
 
-  it('reuses an existing repository workspace by key', async () => {
-    const key = computeWorkspaceKey('local', '/repo/local');
-    await fixture.db.insert(workspaces).values({
-      id: 'existing-repo-workspace',
-      kind: 'project-root',
-      location: 'local',
-      type: 'local',
-      path: '/repo/local',
-      key,
+  it('creates and links a repository row for a project left unlinked', async () => {
+    await fixture.db.insert(projects).values({
+      id: 'project-unlinked',
+      name: 'Unlinked Project',
     });
     await fixture.db.insert(tasks).values({
       id: 'task-root',
-      projectId: 'project-local',
+      projectId: 'project-unlinked',
       name: 'Root task',
       status: 'in_progress',
     });
@@ -209,11 +202,15 @@ describe('ensureImportedTaskWorkspaces', () => {
     const [project] = await fixture.db
       .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
       .from(projects)
-      .where(eq(projects.id, 'project-local'));
-    const workspaceRows = await fixture.db.select().from(workspaces);
+      .where(eq(projects.id, 'project-unlinked'));
 
-    expect(task.workspaceId).toBe('existing-repo-workspace');
-    expect(project.repositoryWorkspaceId).toBe('existing-repo-workspace');
-    expect(workspaceRows).toHaveLength(1);
+    expect(task.workspaceId).toBeTruthy();
+    expect(project.repositoryWorkspaceId).toBe(task.workspaceId);
+
+    const [workspace] = await fixture.db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, task.workspaceId!));
+    expect(workspace).toMatchObject({ kind: 'repository', location: 'local' });
   });
 });

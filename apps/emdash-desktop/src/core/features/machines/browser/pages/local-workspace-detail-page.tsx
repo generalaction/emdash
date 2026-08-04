@@ -1,5 +1,4 @@
 import type { OperationDisplayState } from '@emdash/core/primitives/operations/api';
-import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
 import {
   ColumnList,
   ColumnListCell,
@@ -33,16 +32,11 @@ import {
 } from '@core/services/operations/browser/operation-trees-panel';
 import { GitStatsCell } from '../components/git-stats-cell';
 import { RepositoryHeader } from '../components/local-workspace-header';
-import {
-  OperationStageChecklist,
-  workspaceOperationKindLabel,
-} from '../components/operation-stage-checklist';
 import { basename, formatBytes } from '../components/workspace-format';
-import { WorkspaceOperationsPanel } from '../components/workspace-operations-panel';
 import { deleteMachineProjectWorkspaces } from '../use-machine-workspaces';
 import { useWorkspaceRows } from '../use-workspace-rows';
 import type { JoinedWorkspaceRow, WorkspaceOperationLink } from '../workspace-rows';
-import { aggregateWorkspaceStatus, workspacePhaseLabel } from '../workspace-runtime-status';
+import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
 
 type WorkspaceDetailListItem = {
   id: string;
@@ -58,15 +52,7 @@ type WorkspaceDetailListItem = {
   loadingGitStats: boolean;
   loadingUsage: boolean;
   operation?: WorkspaceOperationLink;
-  runtimePhase?: WorkspaceRuntimePhaseDisplay;
   pathIssue?: ProjectWorkspacePathIssue;
-  hostOperation?: WorkspaceOperationRecord;
-};
-
-type WorkspaceRuntimePhaseDisplay = {
-  label: string;
-  errorMessage?: string;
-  tone: 'muted' | 'error';
 };
 
 const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
@@ -84,12 +70,6 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
           <span className="inline-flex min-w-0 items-center gap-2">
             <span className="truncate">{item.name}</span>
             {item.pathIssue && <PathIssueChip issue={item.pathIssue} path={item.path} />}
-            {item.runtimePhase && (
-              <RuntimePhaseLabel phase={item.runtimePhase} operation={item.hostOperation} />
-            )}
-            {!item.runtimePhase && item.hostOperation && (
-              <HostOperationChip operation={item.hostOperation} />
-            )}
             {item.operation && <OperationChip operation={item.operation} />}
           </span>
         }
@@ -144,21 +124,12 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
   const queryClient = useQueryClient();
   const openConfirm = useOpenModal('confirmActionModal');
   const workspaceRows = useWorkspaceRows({ projectId: detailId, enabled: true });
-  const {
-    workspaceQuery,
-    group,
-    rows,
-    operationTrees,
-    hostOperationRecords,
-    usageQuery,
-    gitStatsQuery,
-  } = workspaceRows;
+  const { workspaceQuery, group, rows, operationTrees, usageQuery, gitStatsQuery } = workspaceRows;
   const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
   const rootJoined = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
   const rootRow = rootJoined?.row;
   const busyPaths = new Set(rows.filter((row) => row.operationBusy).map((row) => row.row.path));
-  const workspacePaths = new Set(rows.map((row) => row.row.path));
   const worktreeItems = rows
     .filter((row) => row !== rootJoined)
     .map((joined) =>
@@ -248,8 +219,6 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
           onDelete={() => void handleDelete()}
         />
 
-        <WorkspaceOperationsPanel records={hostOperationRecords} paths={workspacePaths} />
-
         {operationTrees.trees.length > 0 && (
           <OperationTreesPanel {...operationTrees} className="mx-0" />
         )}
@@ -302,8 +271,6 @@ function buildWorktreeItem({
     loadingUsage: loadingUsage && row.pathState === 'measured',
     loadingGitStats: loadingGitStats && row.pathState === 'measured',
     operation: joined.operation,
-    runtimePhase: runtimePhaseDisplay(joined.runtimePhase, joined.runtimeErrorMessage),
-    ...(joined.hostOperation ? { hostOperation: joined.hostOperation } : {}),
     ...(row.pathIssue ? { pathIssue: row.pathIssue } : {}),
   };
 }
@@ -331,70 +298,6 @@ function pathIssueMessage(issue: ProjectWorkspacePathIssue, path: string): strin
   if (issue.reason) return issue.reason;
   if (issue.kind === 'prunable') return 'Git reports this worktree as prunable.';
   return `Directory not found at ${path}.`;
-}
-
-function RuntimePhaseLabel({
-  phase,
-  operation,
-}: {
-  phase: WorkspaceRuntimePhaseDisplay;
-  operation?: WorkspaceOperationRecord;
-}) {
-  const label = (
-    <span
-      className={
-        phase.tone === 'error'
-          ? 'shrink-0 text-xs text-foreground-destructive'
-          : 'shrink-0 text-xs text-foreground-muted'
-      }
-    >
-      {phase.label}
-    </span>
-  );
-  if (!phase.errorMessage && !operation) return label;
-  return (
-    <Tooltip>
-      <TooltipTrigger>{label}</TooltipTrigger>
-      <TooltipContent className="max-w-96 text-xs">
-        {operation ? <OperationStageChecklist record={operation} /> : phase.errorMessage}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function HostOperationChip({ operation }: { operation: WorkspaceOperationRecord }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger>
-        <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-muted uppercase">
-          {workspaceOperationKindLabel(operation.kind)}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-96 text-xs">
-        <OperationStageChecklist record={operation} />
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function runtimePhaseDisplay(
-  phase: JoinedWorkspaceRow['runtimePhase'],
-  errorMessage: string | undefined
-): WorkspaceRuntimePhaseDisplay | undefined {
-  if (
-    phase === undefined ||
-    phase === 'ready' ||
-    phase === 'active' ||
-    phase === 'provisioned' ||
-    phase === 'unprovisioned'
-  ) {
-    return undefined;
-  }
-  return {
-    label: workspacePhaseLabel(phase),
-    errorMessage,
-    tone: phase === 'broken' ? 'error' : 'muted',
-  };
 }
 
 function OperationChip({ operation }: { operation: WorkspaceOperationLink }) {

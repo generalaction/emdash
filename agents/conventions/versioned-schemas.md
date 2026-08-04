@@ -225,7 +225,6 @@ For Drizzle column helpers, use the exported `parseVersionedColumn` and
 |--------|-------------|------------|
 | `workspaces.config` | `src/core/primitives/workspaces/api/workspace-config.ts` | v1 → v2 (versioned from start) |
 | `conversations.config` | `src/core/primitives/conversations/api/conversation-config.ts` | unversioned (v0) |
-| `tasks.workspace_intent` | `src/core/primitives/workspaces/api/workspace-config.ts` | v1 → v2 |
 | `automations.trigger_config` | `src/core/primitives/automations/api/config.ts` | unversioned (v0) |
 | `automations.conversation_config` | `src/core/primitives/automations/api/config.ts` | unversioned (v0) |
 | `automations.task_config` | `src/core/primitives/automations/api/config.ts` | v1 (versioned from start) |

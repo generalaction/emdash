@@ -62,9 +62,7 @@ Connect to remote machines with SSH/SFTP and run the same parallel workflow on r
 codebases. Emdash supports SSH agent, key, and password authentication, with credentials
 stored in your OS keychain.
 
-See [Remote Projects](https://emdash.sh/docs/remote-projects) and
-[Bring Your Own Infrastructure](https://emdash.sh/docs/bring-your-own-infrastructure)
-for setup details.
+See [Remote Projects](https://emdash.sh/docs/remote-projects) for setup details.
 
 ## Privacy
 

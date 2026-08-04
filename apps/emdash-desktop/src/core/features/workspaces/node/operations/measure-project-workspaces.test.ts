@@ -58,11 +58,7 @@ describe('measureProjectWorkspaces', () => {
     });
     const measureUsage = vi.fn(async () =>
       ok({
-        workspace: {
-          host: { type: 'remote', id: 'ssh-1' },
-          path: { root: { kind: 'posix' }, segments: ['srv', 'repo'] },
-        },
-        path: '/srv/repo',
+        path: { root: { kind: 'posix' }, segments: ['srv', 'repo'] },
         totalBytes: 1_024,
         artifactBytes: 256,
         errors: [],
@@ -70,7 +66,7 @@ describe('measureProjectWorkspaces', () => {
     );
     const client = vi.fn(async () =>
       ok({
-        workspace: { measureUsage },
+        workspaceHost: { measureUsage },
       } as never)
     );
 
@@ -85,8 +81,7 @@ describe('measureProjectWorkspaces', () => {
 
     expect(client).toHaveBeenCalledWith({ type: 'remote', id: 'ssh-1' });
     expect(measureUsage).toHaveBeenCalledWith({
-      workspace: expect.objectContaining({ host: { type: 'remote', id: 'ssh-1' } }),
-      repoPath: expect.objectContaining({ host: { type: 'remote', id: 'ssh-1' } }),
+      workspacePath: expect.objectContaining({ segments: ['srv', 'repo'] }),
     });
     expect(result.results).toEqual([
       {

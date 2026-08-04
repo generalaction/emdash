@@ -7,7 +7,7 @@ import type { GitContract } from '@emdash/core/runtimes/git/api';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
-import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
+import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import type { ContractClient } from '@emdash/wire/api';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 
@@ -21,4 +21,4 @@ export type ResourceUsageRuntimeClient = ContractClient<ResourceUsageContract>;
 export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
-export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
+export type WorkspaceHostRuntimeClient = ContractClient<WorkspaceHostContract>;

@@ -25,10 +25,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     lastInteractedAt: values.lastInteractedAt ?? null,
     statusChangedAt: values.statusChangedAt ?? '2026-05-28 12:00:00',
     isPinned: values.isPinned ?? 0,
-    workspaceProvider: values.workspaceProvider ?? null,
     workspaceId: values.workspaceId ?? null,
-    workspaceProviderData: values.workspaceProviderData ?? null,
-    workspaceIntent: values.workspaceIntent ?? null,
     type: values.type ?? 'task',
     automationRunId: values.automationRunId ?? null,
   };

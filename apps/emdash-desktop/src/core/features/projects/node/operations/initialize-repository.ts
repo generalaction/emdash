@@ -3,13 +3,14 @@ import { err, ok } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { InitializeRepositoryResult } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects } from '@core/services/app-db/node/schema';
 import { ensureProjectRepository } from './create-project-utils';
-import { projectFromRow } from './getProjects';
+import { getProjectById } from './getProjects';
 
 export type InitializeRepositoryDependencies = {
   db: AppDb;
@@ -21,13 +22,8 @@ export async function initializeRepository(
   dependencies: InitializeRepositoryDependencies,
   projectId: string
 ): Promise<InitializeRepositoryResult> {
-  const [existingRow] = await dependencies.db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-    .limit(1);
-
-  if (!existingRow) {
+  const existingProject = await getProjectById(dependencies.db, projectId);
+  if (!existingProject) {
     return err({
       type: 'project-not-found',
       projectId,
@@ -35,7 +31,6 @@ export async function initializeRepository(
     });
   }
 
-  const existingProject = projectFromRow(existingRow);
   const host = projectHostRef(existingProject);
   const runtime = await dependencies.runtimes.client(host);
   if (!runtime.success) return err(runtime.error);
@@ -47,17 +42,30 @@ export async function initializeRepository(
   );
   if (!repositoryResult.success) return repositoryResult;
 
-  const [row] = await dependencies.db
+  await dependencies.db
     .update(projects)
     .set({
-      path: repositoryResult.data.rootPath,
       baseRef: repositoryResult.data.baseRef,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
-    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-    .returning();
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)));
 
-  const project = projectFromRow(row);
+  // The repository workspace row owns the project path; git init may have
+  // resolved it to the actual repository root.
+  if (existingProject.repositoryWorkspaceId) {
+    createWorkspaceRegistry(dependencies.db).annotate(existingProject.repositoryWorkspaceId, {
+      path: repositoryResult.data.rootPath,
+    });
+  }
+
+  const project = await getProjectById(dependencies.db, projectId);
+  if (!project) {
+    return err({
+      type: 'project-not-found',
+      projectId,
+      message: `Project ${projectId} not found after initializing its repository`,
+    });
+  }
   const closeResult = await dependencies.projects.closeProject(projectId);
   if (!closeResult.success) {
     log.warn('initializeRepository: failed to close project before reopening', {

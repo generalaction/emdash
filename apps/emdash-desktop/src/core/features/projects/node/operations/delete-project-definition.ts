@@ -31,11 +31,12 @@ import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
+import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import { projectKernelResource } from '@core/primitives/operations/api/resources';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects, tasks } from '@core/services/app-db/node/schema';
+import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import { enqueueTombstoned, type OperationSubmitter } from '@core/services/operations/api/node';
 import type {
   OperationDefinition,
@@ -127,8 +128,14 @@ export function createDeleteProjectOperationDefinition(
         : [];
     const workspaceById = new Map(workspaceRows.map((row) => [row.id, row]));
     const [project] = await runtime.db
-      .select()
+      .select({
+        name: projects.name,
+        repositoryPath: workspaces.path,
+        repositoryLocation: workspaces.location,
+        repositorySshConnectionId: workspaces.sshConnectionId,
+      })
       .from(projects)
+      .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
       .where(eq(projects.id, ctx.input.projectId))
       .limit(1);
     const claimedWorkspaceIds = new Set<string>();
@@ -150,12 +157,20 @@ export function createDeleteProjectOperationDefinition(
         projectId: ctx.input.projectId,
         workspaceId: task.workspaceId,
         hostRef: formatHostRef(LOCAL_HOST_REF),
-        targetHostRef: formatHostRef(operationHostRef({ workspace, project })),
+        targetHostRef: formatHostRef(
+          operationHostRef({
+            workspace,
+            repository: project && {
+              location: project.repositoryLocation,
+              sshConnectionId: project.repositorySshConnectionId,
+            },
+          })
+        ),
         entityName: task.name,
         hostLabel: project?.name,
-        projectPath: project?.path,
+        projectPath: project?.repositoryPath ?? undefined,
         workspacePath: workspace?.path ?? undefined,
-        branchName: workspace?.branchName ?? undefined,
+        branchName: workspace ? (getProvisionedWorkspaceBranch(workspace) ?? undefined) : undefined,
         // Worktree removal is queued as host-remove-worktree outbox entries at
         // enqueue time; children only purge desktop rows.
         deleteWorktree: false,
@@ -251,7 +266,7 @@ export async function enqueueDeleteProject(operations: OperationSubmitter, proje
   });
   let loaded:
     | {
-        project: typeof projects.$inferSelect;
+        project: ProjectRemovalRow;
         registryRows: ProjectRegistryRow[];
       }
     | undefined;
@@ -259,8 +274,16 @@ export async function enqueueDeleteProject(operations: OperationSubmitter, proje
     definition: deleteProjectOperation,
     load: async () => {
       const [project] = await operations.db
-        .select()
+        .select({
+          id: projects.id,
+          name: projects.name,
+          repositoryWorkspaceId: projects.repositoryWorkspaceId,
+          repositoryPath: workspaces.path,
+          repositoryLocation: workspaces.location,
+          repositorySshConnectionId: workspaces.sshConnectionId,
+        })
         .from(projects)
+        .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
         .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
         .limit(1);
       if (!project) return undefined;
@@ -316,12 +339,20 @@ export async function enqueueDeleteProject(operations: OperationSubmitter, proje
   return result;
 }
 
+type ProjectRemovalRow = {
+  id: string;
+  name: string;
+  repositoryWorkspaceId: string | null;
+  repositoryPath: string | null;
+  repositoryLocation: 'local' | 'remote' | null;
+  repositorySshConnectionId: string | null;
+};
+
 type ProjectRegistryRow = {
   id: string;
   path: string | null;
   kind: string | null;
-  config: unknown;
-  branchName: string | null;
+  config: WorkspaceRow['config'];
   sshConnectionId: string | null;
   observedStatus: string | null;
   lastObservedAt: string | null;
@@ -347,7 +378,6 @@ async function loadProjectRegistryRows(
       path: workspaces.path,
       kind: workspaces.kind,
       config: workspaces.config,
-      branchName: workspaces.branchName,
       sshConnectionId: workspaces.sshConnectionId,
       observedStatus: workspaces.observedStatus,
       lastObservedAt: workspaces.lastObservedAt,
@@ -363,30 +393,41 @@ async function loadProjectRegistryRows(
  */
 async function enqueueProvenanceWorktreeRemovals(
   operations: OperationSubmitter,
-  project: { id: string; name: string; path: string; sshConnectionId: string | null },
+  project: ProjectRemovalRow,
   registryRows: readonly ProjectRegistryRow[],
   createdAt: number
 ): Promise<void> {
+  // No repository path means no host to remove worktrees from.
+  if (!project.repositoryPath) return;
   for (const row of registryRows) {
     if (row.kind !== 'worktree' || !row.path || row.config === null) continue;
+    const branchName = getProvisionedWorkspaceBranch(row) ?? undefined;
     const input: HostRemoveWorktreeInput = {
       version: '1',
       source: 'user',
       hostOperationId: randomUUID(),
-      hostRef: formatHostRef(operationHostRef({ workspace: row, project })),
-      repoPath: project.path,
+      hostRef: formatHostRef(
+        operationHostRef({
+          workspace: row,
+          repository: {
+            location: project.repositoryLocation,
+            sshConnectionId: project.repositorySshConnectionId,
+          },
+        })
+      ),
+      repoPath: project.repositoryPath,
       projectId: project.id,
       workspaceId: row.id,
       entityName: row.path,
       hostLabel: project.name,
       workspacePath: row.path,
-      branchName: row.branchName ?? undefined,
+      branchName,
       deleteBranch: false,
       deactivateConsumers: 'all',
       prediction: compileRemoveWorktreePrediction({
         now: createdAt,
         workspacePath: row.path,
-        branchName: row.branchName ?? undefined,
+        branchName,
         deleteBranch: false,
         observed: row,
       }),

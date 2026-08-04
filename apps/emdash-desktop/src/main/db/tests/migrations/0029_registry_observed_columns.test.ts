@@ -78,13 +78,13 @@ describe('0029 registry observed columns', () => {
     fixture = await openFixture('pre-0029');
 
     const loser = fixture.sqlite
-      .prepare(`SELECT deleted_at FROM workspaces WHERE id = ?`)
-      .get(DUPLICATE_DROP_WORKSPACE_ID) as { deleted_at: string | null };
+      .prepare(`SELECT untracked_at FROM workspaces WHERE id = ?`)
+      .get(DUPLICATE_DROP_WORKSPACE_ID) as { untracked_at: string | null };
     const task = fixture.sqlite
       .prepare(`SELECT workspace_id FROM tasks WHERE id = 'aaaa0002-0000-0000-0000-000000000000'`)
       .get();
 
-    expect(loser.deleted_at).not.toBeNull();
+    expect(loser.untracked_at).not.toBeNull();
     expect(task).toEqual({ workspace_id: DUPLICATE_KEEP_WORKSPACE_ID });
   });
 
@@ -145,7 +145,7 @@ describe('0029 registry observed columns', () => {
       .run();
     fixture.sqlite
       .prepare(
-        `UPDATE workspaces SET deleted_at = CURRENT_TIMESTAMP WHERE id = 'soft-delete-before'`
+        `UPDATE workspaces SET untracked_at = CURRENT_TIMESTAMP WHERE id = 'soft-delete-before'`
       )
       .run();
     expect(() =>
@@ -160,8 +160,8 @@ describe('0029 registry observed columns', () => {
     expect(() =>
       fixture.sqlite
         .prepare(
-          `INSERT INTO projects (id, name, path, workspace_provider, repository_workspace_id)
-           VALUES ('duplicate-repo-project', 'Duplicate Repo', '/tmp/other', 'local', ?)`
+          `INSERT INTO projects (id, name, repository_workspace_id)
+           VALUES ('duplicate-repo-project', 'Duplicate Repo', ?)`
         )
         .run(PROJECT_A_REPOSITORY_WORKSPACE_ID)
     ).toThrow(/UNIQUE constraint failed/);

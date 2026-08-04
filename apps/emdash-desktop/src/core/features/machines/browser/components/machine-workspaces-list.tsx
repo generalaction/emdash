@@ -1,4 +1,3 @@
-import type { Observed } from '@emdash/core/primitives/lib/api';
 import {
   createListView,
   createTextMatcher,
@@ -19,7 +18,6 @@ import {
   XIcon,
 } from 'lucide-react';
 import { makeAutoObservable, observable } from 'mobx';
-import type { ObservableMap } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -46,16 +44,10 @@ import type {
 import {
   deleteMachineProjectWorkspaces,
   useLocalWorkspaces,
-  useMachineOperationLog,
   useMachineWorkspaces,
   type MachineProjectWorkspaces,
 } from '../use-machine-workspaces';
-import {
-  useWorkspaceRuntimeStatuses,
-  type WorkspaceRuntimeStatus,
-  type WorkspaceRuntimeStatusDetails,
-} from '../use-workspace-runtime-statuses';
-import { workspaceStatus } from '../workspace-runtime-status';
+import { workspaceStatus, type WorkspaceRuntimeStatus } from '../workspace-runtime-status';
 import { formatBytes } from './machine-resources';
 
 type UsageFilter = 'all' | 'used' | 'unused';
@@ -80,10 +72,7 @@ class MachineWorkspacesListStore {
   }
 }
 
-function createMachineWorkspacesListView(
-  store: MachineWorkspacesListStore,
-  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>
-) {
+function createMachineWorkspacesListView(store: MachineWorkspacesListStore) {
   const matcher = createTextMatcher<MachineWorkspaceItem>((item) => [
     item.projectName,
     item.row.path,
@@ -108,7 +97,7 @@ function createMachineWorkspacesListView(
         const used = item.row.kind === 'root' || item.row.tasks.length > 0;
         if (model.usage === 'used' && !used) return false;
         if (model.usage === 'unused' && used) return false;
-        if (model.status !== 'all' && workspaceStatus(item.row, statuses) !== model.status) {
+        if (model.status !== 'all' && workspaceStatus(item.row) !== model.status) {
           return false;
         }
         return true;
@@ -146,18 +135,8 @@ export const MachineWorkspacesList = observer(function MachineWorkspacesList(
   const workspaceQuery = isLocal ? localWorkspaces : workspaces;
   const queryKeyId = isLocal ? 'local' : machineId;
   const items = useMemo(() => flattenWorkspaces(workspaceQuery.data ?? []), [workspaceQuery.data]);
-  const statusInputs = useMemo(
-    () =>
-      items.map((item) => ({
-        workspaceId: item.row.workspaceId,
-        hasActiveSessions: item.row.hasActiveSessions,
-      })),
-    [items]
-  );
-  const statuses = useWorkspaceRuntimeStatuses(statusInputs);
-  const hostOperations = useMachineOperationLog(machineId);
   const store = useMemo(() => new MachineWorkspacesListStore(), []);
-  const view = useMemo(() => createMachineWorkspacesListView(store, statuses), [statuses, store]);
+  const view = useMemo(() => createMachineWorkspacesListView(store), [store]);
 
   useEffect(() => {
     store.setItems(items);
@@ -178,14 +157,7 @@ export const MachineWorkspacesList = observer(function MachineWorkspacesList(
               virtualization={{ estimateSize: 48, estimateHeaderSize: 48, overscan: 8 }}
               emptySlot={<WorkspacesEmptyState />}
               renderSection={() => <ProjectSectionHeader view={view} />}
-              renderItem={(item) => (
-                <WorkspaceRow
-                  view={view}
-                  item={item}
-                  statuses={statuses}
-                  hostOperations={hostOperations}
-                />
-              )}
+              renderItem={(item) => <WorkspaceRow view={view} item={item} />}
             />
           )}
         </ListView.Body>
@@ -245,12 +217,12 @@ const MachineWorkspacesHeader = observer(function MachineWorkspacesHeader({
             onValueChange={(status) => filter.set({ status: status as StatusFilter })}
           >
             <DropdownMenuLabel>Status</DropdownMenuLabel>
+            {/* Rows here carry only session activity — operation-derived
+                statuses (setting-up / tearing-down / error) live in the
+                project workspaces view. */}
             <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="idle">Idle</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="setting-up">Setting up...</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="tearing-down">Tearing Down...</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="error">Error</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -322,19 +294,14 @@ const ProjectSectionHeader = observer(function ProjectSectionHeader({
 const WorkspaceRow = observer(function WorkspaceRow({
   view,
   item,
-  statuses,
-  hostOperations,
 }: {
   view: MachineWorkspacesListView;
   item: MachineWorkspaceItem;
-  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>;
-  hostOperations: Map<string, Observed<string>>;
 }) {
   const selection = view.useSelection();
   const id = getItemId(item);
   const selected = selection.isSelected(id);
-  const status = workspaceStatus(item.row, statuses);
-  const hostOperation = hostOperations.get(item.row.path)?.value;
+  const status = workspaceStatus(item.row);
 
   return (
     <ListView.Row
@@ -361,9 +328,6 @@ const WorkspaceRow = observer(function WorkspaceRow({
         <div className="min-w-0 flex-1">
           <div className="truncate text-foreground">{workspaceLabel(item.row)}</div>
           <div className="truncate text-xs text-foreground-passive">{item.row.path}</div>
-          {hostOperation ? (
-            <div className="truncate text-xs text-foreground-passive">{hostOperation}</div>
-          ) : null}
         </div>
         <TasksPill count={item.row.tasks.length} />
         <StatusPill status={status} />

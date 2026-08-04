@@ -277,22 +277,6 @@
       "types": "./dist/runtimes-terminals-node.d.mts",
       "default": "./dist/runtimes-terminals-node.mjs"
     },
-    "./runtimes/workspace/api": {
-      "types": "./dist/runtimes-workspace-api.d.mts",
-      "default": "./dist/runtimes-workspace-api.mjs"
-    },
-    "./runtimes/workspace/api/provisioning": {
-      "types": "./dist/runtimes-workspace-api-provisioning.d.mts",
-      "default": "./dist/runtimes-workspace-api-provisioning.mjs"
-    },
-    "./runtimes/workspace/api/provisioning/placement": {
-      "types": "./dist/runtimes-workspace-api-provisioning-placement.d.mts",
-      "default": "./dist/runtimes-workspace-api-provisioning-placement.mjs"
-    },
-    "./runtimes/workspace/node": {
-      "types": "./dist/runtimes-workspace-node.d.mts",
-      "default": "./dist/runtimes-workspace-node.mjs"
-    },
     "./runtimes/workspace-host/api": {
       "types": "./dist/runtimes-workspace-host-api.d.mts",
       "default": "./dist/runtimes-workspace-host-api.mjs"

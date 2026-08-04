@@ -8,7 +8,6 @@ import { resourceUsageContract } from '@emdash/core/runtimes/resource-usage/api'
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { workspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
-import { workspaceContract } from '@emdash/core/runtimes/workspace/api';
 import { hostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
 import { client } from '@emdash/wire';
 import type { Connection, Contract, ContractClient, ContractDefinitions } from '@emdash/wire/api';
@@ -43,7 +42,6 @@ export function createTestRuntimeClients(
     resourceUsage: createDisconnectedClient(resourceUsageContract),
     terminals: createDisconnectedClient(terminalsContract),
     tuiAgents: createDisconnectedClient(tuiAgentsContract),
-    workspace: createDisconnectedClient(workspaceContract),
     workspaceHost: createDisconnectedClient(workspaceHostContract),
     ...overrides,
   };

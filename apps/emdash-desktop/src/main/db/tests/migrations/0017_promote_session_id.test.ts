@@ -18,8 +18,8 @@ describe('0017 promote session_id migration', () => {
 
   function insertProject(sqlite: typeof fixture.sqlite, id: string) {
     sqlite
-      .prepare(`INSERT OR IGNORE INTO projects (id, name, path) VALUES (?, ?, ?)`)
-      .run(id, `project-${id}`, `/tmp/${id}`);
+      .prepare(`INSERT OR IGNORE INTO projects (id, name) VALUES (?, ?)`)
+      .run(id, `project-${id}`);
   }
 
   function insertTask(sqlite: typeof fixture.sqlite, id: string, projectId: string) {

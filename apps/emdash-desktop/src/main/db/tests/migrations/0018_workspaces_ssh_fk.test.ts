@@ -31,12 +31,11 @@ describe('0018 workspaces SSH FK migration', () => {
       INSERT INTO ssh_connections (id, name, host, port, username, auth_type, use_agent)
       VALUES ('ssh-1', 'Existing SSH', 'example.com', 22, 'jona', 'agent', 1);
 
-      INSERT INTO workspaces (id, key, type, kind, location, ssh_connection_id, path)
+      INSERT INTO workspaces (id, type, kind, location, ssh_connection_id, path)
       VALUES (
         'workspace-root-1',
-        'project-ssh:/repo:ssh-1',
         'project-ssh',
-        'project-root',
+        'repository',
         'remote',
         'ssh-1',
         '/repo'

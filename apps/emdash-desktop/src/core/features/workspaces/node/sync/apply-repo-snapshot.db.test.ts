@@ -17,8 +17,8 @@ describe('applyRepoSnapshot', () => {
     fixture = await openFixture('empty');
     fixture.sqlite
       .prepare(
-        `INSERT INTO projects (id, name, path, repository_workspace_id, created_at, updated_at)
-         VALUES ('project-1', 'Project', '/repo', 'repo-ws', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        `INSERT INTO projects (id, name, repository_workspace_id, created_at, updated_at)
+         VALUES ('project-1', 'Project', 'repo-ws', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       )
       .run();
     await fixture.db.insert(workspaces).values({

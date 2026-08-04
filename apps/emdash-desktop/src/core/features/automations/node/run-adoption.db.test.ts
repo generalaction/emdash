@@ -5,7 +5,6 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
-import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import { automations, projects, sshConnections, tasks } from '@core/services/app-db/node/schema';
 import { adoptRun } from './run-adoption';
 
@@ -78,12 +77,18 @@ describe('remote automation run adoption', () => {
       host: 'example.com',
       username: 'jona',
     });
+    await fixture.db.insert(workspaces).values({
+      id: 'repo-workspace-1',
+      type: 'project-ssh',
+      kind: 'repository',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+      path: '/repo',
+    });
     await fixture.db.insert(projects).values({
       id: 'project-1',
       name: 'Remote project',
-      path: '/repo',
-      workspaceProvider: 'ssh',
-      sshConnectionId: 'ssh-1',
+      repositoryWorkspaceId: 'repo-workspace-1',
     });
     await fixture.db.insert(automations).values({
       id: 'automation-1',
@@ -143,7 +148,7 @@ describe('remote automation run adoption', () => {
     const [workspace] = await fixture.db
       .select()
       .from(workspaces)
-      .where(eq(workspaces.key, computeWorkspaceKey('project-ssh', workspacePath, 'ssh-1')));
+      .where(eq(workspaces.path, workspacePath));
     expect(workspace).toMatchObject({
       type: 'project-ssh',
       kind: 'worktree',
@@ -164,11 +169,9 @@ describe('remote automation run adoption', () => {
   it('merges with a snapshot-sync-adopted row for the same path instead of duplicating it', async () => {
     if (!fixture) throw new Error('Database fixture was not initialized');
     const workspacePath = '/worktrees/repo-12345678/review-changes-run-1';
-    const workspaceKey = computeWorkspaceKey('project-ssh', workspacePath, 'ssh-1');
     // Snapshot-sync adopts unknown worktrees with a bare row (no config).
     await fixture.db.insert(workspaces).values({
       id: 'adopted-workspace',
-      key: workspaceKey,
       type: 'project-ssh',
       kind: 'worktree',
       location: 'remote',
@@ -209,7 +212,10 @@ describe('remote automation run adoption', () => {
     );
 
     expect(result.success).toBe(true);
-    const rows = await fixture.db.select().from(workspaces).where(eq(workspaces.key, workspaceKey));
+    const rows = await fixture.db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.path, workspacePath));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: 'adopted-workspace', path: workspacePath });
     expect(rows[0]?.config).not.toBeNull();

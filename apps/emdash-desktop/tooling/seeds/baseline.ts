@@ -34,6 +34,15 @@ const TASK_A1_WORKSPACE_ID = 'eeee0003-0000-0000-0000-000000000000';
 const DUPLICATE_KEEP_WORKSPACE_ID = 'eeee0004-0000-0000-0000-000000000000';
 const DUPLICATE_DROP_WORKSPACE_ID = 'eeee0005-0000-0000-0000-000000000000';
 const TYPE_ONLY_REMOTE_WORKSPACE_ID = 'eeee0006-0000-0000-0000-000000000000';
+const PROJECT_B_REPOSITORY_WORKSPACE_ID = 'eeee0007-0000-0000-0000-000000000000';
+
+function worktreeConfig(branchName: string) {
+  return {
+    version: '2' as const,
+    git: { kind: 'use-branch' as const, branchName },
+    workspace: { kind: 'new-worktree' as const },
+  };
+}
 
 /**
  * Realistic but fully synthetic dataset — no sensitive data.
@@ -52,24 +61,18 @@ export async function baseline(db: AppDb): Promise<void> {
     {
       id: PROJECT_A_ID,
       name: 'emdash',
-      path: '/home/dev/projects/emdash',
-      workspaceProvider: 'local',
       baseRef: 'main',
       repositoryWorkspaceId: PROJECT_A_REPOSITORY_WORKSPACE_ID,
     },
     {
       id: PROJECT_B_ID,
       name: 'my-api',
-      path: '/home/dev/projects/my-api',
-      workspaceProvider: 'local',
       baseRef: 'main',
+      repositoryWorkspaceId: PROJECT_B_REPOSITORY_WORKSPACE_ID,
     },
     {
       id: PROJECT_REMOTE_ID,
       name: 'remote-api',
-      path: '/srv/repos/remote-api',
-      workspaceProvider: 'ssh',
-      sshConnectionId: SSH_CONNECTION_ID,
       baseRef: 'main',
       repositoryWorkspaceId: PROJECT_REMOTE_REPOSITORY_WORKSPACE_ID,
     },
@@ -78,30 +81,34 @@ export async function baseline(db: AppDb): Promise<void> {
   await db.insert(workspaces).values([
     {
       id: PROJECT_A_REPOSITORY_WORKSPACE_ID,
-      key: 'fixture:repo:local:emdash',
       type: 'local',
-      kind: 'project-root',
+      kind: 'repository',
       location: 'local',
       path: '/home/dev/projects/emdash',
     },
     {
+      id: PROJECT_B_REPOSITORY_WORKSPACE_ID,
+      type: 'local',
+      kind: 'repository',
+      location: 'local',
+      path: '/home/dev/projects/my-api',
+    },
+    {
       id: PROJECT_REMOTE_REPOSITORY_WORKSPACE_ID,
-      key: 'fixture:repo:ssh:remote-api',
       type: 'project-ssh',
-      kind: 'project-root',
+      kind: 'repository',
       location: 'remote',
       sshConnectionId: SSH_CONNECTION_ID,
       path: '/srv/repos/remote-api',
     },
     {
       id: TASK_A1_WORKSPACE_ID,
-      key: 'fixture:worktree:feat-workspace-db',
       type: 'local',
       kind: 'worktree',
       location: 'local',
       parentId: PROJECT_A_REPOSITORY_WORKSPACE_ID,
       path: '/home/dev/projects/emdash-worktrees/feat-workspace-db',
-      branchName: 'feat/workspace-db',
+      config: worktreeConfig('feat/workspace-db'),
     },
     {
       id: DUPLICATE_KEEP_WORKSPACE_ID,
@@ -110,7 +117,7 @@ export async function baseline(db: AppDb): Promise<void> {
       location: 'local',
       parentId: PROJECT_A_REPOSITORY_WORKSPACE_ID,
       path: '/home/dev/projects/emdash-worktrees/duplicate',
-      branchName: 'feat/migration-testing',
+      config: worktreeConfig('feat/migration-testing'),
     },
     {
       id: DUPLICATE_DROP_WORKSPACE_ID,
@@ -129,7 +136,7 @@ export async function baseline(db: AppDb): Promise<void> {
       sshConnectionId: SSH_CONNECTION_ID,
       parentId: PROJECT_REMOTE_REPOSITORY_WORKSPACE_ID,
       path: '/srv/repos/remote-api-worktrees/type-only',
-      branchName: 'feat/type-only',
+      config: worktreeConfig('feat/type-only'),
     },
   ]);
 

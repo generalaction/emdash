@@ -335,10 +335,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
         project.repoPath,
         project.settings,
         this.dependencies.createConversationProvider,
-        workspaceRow.branchName ??
-          (workspaceRow.config
-            ? (deriveBranchName(workspaceRow.config.git) ?? undefined)
-            : undefined)
+        workspaceRow.config ? (deriveBranchName(workspaceRow.config.git) ?? undefined) : undefined
       );
     } catch (error) {
       await deactivateWorkspaceParticipants(

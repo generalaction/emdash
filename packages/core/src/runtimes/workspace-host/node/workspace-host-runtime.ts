@@ -17,6 +17,7 @@ import {
   type WorkspaceHostError,
   type WorkspaceHostInitializeRequest,
   type WorkspaceHostInitializeResult,
+  type WorkspaceHostMeasureUsageRequest,
   type WorkspaceHostNotice,
   type WorkspaceHostNoticesList,
   type WorkspaceHostOperationInput,
@@ -27,6 +28,7 @@ import {
   type WorkspaceHostRunScriptResult,
   type WorkspaceHostSnapshotRequest,
   type WorkspaceHostSubmitOperationResult,
+  type WorkspaceHostUsage,
 } from '../api';
 import {
   createCreateWorktreeHandler,
@@ -34,6 +36,7 @@ import {
   createRemoveWorktreeHandler,
   type GitExecFactory,
 } from './handlers';
+import { measureWorkspaceUsage } from './measure-usage';
 import { scanRepository, type ScanRepositoryOptions } from './scanner/scan-repository';
 import { WorkspaceInitManager, type WorkspaceNotice } from './session-init/workspace-init-manager';
 import type { WorkspaceHostSessionClients } from './session/session-cleanup';
@@ -198,6 +201,17 @@ export class WorkspaceHostRuntime {
         message: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  async measureUsage(
+    request: WorkspaceHostMeasureUsageRequest,
+    signal?: AbortSignal
+  ): Promise<Result<WorkspaceHostUsage, WorkspaceHostError>> {
+    return measureWorkspaceUsage({
+      workspacePath: request.workspacePath,
+      signal,
+      createGitExec: this.options.createGitExec,
+    });
   }
 
   async runWorkspaceScript(

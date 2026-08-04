@@ -1,6 +1,5 @@
-import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
-import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
+import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { CreateTaskParams, DeleteTaskOptions } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -11,10 +10,9 @@ import { getProjectWorkspaces } from './operations/getProjectWorkspaces';
 export function createTaskOperations(dependencies: {
   db: AppDb;
   operations: OperationsEngine;
-  runtimes: RuntimeBroker;
   service: TaskService;
+  taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
-  workspaceIdentity: WorkspaceIdentityService;
 }) {
   const { operations, service: taskService } = dependencies;
   return {
@@ -35,11 +33,7 @@ export function createTaskOperations(dependencies: {
     },
     async getProjectWorkspaces(projectId: string) {
       return getProjectWorkspaces(
-        {
-          db: dependencies.db,
-          runtimes: dependencies.runtimes,
-          workspaceIdentity: dependencies.workspaceIdentity,
-        },
+        { db: dependencies.db, taskSessions: dependencies.taskSessions },
         projectId
       );
     },

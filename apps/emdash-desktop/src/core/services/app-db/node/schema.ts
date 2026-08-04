@@ -1,5 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
-import { isNotNull, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -56,13 +56,11 @@ export const projects = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    path: text('path').notNull(),
-    workspaceProvider: text('workspace_provider').notNull().default('local'), // 'local' | 'ssh'
     baseRef: text('base_ref'),
-    sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
-      onDelete: 'set null',
-    }),
-    /** The shared workspace representing this project's repository root. Set on first mount. */
+    /**
+     * The shared workspace representing this project's repository root. Set at
+     * creation; the repository row carries the project's path and host identity.
+     */
     repositoryWorkspaceId: text('repository_workspace_id'),
     createdAt: text('created_at')
       .notNull()
@@ -73,16 +71,9 @@ export const projects = sqliteTable(
     deletedAt: text('deleted_at'),
   },
   (table) => ({
-    localPathIdx: uniqueIndex('idx_projects_local_path')
-      .on(table.path)
-      .where(sql`${table.workspaceProvider} = 'local' AND ${table.deletedAt} IS NULL`),
-    remotePathIdx: uniqueIndex('idx_projects_remote_path')
-      .on(table.sshConnectionId, table.path)
-      .where(sql`${table.workspaceProvider} = 'ssh' AND ${table.deletedAt} IS NULL`),
     repositoryWorkspaceIdIdx: uniqueIndex('idx_projects_repository_workspace_id')
       .on(table.repositoryWorkspaceId)
       .where(sql`${table.repositoryWorkspaceId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
-    sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
   })
 );
 
@@ -173,10 +164,7 @@ export const tasks = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
-    workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; dropped in the retirement migration train
     workspaceId: text('workspace_id'),
-    workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
-    workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
     type: text('type').notNull().default('task'), // 'task' | 'automation-run'
     automationRunId: text('automation_run_id'), // set when type = 'automation-run'; runtime-owned reference, intentionally no FK
     deletedAt: text('deleted_at'),
@@ -193,9 +181,8 @@ export const workspaces = sqliteTable(
   'workspaces',
   {
     id: text('id').primaryKey(),
-    key: text('key'),
-    type: text('type').notNull().$type<'local' | 'project-ssh'>(), // @deprecated — use kind + location; legacy rows may still hold 'byoi' until the retirement migration untracks them
-    /** Describes the nature of the workspace: a git worktree, the project root, or a directory. */
+    type: text('type').notNull().$type<'local' | 'project-ssh'>(), // @deprecated — use kind + location
+    /** Describes the nature of the workspace: a git worktree, a repository root, or a directory. */
     kind: text('kind').$type<WorkspaceKind>(),
     /** Where the workspace runs: on the local machine or over SSH. */
     location: text('location').$type<'local' | 'remote'>(),
@@ -205,10 +192,8 @@ export const workspaces = sqliteTable(
     }),
     /** Parent repository registry row for git worktrees. */
     parentId: text('parent_id'),
-    data: text('data'), // @deprecated — provider data of the removed BYOI feature; never read
     path: text('path'),
     config: versionedJsonColumn(workspaceConfig)('config'),
-    branchName: text('branch_name'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
     observedStatus: text('observed_status').$type<'present' | 'missing' | 'corrupted'>(),
@@ -221,10 +206,9 @@ export const workspaces = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
-    untrackedAt: text('deleted_at'),
+    untrackedAt: text('untracked_at'),
   },
   (table) => ({
-    keyIdx: uniqueIndex('idx_workspaces_key').on(table.key).where(isNotNull(table.key)),
     localPathIdx: uniqueIndex('idx_workspaces_local_path')
       .on(table.path)
       .where(

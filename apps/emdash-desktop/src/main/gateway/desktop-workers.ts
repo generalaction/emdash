@@ -19,8 +19,6 @@ import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
-import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
@@ -66,7 +64,6 @@ export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
-export type WorkspaceRuntimeClient = ContractClient<WorkspaceContract>;
 export type WorkspaceHostRuntimeClient = ContractClient<WorkspaceHostContract>;
 
 export type DesktopRuntimeClients = {
@@ -82,7 +79,6 @@ export type DesktopRuntimeClients = {
   readonly resourceUsage: ResourceUsageRuntimeClient;
   readonly terminals: TerminalsRuntimeClient;
   readonly tuiAgents: TuiAgentsRuntimeClient;
-  readonly workspace: WorkspaceRuntimeClient;
   readonly workspaceHost: WorkspaceHostRuntimeClient;
 };
 
@@ -293,24 +289,6 @@ async function startDesktopWorkersWithHost(
     });
     return { client: await worker.ready(), worker };
   });
-  const workspaceReady = Promise.all([terminalsReady, watcherReady]).then(
-    async ([terminals, watcher]) => {
-      const worker = host.create(workspaceComponent, {
-        name: 'workspace',
-        executable: desktopWorkerPath('workspace'),
-        env: process.env,
-        dependencies: {
-          terminals,
-          watcher,
-        },
-        config: {
-          operationRecordsFilePath: sessionIntentFilePaths().workspaceOperationLog,
-        },
-        supervision: { restart: 'never' },
-      });
-      return await worker.ready();
-    }
-  );
   const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
     async ([acp, terminals, tuiAgents]) => {
       const worker = host.create(workspaceHostComponent, {
@@ -361,7 +339,6 @@ async function startDesktopWorkersWithHost(
     resourceUsage,
     terminals,
     tuiAgentsResult,
-    workspace,
     workspaceHost,
   ] = await Promise.all([
     acpReady,
@@ -375,7 +352,6 @@ async function startDesktopWorkersWithHost(
     resourceUsageReady,
     terminalsReady,
     tuiAgentsReady,
-    workspaceReady,
     workspaceHostReady,
   ]);
   const automations = automationsResult.client;
@@ -396,7 +372,6 @@ async function startDesktopWorkersWithHost(
       resourceUsage,
       terminals,
       tuiAgents,
-      workspace,
       workspaceHost,
     },
     workers: {

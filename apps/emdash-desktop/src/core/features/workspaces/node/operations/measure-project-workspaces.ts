@@ -1,9 +1,9 @@
-import { hostRefKey, sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import { hostRefKey } from '@emdash/core/primitives/host/api';
+import { parseAbsolute } from '@emdash/core/primitives/path/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type {
   MeasureProjectWorkspacesInput,
   MeasureProjectWorkspacesResult,
@@ -87,10 +87,12 @@ async function measureRow(
     const host = projectWorkspaceHost(project);
     const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    const connectionId = sshConnectionIdOf(host);
-    const usage = await runtime.data.workspace.measureUsage({
-      workspace: hostFileRefFromNativePath(row.path, connectionId),
-      repoPath: hostFileRefFromNativePath(project.path, connectionId),
+    const workspacePath = parseAbsolute(row.path);
+    if (!workspacePath.success) {
+      return { path: row.path, success: false, message: workspacePath.error.message };
+    }
+    const usage = await runtime.data.workspaceHost.measureUsage({
+      workspacePath: workspacePath.data,
     });
     if (!usage.success) {
       return {

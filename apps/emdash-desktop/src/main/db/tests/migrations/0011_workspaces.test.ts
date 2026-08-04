@@ -30,9 +30,7 @@ describe('0011 workspaces migration', () => {
 
     const colNames = columns.map((c) => c.name);
     expect(colNames).toContain('id');
-    expect(colNames).toContain('key');
     expect(colNames).toContain('type');
-    expect(colNames).toContain('data');
     expect(colNames).toContain('path');
     expect(colNames).toContain('lines_added');
     expect(colNames).toContain('lines_deleted');
@@ -41,9 +39,6 @@ describe('0011 workspaces migration', () => {
 
     const typeCol = columns.find((c) => c.name === 'type')!;
     expect(typeCol.notnull).toBe(1);
-
-    const keyCol = columns.find((c) => c.name === 'key')!;
-    expect(keyCol.notnull).toBe(0);
 
     const linesAdded = columns.find((c) => c.name === 'lines_added')!;
     expect(linesAdded.notnull).toBe(0);
@@ -54,17 +49,18 @@ describe('0011 workspaces migration', () => {
     expect(linesDeleted.dflt_value).toBeNull();
   });
 
-  it('workspaces table has a partial unique index on key', async () => {
+  it('workspace key column and index are retired at head', async () => {
     fixture = await openFixture('pre-0011');
 
     const indexes = fixture.sqlite
-      .prepare(`SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='workspaces'`)
-      .all() as { name: string; sql: string }[];
+      .prepare(`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='workspaces'`)
+      .all() as { name: string }[];
+    expect(indexes.map((i) => i.name)).not.toContain('idx_workspaces_key');
 
-    const keyIndex = indexes.find((i) => i.name === 'idx_workspaces_key');
-    expect(keyIndex).toBeDefined();
-    expect(keyIndex!.sql).toMatch(/where/i);
-    expect(keyIndex!.sql).toMatch(/is not null/i);
+    const columns = fixture.sqlite.prepare(`PRAGMA table_info(workspaces)`).all() as {
+      name: string;
+    }[];
+    expect(columns.map((c) => c.name)).not.toContain('key');
   });
 
   it('lines_added and lines_deleted default to null for new rows', async () => {

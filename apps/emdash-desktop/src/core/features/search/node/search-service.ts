@@ -24,6 +24,7 @@ import {
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceRuntimeAccess } from '@core/features/workspaces/api/node/runtime-access';
+import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { Project } from '@core/primitives/projects/api';
@@ -308,11 +309,11 @@ export class SearchService {
     let branchName: string | undefined;
     if (task.workspaceId) {
       const [ws] = await this.deps.db
-        .select({ branchName: workspaces.branchName })
+        .select({ kind: workspaces.kind, config: workspaces.config })
         .from(workspaces)
         .where(and(eq(workspaces.id, task.workspaceId), liveWorkspaces()))
         .limit(1);
-      branchName = ws?.branchName ?? undefined;
+      branchName = ws ? (getProvisionedWorkspaceBranch(ws) ?? undefined) : undefined;
     }
     this.upsertTask(task, branchName);
   }
@@ -436,15 +437,17 @@ export class SearchService {
           projectId: tasks.projectId,
           name: tasks.name,
           archivedAt: tasks.archivedAt,
-          branchName: workspaces.branchName,
+          workspaceKind: workspaces.kind,
+          workspaceConfig: workspaces.config,
         })
         .from(tasks)
         .leftJoin(workspaces, and(eq(tasks.workspaceId, workspaces.id), liveWorkspaces()))
         .where(isNull(tasks.deletedAt))
         .all();
       const allProjects = this.deps.db
-        .select()
+        .select({ id: projects.id, name: projects.name, path: workspaces.path })
         .from(projects)
+        .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
         .where(isNull(projects.deletedAt))
         .all();
       const allConversations = this.deps.db.select().from(conversations).all();
@@ -457,10 +460,14 @@ export class SearchService {
       this.deps.sqlite.transaction(() => {
         for (const t of allTasks) {
           if (t.archivedAt) continue;
-          upsertStmt.run('task', t.id, t.projectId, null, t.name, t.branchName ?? '');
+          const branchName = getProvisionedWorkspaceBranch({
+            kind: t.workspaceKind,
+            config: t.workspaceConfig,
+          });
+          upsertStmt.run('task', t.id, t.projectId, null, t.name, branchName ?? '');
         }
         for (const p of allProjects) {
-          upsertStmt.run('project', p.id, null, null, p.name, p.path);
+          upsertStmt.run('project', p.id, null, null, p.name, p.path ?? '');
         }
         for (const c of allConversations) {
           upsertStmt.run('conversation', c.id, c.projectId, c.taskId, c.title, '');

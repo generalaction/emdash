@@ -26,26 +26,38 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
     .get() as { created_at: number } | undefined;
   const lastTimestamp = lastRow?.created_at ?? 0;
 
-  connection.transaction(() => {
-    for (const entry of (journal as { entries: JournalEntry[] }).entries) {
-      if (entry.when <= lastTimestamp) continue;
+  const pending = (journal as { entries: JournalEntry[] }).entries.filter(
+    (entry) => entry.when > lastTimestamp
+  );
+  if (pending.length === 0) return;
 
-      const sqlKey = Object.keys(sqlFiles).find((k) => k.includes(entry.tag));
-      if (!sqlKey) throw new Error(`Missing bundled SQL for migration: ${entry.tag}`);
+  // Migrations that recreate a table (CREATE __new_x → DROP x → RENAME) must not
+  // run with foreign keys enforced: DROP TABLE under enforcement performs an
+  // implicit DELETE that cascades into child tables. `PRAGMA foreign_keys` is a
+  // no-op inside a transaction, so the toggle has to happen out here.
+  connection.pragma('foreign_keys = OFF');
+  try {
+    connection.transaction(() => {
+      for (const entry of pending) {
+        const sqlKey = Object.keys(sqlFiles).find((k) => k.includes(entry.tag));
+        if (!sqlKey) throw new Error(`Missing bundled SQL for migration: ${entry.tag}`);
 
-      const sql = sqlFiles[sqlKey];
-      const hash = createHash('sha256').update(sql).digest('hex');
+        const sql = sqlFiles[sqlKey];
+        const hash = createHash('sha256').update(sql).digest('hex');
 
-      for (const stmt of sql.split('--> statement-breakpoint')) {
-        const trimmed = stmt.trim();
-        if (trimmed) connection.exec(trimmed);
+        for (const stmt of sql.split('--> statement-breakpoint')) {
+          const trimmed = stmt.trim();
+          if (trimmed) connection.exec(trimmed);
+        }
+
+        connection
+          .prepare('INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)')
+          .run(hash, entry.when);
       }
-
-      connection
-        .prepare('INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)')
-        .run(hash, entry.when);
-    }
-  })();
+    })();
+  } finally {
+    connection.pragma('foreign_keys = ON');
+  }
 }
 
 /**

@@ -34,7 +34,6 @@ alias only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
 
 ```
 tooling/
-├── byoi/               SSH BYOI provisioning (Docker)
 ├── docker-ssh/         SSH test container (Docker)
 ├── fixtures/           committed SQLite snapshots (empty.db, baseline.db)
 ├── node-deps/          isolated better-sqlite3 compiled for system Node
@@ -138,9 +137,7 @@ guidance.
 | Column | Schema file |
 |--------|-------------|
 | `workspaces.config` | `src/core/primitives/workspaces/api/workspace-config.ts` |
-| `workspaces.data` | `src/core/primitives/workspaces/api/workspace-provider-data.ts` |
 | `conversations.config` | `src/core/primitives/conversations/api/conversation-config.ts` |
-| `tasks.workspace_intent` | `src/core/primitives/workspaces/api/workspace-config.ts` |
 | `tasks.task_config` | `src/core/primitives/tasks/api/task-config.ts` |
 | `tasks.linked_issue` | `src/core/primitives/linked-issues/api/linked-issue.ts` |
 | `automations.trigger_config` | `src/core/primitives/automations/api/config.ts` |

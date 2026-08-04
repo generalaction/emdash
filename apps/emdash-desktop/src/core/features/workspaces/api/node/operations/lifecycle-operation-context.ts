@@ -44,6 +44,13 @@ export async function resolveLifecycleOperationContext(
   const [project] = projectId
     ? await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
     : [];
+  const [repository] = project?.repositoryWorkspaceId
+    ? await db
+        .select({ path: workspaces.path })
+        .from(workspaces)
+        .where(eq(workspaces.id, project.repositoryWorkspaceId))
+        .limit(1)
+    : [];
   const provider = projectId ? dependencies.projects.getProject(projectId) : undefined;
   const settings = options.resolveRuntimeConfig ? await provider?.settings.get() : undefined;
   const workspacePath = workspace?.path ?? operation.payload.workspacePath;
@@ -52,7 +59,7 @@ export async function resolveLifecycleOperationContext(
     task,
     workspace,
     project,
-    projectPath: project?.path,
+    projectPath: repository?.path ?? undefined,
     workspacePath,
     workspaceKind: workspace?.kind ?? (operation.payload.workspacePath ? 'worktree' : undefined),
     branchName:

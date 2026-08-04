@@ -60,7 +60,7 @@ import {
   defineWorkflowNode,
 } from '@emdash/core/primitives/workflow/api';
 
-const scope = createScope({ label: 'workspace-bootstrap' });
+const scope = createScope({ label: 'repo-sync' });
 const workflow = createWorkflow({
   scope,
   nodes: [
@@ -167,18 +167,13 @@ When a persistent live state is useful, adapt the machine with `fromMachine()` a
 
 ## Current Consumer
 
-`runBootstrapPlan()` in
-`packages/core/src/runtimes/workspace/node/provisioning/lifecycle/runner/runner.ts` is the first
-consumer. It preserves the existing public bootstrap plan API by adapting each planned step into a
-workflow node and linking nodes linearly with `dependsOn`.
-
-This keeps today's behavior while replacing the runner's custom retry loop, skip propagation, and
-progress bookkeeping with the shared primitive.
+The terminals runtime (`packages/core/src/runtimes/terminals/node/runtime/runtime.ts`) runs
+workspace script workflows through `createWorkflow()`, adapting each declared node and linking
+them with `dependsOn`. This replaces custom retry loops, skip propagation, and progress
+bookkeeping with the shared primitive.
 
 ## Deferred Extensions
 
 - Resource gates or concurrency pools, only if a future workflow needs "at most N nodes for this
   resource" without expressing a semantic ordering edge.
 - Long-running service nodes with readiness probes for richer `.emdash.json` automation.
-- A future workspace-bootstrap cleanup where the runtime receives `BootstrapGitIntent` and
-  hand-authors the DAG directly instead of transporting a serialized step list.

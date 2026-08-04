@@ -2,31 +2,20 @@ import {
   operationMutationErrorSchema,
   operationMutationResultSchema,
 } from '@emdash/core/primitives/operations/api';
-import {
-  cleanWorkspaceArtifactsResultSchema,
-  workspaceOperationResultSchema,
-  workspaceStateSchema,
-  workspaceUsageSchema,
-  workspaceErrorSchema,
-  workspaceOperationProgressSchema,
-} from '@emdash/core/runtimes/workspace/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, liveJob, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveJob } from '@emdash/wire';
 import z from 'zod';
 
-export const workspaceBootstrapStepSchema = z.enum([
-  'resolving-worktree',
-  'initialising-workspace',
-  'running-provision-script',
-  'connecting',
-  'setting-up-workspace',
-  'starting-sessions',
-]);
+/** Wire shape for workspace activation failures surfaced by the provision job. */
+export const workspaceErrorSchema = z.object({
+  type: z.string().min(1),
+  message: z.string().min(1),
+  stageId: z.string().optional(),
+  resolutions: z.array(z.string()).optional(),
+});
 
-export const workspaceBootstrapProgressSchema = z.object({
-  step: workspaceBootstrapStepSchema,
+export const workspaceProvisionProgressSchema = z.object({
   message: z.string(),
-  operation: workspaceOperationProgressSchema.optional(),
 });
 
 export const workspaceProvisionResultSchema = z.object({
@@ -47,36 +36,6 @@ const workspaceIdInputSchema = z.object({
   workspaceId: z.string(),
 });
 
-export const workspaceRuntimeStateSchema = workspaceStateSchema;
-
-export const workspaceRuntimeOperationResultSchema = workspaceOperationResultSchema
-  .omit({ workspace: true })
-  .extend({ workspaceId: z.string() });
-
-export const workspaceRuntimeUsageSchema = workspaceUsageSchema
-  .omit({ workspace: true })
-  .extend({ workspaceId: z.string() });
-
-export const workspaceRuntimeCleanResultSchema = cleanWorkspaceArtifactsResultSchema
-  .omit({ workspace: true })
-  .extend({ workspaceId: z.string() });
-
-export const activateWorkspaceByIdInputSchema = workspaceIdInputSchema.extend({
-  consumerId: z.string().min(1),
-});
-
-export const deactivateWorkspaceByIdInputSchema = activateWorkspaceByIdInputSchema.extend({
-  strategy: z.enum(['stop', 'detach']),
-});
-
-export const teardownWorkspaceByIdInputSchema = workspaceIdInputSchema.extend({
-  force: z.boolean().default(false),
-});
-
-export const cleanWorkspaceArtifactsByIdInputSchema = workspaceIdInputSchema.extend({
-  preservePatterns: z.array(z.string()).default([]),
-});
-
 export const archiveWorkspaceInputSchema = z.object({
   projectId: z.string(),
   workspaceId: z.string().optional(),
@@ -85,15 +44,13 @@ export const archiveWorkspaceInputSchema = z.object({
 });
 
 export const workspacesWireContract = defineContract({
-  runtime: liveModel({
-    key: workspaceIdInputSchema,
-    states: {
-      state: liveState({ data: workspaceRuntimeStateSchema }),
-    },
-  }),
+  /**
+   * Activates a task workspace: gates on registry/outbox state, initializes
+   * the workspace host-side, and registers the task session.
+   */
   provision: liveJob({
     input: provisionWorkspaceByIdInputSchema,
-    progress: workspaceBootstrapProgressSchema,
+    progress: workspaceProvisionProgressSchema,
     result: workspaceProvisionResultSchema,
     error: workspaceSliceErrorSchema,
   }),
@@ -107,16 +64,6 @@ export const workspacesWireContract = defineContract({
     data: operationMutationResultSchema,
     error: operationMutationErrorSchema,
   }),
-  reconcile: fallible({
-    input: workspaceIdInputSchema,
-    data: workspaceRuntimeOperationResultSchema,
-    error: workspaceSliceErrorSchema,
-  }),
-  measureUsage: fallible({
-    input: workspaceIdInputSchema,
-    data: workspaceRuntimeUsageSchema,
-    error: workspaceSliceErrorSchema,
-  }),
   delete: fallible({
     input: workspaceIdInputSchema,
     data: operationMutationResultSchema,
@@ -129,9 +76,7 @@ export const workspacesWireContract = defineContract({
   }),
 });
 
-export type WorkspaceBootstrapStep = z.infer<typeof workspaceBootstrapStepSchema>;
-export type WorkspaceBootstrapProgress = z.infer<typeof workspaceBootstrapProgressSchema>;
+export type WorkspaceError = z.infer<typeof workspaceErrorSchema>;
 export type WorkspaceProvisionResult = z.infer<typeof workspaceProvisionResultSchema>;
-export type WorkspaceRuntimeState = z.infer<typeof workspaceRuntimeStateSchema>;
 export type WorkspaceSliceError = z.infer<typeof workspaceSliceErrorSchema>;
 export type WorkspacesWireContract = typeof workspacesWireContract;

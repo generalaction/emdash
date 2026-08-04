@@ -242,7 +242,6 @@ function setup(
   });
   const runtime = cell<SshConnectionsRuntime>(options.runtime ?? {});
   const connections = expose(sshContract.connections, { runtime });
-  const operationLog = expose(machinesContract.operationLog, { list: cell({}) });
   const updateRuntime = (update: (runtime: SshConnectionsRuntime) => void): void => {
     runtime.set(produce(peek(runtime), update));
   };
@@ -300,7 +299,6 @@ function setup(
   });
   const machinesWire = createTestWire(machinesContract, {
     getMachines: async () => options.saved ?? [],
-    operationLog,
     getMachineUsage: async () => ({}),
     getMachineMetrics: async () => null as never,
     getMachineSystemDependencies: async () => [],

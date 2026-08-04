@@ -69,11 +69,6 @@ export default defineConfig({
     'runtimes-tui-agents-node': 'src/runtimes/tui-agents/node/index.ts',
     'runtimes-terminals-api': 'src/runtimes/terminals/api/index.ts',
     'runtimes-terminals-node': 'src/runtimes/terminals/node/index.ts',
-    'runtimes-workspace-api': 'src/runtimes/workspace/api/index.ts',
-    'runtimes-workspace-api-provisioning': 'src/runtimes/workspace/api/provisioning/index.ts',
-    'runtimes-workspace-api-provisioning-placement':
-      'src/runtimes/workspace/api/provisioning/placement.ts',
-    'runtimes-workspace-node': 'src/runtimes/workspace/node/index.ts',
     'runtimes-workspace-host-api': 'src/runtimes/workspace-host/api/index.ts',
     'runtimes-workspace-host-node': 'src/runtimes/workspace-host/node/index.ts',
     'runtimes-resource-usage-api': 'src/runtimes/resource-usage/api/index.ts',

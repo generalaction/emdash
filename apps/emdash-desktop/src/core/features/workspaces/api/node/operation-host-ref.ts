@@ -10,20 +10,17 @@ type WorkspaceHostColumns = {
   sshConnectionId?: string | null;
 };
 
-type ProjectHostColumns = {
-  sshConnectionId?: string | null;
-};
-
-/** Resolves operation routing from the most authoritative available owner. */
+/**
+ * Resolves operation routing from the most authoritative available owner:
+ * the task workspace first, then the project's repository workspace.
+ */
 export function operationHostRef(input: {
   workspace?: WorkspaceHostColumns;
-  project?: ProjectHostColumns;
+  repository?: WorkspaceHostColumns;
 }): HostRef {
-  const workspace = input.workspace;
-  if (workspace?.location) {
-    return hostRefFromParts(workspace.location, workspace.sshConnectionId ?? null);
+  for (const owner of [input.workspace, input.repository]) {
+    if (owner?.location) return hostRefFromParts(owner.location, owner.sshConnectionId ?? null);
+    if (owner?.sshConnectionId) return hostRef('remote', owner.sshConnectionId);
   }
-  if (workspace?.sshConnectionId) return hostRef('remote', workspace.sshConnectionId);
-  if (input.project?.sshConnectionId) return hostRef('remote', input.project.sshConnectionId);
   return LOCAL_HOST_REF;
 }

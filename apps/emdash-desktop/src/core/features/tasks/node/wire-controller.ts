@@ -1,4 +1,3 @@
-import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Contract, ContractImpl } from '@emdash/wire';
@@ -6,12 +5,12 @@ import { expose, family, query } from '@emdash/wire/state';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { tasksWireContract } from '@core/features/tasks/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { enqueueDeleteTask } from '@core/features/tasks/node/operations/delete-task-definition';
 import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
-import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { TaskListData, TaskStatsData } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -31,10 +30,9 @@ export type TasksWireController = {
 export function createTasksWireController(options: {
   db: AppDb;
   operations: OperationsEngine;
-  runtimes: RuntimeBroker;
   service: TaskService;
+  taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
-  workspaceIdentity: WorkspaceIdentityService;
 }): TasksWireController {
   const { operations } = options;
   const taskOperations = createTaskOperations(options);

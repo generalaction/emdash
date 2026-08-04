@@ -13,34 +13,26 @@ const createBranchConfig: WorkspaceConfig = {
 };
 
 describe('workspace branch metadata', () => {
-  it('treats project-root branchName as current branch cache, not provisioned branch', () => {
-    const workspace = {
-      kind: 'project-root' as const,
-      branchName: 'feature/current',
-      config: null,
-    };
-
-    expect(getProvisionedWorkspaceBranch(workspace)).toBeNull();
+  it('does not treat a repository row as owning a provisioned branch', () => {
+    expect(getProvisionedWorkspaceBranch({ kind: 'repository', config: null })).toBeNull();
   });
 
-  it('does not derive provisioned branch for project-root workspace config', () => {
+  it('does not derive provisioned branch from repository workspace config', () => {
     expect(
-      getProvisionedWorkspaceBranch({
-        kind: 'project-root',
-        branchName: 'feature/current',
-        config: createBranchConfig,
-      })
+      getProvisionedWorkspaceBranch({ kind: 'repository', config: createBranchConfig })
     ).toBeNull();
   });
 
-  it('derives provisioned worktree branch from config before branchName cache', () => {
+  it('does not derive provisioned branch for directory rows', () => {
     expect(
-      getProvisionedWorkspaceBranch({
-        kind: 'worktree',
-        branchName: 'feature/current',
-        config: createBranchConfig,
-      })
-    ).toBe('task/provisioned');
+      getProvisionedWorkspaceBranch({ kind: 'directory', config: createBranchConfig })
+    ).toBeNull();
+  });
+
+  it('derives the provisioned worktree branch from config', () => {
+    expect(getProvisionedWorkspaceBranch({ kind: 'worktree', config: createBranchConfig })).toBe(
+      'task/provisioned'
+    );
   });
 
   it('does not treat a worktree row with git none as owning a branch', () => {
@@ -50,22 +42,10 @@ describe('workspace branch metadata', () => {
       workspace: { kind: 'new-worktree' },
     };
 
-    expect(
-      getProvisionedWorkspaceBranch({
-        kind: 'worktree',
-        branchName: 'feature/current',
-        config,
-      })
-    ).toBeNull();
+    expect(getProvisionedWorkspaceBranch({ kind: 'worktree', config })).toBeNull();
   });
 
-  it('keeps branchName as legacy fallback when kind and config are missing', () => {
-    expect(
-      getProvisionedWorkspaceBranch({
-        kind: null,
-        branchName: 'legacy/task-branch',
-        config: null,
-      })
-    ).toBe('legacy/task-branch');
+  it('returns null when config is missing', () => {
+    expect(getProvisionedWorkspaceBranch({ kind: null, config: null })).toBeNull();
   });
 });

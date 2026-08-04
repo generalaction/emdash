@@ -328,7 +328,7 @@ export function useWorkspaceConfig(opts: {
 
     return (
       projectWorkspaces.find((ws) => {
-        if (ws.kind === 'project-root') return false;
+        if (ws.kind === 'repository') return false;
         // branchName column is null until the workspace is first provisioned; fall
         // back to deriving it from the stored WorkspaceConfig.
         const effective = ws.branchName ?? getConfigBranchName(ws.config);

@@ -79,8 +79,6 @@ describe('project creation without a git repository', () => {
       name: 'Plain Folder',
       path: '/workspace/plain-folder',
       baseRef: null,
-      workspaceProvider: 'local',
-      sshConnectionId: null,
       repositoryWorkspaceId: 'repo-workspace-1',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
@@ -110,13 +108,12 @@ describe('project creation without a git repository', () => {
 });
 
 function createFakeDb(rows: Record<string, unknown>[]) {
+  const findRow = () => rows.find((row) => row.id === 'project-plain' && !row.deletedAt);
   return {
     insert: () => ({
       values: (value: Record<string, unknown>) => ({
         returning: async () => {
           const row = {
-            workspaceProvider: 'local',
-            sshConnectionId: null,
             repositoryWorkspaceId: null,
             createdAt: '2026-01-01T00:00:00.000Z',
             deletedAt: null,
@@ -128,23 +125,46 @@ function createFakeDb(rows: Record<string, unknown>[]) {
         },
       }),
     }),
+    // getProjectById joins the repository workspace row; the fake keeps the
+    // path on the project row and projects it into the join columns.
     select: () => ({
       from: () => ({
-        where: () => ({
-          limit: async () => [rows.find((row) => row.id === 'project-plain' && !row.deletedAt)],
+        leftJoin: () => ({
+          where: () => ({
+            limit: async () => {
+              const row = findRow();
+              return row
+                ? [
+                    {
+                      project: row,
+                      repositoryPath: (row.path as string | undefined) ?? null,
+                      repositoryLocation: 'local',
+                      repositorySshConnectionId: null,
+                    },
+                  ]
+                : [];
+            },
+          }),
         }),
       }),
     }),
     update: () => ({
       set: (value: Record<string, unknown>) => ({
-        where: () => ({
-          returning: async () => {
-            const row = rows.find((entry) => entry.id === 'project-plain' && !entry.deletedAt);
-            if (!row) return [];
+        where: () => {
+          const apply = () => {
+            const row = findRow();
+            if (!row) return undefined;
             Object.assign(row, value, { updatedAt: '2026-01-01T00:00:01.000Z' });
-            return [row];
-          },
-        }),
+            return row;
+          };
+          return {
+            then: (resolve: (value: unknown) => void) => resolve(apply()),
+            run: () => {
+              apply();
+              return { changes: 1 };
+            },
+          };
+        },
       }),
     }),
   } as unknown as Parameters<typeof createProject>[0]['db'];

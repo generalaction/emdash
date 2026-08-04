@@ -21,7 +21,7 @@ import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 function workspaceLabel(ws: ProjectWorkspace): string {
-  if (ws.kind === 'project-root') return 'Repository root';
+  if (ws.kind === 'repository') return 'Repository root';
   if (ws.path) {
     const lastSegment = ws.path.split('/').at(-1);
     return lastSegment || (ws.branchName ?? ws.id);
@@ -30,7 +30,7 @@ function workspaceLabel(ws: ProjectWorkspace): string {
 }
 
 function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
-  const isRoot = ws.kind === 'project-root';
+  const isRoot = ws.kind === 'repository';
   const label = workspaceLabel(ws);
   const hasDiff = ws.linesAdded != null || ws.linesDeleted != null;
 

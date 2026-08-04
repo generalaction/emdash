@@ -93,9 +93,10 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       .select({
         id: projects.id,
         name: projects.name,
-        sshConnectionId: projects.sshConnectionId,
+        sshConnectionId: workspaces.sshConnectionId,
       })
       .from(projects)
+      .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
       .where(isNull(projects.deletedAt));
 
     const usage: SshConnectionUsage = {};
@@ -209,7 +210,8 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
     const referencingProjects = await this.deps.db
       .select({ name: projects.name })
       .from(projects)
-      .where(and(eq(projects.sshConnectionId, id), isNull(projects.deletedAt)));
+      .innerJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
+      .where(and(eq(workspaces.sshConnectionId, id), isNull(projects.deletedAt)));
 
     if (referencingProjects.length > 0) {
       const projectNames = referencingProjects.map((project) => project.name).join(', ');

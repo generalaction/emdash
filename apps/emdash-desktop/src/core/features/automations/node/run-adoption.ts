@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
-import { hostRefEquals } from '@emdash/core/primitives/host/api';
+import { hostRefEquals, hostRefKey } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -11,12 +11,8 @@ import { conversationEvents } from '@core/features/conversations/api/node/conver
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
-import {
-  createWorkspaceRegistry,
-  workspaceRegistryTable as workspaces,
-} from '@core/features/workspaces/api/node/registry';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
-import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { AutomationAdoptionError } from '@core/primitives/automations/api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { projectHostRef, type Project } from '@core/primitives/projects/api';
@@ -144,22 +140,19 @@ async function adoptRunOnce(
   const workspacePath = nativePathFromHost(runtimeRun.data.workspace.path);
   const workspaceStorage = workspaceHostStorage(workspaceHost);
   const workspaceKind =
-    runtimeRun.data.configSnapshot.workspace.kind === 'worktree' ? 'worktree' : 'project-root';
+    runtimeRun.data.configSnapshot.workspace.kind === 'worktree' ? 'worktree' : 'repository';
   const parentId = workspaceKind === 'worktree' ? project.repositoryWorkspaceId : null;
-  const workspaceKey = computeWorkspaceKey(
-    workspaceStorage.type,
-    workspacePath,
-    workspaceStorage.sshConnectionId ?? undefined
-  );
-  return workspaceMutex.runExclusive(workspaceKey, async () => {
+  const workspaceMutexKey = `${hostRefKey(workspaceHost)}:${workspacePath}`;
+  return workspaceMutex.runExclusive(workspaceMutexKey, async () => {
     const concurrentAdoption = await findAdoptedTask(dependencies.db, runId);
     if (concurrentAdoption) return ok(concurrentAdoption);
 
-    const [workspaceRow] = await dependencies.db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.key, workspaceKey))
-      .limit(1);
+    const registry = createWorkspaceRegistry(dependencies.db);
+    const workspaceRow = registry.findLiveByPath(
+      workspaceStorage.location,
+      workspaceStorage.sshConnectionId,
+      workspacePath
+    );
     const workspaceId = workspaceRow?.id ?? randomUUID();
     const taskId = randomUUID();
     const conversationInsert = conversationForRun(runtimeRun.data, projectId, taskId);
@@ -174,7 +167,6 @@ async function adoptRunOnce(
     let taskRow!: TaskRow;
     let conversationRow: ConversationRow | undefined;
     let created = false;
-    const registry = createWorkspaceRegistry(dependencies.db);
     dependencies.db.transaction((tx) => {
       const concurrentTask = tx
         .select()
@@ -201,12 +193,10 @@ async function adoptRunOnce(
           },
           tx
         );
-        registry.resurrect(workspaceId, tx);
       } else {
         registry.register(
           {
             id: workspaceId,
-            key: workspaceKey,
             type: workspaceStorage.type,
             kind: workspaceKind,
             location: workspaceStorage.location,

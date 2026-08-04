@@ -33,7 +33,6 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 - `baseRemote`
 - `pushRemote`
 - `tmux`
-- `workspaceProvider`
 
 ## Rules
 

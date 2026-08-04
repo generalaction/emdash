@@ -9,7 +9,6 @@ import { resourceUsageWorker } from '../../../../packages/core/src/runtimes/reso
 import { terminalsWorker } from '../../../../packages/core/src/runtimes/terminals/api/worker';
 import { tuiAgentsWorker } from '../../../../packages/core/src/runtimes/tui-agents/api/worker';
 import { workspaceHostWorker } from '../../../../packages/core/src/runtimes/workspace-host/api/worker';
-import { workspaceWorker } from '../../../../packages/core/src/runtimes/workspace/api/worker';
 import { fsWatchWorker } from '../../../../packages/core/src/services/fs-watch/api/worker';
 
 function workspaceRuntimeWorker<const Id extends string>(
@@ -60,10 +59,6 @@ export const workspaceWorkers = {
   [tuiAgentsWorker.id]: workspaceRuntimeWorker(
     tuiAgentsWorker,
     'src/gateway/entries/tui-agents.ts'
-  ),
-  [workspaceWorker.id]: workspaceRuntimeWorker(
-    workspaceWorker,
-    '../../packages/core/src/runtimes/workspace/node/runtime-entry.ts'
   ),
   [workspaceHostWorker.id]: workspaceRuntimeWorker(
     workspaceHostWorker,

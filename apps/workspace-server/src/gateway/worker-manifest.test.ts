@@ -13,7 +13,6 @@ const runtimeIds = [
   'terminals',
   'tui-agents',
   'workspace-host',
-  'workspace',
 ] as const;
 
 describe('workspace worker manifest', () => {

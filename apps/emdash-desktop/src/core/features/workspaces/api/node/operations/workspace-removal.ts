@@ -11,6 +11,7 @@ import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
+import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -40,7 +41,7 @@ export async function enqueueDeleteWorkspace(
   if (!workspace) {
     return err({ type: 'workspace-not-found', message: `Workspace ${workspaceId} was not found` });
   }
-  if (workspace.kind === 'repository' || workspace.kind === 'project-root') {
+  if (workspace.kind === 'repository') {
     return err({ type: 'root-refused', message: 'Repository root cannot be deleted.' });
   }
   const [task] = await operations.db
@@ -48,17 +49,23 @@ export async function enqueueDeleteWorkspace(
     .from(tasks)
     .where(eq(tasks.workspaceId, workspaceId))
     .limit(1);
-  const [project] = task
-    ? await operations.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
-    : [];
+  const [project] = task ? await getProjectRemovalRow(operations.db, task.projectId) : [];
   return enqueueWorkspaceRemoval(operations, {
     workspace,
     workspacePath: workspace.path ?? undefined,
-    branchName: workspace.branchName ?? undefined,
+    branchName: getProvisionedWorkspaceBranch(workspace) ?? undefined,
     projectId: project?.id,
     projectName: project?.name,
-    repoPath: project?.path ?? (await parentRepoPath(operations.db, workspace)),
-    hostRef: formatHostRef(operationHostRef({ workspace, project })),
+    repoPath: project?.repositoryPath ?? (await parentRepoPath(operations.db, workspace)),
+    hostRef: formatHostRef(
+      operationHostRef({
+        workspace,
+        repository: project && {
+          location: project.repositoryLocation,
+          sshConnectionId: project.repositorySshConnectionId,
+        },
+      })
+    ),
     requireUnused: true,
     deleteBranch: options.deleteBranch ?? false,
   });
@@ -83,11 +90,9 @@ async function enqueueWorkspacePathRemoval(
   input: ArchiveWorkspaceInput,
   options: { requireUnused: boolean }
 ) {
-  const [project] = await operations.db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, input.projectId), isNull(projects.deletedAt)))
-    .limit(1);
+  const [project] = await getProjectRemovalRow(operations.db, input.projectId, {
+    liveOnly: true,
+  });
   if (!project) {
     return err({ type: 'project-not-found', message: `Project ${input.projectId} was not found` });
   }
@@ -106,8 +111,16 @@ async function enqueueWorkspacePathRemoval(
     branchName: input.branchName,
     projectId: project.id,
     projectName: project.name,
-    repoPath: project.path,
-    hostRef: formatHostRef(operationHostRef({ workspace, project })),
+    repoPath: project.repositoryPath ?? undefined,
+    hostRef: formatHostRef(
+      operationHostRef({
+        workspace,
+        repository: {
+          location: project.repositoryLocation,
+          sshConnectionId: project.repositorySshConnectionId,
+        },
+      })
+    ),
     requireUnused: options.requireUnused && input.workspaceId !== undefined,
   });
 }
@@ -211,6 +224,26 @@ function untrackWorkspaceInline(
     registry.untrack([input.workspaceId], new Date(input.createdAt).toISOString(), undefined, tx);
   });
   return failure ? err(failure) : ok({});
+}
+
+/** Project name + repository-workspace host identity, for removal routing. */
+function getProjectRemovalRow(db: AppDb, projectId: string, options: { liveOnly?: boolean } = {}) {
+  return db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      repositoryPath: workspaces.path,
+      repositoryLocation: workspaces.location,
+      repositorySshConnectionId: workspaces.sshConnectionId,
+    })
+    .from(projects)
+    .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
+    .where(
+      options.liveOnly
+        ? and(eq(projects.id, projectId), isNull(projects.deletedAt))
+        : eq(projects.id, projectId)
+    )
+    .limit(1);
 }
 
 async function parentRepoPath(db: AppDb, workspace: WorkspaceRow): Promise<string | undefined> {

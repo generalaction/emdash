@@ -1,3 +1,4 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerRepositoryWorkspace } from './register-repository-workspace';
 
@@ -14,6 +15,7 @@ function makeSelectChain(results: unknown[]) {
       where: () => ({
         limit: () => ({
           all: () => results,
+          get: () => results[0],
         }),
       }),
     }),
@@ -41,7 +43,10 @@ function makeUpdateChain() {
   return {
     set: () => ({
       where: () => ({
-        run: mocks.updateRun,
+        run: () => {
+          mocks.updateRun();
+          return { changes: 1 };
+        },
       }),
     }),
   };
@@ -57,26 +62,15 @@ vi.mock('@emdash/shared/logger', () => ({
 }));
 
 const localProject = {
-  type: 'local' as const,
   id: 'project-1',
-  name: 'My Project',
   path: '/home/user/project',
-  baseRef: 'main',
-  repositoryWorkspaceId: null,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
+  host: LOCAL_HOST_REF,
 };
 
 const sshProject = {
-  type: 'ssh' as const,
   id: 'project-2',
-  name: 'SSH Project',
   path: '/home/user/project',
-  baseRef: 'main',
-  connectionId: 'conn-1',
-  repositoryWorkspaceId: null,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
+  host: hostRef('remote', 'conn-1'),
 };
 
 describe('registerRepositoryWorkspace', () => {
@@ -93,7 +87,7 @@ describe('registerRepositoryWorkspace', () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it('creates a new project-root workspace inside a transaction when not set', () => {
+  it('creates a new repository workspace inside a transaction when not set', () => {
     mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: null }]);
 
     const insertedValues: unknown[] = [];
@@ -123,7 +117,7 @@ describe('registerRepositoryWorkspace', () => {
     expect(mocks.updateRun).toHaveBeenCalled();
 
     const wsInsert = insertedValues[0] as Record<string, unknown>;
-    expect(wsInsert.kind).toBe('project-root');
+    expect(wsInsert.kind).toBe('repository');
     expect(wsInsert.location).toBe('local');
     expect(wsInsert.path).toBe(localProject.path);
     expect(wsInsert.sshConnectionId).toBeNull();
@@ -151,7 +145,7 @@ describe('registerRepositoryWorkspace', () => {
     registerRepositoryWorkspace(db, sshProject);
 
     const wsInsert = insertedValues[0] as Record<string, unknown>;
-    expect(wsInsert.kind).toBe('project-root');
+    expect(wsInsert.kind).toBe('repository');
     expect(wsInsert.location).toBe('remote');
     expect(wsInsert.sshConnectionId).toBe('conn-1');
   });
@@ -175,7 +169,7 @@ describe('registerRepositoryWorkspace', () => {
     expect(mocks.updateRun).not.toHaveBeenCalled();
   });
 
-  it('reuses existing workspace row when key already exists (orphan recovery)', () => {
+  it('reuses existing workspace row at the same host + path (orphan recovery)', () => {
     mocks.selectAll.mockReturnValue([{ repositoryWorkspaceId: null }]);
 
     mocks.transaction.mockImplementation((fn: (tx: unknown) => unknown) => {

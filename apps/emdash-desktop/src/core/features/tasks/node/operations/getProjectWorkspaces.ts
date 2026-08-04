@@ -1,14 +1,11 @@
-import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
-import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { and, eq, isNull } from 'drizzle-orm';
+import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
   createWorkspaceRegistry,
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
-import { resolveWorkspaceKind } from '@core/features/workspaces/api/node/resolve-workspace-kind';
-import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
+import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks } from '@core/services/app-db/node/schema';
@@ -24,12 +21,11 @@ import { projects, tasks } from '@core/services/app-db/node/schema';
 export async function getProjectWorkspaces(
   dependencies: {
     db: AppDb;
-    runtimes: RuntimeBroker;
-    workspaceIdentity: WorkspaceIdentityService;
+    taskSessions: Pick<TaskSessionManager, 'getTask'>;
   },
   projectId: string
 ): Promise<ProjectWorkspace[]> {
-  const { db, runtimes, workspaceIdentity } = dependencies;
+  const { db, taskSessions } = dependencies;
   // 1. Resolve the repository workspace ID for this project.
   const [projectRow] = await db
     .select({ repositoryWorkspaceId: projects.repositoryWorkspaceId })
@@ -45,9 +41,7 @@ export async function getProjectWorkspaces(
     .select({
       wsId: workspaces.id,
       wsKind: workspaces.kind,
-      wsType: workspaces.type,
       wsPath: workspaces.path,
-      wsBranchName: workspaces.branchName,
       wsConfig: workspaces.config,
       wsLinesAdded: workspaces.linesAdded,
       wsLinesDeleted: workspaces.linesDeleted,
@@ -77,18 +71,9 @@ export async function getProjectWorkspaces(
   for (const row of taskWsRows) {
     wsTaskCount.set(row.wsId, (wsTaskCount.get(row.wsId) ?? 0) + 1);
   }
-  const workspaceIds = new Set(taskWsRows.map((row) => row.wsId));
-  if (repoWsRow) workspaceIds.add(repoWsRow.id);
+  // A workspace is live when any linked task has an active session.
   const liveWorkspaceIds = new Set(
-    (
-      await Promise.all(
-        Array.from(workspaceIds, async (workspaceId) =>
-          (await workspaceHasConsumers(runtimes, workspaceIdentity, workspaceId))
-            ? workspaceId
-            : null
-        )
-      )
-    ).filter((workspaceId): workspaceId is string => workspaceId !== null)
+    taskWsRows.filter((row) => !!taskSessions.getTask(row.taskId)).map((row) => row.wsId)
   );
 
   // 5. Build the result set, deduplicating by workspace ID.
@@ -100,9 +85,9 @@ export async function getProjectWorkspaces(
     seen.add(repoWsRow.id);
     result.push({
       id: repoWsRow.id,
-      kind: resolveWorkspaceKind(repoWsRow),
+      kind: repoWsRow.kind ?? 'repository',
       path: repoWsRow.path,
-      branchName: repoWsRow.branchName,
+      branchName: getProvisionedWorkspaceBranch(repoWsRow),
       config: repoWsRow.config,
       linesAdded: repoWsRow.linesAdded,
       linesDeleted: repoWsRow.linesDeleted,
@@ -118,9 +103,9 @@ export async function getProjectWorkspaces(
     seen.add(row.wsId);
     result.push({
       id: row.wsId,
-      kind: resolveWorkspaceKind({ kind: row.wsKind, type: row.wsType, path: row.wsPath }),
+      kind: row.wsKind ?? 'worktree',
       path: row.wsPath,
-      branchName: row.wsBranchName,
+      branchName: getProvisionedWorkspaceBranch({ kind: row.wsKind, config: row.wsConfig }),
       config: row.wsConfig,
       linesAdded: row.wsLinesAdded,
       linesDeleted: row.wsLinesDeleted,
@@ -132,22 +117,4 @@ export async function getProjectWorkspaces(
   }
 
   return result;
-}
-
-async function workspaceHasConsumers(
-  runtimes: RuntimeBroker,
-  workspaceIdentity: WorkspaceIdentityService,
-  workspaceId: string
-): Promise<boolean> {
-  const identity = await workspaceIdentity.resolve(workspaceId);
-  if (!identity) return false;
-  const runtime = await runtimes.client(identity.host);
-  if (!runtime.success) return false;
-  const workspace = hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
-  const snapshot = await runtime.data.workspace.workspace
-    .state(workspace, 'state')
-    .asLiveSource()
-    .snapshot();
-  const state = snapshot.data as { consumers?: readonly unknown[] };
-  return (state.consumers?.length ?? 0) > 0;
 }

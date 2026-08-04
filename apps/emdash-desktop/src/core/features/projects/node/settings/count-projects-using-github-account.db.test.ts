@@ -30,11 +30,11 @@ describe('countProjectsUsingGithubAccount', () => {
 
   it('counts only persisted projects pinned to the target account', async () => {
     await fixture.db.insert(projects).values([
-      { id: 'project-match-1', name: 'Match 1', path: '/repo/match-1' },
-      { id: 'project-match-2', name: 'Match 2', path: '/repo/match-2' },
-      { id: 'project-null', name: 'Null', path: '/repo/null' },
-      { id: 'project-other', name: 'Other', path: '/repo/other' },
-      { id: 'project-unconfigured', name: 'Unconfigured', path: '/repo/unconfigured' },
+      { id: 'project-match-1', name: 'Match 1' },
+      { id: 'project-match-2', name: 'Match 2' },
+      { id: 'project-null', name: 'Null' },
+      { id: 'project-other', name: 'Other' },
+      { id: 'project-unconfigured', name: 'Unconfigured' },
     ]);
     await fixture.db.insert(projectSettings).values([
       {
@@ -68,8 +68,8 @@ describe('countProjectsUsingGithubAccount', () => {
 
   it('skips malformed base settings JSON', async () => {
     await fixture.db.insert(projects).values([
-      { id: 'project-malformed', name: 'Malformed', path: '/repo/malformed' },
-      { id: 'project-valid', name: 'Valid', path: '/repo/valid' },
+      { id: 'project-malformed', name: 'Malformed' },
+      { id: 'project-valid', name: 'Valid' },
     ]);
     await fixture.db.insert(projectSettings).values([
       {

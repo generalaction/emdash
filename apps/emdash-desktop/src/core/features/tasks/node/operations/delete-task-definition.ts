@@ -23,6 +23,7 @@ import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
+import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
@@ -208,8 +209,14 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
         ? createWorkspaceRegistry(operations.db).getLive(task.workspaceId)
         : undefined;
       const [project] = await operations.db
-        .select()
+        .select({
+          name: projects.name,
+          repositoryPath: workspaces.path,
+          repositoryLocation: workspaces.location,
+          repositorySshConnectionId: workspaces.sshConnectionId,
+        })
         .from(projects)
+        .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
         .where(eq(projects.id, task.projectId))
         .limit(1);
       const otherTaskRows = task.workspaceId
@@ -240,12 +247,20 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
       projectId: task.projectId,
       workspaceId: task.workspaceId,
       hostRef: formatHostRef(LOCAL_HOST_REF),
-      targetHostRef: formatHostRef(operationHostRef({ workspace, project })),
+      targetHostRef: formatHostRef(
+        operationHostRef({
+          workspace,
+          repository: project && {
+            location: project.repositoryLocation,
+            sshConnectionId: project.repositorySshConnectionId,
+          },
+        })
+      ),
       entityName: task.name,
-      hostLabel: project?.sshConnectionId ? project.name : undefined,
-      projectPath: project?.path,
+      hostLabel: project?.repositorySshConnectionId ? project.name : undefined,
+      projectPath: project?.repositoryPath ?? undefined,
       workspacePath: workspace?.path ?? undefined,
-      branchName: workspace?.branchName ?? undefined,
+      branchName: workspace ? (getProvisionedWorkspaceBranch(workspace) ?? undefined) : undefined,
       deleteWorktree: input.deleteWorktree ?? true,
       deleteBranch: input.deleteBranch ?? false,
       workspaceShared,
@@ -303,8 +318,14 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
           .limit(1)
       : [];
     const [project] = await context.db
-      .select()
+      .select({
+        name: projects.name,
+        repositoryPath: workspaces.path,
+        repositoryLocation: workspaces.location,
+        repositorySshConnectionId: workspaces.sshConnectionId,
+      })
       .from(projects)
+      .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
       .where(eq(projects.id, task.projectId))
       .limit(1);
     await context.submit(deleteTaskOperation, {
@@ -314,12 +335,20 @@ async function reconcileTaskCleanups(context: OperationReconcileContext): Promis
       projectId: task.projectId,
       workspaceId: task.workspaceId,
       hostRef: formatHostRef(LOCAL_HOST_REF),
-      targetHostRef: formatHostRef(operationHostRef({ workspace, project })),
+      targetHostRef: formatHostRef(
+        operationHostRef({
+          workspace,
+          repository: project && {
+            location: project.repositoryLocation,
+            sshConnectionId: project.repositorySshConnectionId,
+          },
+        })
+      ),
       entityName: task.name,
       hostLabel: project?.name,
-      projectPath: project?.path,
+      projectPath: project?.repositoryPath ?? undefined,
       workspacePath: workspace?.path ?? undefined,
-      branchName: workspace?.branchName ?? undefined,
+      branchName: workspace ? (getProvisionedWorkspaceBranch(workspace) ?? undefined) : undefined,
       // Reconciler proposals only purge desktop rows; worktree removal is an
       // enqueue-time decision that already happened (or was declined).
       deleteWorktree: false,

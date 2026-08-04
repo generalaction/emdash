@@ -21,9 +21,8 @@ async function insertSshConnection(db: AppDb): Promise<void> {
 async function insertRemoteWorkspace(db: AppDb): Promise<void> {
   await db.insert(workspaces).values({
     id: 'workspace-root-1',
-    key: 'project-ssh:/repo:ssh-1',
     type: 'project-ssh',
-    kind: 'project-root',
+    kind: 'repository',
     location: 'remote',
     sshConnectionId: 'ssh-1',
     path: '/repo',
@@ -157,12 +156,11 @@ describe('MachinesService', () => {
 
   it('does not delete credentials when a project still uses the machine', async () => {
     await insertSshConnection(fixture.db);
+    await insertRemoteWorkspace(fixture.db);
     await fixture.db.insert(projects).values({
       id: 'project-1',
       name: 'Blocking Project',
-      path: '/repo',
-      workspaceProvider: 'ssh',
-      sshConnectionId: 'ssh-1',
+      repositoryWorkspaceId: 'workspace-root-1',
     });
 
     await expect(service.deleteMachine('ssh-1')).rejects.toThrow(

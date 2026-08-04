@@ -20,8 +20,6 @@ import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
-import type { WorkspaceContract } from '@emdash/core/runtimes/workspace/api';
-import { workspaceComponent } from '@emdash/core/runtimes/workspace/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
@@ -50,7 +48,6 @@ export type WorkspaceServerRuntimeClients = {
   resourceUsage: ContractClient<ResourceUsageContract>;
   terminals: ContractClient<TerminalsContract>;
   tuiAgents: ContractClient<TuiAgentsContract>;
-  workspace: ContractClient<WorkspaceContract>;
   workspaceHost: ContractClient<WorkspaceHostContract>;
 };
 
@@ -211,14 +208,6 @@ export async function createWorkspaceServerRuntimeHost(
     },
     config: { env: GIT_RUNTIME_ENV },
   });
-  const workspacePromise = workerHost.spawn(workspaceComponent, {
-    name: 'workspace',
-    executable: workspaceWorkerPath('workspace'),
-    env,
-    dependencies: { terminals, watcher },
-    config: { operationRecordsFilePath: paths.workspaceOperationLogFile },
-    supervision: { restart: 'never' },
-  });
   const workspaceHostPromise = workerHost.spawn(workspaceHostComponent, {
     name: 'workspace-host',
     executable: workspaceWorkerPath('workspace-host'),
@@ -228,11 +217,10 @@ export async function createWorkspaceServerRuntimeHost(
     supervision: { restart: 'never' },
   });
 
-  const [files, fileSearch, git, workspace, workspaceHost] = await Promise.all([
+  const [files, fileSearch, git, workspaceHost] = await Promise.all([
     filesPromise,
     fileSearchPromise,
     gitPromise,
-    workspacePromise,
     workspaceHostPromise,
   ]);
   const automations = await workerHost.spawn(createAutomationsComponent(), {
@@ -259,7 +247,6 @@ export async function createWorkspaceServerRuntimeHost(
       resourceUsage,
       terminals,
       tuiAgents,
-      workspace,
       workspaceHost,
     },
     hostDependencies: hostDependencies.client,

@@ -106,6 +106,10 @@ export class WorkspaceScanCache {
     };
   }
 
+  evictAll(): void {
+    this.entries.clear();
+  }
+
   evictPath(path: string): void {
     for (const projectId of this.entries.keys()) {
       this.evict(projectId, path);

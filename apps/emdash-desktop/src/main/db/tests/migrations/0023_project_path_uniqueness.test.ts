@@ -1,107 +1,67 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, describe, expect, it } from 'vitest';
 
-describe('0023 project path uniqueness', () => {
+/**
+ * 0023 introduced host-scoped path uniqueness on the projects table. The
+ * retirement train (0032-0034) later moved project identity onto repository
+ * workspace rows and dropped the project path columns and indexes, so a
+ * pre-0023 database migrated to head must land on the workspace-side model.
+ */
+describe('0023 project path uniqueness (superseded by the retirement train)', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
 
   afterEach(() => {
     fixture?.close();
   });
 
-  it('replaces the global path index with host-scoped partial indexes', async () => {
+  it('migrates pre-0023 databases to the workspace-owned identity model', async () => {
     fixture = await openFixture('pre-0023');
 
-    const indexes = fixture.sqlite.prepare(`PRAGMA index_list('projects')`).all() as {
+    const projectIndexes = fixture.sqlite.prepare(`PRAGMA index_list('projects')`).all() as {
       name: string;
-      partial: number;
-      unique: number;
     }[];
+    const indexNames = projectIndexes.map(({ name }) => name);
+    expect(indexNames).not.toContain('idx_projects_path');
+    expect(indexNames).not.toContain('idx_projects_local_path');
+    expect(indexNames).not.toContain('idx_projects_remote_path');
+    expect(indexNames).toContain('idx_projects_repository_workspace_id');
 
-    expect(indexes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: 'idx_projects_local_path',
-          partial: 1,
-          unique: 1,
-        }),
-        expect.objectContaining({
-          name: 'idx_projects_remote_path',
-          partial: 1,
-          unique: 1,
-        }),
-      ])
-    );
-    expect(indexes.map(({ name }) => name)).not.toContain('idx_projects_path');
+    const projectColumns = fixture.sqlite.prepare(`PRAGMA table_info('projects')`).all() as {
+      name: string;
+    }[];
+    const columnNames = projectColumns.map(({ name }) => name);
+    expect(columnNames).not.toContain('path');
+    expect(columnNames).not.toContain('workspace_provider');
+    expect(columnNames).not.toContain('ssh_connection_id');
   });
 
-  it('allows the same path on different hosts while enforcing uniqueness per host', async () => {
+  it('enforces host-scoped path uniqueness on workspaces at head', async () => {
     fixture = await openFixture('pre-0023');
 
-    const insertConnection = fixture.sqlite.prepare(
-      `INSERT INTO ssh_connections (id, name, host, username) VALUES (?, ?, ?, 'test')`
+    const insertWorkspace = fixture.sqlite.prepare(
+      `INSERT INTO workspaces (id, type, kind, location, ssh_connection_id, path)
+       VALUES (?, ?, 'repository', ?, ?, '/srv/repos/emdash')`
     );
-    insertConnection.run('connection-a', 'Connection A', 'host-a');
-    insertConnection.run('connection-b', 'Connection B', 'host-b');
+    fixture.sqlite
+      .prepare(
+        `INSERT INTO ssh_connections (id, name, host, username) VALUES ('connection-a', 'A', 'host-a', 'test')`
+      )
+      .run();
 
-    const insertProject = fixture.sqlite.prepare(
-      `INSERT INTO projects (id, name, path, workspace_provider, ssh_connection_id)
-       VALUES (?, ?, '/srv/repos/emdash', ?, ?)`
-    );
-    insertProject.run('local-project', 'Local', 'local', null);
-    insertProject.run('remote-project-a', 'Remote A', 'ssh', 'connection-a');
-    insertProject.run('remote-project-b', 'Remote B', 'ssh', 'connection-b');
+    insertWorkspace.run('local-repo', 'local', 'local', null);
+    insertWorkspace.run('remote-repo', 'project-ssh', 'remote', 'connection-a');
 
-    expect(() => insertProject.run('duplicate-local', 'Duplicate local', 'local', null)).toThrow(
+    expect(() => insertWorkspace.run('duplicate-local', 'local', 'local', null)).toThrow(
       /UNIQUE constraint failed/
     );
     expect(() =>
-      insertProject.run('duplicate-remote', 'Duplicate remote', 'ssh', 'connection-a')
+      insertWorkspace.run('duplicate-remote', 'project-ssh', 'remote', 'connection-a')
     ).toThrow(/UNIQUE constraint failed/);
-  });
 
-  it('allows a path to be re-added after its project is tombstoned', async () => {
-    fixture = await openFixture('pre-0023');
-
-    const insertProject = fixture.sqlite.prepare(
-      `INSERT INTO projects (id, name, path, workspace_provider)
-       VALUES (?, ?, '/repos/reusable', 'local')`
-    );
-    insertProject.run('project-before-delete', 'Before delete');
+    // Untracked rows leave the uniqueness partition.
     fixture.sqlite
-      .prepare(`UPDATE projects SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`)
-      .run('project-before-delete');
-
-    expect(() => insertProject.run('project-after-delete', 'After delete')).not.toThrow();
-  });
-
-  it('does not move an orphaned SSH project into the local uniqueness partition', async () => {
-    fixture = await openFixture('pre-0023');
-
-    fixture.sqlite
-      .prepare(
-        `INSERT INTO ssh_connections (id, name, host, username)
-         VALUES ('connection-to-delete', 'Connection', 'host', 'test')`
-      )
+      .prepare(`UPDATE workspaces SET untracked_at = CURRENT_TIMESTAMP WHERE id = 'local-repo'`)
       .run();
-    fixture.sqlite
-      .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider)
-         VALUES ('local-same-path', 'Local', '/repos/shared', 'local')`
-      )
-      .run();
-    fixture.sqlite
-      .prepare(
-        `INSERT INTO projects (id, name, path, workspace_provider, ssh_connection_id)
-         VALUES ('remote-same-path', 'Remote', '/repos/shared', 'ssh', 'connection-to-delete')`
-      )
-      .run();
-
-    expect(() =>
-      fixture.sqlite.prepare(`DELETE FROM ssh_connections WHERE id = 'connection-to-delete'`).run()
-    ).not.toThrow();
-    const orphaned = fixture.sqlite
-      .prepare(`SELECT workspace_provider, ssh_connection_id FROM projects WHERE id = ?`)
-      .get('remote-same-path');
-    expect(orphaned).toEqual({ workspace_provider: 'ssh', ssh_connection_id: null });
+    expect(() => insertWorkspace.run('local-repo-again', 'local', 'local', null)).not.toThrow();
   });
 });

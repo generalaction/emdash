@@ -1,5 +1,4 @@
 import { resourceUsageSampleSchema } from '@emdash/core/runtimes/resource-usage/api';
-import { workspaceOperationRecordMapSchema } from '@emdash/core/runtimes/workspace/api';
 import type {
   DependencyStatus,
   HostDependencyError,
@@ -12,7 +11,7 @@ import {
 } from '@emdash/core/services/host-dependencies/api';
 import type { Result } from '@emdash/shared';
 import { resultSchema } from '@emdash/shared';
-import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/api';
+import { defineContract, procedure } from '@emdash/wire/api';
 import { z } from 'zod';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 
@@ -65,12 +64,6 @@ export const machinesContract = defineContract({
       method: installMethodSchema.optional(),
     }),
     output: resultSchema(z.custom<MachineSystemDependencyStatus>(), hostDependencyErrorSchema),
-  }),
-  operationLog: liveModel({
-    key: hostInput,
-    states: {
-      list: liveState({ data: workspaceOperationRecordMapSchema }),
-    },
   }),
   saveMachine: procedure({
     input: z.custom<SaveMachineInput>(),

@@ -472,7 +472,12 @@ describe('shareProjectSettingsToConfig', () => {
               {
                 id: 'task-1',
                 name: 'Task One',
-                workspaceBranchName: 'emdash/task-one',
+                workspaceKind: 'worktree',
+                workspaceConfig: {
+                  version: '2',
+                  git: { kind: 'use-branch', branchName: 'emdash/task-one' },
+                  workspace: { kind: 'new-worktree' },
+                },
                 workspaceId: null,
               },
             ]),
@@ -534,13 +539,19 @@ describe('shareProjectSettingsToConfig', () => {
               {
                 id: 'task-1',
                 name: 'Root Task',
-                workspaceBranchName: null,
+                workspaceKind: 'repository',
+                workspaceConfig: null,
                 workspaceId: 'root-workspace',
               },
               {
                 id: 'task-2',
                 name: 'Task Two',
-                workspaceBranchName: 'emdash/task-two',
+                workspaceKind: 'worktree',
+                workspaceConfig: {
+                  version: '2',
+                  git: { kind: 'use-branch', branchName: 'emdash/task-two' },
+                  workspace: { kind: 'new-worktree' },
+                },
                 workspaceId: 'worktree-workspace',
               },
             ]),

@@ -1,7 +1,3 @@
-import { LOCAL_HOST_REF } from '@primitives/host/api';
-import { hostFileRef, parseAbsolute } from '@primitives/path/api';
-import { step } from '@runtimes/workspace/api/provisioning';
-import { provisionWorkspaceInputSchema } from '@runtimes/workspace/api/schemas';
 import { describe, expect, it } from 'vitest';
 import { workspaceWireContract } from './contract';
 
@@ -31,58 +27,22 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.tuiAgents.agentStates.id).toBe('tuiAgents.agentStates');
   });
 
-  it('mounts the workspace runtime under the workspace domain', () => {
-    expect(workspaceWireContract.workspace.workspace.kind).toBe('liveModel');
-    expect(workspaceWireContract.workspace.workspace.id).toBe('workspace.workspace');
-    expect(workspaceWireContract.workspace.submitOperation.kind).toBe('procedure');
-    expect(workspaceWireContract.workspace.cancelOperation.kind).toBe('procedure');
-    expect(workspaceWireContract.workspace.operationLog.kind).toBe('liveModel');
-  });
-
-  it('mounts workspace-host initialization and notices without changing their protocol shape', () => {
+  it('mounts workspace-host operations, initialization, and notices', () => {
+    expect(workspaceWireContract.workspaceHost.submitOperation.kind).toBe('procedure');
+    expect(workspaceWireContract.workspaceHost.operations.kind).toBe('liveModel');
+    expect(workspaceWireContract.workspaceHost.operations.id).toBe('workspaceHost.operations');
     expect(workspaceWireContract.workspaceHost.initializeWorkspace.kind).toBe('procedure');
     expect(workspaceWireContract.workspaceHost.runWorkspaceScript.kind).toBe('procedure');
+    expect(workspaceWireContract.workspaceHost.measureUsage.kind).toBe('procedure');
     expect(workspaceWireContract.workspaceHost.notices.kind).toBe('liveModel');
     expect(workspaceWireContract.workspaceHost.notices.id).toBe('workspaceHost.notices');
   });
 
-  it('mounts port forwards under the portForwards domain', () => {
-    expect(workspaceWireContract.portForwards.inspect.kind).toBe('procedure');
+  it('does not mount the retired legacy workspace runtime', () => {
+    expect('workspace' in workspaceWireContract).toBe(false);
   });
 
-  it('keeps provisioning input shapes compatible after schema relocation', () => {
-    const parsedPath = parseAbsolute('/tmp/emdash-workspace');
-    expect(parsedPath.success).toBe(true);
-    if (!parsedPath.success) throw new Error('expected test path to parse');
-
-    expect(
-      provisionWorkspaceInputSchema.safeParse({
-        workspace: hostFileRef(LOCAL_HOST_REF, parsedPath.data),
-        lifecycle: {
-          ref: {
-            kind: 'directory',
-            path: '/tmp/emdash-workspace',
-            setupConfigHash: 'hash-a',
-          },
-          context: {
-            repoPath: '/tmp/emdash-repo',
-            preservePatterns: ['.env.local'],
-          },
-          setupPlan: {
-            steps: [
-              {
-                id: 'run-script:1',
-                label: 'Run setup',
-                step: step('run-script', {
-                  id: 'setup',
-                  command: 'pnpm install',
-                  cwd: 'worktree',
-                }),
-              },
-            ],
-          },
-        },
-      }).success
-    ).toBe(true);
+  it('mounts port forwards under the portForwards domain', () => {
+    expect(workspaceWireContract.portForwards.inspect.kind).toBe('procedure');
   });
 });

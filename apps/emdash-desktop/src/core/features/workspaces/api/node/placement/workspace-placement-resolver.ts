@@ -1,11 +1,6 @@
 import path from 'node:path';
 import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import { type HostAbsolutePath } from '@emdash/core/primitives/path/api';
-import {
-  defaultRepositoriesRoot,
-  defaultWorktreesRoot,
-  deriveWorktreePoolPath,
-} from '@emdash/core/runtimes/workspace/api/provisioning/placement';
 import type {
   HostRuntimesClient,
   RuntimeResolveError,
@@ -31,6 +26,11 @@ import {
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projectSettings } from '@core/services/app-db/node/schema';
 import type { AppSettingsService } from '@core/services/settings/node';
+import {
+  defaultRepositoriesRoot,
+  defaultWorktreesRoot,
+  deriveWorktreePoolPath,
+} from './placement-defaults';
 
 export type WorkspacePlacementError = ProjectPlacementError;
 

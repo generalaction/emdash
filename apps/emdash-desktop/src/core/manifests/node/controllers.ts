@@ -80,6 +80,7 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
 import type { OperationsEngine } from '@core/services/operations/node';
+import { onOperationSettled } from '@core/services/operations/node/pokes';
 import { createOperationsWireController } from '@core/services/operations/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
@@ -94,6 +95,9 @@ import {
 import { createSshWireController } from '@core/services/ssh/node/controller';
 
 const workspaceScanCache = new WorkspaceScanCache();
+// Host operations (worktree create/remove, repository removal) change what a
+// listing scan would find, so drop cached listings when one settles.
+onOperationSettled(() => workspaceScanCache.evictAll());
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;
@@ -271,15 +275,13 @@ export const desktopNodeControllers = {
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, operations, scope, workspaces, runtimes, workspaceIdentity }) =>
+    create: ({ db, operations, scope, workspaces }) =>
       controllerFromImpl(
         desktopDomainContracts.workspaces,
         createWorkspacesWireController({
           ...workspaces,
           db,
           operations,
-          runtimes,
-          workspaceIdentity,
         }),
         scope
       ),
@@ -361,16 +363,15 @@ export const desktopNodeControllers = {
     create: ({ remoteMachine }) => createRemoteMachineWireController(remoteMachine),
   },
   tasks: {
-    create: ({ db, operations, runtimes, scope, taskService, telemetry, workspaceIdentity }) =>
+    create: ({ db, operations, scope, taskService, taskSessions, telemetry }) =>
       controllerFromImpl(
         desktopDomainContracts.tasks,
         createTasksWireController({
           db,
           operations,
-          runtimes,
           service: taskService,
+          taskSessions,
           telemetry,
-          workspaceIdentity,
         }),
         scope
       ),

@@ -293,7 +293,7 @@ describe('OperationsEngine', () => {
   }
 
   async function insertProject(id: string): Promise<void> {
-    await fixture!.db.insert(projects).values({ id, name: id, path: `/${id}` });
+    await fixture!.db.insert(projects).values({ id, name: id });
   }
 
   async function expectProjectDeletedAt(id: string, deletedAt: string | null): Promise<void> {

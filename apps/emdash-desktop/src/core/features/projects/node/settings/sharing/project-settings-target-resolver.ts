@@ -45,7 +45,6 @@ type TaskTargetRow = {
   name: string;
   workspaceId: string | null;
   workspaceKind: WorkspaceKind | null;
-  workspaceBranchName: string | null;
   workspaceConfig: WorkspaceConfig | null;
 };
 
@@ -69,7 +68,6 @@ async function resolveTaskTarget(
 
   const provisionedBranch = getProvisionedWorkspaceBranch({
     kind: task.workspaceKind,
-    branchName: task.workspaceBranchName,
     config: task.workspaceConfig,
   });
   if (!targetPath && provisionedBranch) {
@@ -115,7 +113,6 @@ export async function resolveAllProjectSettingsTargets(
       name: tasksTable.name,
       workspaceId: tasksTable.workspaceId,
       workspaceKind: workspacesTable.kind,
-      workspaceBranchName: workspacesTable.branchName,
       workspaceConfig: workspacesTable.config,
     })
     .from(tasksTable)

@@ -27,8 +27,6 @@ import { applyRepoSnapshot } from '../sync/apply-repo-snapshot';
 export type ProjectWorkspaceProjectRow = {
   id: string;
   path: string;
-  workspaceProvider: string;
-  sshConnectionId: string | null;
   repositoryWorkspaceId: string | null;
   repositoryWorkspaceLocation: 'local' | 'remote' | null;
   repositoryWorkspaceSshConnectionId: string | null;
@@ -43,11 +41,10 @@ export type ListProjectWorkspacesDependencies = {
 type WorkspaceRow = {
   id: string;
   type: 'local' | 'project-ssh';
-  kind: 'worktree' | 'project-root' | null;
+  kind: 'worktree' | 'repository' | 'directory' | null;
   location: 'local' | 'remote' | null;
   sshConnectionId: string | null;
   path: string | null;
-  branchName: string | null;
   config: WorkspaceConfig | null;
   observedStatus: 'present' | 'missing' | 'corrupted' | null;
   observedGitBranch: string | null;
@@ -179,9 +176,7 @@ function buildCandidateRow(
   projectHost: HostRef,
   candidate: RowCandidate
 ): ProjectWorkspaceRow {
-  const projectIsLocal = project.workspaceProvider !== 'ssh';
-  const remote =
-    !projectIsLocal || candidate.workspace?.location === 'remote' || projectHost.type === 'remote';
+  const remote = candidate.workspace?.location === 'remote' || projectHost.type === 'remote';
   const hasActiveSessions = candidate.tasks.some(
     (task) => !!dependencies.taskSessions.getTask(task.taskId)
   );
@@ -239,32 +234,26 @@ export async function getProjectWorkspaceProject(
   const [project] = await db
     .select({
       id: projects.id,
-      path: projects.path,
-      workspaceProvider: projects.workspaceProvider,
-      sshConnectionId: projects.sshConnectionId,
       repositoryWorkspaceId: projects.repositoryWorkspaceId,
+      repositoryWorkspacePath: workspaces.path,
+      repositoryWorkspaceLocation: workspaces.location,
+      repositoryWorkspaceSshConnectionId: workspaces.sshConnectionId,
     })
     .from(projects)
+    .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
   if (!project) throw new Error('Project was not found.');
-  const repositoryWorkspace =
-    project.repositoryWorkspaceId !== null
-      ? await getRepositoryWorkspaceHostRow(db, project.repositoryWorkspaceId)
-      : null;
+  if (!project.repositoryWorkspacePath) {
+    throw new Error('Project has no repository workspace path.');
+  }
   return {
-    ...project,
-    repositoryWorkspaceLocation: repositoryWorkspace?.location ?? null,
-    repositoryWorkspaceSshConnectionId: repositoryWorkspace?.sshConnectionId ?? null,
+    id: project.id,
+    path: project.repositoryWorkspacePath,
+    repositoryWorkspaceId: project.repositoryWorkspaceId,
+    repositoryWorkspaceLocation: project.repositoryWorkspaceLocation,
+    repositoryWorkspaceSshConnectionId: project.repositoryWorkspaceSshConnectionId,
   };
-}
-
-async function getRepositoryWorkspaceHostRow(
-  db: AppDb,
-  workspaceId: string
-): Promise<{ location: 'local' | 'remote' | null; sshConnectionId: string | null } | null> {
-  const workspace = createWorkspaceRegistry(db).getLive(workspaceId);
-  return workspace ?? null;
 }
 
 async function getWorkspaceRows(
@@ -290,7 +279,6 @@ async function getWorkspaceRows(
       location: workspaces.location,
       sshConnectionId: workspaces.sshConnectionId,
       path: workspaces.path,
-      branchName: workspaces.branchName,
       config: workspaces.config,
       observedStatus: workspaces.observedStatus,
       observedGitBranch: workspaces.observedGitBranch,
@@ -373,11 +361,7 @@ function groupTasks(rows: TaskRow[]): Map<string, ProjectWorkspaceTask[]> {
 function workspaceBranch(workspace: WorkspaceRow | undefined): string | undefined {
   if (!workspace) return undefined;
   return (
-    getProvisionedWorkspaceBranch({
-      kind: workspace.kind,
-      branchName: workspace.branchName,
-      config: workspace.config,
-    }) ?? undefined
+    getProvisionedWorkspaceBranch({ kind: workspace.kind, config: workspace.config }) ?? undefined
   );
 }
 

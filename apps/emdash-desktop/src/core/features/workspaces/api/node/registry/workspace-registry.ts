@@ -18,16 +18,13 @@ type WorkspaceObservation = Readonly<{
 type WorkspaceAnnotation = Partial<
   Pick<
     WorkspaceInsert,
-    | 'key'
     | 'type'
     | 'kind'
     | 'location'
     | 'sshConnectionId'
     | 'parentId'
-    | 'data'
     | 'path'
     | 'config'
-    | 'branchName'
     | 'linesAdded'
     | 'linesDeleted'
   >
@@ -52,16 +49,6 @@ export class WorkspaceRegistry {
       .select()
       .from(workspaces)
       .where(and(eq(workspaces.id, id), liveWorkspaces()))
-      .limit(1)
-      .all();
-    return row;
-  }
-
-  findLiveByKey(key: string, tx?: DrizzleTx): WorkspaceRow | undefined {
-    const [row] = this.source(tx)
-      .select()
-      .from(workspaces)
-      .where(and(eq(workspaces.key, key), liveWorkspaces()))
       .limit(1)
       .all();
     return row;

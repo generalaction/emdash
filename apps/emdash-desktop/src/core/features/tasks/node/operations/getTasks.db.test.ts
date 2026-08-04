@@ -10,8 +10,8 @@ describe('getTasks', () => {
     fixture = await openFixture('empty');
     fixture.sqlite
       .prepare(
-        `INSERT INTO projects (id, name, path, created_at, updated_at)
-         VALUES ('project-1', 'Project', '/repo', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        `INSERT INTO projects (id, name, created_at, updated_at)
+         VALUES ('project-1', 'Project', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       )
       .run();
   });

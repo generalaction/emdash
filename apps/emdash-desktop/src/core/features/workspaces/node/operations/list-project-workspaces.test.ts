@@ -11,10 +11,7 @@ const state = vi.hoisted(() => ({
     sshConnectionId: null,
     parentId: null,
     path: '/repo',
-    key: null,
-    data: null,
     config: null,
-    branchName: null,
     linesAdded: null,
     linesDeleted: null,
     observedStatus: null,
@@ -51,7 +48,6 @@ vi.mock('@core/features/workspaces/api/node/registry', () => ({
     sshConnectionId: 'workspaces.sshConnectionId',
     parentId: 'workspaces.parentId',
     path: 'workspaces.path',
-    branchName: 'workspaces.branchName',
     config: 'workspaces.config',
     observedStatus: 'workspaces.observedStatus',
     observedGitBranch: 'workspaces.observedGitBranch',
@@ -63,9 +59,6 @@ vi.mock('@core/features/workspaces/api/node/registry', () => ({
 vi.mock('@core/services/app-db/node/schema', () => ({
   projects: {
     id: 'projects.id',
-    path: 'projects.path',
-    workspaceProvider: 'projects.workspaceProvider',
-    sshConnectionId: 'projects.sshConnectionId',
     repositoryWorkspaceId: 'projects.repositoryWorkspaceId',
     deletedAt: 'projects.deletedAt',
   },
@@ -143,7 +136,7 @@ describe('listProjectWorkspaces', () => {
           {
             id: 'project-remote',
             path: remotePath,
-            workspaceProvider: 'ssh',
+            location: 'remote',
             sshConnectionId: 'ssh-1',
           },
         ])
@@ -290,7 +283,6 @@ function registryRow(overrides: Record<string, unknown>) {
     location: 'local',
     sshConnectionId: null,
     path: '/repo/worktree',
-    branchName: null,
     config: null,
     observedStatus: 'present',
     observedGitBranch: null,
@@ -304,22 +296,24 @@ function projectQuery(
   rows: Array<{
     id: string;
     path: string;
-    workspaceProvider?: string;
+    location?: 'local' | 'remote';
     sshConnectionId?: string | null;
     repositoryWorkspaceId?: string | null;
   }>
 ) {
   return {
     from: () => ({
-      where: () => ({
-        limit: async () =>
-          rows.map((row) => ({
-            id: row.id,
-            path: row.path,
-            workspaceProvider: row.workspaceProvider ?? 'local',
-            sshConnectionId: row.sshConnectionId ?? null,
-            repositoryWorkspaceId: row.repositoryWorkspaceId ?? `${row.id}-repository-workspace`,
-          })),
+      leftJoin: () => ({
+        where: () => ({
+          limit: async () =>
+            rows.map((row) => ({
+              id: row.id,
+              repositoryWorkspaceId: row.repositoryWorkspaceId ?? `${row.id}-repository-workspace`,
+              repositoryWorkspacePath: row.path,
+              repositoryWorkspaceLocation: row.location ?? 'local',
+              repositoryWorkspaceSshConnectionId: row.sshConnectionId ?? null,
+            })),
+        }),
       }),
     }),
   };

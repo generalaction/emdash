@@ -15,6 +15,7 @@ import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import z from 'zod';
 import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
+import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import { automationKernelResource } from '@core/primitives/operations/api/resources';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { automationRuns, automations, projects } from '@core/services/app-db/node/schema';
@@ -177,8 +178,13 @@ export async function enqueueDeleteAutomation(
       if (!automation) return undefined;
       const [project] = automation.projectId
         ? await operations.db
-            .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
+            .select({
+              name: projects.name,
+              repositoryLocation: workspaces.location,
+              repositorySshConnectionId: workspaces.sshConnectionId,
+            })
             .from(projects)
+            .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
             .where(eq(projects.id, automation.projectId))
             .limit(1)
         : [];
@@ -193,9 +199,16 @@ export async function enqueueDeleteAutomation(
       source: 'user',
       automationId: automation.id,
       projectId: automation.projectId,
-      hostRef: formatHostRef(operationHostRef({ project })),
+      hostRef: formatHostRef(
+        operationHostRef({
+          repository: project && {
+            location: project.repositoryLocation,
+            sshConnectionId: project.repositorySshConnectionId,
+          },
+        })
+      ),
       entityName: automation.name,
-      hostLabel: project?.sshConnectionId ? project.name : undefined,
+      hostLabel: project?.repositorySshConnectionId ? project.name : undefined,
       createdAt,
     }),
     precondition: (tx, { automation }) =>
@@ -237,8 +250,13 @@ async function reconcileAutomationCleanups(context: OperationReconcileContext): 
     if (!automation) continue;
     const [project] = automation.projectId
       ? await context.db
-          .select({ name: projects.name, sshConnectionId: projects.sshConnectionId })
+          .select({
+            name: projects.name,
+            repositoryLocation: workspaces.location,
+            repositorySshConnectionId: workspaces.sshConnectionId,
+          })
           .from(projects)
+          .leftJoin(workspaces, eq(workspaces.id, projects.repositoryWorkspaceId))
           .where(eq(projects.id, automation.projectId))
           .limit(1)
       : [];
@@ -247,7 +265,14 @@ async function reconcileAutomationCleanups(context: OperationReconcileContext): 
       source: 'reconciler',
       automationId,
       projectId: automation.projectId,
-      hostRef: formatHostRef(operationHostRef({ project })),
+      hostRef: formatHostRef(
+        operationHostRef({
+          repository: project && {
+            location: project.repositoryLocation,
+            sshConnectionId: project.repositorySshConnectionId,
+          },
+        })
+      ),
       entityName: automation.name,
       hostLabel: project?.name,
       createdAt: context.clock.now(),

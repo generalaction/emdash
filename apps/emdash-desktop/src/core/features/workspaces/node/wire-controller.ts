@@ -1,36 +1,20 @@
-import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
-import { err, ok, type Result } from '@emdash/shared';
-import {
-  type Contract,
-  type ContractImpl,
-  type LiveModelProvider,
-  type LiveSource,
-} from '@emdash/wire';
+import type { Result } from '@emdash/shared';
+import { type Contract, type ContractImpl } from '@emdash/wire';
 import { and, eq, isNull } from 'drizzle-orm';
-import {
+import type {
   workspacesWireContract,
-  type WorkspaceProvisionResult,
-  type WorkspaceSliceError,
+  WorkspaceError,
+  WorkspaceProvisionResult,
+  WorkspaceSliceError,
 } from '@core/features/workspaces/api';
 import {
   enqueueArchiveWorkspace,
   enqueueDeleteWorkspace,
 } from '@core/features/workspaces/api/node/operations/workspace-removal';
-import {
-  isWorkspacesRuntimeResolveError,
-  throwWorkspacesRuntimeResolveError,
-  type WorkspacesHostRuntimesClient,
-  type WorkspacesIdentityResolver,
-  type WorkspacesRuntimeBroker,
-  type WorkspacesRuntimeError,
-  type WorkspacesRuntimeOperationResult as WorkspaceOperationResult,
-  type WorkspacesRuntimeResolveError as RuntimeResolveError,
-} from '@core/features/workspaces/api/runtime-adapter';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
+import { isWorkspacesRuntimeResolveError } from '@core/features/workspaces/api/runtime-adapter';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
-import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
@@ -49,8 +33,6 @@ export type CreateWorkspacesWireControllerOptions = {
     workspaceId: string,
     options?: { removeFirst?: boolean }
   ): ReturnType<OperationsEngine['submit']>;
-  runtimes: WorkspacesRuntimeBroker;
-  workspaceIdentity: WorkspacesIdentityResolver;
 };
 
 export type WorkspacesWireController = {
@@ -63,7 +45,6 @@ export function createWorkspacesWireController(
 ): WorkspacesWireController {
   return {
     impl: {
-      runtime: createWorkspaceRuntimeProvider(options),
       provision: {
         run: (input, ctx) => runProvisionJob(options, input, ctx.signal),
         toError: unknownToWorkspaceError,
@@ -71,96 +52,11 @@ export function createWorkspacesWireController(
       reprovision: (input) => options.reprovisionWorkspace(input.workspaceId),
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
-      reconcile: async (input, meta) =>
-        withWorkspaceRuntime(options, input.workspaceId, async (client, identity) =>
-          mapWorkspaceResult(
-            input.workspaceId,
-            await client.workspace.reconcile(
-              { workspace: workspaceRef(identity) },
-              meta.signal ? { signal: meta.signal } : undefined
-            )
-          )
-        ),
-      measureUsage: async (input, meta) =>
-        withWorkspaceRuntime(options, input.workspaceId, async (client, identity) => {
-          const repository = await requireWorkspaceIdentity(
-            options.workspaceIdentity.resolveProject(identity.projectId)
-          );
-          const result = await client.workspace.measureUsage(
-            {
-              workspace: workspaceRef(identity),
-              repoPath: workspaceRef(repository),
-            },
-            meta.signal ? { signal: meta.signal } : undefined
-          );
-          return result.success ? ok({ ...result.data, workspaceId: input.workspaceId }) : result;
-        }),
       delete: (input) => enqueueDeleteWorkspace(options.operations, input.workspaceId),
       archive: (input) => enqueueArchiveWorkspace(options.operations, input),
     },
     async dispose() {},
   };
-}
-
-function createWorkspaceRuntimeProvider(
-  options: CreateWorkspacesWireControllerOptions
-): LiveModelProvider<typeof workspacesWireContract.runtime> {
-  return forwardLiveModel(workspacesWireContract.runtime, (key, name) =>
-    resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
-      client.workspace.workspace.state(workspaceRef(identity), name).asLiveSource()
-    )
-  );
-}
-
-async function withWorkspaceRuntime<T, E>(
-  options: CreateWorkspacesWireControllerOptions,
-  workspaceId: string,
-  work: (
-    client: WorkspacesHostRuntimesClient,
-    identity: NonNullable<Awaited<ReturnType<WorkspacesIdentityResolver['resolve']>>>
-  ) => Promise<Result<T, E>>
-): Promise<Result<T, E | RuntimeResolveError>> {
-  const identity = await requireWorkspaceIdentity(options.workspaceIdentity.resolve(workspaceId));
-  const runtime = await options.runtimes.client(identity.host);
-  if (!runtime.success) return err(runtime.error);
-  return await work(runtime.data, identity);
-}
-
-async function resolveRuntimeSource(
-  options: CreateWorkspacesWireControllerOptions,
-  workspaceId: string,
-  source: (
-    client: WorkspacesHostRuntimesClient,
-    identity: NonNullable<Awaited<ReturnType<WorkspacesIdentityResolver['resolve']>>>
-  ) => LiveSource
-): Promise<LiveSource> {
-  const identity = await requireWorkspaceIdentity(options.workspaceIdentity.resolve(workspaceId));
-  const runtime = await options.runtimes.client(identity.host);
-  if (!runtime.success) throwWorkspacesRuntimeResolveError(runtime.error);
-  return source(runtime.data, identity);
-}
-
-async function requireWorkspaceIdentity(
-  identityPromise: ReturnType<WorkspacesIdentityResolver['resolve']>
-): Promise<NonNullable<Awaited<ReturnType<WorkspacesIdentityResolver['resolve']>>>> {
-  const identity = await identityPromise;
-  if (!identity) throw new Error('Workspace identity was not found');
-  return identity;
-}
-
-function workspaceRef(
-  identity: NonNullable<Awaited<ReturnType<WorkspacesIdentityResolver['resolve']>>>
-) {
-  return hostFileRefFromNativePath(identity.path, sshConnectionIdOf(identity.host));
-}
-
-function mapWorkspaceResult(
-  workspaceId: string,
-  result: Result<WorkspaceOperationResult, WorkspacesRuntimeError>
-) {
-  if (!result.success) return result;
-  const { workspace: _, ...data } = result.data;
-  return ok({ ...data, workspaceId });
 }
 
 async function runProvisionJob(
@@ -190,7 +86,7 @@ async function resolveTaskIdForWorkspace(
   return row?.id;
 }
 
-function workspaceError(type: string, message: string): WorkspacesRuntimeError {
+function workspaceError(type: string, message: string): WorkspaceError {
   return { type, message };
 }
 
@@ -202,7 +98,7 @@ function unknownToWorkspaceError(error: unknown): WorkspaceSliceError {
     typeof (error as { type?: unknown }).type === 'string' &&
     typeof (error as { message?: unknown }).message === 'string'
   ) {
-    return error as WorkspacesRuntimeError;
+    return error as WorkspaceError;
   }
   return workspaceError(
     'workspace-wire-error',
