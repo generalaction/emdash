@@ -119,7 +119,7 @@ import {
 } from './clean-room-e2e-session-ledger';
 
 const MAX_ATTEMPTS = 64;
-export const CLEAN_ROOM_E2E_PROMPT_TIMEOUT_MS = 20 * 60 * 1_000;
+export const CLEAN_ROOM_E2E_PROMPT_TIMEOUT_MS = 35 * 60 * 1_000;
 const MAX_ID_LENGTH = 256;
 const MAX_MODEL_LENGTH = 256;
 const MAX_SUMMARY_LENGTH = 16_384;
