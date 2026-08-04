@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -20,6 +28,8 @@ const sourceRepo = process.env.EMDASH_LOOPS_DOGFOOD_SOURCE ?? '/home/devuser/pro
 const statePath = join(durableRoot, 'state.json');
 const dbFile = join(durableRoot, 'emdash.db');
 const userData = join(durableRoot, 'user-data');
+const evidenceRoot = join(userData, 'loops', 'evidence');
+const evidenceRunsAtLaunch = new Set(existsSync(evidenceRoot) ? readdirSync(evidenceRoot) : []);
 const projectId = 'acp-loops-v2-wave5-summario';
 const taskId = 'acp-loops-v2-wave5-vocabulary';
 const branchName = 'emdash/acp-loops-v2-wave5-vocabulary';
@@ -77,6 +87,7 @@ if (command === 'show') {
 }
 
 let electronApp: ElectronApplication | undefined;
+let restoredVerifierRenderer = false;
 try {
   electronApp = await _electron.launch({
     executablePath: electronPath,
@@ -483,9 +494,23 @@ async function recoverMonitorPage(): Promise<Page> {
       await page.waitForFunction(() => window.electronAPI !== undefined);
       return page;
     }
+    if (!restoredVerifierRenderer && hasNewEvidenceRun()) {
+      const restored = await electronApp.evaluate(async ({ BrowserWindow }) => {
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+        if (!mainWindow || mainWindow.isDestroyed()) return false;
+        await mainWindow.loadURL('app://emdash/index.html');
+        return true;
+      });
+      restoredVerifierRenderer = restored;
+    }
     await delay(250);
   }
   throw new Error('Wave 5 Emdash renderer did not recover after navigation');
+}
+
+function hasNewEvidenceRun(): boolean {
+  if (!existsSync(evidenceRoot)) return false;
+  return readdirSync(evidenceRoot).some((entry) => !evidenceRunsAtLaunch.has(entry));
 }
 
 async function ensureProjectOpen(page: Page): Promise<void> {
