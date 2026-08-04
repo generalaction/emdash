@@ -58,6 +58,10 @@ describe('native browser ACP action protocol', () => {
     expect(nativeBrowserActionPromptFragment).toContain(NATIVE_BROWSER_ACTION_BEGIN);
     expect(nativeBrowserActionPromptFragment).toContain(NATIVE_BROWSER_ACTION_END);
     expect(nativeBrowserActionPromptFragment).toContain('one action');
+    expect(nativeBrowserActionPromptFragment).toContain(
+      '{"kind":"accessibility-query","target":{"role":"button","name":"Save"},"limit":20}'
+    );
+    expect(nativeBrowserActionPromptFragment).toContain('with no extra fields');
     expect(nativeBrowserActionPromptFragment).toContain('Never enter passwords');
     expect(nativeBrowserActionPromptFragment).not.toContain('agent-browser');
     expect(nativeBrowserActionPromptFragment).not.toContain('executeJavaScript');

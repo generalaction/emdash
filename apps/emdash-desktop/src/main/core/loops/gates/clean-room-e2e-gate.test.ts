@@ -65,6 +65,36 @@ describe('CleanRoomE2EGate', () => {
     ]);
   });
 
+  it('reports a native-browser failure before a passing validation summary', async () => {
+    const harness = makeHarness([{ finalText: 'Green.\n<<<LOOP:E2E_PASSED>>>' }]);
+    mutateRequiredChecksOnce(harness, (checks) => ({
+      ...checks,
+      status: 'failed',
+      requiredTestsSummary: 'Validation commands passed.',
+      nativePreview: {
+        ...checks.nativePreview,
+        passed: false,
+        summary: 'Native browser action is not in the audited action allowlist.',
+      },
+    }));
+
+    const result = await harness.gate.run(defaultInput);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        type: 'required-checks-failed',
+        message:
+          'Native browser action is not in the audited action allowlist.\nValidation commands passed.',
+        stageResult: {
+          status: 'failed',
+          summary:
+            'Native browser action is not in the audited action allowlist.\nValidation commands passed.',
+        },
+      },
+    });
+  });
+
   it('integrates one correction, destroys it, and passes only in a fresh recreated attempt', async () => {
     const harness = makeHarness([
       {

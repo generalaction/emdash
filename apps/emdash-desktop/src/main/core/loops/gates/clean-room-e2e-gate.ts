@@ -2408,12 +2408,15 @@ export class CleanRoomE2EGate {
         continue;
       }
       if (checked.data.status === 'failed') {
+        const failureSummary = checked.data.nativePreview.passed
+          ? checked.data.requiredTestsSummary
+          : `${checked.data.nativePreview.summary}\n${checked.data.requiredTestsSummary}`;
         return err(
           this.failure(
             input,
             'required-checks-failed',
             'required-checks',
-            boundedSummary(checked.data.requiredTestsSummary, 'Required checks failed.'),
+            boundedSummary(failureSummary, 'Required checks failed.'),
             {
               featureHead,
               attempt,

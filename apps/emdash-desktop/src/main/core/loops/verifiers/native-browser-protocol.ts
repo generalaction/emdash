@@ -26,7 +26,17 @@ ${NATIVE_BROWSER_ACTION_BEGIN}
 {"kind":"accessibility-snapshot"}
 ${NATIVE_BROWSER_ACTION_END}
 
-Allowed actions are navigate, accessibility-snapshot, accessibility-query, click, fill, keypress, screenshot, and diagnostics. Wait for the bounded observation before requesting another action. Use accessibility roles, names, or test IDs to target elements. Never enter passwords, tokens, secrets, cookies, authorization data, or request bodies. Never request arbitrary JavaScript or filesystem URLs.`;
+Use exactly one of these strict JSON payload shapes, with no extra fields:
+- {"kind":"navigate","url":"https://exact-allowed-origin/path"}
+- {"kind":"accessibility-snapshot"}
+- {"kind":"accessibility-query","target":{"role":"button","name":"Save"},"limit":20}
+- {"kind":"click","target":{"role":"button","name":"Save"}}
+- {"kind":"fill","target":{"role":"textbox","name":"Email"},"value":"non-secret text"}
+- {"kind":"keypress","key":"Enter"}
+- {"kind":"screenshot","label":"descriptive-label"}
+- {"kind":"diagnostics","limit":20}
+
+For target, include at least one of role, name, or testId inside the target object. The optional limit is an integer from 1 through 50. The only keypress values are Enter, Escape, Tab, Space, Backspace, ArrowUp, ArrowDown, ArrowLeft, and ArrowRight. Optional label and limit fields may be omitted. Wait for the bounded observation before requesting another action. Never enter passwords, tokens, secrets, cookies, authorization data, or request bodies. Never request arbitrary JavaScript or filesystem URLs.`;
 
 export function parseNativeBrowserAction(text: string): NativeBrowserActionParseResult {
   const begin = text.indexOf(NATIVE_BROWSER_ACTION_BEGIN);

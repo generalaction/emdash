@@ -1423,6 +1423,12 @@ fresh recreated green run becomes the final success report.
   when the outer browser lease closed. The browser service intentionally permits a fresh sequential
   lease for the same run, so retire exact lease identities and reserve attempt twenty-one for the
   unchanged clean replay.
+- [x] 2026-08-04: Attempt twenty-one proved sequential same-run browser lease replacement and
+  completed both the outer and nested ACP sessions without mutation. The nested verifier then used
+  an invalid payload after its first successful accessibility observation because the prompt named
+  every audited action but documented only one JSON shape. Document every strict action shape,
+  surface the native failure ahead of the passing validation summary, and reserve attempt
+  twenty-two for the unchanged clean replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
