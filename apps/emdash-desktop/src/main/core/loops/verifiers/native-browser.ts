@@ -38,7 +38,7 @@ import type { LoopVerifier, VerifierError, VerifierEvidence, VerifierRunContext 
 const id = 'agent-browser' as const;
 const label = 'Native Browser Preview';
 
-const DEFAULT_NATIVE_BROWSER_TIMEOUT_MS = 15 * 60 * 1_000;
+const DEFAULT_NATIVE_BROWSER_TIMEOUT_MS = 30 * 60 * 1_000;
 const MAX_NATIVE_BROWSER_ACTIONS = 128;
 const MAX_TRUSTED_ENVIRONMENT_BYTES = 64 * 1024;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [

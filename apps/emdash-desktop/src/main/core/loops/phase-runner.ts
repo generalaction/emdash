@@ -52,7 +52,7 @@ import type {
 
 export const MAX_PHASE_ATTEMPTS = 3;
 export const DEFAULT_PROMPT_TIMEOUT_MS = 20 * 60 * 1000;
-export const DEFAULT_VERIFIER_PROMPT_TIMEOUT_MS = 15 * 60 * 1000;
+export const DEFAULT_VERIFIER_PROMPT_TIMEOUT_MS = 30 * 60 * 1000;
 
 export type LoopRunError =
   | { kind: 'invalid-state'; message: string }
