@@ -20,6 +20,7 @@ import type {
 } from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
+import { hostOperationChecklistByPath } from './workspace-rows';
 
 const OPERATION_PANEL_STATUS_RANK: Record<WorkspaceOperationRecordStatus, number> = {
   running: 0,
@@ -188,18 +189,7 @@ export function useMachineOperationLog(machineId?: string): Map<string, Observed
 export function operationChecklistByPath(
   records: WorkspaceOperationRecordMap
 ): Map<string, WorkspaceOperationRecord> {
-  const selected = new Map<string, WorkspaceOperationRecord>();
-  for (const record of Object.values(records)) {
-    const terminal = isTerminalStatus(record.status);
-    if (terminal && record.status !== 'failed') continue;
-
-    const path = nativePathFromHost(record.workspace.path);
-    const existing = selected.get(path);
-    if (!existing || shouldReplaceChecklistRecord(existing, record)) {
-      selected.set(path, record);
-    }
-  }
-  return selected;
+  return hostOperationChecklistByPath(records);
 }
 
 /**
@@ -249,16 +239,6 @@ function activeOperationLabelsByPath(
     });
   }
   return active;
-}
-
-function shouldReplaceChecklistRecord(
-  existing: WorkspaceOperationRecord,
-  candidate: WorkspaceOperationRecord
-): boolean {
-  const existingTerminal = isTerminalStatus(existing.status);
-  const candidateTerminal = isTerminalStatus(candidate.status);
-  if (existingTerminal !== candidateTerminal) return existingTerminal;
-  return candidate.updatedAt > existing.updatedAt;
 }
 
 function seedTerminalRecordIds(

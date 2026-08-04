@@ -1,4 +1,3 @@
-import type { ObservableMap } from 'mobx';
 import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
 import type {
   WorkspacePhaseKind,
@@ -16,7 +15,7 @@ const STATUS_PRIORITY: WorkspaceRuntimeStatus[] = [
 
 export function workspaceStatus(
   row: ProjectWorkspaceRow,
-  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>
+  statuses: ReadonlyMap<string, WorkspaceRuntimeStatusDetails>
 ): WorkspaceRuntimeStatus {
   if (!row.workspaceId) return row.hasActiveSessions ? 'active' : 'idle';
   return statuses.get(row.workspaceId)?.status ?? (row.hasActiveSessions ? 'active' : 'idle');
@@ -24,7 +23,7 @@ export function workspaceStatus(
 
 export function workspacePhase(
   row: ProjectWorkspaceRow,
-  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>
+  statuses: ReadonlyMap<string, WorkspaceRuntimeStatusDetails>
 ): WorkspacePhaseKind | undefined {
   if (!row.workspaceId) return undefined;
   return statuses.get(row.workspaceId)?.phase;
@@ -32,7 +31,7 @@ export function workspacePhase(
 
 export function workspaceRuntimeErrorMessage(
   row: ProjectWorkspaceRow,
-  statuses: ObservableMap<string, WorkspaceRuntimeStatusDetails>
+  statuses: ReadonlyMap<string, WorkspaceRuntimeStatusDetails>
 ): string | undefined {
   if (!row.workspaceId) return undefined;
   return statuses.get(row.workspaceId)?.errorMessage;

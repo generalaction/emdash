@@ -1,4 +1,4 @@
-import type { OperationDisplayState, OperationTree } from '@emdash/core/primitives/operations/api';
+import type { OperationDisplayState } from '@emdash/core/primitives/operations/api';
 import type { WorkspaceOperationRecord } from '@emdash/core/runtimes/workspace/api';
 import {
   ColumnList,
@@ -10,7 +10,7 @@ import {
 } from '@emdash/ui/react/components';
 import { useQueryClient } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
@@ -29,11 +29,8 @@ import type {
 } from '@core/primitives/workspaces/api';
 import {
   OperationTreesPanel,
-  operationKindLabel,
-  operationWorkspacePaths,
   relativeQueuedTime,
 } from '@core/services/operations/browser/operation-trees-panel';
-import { useOperationTrees } from '@core/services/operations/browser/use-operation-trees';
 import { GitStatsCell } from '../components/git-stats-cell';
 import { RepositoryHeader } from '../components/local-workspace-header';
 import {
@@ -42,24 +39,10 @@ import {
 } from '../components/operation-stage-checklist';
 import { basename, formatBytes } from '../components/workspace-format';
 import { WorkspaceOperationsPanel } from '../components/workspace-operations-panel';
-import {
-  deleteMachineProjectWorkspaces,
-  getMachineOperationsClient,
-  operationChecklistByPath,
-  useProjectWorkspaceGitStats,
-  useProjectWorkspaceUsage,
-  useLocalWorkspaces,
-  useWorkspaceOperationRecords,
-  type MachineProjectWorkspaces,
-} from '../use-machine-workspaces';
-import { useWorkspaceRuntimeStatuses } from '../use-workspace-runtime-statuses';
-import {
-  aggregateWorkspaceStatus,
-  workspacePhase,
-  workspacePhaseLabel,
-  workspaceRuntimeErrorMessage,
-  workspaceStatus,
-} from '../workspace-runtime-status';
+import { deleteMachineProjectWorkspaces } from '../use-machine-workspaces';
+import { useWorkspaceRows } from '../use-workspace-rows';
+import type { JoinedWorkspaceRow, WorkspaceOperationLink } from '../workspace-rows';
+import { aggregateWorkspaceStatus, workspacePhaseLabel } from '../workspace-runtime-status';
 
 type WorkspaceDetailListItem = {
   id: string;
@@ -80,18 +63,11 @@ type WorkspaceDetailListItem = {
   hostOperation?: WorkspaceOperationRecord;
 };
 
-type WorkspaceOperationLink = {
-  node: OperationDisplayState;
-  root: OperationDisplayState;
-};
-
 type WorkspaceRuntimePhaseDisplay = {
   label: string;
   errorMessage?: string;
   tone: 'muted' | 'error';
 };
-
-const EMPTY_WORKSPACE_GROUPS: MachineProjectWorkspaces[] = [];
 
 const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
   {
@@ -167,71 +143,36 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
 }: SettingsPageDetailProps) {
   const queryClient = useQueryClient();
   const openConfirm = useOpenModal('confirmActionModal');
-  const workspaceQuery = useLocalWorkspaces(true);
-  const operationTrees = useOperationTrees(detailId, getMachineOperationsClient);
-  const hostOperationRecords = useWorkspaceOperationRecords();
-  const groups = workspaceQuery.data ?? EMPTY_WORKSPACE_GROUPS;
-  const group = groups.find((candidate) => candidate.project.id === detailId);
-  const rows = useMemo(() => group?.workspaces ?? [], [group]);
-  const measuredPaths = useMemo(
-    () => rows.filter((row) => row.pathState === 'measured').map((row) => row.path),
-    [rows]
-  );
-  const statusInputs = useMemo(
-    () =>
-      rows.map((row) => ({
-        workspaceId: row.workspaceId,
-        hasActiveSessions: row.hasActiveSessions,
-      })),
-    [rows]
-  );
-  const statuses = useWorkspaceRuntimeStatuses(statusInputs);
-  const usageQuery = useProjectWorkspaceUsage(detailId, measuredPaths, rows.length > 0);
-  const gitStatsQuery = useProjectWorkspaceGitStats(detailId, measuredPaths, rows.length > 0);
-  const usageByPath = useMemo(() => usageResultsToMap(usageQuery.data?.results), [usageQuery.data]);
-  const gitStatsByPath = useMemo(
-    () => gitStatsResultsToMap(gitStatsQuery.data?.results),
-    [gitStatsQuery.data]
-  );
-  const rowStatuses = rows.map((row) => workspaceStatus(row, statuses));
+  const workspaceRows = useWorkspaceRows({ projectId: detailId, enabled: true });
+  const {
+    workspaceQuery,
+    group,
+    rows,
+    operationTrees,
+    hostOperationRecords,
+    usageQuery,
+    gitStatsQuery,
+  } = workspaceRows;
+  const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
-  const rootRow = rows.find((row) => row.kind === 'root') ?? rows[0];
-  const busyPaths = useMemo(
-    () => operationWorkspacePaths(operationTrees.trees),
-    [operationTrees.trees]
-  );
-  const operationByPath = useMemo(
-    () => operationLinkByPath(operationTrees.trees),
-    [operationTrees.trees]
-  );
-  const hostOperationByPath = useMemo(
-    () => operationChecklistByPath(hostOperationRecords),
-    [hostOperationRecords]
-  );
-  const workspacePaths = useMemo(() => new Set(rows.map((row) => row.path)), [rows]);
+  const rootJoined = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
+  const rootRow = rootJoined?.row;
+  const busyPaths = new Set(rows.filter((row) => row.operationBusy).map((row) => row.row.path));
+  const workspacePaths = new Set(rows.map((row) => row.row.path));
   const worktreeItems = rows
-    .filter((row) => row !== rootRow)
-    .map((row) =>
+    .filter((row) => row !== rootJoined)
+    .map((joined) =>
       buildWorktreeItem({
-        row,
-        status: workspaceStatus(row, statuses) satisfies WorkspaceIconStatus,
-        usageByPath,
-        gitStatsByPath,
+        joined,
         loadingUsage: usageQuery.isLoading || usageQuery.isFetching,
         loadingGitStats: gitStatsQuery.isLoading || gitStatsQuery.isFetching,
-        operation: operationByPath.get(row.path),
-        hostOperation: hostOperationByPath.get(row.path),
-        runtimePhase: runtimePhaseDisplay(
-          workspacePhase(row, statuses),
-          workspaceRuntimeErrorMessage(row, statuses)
-        ),
       })
     );
 
   const handleDelete = useCallback(async () => {
     if (!group) return;
-    const allDeletableRows = group.workspaces.filter((row) => row.canDelete);
-    const deletableRows = allDeletableRows.filter((row) => !busyPaths.has(row.path));
+    const allDeletableRows = group.workspaces.filter((row) => row.row.canDelete);
+    const deletableRows = allDeletableRows.filter((row) => !busyPaths.has(row.row.path));
     if (deletableRows.length === 0) {
       const blockedByOperations = allDeletableRows.length > 0;
       toast({
@@ -256,7 +197,7 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
     try {
       const result = await deleteMachineProjectWorkspaces({
         projectId: group.project.id,
-        paths: deletableRows.map((row) => row.path),
+        paths: deletableRows.map((row) => row.row.path),
       });
       const failed = result.results.filter((row) => !row.success);
 
@@ -283,7 +224,7 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
 
   if (workspaceQuery.isLoading) return <DetailLoadingState />;
   if (workspaceQuery.isError) return <DetailErrorState error={workspaceQuery.error} />;
-  if (!group || !rootRow) return <DetailMissingState />;
+  if (!group || !rootJoined || !rootRow) return <DetailMissingState />;
 
   return (
     <TooltipProvider delay={150}>
@@ -291,10 +232,10 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
         <RepositoryHeader
           project={group.project}
           rootRow={rootRow}
-          rows={rows}
+          rows={rows.map((joined) => joined.row)}
           status={aggregateStatus}
-          usage={usageByPath.get(rootRow.path)}
-          gitStats={gitStatsByPath.get(rootRow.path)}
+          usage={rootJoined.usage}
+          gitStats={rootJoined.gitStats}
           loadingUsage={
             (usageQuery.isLoading || usageQuery.isFetching) && rootRow.pathState === 'measured'
           }
@@ -338,42 +279,31 @@ function WorkspaceSection({ label, children }: { label: string; children: ReactN
 }
 
 function buildWorktreeItem({
-  row,
-  status,
-  usageByPath,
-  gitStatsByPath,
+  joined,
   loadingUsage,
   loadingGitStats,
-  operation,
-  runtimePhase,
-  hostOperation,
 }: {
-  row: ProjectWorkspaceRow;
-  status: WorkspaceIconStatus;
-  usageByPath: Map<string, ProjectWorkspaceUsage>;
-  gitStatsByPath: Map<string, ProjectWorkspaceGitStats>;
+  joined: JoinedWorkspaceRow;
   loadingUsage: boolean;
   loadingGitStats: boolean;
-  operation: WorkspaceOperationLink | undefined;
-  runtimePhase: WorkspaceRuntimePhaseDisplay | undefined;
-  hostOperation: WorkspaceOperationRecord | undefined;
 }): WorkspaceDetailListItem {
+  const { row } = joined;
   return {
-    id: row.workspaceId ?? row.path,
+    id: joined.key,
     name: row.branch ?? basename(row.path),
     path: row.path,
     iconType: 'worktree',
-    status,
+    status: joined.status satisfies WorkspaceIconStatus,
     branch: row.branch,
-    gitStats: gitStatsByPath.get(row.path),
-    usage: usageByPath.get(row.path),
+    gitStats: joined.gitStats,
+    usage: joined.usage,
     linkedTaskCount: row.tasks.length,
     activeTaskCount: activeTaskCount(row),
     loadingUsage: loadingUsage && row.pathState === 'measured',
     loadingGitStats: loadingGitStats && row.pathState === 'measured',
-    operation,
-    runtimePhase,
-    ...(hostOperation ? { hostOperation } : {}),
+    operation: joined.operation,
+    runtimePhase: runtimePhaseDisplay(joined.runtimePhase, joined.runtimeErrorMessage),
+    ...(joined.hostOperation ? { hostOperation: joined.hostOperation } : {}),
     ...(row.pathIssue ? { pathIssue: row.pathIssue } : {}),
   };
 }
@@ -448,7 +378,7 @@ function HostOperationChip({ operation }: { operation: WorkspaceOperationRecord 
 }
 
 function runtimePhaseDisplay(
-  phase: ReturnType<typeof workspacePhase>,
+  phase: JoinedWorkspaceRow['runtimePhase'],
   errorMessage: string | undefined
 ): WorkspaceRuntimePhaseDisplay | undefined {
   if (
@@ -478,16 +408,6 @@ function OperationChip({ operation }: { operation: WorkspaceOperationLink }) {
       <TooltipContent className="max-w-70 text-xs">{operationTooltip(operation)}</TooltipContent>
     </Tooltip>
   );
-}
-
-function operationLinkByPath(trees: readonly OperationTree[]): Map<string, WorkspaceOperationLink> {
-  const links = new Map<string, WorkspaceOperationLink>();
-  for (const tree of trees) {
-    for (const node of [tree.root, ...tree.children]) {
-      if (node.workspacePath) links.set(node.workspacePath, { node, root: tree.root });
-    }
-  }
-  return links;
 }
 
 function operationChipLabel(operation: OperationDisplayState): string {
@@ -529,39 +449,9 @@ function operationChipClass(operation: OperationDisplayState): string {
 
 function operationTooltip(operation: WorkspaceOperationLink): string {
   const rootName = operation.root.entityName ?? operation.root.entityId;
-  return `Part of ${operationKindLabel(operation.root.operationKind)} "${rootName}", ${relativeQueuedTime(
+  return `Part of ${operation.root.displayName} "${rootName}", ${relativeQueuedTime(
     operation.root.createdAt
   )}`;
-}
-
-function usageResultsToMap(
-  results:
-    | Array<
-        | { path: string; success: true; usage: ProjectWorkspaceUsage }
-        | { path: string; success: false; message: string }
-      >
-    | undefined
-) {
-  const usageByPath = new Map<string, ProjectWorkspaceUsage>();
-  for (const result of results ?? []) {
-    if (result.success) usageByPath.set(result.path, result.usage);
-  }
-  return usageByPath;
-}
-
-function gitStatsResultsToMap(
-  results:
-    | Array<
-        | { path: string; success: true; stats: ProjectWorkspaceGitStats }
-        | { path: string; success: false; message: string }
-      >
-    | undefined
-) {
-  const statsByPath = new Map<string, ProjectWorkspaceGitStats>();
-  for (const result of results ?? []) {
-    if (result.success) statsByPath.set(result.path, result.stats);
-  }
-  return statsByPath;
 }
 
 function activeTaskCount(row: ProjectWorkspaceRow): number {

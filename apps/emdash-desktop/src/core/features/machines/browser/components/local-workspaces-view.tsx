@@ -6,19 +6,16 @@ import {
 import { Button, SearchInput } from '@emdash/ui/react/primitives';
 import { PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
-import { useLocalWorkspaces, type MachineProjectWorkspaces } from '../use-machine-workspaces';
-import { useWorkspaceRuntimeStatuses } from '../use-workspace-runtime-statuses';
-import { aggregateWorkspaceStatus, workspaceStatus } from '../workspace-runtime-status';
+import { useWorkspaceRows, type WorkspaceRowsGroup } from '../use-workspace-rows';
+import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
 
 type LocalWorkspaceEntry = {
   item: WorkspacesListItem;
 };
-
-const EMPTY_WORKSPACE_GROUPS: MachineProjectWorkspaces[] = [];
 
 export const LocalWorkspacesView = observer(function LocalWorkspacesView({
   openDetail,
@@ -26,21 +23,10 @@ export const LocalWorkspacesView = observer(function LocalWorkspacesView({
   openDetail: (detailId: string) => void;
 }) {
   const openAddProject = useOpenModal('addProjectModal');
-  const workspaceQuery = useLocalWorkspaces(true);
-  const groups = workspaceQuery.data ?? EMPTY_WORKSPACE_GROUPS;
+  const workspaceRows = useWorkspaceRows({ enabled: true });
+  const { workspaceQuery, groups } = workspaceRows;
   const [search, setSearch] = useState('');
-  const statusInputs = useMemo(
-    () =>
-      groups.flatMap((group) =>
-        group.workspaces.map((row) => ({
-          workspaceId: row.workspaceId,
-          hasActiveSessions: row.hasActiveSessions,
-        }))
-      ),
-    [groups]
-  );
-  const statuses = useWorkspaceRuntimeStatuses(statusInputs);
-  const entries = buildLocalWorkspaceEntries(groups, statuses);
+  const entries = buildLocalWorkspaceEntries(groups);
   const filteredEntries = entries.filter((entry) => matchesSearch(entry.item, search));
 
   if (workspaceQuery.isLoading) return <LocalWorkspacesLoadingState />;
@@ -84,26 +70,23 @@ function matchesSearch(item: WorkspacesListItem, query: string): boolean {
   );
 }
 
-function buildLocalWorkspaceEntries(
-  groups: readonly MachineProjectWorkspaces[],
-  statuses: Parameters<typeof workspaceStatus>[1]
-): LocalWorkspaceEntry[] {
+function buildLocalWorkspaceEntries(groups: readonly WorkspaceRowsGroup[]): LocalWorkspaceEntry[] {
   return groups.map((group) => {
     const rows = group.workspaces;
-    const rootRow = rows.find((row) => row.kind === 'root') ?? rows[0];
-    const rowStatuses = rows.map((row) => workspaceStatus(row, statuses));
-    const lastActivityAt = maxTimestamp(rows.map((row) => row.lastActivityAt));
-    const worktreeCount = rows.filter((row) => row.kind !== 'root').length;
+    const rootRow = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
+    const rowStatuses = rows.map((row) => row.status);
+    const lastActivityAt = maxTimestamp(rows.map((joined) => joined.row.lastActivityAt));
+    const worktreeCount = rows.filter((joined) => joined.row.kind !== 'root').length;
 
     return {
       item: {
         id: group.project.id,
         name: group.project.name,
-        path: rootRow?.path ?? group.project.name,
+        path: rootRow?.row.path ?? group.project.name,
         kind: 'repository',
         status: aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus,
         worktreeCount,
-        linkedTaskCount: rows.reduce((count, row) => count + row.tasks.length, 0),
+        linkedTaskCount: rows.reduce((count, joined) => count + joined.row.tasks.length, 0),
         lastUsed: lastActivityAt ? <RelativeTime value={lastActivityAt} /> : undefined,
         activeTaskCount: rowStatuses.filter((status) => status === 'active').length,
       },
