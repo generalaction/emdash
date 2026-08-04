@@ -14,11 +14,9 @@ import type {
 } from '@core/primitives/project-settings/api';
 import type { Project, UpdateProjectSettingsError } from '@core/primitives/projects/api';
 import { FieldGroup } from '@core/primitives/ui/browser/field';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';
-import { WorkspaceProviderSettingsSection } from './sections/workspace-provider-settings-section';
 import { useProjectSettingsForm } from './use-project-settings-form';
 
 export interface ProjectSettingsFormProps {
@@ -57,7 +55,6 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   const repo = getGitRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
   const baseRemote = repo?.baseRemote.name ?? 'origin';
-  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const formModel = useProjectSettingsForm({
     initial,
     baseRemote,
@@ -85,12 +82,6 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
-            update={formModel.update}
-          />
-          <WorkspaceProviderSettingsSection
-            enabled={isWorkspaceProviderEnabled}
-            form={formModel.form}
-            errors={formModel.workspaceProviderErrors}
             update={formModel.update}
           />
           <ShareableSettingsSection

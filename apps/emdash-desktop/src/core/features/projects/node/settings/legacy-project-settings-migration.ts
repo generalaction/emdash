@@ -142,9 +142,6 @@ export async function migrateLegacyProjectSettingsIfNeeded({
       );
     }
     if (legacy.tmux !== undefined) next.tmux = legacy.tmux;
-    if (legacy.workspaceProvider !== undefined) {
-      next.workspaceProvider = legacy.workspaceProvider;
-    }
   }
 
   if (legacy && !shareableAlreadyMigrated) {

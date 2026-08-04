@@ -13,7 +13,6 @@ import { useProjectWorkspaces } from '../../../browser/task-config/existing-work
 import { NewWorktreePanel } from '../../../browser/task-config/new-worktree-panel';
 import type { WorkspacePanelProps } from '../../../browser/task-config/new-worktree-panel';
 import { PrNewBranchPanel } from '../../../browser/task-config/pr-new-branch-panel';
-import { SandboxPanel } from '../../../browser/task-config/sandbox-panel';
 import { UseExistingPanel } from '../../../browser/task-config/use-existing-panel';
 import { WorkspacePresetPicker } from '../../../browser/task-config/workspace-preset-picker';
 
@@ -25,19 +24,17 @@ const PRESET_PANELS: Record<
   'use-existing': UseExistingPanel,
   'checkout-pr': CheckoutPrPanel,
   'pr-new-branch': PrNewBranchPanel,
-  sandbox: SandboxPanel,
 };
 
 /** Presets with no configurable settings — the collapsible is disabled for these. */
-const PRESETS_WITHOUT_SETTINGS = new Set<WorkspacePresetId>(['repo-root', 'sandbox']);
+const PRESETS_WITHOUT_SETTINGS = new Set<WorkspacePresetId>(['repo-root']);
 
 interface WorkspaceSettingsSectionProps {
   defaultOpen?: boolean;
 }
 
 export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
-  const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR, isWorkspaceProviderEnabled } =
-    useTaskState();
+  const { workspaceConfig, projectId, isUnborn, hasRepository, hasPR } = useTaskState();
   const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
   const { presetId, branchSelection } = workspaceConfig;
@@ -57,7 +54,6 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         value={presetId}
         onValueChange={workspaceConfig.setPresetId}
         hasPR={hasPR}
-        isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
         hasExistingWorkspaces={existingWorkspaces.length > 0}
         worktreesDisabledReason={worktreesDisabledReason}
       />

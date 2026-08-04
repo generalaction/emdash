@@ -10,8 +10,7 @@ export type WorkspacePresetId =
   | 'checkout-pr'
   | 'pr-new-branch'
   | 'use-existing'
-  | 'repo-root'
-  | 'sandbox';
+  | 'repo-root';
 
 // ---------------------------------------------------------------------------
 // Preset metadata — static catalogue, no build logic
@@ -23,8 +22,6 @@ export type WorkspacePresetMeta = {
   description: string;
   /** Only show this preset when a PR is linked in the creation context. */
   requiresPR: boolean;
-  /** Only show this preset when the BYOI workspace-provider feature flag is enabled. */
-  requiresBYOI: boolean;
   /** Requires the project repository to have at least one commit. */
   requiresCommits: boolean;
 };
@@ -35,7 +32,6 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     label: 'Create new worktree',
     description: 'Create an isolated worktree on a branch',
     requiresPR: false,
-    requiresBYOI: false,
     requiresCommits: true,
   },
   {
@@ -43,7 +39,6 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     label: 'Use the repository directory',
     description: 'Work directly in the project directory (no worktree)',
     requiresPR: false,
-    requiresBYOI: false,
     requiresCommits: false,
   },
   {
@@ -51,7 +46,6 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     label: 'Reuse an existing workspace',
     description: 'Reuse an existing worktree or repository workspace',
     requiresPR: false,
-    requiresBYOI: false,
     requiresCommits: false,
   },
   {
@@ -59,7 +53,6 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     label: 'Checkout PR in worktree',
     description: 'Fetch and review a pull request in its own worktree',
     requiresPR: true,
-    requiresBYOI: false,
     requiresCommits: true,
   },
   {
@@ -67,16 +60,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
     label: 'Create a new branch from a PR in worktree',
     description: 'Create a new branch on top of the PR head for your changes',
     requiresPR: true,
-    requiresBYOI: false,
     requiresCommits: true,
-  },
-  {
-    id: 'sandbox',
-    label: 'Sandbox (BYOI)',
-    description: 'Provision an isolated remote workspace via your infrastructure script',
-    requiresPR: false,
-    requiresBYOI: true,
-    requiresCommits: false,
   },
 ];
 

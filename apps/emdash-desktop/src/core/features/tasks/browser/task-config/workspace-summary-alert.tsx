@@ -25,8 +25,6 @@ export function getWorkspaceIntent(presetId: WorkspacePresetId, createBranch: bo
       return 'Fetches and checks out the PR branch in a dedicated worktree';
     case 'pr-new-branch':
       return 'Creates a new branch on top of the PR head in a dedicated worktree';
-    case 'sandbox':
-      return 'Provisions a remote sandbox via your workspace provider script';
   }
 }
 

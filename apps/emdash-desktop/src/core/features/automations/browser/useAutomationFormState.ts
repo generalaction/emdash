@@ -31,10 +31,6 @@ function workspaceInitialFromConfig(
   if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
 
-  if (workspace.kind === 'byoi' || (workspace as { host?: string }).host === 'byoi') {
-    return { mode: 'sandbox', presetId: 'sandbox' };
-  }
-
   if (git.kind === 'create-branch') {
     return {
       mode: 'new-worktree',

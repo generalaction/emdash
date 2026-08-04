@@ -21,7 +21,7 @@ export type WorkspaceHostStorage = Readonly<{
 
 export type WorkspaceIdentityRow = Readonly<{
   workspaceId: string;
-  type: 'local' | 'project-ssh' | 'byoi';
+  type: 'local' | 'project-ssh';
   location: 'local' | 'remote' | null;
   sshConnectionId: string | null;
   path: string;

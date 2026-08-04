@@ -16,9 +16,6 @@ type WorkspaceRow = {
 export function resolveWorkspaceKind(row: WorkspaceRow): WorkspaceKind {
   if (row.kind) return row.kind;
 
-  // Legacy inference from workspace type and path presence.
-  if (row.type === 'byoi') return 'byoi';
-
   // Local/SSH workspaces with a resolved path are either a worktree or a
   // project-root.  We cannot distinguish them without additional context, so
   // we default to 'worktree' which covers the common case.

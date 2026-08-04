@@ -454,26 +454,4 @@ describe('createTask', () => {
       expect(mutationRuns).toHaveBeenCalledTimes(3);
     });
   });
-
-  describe('byoi workspace target', () => {
-    it('refuses BYOI creation without inserting a workspace', async () => {
-      const { captured } = setupTransactionMock();
-      const result = await createTask(db, projects, operations, {
-        id: 'task-1',
-        projectId: 'project-1',
-        taskConfig: { version: '1', name: 'Test Task' },
-        workspaceConfig: {
-          version: '2',
-          git: { kind: 'none' },
-          workspace: { kind: 'byoi' },
-        },
-      });
-
-      expect(result).toEqual({
-        success: false,
-        error: { type: 'provision-failed', message: 'BYOI workspaces are no longer supported.' },
-      });
-      expect(captured).toEqual([]);
-    });
-  });
 });

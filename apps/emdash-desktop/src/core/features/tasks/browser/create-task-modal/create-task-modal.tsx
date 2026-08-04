@@ -22,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
@@ -105,7 +104,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     undefined,
     autoApproveByDefault
   );
-  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
   const { handleCreateTask, canCreate } = useCreateTaskCallback({
@@ -139,7 +137,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             isUnborn={isUnborn}
             hasRepository={hasRepository}
             hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
-            isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
             linkedIssue={
               state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
             }

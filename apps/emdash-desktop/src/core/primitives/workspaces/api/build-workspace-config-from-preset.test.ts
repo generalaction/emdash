@@ -199,13 +199,3 @@ describe('pr-new-branch preset', () => {
     expect(() => buildWorkspaceConfigFromPreset('pr-new-branch', {})).toThrow('PR');
   });
 });
-
-// ─── sandbox ─────────────────────────────────────────────────────────────────
-
-describe('sandbox preset', () => {
-  it('produces byoi workspace with no git operations', () => {
-    const cfg = buildWorkspaceConfigFromPreset('sandbox', {});
-    expect(cfg.git).toEqual({ kind: 'none' });
-    expect(cfg.workspace).toEqual({ kind: 'byoi' });
-  });
-});

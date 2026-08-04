@@ -131,7 +131,7 @@ async function enqueueWorkspaceRemoval(
     now: () => new Date(createdAt).toISOString(),
   });
   const workspaceId = params.workspace?.id;
-  // Only git worktrees map onto the `removeWorktree` verb; byoi/directory rows
+  // Only git worktrees map onto the `removeWorktree` verb; directory rows
   // (and rows without a row at all when path-addressed) are untracked only.
   const hostRemovable = !params.workspace || params.workspace.kind === 'worktree';
 

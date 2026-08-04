@@ -10,7 +10,6 @@ export type TaskStateContextValue = {
   isUnborn: boolean;
   hasRepository: boolean;
   hasPR: boolean;
-  isWorkspaceProviderEnabled: boolean;
   linkedIssue?: LinkedIssue;
   includeIssueContextByDefault: boolean;
 };

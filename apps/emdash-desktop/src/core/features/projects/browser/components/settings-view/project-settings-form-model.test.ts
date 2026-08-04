@@ -7,7 +7,6 @@ import {
   getAvailableWriteFields,
   normalizeShareableFieldValue,
   settingsToForm,
-  validateWorkspaceProviderCommands,
   type FormState,
 } from './project-settings-form-model';
 
@@ -30,8 +29,6 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     baseRemote: '',
     pushRemote: '',
     githubAccountId: undefined,
-    provisionCommand: '',
-    terminateCommand: '',
     ...overrides,
   };
 }
@@ -55,11 +52,6 @@ describe('project settings form model', () => {
         defaultBranch: 'upstream/main',
         baseRemote: 'upstream',
         pushRemote: 'origin',
-        workspaceProvider: {
-          type: 'script',
-          provisionCommand: './provision.sh',
-          terminateCommand: './terminate.sh',
-        },
       },
       'origin',
       [origin, upstream]
@@ -80,8 +72,6 @@ describe('project settings form model', () => {
       baseRemote: 'upstream',
       pushRemote: 'origin',
       githubAccountId: undefined,
-      provisionCommand: './provision.sh',
-      terminateCommand: './terminate.sh',
     });
   });
 
@@ -118,8 +108,6 @@ describe('project settings form model', () => {
           defaultBranch: { type: 'remote', branch: 'main', remote: origin },
           baseRemote: 'origin',
           pushRemote: '',
-          provisionCommand: ' ./provision.sh ',
-          terminateCommand: ' ./terminate.sh ',
         })
       )
     ).toEqual({
@@ -137,11 +125,6 @@ describe('project settings form model', () => {
       worktreeDirectory: '../worktrees',
       defaultBranch: 'origin/main',
       baseRemote: 'origin',
-      workspaceProvider: {
-        type: 'script',
-        provisionCommand: './provision.sh',
-        terminateCommand: './terminate.sh',
-      },
     });
   });
 
@@ -173,29 +156,6 @@ describe('project settings form model', () => {
   it('omits default auto-run lifecycle settings from persisted form settings', () => {
     expect(formToSettings(makeForm())).not.toHaveProperty('autoRunSetupScriptOnTaskCreation');
     expect(formToSettings(makeForm())).not.toHaveProperty('autoRunRunScriptOnTaskCreation');
-  });
-
-  it('requires workspace provider commands to be filled together', () => {
-    expect(
-      validateWorkspaceProviderCommands(makeForm({ provisionCommand: './provision.sh' }))
-    ).toEqual({
-      provisionCommand: undefined,
-      terminateCommand: 'Terminate command is required when provision command is set.',
-    });
-    expect(
-      validateWorkspaceProviderCommands(makeForm({ terminateCommand: './terminate.sh' }))
-    ).toEqual({
-      provisionCommand: 'Provision command is required when terminate command is set.',
-      terminateCommand: undefined,
-    });
-    expect(
-      validateWorkspaceProviderCommands(
-        makeForm({
-          provisionCommand: './provision.sh',
-          terminateCommand: './terminate.sh',
-        })
-      )
-    ).toEqual({});
   });
 
   it('normalizes shareable field values for comparison', () => {

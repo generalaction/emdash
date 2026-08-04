@@ -46,7 +46,6 @@ const gitSetupSchema = z.discriminatedUnion('kind', [
 const workspaceLocationSchema = z.discriminatedUnion('host', [
   z.object({ host: z.literal('local'), path: z.string().optional() }),
   z.object({ host: z.literal('project-ssh'), path: z.string().optional() }),
-  z.object({ host: z.literal('byoi'), remoteWorkspaceId: z.string().optional() }),
 ]);
 
 const v1Schema = z.object({
@@ -62,7 +61,6 @@ const v1Schema = z.object({
 const workspaceTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('repository-instance'), workspaceId: z.string() }),
   z.object({ kind: z.literal('new-worktree') }),
-  z.object({ kind: z.literal('byoi'), remoteWorkspaceId: z.string().optional() }),
 ]);
 
 const v2Schema = z.object({
@@ -83,18 +81,15 @@ const v2Schema = z.object({
  * the workspace host is local/project-ssh, because the `repositoryWorkspaceId`
  * needed to produce a `repository-instance` target is not available here.
  * Callers that need a fully resolved config for that case must supply context.
+ *
+ * Stored configs of the removed BYOI feature (v1 `host: 'byoi'`, v2
+ * `kind: 'byoi'`) no longer parse; the versioned column reads them as `null`,
+ * and the retirement migration train untracks their rows.
  */
 export const workspaceConfig = defineVersionedSchema()
   .initial('1', v1Schema)
   .version('2', v2Schema, (v1) => {
-    const { git, workspace } = v1;
-    if (workspace.host === 'byoi') {
-      return {
-        version: '2' as const,
-        git,
-        workspace: { kind: 'byoi' as const, remoteWorkspaceId: workspace.remoteWorkspaceId },
-      };
-    }
+    const { git } = v1;
     if (git.kind === 'none') {
       // Cannot determine repositoryWorkspaceId here — caller must resolve.
       return null;

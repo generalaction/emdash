@@ -1,16 +1,10 @@
-export type WorkspaceType = 'local' | 'project-ssh' | 'byoi';
+export type WorkspaceType = 'local' | 'project-ssh';
 
 /**
  * Describes the physical nature of a workspace directory.
  * Stored in `workspaces.kind`; `null` for legacy rows (see `resolveWorkspaceKind`).
  */
-export type WorkspaceKind =
-  | 'worktree'
-  | 'project-root'
-  | 'path'
-  | 'byoi'
-  | 'repository'
-  | 'directory';
+export type WorkspaceKind = 'worktree' | 'project-root' | 'path' | 'repository' | 'directory';
 
 export type RegistryWorkspaceKind = 'repository' | 'worktree' | 'directory';
 
@@ -25,7 +19,6 @@ export function normalizeWorkspaceKind(
     case 'directory':
       return 'directory';
     case 'worktree':
-    case 'byoi':
     case null:
     case undefined:
       return 'worktree';

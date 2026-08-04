@@ -25,15 +25,9 @@ export type FormState = {
   baseRemote: string;
   pushRemote: string;
   githubAccountId: string | null | undefined;
-  provisionCommand: string;
-  terminateCommand: string;
 };
 
 export type FormUpdate = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-
-export type WorkspaceProviderValidationErrors = Partial<
-  Record<'provisionCommand' | 'terminateCommand', string>
->;
 
 function normalizeScript(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val.join('\n');
@@ -76,8 +70,6 @@ export function settingsToForm(
     baseRemote: s.baseRemote ?? '',
     pushRemote: s.pushRemote ?? '',
     githubAccountId: Object.hasOwn(s, 'githubAccountId') ? (s.githubAccountId ?? null) : undefined,
-    provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
-    terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
   };
 }
 
@@ -99,8 +91,6 @@ export function formToSettings(f: FormState): ProjectSettings {
     run: blankToUndefined(f.scriptRun),
     teardown: blankToUndefined(f.scriptTeardown),
   };
-  const provisionCommand = blankToUndefined(f.provisionCommand);
-  const terminateCommand = blankToUndefined(f.terminateCommand);
   const githubAccountId = githubAccountIdToSettings(f.githubAccountId);
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
@@ -118,32 +108,6 @@ export function formToSettings(f: FormState): ProjectSettings {
         ? f.pushRemote.trim()
         : undefined,
     ...(githubAccountId !== undefined ? { githubAccountId } : {}),
-    workspaceProvider:
-      provisionCommand && terminateCommand
-        ? {
-            type: 'script',
-            provisionCommand,
-            terminateCommand,
-          }
-        : undefined,
-  };
-}
-
-export function validateWorkspaceProviderCommands(
-  form: FormState
-): WorkspaceProviderValidationErrors {
-  const hasProvisionCommand = form.provisionCommand.trim().length > 0;
-  const hasTerminateCommand = form.terminateCommand.trim().length > 0;
-
-  if (hasProvisionCommand === hasTerminateCommand) return {};
-
-  return {
-    provisionCommand: hasProvisionCommand
-      ? undefined
-      : 'Provision command is required when terminate command is set.',
-    terminateCommand: hasTerminateCommand
-      ? undefined
-      : 'Terminate command is required when provision command is set.',
   };
 }
 

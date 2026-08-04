@@ -1,6 +1,5 @@
 import {
   ChevronsUpDown,
-  Cloud,
   FolderGit2,
   GitBranch,
   GitPullRequest,
@@ -30,7 +29,6 @@ const PRESET_ICONS: Record<WorkspacePresetId, React.ReactNode> = {
   'use-existing': <Layers className="size-3.5 shrink-0" />,
   'checkout-pr': <GitPullRequest className="size-3.5 shrink-0" />,
   'pr-new-branch': <GitPullRequestArrow className="size-3.5 shrink-0" />,
-  sandbox: <Cloud className="size-3.5 shrink-0" />,
 };
 
 // ---------------------------------------------------------------------------
@@ -46,7 +44,6 @@ interface WorkspacePresetPickerProps {
   value: WorkspacePresetId;
   onValueChange: (id: WorkspacePresetId) => void;
   hasPR: boolean;
-  isWorkspaceProviderEnabled: boolean;
   hasExistingWorkspaces: boolean;
   worktreesDisabledReason?: string;
   disabled?: boolean;
@@ -63,7 +60,7 @@ export function WorkspacePresetPicker({
   const { showPrPresets } = useTaskConfig();
 
   const options: PresetOption[] = WORKSPACE_PRESETS.filter(
-    (preset) => (showPrPresets || !preset.requiresPR) && !preset.requiresBYOI
+    (preset) => showPrPresets || !preset.requiresPR
   ).map((preset) => ({
     ...preset,
     disabledReason:

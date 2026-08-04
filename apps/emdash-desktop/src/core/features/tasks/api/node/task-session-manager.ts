@@ -16,7 +16,6 @@ import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import type {
   ProvisionResult,
   TaskProvider,
-  WorkspaceProviderData,
 } from '@core/features/projects/api/node/project-provider';
 import { getTaskSessionLeafIds } from '@core/features/tasks/node/session-targets';
 import type { WorkspaceIdentity } from '@core/features/workspaces/api/node/workspace-identity-service';
@@ -176,12 +175,7 @@ export class TaskSessionManager {
     const stored: RuntimeStoredTask = {
       taskProvider: result.taskProvider,
       runtimeWorkspace: result.runtimeWorkspace,
-      persistData: {
-        ...result.persistData,
-        workspaceProviderData: result.persistData.workspaceProviderData as
-          | WorkspaceProviderData
-          | undefined,
-      },
+      persistData: { ...result.persistData },
       projectId,
     };
 

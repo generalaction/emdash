@@ -101,114 +101,107 @@ export async function prepareCreateTask(
   if (wsTarget.kind === 'repository-instance') {
     workspaceId = wsTarget.workspaceId;
   } else {
+    // 'new-worktree' — derive location from the project.
     workspaceId = crypto.randomUUID();
 
-    if (wsTarget.kind === 'byoi') {
+    const [projectRow] = await db
+      .select({
+        workspaceProvider: projects.workspaceProvider,
+        sshConnectionId: projects.sshConnectionId,
+        repositoryWorkspaceId: projects.repositoryWorkspaceId,
+      })
+      .from(projects)
+      .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
+      .limit(1);
+
+    const isRemote = projectRow?.workspaceProvider === 'ssh';
+    const location = isRemote ? 'remote' : 'local';
+    const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
+    const legacyType = isRemote ? 'project-ssh' : 'local';
+
+    // Task creation is UX-gated on host availability: the outbox absorbs
+    // transient disconnects mid-operation, but starting new work against an
+    // offline host is refused outright. Deletions never hit this gate.
+    if (
+      isRemote &&
+      sshConnectionId &&
+      !operations.hostIsReachable(formatHostRef(hostRef('remote', sshConnectionId)))
+    ) {
       return err({
         type: 'provision-failed',
-        message: 'BYOI workspaces are no longer supported.',
+        message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
       });
-    } else {
-      // 'new-worktree' — derive location from the project.
-      const [projectRow] = await db
-        .select({
-          workspaceProvider: projects.workspaceProvider,
-          sshConnectionId: projects.sshConnectionId,
-          repositoryWorkspaceId: projects.repositoryWorkspaceId,
-        })
-        .from(projects)
-        .where(and(eq(projects.id, params.projectId), isNull(projects.deletedAt)))
-        .limit(1);
+    }
 
-      const isRemote = projectRow?.workspaceProvider === 'ssh';
-      const location = isRemote ? 'remote' : 'local';
-      const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
-      const legacyType = isRemote ? 'project-ssh' : 'local';
-
-      // Task creation is UX-gated on host availability: the outbox absorbs
-      // transient disconnects mid-operation, but starting new work against an
-      // offline host is refused outright. Deletions never hit this gate.
-      if (
-        isRemote &&
-        sshConnectionId &&
-        !operations.hostIsReachable(formatHostRef(hostRef('remote', sshConnectionId)))
-      ) {
-        return err({
-          type: 'provision-failed',
-          message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
-        });
-      }
-
-      if (!branchName) {
-        return err({
-          type: 'provision-failed',
-          message: 'A Git branch is required when creating a worktree.',
-        });
-      }
-      const root = await placement.resolveWorktreeRoot(project.project);
-      if (!root.success) {
-        return err({
-          type: 'provision-failed',
-          message: root.error.message,
-        });
-      }
-      const settings = await project.settings.get();
-      const compiled = compileWorktreePayload({
-        repoPath: project.repoPath,
-        worktreeRoot: root.data,
-        branchName,
-        preservePatterns: settings.preservePatterns,
+    if (!branchName) {
+      return err({
+        type: 'provision-failed',
+        message: 'A Git branch is required when creating a worktree.',
       });
-      const registry = createWorkspaceRegistry(db);
-      const workspacePath = allocateRegistryPath(
-        registry,
-        location,
-        sshConnectionId,
-        compiled.worktreePath
-      );
-      const gitOperation = compileGitOperation(
-        workspaceConfig.git,
-        pushRequested(workspaceConfig.git) ? await project.settings.getPushRemote() : undefined
-      );
-      const serializedHostRef = formatHostRef(project.host);
-      const now = Date.now();
+    }
+    const root = await placement.resolveWorktreeRoot(project.project);
+    if (!root.success) {
+      return err({
+        type: 'provision-failed',
+        message: root.error.message,
+      });
+    }
+    const settings = await project.settings.get();
+    const compiled = compileWorktreePayload({
+      repoPath: project.repoPath,
+      worktreeRoot: root.data,
+      branchName,
+      preservePatterns: settings.preservePatterns,
+    });
+    const registry = createWorkspaceRegistry(db);
+    const workspacePath = allocateRegistryPath(
+      registry,
+      location,
+      sshConnectionId,
+      compiled.worktreePath
+    );
+    const gitOperation = compileGitOperation(
+      workspaceConfig.git,
+      pushRequested(workspaceConfig.git) ? await project.settings.getPushRemote() : undefined
+    );
+    const serializedHostRef = formatHostRef(project.host);
+    const now = Date.now();
 
-      newWorkspaceValues = {
-        id: workspaceId,
-        kind: 'worktree',
-        location,
-        sshConnectionId,
-        parentId: projectRow?.repositoryWorkspaceId ?? null,
-        type: legacyType,
-        config: workspaceConfig,
-        path: workspacePath,
-      };
-      createWorktreeInput = {
-        version: '1',
-        source: 'user',
-        hostOperationId: crypto.randomUUID(),
-        hostRef: serializedHostRef,
-        repoPath: project.repoPath,
-        projectId: params.projectId,
-        workspaceId,
-        entityName: params.taskConfig.name,
+    newWorkspaceValues = {
+      id: workspaceId,
+      kind: 'worktree',
+      location,
+      sshConnectionId,
+      parentId: projectRow?.repositoryWorkspaceId ?? null,
+      type: legacyType,
+      config: workspaceConfig,
+      path: workspacePath,
+    };
+    createWorktreeInput = {
+      version: '1',
+      source: 'user',
+      hostOperationId: crypto.randomUUID(),
+      hostRef: serializedHostRef,
+      repoPath: project.repoPath,
+      projectId: params.projectId,
+      workspaceId,
+      entityName: params.taskConfig.name,
+      workspacePath,
+      branchName,
+      startPoint: gitOperation.startPoint,
+      fetch: gitOperation.fetch,
+      pushRemote: gitOperation.pushRemote,
+      preservePatterns: compiled.preservePatterns,
+      prediction: compileCreateWorktreePrediction({
+        now,
         workspacePath,
         branchName,
-        startPoint: gitOperation.startPoint,
         fetch: gitOperation.fetch,
         pushRemote: gitOperation.pushRemote,
         preservePatterns: compiled.preservePatterns,
-        prediction: compileCreateWorktreePrediction({
-          now,
-          workspacePath,
-          branchName,
-          fetch: gitOperation.fetch,
-          pushRemote: gitOperation.pushRemote,
-          preservePatterns: compiled.preservePatterns,
-        }),
-        createdAt: now,
-      };
-    }
+      }),
+      createdAt: now,
+    };
   }
 
   let convInsert: ConvInsert | undefined;

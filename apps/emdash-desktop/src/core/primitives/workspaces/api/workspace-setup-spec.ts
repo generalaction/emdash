@@ -25,7 +25,7 @@ function forkRemoteName(repositoryUrl: string): string {
  * from a stored `GitSetup` + `WorkspaceLocation` intent.
  *
  * Returns an empty spec when no setup is needed (e.g. workspace already has a
- * resolved path, the intent is `git.kind='none'`, or the workspace is BYOI).
+ * resolved path or the intent is `git.kind='none'`).
  *
  * The spec is intentionally NOT stored — it is compiled fresh at provision time
  * so that step implementations can evolve independently of persisted intent.
@@ -35,9 +35,6 @@ export function compileSetupSpec(
   workspace: WorkspaceLocation,
   ctx: CompileCtx
 ): WorkspaceSetupSpec {
-  // BYOI workspaces are handled by a separate flow.
-  if (workspace.host === 'byoi') return [];
-
   // If a concrete path is already stored, the workspace exists — nothing to set up.
   if (workspace.path) return [];
 

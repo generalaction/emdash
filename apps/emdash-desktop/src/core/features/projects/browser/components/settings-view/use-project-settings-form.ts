@@ -23,9 +23,7 @@ import {
   getAvailableWriteFields,
   normalizeShareableFieldValue,
   settingsToForm,
-  validateWorkspaceProviderCommands,
   type FormState,
-  type WorkspaceProviderValidationErrors,
 } from './project-settings-form-model';
 import { projectConfigTargetValue } from './share-project-config-modal';
 import {
@@ -88,8 +86,6 @@ export function useProjectSettingsForm({
   });
   const [saveStatus, setSaveStatus] = useState<ProjectSettingsSaveStatus>('idle');
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
-  const [workspaceProviderErrors, setWorkspaceProviderErrors] =
-    useState<WorkspaceProviderValidationErrors>({});
 
   const resolvedSnapshot = resolveFormSnapshot(formSnapshot, baseline);
   const { form, savedForm } = resolvedSnapshot;
@@ -108,7 +104,6 @@ export function useProjectSettingsForm({
   const overrides = overrideState ?? emptyProjectSettingsOverrideState();
   const baselineResynced = resolvedSnapshot !== formSnapshot && areFormStatesEqual(form, savedForm);
   const visibleWorktreeDirectoryError = baselineResynced ? null : worktreeDirectoryError;
-  const visibleWorkspaceProviderErrors = baselineResynced ? {} : workspaceProviderErrors;
 
   const update = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -119,9 +114,6 @@ export function useProjectSettingsForm({
       setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
       if (key === 'worktreeDirectory' && visibleWorktreeDirectoryError) {
         setWorktreeDirectoryError(null);
-      }
-      if (key === 'provisionCommand' || key === 'terminateCommand') {
-        setWorkspaceProviderErrors({});
       }
     },
     [form, resolvedSnapshot, visibleWorktreeDirectoryError]
@@ -139,21 +131,9 @@ export function useProjectSettingsForm({
   );
 
   const handleSave = useCallback(async () => {
-    const formAtSubmit = {
-      ...form,
-      provisionCommand: form.provisionCommand.trim(),
-      terminateCommand: form.terminateCommand.trim(),
-    };
-    const nextWorkspaceProviderErrors = validateWorkspaceProviderCommands(formAtSubmit);
-    if (Object.values(nextWorkspaceProviderErrors).some(Boolean)) {
-      setWorkspaceProviderErrors(nextWorkspaceProviderErrors);
-      setSaveStatus('idle');
-      return;
-    }
-
     setSaveStatus('saving');
 
-    const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
+    const result = await save(formToSettings(form)).catch(() => err({ type: 'error' }));
 
     if (result.success) {
       const canonicalForm = settingsToForm(result.data, baseRemote, remotes);
@@ -253,7 +233,6 @@ export function useProjectSettingsForm({
       form: savedForm,
     });
     setWorktreeDirectoryError(null);
-    setWorkspaceProviderErrors({});
     if (saveStatus === 'error') setSaveStatus('idle');
   }, [resolvedSnapshot, savedForm, saveStatus]);
 
@@ -267,7 +246,6 @@ export function useProjectSettingsForm({
     importDisabled,
     configMigrations,
     worktreeDirectoryError: visibleWorktreeDirectoryError,
-    workspaceProviderErrors: visibleWorkspaceProviderErrors,
     update,
     getOverrideSources,
     handleSave,

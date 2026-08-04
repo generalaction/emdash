@@ -25,7 +25,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Top-level workspace creation mode — drives which detail panel is shown. */
-export type WorkspaceMode = 'new-worktree' | 'existing' | 'sandbox';
+export type WorkspaceMode = 'new-worktree' | 'existing';
 
 export type WorkspaceConfigState = {
   // ── Mode & preset ──────────────────────────────────────────────────────
@@ -88,8 +88,6 @@ function defaultPresetForMode(mode: WorkspaceMode, hasPR: boolean): WorkspacePre
   switch (mode) {
     case 'existing':
       return 'use-existing';
-    case 'sandbox':
-      return 'sandbox';
     case 'new-worktree':
       return hasPR ? 'checkout-pr' : 'new-worktree';
   }
@@ -104,7 +102,7 @@ function defaultMode(
   initialMode: WorkspaceMode | undefined
 ): WorkspaceMode {
   if (worktreesDisabled) return 'existing';
-  return !initialMode || initialMode === 'sandbox' ? 'new-worktree' : initialMode;
+  return initialMode ?? 'new-worktree';
 }
 
 function defaultPreset(opts: {
@@ -119,9 +117,7 @@ function defaultPreset(opts: {
     }
     return 'repo-root';
   }
-  return opts.initialPresetId && opts.initialPresetId !== 'sandbox'
-    ? opts.initialPresetId
-    : defaultPresetForMode(opts.mode, opts.hasPR);
+  return opts.initialPresetId ?? defaultPresetForMode(opts.mode, opts.hasPR);
 }
 
 /** Derives the WorkspaceMode that owns a given preset. */
@@ -134,8 +130,6 @@ export function modeForPreset(id: WorkspacePresetId): WorkspaceMode {
     case 'repo-root':
     case 'use-existing':
       return 'existing';
-    case 'sandbox':
-      return 'sandbox';
   }
 }
 
@@ -232,18 +226,14 @@ export function useWorkspaceConfig(opts: {
   }
 
   const setMode = (next: WorkspaceMode) => {
-    const supportedMode = next === 'sandbox' ? 'new-worktree' : next;
-    const normalizedMode =
-      worktreesDisabled && supportedMode === 'new-worktree' ? 'existing' : supportedMode;
+    const normalizedMode = worktreesDisabled && next === 'new-worktree' ? 'existing' : next;
     setModeRaw(normalizedMode);
     setPresetIdRaw(defaultPreset({ mode: normalizedMode, hasPR, worktreesDisabled }));
     if (normalizedMode !== 'existing') setSelectedWorkspaceId(null);
   };
 
   const setPresetId = (id: WorkspacePresetId) => {
-    const supportedId = id === 'sandbox' ? 'new-worktree' : id;
-    const normalizedId =
-      worktreesDisabled && presetRequiresCommits(supportedId) ? 'repo-root' : supportedId;
+    const normalizedId = worktreesDisabled && presetRequiresCommits(id) ? 'repo-root' : id;
     setPresetIdRaw(normalizedId);
     setModeRaw(modeForPreset(normalizedId));
     // Clear selected workspace when leaving 'existing' presets.
@@ -319,13 +309,11 @@ export function useWorkspaceConfig(opts: {
     const baseRemote = repo?.baseRemote?.name ?? 'origin';
     const pushRemote = repo?.pushRemote?.name ?? 'origin';
     // compileSetupSpec still uses the legacy WorkspaceLocation format.
-    // For step-preview purposes: new-worktree → host:local, byoi → host:byoi, otherwise no steps.
+    // For step-preview purposes: new-worktree → host:local, otherwise no steps.
     const git = resolvedConfig.git;
     const wsTarget = resolvedConfig.workspace;
     if (wsTarget.kind === 'repository-instance' || git.kind === 'none') return [];
-    const location =
-      wsTarget.kind === 'byoi' ? { host: 'byoi' as const } : { host: 'local' as const };
-    const spec = compileSetupSpec(git, location, { baseRemote, pushRemote });
+    const spec = compileSetupSpec(git, { host: 'local' }, { baseRemote, pushRemote });
     return describeSetupSteps(spec);
   }, [resolvedConfig, projectId]);
 
@@ -360,8 +348,6 @@ export function useWorkspaceConfig(opts: {
   // ── Validity ─────────────────────────────────────────────────────────────
 
   const isValid = useMemo((): boolean => {
-    if (mode === 'sandbox') return true;
-
     if (mode === 'existing') {
       return !!(selectedWorkspaceId || repositoryWorkspaceId);
     }

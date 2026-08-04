@@ -20,7 +20,6 @@ import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
 import { workspaceObservedData } from '@core/primitives/workspaces/api';
-import { workspaceProviderData } from '@core/primitives/workspaces/api';
 import type { WorkspaceKind } from '@core/primitives/workspaces/api';
 import { notificationPayload } from '@root/src/core/services/notifications/api';
 import type { StoredBranch } from './stored-branch';
@@ -174,7 +173,7 @@ export const tasks = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
-    workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; still read in resolveBootstrap for legacy BYOI tasks
+    workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; dropped in the retirement migration train
     workspaceId: text('workspace_id'),
     workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
@@ -195,8 +194,8 @@ export const workspaces = sqliteTable(
   {
     id: text('id').primaryKey(),
     key: text('key'),
-    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(), // @deprecated — use kind + location
-    /** Describes the nature of the workspace: a git worktree, the project root, or BYOI. */
+    type: text('type').notNull().$type<'local' | 'project-ssh'>(), // @deprecated — use kind + location; legacy rows may still hold 'byoi' until the retirement migration untracks them
+    /** Describes the nature of the workspace: a git worktree, the project root, or a directory. */
     kind: text('kind').$type<WorkspaceKind>(),
     /** Where the workspace runs: on the local machine or over SSH. */
     location: text('location').$type<'local' | 'remote'>(),
@@ -206,7 +205,7 @@ export const workspaces = sqliteTable(
     }),
     /** Parent repository registry row for git worktrees. */
     parentId: text('parent_id'),
-    data: versionedJsonColumn(workspaceProviderData)('data'),
+    data: text('data'), // @deprecated — provider data of the removed BYOI feature; never read
     path: text('path'),
     config: versionedJsonColumn(workspaceConfig)('config'),
     branchName: text('branch_name'),

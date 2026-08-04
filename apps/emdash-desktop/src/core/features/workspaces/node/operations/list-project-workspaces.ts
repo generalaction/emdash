@@ -42,8 +42,8 @@ export type ListProjectWorkspacesDependencies = {
 
 type WorkspaceRow = {
   id: string;
-  type: 'local' | 'project-ssh' | 'byoi';
-  kind: 'worktree' | 'project-root' | 'byoi' | null;
+  type: 'local' | 'project-ssh';
+  kind: 'worktree' | 'project-root' | null;
   location: 'local' | 'remote' | null;
   sshConnectionId: string | null;
   path: string | null;
@@ -182,7 +182,6 @@ function buildCandidateRow(
   const projectIsLocal = project.workspaceProvider !== 'ssh';
   const remote =
     !projectIsLocal || candidate.workspace?.location === 'remote' || projectHost.type === 'remote';
-  const byoi = candidate.workspace?.type === 'byoi' || candidate.workspace?.kind === 'byoi';
   const hasActiveSessions = candidate.tasks.some(
     (task) => !!dependencies.taskSessions.getTask(task.taskId)
   );
@@ -200,7 +199,7 @@ function buildCandidateRow(
     usage: null,
     pathState: 'no-path',
     canCleanArtifacts: false,
-    canDelete: candidate.kind !== 'root' && !remote && !byoi,
+    canDelete: candidate.kind !== 'root' && !remote,
     hasActiveSessions,
     lastActivityAt,
     observedStatus: candidate.workspace?.observedStatus ?? undefined,
@@ -222,14 +221,14 @@ function buildCandidateRow(
             ? { reason: 'Host inventory reported this worktree as corrupted.' }
             : {}),
       },
-      canDelete: candidate.kind !== 'root' && !remote && !byoi,
+      canDelete: candidate.kind !== 'root' && !remote,
     };
   }
 
   return {
     ...base,
     pathState: 'measured',
-    canCleanArtifacts: !remote && !byoi,
+    canCleanArtifacts: !remote,
   };
 }
 

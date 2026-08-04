@@ -17,14 +17,11 @@ import {
   type Project,
   type ProjectRemoteState,
 } from '@core/primitives/projects/api';
-import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type {
   GitRuntimeClient,
   TerminalsRuntimeClient,
 } from '@core/services/runtime-broker/api/clients';
 import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
-
-export type { WorkspaceProviderData };
 
 export type GitRepositoryPort = {
   subscribeRemotes(callback: (update: GitRemotesState) => void): Unsubscribe;
@@ -42,7 +39,6 @@ export type ProvisionResult = {
   taskProvider: TaskProvider;
   persistData: {
     workspaceId: string;
-    workspaceProviderData?: WorkspaceProviderData;
     sshConnectionId?: string;
     worktreeGitDir?: string;
   };
@@ -91,7 +87,7 @@ export class ProjectProvider implements Disposable {
   readonly files: FilesClientScope;
   readonly projectConfigPath: string;
   readonly terminals: TerminalsRuntimeClient;
-  /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
+  /** Workspace type for worktree tasks on this project's host. */
   readonly defaultWorkspaceType: WorkspaceType;
 
   private readonly _resolveProjectPath: (relativePath: string) => string;

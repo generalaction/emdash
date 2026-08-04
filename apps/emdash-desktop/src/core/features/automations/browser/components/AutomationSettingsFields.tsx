@@ -7,7 +7,6 @@ import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-
 import { Field, FieldError, FieldGroup } from '@core/primitives/ui/browser/field';
 import { Label } from '@core/primitives/ui/browser/label';
 import { CronPicker } from '@renderer/lib/CronPicker';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import type { AutomationFormState } from '../useAutomationFormState';
 
 interface AutomationSettingsFieldsProps {
@@ -39,8 +38,6 @@ export function AutomationSettingsFields({
     setProjectId,
   } = state;
 
-  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
-
   return (
     <fieldset disabled={disabled} className="contents">
       <FieldGroup>
@@ -69,7 +66,6 @@ export function AutomationSettingsFields({
           isUnborn={isUnborn}
           hasRepository={hasRepository}
           hasPR={false}
-          isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
           includeIssueContextByDefault={false}
         >
           <TaskConfigProvider showPrPresets={false} autoBranchName={true}>

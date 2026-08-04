@@ -20,13 +20,6 @@ export const baseProjectSettingsSchema = z.object({
   tmux: z.boolean().optional(),
   autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
   autoRunRunScriptOnTaskCreation: z.boolean().optional(),
-  workspaceProvider: z
-    .object({
-      type: z.literal('script'),
-      provisionCommand: z.string().min(1),
-      terminateCommand: z.string().min(1),
-    })
-    .optional(),
 });
 
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;

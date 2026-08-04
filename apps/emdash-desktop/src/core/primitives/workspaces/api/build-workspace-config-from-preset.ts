@@ -108,13 +108,5 @@ export function buildWorkspaceConfigFromPreset(
         workspace: { kind: 'new-worktree' },
       };
     }
-
-    case 'sandbox': {
-      return {
-        version: '2',
-        git: { kind: 'none' },
-        workspace: { kind: 'byoi' },
-      };
-    }
   }
 }
