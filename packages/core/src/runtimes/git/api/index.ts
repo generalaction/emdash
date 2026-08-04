@@ -55,6 +55,7 @@ export type {
   SyncError,
 } from '@runtimes/git/api/api/errors';
 export type {
+  CloneRepositoryInitialize,
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
   GitPathInspection,

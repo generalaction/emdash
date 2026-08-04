@@ -24,9 +24,16 @@ export const gitPathInspectionSchema = z.union([
 ]);
 export type GitPathInspection = z.infer<typeof gitPathInspectionSchema>;
 
+export const cloneRepositoryInitializeSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+});
+export type CloneRepositoryInitialize = z.infer<typeof cloneRepositoryInitializeSchema>;
+
 export const cloneRepositoryJobInputSchema = z.object({
   repositoryUrl: z.string(),
   targetPath: hostAbsolutePathSchema,
+  initialize: cloneRepositoryInitializeSchema.optional(),
 });
 export type CloneRepositoryJobInput = z.infer<typeof cloneRepositoryJobInputSchema>;
 

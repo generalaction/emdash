@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
 import type { HostAbsolutePath } from '@primitives/path/api';
@@ -5,6 +6,7 @@ import {
   computeBaseRef,
   gitErr,
   type CloneRepositoryError,
+  type CloneRepositoryInitialize,
   type EnsureRepositoryError,
   type EnsureRepositoryOptions,
   type GitPathInspection,
@@ -13,7 +15,10 @@ import {
 import { toHostAbsolutePath, toNativeAbsolutePath } from '@runtimes/git/node/allocation/paths';
 import { gitFailure } from '@runtimes/git/node/exec/errors';
 import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
-import { execGitWithProgress } from '@runtimes/git/node/exec/transfer-progress';
+import {
+  execGitWithProgress,
+  throwIfGitOpAborted,
+} from '@runtimes/git/node/exec/transfer-progress';
 import { ExecError, type BoundExec } from '@services/exec/api';
 import { repositoryFailures } from './errors';
 
@@ -69,7 +74,8 @@ export class GitRepositoryProvisioner {
   async cloneRepository(
     repositoryUrl: string,
     targetPath: HostAbsolutePath,
-    context: GitOperationContext = {}
+    context: GitOperationContext = {},
+    options: { initialize?: CloneRepositoryInitialize } = {}
   ): Promise<Result<GitRepositoryInfo, CloneRepositoryError>> {
     let nativeTargetPath: string;
     try {
@@ -87,12 +93,58 @@ export class GitRepositoryProvisioner {
       return repositoryFailures.clone(error, targetPath);
     }
 
+    if (options.initialize) {
+      const initialized = await this.initializeClonedRepository(
+        nativeTargetPath,
+        options.initialize,
+        context
+      );
+      if (!initialized.success) return initialized;
+    }
+
     const inspected = await this.inspectResolvedPath(nativeTargetPath, targetPath);
     if (inspected.kind === 'repository') return ok(inspected);
     if (inspected.kind === 'inspect-failed') {
       return gitErr.commandFailed(inspected.message);
     }
     return gitErr.commandFailed(`Cloned path is not a git repository: ${nativeTargetPath}`);
+  }
+
+  /**
+   * Seeds a freshly created (empty) repository with an initial README commit and
+   * pushes it upstream so the remote's default branch exists.
+   */
+  private async initializeClonedRepository(
+    nativeTargetPath: string,
+    initialize: CloneRepositoryInitialize,
+    context: GitOperationContext
+  ): Promise<Result<void, CloneRepositoryError>> {
+    const exec = (args: string[]) =>
+      this.exec.exec(['-C', nativeTargetPath, ...args], { signal: context.signal });
+    try {
+      context.onProgress?.({ phase: 'initialize', detail: 'Creating initial commit' });
+      await writeFile(
+        path.join(nativeTargetPath, 'README.md'),
+        initialReadmeContent(initialize),
+        'utf8'
+      );
+      throwIfGitOpAborted(context.signal);
+      await exec(['add', '--', 'README.md']);
+      await exec(['commit', '-m', 'Initial commit']);
+      throwIfGitOpAborted(context.signal);
+      context.onProgress?.({ phase: 'initialize', detail: 'Pushing initial commit' });
+      await exec(['push', '-u', 'origin', 'HEAD']);
+      return ok(undefined);
+    } catch (error) {
+      if (context.signal?.aborted) throw error;
+      const message =
+        error instanceof ExecError
+          ? gitFailure(error).message
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      return gitErr.commandFailed(`Failed to initialize cloned repository: ${message}`);
+    }
   }
 
   private async inspectResolvedPath(
@@ -150,4 +202,10 @@ export class GitRepositoryProvisioner {
       };
     }
   }
+}
+
+function initialReadmeContent(initialize: CloneRepositoryInitialize): string {
+  return initialize.description
+    ? `# ${initialize.name}\n\n${initialize.description}\n`
+    : `# ${initialize.name}\n`;
 }
