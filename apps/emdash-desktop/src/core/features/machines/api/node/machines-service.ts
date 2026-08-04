@@ -45,8 +45,7 @@ export interface MachinesServiceDeps {
   credentials: MachinesCredentials;
   ssh: MachinesSshRuntime;
   log: MachinesLog;
-  /** Late-bound: the operations engine boots after infrastructure services. */
-  getOperations?: () => MachinesOperations | undefined;
+  operations?: MachinesOperations;
   createId?: () => string;
   now?: () => number;
 }
@@ -64,10 +63,12 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
   private readonly createId: () => string;
   private readonly now: () => number;
   private readonly hooks: HookCore<MachinesServiceHooks>;
+  private operations: MachinesOperations | undefined;
 
   constructor(private readonly deps: MachinesServiceDeps) {
     this.createId = deps.createId ?? randomUUID;
     this.now = deps.now ?? Date.now;
+    this.operations = deps.operations;
     this.hooks = new HookCore<MachinesServiceHooks>((name, error) => {
       deps.log.warn(`MachinesService: ${String(name)} hook failed`, { error });
     });
@@ -75,6 +76,11 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
 
   on<K extends keyof MachinesServiceHooks>(name: K, handler: MachinesServiceHooks[K]): () => void {
     return this.hooks.on(name, handler);
+  }
+
+  setOperations(operations: MachinesOperations): void {
+    if (this.operations) throw new Error('Machines operations dependency is already configured');
+    this.operations = operations;
   }
 
   async getMachines(): Promise<SshConfig[]> {
@@ -212,8 +218,7 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
 
     // Forget-host cascade: cancel every queued outbox entry targeting this
     // host and untrack its registry rows. Untrack never deletes host state.
-    await this.deps
-      .getOperations?.()
+    await this.operations
       ?.cancelPendingForHost(formatHostRef(hostRef('remote', id)))
       .catch((error: unknown) => {
         this.deps.log.warn('MachinesService.deleteMachine: error cancelling pending operations', {

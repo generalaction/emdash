@@ -2,7 +2,6 @@ import {
   hostRefFromParts,
   isLocalHostRef,
   parseHostRef,
-  sshConnectionIdOf,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
 import { parseAbsolute } from '@emdash/core/primitives/path/api';
@@ -17,7 +16,9 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { onOperationSettled } from '@core/services/operations/node/pokes';
 import { applyRepoSnapshot } from './apply-repo-snapshot';
+import type { SnapshotRequester } from './snapshot-requester';
 
 type SyncTier = WorkspaceHostSnapshotTier;
 
@@ -29,15 +30,19 @@ export interface WorkspaceSnapshotSyncServiceOptions {
   onError?: (context: string, error: unknown) => void;
 }
 
-export class WorkspaceSnapshotSyncService {
+export class WorkspaceSnapshotSyncService implements SnapshotRequester {
   private readonly debounceMs: number;
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly pendingTier = new Map<string, SyncTier>();
   private readonly inFlight = new Set<string>();
+  private readonly unsubscribeSettled: () => void;
 
   constructor(private readonly options: WorkspaceSnapshotSyncServiceOptions) {
     this.debounceMs = options.debounceMs ?? 2_000;
     options.scope?.add(() => this.dispose());
+    this.unsubscribeSettled = onOperationSettled(({ hostRef, repoPath, status }) => {
+      void this.requestRepoPath(hostRef, repoPath, status === 'succeeded' ? 'full' : 'presence');
+    });
   }
 
   requestSync(repositoryWorkspaceId: string, tier: SyncTier): void {
@@ -69,7 +74,6 @@ export class WorkspaceSnapshotSyncService {
     tier: SyncTier
   ): Promise<void> {
     const host = parseHostRef(hostRefValue);
-    const connectionId = sshConnectionIdOf(host);
     const rows = await this.options.db
       .select({ id: workspaces.id })
       .from(workspaces)
@@ -80,7 +84,7 @@ export class WorkspaceSnapshotSyncService {
           liveWorkspaces(),
           isLocalHostRef(host)
             ? isNull(workspaces.sshConnectionId)
-            : eq(workspaces.sshConnectionId, connectionId!)
+            : eq(workspaces.sshConnectionId, host.id)
         )
       );
     for (const row of rows) {
@@ -115,6 +119,7 @@ export class WorkspaceSnapshotSyncService {
   }
 
   dispose(): void {
+    this.unsubscribeSettled();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
     this.pendingTier.clear();

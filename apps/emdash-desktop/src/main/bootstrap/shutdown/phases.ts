@@ -4,7 +4,6 @@ import type { PullRequestsRegistration } from '@core/services/pull-requests/node
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
-import { disposeOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { closeAppDb } from '@main/db/instance';
 import { updateService } from '@main/host/updates/update-service';
 import { log } from '@main/lib/logger';
@@ -18,6 +17,7 @@ const GRACE_WINDOW_MS = 400;
 
 type QuitCleanupServices = {
   automations: Pick<AutomationsService, 'stop'>;
+  operations: { dispose(): Promise<void> };
   projects: Pick<ProjectSessionManager, 'dispose' | 'release'>;
   pullRequests: Pick<PullRequestsRegistration, 'dispose'>;
   runtimes: { dispose(): Promise<void> };
@@ -45,7 +45,7 @@ function criticalPhases(services: QuitCleanupServices): Phase<void>[] {
     },
     {
       name: 'operations-engine',
-      run: () => disposeOperationsEngine(),
+      run: () => services.operations.dispose(),
     },
     {
       name: 'project-manager-release',

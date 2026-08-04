@@ -22,6 +22,7 @@ export async function finishBoot(config: AppConfig, signals: BootSignals): Promi
     const services = await step('services', () => bootServices(database, infrastructure, runtimes));
     configureQuitCleanupServices({
       automations: services.automations,
+      operations: { dispose: services.disposeOperations },
       projects: services.projects,
       pullRequests: services.pullRequestsRegistration,
       runtimes,

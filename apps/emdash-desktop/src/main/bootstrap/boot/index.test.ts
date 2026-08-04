@@ -7,6 +7,7 @@ const bundles = {
   runtimes: { clients: {} },
   services: {
     automations: {},
+    disposeOperations: vi.fn(),
     projects: {},
     pullRequestsRegistration: {},
   },

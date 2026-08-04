@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   appScopeDispose: vi.fn(),
   automationsStop: vi.fn(),
   closeAppDb: vi.fn(),
+  operationsDispose: vi.fn(),
   projectsDispose: vi.fn(),
   projectsRelease: vi.fn(),
   pullRequestsDispose: vi.fn(),
@@ -48,9 +49,6 @@ vi.mock('@main/core/agent-status/tui-agent-status-bridge', () => ({
 }));
 vi.mock('@core/features/automations/api/node/automations-service', () => ({
   automationsService: { stop: vi.fn() },
-}));
-vi.mock('@main/core/operations/operations-engine-instance', () => ({
-  disposeOperationsEngine: vi.fn(),
 }));
 vi.mock('@core/features/projects/api/node/project-manager', () => ({
   projectManager: { release: vi.fn(), dispose: vi.fn() },
@@ -92,6 +90,7 @@ describe('quit cleanup phases', () => {
   it('closes the database after app scope and before telemetry', async () => {
     configureQuitCleanupServices({
       automations: { stop: mocks.automationsStop },
+      operations: { dispose: mocks.operationsDispose },
       projects: {
         dispose: mocks.projectsDispose,
         release: mocks.projectsRelease,

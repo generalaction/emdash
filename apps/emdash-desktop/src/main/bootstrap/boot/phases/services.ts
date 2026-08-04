@@ -70,12 +70,13 @@ import {
   createWorkspaceLifecycleParticipants,
   deactivateWorkspaceParticipants,
 } from '@core/features/workspaces/node/lifecycle-participants';
+import type { SnapshotRequester } from '@core/features/workspaces/node/sync/snapshot-requester';
 import { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
+import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
-import { operationsPokes } from '@core/services/operations/node/pokes';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
@@ -87,7 +88,6 @@ import {
 } from '@main/core/file-search/runtime-client';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
-import { setOperationsEngine } from '@main/core/operations/operations-engine-instance';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
@@ -141,6 +141,7 @@ export type ServicesBundle = {
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
   readonly notifications: ReturnType<typeof createNotificationService>;
   readonly operations: Awaited<ReturnType<typeof createOperationsEngine>>['engine'];
+  readonly disposeOperations: () => Promise<void>;
   readonly promptLibrary: ReturnType<typeof createPromptLibraryService>;
   readonly projects: ProjectSessionManager;
   readonly projectSettings: ProjectSettingsService;
@@ -520,9 +521,13 @@ export async function bootServices(
       ),
   };
   const desktopClientId = await getDesktopClientId();
-  // The snapshot sync service is constructed after the operations engine; the
-  // outbox definitions capture it through this late-bound reference.
-  const workspaceSnapshotSyncRef: { current?: WorkspaceSnapshotSyncService } = {};
+  const workspaceSnapshotSync = new WorkspaceSnapshotSyncService({
+    db,
+    runtimes,
+    scope: appScope,
+    onError: (context, error) => log.warn(context, { error }),
+  });
+  const snapshotRequester: SnapshotRequester = workspaceSnapshotSync;
   const operationDefinitions = createOperationDefinitions({
     db,
     initiatedBy: desktopClientId,
@@ -544,9 +549,6 @@ export async function bootServices(
     },
     hostOutbox: {
       runtimes,
-      requestSnapshot: ({ hostRef, repoPath }) => {
-        void workspaceSnapshotSyncRef.current?.requestRepoPath(hostRef, repoPath, 'full');
-      },
       deactivateWorkspace: (input, options) =>
         deactivateWorkspaceConsumers(
           { runtimes },
@@ -579,35 +581,27 @@ export async function bootServices(
     definitions: operationDefinitions.definitions,
     conflictPolicies: operationDefinitions.conflictPolicies,
   });
-  setOperationsEngine(operations);
-  const workspaceSnapshotSync = new WorkspaceSnapshotSyncService({
-    db,
-    runtimes,
-    scope: appScope,
-    onError: (context, error) => log.warn(context, { error }),
-  });
-  workspaceSnapshotSyncRef.current = workspaceSnapshotSync;
+  appScope.add(() => operations.dispose());
+  infrastructure.ssh.machines.setOperations(operations.engine);
   const sessionHygieneDependencies = {
     agentStatus: agentStatusService,
     createSessionIntentStores: createDesktopSessionIntentStores,
     logger: log,
   };
-  const sessionHygieneInterval = setInterval(
-    () => {
-      void sweepSessionHygiene(db, sessionHygieneDependencies).catch((error) => {
-        log.warn('session hygiene sweep failed', { error: String(error) });
-      });
+  const sessionHygieneSweep = startPeriodicSweep({
+    scope: appScope,
+    intervalMs: 10 * 60 * 1000,
+    run: () => sweepSessionHygiene(db, sessionHygieneDependencies),
+    onError: (error) => {
+      log.warn('session hygiene sweep failed', { error: String(error) });
     },
-    10 * 60 * 1000
-  );
-  sessionHygieneInterval.unref?.();
-  appScope.add(() => clearInterval(sessionHygieneInterval));
-  void sweepSessionHygiene(db, sessionHygieneDependencies).catch((error) => {
+  });
+  void sessionHygieneSweep.runNow().catch((error) => {
     log.warn('session hygiene sweep failed', { error: String(error) });
   });
   const handleWorkspaceSnapshotSshEvent = (event: { type: string; connectionId?: string }) => {
     if (event.connectionId && (event.type === 'connected' || event.type === 'reconnected')) {
-      void workspaceSnapshotSync.requestHost(event.connectionId, 'presence');
+      void snapshotRequester.requestHost(event.connectionId, 'presence');
     }
   };
   infrastructure.ssh.manager.on('connection-event', handleWorkspaceSnapshotSshEvent);
@@ -618,12 +612,6 @@ export async function bootServices(
     void workspaceSnapshotSync.requestProject(projectId, 'full');
   });
   appScope.add(unsubscribeWorkspaceSnapshotProjects);
-  const unsubscribeWorkspaceSnapshotOperations = operationsPokes.trees
-    .subscription()
-    .subscribe(() => {
-      void workspaceSnapshotSync.requestAll('presence');
-    });
-  appScope.add(unsubscribeWorkspaceSnapshotOperations);
   registerProviderTokenHandlers();
   return {
     account: accountService,
@@ -632,6 +620,7 @@ export async function bootServices(
     issueProviders,
     notifications: notificationService,
     operations: operations.engine,
+    disposeOperations: () => operations.dispose(),
     promptLibrary: promptLibraryService,
     projects: projectManager,
     projectSettings: projectSettingsService,
