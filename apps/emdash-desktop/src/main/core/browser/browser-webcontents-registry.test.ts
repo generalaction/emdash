@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
 import { LOOP_BROWSER_DISPOSABLE_PARTITION_PREFIX } from '@shared/core/loops/loop-browser-contracts';
 import { browserAppShortcutChannel, tabNavigationShortcutChannel } from '@shared/events/appEvents';
-import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
+import {
+  BrowserWebContentsRegistry,
+  VERIFICATION_SCREENSHOT_TIMEOUT_MS,
+} from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
 
@@ -591,6 +594,33 @@ describe('BrowserWebContentsRegistry', () => {
       ).resolves.toMatchObject({
         result: { ok: false, error: { kind: 'lease-closed' } },
       });
+    });
+
+    it('bounds a stalled screenshot capture without blocking later verifier cleanup', async () => {
+      vi.useFakeTimers();
+      try {
+        const registry = new BrowserWebContentsRegistry();
+        registry.registerVerificationSession(lease);
+        const webContents = fakeWebContents(lease.partition);
+        webContents.currentUrl = 'http://127.0.0.1:4173/';
+        vi.mocked(webContents.capturePage).mockImplementation(() => new Promise(() => {}));
+        registry.handleWebviewAttached(webContents);
+        registry.bindWebContents(lease.browserId, webContents);
+
+        const action = registry.performVerificationAction(lease, { kind: 'screenshot' });
+        await vi.advanceTimersByTimeAsync(VERIFICATION_SCREENSHOT_TIMEOUT_MS);
+
+        await expect(action).resolves.toMatchObject({
+          result: {
+            ok: false,
+            error: { kind: 'artifact-failed', message: 'Browser screenshot capture timed out' },
+          },
+        });
+        expect(registry.revokeVerificationSession(lease)).toBe(true);
+        expect(webContents.close).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('never reads or fills password field values through fixed accessibility scripts', async () => {

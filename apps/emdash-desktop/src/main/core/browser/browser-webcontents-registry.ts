@@ -75,6 +75,8 @@ export type VerificationCleanupResult = {
   cleanupError?: string;
 };
 
+export const VERIFICATION_SCREENSHOT_TIMEOUT_MS = 15_000;
+
 // OAuth popups become real child windows sharing the browser partition; they
 // must stay as locked down as the webview that opened them.
 const BROWSER_POPUP_WINDOW_OPTIONS: BrowserWindowConstructorOptions = {
@@ -703,7 +705,22 @@ export class BrowserWebContentsRegistry {
         };
       }
       case 'screenshot': {
-        const image = await webContents.capturePage();
+        const timeoutMarker = Symbol('verification-screenshot-timeout');
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const image = await Promise.race([
+          webContents.capturePage(),
+          new Promise<typeof timeoutMarker>((resolvePromise) => {
+            timeout = setTimeout(
+              () => resolvePromise(timeoutMarker),
+              VERIFICATION_SCREENSHOT_TIMEOUT_MS
+            );
+          }),
+        ]).finally(() => {
+          if (timeout !== undefined) clearTimeout(timeout);
+        });
+        if (image === timeoutMarker) {
+          return actionFailure('artifact-failed', 'Browser screenshot capture timed out');
+        }
         if (image.isEmpty())
           return actionFailure('artifact-failed', 'Browser screenshot was empty');
         const data = image.toPNG();
