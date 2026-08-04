@@ -27,6 +27,29 @@ describe('repository failures', () => {
     ).toMatchObject({ success: false, error: { type: 'network_error' } });
 
     expect(
+      repositoryFailures.clone(
+        execError('fatal: unable to access: Could not resolve host'),
+        hostPath('/tmp/repo')
+      )
+    ).toMatchObject({ success: false, error: { type: 'network_error' } });
+
+    expect(
+      repositoryFailures.clone(
+        execError(
+          "fatal: could not read Username for 'https://github.com': terminal prompts disabled"
+        ),
+        hostPath('/tmp/repo')
+      )
+    ).toMatchObject({ success: false, error: { type: 'auth_required' } });
+
+    expect(
+      repositoryFailures.clone(
+        execError("fatal: repository 'https://github.com/acme/missing.git/' not found"),
+        hostPath('/tmp/repo')
+      )
+    ).toMatchObject({ success: false, error: { type: 'remote_not_found' } });
+
+    expect(
       repositoryFailures.fetchPrForReview(
         execError("fatal: couldn't find remote ref refs/pull/42/head"),
         42

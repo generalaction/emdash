@@ -29,6 +29,7 @@ export const repositoryFailures = {
     }
     if (isAuthRequired(failure)) return gitErr.authRequired(failure.message);
     if (isAuthFailed(failure)) return gitErr.authFailed(failure.message);
+    if (isNetworkFailure(failure)) return gitErr.networkError(failure.message);
     if (
       message.includes('repository not found') ||
       message.includes('does not appear to be a git repository') ||

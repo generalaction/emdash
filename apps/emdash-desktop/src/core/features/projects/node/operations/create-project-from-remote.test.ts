@@ -147,4 +147,114 @@ describe('createProjectFromRemote', () => {
       },
     });
   });
+
+  it('explains disabled credential prompts as missing Git authentication', async () => {
+    const rawMessage =
+      "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
+    mocks.runRuntimeLiveJob.mockResolvedValueOnce(
+      err({ type: 'auth_required', message: rawMessage })
+    );
+    const publish = vi.fn();
+
+    const result = await createProjectFromRemote(
+      dependencies,
+      {
+        projectId: 'project-1',
+        host: { type: 'ssh', connectionId: 'ssh-1' },
+        mode: 'clone',
+        repositoryUrl: 'https://github.com/acme/repo.git',
+        targetPath: '/remote/repo',
+        name: 'repo',
+      },
+      { signal: new AbortController().signal, progress: vi.fn() } as never,
+      publish
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'auth_required',
+        message: 'Git is not authenticated on the remote.',
+      },
+    });
+    expect(publish).toHaveBeenCalledWith('project-1', {
+      phase: 'error',
+      message: 'Git is not authenticated on the remote.',
+      error: {
+        type: 'auth_required',
+        message: 'Git is not authenticated on the remote.',
+      },
+    });
+  });
+
+  it.each([
+    {
+      failure: { type: 'auth_failed', message: 'fatal: authentication failed' },
+      expected: 'Git authentication failed on the remote.',
+    },
+    {
+      failure: { type: 'network_error', message: 'fatal: could not resolve host' },
+      expected: 'Cannot reach the repository from the remote.',
+    },
+    {
+      failure: { type: 'remote_not_found', message: 'fatal: repository not found' },
+      expected: 'Repository not found or inaccessible.',
+    },
+    {
+      failure: {
+        type: 'target_exists',
+        path: hostPathFromNative('/remote/repo'),
+        message: 'fatal: destination path already exists',
+      },
+      expected: 'Clone destination is not empty: /remote/repo',
+    },
+  ])(
+    'provides a friendly message for $failure.type clone failures',
+    async ({ failure, expected }) => {
+      mocks.runRuntimeLiveJob.mockResolvedValueOnce(err(failure));
+
+      const result = await createProjectFromRemote(
+        dependencies,
+        {
+          projectId: 'project-1',
+          host: { type: 'ssh', connectionId: 'ssh-1' },
+          mode: 'clone',
+          repositoryUrl: 'https://github.com/acme/repo.git',
+          targetPath: '/remote/repo',
+          name: 'repo',
+        },
+        { signal: new AbortController().signal, progress: vi.fn() } as never,
+        vi.fn()
+      );
+
+      expect(result).toEqual({
+        success: false,
+        error: { type: failure.type, message: expected },
+      });
+    }
+  );
+
+  it('preserves unclassified Git clone errors for diagnosis', async () => {
+    const message = 'fatal: unable to write file: No space left on device';
+    mocks.runRuntimeLiveJob.mockResolvedValueOnce(err({ type: 'git_error', message }));
+
+    const result = await createProjectFromRemote(
+      dependencies,
+      {
+        projectId: 'project-1',
+        host: { type: 'local' },
+        mode: 'clone',
+        repositoryUrl: 'https://github.com/acme/repo.git',
+        targetPath: '/local/repo',
+        name: 'repo',
+      },
+      { signal: new AbortController().signal, progress: vi.fn() } as never,
+      vi.fn()
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'git_error', message },
+    });
+  });
 });

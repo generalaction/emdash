@@ -76,6 +76,7 @@ export type PushError =
   | MessageError<'auth_required'>
   | MessageError<'auth_failed'>
   | MessageError<'network_error'>
+  | MessageError<'remote_not_found'>
   | MessageError<'hook_rejected'>
   | GitCommandError;
 

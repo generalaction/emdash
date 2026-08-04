@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
+import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
-import { formatErrorType, formatPushErrorDetail } from '@core/features/tasks/api/browser/utils';
+import { formatErrorType } from '@core/features/tasks/api/browser/utils';
 import {
   useTaskComposition,
   useWorkspace,

@@ -48,6 +48,7 @@ export const cloneRepositoryErrorSchema = z.union([
   }),
   authRequiredErrorSchema,
   authFailedErrorSchema,
+  networkErrorSchema,
   messageError('remote_not_found'),
   gitCommandErrorSchema,
 ]);
@@ -97,6 +98,7 @@ export const pushErrorSchema = z.union([
   authRequiredErrorSchema,
   authFailedErrorSchema,
   networkErrorSchema,
+  messageError('remote_not_found'),
   messageError('hook_rejected'),
   gitCommandErrorSchema,
 ]);

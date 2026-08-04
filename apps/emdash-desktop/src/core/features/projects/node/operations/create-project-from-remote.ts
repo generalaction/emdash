@@ -17,6 +17,7 @@ import {
   type CreateProjectDependencies,
   createProject,
 } from '@core/features/projects/node/operations/create-project';
+import { formatCloneErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { fileKeyForAbsolutePath, hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import type { Project } from '@core/primitives/projects/api';
 import { fsErrorMessage } from '@core/services/runtime-broker/node/files';
@@ -97,7 +98,10 @@ export async function createProjectFromRemote(
     throw error;
   }
   if (!clone.success) {
-    const error = creationError(clone.error.type, clone.error.message);
+    const error = creationError(
+      clone.error.type,
+      formatCloneErrorDetail(clone.error, { isSshProject: input.host.type === 'ssh' })
+    );
     publishCreationState(input.projectId, { phase: 'error', message: error.message, error });
     return { success: false as const, error };
   }

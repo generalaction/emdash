@@ -42,6 +42,12 @@ export function pushFailed(error: unknown): Err<PushError> {
   if (isAuthRequired(failure)) return gitErr.authRequired(failure.message);
   if (isAuthFailed(failure)) return gitErr.authFailed(failure.message);
   if (isNetworkFailure(failure)) return gitErr.networkError(failure.message);
+  if (
+    message.includes('repository not found') ||
+    message.includes('does not appear to be a git repository')
+  ) {
+    return gitErr.remoteNotFound(failure.message);
+  }
   if (message.includes('hook declined') || message.includes('pre-receive hook')) {
     return gitErr.hookRejected(failure.message);
   }

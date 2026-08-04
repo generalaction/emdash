@@ -53,4 +53,17 @@ describe('Git execution errors', () => {
       error: { type: 'hook_rejected' },
     });
   });
+
+  it('maps missing push repositories at the Git process boundary', () => {
+    expect(
+      pushFailed(
+        execError(
+          "remote: Repository not found.\nfatal: repository 'https://github.com/x/y' not found"
+        )
+      )
+    ).toMatchObject({
+      success: false,
+      error: { type: 'remote_not_found' },
+    });
+  });
 });

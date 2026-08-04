@@ -8,6 +8,10 @@ import { toast } from 'sonner';
 import { match } from 'ts-pattern';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import {
+  formatFetchErrorDetail,
+  formatPushErrorDetail,
+} from '@core/features/source-control/api/git-error-messages';
 import { tasksWireContract } from '@core/features/tasks/api';
 import {
   createUnprovisionedTask,
@@ -15,10 +19,6 @@ import {
   type TaskStore,
   type TaskStoreMutations,
 } from '@core/features/tasks/api/browser/stores/task-store';
-import {
-  formatFetchErrorDetail,
-  formatPushErrorDetail,
-} from '@core/features/tasks/api/browser/utils';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { workspacesWireContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
