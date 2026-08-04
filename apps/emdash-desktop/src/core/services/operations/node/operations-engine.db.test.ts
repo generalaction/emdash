@@ -320,7 +320,7 @@ function createSshManager(initiallyConnected: boolean): OperationsSshManager & {
     off() {
       listener = undefined;
     },
-    isConnected(connectionId) {
+    isConnected(_connectionId) {
       return connected;
     },
     connect() {

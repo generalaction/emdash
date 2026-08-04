@@ -2,13 +2,13 @@ import type { LegacyWorkspaceAutomation } from '@emdash/core/runtimes/workspace/
 import { eq } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceBootstrapService } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   projects,
   tasks,
-  workspaces,
   type ProjectRow,
   type TaskRow,
   type WorkspaceRow,

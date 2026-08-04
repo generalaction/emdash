@@ -12,9 +12,13 @@ import {
   hostRemoveWorktreeOperation,
   type HostRemoveWorktreeInput,
 } from '@core/features/workspaces/api/node/host-outbox-operations';
+import {
+  createWorkspaceRegistry,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects, tasks, workspaces, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { OperationSubmitOptions } from '@core/services/operations/node';
 import { compileRemoveWorktreePrediction } from './compile-host-outbox-prediction';
 
@@ -46,11 +50,7 @@ export async function enqueueDeleteWorkspace(
   workspaceId: string,
   options: { deleteBranch?: boolean } = {}
 ) {
-  const [workspace] = await operations.db
-    .select()
-    .from(workspaces)
-    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)))
-    .limit(1);
+  const workspace = createWorkspaceRegistry(operations.db).getLive(workspaceId);
   if (!workspace) {
     return err({ type: 'workspace-not-found', message: `Workspace ${workspaceId} was not found` });
   }
@@ -105,13 +105,9 @@ async function enqueueWorkspacePathRemoval(
   if (!project) {
     return err({ type: 'project-not-found', message: `Project ${input.projectId} was not found` });
   }
-  const [workspace] = input.workspaceId
-    ? await operations.db
-        .select()
-        .from(workspaces)
-        .where(and(eq(workspaces.id, input.workspaceId), isNull(workspaces.untrackedAt)))
-        .limit(1)
-    : [];
+  const workspace = input.workspaceId
+    ? createWorkspaceRegistry(operations.db).getLive(input.workspaceId)
+    : undefined;
   if (input.workspaceId && !workspace) {
     return err({
       type: 'workspace-not-found',
@@ -145,6 +141,9 @@ async function enqueueWorkspaceRemoval(
   }
 ) {
   const createdAt = Date.now();
+  const registry = createWorkspaceRegistry(operations.db, {
+    now: () => new Date(createdAt).toISOString(),
+  });
   const workspaceId = params.workspace?.id;
   // Only git worktrees map onto the `removeWorktree` verb; byoi/directory rows
   // (and rows without a row at all when path-addressed) are untracked only.
@@ -196,20 +195,10 @@ async function enqueueWorkspaceRemoval(
         requireUnused: params.requireUnused,
       }),
     tombstone: workspaceId
-      ? (tx) =>
-          tx
-            .update(workspaces)
-            .set({ untrackedAt: new Date(createdAt).toISOString() })
-            .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)))
-            .run().changes
+      ? (tx) => registry.untrack([workspaceId], new Date(createdAt).toISOString(), undefined, tx)
       : undefined,
     revertTombstone: workspaceId
-      ? (tx) => {
-          tx.update(workspaces)
-            .set({ untrackedAt: null })
-            .where(eq(workspaces.id, workspaceId))
-            .run();
-        }
+      ? (tx) => void registry.revertUntrack([workspaceId], tx)
       : undefined,
   });
   if (result.success) appDbPokes.workspaces.poke({ projectId: params.projectId });
@@ -220,6 +209,9 @@ function untrackWorkspaceInline(
   db: AppDb,
   input: { workspaceId: string; requireUnused: boolean; createdAt: number }
 ): Result<Record<string, never>, { type: string; message: string }> {
+  const registry = createWorkspaceRegistry(db, {
+    now: () => new Date(input.createdAt).toISOString(),
+  });
   let failure: { type: string; message: string } | undefined;
   db.transaction((tx) => {
     failure = workspacePrecondition(tx, {
@@ -227,10 +219,7 @@ function untrackWorkspaceInline(
       requireUnused: input.requireUnused,
     });
     if (failure) return;
-    tx.update(workspaces)
-      .set({ untrackedAt: new Date(input.createdAt).toISOString() })
-      .where(and(eq(workspaces.id, input.workspaceId), isNull(workspaces.untrackedAt)))
-      .run();
+    registry.untrack([input.workspaceId], new Date(input.createdAt).toISOString(), undefined, tx);
   });
   return failure ? err(failure) : ok({});
 }

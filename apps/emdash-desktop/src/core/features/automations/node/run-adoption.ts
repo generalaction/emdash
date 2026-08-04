@@ -11,6 +11,10 @@ import { conversationEvents } from '@core/features/conversations/api/node/conver
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import {
+  createWorkspaceRegistry,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import { workspaceHostStorage } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { AutomationAdoptionError } from '@core/primitives/automations/api';
@@ -22,7 +26,6 @@ import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
   conversations,
   tasks,
-  workspaces,
   type ConversationRow,
   type TaskRow,
 } from '@core/services/app-db/node/schema';
@@ -171,6 +174,7 @@ async function adoptRunOnce(
     let taskRow!: TaskRow;
     let conversationRow: ConversationRow | undefined;
     let created = false;
+    const registry = createWorkspaceRegistry(dependencies.db);
     dependencies.db.transaction((tx) => {
       const concurrentTask = tx
         .select()
@@ -185,22 +189,22 @@ async function adoptRunOnce(
 
       const storedWorkspaceConfig = storedWorkspaceConfigForRun(runtimeRun.data, workspaceId);
       if (workspaceRow) {
-        tx.update(workspaces)
-          .set({
+        registry.annotate(
+          workspaceId,
+          {
             type: workspaceStorage.type,
             location: workspaceStorage.location,
             sshConnectionId: workspaceStorage.sshConnectionId,
             parentId,
             path: workspacePath,
             config: storedWorkspaceConfig,
-            untrackedAt: null,
-            updatedAt: sql`CURRENT_TIMESTAMP`,
-          })
-          .where(eq(workspaces.id, workspaceId))
-          .run();
+          },
+          tx
+        );
+        registry.resurrect(workspaceId, tx);
       } else {
-        tx.insert(workspaces)
-          .values({
+        registry.register(
+          {
             id: workspaceId,
             key: workspaceKey,
             type: workspaceStorage.type,
@@ -210,8 +214,9 @@ async function adoptRunOnce(
             parentId,
             path: workspacePath,
             config: storedWorkspaceConfig,
-          })
-          .run();
+          },
+          tx
+        );
       }
 
       [taskRow] = tx

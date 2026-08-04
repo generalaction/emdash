@@ -1,11 +1,15 @@
 import { and, eq, isNull, type SQL } from 'drizzle-orm';
 import {
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
+import {
   WorkspaceIdentityService,
   type WorkspaceIdentityRow,
   type WorkspaceIdentitySource,
 } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 
 export function createWorkspaceIdentityService(options: { db: AppDb }): WorkspaceIdentityService {
   const source: WorkspaceIdentitySource = {
@@ -41,7 +45,7 @@ async function loadWorkspaceRows(db: AppDb, predicate: SQL): Promise<WorkspaceId
       path: workspaces.path,
     })
     .from(workspaces)
-    .where(and(predicate, isNull(workspaces.untrackedAt)));
+    .where(and(predicate, liveWorkspaces()));
 
   const resolved = await Promise.all(
     rows.map(async (row): Promise<WorkspaceIdentityRow | null> => {

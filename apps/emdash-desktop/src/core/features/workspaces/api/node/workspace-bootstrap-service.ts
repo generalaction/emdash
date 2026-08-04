@@ -22,7 +22,7 @@ import {
 } from '@emdash/core/runtimes/workspace/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { ConversationProvider } from '@core/features/conversations/api/node/types';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type {
@@ -45,6 +45,7 @@ import type {
   WorkspaceCloneProvisionResult,
 } from '@core/features/workspaces/api';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import {
   tryAcquireWorkspaceRuntime,
   type WorkspaceRuntimeAccess,
@@ -69,7 +70,7 @@ import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspaceProviderData } from '@core/primitives/workspaces/api';
 import type { WorkspaceType } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
 import type { WorkspaceRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import { provisionBYOITask } from '../../node/byoi/provision-byoi-task';
@@ -341,11 +342,7 @@ export class WorkspaceBootstrapService {
       .limit(1);
     if (!row?.workspaceId) return err({ type: 'missing-workspace' });
 
-    const [wsRow] = await this.db
-      .select()
-      .from(workspaces)
-      .where(and(eq(workspaces.id, row.workspaceId), isNull(workspaces.untrackedAt)))
-      .limit(1);
+    const wsRow = createWorkspaceRegistry(this.db).getLive(row.workspaceId);
     if (!wsRow) return err({ type: 'missing-workspace' });
 
     const project = this.dependencies.projects.getProject(row.projectId);
@@ -372,21 +369,16 @@ export class WorkspaceBootstrapService {
     _branchName?: string
   ): Promise<string> {
     const key = type !== 'byoi' ? computeWorkspaceKey(type, path, connectionId) : null;
+    const registry = createWorkspaceRegistry(this.db);
 
     if (key) {
-      const [existing] = await this.db
-        .select()
-        .from(workspaces)
-        .where(and(eq(workspaces.key, key), isNull(workspaces.untrackedAt)));
+      const existing = registry.findLiveByKey(key);
       if (existing && existing.id !== workspaceId) {
         return existing.id;
       }
     }
 
-    await this.db
-      .update(workspaces)
-      .set({ path, key, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.untrackedAt)));
+    if (registry.getLive(workspaceId)) registry.annotate(workspaceId, { path, key });
     this.dependencies.workspaceIdentity.invalidate(workspaceId);
     return workspaceId;
   }

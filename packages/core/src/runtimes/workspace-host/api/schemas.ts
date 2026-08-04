@@ -54,13 +54,16 @@ export type WorkspaceHostRepositoryObservation = z.infer<
   typeof workspaceHostRepositoryObservationSchema
 >;
 
-export const workspaceHostRepoSnapshotSchema = z.object({
-  repoRoot: hostAbsolutePathSchema,
-  scannedAt: z.number().int(),
-  tier: workspaceHostSnapshotTierSchema,
-  repository: workspaceHostRepositoryObservationSchema,
-  worktrees: z.array(workspaceHostWorktreeObservationSchema),
-});
+export const workspaceHostRepoSnapshotSchema = z
+  .object({
+    repoRoot: hostAbsolutePathSchema,
+    scannedAt: z.number().int(),
+    tier: workspaceHostSnapshotTierSchema,
+    repository: workspaceHostRepositoryObservationSchema,
+    worktrees: z.array(workspaceHostWorktreeObservationSchema),
+  })
+  .brand<'successful-repo-snapshot'>();
+export type WorkspaceHostRepoSnapshotInput = z.input<typeof workspaceHostRepoSnapshotSchema>;
 export type WorkspaceHostRepoSnapshot = z.infer<typeof workspaceHostRepoSnapshotSchema>;
 
 export const workspaceHostErrorSchema = z.object({

@@ -5,10 +5,11 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
+import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import { WorkspaceBootstrapService } from '@core/features/workspaces/api/node/workspace-bootstrap-service';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { Task } from '@core/primitives/tasks/api';
-import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 
 const mocks = vi.hoisted(() => ({
   acquireWorkspace: vi.fn(),

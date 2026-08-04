@@ -7,12 +7,16 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { tasksWireContract } from '@core/features/tasks/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { enqueueDeleteTask } from '@core/features/tasks/node/operations/delete-task-definition';
+import {
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { TaskListData, TaskStatsData } from '@core/primitives/tasks/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes, matchProject } from '@core/services/app-db/node/pokes';
-import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import { createTaskOperations } from './controller';
 
@@ -193,7 +197,7 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       linesDeleted: workspaces.linesDeleted,
     })
     .from(workspaces)
-    .where(and(inArray(workspaces.id, workspaceIds), isNull(workspaces.untrackedAt)));
+    .where(and(inArray(workspaces.id, workspaceIds), liveWorkspaces()));
   return {
     byWorkspaceId: Object.fromEntries(
       rows.flatMap((row) =>

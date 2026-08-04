@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull } from 'drizzle-orm';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects, workspaces } from '@core/services/app-db/node/schema';
+import { projects } from '@core/services/app-db/node/schema';
 
 /**
  * Ensures the project has a `project-root` workspace row and sets
@@ -35,6 +36,7 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
   const sshConnectionId = project.type === 'ssh' ? project.connectionId : null;
   const legacyType = project.type === 'ssh' ? 'project-ssh' : 'local';
   const key = computeWorkspaceKey(legacyType, project.path, sshConnectionId ?? undefined);
+  const registry = createWorkspaceRegistry(db);
 
   const resolvedId = db.transaction((tx) => {
     // Re-check inside the transaction to avoid races.
@@ -49,18 +51,13 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
 
     // Check if a workspace with this key already exists (orphan from a previous
     // partial failure or concurrent insert).
-    const [existingWs] = tx
-      .select({ id: workspaces.id })
-      .from(workspaces)
-      .where(and(eq(workspaces.key, key), isNull(workspaces.untrackedAt)))
-      .limit(1)
-      .all();
+    const existingWs = registry.findLiveByKey(key, tx);
 
     const resolvedId = existingWs?.id ?? workspaceId;
 
     if (!existingWs) {
-      tx.insert(workspaces)
-        .values({
+      registry.register(
+        {
           id: workspaceId,
           kind: 'project-root',
           location,
@@ -68,8 +65,9 @@ export function ensureRepositoryWorkspace(db: AppDb, project: LocalProject | Ssh
           type: legacyType,
           path: project.path,
           key,
-        })
-        .run();
+        },
+        tx
+      );
     }
 
     tx.update(projects)

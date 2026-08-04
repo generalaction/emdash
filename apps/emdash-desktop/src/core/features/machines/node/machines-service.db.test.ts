@@ -2,8 +2,9 @@ import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MachinesService } from '@core/features/machines/api/node/machines-service';
+import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, sshConnections, workspaces } from '@core/services/app-db/node/schema';
+import { projects, sshConnections } from '@core/services/app-db/node/schema';
 
 async function insertSshConnection(db: AppDb): Promise<void> {
   await db.insert(sshConnections).values({

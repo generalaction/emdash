@@ -1,5 +1,9 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { ProjectProvider } from '@core/features/projects/api/node/project-provider';
+import {
+  liveWorkspaces,
+  workspaceRegistryTable as workspacesTable,
+} from '@core/features/workspaces/api/node/registry';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type {
@@ -9,11 +13,7 @@ import type {
 } from '@core/primitives/project-settings/api';
 import type { WorkspaceConfig, WorkspaceKind } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import {
-  projects as projectsTable,
-  tasks as tasksTable,
-  workspaces as workspacesTable,
-} from '@core/services/app-db/node/schema';
+import { projects as projectsTable, tasks as tasksTable } from '@core/services/app-db/node/schema';
 import { filesClientScope, type FilesClientScope } from '@core/services/runtime-broker/node/files';
 
 export type ProjectSettingsResolvedTarget = ProjectSettingsWriteTargetOption & {
@@ -121,7 +121,7 @@ export async function resolveAllProjectSettingsTargets(
     .from(tasksTable)
     .leftJoin(
       workspacesTable,
-      and(eq(tasksTable.workspaceId, workspacesTable.id), isNull(workspacesTable.untrackedAt))
+      and(eq(tasksTable.workspaceId, workspacesTable.id), liveWorkspaces())
     )
     .where(and(eq(tasksTable.projectId, project.projectId), isNull(tasksTable.deletedAt)));
 

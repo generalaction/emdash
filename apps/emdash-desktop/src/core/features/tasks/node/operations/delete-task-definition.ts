@@ -20,11 +20,15 @@ import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import { enqueueDeleteWorkspace } from '@core/features/workspaces/api/node/operations/workspace-removal';
+import {
+  createWorkspaceRegistry,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 import type {
   LifecycleOperationParams,
   OperationDefinition,
@@ -199,13 +203,9 @@ export async function enqueueDeleteTask(operations: OperationsEngineLike, input:
     return err({ type: 'task-not-found', message: `Task ${input.taskId} was not found` });
   }
   const projectId = task.projectId;
-  const [workspace] = task.workspaceId
-    ? await operations.db
-        .select()
-        .from(workspaces)
-        .where(eq(workspaces.id, task.workspaceId))
-        .limit(1)
-    : [];
+  const workspace = task.workspaceId
+    ? createWorkspaceRegistry(operations.db).getLive(task.workspaceId)
+    : undefined;
   const [project] = await operations.db
     .select()
     .from(projects)

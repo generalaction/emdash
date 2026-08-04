@@ -28,11 +28,16 @@ import {
 } from '@core/features/workspaces/api/node/host-outbox-operations';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import { compileRemoveWorktreePrediction } from '@core/features/workspaces/api/node/operations/compile-host-outbox-prediction';
+import {
+  createWorkspaceRegistry,
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import { projectKernelResource } from '@core/primitives/operations/api/resources';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 import type {
   OperationDefinition,
   OperationReconcileContext,
@@ -202,6 +207,7 @@ export function createDeleteProjectOperationDefinition(
     hostRef: (input) => input.hostRef,
     confirmedInput: (input, confirmedAt) => confirmInput(input, confirmedAt),
     purge: async ({ input, db }) => {
+      const registry = createWorkspaceRegistry(db);
       await purgeProjectLocalState(
         input.projectId,
         db,
@@ -226,7 +232,7 @@ export function createDeleteProjectOperationDefinition(
             }
             tx.delete(projects).where(eq(projects.id, input.projectId)).run();
             if (workspaceIds.length > 0) {
-              tx.delete(workspaces).where(inArray(workspaces.id, workspaceIds)).run();
+              registry.purge(workspaceIds, tx);
             }
           });
         },
@@ -247,6 +253,9 @@ export async function enqueueDeleteProject(operations: OperationsEngineLike, pro
     return err({ type: 'project-not-found', message: `Project ${projectId} was not found` });
   }
   const createdAt = Date.now();
+  const registry = createWorkspaceRegistry(operations.db, {
+    now: () => new Date(createdAt).toISOString(),
+  });
   const registryRows = await loadProjectRegistryRows(operations.db, project);
   const registryIds = registryRows.map((row) => row.id);
   const input: DeleteProjectOperationInput = {
@@ -265,20 +274,14 @@ export async function enqueueDeleteProject(operations: OperationsEngineLike, pro
         .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
         .run().changes;
       if (changes > 0 && registryIds.length > 0) {
-        tx.update(workspaces)
-          .set({ untrackedAt: new Date(createdAt).toISOString() })
-          .where(and(inArray(workspaces.id, registryIds), isNull(workspaces.untrackedAt)))
-          .run();
+        registry.untrack(registryIds, new Date(createdAt).toISOString(), undefined, tx);
       }
       return changes;
     },
     revertTombstone: (tx) => {
       tx.update(projects).set({ deletedAt: null }).where(eq(projects.id, projectId)).run();
       if (registryIds.length > 0) {
-        tx.update(workspaces)
-          .set({ untrackedAt: null })
-          .where(inArray(workspaces.id, registryIds))
-          .run();
+        registry.revertUntrack(registryIds, tx);
       }
     },
   });
@@ -328,7 +331,7 @@ async function loadProjectRegistryRows(
       lastObservedAt: workspaces.lastObservedAt,
     })
     .from(workspaces)
-    .where(and(inArray(workspaces.id, [...candidateIds]), isNull(workspaces.untrackedAt)));
+    .where(and(inArray(workspaces.id, [...candidateIds]), liveWorkspaces()));
 }
 
 /**

@@ -4,9 +4,13 @@ import {
   mapAutomationRunRowToMeta,
   mapTaskRowToTask,
 } from '@core/features/tasks/api/node/utils/utils';
+import {
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import { type Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { conversations, tasks } from '@core/services/app-db/node/schema';
 
 export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
   const rows = projectId
@@ -49,7 +53,7 @@ export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
           observedData: workspaces.observedData,
         })
         .from(workspaces)
-        .where(and(inArray(workspaces.id, wsIds), isNull(workspaces.untrackedAt)))
+        .where(and(inArray(workspaces.id, wsIds), liveWorkspaces()))
     : [];
   const wsByWsId = new Map(wsRows.map((r) => [r.id, r]));
   const runProjections = await getRunProjectionsByRunIds(db, runIds);

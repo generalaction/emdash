@@ -51,6 +51,29 @@
   },
   "overrides": [
     {
+      "files": ["src/core/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@core/services/app-db/node/schema",
+                "importNames": ["workspaces"],
+                "message": "The Workspace Registry is the sole writer. Import workspaceRegistryTable/liveWorkspaces from @core/features/workspaces/api/node/registry."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/core/features/workspaces/api/node/registry/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
       "files": ["src/**/*.{ts,tsx}"],
       "rules": {
         "typescript/no-floating-promises": "warn",

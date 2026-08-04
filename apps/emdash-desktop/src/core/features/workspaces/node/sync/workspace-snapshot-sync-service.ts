@@ -10,8 +10,13 @@ import type { WorkspaceHostSnapshotTier } from '@emdash/core/runtimes/workspace-
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import { and, eq, isNull } from 'drizzle-orm';
+import {
+  createWorkspaceRegistry,
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, workspaces, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { projects, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import { applyRepoSnapshot } from './apply-repo-snapshot';
 
 type SyncTier = WorkspaceHostSnapshotTier;
@@ -72,7 +77,7 @@ export class WorkspaceSnapshotSyncService {
         and(
           isNull(workspaces.parentId),
           eq(workspaces.path, repoPath),
-          isNull(workspaces.untrackedAt),
+          liveWorkspaces(),
           isLocalHostRef(host)
             ? isNull(workspaces.sshConnectionId)
             : eq(workspaces.sshConnectionId, connectionId!)
@@ -91,7 +96,7 @@ export class WorkspaceSnapshotSyncService {
         and(
           eq(workspaces.location, 'remote'),
           eq(workspaces.sshConnectionId, connectionId),
-          isNull(workspaces.untrackedAt)
+          liveWorkspaces()
         )
       );
     for (const row of rows) {
@@ -103,7 +108,7 @@ export class WorkspaceSnapshotSyncService {
     const rows = await this.options.db
       .select({ id: workspaces.id })
       .from(workspaces)
-      .where(and(isNull(workspaces.parentId), isNull(workspaces.untrackedAt)));
+      .where(and(isNull(workspaces.parentId), liveWorkspaces()));
     for (const row of rows) {
       this.requestSync(row.id, tier);
     }
@@ -164,9 +169,7 @@ export class WorkspaceSnapshotSyncService {
   }
 
   private async loadRepository(repositoryWorkspaceId: string): Promise<WorkspaceRow | undefined> {
-    return await this.options.db.query.workspaces.findFirst({
-      where: and(eq(workspaces.id, repositoryWorkspaceId), isNull(workspaces.untrackedAt)),
-    });
+    return createWorkspaceRegistry(this.options.db).getLive(repositoryWorkspaceId);
   }
 }
 

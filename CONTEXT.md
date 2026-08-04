@@ -57,6 +57,12 @@ _Avoid_: Intent (nothing on the desktop expresses ongoing intent about host stat
 **Adoption**:
 Registering a Workspace that exists on a host but was not created by emdash. Automatic and unconfirmed for worktrees of a tracked Repository; repositories themselves are only ever tracked by explicit user action.
 
+**Register**:
+Creating a Registry entry for a Workspace emdash itself created, carrying its Provenance. Distinct from Adoption, which records artifacts emdash did not create and carries none.
+
+**Purge**:
+Hard-deleting already-untracked Registry rows as retention cleanup. Never valid on tracked rows — untracking is the only way a tracked row leaves the Registry.
+
 **Missing**:
 A registered Workspace that a reachable host reports as gone. Rows with any desktop annotation (task link, provenance) stay visible until the user untracks them; never-annotated adopted rows are silently untracked — pure mirror entries follow the mirror.
 

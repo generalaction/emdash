@@ -4,14 +4,9 @@ import { ok } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import { computeWorkspaceKey } from '@core/features/workspaces/api/node/workspace-key';
-import {
-  automations,
-  projects,
-  sshConnections,
-  tasks,
-  workspaces,
-} from '@core/services/app-db/node/schema';
+import { automations, projects, sshConnections, tasks } from '@core/services/app-db/node/schema';
 import { adoptRun } from './run-adoption';
 
 const remoteHost = hostRef('remote', 'ssh-1');

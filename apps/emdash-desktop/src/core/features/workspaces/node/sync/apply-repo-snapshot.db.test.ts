@@ -1,9 +1,13 @@
 import { parseAbsolute } from '@emdash/core/primitives/path/api';
-import type { WorkspaceHostRepoSnapshot } from '@emdash/core/runtimes/workspace-host/api';
+import {
+  workspaceHostRepoSnapshotSchema,
+  type WorkspaceHostRepoSnapshot,
+} from '@emdash/core/runtimes/workspace-host/api';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
+import { tasks } from '@core/services/app-db/node/schema';
 import { applyRepoSnapshot } from './apply-repo-snapshot';
 
 describe('applyRepoSnapshot', () => {
@@ -31,7 +35,7 @@ describe('applyRepoSnapshot', () => {
   });
 
   it('adopts observed worktrees and refreshes observed facts', async () => {
-    await applyRepoSnapshot({
+    const report = await applyRepoSnapshot({
       db: fixture.db,
       projectId: 'project-1',
       repository: { id: 'repo-ws', path: '/repo', location: 'local', sshConnectionId: null },
@@ -50,6 +54,13 @@ describe('applyRepoSnapshot', () => {
       observedGitBranch: 'task-a',
     });
     expect(row?.observedData?.adminName).toBe('admin-task-a');
+    expect(report).toEqual({
+      adopted: 1,
+      refreshed: 0,
+      relinked: 0,
+      markedMissing: 0,
+      untracked: 0,
+    });
   });
 
   it('keeps annotated missing rows visible and silently untracks pure mirrors', async () => {
@@ -98,7 +109,7 @@ describe('applyRepoSnapshot', () => {
 });
 
 function snapshot(paths: string[]): WorkspaceHostRepoSnapshot {
-  return {
+  return workspaceHostRepoSnapshotSchema.parse({
     repoRoot: hostPath('/repo'),
     scannedAt: Date.parse('2026-01-01T00:00:00.000Z'),
     tier: 'full',
@@ -113,7 +124,7 @@ function snapshot(paths: string[]): WorkspaceHostRepoSnapshot {
       dirty: true,
       diffStats: { added: 2, deleted: 1 },
     })),
-  };
+  });
 }
 
 function hostPath(value: string) {

@@ -48,6 +48,7 @@ export {
   type WorkspaceHostOperationView,
   type WorkspaceHostOperationsList,
   type WorkspaceHostRepoSnapshot,
+  type WorkspaceHostRepoSnapshotInput,
   type WorkspaceHostRepositoryObservation,
   type WorkspaceHostSnapshotRequest,
   type WorkspaceHostSnapshotTier,

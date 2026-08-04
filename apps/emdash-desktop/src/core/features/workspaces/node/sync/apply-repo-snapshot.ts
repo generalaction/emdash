@@ -1,14 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { formatAbsolute } from '@emdash/core/primitives/path/api';
 import type { WorkspaceHostRepoSnapshot } from '@emdash/core/runtimes/workspace-host/api';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
+import {
+  createWorkspaceRegistry,
+  isAnnotatedWorkspace,
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+  type WorkspaceRegistry,
+} from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceObservedData } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
   projects,
   tasks,
-  workspaces,
   type WorkspaceInsert,
   type WorkspaceRow,
 } from '@core/services/app-db/node/schema';
@@ -41,17 +47,20 @@ type ActiveWorkspaceRow = WorkspaceRow & {
 export async function applyRepoSnapshot(
   input: ApplyRepoSnapshotInput
 ): Promise<ApplyRepoSnapshotResult> {
-  const result = input.db.transaction((tx) => applyRepoSnapshotTx(tx, input));
+  const now = new Date().toISOString();
+  const registry = createWorkspaceRegistry(input.db, { now: () => now });
+  const result = input.db.transaction((tx) => applyRepoSnapshotTx(tx, input, registry, now));
   appDbPokes.workspaces.poke({ projectId: input.projectId });
   return result;
 }
 
 function applyRepoSnapshotTx(
   tx: DrizzleTx,
-  input: ApplyRepoSnapshotInput
+  input: ApplyRepoSnapshotInput,
+  registry: WorkspaceRegistry,
+  now: string
 ): ApplyRepoSnapshotResult {
   const observedAt = new Date(input.snapshot.scannedAt).toISOString();
-  const now = new Date().toISOString();
   const activeRows = loadActiveRows(tx, input.repository.id);
   const annotations = loadAnnotations(
     tx,
@@ -79,17 +88,17 @@ function applyRepoSnapshotTx(
     untracked: 0,
   };
 
-  tx.update(workspaces)
-    .set({
+  registry.refresh(
+    input.repository.id,
+    {
       observedStatus: input.snapshot.repository.status,
       observedData: input.snapshot.repository.corruptionReason
         ? { version: '1', corruptionReason: input.snapshot.repository.corruptionReason }
         : { version: '1' },
       lastObservedAt: observedAt,
-      updatedAt: now,
-    })
-    .where(eq(workspaces.id, input.repository.id))
-    .run();
+    },
+    tx
+  );
 
   for (const observation of input.snapshot.worktrees) {
     const path = formatAbsolute(observation.path);
@@ -98,7 +107,7 @@ function applyRepoSnapshotTx(
     if (!row && observation.adminName) {
       row = byAdminName.get(observation.adminName);
       if (row && row.path !== path) {
-        tx.update(workspaces).set({ path, updatedAt: now }).where(eq(workspaces.id, row.id)).run();
+        registry.refresh(row.id, { path, lastObservedAt: observedAt }, tx);
         row = { ...row, path };
         byPath.set(path, row);
         counts.relinked += 1;
@@ -106,7 +115,15 @@ function applyRepoSnapshotTx(
     }
 
     if (!row) {
-      const inserted = adoptWorktree(tx, input.repository, path, observation, observedAt, now);
+      const inserted = adoptWorktree(
+        registry,
+        tx,
+        input.repository,
+        path,
+        observation,
+        observedAt,
+        now
+      );
       rows.push(inserted);
       byPath.set(path, inserted);
       if (observation.adminName) byAdminName.set(observation.adminName, inserted);
@@ -116,16 +133,16 @@ function applyRepoSnapshotTx(
     }
 
     matched.add(row.id);
-    tx.update(workspaces)
-      .set({
+    registry.refresh(
+      row.id,
+      {
         observedStatus: observation.status,
         observedGitBranch: observation.branch,
         observedData,
         lastObservedAt: observedAt,
-        updatedAt: now,
-      })
-      .where(eq(workspaces.id, row.id))
-      .run();
+      },
+      tx
+    );
     counts.refreshed += 1;
   }
 
@@ -133,26 +150,23 @@ function applyRepoSnapshotTx(
     if (matched.has(row.id)) continue;
     if (row.id === input.repository.id) continue;
 
-    if (isAnnotated(row)) {
-      tx.update(workspaces)
-        .set({
+    if (isAnnotatedWorkspace(row)) {
+      registry.refresh(
+        row.id,
+        {
           observedStatus: 'missing',
           lastObservedAt: observedAt,
-          updatedAt: now,
-        })
-        .where(eq(workspaces.id, row.id))
-        .run();
+        },
+        tx
+      );
       counts.markedMissing += 1;
     } else {
-      tx.update(workspaces)
-        .set({
-          untrackedAt: now,
-          observedStatus: 'missing',
-          lastObservedAt: observedAt,
-          updatedAt: now,
-        })
-        .where(eq(workspaces.id, row.id))
-        .run();
+      registry.untrack(
+        [row.id],
+        now,
+        { observedStatus: 'missing', lastObservedAt: observedAt },
+        tx
+      );
       counts.untracked += 1;
     }
   }
@@ -166,7 +180,7 @@ function loadActiveRows(tx: DrizzleTx, repositoryWorkspaceId: string): Workspace
     .from(workspaces)
     .where(
       and(
-        isNull(workspaces.untrackedAt),
+        liveWorkspaces(),
         or(eq(workspaces.id, repositoryWorkspaceId), eq(workspaces.parentId, repositoryWorkspaceId))
       )
     )
@@ -201,6 +215,7 @@ function loadAnnotations(tx: DrizzleTx, workspaceIds: string[]) {
 }
 
 function adoptWorktree(
+  registry: WorkspaceRegistry,
   tx: DrizzleTx,
   repository: RepositoryWorkspaceRow,
   path: string,
@@ -226,13 +241,8 @@ function adoptWorktree(
     updatedAt: now,
     untrackedAt: null,
   };
-  tx.insert(workspaces).values(values).run();
   return {
-    ...(values as WorkspaceRow),
-    key: null,
-    data: null,
-    linesAdded: null,
-    linesDeleted: null,
+    ...registry.adopt(values, tx),
     hasTaskLink: false,
     isProjectRepository: false,
   };
@@ -250,8 +260,4 @@ function observedDataFor(
     ...(observation.behind !== undefined ? { behind: observation.behind } : {}),
     ...(observation.corruptionReason ? { corruptionReason: observation.corruptionReason } : {}),
   };
-}
-
-function isAnnotated(row: ActiveWorkspaceRow): boolean {
-  return row.config !== null || row.hasTaskLink === true || row.isProjectRepository === true;
 }

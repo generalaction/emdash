@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import type {
   WorkspaceBootstrapService,
   WorkspaceBootstrapResult,
@@ -24,7 +25,7 @@ import type {
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import { archiveTask } from '../../node/operations/archiveTask';
 import { createTask } from '../../node/operations/createTask';
@@ -168,13 +169,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     // BYOI: persist the provider data (remote workspace ID, connection details) returned by
     // the provision script so it can be reused on the next session.
     if (data.workspaceProviderData) {
-      await this.dependencies.db
-        .update(workspaces)
-        .set({
-          data: data.workspaceProviderData,
-          updatedAt: sql`CURRENT_TIMESTAMP`,
-        })
-        .where(eq(workspaces.id, data.workspaceId));
+      createWorkspaceRegistry(this.dependencies.db).annotate(data.workspaceId, {
+        data: data.workspaceProviderData,
+      });
       appDbPokes.workspaces.poke({
         projectId: task.projectId,
         taskId,

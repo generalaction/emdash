@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { formatHostRef, hostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull, ne } from 'drizzle-orm';
+import {
+  createWorkspaceRegistry,
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   projects,
   sshConnections as sshConnectionsTable,
-  workspaces,
   type SshConnectionInsert,
 } from '@core/services/app-db/node/schema';
 import {
@@ -217,10 +221,13 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
           error: String(error),
         });
       });
-    await this.deps.db
-      .update(workspaces)
-      .set({ untrackedAt: new Date(this.now()).toISOString() })
-      .where(and(eq(workspaces.sshConnectionId, id), isNull(workspaces.untrackedAt)));
+    const registryIds = this.deps.db
+      .select({ id: workspaces.id })
+      .from(workspaces)
+      .where(and(eq(workspaces.sshConnectionId, id), liveWorkspaces()))
+      .all()
+      .map(({ id: workspaceId }) => workspaceId);
+    createWorkspaceRegistry(this.deps.db).untrack(registryIds, new Date(this.now()).toISOString());
 
     await this.deps.ssh.dropConnection(id).catch((error: unknown) => {
       this.deps.log.warn('MachinesService.deleteMachine: error disconnecting', {

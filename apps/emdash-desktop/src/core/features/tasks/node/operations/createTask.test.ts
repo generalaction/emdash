@@ -57,7 +57,10 @@ function setupTransactionMock() {
         values: (vals: unknown) => {
           captured.push(vals);
           return {
-            returning: () => ({ all: () => [makeTaskRow(vals as Partial<TaskRow>)] }),
+            returning: () => ({
+              all: () => [makeTaskRow(vals as Partial<TaskRow>)],
+              get: () => vals,
+            }),
             run: () => {},
           };
         },

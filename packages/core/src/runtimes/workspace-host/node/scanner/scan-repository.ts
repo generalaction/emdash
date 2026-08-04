@@ -10,6 +10,7 @@ import type {
   WorkspaceHostSnapshotRequest,
   WorkspaceHostWorktreeObservation,
 } from '../../api';
+import { workspaceHostRepoSnapshotSchema } from '../../api';
 import { createWorkspaceHostGitExec, parseWorkspaceHostWorktreeList } from '../git';
 
 export interface ScanRepositoryOptions {
@@ -70,17 +71,19 @@ export async function scanRepository(
             corruptionReason: worktree.prunableReason,
           }));
 
-    return ok({
-      repoRoot: request.repoRoot,
-      scannedAt: now(),
-      tier: request.tier,
-      repository: {
-        path: request.repoRoot,
-        status: 'present',
-        defaultBranch: await readDefaultBranch(exec),
-      },
-      worktrees: observations,
-    });
+    return ok(
+      workspaceHostRepoSnapshotSchema.parse({
+        repoRoot: request.repoRoot,
+        scannedAt: now(),
+        tier: request.tier,
+        repository: {
+          path: request.repoRoot,
+          status: 'present',
+          defaultBranch: await readDefaultBranch(exec),
+        },
+        worktrees: observations,
+      })
+    );
   } catch (error) {
     return err(errorToWorkspaceHostError(error));
   }

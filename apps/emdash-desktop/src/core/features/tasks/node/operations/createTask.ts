@@ -7,6 +7,10 @@ import { conversationWireEvents } from '@core/features/conversations/api/node';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
+import {
+  createWorkspaceRegistry,
+  type WorkspaceRegistry,
+} from '@core/features/workspaces/api/node/registry';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import {
@@ -22,8 +26,8 @@ import type {
 } from '@core/primitives/tasks/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
-import type { ConversationRow, TaskRow } from '@core/services/app-db/node/schema';
+import { conversations, projects, tasks } from '@core/services/app-db/node/schema';
+import type { ConversationRow, TaskRow, WorkspaceInsert } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 
 type ConvInsert = typeof conversations.$inferInsert;
@@ -32,7 +36,7 @@ export interface PreparedCreateTask {
   params: CreateTaskParams;
   initialStatus: TaskLifecycleStatus;
   workspaceId: string;
-  newWorkspaceValues: typeof workspaces.$inferInsert | null;
+  newWorkspaceValues: WorkspaceInsert | null;
   convInsert: ConvInsert | undefined;
 }
 
@@ -55,7 +59,7 @@ export async function prepareCreateTask(
   const initialStatus: TaskLifecycleStatus = params.taskConfig.initialStatus ?? 'in_progress';
 
   let workspaceId: string;
-  let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
+  let newWorkspaceValues: WorkspaceInsert | null = null;
 
   const wsTarget = workspaceConfig.workspace;
   const branchName =
@@ -187,7 +191,8 @@ export async function prepareCreateTask(
  */
 export function commitCreateTask(
   prepared: PreparedCreateTask,
-  tx: DrizzleTx
+  tx: DrizzleTx,
+  registry: WorkspaceRegistry
 ): { taskRow: TaskRow; convRow: ConversationRow | undefined } {
   const { params, initialStatus, workspaceId, newWorkspaceValues, convInsert } = prepared;
 
@@ -209,7 +214,7 @@ export function commitCreateTask(
     .all();
 
   if (newWorkspaceValues) {
-    tx.insert(workspaces).values(newWorkspaceValues).run();
+    registry.register(newWorkspaceValues, tx);
   }
 
   let convRow: ConversationRow | undefined;
@@ -259,8 +264,9 @@ export async function createTask(
 
   let taskRow!: TaskRow;
   let convRow: ConversationRow | undefined;
+  const registry = createWorkspaceRegistry(db);
   db.transaction((tx) => {
-    ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
+    ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry));
   });
 
   return ok(finalizeCreateTask(prepared.data, taskRow, convRow));

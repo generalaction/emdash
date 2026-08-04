@@ -1,10 +1,11 @@
 import { log } from '@emdash/shared/logger';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { tasks, workspaces } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
 import { checkoutSelector } from '@core/services/runtime-broker/node/git';
 
 async function getTaskPreflight(
@@ -27,11 +28,7 @@ async function getTaskPreflight(
     .limit(1);
   if (!task?.workspaceId) return noWorktreeResult;
 
-  const [ws] = await db
-    .select()
-    .from(workspaces)
-    .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.untrackedAt)))
-    .limit(1);
+  const ws = createWorkspaceRegistry(db).getLive(task.workspaceId);
   if (!ws) return noWorktreeResult;
 
   const provisionedBranch = getProvisionedWorkspaceBranch(ws);

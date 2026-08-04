@@ -19,6 +19,10 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
+import {
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import type { WorkspaceRuntimeAccess } from '@core/features/workspaces/api/node/runtime-access';
 import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import type { Conversation } from '@core/primitives/conversations/api';
@@ -31,7 +35,7 @@ import type {
 } from '@core/primitives/search/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations, projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { conversations, projects, tasks } from '@core/services/app-db/node/schema';
 import { contentSearchRuntimeContract, type searchContract } from '../api';
 
 type FtsRow = {
@@ -306,7 +310,7 @@ export class SearchService {
       const [ws] = await this.deps.db
         .select({ branchName: workspaces.branchName })
         .from(workspaces)
-        .where(and(eq(workspaces.id, task.workspaceId), isNull(workspaces.untrackedAt)))
+        .where(and(eq(workspaces.id, task.workspaceId), liveWorkspaces()))
         .limit(1);
       branchName = ws?.branchName ?? undefined;
     }
@@ -435,10 +439,7 @@ export class SearchService {
           branchName: workspaces.branchName,
         })
         .from(tasks)
-        .leftJoin(
-          workspaces,
-          and(eq(tasks.workspaceId, workspaces.id), isNull(workspaces.untrackedAt))
-        )
+        .leftJoin(workspaces, and(eq(tasks.workspaceId, workspaces.id), liveWorkspaces()))
         .where(isNull(tasks.deletedAt))
         .all();
       const allProjects = this.deps.db

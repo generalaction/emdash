@@ -1,12 +1,17 @@
 import { sshConnectionIdOf } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { and, eq, isNull } from 'drizzle-orm';
+import {
+  createWorkspaceRegistry,
+  liveWorkspaces,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
 import { resolveWorkspaceKind } from '@core/features/workspaces/api/node/resolve-workspace-kind';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, tasks, workspaces } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 
 /**
  * Returns all workspaces for a project:
@@ -56,7 +61,7 @@ export async function getProjectWorkspaces(
         eq(tasks.projectId, projectId),
         isNull(tasks.archivedAt),
         isNull(tasks.deletedAt),
-        isNull(workspaces.untrackedAt)
+        liveWorkspaces()
       )
     );
 
@@ -64,12 +69,7 @@ export async function getProjectWorkspaces(
   //    even when no task points to it yet.
   let repoWsRow: typeof workspaces.$inferSelect | undefined;
   if (repositoryWorkspaceId) {
-    const [row] = await db
-      .select()
-      .from(workspaces)
-      .where(and(eq(workspaces.id, repositoryWorkspaceId), isNull(workspaces.untrackedAt)))
-      .limit(1);
-    repoWsRow = row;
+    repoWsRow = createWorkspaceRegistry(db).getLive(repositoryWorkspaceId);
   }
 
   // 4. Count how many non-archived tasks link to each workspace.
