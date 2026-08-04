@@ -209,6 +209,19 @@ describe('LoopBrowserHost', () => {
 
     act(() => dispatch(loopBrowserRequestChannel.name, request));
     expect(container.querySelector('[data-testid="loop-webview-host"]')).toBeNull();
+
+    const replacement = {
+      ...request,
+      browserId: 'browser-2',
+      partition: `${LOOP_BROWSER_DISPOSABLE_PARTITION_PREFIX}run-1-replacement`,
+    };
+    act(() => dispatch(loopBrowserRequestChannel.name, replacement));
+
+    expect(latestHostProps).toMatchObject({
+      browserId: replacement.browserId,
+      partition: replacement.partition,
+      src: replacement.previewUrl,
+    });
   });
 
   it('finishes an origin-rotation teardown before mounting the replacement lease', async () => {

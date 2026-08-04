@@ -20,14 +20,14 @@ type HostEntry = { request: LoopBrowserRequestMessage };
 export function LoopBrowserHost() {
   const [entries, setEntries] = useState<Map<string, HostEntry>>(() => new Map());
   const pendingClose = useRef(new Map<string, LoopBrowserCloseMessage>());
-  const retiredRunIds = useRef(new Set<string>());
+  const retiredLeases = useRef(new Set<string>());
 
   useEffect(() => {
     const offRequest = events.on(loopBrowserRequestChannel, (message) => {
       const parsed = loopBrowserRequestMessageSchema.safeParse(message);
       if (!parsed.success) return;
       setEntries((current) => {
-        if (retiredRunIds.current.has(parsed.data.verificationRunId)) return current;
+        if (retiredLeases.current.has(lifecycleKey(parsed.data))) return current;
         const existing = current.get(parsed.data.verificationRunId);
         if (existing) return current;
         for (const entry of current.values()) {
@@ -50,10 +50,11 @@ export function LoopBrowserHost() {
       setEntries((current) => {
         const existing = current.get(parsed.data.verificationRunId);
         if (!existing || !sameLease(existing.request, parsed.data)) return current;
-        pendingClose.current.set(parsed.data.verificationRunId, parsed.data);
-        retiredRunIds.current.add(parsed.data.verificationRunId);
-        while (retiredRunIds.current.size > 100) {
-          retiredRunIds.current.delete(retiredRunIds.current.values().next().value!);
+        const key = lifecycleKey(existing.request);
+        pendingClose.current.set(key, parsed.data);
+        retiredLeases.current.add(key);
+        while (retiredLeases.current.size > 100) {
+          retiredLeases.current.delete(retiredLeases.current.values().next().value!);
         }
         const next = new Map(current);
         next.delete(parsed.data.verificationRunId);
@@ -105,9 +106,10 @@ function acknowledgeClose(
   request: LoopBrowserRequestMessage,
   pending: Map<string, LoopBrowserCloseMessage>
 ): void {
-  const close = pending.get(request.verificationRunId);
+  const key = lifecycleKey(request);
+  const close = pending.get(key);
   if (!close || !sameLease(request, close)) return;
-  pending.delete(request.verificationRunId);
+  pending.delete(key);
   events.emit(loopBrowserClosedChannel, {
     type: 'closed',
     verificationRunId: close.verificationRunId,

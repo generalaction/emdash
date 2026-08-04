@@ -1418,6 +1418,11 @@ fresh recreated green run becomes the final success report.
   recovery required terminal Review's older checkpoint to equal the E2E-integrated checkpoint.
   Accept only an exact, unique chain of completed correction attempts from the reviewed checkpoint
   to the current non-terminal E2E checkpoint, then restart attempt twenty without changing Summario.
+- [x] 2026-08-04: Attempt twenty completed its outer authenticated replay, then the independent
+  nested browser verifier timed out because the renderer retired the whole verification run ID
+  when the outer browser lease closed. The browser service intentionally permits a fresh sequential
+  lease for the same run, so retire exact lease identities and reserve attempt twenty-one for the
+  unchanged clean replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
