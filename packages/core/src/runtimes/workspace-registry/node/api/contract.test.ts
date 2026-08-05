@@ -463,7 +463,7 @@ describe('workspace registry contract', () => {
       validate: 'full',
     });
 
-    let records = await listRecords();
+    const records = await listRecords();
     expect(records['ws-interrupted']).toMatchObject({
       lastCreateOutcome: { status: 'started' },
       observedStatus: 'missing',
