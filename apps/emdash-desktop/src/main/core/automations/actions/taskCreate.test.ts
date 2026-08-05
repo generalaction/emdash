@@ -10,10 +10,11 @@ import {
   finalizeCreateTask,
   prepareCreateTask,
 } from '@main/core/tasks/operations/createTask';
+import { getTaskNames } from '@main/core/tasks/operations/getTasks';
 import { taskService } from '@main/core/tasks/task-service';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
-import { updateRun } from '../repo';
+import { countAutomationTasks, setRunGeneratedTaskName, updateRun } from '../repo';
 import type { OnStepCompleted } from '../run-transitions';
 import {
   markRunCreatingConversation,
@@ -58,6 +59,9 @@ vi.mock('@main/core/tasks/operations/createTask', () => ({
   commitCreateTask: vi.fn(),
   finalizeCreateTask: vi.fn(),
 }));
+vi.mock('@main/core/tasks/operations/getTasks', () => ({
+  getTaskNames: vi.fn(() => Promise.resolve([])),
+}));
 vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn() },
 }));
@@ -71,7 +75,11 @@ vi.mock('@main/core/acp/controller', () => ({
 vi.mock('@main/core/issues/controller', () => ({
   issueController: { getIssueContext: vi.fn() },
 }));
-vi.mock('../repo', () => ({ updateRun: vi.fn() }));
+vi.mock('../repo', () => ({
+  updateRun: vi.fn(),
+  countAutomationTasks: vi.fn(() => Promise.resolve(0)),
+  setRunGeneratedTaskName: vi.fn(),
+}));
 vi.mock('../run-transitions', () => ({
   markRunLaunchingTask: vi.fn(),
   markRunCreatingConversation: vi.fn(),
@@ -141,6 +149,8 @@ describe('executeTaskCreate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(generateRandom).mockReturnValue('random-task-name');
+    vi.mocked(getTaskNames).mockResolvedValue([]);
+    vi.mocked(countAutomationTasks).mockResolvedValue(0);
     vi.mocked(appSettingsService.get).mockResolvedValue(null as never);
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(prepareCreateTask).mockResolvedValue({ success: true, data: preparedData });
@@ -277,26 +287,59 @@ describe('executeTaskCreate', () => {
     expect(markRunFailed).not.toHaveBeenCalled();
   });
 
-  it('uses generateRandom for the task name', async () => {
+  it('names the task after the automation with the next task number', async () => {
     await executeTaskCreate(automation, run, noopStep);
 
-    expect(generateRandom).toHaveBeenCalled();
     expect(prepareCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        taskConfig: expect.objectContaining({ name: 'random-task-name' }),
+        taskConfig: expect.objectContaining({ name: 'daily-follow-up-1' }),
+      })
+    );
+    expect(setRunGeneratedTaskName).toHaveBeenCalledWith('run-1', 'daily-follow-up-1');
+  });
+
+  it('uses the run generated task name when present', async () => {
+    await executeTaskCreate(
+      automation,
+      { ...run, generatedTaskName: 'daily-follow-up-3' },
+      noopStep
+    );
+
+    expect(prepareCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskConfig: expect.objectContaining({ name: 'daily-follow-up-3' }),
+        workspaceConfig: expect.objectContaining({
+          git: expect.objectContaining({ branchName: 'daily-follow-up-3' }),
+        }),
       })
     );
   });
 
-  it('uses the random task name as the branch name in the workspace config', async () => {
-    vi.mocked(generateRandom).mockReturnValue('jolly-tiger-runs-fast');
+  it('bumps the task name when it collides with an existing task in the project', async () => {
+    vi.mocked(getTaskNames).mockResolvedValue(['daily-follow-up-3']);
+
+    await executeTaskCreate(
+      automation,
+      { ...run, generatedTaskName: 'daily-follow-up-3' },
+      noopStep
+    );
+
+    expect(prepareCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskConfig: expect.objectContaining({ name: 'daily-follow-up-3-2' }),
+      })
+    );
+  });
+
+  it('uses the task name as the branch name in the workspace config', async () => {
+    vi.mocked(countAutomationTasks).mockResolvedValue(4);
 
     await executeTaskCreate(automation, run, noopStep);
 
     expect(prepareCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceConfig: expect.objectContaining({
-          git: expect.objectContaining({ branchName: 'jolly-tiger-runs-fast' }),
+          git: expect.objectContaining({ branchName: 'daily-follow-up-5' }),
         }),
       })
     );

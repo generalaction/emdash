@@ -9,12 +9,12 @@ import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import {
   commitCreateTask,
   finalizeCreateTask,
   prepareCreateTask,
 } from '@main/core/tasks/operations/createTask';
+import { getTaskNames } from '@main/core/tasks/operations/getTasks';
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
@@ -26,8 +26,11 @@ import {
   buildIssueMentionHiddenContext,
   issueMentionToken,
 } from '@shared/core/issues/issue-context';
+import { ensureUniqueTaskName } from '@shared/core/tasks/task-names';
 import type { CreateTaskParams } from '@shared/core/tasks/tasks';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { countAutomationTasks, setRunGeneratedTaskName } from '../repo';
+import { runTaskNameBase } from '../run-task-name';
 import {
   markRunCreatingConversation,
   markRunFailed,
@@ -116,7 +119,11 @@ export async function executeTaskCreate(
     const taskConfig = automation.taskConfig;
     const taskId = randomUUID();
     const conversationId = randomUUID();
-    const taskName = run.generatedTaskName ?? generateRandom();
+    const taskName = ensureUniqueTaskName(
+      run.generatedTaskName ??
+        `${runTaskNameBase(automation)}-${(await countAutomationTasks(automation.id)) + 1}`,
+      await getTaskNames(projectId)
+    );
 
     const projectResult = await ensureProjectOpen(projectId);
     if (!projectResult.success) {
@@ -217,6 +224,7 @@ export async function executeTaskCreate(
 
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
     taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
+    await setRunGeneratedTaskName(run.id, taskName);
 
     const launching = await markRunLaunchingTask(run.id, Date.now());
     onStepCompleted(launching);

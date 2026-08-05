@@ -4,7 +4,7 @@ import {
   liveTransformTaskName,
   normalizeTaskName,
   taskNameCollisionKey,
-} from './taskNames';
+} from './task-names';
 
 describe('taskNames', () => {
   it('lowercases task names by default when transforming task names', () => {

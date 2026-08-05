@@ -4,6 +4,14 @@ import { conversations, tasks, workspaces } from '@main/db/schema';
 import { type Task } from '@shared/core/tasks/tasks';
 import { mapTaskRowToTask } from '../utils/utils';
 
+export async function getTaskNames(projectId: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: tasks.name })
+    .from(tasks)
+    .where(eq(tasks.projectId, projectId));
+  return rows.map((r) => r.name);
+}
+
 export async function getTasks(projectId?: string): Promise<Task[]> {
   const rows = projectId
     ? await db

@@ -3,7 +3,7 @@ import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@main/db/client';
 import { AutomationScheduler, type SchedulerCallbacks } from './automation-scheduler';
-import { insertRun } from './repo';
+import { countAutomationTasks, insertRun, startCreatingTask } from './repo';
 import { markRunDone } from './run-transitions';
 import type { AutomationRunExecutor } from './runtime';
 
@@ -334,6 +334,64 @@ describe('AutomationScheduler bootstrap self-healing', () => {
     await scheduler.reload();
 
     expect(countRunsByStatus(fixture, 'scheduled', 'automation-1')).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Run task naming
+// ---------------------------------------------------------------------------
+
+describe('AutomationScheduler run task naming', () => {
+  it('leaves scheduled runs unnamed and counts created tasks per automation', async () => {
+    const now = Date.UTC(2026, 4, 15, 12, 0, 0);
+    vi.setSystemTime(now);
+
+    seedProject(fixture);
+    const automationId = seedAutomation(fixture);
+
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
+    await scheduler.reload();
+
+    const row = fixture.sqlite
+      .prepare('SELECT generated_task_name AS name FROM automation_runs WHERE automation_id = ?')
+      .get(automationId) as { name: string | null };
+    expect(row.name).toBeNull();
+    expect(await countAutomationTasks(automationId)).toBe(0);
+
+    const run = await insertRun({
+      automationId,
+      triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
+      status: 'done',
+      triggerKind: 'manual',
+    });
+    seedAutomationTask(fixture, run.id);
+    expect(await countAutomationTasks(automationId)).toBe(1);
+  });
+
+  it('preserves the generated task name when claiming a queued run', async () => {
+    seedProject(fixture);
+    const automationId = seedAutomation(fixture);
+
+    const queued = await insertRun({
+      automationId,
+      triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
+      status: 'queued',
+      triggerKind: 'cron',
+      generatedTaskName: 'daily-follow-up-1',
+    });
+
+    const claimed = await startCreatingTask(queued.id);
+    expect(claimed?.generatedTaskName).toBe('daily-follow-up-1');
   });
 });
 

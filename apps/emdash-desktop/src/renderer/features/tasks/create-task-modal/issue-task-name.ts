@@ -1,5 +1,5 @@
-import { normalizeTaskName } from '@renderer/utils/taskNames';
 import type { LinkedIssue } from '@shared/core/linked-issue';
+import { normalizeTaskName } from '@shared/core/tasks/task-names';
 
 export function getIssueTaskName(
   issue: LinkedIssue | null | undefined,
