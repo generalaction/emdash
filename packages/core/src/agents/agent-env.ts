@@ -65,6 +65,7 @@ export const AGENT_ENV_VARS = [
   'HTTP_PROXY',
   'HTTPS_PROXY',
   'KIMI_API_KEY',
+  'META_API_KEY',
   'MISTRAL_API_KEY',
   'MOONSHOT_API_KEY',
   'NO_PROXY',
