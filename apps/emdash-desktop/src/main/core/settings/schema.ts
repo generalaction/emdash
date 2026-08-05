@@ -41,6 +41,7 @@ export const taskSettingsSchema = z.object({
   deleteBranchByDefault: z.boolean(),
   preserveNameCapitalization: z.boolean(),
   includeIssueContextByDefault: z.boolean(),
+  autoCleanupOnPrMerge: z.enum(['off', 'archive', 'delete']),
 });
 
 export const terminalSettingsSchema = z.object({

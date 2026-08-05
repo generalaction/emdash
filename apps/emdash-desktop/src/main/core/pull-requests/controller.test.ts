@@ -11,6 +11,7 @@ import {
 
 const dbMocks = vi.hoisted(() => ({
   select: vi.fn(),
+  processRepository: vi.fn(),
 }));
 
 vi.mock('@main/core/repository/provider-repository-service', () => ({
@@ -59,6 +60,12 @@ vi.mock('./pr-sync-engine', () => ({
     forceFullSync: vi.fn(),
     sync: vi.fn(),
     cancel: vi.fn(),
+  },
+}));
+
+vi.mock('./pr-auto-cleanup-service', () => ({
+  prAutoCleanupService: {
+    processRepository: dbMocks.processRepository,
   },
 }));
 
@@ -131,6 +138,7 @@ describe('pullRequestController', () => {
     dbMocks.select.mockReset();
     mockPrSyncEngine.forceFullSync.mockResolvedValue(ok());
     mockPrSyncEngine.sync.mockResolvedValue(ok());
+    dbMocks.processRepository.mockResolvedValue(undefined);
   });
 
   it('rejects cross-host pull request creation before calling GitHub', async () => {
@@ -412,6 +420,7 @@ describe('pullRequestController', () => {
       12,
       selectedAuthContext
     );
+    expect(dbMocks.processRepository).not.toHaveBeenCalled();
   });
 
   it('does not create pull requests with the default account when project account resolution fails', async () => {
@@ -473,6 +482,9 @@ describe('pullRequestController', () => {
       12,
       selectedAuthContext
     );
+    await vi.waitFor(() => {
+      expect(dbMocks.processRepository).toHaveBeenCalledWith('https://github.com/acme/repo');
+    });
   });
 
   it('passes the project GitHub account context to pull request reads', async () => {

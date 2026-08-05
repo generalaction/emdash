@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
     resolveRepository: vi.fn(),
     getProject: vi.fn(),
     projectOn: vi.fn(),
+    processRepository: vi.fn(),
     resolveProjectGitHubAuthContext: vi.fn(),
     emit: vi.fn(),
   };
@@ -63,6 +64,12 @@ vi.mock('./pr-sync-engine', () => ({
   },
 }));
 
+vi.mock('./pr-auto-cleanup-service', () => ({
+  prAutoCleanupService: {
+    processRepository: mocks.processRepository,
+  },
+}));
+
 vi.mock('@main/core/github/services/project-github-auth-context', () => ({
   resolveProjectGitHubAuthContext: mocks.resolveProjectGitHubAuthContext,
 }));
@@ -78,7 +85,9 @@ vi.mock('./project-remotes-service', () => ({
 }));
 
 type SchedulerInternals = {
+  _projectRemoteUrls: Map<string, string[]>;
   _getGitHubRemoteUrls(projectId: string): Promise<string[]>;
+  onTaskProvisioned(projectId: string, taskBranch: string | undefined): Promise<void>;
 };
 
 function createProject(
@@ -112,6 +121,76 @@ function createProject(
 describe('PrSyncScheduler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prSyncEngine.sync).mockResolvedValue(ok());
+    vi.mocked(prSyncEngine.syncSingle).mockResolvedValue(ok(null));
+    mocks.processRepository.mockResolvedValue(undefined);
+  });
+
+  it('runs auto-cleanup after the existing repository sync succeeds', async () => {
+    const { project } = createProject();
+    mocks.getProject.mockReturnValue(project);
+    mocks.resolveRepository.mockResolvedValue(
+      ok({
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        owner: 'acme',
+        repo: 'repo',
+      })
+    );
+    mocks.resolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
+
+    const scheduler = new PrSyncScheduler();
+    await scheduler.onProjectMounted('project-1');
+
+    await vi.waitFor(() => {
+      expect(mocks.processRepository).toHaveBeenCalledWith('https://github.com/acme/repo');
+    });
+    scheduler.onProjectUnmounted('project-1');
+  });
+
+  it('does not run auto-cleanup after a failed repository sync', async () => {
+    const { project } = createProject();
+    mocks.getProject.mockReturnValue(project);
+    mocks.resolveRepository.mockResolvedValue(
+      ok({
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        owner: 'acme',
+        repo: 'repo',
+      })
+    );
+    mocks.resolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
+    vi.mocked(prSyncEngine.sync).mockResolvedValue(
+      err({ type: 'api_error', message: 'sync failed' })
+    );
+
+    const scheduler = new PrSyncScheduler();
+    await scheduler.onProjectMounted('project-1');
+    await Promise.resolve();
+
+    expect(mocks.processRepository).not.toHaveBeenCalled();
+    scheduler.onProjectUnmounted('project-1');
+  });
+
+  it('runs auto-cleanup after a task-triggered single PR sync succeeds', async () => {
+    mocks.resolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
+
+    const scheduler = new PrSyncScheduler() as unknown as SchedulerInternals;
+    scheduler._projectRemoteUrls.set('project-1', ['https://github.com/acme/repo']);
+    mocks.where.mockReturnValueOnce({
+      limit: vi.fn().mockResolvedValue([{ identifier: '#42' }]),
+    });
+
+    await scheduler.onTaskProvisioned('project-1', 'feature/cleanup');
+
+    await vi.waitFor(() => {
+      expect(prSyncEngine.syncSingle).toHaveBeenCalledWith('https://github.com/acme/repo', 42, {
+        accountId: 'github.com:42',
+      });
+      expect(mocks.processRepository).toHaveBeenCalledWith('https://github.com/acme/repo');
+    });
   });
 
   it('passes selected GitHub account context to mounted project syncs', async () => {

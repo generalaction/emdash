@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { taskAutoCleanupChannel } from '@shared/core/tasks/taskEvents';
 import type { Task } from '@shared/core/tasks/tasks';
 import { TaskManagerStore } from './task-manager';
 import { createUnprovisionedTask } from './task-store';
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   conversationAcquire: vi.fn(),
   conversationRelease: vi.fn(),
   draftComments: [] as MockDraftComments[],
+  eventHandlers: new Map<string, (data: unknown) => void>(),
   getConversationsForProject: vi.fn(),
   getProjectManagerStore: vi.fn(),
   getPullRequestsForTask: vi.fn(),
@@ -29,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   teardownTask: vi.fn(),
   terminalAcquire: vi.fn(),
   terminalRelease: vi.fn(),
+  toastSuccess: vi.fn(),
   viewModels: [] as MockViewModel[],
   viewStateGet: vi.fn(),
   workspaceActivate: vi.fn(),
@@ -39,7 +42,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
-    on: vi.fn(() => () => {}),
+    on: vi.fn((event: { name: string }, handler: (data: unknown) => void) => {
+      mocks.eventHandlers.set(event.name, handler);
+      return () => mocks.eventHandlers.delete(event.name);
+    }),
   },
   rpc: {
     conversations: {
@@ -75,6 +81,7 @@ vi.mock('@renderer/lib/stores/view-state-cache', () => ({
 vi.mock('sonner', () => ({
   toast: {
     error: vi.fn(),
+    success: mocks.toastSuccess,
   },
 }));
 
@@ -156,6 +163,7 @@ describe('TaskManagerStore archive lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.draftComments.length = 0;
+    mocks.eventHandlers.clear();
     mocks.viewModels.length = 0;
     mocks.archiveTask.mockResolvedValue(undefined);
     mocks.getConversationsForProject.mockResolvedValue([]);
@@ -217,6 +225,33 @@ describe('TaskManagerStore archive lifecycle', () => {
     expect(store.viewModel).toBe(mocks.viewModels[1]);
     expect(mocks.viewModels[1].restoreSnapshot).toHaveBeenCalledWith(snapshot);
     expect(mocks.viewModels[1].initialize).toHaveBeenCalledOnce();
+
+    manager.dispose();
+  });
+
+  it('moves an automatically archived task to its dry archived state', () => {
+    const manager = makeTaskManager();
+    const task = makeTask();
+    const store = createUnprovisionedTask(task);
+    store.transitionToProvisioned(task, '/tmp/workspace-1', 'workspace-1', {} as never);
+    manager.tasks.set(task.id, store);
+
+    mocks.eventHandlers.get(taskAutoCleanupChannel.name)?.({
+      taskId: task.id,
+      projectId: task.projectId,
+      taskName: task.name,
+      prUrl: 'https://github.com/acme/repo/pull/42',
+      action: 'archive',
+    });
+
+    expect((store.data as Task).archivedAt).toBeDefined();
+    expect(store.state).toBe('unprovisioned');
+    expect(store.phase).toBe('idle');
+    expect(mocks.conversationRelease).toHaveBeenCalledWith(task.id);
+    expect(mocks.terminalRelease).toHaveBeenCalledWith(task.id);
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('Task automatically archived', {
+      description: "Task 1's pull request was merged.",
+    });
 
     manager.dispose();
   });

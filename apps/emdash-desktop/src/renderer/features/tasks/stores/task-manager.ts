@@ -17,6 +17,7 @@ import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
+  taskAutoCleanupChannel,
   taskCreatedChannel,
   taskDeletedChannel,
   taskProvisionProgressChannel,
@@ -128,6 +129,7 @@ export class TaskManagerStore {
 
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubTaskDeleted: (() => void) | null = null;
+  private _unsubTaskAutoCleanup: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubGitWorktreeUpdate: (() => void) | null = null;
@@ -166,6 +168,33 @@ export class TaskManagerStore {
       ({ taskId, projectId: evtProjectId }) => {
         if (evtProjectId !== this.projectId) return;
         this._removeTaskLocally(taskId);
+      }
+    );
+
+    this._unsubTaskAutoCleanup = events.on(
+      taskAutoCleanupChannel,
+      ({ taskId, projectId: evtProjectId, taskName, action }) => {
+        if (evtProjectId !== this.projectId) return;
+
+        if (action === 'archive') {
+          const task = this.tasks.get(taskId);
+          if (task && isRegistered(task)) {
+            runInAction(() => {
+              task.data.archivedAt = new Date().toISOString();
+            });
+            this._releaseTaskRegistries(taskId);
+            runInAction(() => {
+              const current = this.tasks.get(taskId);
+              if (current && isRegistered(current)) {
+                current.transitionToDryUnprovisioned({ ...current.data }, 'idle');
+              }
+            });
+          }
+        }
+
+        toast.success(`Task automatically ${action === 'archive' ? 'archived' : 'deleted'}`, {
+          description: `${taskName}'s pull request was merged.`,
+        });
       }
     );
 
@@ -686,6 +715,8 @@ export class TaskManagerStore {
     this._unsubTaskCreated = null;
     this._unsubTaskDeleted?.();
     this._unsubTaskDeleted = null;
+    this._unsubTaskAutoCleanup?.();
+    this._unsubTaskAutoCleanup = null;
     this._unsubPrUpdated?.();
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
