@@ -53,6 +53,14 @@ export function mcpServerToRegistration(server: McpServer): McpServerRegistratio
   };
 }
 
+/** Update canonical fields while retaining provider-native fields Emdash does not model. */
+export function mergeMcpServerRegistration(
+  existing: McpServerRegistration,
+  server: McpServer
+): McpServerRegistration {
+  return { ...existing, ...mcpServerToRegistration(server) };
+}
+
 export function mcpServerFieldCount(server: McpServer): number {
   let n = 0;
   if (server.command) n += 10;

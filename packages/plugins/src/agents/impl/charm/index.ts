@@ -11,6 +11,11 @@ function buildCharmCommand(ctx: CommandContext) {
   return buildStandardCommand(ctx, {
     defaultArgs: ctx.initialPrompt && !ctx.isResuming ? ['run'] : undefined,
     initialPromptFlag: '',
+    modelFlag: '--model',
+    resumeFlag: '--session',
+    sessionIdFlag: '--session',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
   });
 }
 
@@ -36,6 +41,8 @@ export const plugin = definePlugin(
       supportedTransports: ['stdio', 'http'],
     },
     models: {
+      // Crush discovers models from the configured provider catalog, so a static
+      // picker could advertise models unavailable in a user's configuration.
       kind: 'none',
     },
     plugins: {
@@ -46,7 +53,7 @@ export const plugin = definePlugin(
       flag: '',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }

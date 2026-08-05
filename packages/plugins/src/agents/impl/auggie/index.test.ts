@@ -29,6 +29,23 @@ function createMemoryFs(files = new Map<string, string>()): PluginFs {
 }
 
 describe('auggie provider', () => {
+  it('supports documented Auggie models and the MCP settings transports Emdash can represent', () => {
+    expect(provider.capabilities.models).toMatchObject({
+      kind: 'selectable',
+      modelOptions: {
+        'prism-a': expect.any(Object),
+        'opus4.8': expect.any(Object),
+        'gpt5.5': expect.any(Object),
+      },
+    });
+    expect(provider.capabilities.mcp).toEqual({
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    });
+    expect(provider.behavior.mcp).toBeDefined();
+  });
+
   it('resumes a stored provider session id with --resume', () => {
     const command = provider.behavior.prompt!.buildCommand({
       ...baseContext,
@@ -52,6 +69,20 @@ describe('auggie provider', () => {
     expect(command).toEqual({
       command: 'auggie',
       args: ['--allow-indexing', '--continue'],
+      env: {},
+    });
+  });
+
+  it('passes the documented Auggie model short name with --model', () => {
+    const command = provider.behavior.prompt!.buildCommand({
+      ...baseContext,
+      initialPrompt: 'Fix the type errors',
+      model: 'opus4.8',
+    });
+
+    expect(command).toEqual({
+      command: 'auggie',
+      args: ['--allow-indexing', '--model', 'opus4.8', 'Fix the type errors'],
       env: {},
     });
   });

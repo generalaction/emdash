@@ -1,6 +1,6 @@
 import { dirname, extname, join } from 'node:path';
 import { definePlugin, registerPluginBehavior } from '@emdash/core/agents/plugins';
-import { buildStandardCommand } from '@emdash/core/agents/plugins/helpers';
+import { buildStandardCommand, mistralMcpAdapter } from '@emdash/core/agents/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { buildMistralHookConfig } from './hooks';
 import { icon } from './icon';
@@ -73,12 +73,17 @@ export const plugin = definePlugin(
         },
       },
     },
+    mcp: {
+      kind: 'supported',
+      scope: 'global',
+      supportedTransports: ['stdio', 'http'],
+    },
     prompt: {
       kind: 'argv',
-      flag: '',
+      flag: '--prompt',
     },
     sessions: {
-      kind: 'stateless',
+      kind: 'resumable',
     },
   },
   { icon }
@@ -97,9 +102,14 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '--agent auto-approve',
-        initialPromptFlag: '',
+        autoApproveFlag: '--auto-approve',
+        initialPromptFlag: '--prompt',
+        resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: '--continue',
         extraEnv: ctx.model ? { VIBE_ACTIVE_MODEL: ctx.model } : undefined,
       }),
   },
+  mcp: mistralMcpAdapter(),
 });

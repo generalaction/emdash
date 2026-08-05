@@ -51,6 +51,16 @@ export const plugin = definePlugin(
       scope: 'global',
       supportedTransports: ['stdio', 'http'],
     },
+    models: {
+      kind: 'selectable',
+      modelOptions: {
+        'gpt-5': {
+          name: 'GPT-5',
+          description: 'Cursor CLI documents gpt-5 as a model value for agent sessions.',
+          modelFeatures: { intelligence: 5, speed: 4 },
+        },
+      },
+    },
     prompt: {
       kind: 'argv',
       flag: '',
@@ -72,9 +82,13 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag: '-f --approve-mcps',
+        autoApproveFlag: '--force --approve-mcps',
         initialPromptFlag: '',
         resumeFlag: '--resume',
+        sessionIdFlag: '--resume',
+        sessionIdOnResumeOnly: true,
+        resumeWithoutSessionFlag: 'resume',
+        modelFlag: '--model',
       }),
   },
   mcp: cursorMcpAdapter(),
