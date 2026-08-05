@@ -646,15 +646,17 @@ export class MonacoModelRegistry {
   /**
    * Restore a previously saved diff editor viewport state.
    * Call this after editor.setModel() so the editor has a layout target.
-   * No-ops silently if no state was ever saved for this pair.
+   * Returns whether a state was restored so callers can choose an initial viewport.
    */
   restoreDiffViewState(
     originalUri: string,
     modifiedUri: string,
     editor: monaco.editor.IStandaloneDiffEditor
-  ): void {
+  ): boolean {
     const vs = this.diffViewStates.get(this.diffKey(originalUri, modifiedUri));
-    if (vs) editor.restoreViewState(vs);
+    if (!vs) return false;
+    editor.restoreViewState(vs);
+    return true;
   }
 
   /**
