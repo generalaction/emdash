@@ -1,6 +1,6 @@
 import type { HostDependencyView } from '@emdash/core/services/host-dependencies/node';
 import { describe, expect, it } from 'vitest';
-import { toAgentInstallationStatus } from './agent-payload-builder';
+import { buildAgentMetadataList, toAgentInstallationStatus } from './agent-payload-builder';
 
 describe('toAgentInstallationStatus', () => {
   it('maps host install options into the renderer status payload', () => {
@@ -30,5 +30,13 @@ describe('toAgentInstallationStatus', () => {
     expect(toAgentInstallationStatus('fake-agent', 'ssh-1', view).installOptions).toEqual(
       view.installOptions
     );
+  });
+});
+
+describe('buildAgentMetadataList', () => {
+  it('copies provider trust capabilities into renderer metadata', () => {
+    const claude = buildAgentMetadataList().find((agent) => agent.id === 'claude');
+
+    expect(claude?.capabilities.trust).toEqual({ kind: 'supported' });
   });
 });

@@ -8,8 +8,7 @@ import type { AccountKVSchema } from '@core/features/account/node/services/accou
 import { AccountCredentialStore } from '@core/features/account/node/services/credential-store';
 import { createEmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { ProviderTokenDispatcher } from '@core/features/account/node/services/provider-token-dispatcher';
-import { getPlugin, getPluginMetadata } from '@core/features/agents/api/node/plugin-registry';
-import { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
+import { getPluginMetadata } from '@core/features/agents/api/node/plugin-registry';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { buildAutomationDeployment } from '@core/features/automations/node/deployment-builder';
 import { ConversationBackfillService } from '@core/features/conversations/node/sync/conversation-backfill';
@@ -216,16 +215,12 @@ export async function bootServices(
     deactivateWorkspaceParticipants: (identity) =>
       deactivateWorkspaceParticipants(lifecycleParticipants, identity),
   });
-  const workspaceTrust = new WorkspaceTrustService({
-    getTaskSettings: () => appSettingsService.get('tasks'),
-    getTrustBehavior: (providerId) => getPlugin(providerId).behavior.trust,
-  });
   const tuiConversationDependencies = {
     db,
     getLocalProjectSettings: () => appSettingsService.get('localProject'),
     getProviderConfig: (providerId: string) => providerOverrideSettings.getItem(providerId),
+    getTaskSettings: () => appSettingsService.get('tasks'),
     getTerminalColorEnv,
-    workspaceTrust,
   };
   const githubAccountBackfill = new ProjectGitHubAccountBackfillService(providerAccountRegistry);
   const projectManager = new ProjectSessionManager({

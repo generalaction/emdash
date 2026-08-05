@@ -1,10 +1,8 @@
-import { homedir } from 'node:os';
 import path from 'node:path';
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
-import type { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type {
   ConversationProvider,
@@ -55,8 +53,8 @@ export type TuiConversationProviderDependencies = {
   db: AppDb;
   getLocalProjectSettings(): Promise<{ writeAgentConfigToGitIgnore?: boolean }>;
   getProviderConfig(providerId: string): Promise<ProviderCustomConfig | undefined>;
+  getTaskSettings(): Promise<{ autoTrustWorktrees: boolean }>;
   getTerminalColorEnv(): Promise<Record<string, string>>;
-  workspaceTrust: WorkspaceTrustService;
 };
 
 function parseExtraArgs(value: string | undefined): string[] {
@@ -68,7 +66,6 @@ export class TuiConversationProvider implements ConversationProvider {
   private readonly projectId: string;
   private readonly taskId: string;
   private readonly taskPath: string;
-  private readonly host: HostRef;
   private readonly files: FilesClientScope;
   private readonly tuiAgents: TuiAgentsRuntimeClient;
   private readonly tmux: boolean;
@@ -83,7 +80,6 @@ export class TuiConversationProvider implements ConversationProvider {
     this.projectId = options.projectId;
     this.taskId = options.taskId;
     this.taskPath = options.taskPath;
-    this.host = options.host;
     this.files = options.files;
     this.tuiAgents = options.tuiAgents;
     this.tmux = options.tmux ?? false;
@@ -140,14 +136,11 @@ export class TuiConversationProvider implements ConversationProvider {
     mode: 'start' | 'resume',
     initialPrompt: string | undefined
   ): Promise<TuiAgentStartInput> {
-    await this.dependencies.workspaceTrust.maybeAutoTrust({
-      providerId: conversation.providerId,
-      workspacePath: this.taskPath,
-      host: this.host.type === 'local' ? { kind: 'local', homedir: homedir() } : { kind: 'remote' },
-      force: conversation.autoApprove === true,
-    });
     const providerConfig = await this.dependencies.getProviderConfig(conversation.providerId);
     const localProjectSettings = await this.dependencies.getLocalProjectSettings();
+    const trustWorkspace =
+      conversation.autoApprove === true ||
+      (await this.dependencies.getTaskSettings()).autoTrustWorktrees;
     const agentSession = resolveAgentSession(conversation, mode);
     const effectiveInitialPrompt = await this.effectiveInitialPrompt(
       conversation.id,
@@ -172,6 +165,7 @@ export class TuiConversationProvider implements ConversationProvider {
       model: conversation.model ?? null,
       initialPrompt: effectiveInitialPrompt,
       autoApprove: conversation.autoApprove ?? false,
+      trustWorkspace,
       extraArgs: parseExtraArgs(providerConfig?.extraArgs),
       providerVars,
       cols: initialSize.cols,

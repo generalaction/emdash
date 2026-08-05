@@ -36,6 +36,7 @@ import {
   type TuiSessionsLiveHost,
   type TuiSessionsListModel,
 } from '@runtimes/tui-agents/node/state/live-models';
+import { TuiWorkspaceTrust } from '@runtimes/tui-agents/node/trust/workspace-trust';
 import type { AgentCommand, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
 import {
   noopConversationLifecycleReporter,
@@ -82,6 +83,7 @@ export class TuiAgentsRuntime {
   private readonly hookInstaller: TuiHookInstaller;
   private readonly hookServer: TuiHookServer;
   private readonly hookPipeline: TuiHookPipeline;
+  private readonly workspaceTrust: TuiWorkspaceTrust;
   private readonly sessionIdlePolicy: IdlePolicy;
   private readonly idleSweeper: IdleSweeper;
   private readonly activity = new Map<string, IoActivityTracker>();
@@ -111,6 +113,10 @@ export class TuiAgentsRuntime {
       }
     );
     this.hookInstaller = new TuiHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
+    this.workspaceTrust = new TuiWorkspaceTrust({
+      agentHost: deps.agentHost,
+      logger: deps.logger,
+    });
     this.hookPipeline = new TuiHookPipeline({
       getConversationConfig: (conversationId) => {
         const config = this.configs.get(conversationId);
@@ -429,6 +435,12 @@ export class TuiAgentsRuntime {
       return err({ type: 'spawn-failed', conversationId: config.input.conversationId, message });
     }
     const command = commandResult.data;
+    if (config.input.trustWorkspace === true) {
+      await this.workspaceTrust.ensureTrusted({
+        providerId: config.input.providerId,
+        workspacePath: config.input.cwd,
+      });
+    }
     const hookEnv = await this.prepareHookEnv(config.input);
     if (!this.isCurrentGeneration(config.input.conversationId, generation)) {
       return this.cancelledSpawn(config.input.conversationId);

@@ -48,6 +48,7 @@ function buildMetadata(provider: CLIAgentPluginProvider): AgentMetadata {
       hooks: capabilities.hooks,
       mcp: capabilities.mcp,
       plugins: capabilities.plugins,
+      trust: capabilities.trust,
     },
     installDocs: capabilities.hostDependency.installDocs ?? null,
   };

@@ -35,6 +35,7 @@ describe('TuiConversationProvider', () => {
         providerId: 'claude',
         sessionId: null,
         initialPrompt: 'hello',
+        trustWorkspace: false,
       }),
     });
     expect(resumeSession).not.toHaveBeenCalled();
@@ -78,24 +79,38 @@ describe('TuiConversationProvider', () => {
     expect(resumeSession).not.toHaveBeenCalled();
   });
 
-  it('treats remote workspace trust as a safe no-op target', async () => {
-    const maybeAutoTrust = vi.fn(() => Promise.resolve());
-    const provider = createProvider({
-      host: { type: 'remote', id: 'ssh-1' },
-      maybeAutoTrust,
-    });
+  it.each([
+    { label: 'local', host: { type: 'local', id: 'local' } as const },
+    { label: 'remote', host: { type: 'remote', id: 'ssh-1' } as const },
+  ])('sends the settings-driven trust verdict to the $label runtime', async ({ host }) => {
+    const provider = createProvider({ host, autoTrustWorktrees: true });
 
     await provider.ensureSession({
       conversation: conversation({ providerId: 'claude' }),
       mode: 'start',
     });
 
-    expect(maybeAutoTrust).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspacePath: '/workspace',
-        host: { kind: 'remote' },
-      })
-    );
+    expect(startSession).toHaveBeenCalledWith({
+      input: expect.objectContaining({ trustWorkspace: true }),
+    });
+  });
+
+  it('forces runtime trust for auto-approved conversations without reading settings', async () => {
+    const getTaskSettings = vi.fn(async () => ({ autoTrustWorktrees: false }));
+    const provider = createProvider({
+      host: { type: 'remote', id: 'ssh-1' },
+      getTaskSettings,
+    });
+
+    await provider.ensureSession({
+      conversation: conversation({ providerId: 'claude', autoApprove: true }),
+      mode: 'start',
+    });
+
+    expect(getTaskSettings).not.toHaveBeenCalled();
+    expect(startSession).toHaveBeenCalledWith({
+      input: expect.objectContaining({ trustWorkspace: true }),
+    });
   });
 
   it('backs prompt spill creation, writes, and cleanup with workspace files', async () => {
@@ -147,7 +162,8 @@ describe('TuiConversationProvider', () => {
 function createProvider(
   overrides: {
     host?: TuiConversationProviderOptions['host'];
-    maybeAutoTrust?: ReturnType<typeof vi.fn<() => Promise<void>>>;
+    autoTrustWorktrees?: boolean;
+    getTaskSettings?: () => Promise<{ autoTrustWorktrees: boolean }>;
   } = {}
 ): TuiConversationProvider {
   return new TuiConversationProvider(
@@ -166,10 +182,10 @@ function createProvider(
       db: { select: vi.fn() } as never,
       getLocalProjectSettings: () => Promise.resolve({ writeAgentConfigToGitIgnore: true }),
       getProviderConfig: () => Promise.resolve(undefined),
+      getTaskSettings:
+        overrides.getTaskSettings ??
+        (() => Promise.resolve({ autoTrustWorktrees: overrides.autoTrustWorktrees ?? false })),
       getTerminalColorEnv: () => Promise.resolve({}),
-      workspaceTrust: {
-        maybeAutoTrust: overrides.maybeAutoTrust ?? vi.fn(() => Promise.resolve()),
-      } as never,
     }
   );
 }

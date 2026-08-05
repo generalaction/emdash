@@ -6,7 +6,8 @@ import type { AgentPayload } from '@core/primitives/agents/api';
 function formatSupportsText(agent: AgentPayload): string {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
   const supportsSessions = agent.capabilities.sessions.kind !== 'stateless';
-  return `Supports: Prompts${supportsHooks ? ', Hooks' : ''}${supportsSessions ? ', Sessions' : ''}`;
+  const supportsTrust = agent.capabilities.trust.kind !== 'none';
+  return `Supports: Prompts${supportsHooks ? ', Hooks' : ''}${supportsSessions ? ', Sessions' : ''}${supportsTrust ? ', Trust' : ''}`;
 }
 
 export const AgentSheetHeaderSection = observer(function AgentSheetHeaderSection({

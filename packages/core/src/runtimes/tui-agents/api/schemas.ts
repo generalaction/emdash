@@ -18,6 +18,7 @@ export const tuiAgentStartInputSchema = z.object({
   model: z.string().nullable(),
   initialPrompt: z.string().optional(),
   autoApprove: z.boolean().optional(),
+  trustWorkspace: z.boolean().optional(),
   extraArgs: z.array(z.string()).optional(),
   providerVars: z.record(z.string(), z.string()).optional(),
   cols: z.number().int(),

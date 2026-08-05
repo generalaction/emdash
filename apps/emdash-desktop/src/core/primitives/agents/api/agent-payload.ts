@@ -205,6 +205,7 @@ export type AgentCapabilities = {
   hooks: { kind: string; scope?: string };
   mcp: { kind: string };
   plugins: { kind: string };
+  trust: { kind: string };
 };
 
 export function agentSupportsAcp(capabilities: AgentCapabilities | undefined | null): boolean {

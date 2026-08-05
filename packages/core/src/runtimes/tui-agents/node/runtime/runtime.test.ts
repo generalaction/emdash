@@ -3,7 +3,11 @@ import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock, type ManualClock } from '@emdash/shared/testing';
 import { peek } from '@emdash/wire';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
-import type { AgentPluginHost, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
+import type {
+  AgentPluginHost,
+  ITrustBehavior,
+  ResolvedTuiProvider,
+} from '@services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '@services/conversation-reports/node';
 import { createRecordingConversationLifecycleReporter } from '@services/conversation-reports/node/testing';
 import type { IExecutionContext } from '@services/exec/api';
@@ -61,6 +65,7 @@ function createRuntime(
     exec?: Partial<IExecutionContext>;
     intents?: ReturnType<typeof createMemorySessionIntentStore>;
     conversationReports?: ConversationLifecycleReporter;
+    trustWorkspace?: ITrustBehavior['trustWorkspace'];
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -71,8 +76,12 @@ function createRuntime(
     buildCommand: () => ({ command: 'agent', args: ['run'], env: {} }),
   };
   const agentHost = {
+    homeDir: '/home/test-user',
     resolveTuiProvider: vi.fn(() => provider),
-    get: vi.fn(() => ({ id: 'test' })),
+    get: vi.fn(() => ({
+      capabilities: { hooks: { kind: 'none' } },
+      behavior: options.trustWorkspace ? { trust: { trustWorkspace: options.trustWorkspace } } : {},
+    })),
     buildPromptCommand: vi.fn(() =>
       Promise.resolve(ok({ command: 'agent', args: ['run', 'hello world'], env: { AGENT: '1' } }))
     ),
@@ -139,6 +148,21 @@ describe('TuiAgentsRuntime', () => {
 
     await runtime.outputLog({ conversationId: 'conversation-1' }).snapshot();
     expect(spawner.specs).toHaveLength(1);
+  });
+
+  it('trusts the workspace only when the start input opts in', async () => {
+    const trustWorkspace = vi.fn(async () => {});
+    const { runtime } = createRuntime({ trustWorkspace });
+
+    await runtime.startSession(startInput());
+    expect(trustWorkspace).not.toHaveBeenCalled();
+
+    await runtime.startSession(
+      startInput({ conversationId: 'conversation-2', trustWorkspace: true })
+    );
+    expect(trustWorkspace).toHaveBeenCalledWith(expect.any(Object), {
+      workspacePath: '/workspace',
+    });
   });
 
   it('wraps command execution with shellSetup and tmux', async () => {
