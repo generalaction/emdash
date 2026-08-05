@@ -1,8 +1,10 @@
 import type { IFileSystem } from '@emdash/core/files';
 import type { IGitRepository, IGitRuntime } from '@emdash/core/git';
 import { err, ok, type Lease, type Result } from '@emdash/shared';
+import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import { resolveProjectGitHubGitAuth } from '@main/core/github/services/project-github-git-auth';
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { projectGitHubAccountBackfillService } from '@main/core/github/services/project-github-account-backfill-instance';
@@ -40,7 +42,14 @@ export async function createProvider(
 async function createLocalProvider(
   project: LocalProject
 ): Promise<Result<ProjectProvider, CreateProviderError>> {
-  const ctx = new LocalExecutionContext({ root: project.path });
+  const baseCtx = new LocalExecutionContext({ root: project.path });
+  // Authenticate git network operations with the project's linked GitHub
+  // account instead of the machine's ambient credential helper (which serves
+  // whichever `gh` account is currently active). Falls back to ambient
+  // credentials when no account is linked.
+  const ctx = new GitHubAuthExecutionContext(baseCtx, () =>
+    resolveProjectGitHubGitAuth(project.id)
+  );
   const projectMachine: MachineRef = { kind: 'local' };
   const runtimeLease = await runtimeManager.acquire(projectMachine);
 

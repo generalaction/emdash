@@ -10,10 +10,11 @@ import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
 
-function buildNonInteractiveGitEnv(): NodeJS.ProcessEnv {
+function buildNonInteractiveGitEnv(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...NON_INTERACTIVE_GIT_ENV,
+    ...extraEnv,
   };
 }
 
@@ -41,7 +42,7 @@ export class LocalExecutionContext implements IExecutionContext {
     const { timeout, maxBuffer } = opts;
     return execFileAsync(this.resolveCommand(command), args, {
       cwd: this.root || undefined,
-      env: command === 'git' ? buildNonInteractiveGitEnv() : undefined,
+      env: command === 'git' ? buildNonInteractiveGitEnv(opts.env) : undefined,
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),
