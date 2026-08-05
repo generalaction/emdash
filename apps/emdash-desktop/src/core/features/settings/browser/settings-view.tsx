@@ -18,7 +18,7 @@ export function SettingsViewWrapper({
 }: {
   children: ReactNode;
   tab?: SettingsPageTab;
-  detail?: string;
+  detail?: string[];
 }) {
   const { setParams } = useCurrentViewParams(settingsViewDef);
   const handleTabChange = useCallback(
@@ -29,13 +29,28 @@ export function SettingsViewWrapper({
   );
   const openDetail = useCallback(
     (detailId: string) => {
-      setParams({ detail: detailId });
+      setParams((previous) => ({
+        ...previous,
+        detail: [...(previous.detail ?? []), detailId],
+      }));
     },
     [setParams]
   );
   const closeDetail = useCallback(() => {
-    setParams({ detail: undefined });
+    setParams((previous) => {
+      const parent = previous.detail?.slice(0, -1);
+      return { ...previous, detail: parent && parent.length > 0 ? parent : undefined };
+    });
   }, [setParams]);
+  const setDetailPath = useCallback(
+    (path: string[] | undefined) => {
+      setParams((previous) => ({
+        ...previous,
+        detail: path && path.length > 0 ? path : undefined,
+      }));
+    },
+    [setParams]
+  );
   const implementation = {
     'settings.close': () => ({
       execute: () => appState.navigation.toggleSettings(),
@@ -51,7 +66,14 @@ export function SettingsViewWrapper({
   return (
     <ViewScopeInstanceProvider instance={instance}>
       <SettingsTabProvider
-        value={{ tab, detail, onTabChange: handleTabChange, openDetail, closeDetail }}
+        value={{
+          tab,
+          detail,
+          onTabChange: handleTabChange,
+          openDetail,
+          closeDetail,
+          setDetailPath,
+        }}
       >
         {children}
       </SettingsTabProvider>
@@ -72,7 +94,7 @@ export function SettingsTitlebar() {
 }
 
 export function SettingsMainPanel() {
-  const { tab, detail, onTabChange, openDetail, closeDetail } = useSettingsTab();
+  const { tab, detail, onTabChange, openDetail, closeDetail, setDetailPath } = useSettingsTab();
   return (
     <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden bg-background">
       <SettingsPage
@@ -81,6 +103,7 @@ export function SettingsMainPanel() {
         onTabChange={onTabChange}
         openDetail={openDetail}
         closeDetail={closeDetail}
+        setDetailPath={setDetailPath}
       />
     </div>
   );

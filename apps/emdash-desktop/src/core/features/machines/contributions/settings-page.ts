@@ -4,11 +4,20 @@ import {
   type SettingsPageContribution,
 } from '@core/primitives/settings/api/page-contribution';
 import { appState } from '@renderer/lib/stores/app-state';
-import { LocalWorkspaceDetailPage } from '../browser/pages/local-workspace-detail-page';
+import { ConversationsSettingsPage } from '../browser/pages/conversations-settings-page';
 import { LocalWorkspacesSettingsPage } from '../browser/pages/local-workspaces-settings-page';
-import { MachineDetailsPage } from '../browser/pages/machine-details-page';
+import {
+  MachineDetailsPage,
+  MachineWorkspaceDetailPage,
+} from '../browser/pages/machine-details-page';
 import { MachinesSettingsPage } from '../browser/pages/machines-settings-page';
 import { SystemSettingsPage } from '../browser/pages/system-settings-page';
+import { LocalWorkspaceDetailPage } from '../browser/pages/workspace-detail-page';
+
+function projectBreadcrumbLabel(path: string[]): string | null {
+  const projectId = path.at(-1);
+  return projectId ? (appState.projects.projects.get(projectId)?.data?.name ?? null) : null;
+}
 
 export const systemSettingsPage = defineSettingsPageContribution({
   id: 'system',
@@ -24,8 +33,15 @@ export const localWorkspacesSettingsPage = defineSettingsPageContribution({
   component: LocalWorkspacesSettingsPage,
   detail: {
     component: LocalWorkspaceDetailPage,
-    breadcrumbLabel: (detailId) => appState.projects.projects.get(detailId)?.data?.name ?? null,
+    breadcrumbLabel: projectBreadcrumbLabel,
   },
+} satisfies SettingsPageContribution<SettingsPageTab>);
+
+export const conversationsSettingsPage = defineSettingsPageContribution({
+  id: 'conversations',
+  label: 'Conversations',
+  icon: 'message-square',
+  component: ConversationsSettingsPage,
 } satisfies SettingsPageContribution<SettingsPageTab>);
 
 export const machinesConnectionsPage = defineSettingsPageContribution({
@@ -35,7 +51,12 @@ export const machinesConnectionsPage = defineSettingsPageContribution({
   component: MachinesSettingsPage,
   detail: {
     component: MachineDetailsPage,
-    breadcrumbLabel: (detailId) =>
-      appState.machines.connections.find((connection) => connection.id === detailId)?.name ?? null,
+    breadcrumbLabel: (path) =>
+      appState.machines.connections.find((connection) => connection.id === path.at(-1))?.name ??
+      null,
+    child: {
+      component: MachineWorkspaceDetailPage,
+      breadcrumbLabel: projectBreadcrumbLabel,
+    },
   },
 } satisfies SettingsPageContribution<SettingsPageTab>);

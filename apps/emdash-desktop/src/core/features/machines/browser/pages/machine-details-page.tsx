@@ -32,10 +32,11 @@ import { MachineConversationsList } from '../components/machine-conversations-li
 import { ResourceUtilizationRow } from '../components/machine-resources';
 import { deriveMachineStatusKind } from '../components/machine-status-kind';
 import { MachineSystemDependenciesCard } from '../components/machine-system-dependencies';
-import { MachineWorkspacesList } from '../components/machine-workspaces-list';
 import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
+import { WorkspacesListView } from '../components/workspaces-list-view';
 import { useMachineMetrics } from '../use-machine-metrics';
 import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
+import { WorkspaceDetailPage } from './workspace-detail-page';
 
 type MachineDetailsSection =
   | 'system'
@@ -87,8 +88,30 @@ function MachineSkillsSection({ connectionId }: { connectionId: string }) {
   return <SkillsListForHost host={host} />;
 }
 
+/**
+ * Machines tab child detail: path is `[connectionId, projectId]`. Lives here
+ * (not in workspace-detail-page.tsx) because it owns the machine
+ * connection-state lookup, which core-host boundaries allow for this file.
+ */
+export const MachineWorkspaceDetailPage = observer(function MachineWorkspaceDetailPage(
+  props: SettingsPageDetailProps
+) {
+  const machineId = props.path[0];
+  const machine = appState.machines.connections.find((connection) => connection.id === machineId);
+  if (!machineId) return null;
+  return (
+    <WorkspaceDetailPage
+      scope={{ kind: 'machine', machineId }}
+      connected={machine ? appState.machines.stateFor(machine.id) === 'connected' : false}
+      machineName={machine?.name}
+      {...props}
+    />
+  );
+});
+
 export const MachineDetailsPage = observer(function MachineDetailsPage({
   detailId,
+  openDetail,
   closeDetail,
 }: SettingsPageDetailProps) {
   const machinesStore = appState.machines;
@@ -361,9 +384,9 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
       )}
 
       {section === 'workspaces' && (
-        <MachineWorkspacesList
-          machineId={machine.id}
-          connectionId={machine.id}
+        <WorkspacesListView
+          scope={{ kind: 'machine', machineId: machine.id }}
+          openDetail={openDetail}
           enabled={serverUsable}
         />
       )}

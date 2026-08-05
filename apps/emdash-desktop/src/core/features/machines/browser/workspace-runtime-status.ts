@@ -1,5 +1,3 @@
-import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
-
 export type WorkspaceRuntimeStatus = 'idle' | 'setting-up' | 'active' | 'tearing-down' | 'error';
 
 const STATUS_PRIORITY: WorkspaceRuntimeStatus[] = [
@@ -9,10 +7,6 @@ const STATUS_PRIORITY: WorkspaceRuntimeStatus[] = [
   'active',
   'idle',
 ];
-
-export function workspaceStatus(row: ProjectWorkspaceRow): WorkspaceRuntimeStatus {
-  return row.hasActiveSessions ? 'active' : 'idle';
-}
 
 export function aggregateWorkspaceStatus(
   statuses: readonly WorkspaceRuntimeStatus[]

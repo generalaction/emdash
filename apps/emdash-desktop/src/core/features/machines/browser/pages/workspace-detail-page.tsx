@@ -8,8 +8,9 @@ import {
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
 import { useQueryClient } from '@tanstack/react-query';
+import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
@@ -34,7 +35,7 @@ import { GitStatsCell } from '../components/git-stats-cell';
 import { RepositoryHeader } from '../components/local-workspace-header';
 import { basename, formatBytes } from '../components/workspace-format';
 import { deleteMachineProjectWorkspaces } from '../use-machine-workspaces';
-import { useWorkspaceRows } from '../use-workspace-rows';
+import { useWorkspaceRows, type WorkspacesScope } from '../use-workspace-rows';
 import type { JoinedWorkspaceRow, WorkspaceOperationLink } from '../workspace-rows';
 import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
 
@@ -117,19 +118,39 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
   },
 ];
 
-export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPage({
+/** Local Workspaces tab detail: path is `[projectId]`. */
+export function LocalWorkspaceDetailPage(props: SettingsPageDetailProps) {
+  return <WorkspaceDetailPage scope={{ kind: 'local' }} connected {...props} />;
+}
+
+/**
+ * Scope-aware project workspace detail. The machine-scoped wrapper lives in
+ * machine-details-page.tsx, which owns the connection-state lookup.
+ */
+export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
+  scope,
+  connected,
+  machineName,
   detailId,
   closeDetail,
-}: SettingsPageDetailProps) {
+}: {
+  scope: WorkspacesScope;
+  connected: boolean;
+  machineName?: string;
+} & SettingsPageDetailProps) {
   const queryClient = useQueryClient();
   const openConfirm = useOpenModal('confirmActionModal');
-  const workspaceRows = useWorkspaceRows({ projectId: detailId, enabled: true });
+  const isLocal = scope.kind === 'local';
+  const workspaceRows = useWorkspaceRows({ scope, projectId: detailId, enabled: connected });
   const { workspaceQuery, group, rows, operationTrees, usageQuery, gitStatsQuery } = workspaceRows;
   const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
   const rootJoined = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
   const rootRow = rootJoined?.row;
-  const busyPaths = new Set(rows.filter((row) => row.operationBusy).map((row) => row.row.path));
+  const busyPaths = useMemo(
+    () => new Set(rows.filter((row) => row.operationBusy).map((row) => row.row.path)),
+    [rows]
+  );
   const worktreeItems = rows
     .filter((row) => row !== rootJoined)
     .map((joined) =>
@@ -186,7 +207,9 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
         closeDetail();
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['machineWorkspaces', 'local'] });
+      await queryClient.invalidateQueries({
+        queryKey: ['machineWorkspaces', isLocal ? 'local' : scope.machineId],
+      });
     } catch (error) {
       toast({
         title: 'Could not delete workspaces',
@@ -194,8 +217,9 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
         variant: 'destructive',
       });
     }
-  }, [busyPaths, closeDetail, group, openConfirm, queryClient]);
+  }, [busyPaths, closeDetail, group, isLocal, openConfirm, queryClient, scope]);
 
+  if (!connected) return <DetailOfflineState machineName={machineName} />;
   if (workspaceQuery.isLoading) return <DetailLoadingState />;
   if (workspaceQuery.isError) return <DetailErrorState error={workspaceQuery.error} />;
   if (!group || !rootJoined || !rootRow) return <DetailMissingState />;
@@ -367,6 +391,20 @@ function activeTaskCount(row: ProjectWorkspaceRow): number {
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function DetailOfflineState({ machineName }: { machineName?: string }) {
+  return (
+    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm text-foreground-muted">
+      <div className="inline-flex items-center gap-2">
+        <WifiOffIcon className="size-4" />
+        {machineName ? `${machineName} is offline` : 'Machine offline'}
+      </div>
+      <p className="max-w-sm text-center text-xs text-foreground-passive">
+        Workspaces load here as soon as the machine reconnects.
+      </p>
+    </div>
+  );
 }
 
 function DetailLoadingState() {

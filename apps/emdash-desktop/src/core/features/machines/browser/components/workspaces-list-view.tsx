@@ -4,33 +4,48 @@ import {
   type WorkspacesListItem,
 } from '@emdash/ui/react/components';
 import { Button, SearchInput } from '@emdash/ui/react/primitives';
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon, WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
-import { useWorkspaceRows, type WorkspaceRowsGroup } from '../use-workspace-rows';
+import {
+  useWorkspaceRows,
+  type WorkspaceRowsGroup,
+  type WorkspacesScope,
+} from '../use-workspace-rows';
 import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
 
-type LocalWorkspaceEntry = {
+type WorkspaceEntry = {
   item: WorkspacesListItem;
 };
 
-export const LocalWorkspacesView = observer(function LocalWorkspacesView({
+/**
+ * One row per project, rendered with the shared WorkspacesList; clicking a row
+ * opens the project's workspace detail. Serves both the Local Workspaces tab
+ * and the machine details Workspaces section.
+ */
+export const WorkspacesListView = observer(function WorkspacesListView({
+  scope,
   openDetail,
+  enabled = true,
 }: {
-  openDetail: (detailId: string) => void;
+  scope: WorkspacesScope;
+  openDetail: (projectId: string) => void;
+  /** Gates the workspace query, e.g. on remote server usability. */
+  enabled?: boolean;
 }) {
   const openAddProject = useOpenModal('addProjectModal');
-  const workspaceRows = useWorkspaceRows({ enabled: true });
+  const workspaceRows = useWorkspaceRows({ scope, enabled });
   const { workspaceQuery, groups } = workspaceRows;
   const [search, setSearch] = useState('');
-  const entries = buildLocalWorkspaceEntries(groups);
+  const entries = buildWorkspaceEntries(groups);
   const filteredEntries = entries.filter((entry) => matchesSearch(entry.item, search));
 
-  if (workspaceQuery.isLoading) return <LocalWorkspacesLoadingState />;
-  if (workspaceQuery.isError) return <LocalWorkspacesErrorState error={workspaceQuery.error} />;
+  if (scope.kind === 'machine' && !enabled) return <WorkspacesOfflineState />;
+  if (workspaceQuery.isLoading) return <WorkspacesLoadingState />;
+  if (workspaceQuery.isError) return <WorkspacesErrorState error={workspaceQuery.error} />;
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -47,7 +62,13 @@ export const LocalWorkspacesView = observer(function LocalWorkspacesView({
           type="button"
           variant="primary"
           size="sm"
-          onClick={() => void openAddProject({ strategy: 'local', mode: 'pick' })}
+          onClick={() =>
+            void openAddProject(
+              scope.kind === 'machine'
+                ? { strategy: 'ssh', mode: 'clone', connectionId: scope.machineId }
+                : { strategy: 'local', mode: 'pick' }
+            )
+          }
         >
           <PlusIcon />
           Add Project
@@ -56,7 +77,7 @@ export const LocalWorkspacesView = observer(function LocalWorkspacesView({
       <WorkspacesList
         items={filteredEntries.map((entry) => entry.item)}
         onItemClick={(item) => openDetail(item.id)}
-        emptySlot={<LocalWorkspacesEmptyState searching={search.trim().length > 0} />}
+        emptySlot={<WorkspacesEmptyState searching={search.trim().length > 0} />}
       />
     </div>
   );
@@ -70,7 +91,7 @@ function matchesSearch(item: WorkspacesListItem, query: string): boolean {
   );
 }
 
-function buildLocalWorkspaceEntries(groups: readonly WorkspaceRowsGroup[]): LocalWorkspaceEntry[] {
+function buildWorkspaceEntries(groups: readonly WorkspaceRowsGroup[]): WorkspaceEntry[] {
   return groups.map((group) => {
     const rows = group.workspaces;
     const rootRow = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
@@ -109,7 +130,7 @@ function maxTimestamp(values: readonly (string | undefined)[]): string | undefin
   return latest;
 }
 
-function LocalWorkspacesLoadingState() {
+function WorkspacesLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
       <Spinner className="size-4" />
@@ -118,7 +139,7 @@ function LocalWorkspacesLoadingState() {
   );
 }
 
-function LocalWorkspacesErrorState({ error }: { error: unknown }) {
+function WorkspacesErrorState({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : String(error);
   return (
     <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
@@ -128,7 +149,21 @@ function LocalWorkspacesErrorState({ error }: { error: unknown }) {
   );
 }
 
-function LocalWorkspacesEmptyState({ searching }: { searching: boolean }) {
+function WorkspacesOfflineState() {
+  return (
+    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm text-foreground-muted">
+      <div className="inline-flex items-center gap-2">
+        <WifiOffIcon className="size-4" />
+        Machine offline
+      </div>
+      <p className="max-w-sm text-center text-xs text-foreground-passive">
+        Workspaces load when the machine reconnects and its workspace server is healthy.
+      </p>
+    </div>
+  );
+}
+
+function WorkspacesEmptyState({ searching }: { searching: boolean }) {
   return (
     <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
       {searching ? 'No workspaces match your search.' : 'No workspaces found.'}

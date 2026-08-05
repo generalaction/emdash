@@ -4,7 +4,6 @@ import type {
   GetProjectWorkspaceGitStatsResult,
   MeasureProjectWorkspacesResult,
   ProjectWorkspaceRow,
-  ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -43,9 +42,7 @@ export function useLocalWorkspaces(enabled: boolean) {
       const client = await getDesktopWireClient();
       const projectList = await client.projects.projectList.state(undefined, 'list').snapshot();
       const projects = projectList.data.projects.filter((project) => project.type === 'local');
-      // The local workspaces view does not show disk usage, so skip the
-      // expensive per-file measurement scan and only run the cheap listing.
-      return await listProjectWorkspaceGroups(projects, { measure: false });
+      return await listProjectWorkspaceGroups(projects);
     },
     enabled,
     refetchOnWindowFocus: false,
@@ -115,36 +112,19 @@ export async function getMachineOperationsClient() {
   return (await getDesktopWireClient()).operations;
 }
 
+// The workspaces lists do not show disk usage, so skip the expensive per-file
+// measurement scan and only run the cheap listing. The project detail page
+// fetches usage separately via useProjectWorkspaceUsage.
 async function listProjectWorkspaceGroups(
-  projects: Array<Pick<Project, 'id' | 'name'>>,
-  options: { measure?: boolean } = {}
+  projects: Array<Pick<Project, 'id' | 'name'>>
 ): Promise<MachineProjectWorkspaces[]> {
-  const measure = options.measure ?? true;
   const client = await getDesktopWireClient();
   const groups = await Promise.all(
     projects.map(async (project) => {
       const listed = await client.projectWorkspaces.listProjectWorkspaces({
         projectId: project.id,
       });
-      if (!measure) return { project, workspaces: listed.rows, warnings: listed.warnings };
-
-      const measured = await client.projectWorkspaces.measureProjectWorkspaces({
-        projectId: project.id,
-        paths: listed.rows.filter((row) => row.pathState === 'measured').map((row) => row.path),
-      });
-      const usageByPath = new Map<string, ProjectWorkspaceUsage>(
-        measured.results.flatMap((result) =>
-          result.success ? ([[result.path, result.usage]] as const) : []
-        )
-      );
-      return {
-        project,
-        warnings: listed.warnings,
-        workspaces: listed.rows.map((row) => ({
-          ...row,
-          usage: usageByPath.get(row.path) ?? row.usage,
-        })),
-      };
+      return { project, workspaces: listed.rows, warnings: listed.warnings };
     })
   );
 

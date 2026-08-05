@@ -1,5 +1,6 @@
 import { promptsSettingsPage } from '@core/features/library/contributions/settings-page';
 import {
+  conversationsSettingsPage,
   localWorkspacesSettingsPage,
   machinesConnectionsPage,
   systemSettingsPage,
@@ -26,6 +27,7 @@ export const settingsPageContributions = [
   promptsSettingsPage,
   systemSettingsPage,
   localWorkspacesSettingsPage,
+  conversationsSettingsPage,
   agentsSettingsPage,
   mcpSettingsPage,
   skillsSettingsPage,

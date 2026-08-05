@@ -6,13 +6,26 @@ export interface SettingsPageProps {
 }
 
 export interface SettingsPageDetailProps {
+  /** Full detail path down to and including this level. */
+  path: string[];
+  /** This level's own segment (the last element of `path`). */
   detailId: string;
+  /** Appends one segment, navigating into this level's child detail. */
+  openDetail: (childId: string) => void;
+  /** Pops one level. */
   closeDetail: () => void;
 }
 
 export interface SettingsPageDetailContribution {
   component: ComponentType<SettingsPageDetailProps>;
-  breadcrumbLabel: (detailId: string) => string | null;
+  /**
+   * Resolves this level's breadcrumb label from the path segments up to and
+   * including its own. Returning null marks the segment invalid; the rendered
+   * path truncates to the longest valid prefix.
+   */
+  breadcrumbLabel: (path: string[]) => string | null;
+  /** The next detail level below this one, if any. */
+  child?: SettingsPageDetailContribution;
 }
 
 export interface SettingsPageContribution<TId extends string = string> {

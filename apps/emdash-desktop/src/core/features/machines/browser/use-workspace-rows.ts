@@ -3,46 +3,57 @@ import { useOperationTrees } from '@core/services/operations/browser/use-operati
 import {
   getMachineOperationsClient,
   useLocalWorkspaces,
+  useMachineWorkspaces,
   useProjectWorkspaceGitStats,
   useProjectWorkspaceUsage,
 } from './use-machine-workspaces';
 import { joinWorkspaceRows, type JoinedWorkspaceRow } from './workspace-rows';
 
-export type WorkspaceRowsScope = {
+/** Which host's workspaces to read: this device or a remote machine. */
+export type WorkspacesScope = { kind: 'local' } | { kind: 'machine'; machineId: string };
+
+export type WorkspaceRowsOptions = {
+  scope: WorkspacesScope;
   projectId?: string;
   enabled: boolean;
 };
 
 const EMPTY_GROUPS: never[] = [];
 
-export function useWorkspaceRows(scope: WorkspaceRowsScope) {
-  const workspaceQuery = useLocalWorkspaces(scope.enabled);
+export function useWorkspaceRows({ scope, projectId, enabled }: WorkspaceRowsOptions) {
+  const isLocal = scope.kind === 'local';
+  const localQuery = useLocalWorkspaces(enabled && isLocal);
+  const machineQuery = useMachineWorkspaces(
+    scope.kind === 'machine' ? scope.machineId : undefined,
+    enabled && !isLocal
+  );
+  const workspaceQuery = isLocal ? localQuery : machineQuery;
   const sourceGroups = workspaceQuery.data ?? EMPTY_GROUPS;
-  const sourceGroup = scope.projectId
-    ? sourceGroups.find((group) => group.project.id === scope.projectId)
+  const sourceGroup = projectId
+    ? sourceGroups.find((group) => group.project.id === projectId)
     : undefined;
   const sourceRows = useMemo(
     () =>
-      scope.projectId
+      projectId
         ? (sourceGroup?.workspaces ?? [])
         : sourceGroups.flatMap((group) => group.workspaces),
-    [scope.projectId, sourceGroup, sourceGroups]
+    [projectId, sourceGroup, sourceGroups]
   );
   const measuredPaths = useMemo(
     () => sourceRows.filter((row) => row.pathState === 'measured').map((row) => row.path),
     [sourceRows]
   );
   const usageQuery = useProjectWorkspaceUsage(
-    scope.projectId,
+    projectId,
     measuredPaths,
-    scope.enabled && !!scope.projectId && sourceRows.length > 0
+    enabled && !!projectId && sourceRows.length > 0
   );
   const gitStatsQuery = useProjectWorkspaceGitStats(
-    scope.projectId,
+    projectId,
     measuredPaths,
-    scope.enabled && !!scope.projectId && sourceRows.length > 0
+    enabled && !!projectId && sourceRows.length > 0
   );
-  const operationTrees = useOperationTrees(scope.projectId ?? '', getMachineOperationsClient);
+  const operationTrees = useOperationTrees(projectId ?? '', getMachineOperationsClient);
   const joinedRows = useMemo(
     () =>
       joinWorkspaceRows({
@@ -69,8 +80,8 @@ export function useWorkspaceRows(scope: WorkspaceRowsScope) {
       })),
     [rowsBySource, sourceGroups]
   );
-  const group = scope.projectId
-    ? groups.find((candidate) => candidate.project.id === scope.projectId)
+  const group = projectId
+    ? groups.find((candidate) => candidate.project.id === projectId)
     : undefined;
 
   return {

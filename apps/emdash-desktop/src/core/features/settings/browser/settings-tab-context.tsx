@@ -3,10 +3,14 @@ import type { SettingsPageTab } from '@core/features/settings/contributions/view
 
 export interface SettingsTabContextValue {
   tab: SettingsPageTab;
-  detail?: string;
+  detail?: string[];
   onTabChange: (tab: SettingsPageTab) => void;
+  /** Appends one segment to the detail path. */
   openDetail: (detailId: string) => void;
+  /** Pops one level off the detail path. */
   closeDetail: () => void;
+  /** Jumps to an explicit path prefix; undefined or empty clears the detail. */
+  setDetailPath: (path: string[] | undefined) => void;
 }
 
 const SettingsTabContext = createContext<SettingsTabContextValue | null>(null);

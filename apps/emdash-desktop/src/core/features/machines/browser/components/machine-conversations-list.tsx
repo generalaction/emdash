@@ -1,3 +1,4 @@
+import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -26,11 +27,62 @@ import {
 } from '../use-machine-conversations';
 import { useLocalWorkspaces, useMachineWorkspaces } from '../use-machine-workspaces';
 
+type ConversationListRow = {
+  item: MachineConversationItem;
+  busy: boolean;
+  onLink: () => void;
+  onDelete: () => void;
+};
+
+const CONVERSATION_COLUMNS: ColumnListColumn<ConversationListRow>[] = [
+  {
+    id: 'icon',
+    width: '2.25rem',
+    cell: ({ item }) => (
+      <span
+        className={cn(
+          'flex size-7 shrink-0 items-center justify-center rounded-md bg-background-2 text-foreground-muted',
+          item.pendingRemoval && 'opacity-60'
+        )}
+      >
+        <MessageSquareIcon className="size-4" />
+      </span>
+    ),
+  },
+  {
+    id: 'title',
+    width: 'minmax(0, 1fr)',
+    cell: ({ item }) => (
+      <ColumnListCell
+        className={cn(item.pendingRemoval && 'opacity-60')}
+        primary={item.conversation.title || 'Untitled'}
+        secondary={
+          [item.conversation.provider, item.conversation.workspacePath]
+            .filter(Boolean)
+            .join(' · ') || '-'
+        }
+      />
+    ),
+  },
+  {
+    id: 'status',
+    width: 'max-content',
+    align: 'center',
+    cell: ({ item }) => <ConversationStatusCell item={item} />,
+  },
+  {
+    id: 'actions',
+    width: '2.5rem',
+    align: 'center',
+    cell: (row) => <ConversationActionsCell row={row} />,
+  },
+];
+
 /**
- * The machine page's Conversations tab (spec §8): every cached conversation record of
- * this host — task-linked and orphaned alike — with per-record link and delete
- * affordances. The list reads this device's registry cache, so it keeps serving
- * (labeled) while the host is unreachable.
+ * Every cached conversation record of a host (spec §8) — task-linked and
+ * orphaned alike — with per-record link and delete affordances. The list reads
+ * this device's registry cache, so it keeps serving (labeled) while the host
+ * is unreachable.
  */
 export function MachineConversationsList({
   scope,
@@ -126,9 +178,16 @@ export function MachineConversationsList({
     }
   };
 
+  const rows: ConversationListRow[] = visibleItems.map((item) => ({
+    item,
+    busy: busyId === item.conversation.id,
+    onLink: () => void linkConversation(item),
+    onDelete: () => void deleteConversation(item),
+  }));
+
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background-1">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+    <div className="flex min-h-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           containerClassName="min-w-48 flex-1"
           className="h-8"
@@ -146,71 +205,26 @@ export function MachineConversationsList({
           </span>
         )}
       </div>
-      <div className="min-h-60 flex-1 overflow-y-auto">
-        {conversationsQuery.isLoading ? (
-          <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-            <Spinner className="size-4" />
-            Loading conversations
-          </div>
-        ) : conversationsQuery.isError ? (
-          <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
-            <div className="text-foreground-destructive">Could not load conversations.</div>
-            <div className="max-w-md text-center text-xs text-foreground-muted">
-              {conversationsQuery.error instanceof Error
-                ? conversationsQuery.error.message
-                : String(conversationsQuery.error)}
-            </div>
-          </div>
-        ) : visibleItems.length === 0 ? (
-          <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
-            {items.length === 0
-              ? 'No conversations on this machine.'
-              : 'No conversations match the current search.'}
-          </div>
-        ) : (
-          visibleItems.map((item) => (
-            <ConversationRow
-              key={item.conversation.id}
-              item={item}
-              busy={busyId === item.conversation.id}
-              onLink={() => void linkConversation(item)}
-              onDelete={() => void deleteConversation(item)}
-            />
-          ))
-        )}
-      </div>
-    </section>
+      {conversationsQuery.isLoading ? (
+        <ConversationsLoadingState />
+      ) : conversationsQuery.isError ? (
+        <ConversationsErrorState error={conversationsQuery.error} />
+      ) : (
+        <ColumnList
+          items={rows}
+          columns={CONVERSATION_COLUMNS}
+          getItemKey={(row) => row.item.conversation.id}
+          emptySlot={<ConversationsEmptyState searching={items.length > 0} />}
+        />
+      )}
+    </div>
   );
 }
 
-function ConversationRow({
-  item,
-  busy,
-  onLink,
-  onDelete,
-}: {
-  item: MachineConversationItem;
-  busy: boolean;
-  onLink: () => void;
-  onDelete: () => void;
-}) {
+function ConversationStatusCell({ item }: { item: MachineConversationItem }) {
   const { conversation } = item;
-  const subtitle = [conversation.provider, conversation.workspacePath].filter(Boolean).join(' · ');
-
   return (
-    <div
-      className={cn(
-        'flex min-h-12 items-center gap-3 border-b border-border px-3 py-2 text-sm',
-        item.pendingRemoval && 'opacity-60'
-      )}
-    >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-background-2 text-foreground-muted">
-        <MessageSquareIcon className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-foreground">{conversation.title || 'Untitled'}</div>
-        <div className="truncate text-xs text-foreground-passive">{subtitle}</div>
-      </div>
+    <div className={cn('flex items-center gap-2', item.pendingRemoval && 'opacity-60')}>
       {item.linked ? (
         <span
           className="inline-flex max-w-56 shrink-0 items-center gap-1 rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-muted uppercase"
@@ -235,32 +249,38 @@ function ConversationRow({
           Removal pending…
         </Pill>
       )}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Actions for ${conversation.title || 'conversation'}`}
-              disabled={busy || item.pendingRemoval}
-            />
-          }
-        >
-          {busy ? <Spinner className="size-3.5" /> : <EllipsisIcon className="size-3.5" />}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onLink}>
-            <Link2Icon />
-            {item.linked ? 'Link to another task…' : 'Link to a task…'}
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            <Trash2Icon />
-            Delete…
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
+  );
+}
+
+function ConversationActionsCell({ row }: { row: ConversationListRow }) {
+  const { item, busy, onLink, onDelete } = row;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Actions for ${item.conversation.title || 'conversation'}`}
+            disabled={busy || item.pendingRemoval}
+          />
+        }
+      >
+        {busy ? <Spinner className="size-3.5" /> : <EllipsisIcon className="size-3.5" />}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onLink}>
+          <Link2Icon />
+          {item.linked ? 'Link to another task…' : 'Link to a task…'}
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+          <Trash2Icon />
+          Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -284,6 +304,36 @@ function Pill({
     >
       {children}
     </span>
+  );
+}
+
+function ConversationsLoadingState() {
+  return (
+    <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
+      <Spinner className="size-4" />
+      Loading conversations
+    </div>
+  );
+}
+
+function ConversationsErrorState({ error }: { error: unknown }) {
+  return (
+    <div className="flex h-40 flex-col items-center justify-center gap-1 text-sm">
+      <div className="text-foreground-destructive">Could not load conversations.</div>
+      <div className="max-w-md text-center text-xs text-foreground-muted">
+        {error instanceof Error ? error.message : String(error)}
+      </div>
+    </div>
+  );
+}
+
+function ConversationsEmptyState({ searching }: { searching: boolean }) {
+  return (
+    <div className="flex h-40 items-center justify-center text-sm text-foreground-muted">
+      {searching
+        ? 'No conversations match the current search.'
+        : 'No conversations on this machine.'}
+    </div>
   );
 }
 

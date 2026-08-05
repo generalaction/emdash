@@ -11,6 +11,7 @@ export const settingsPageTabSchema = z.enum([
   'prompts',
   'system',
   'workspaces-local',
+  'conversations',
   'clis-models',
   'mcp',
   'skills',
@@ -20,11 +21,21 @@ export const settingsPageTabSchema = z.enum([
 
 export type SettingsPageTab = z.infer<typeof settingsPageTabSchema>;
 
+/**
+ * Nested detail path: one segment per level (e.g. `[connectionId, projectId]`).
+ * Legacy single-string values from persisted state or old history entries are
+ * coerced to a one-element path.
+ */
+export const settingsDetailPathSchema = z.union([
+  z.array(z.string()),
+  z.string().transform((value) => [value]),
+]);
+
 export const settingsViewDef = defineView({
   id: 'settings',
   params: z.object({
     tab: settingsPageTabSchema.optional(),
-    detail: z.string().optional(),
+    detail: settingsDetailPathSchema.optional(),
   }),
   layout: workbenchLayout,
   telemetryEvent: 'settings_viewed',

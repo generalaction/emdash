@@ -21,6 +21,7 @@ import {
   useChordKeydown,
 } from '@core/primitives/keybindings/browser';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { resolveDetailLevels, type ResolvedDetailLevel } from './settings-detail-path';
 
 const LOCAL_SECTION: PageNavSection = { kind: 'section', id: 'local', label: 'Local' };
 const REMOTE_SECTION: PageNavSection = { kind: 'section', id: 'remote', label: 'Remote' };
@@ -36,6 +37,7 @@ const SIDEBAR_ITEMS: PageSidebarMenuItem[] = [
   LOCAL_SECTION,
   navItemFor('system'),
   navItemFor('workspaces-local'),
+  navItemFor('conversations'),
   navItemFor('clis-models'),
   navItemFor('mcp'),
   navItemFor('skills'),
@@ -59,12 +61,14 @@ export const SettingsPage = observer(function SettingsPage({
   onTabChange,
   openDetail,
   closeDetail,
+  setDetailPath,
 }: {
   tab: SettingsPageTab;
-  detail?: string;
+  detail?: string[];
   onTabChange: (tab: SettingsPageTab) => void;
   openDetail: (detailId: string) => void;
   closeDetail: () => void;
+  setDetailPath: (path: string[] | undefined) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -72,9 +76,9 @@ export const SettingsPage = observer(function SettingsPage({
   const isSearching = query.length > 0;
   const activePage = settingsPageContributions.find(({ id }) => id === activeTab);
   const PageComponent = activePage?.component;
-  const detailContribution = activePage?.detail;
-  const detailLabel =
-    detail && detailContribution ? detailContribution.breadcrumbLabel(detail) : null;
+  const detailLevels =
+    detail && activePage ? resolveDetailLevels(activePage, detail) : ([] as ResolvedDetailLevel[]);
+  const deepestLevel = detailLevels.at(-1);
 
   const visiblePages = useMemo(() => {
     if (!isSearching) return [...settingsPageContributions];
@@ -101,18 +105,23 @@ export const SettingsPage = observer(function SettingsPage({
     }
   }, [activeTab, isSearching, onTabChange, visiblePages]);
 
+  // Invalid segments truncate to the longest valid prefix rather than closing
+  // the whole detail stack.
+  const validPath = deepestLevel?.path;
   useEffect(() => {
-    if (detail && (!detailContribution || detailLabel === null)) {
-      closeDetail();
+    if (detail && detail.length !== (validPath?.length ?? 0)) {
+      setDetailPath(validPath);
     }
-  }, [closeDetail, detail, detailContribution, detailLabel]);
+  }, [detail, setDetailPath, validPath]);
 
+  const deepestSegment = deepestLevel?.path.at(-1);
   const detailView =
-    detail && detailContribution && detailLabel !== null && activePage
+    deepestLevel && deepestSegment !== undefined && activePage
       ? {
-          Component: detailContribution.component,
-          detailId: detail,
-          label: detailLabel,
+          Component: deepestLevel.contribution.component,
+          path: deepestLevel.path,
+          detailId: deepestSegment,
+          label: deepestLevel.label,
           pageId: activePage.id,
           pageLabel: activePage.label,
         }
@@ -187,13 +196,24 @@ export const SettingsPage = observer(function SettingsPage({
                   {
                     id: detailView.pageId,
                     label: detailView.pageLabel,
-                    onSelect: closeDetail,
+                    onSelect: () => setDetailPath(undefined),
                   },
-                  { id: detailView.detailId, label: detailView.label },
+                  ...detailLevels.map((level, index) => ({
+                    id: level.path.join('/'),
+                    label: level.label,
+                    ...(index < detailLevels.length - 1
+                      ? { onSelect: () => setDetailPath(level.path) }
+                      : {}),
+                  })),
                 ]}
               />
             </div>
-            <detailView.Component detailId={detailView.detailId} closeDetail={closeDetail} />
+            <detailView.Component
+              path={detailView.path}
+              detailId={detailView.detailId}
+              openDetail={openDetail}
+              closeDetail={closeDetail}
+            />
           </PageLayout.Content>
         ) : PageComponent ? (
           <PageLayout.Content>

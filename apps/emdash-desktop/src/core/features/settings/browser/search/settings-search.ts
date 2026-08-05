@@ -198,6 +198,15 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['disk', 'cleanup', 'storage', 'worktrees'],
   },
 
+  // Conversations
+  {
+    id: 'conversations',
+    label: 'Conversations',
+    tab: 'conversations',
+    description: 'Every conversation record on this machine, including unlinked ones.',
+    keywords: ['chats', 'sessions', 'orphaned', 'history', 'agents'],
+  },
+
   // Prompts
   {
     id: 'prompts',
