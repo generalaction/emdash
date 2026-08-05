@@ -51,13 +51,39 @@ export async function openFileInTaskEditor(
     provisioned.workspaceId,
     resolvedPath
   );
+  let openPath = resolvedPath;
   if (!exists.success || !exists.data.exists) {
-    toast.error(`File not found in workspace: ${filePath}`);
-    return;
+    // Agents often reference files by bare name (`Notes.md`) without the
+    // directory — fall back to a workspace file-index lookup.
+    const indexed = isBareFilename(filePath)
+      ? await findWorkspaceFileByName(provisioned.workspaceId, filePath)
+      : null;
+    if (indexed === null) {
+      toast.error(`File not found in workspace: ${filePath}`);
+      return;
+    }
+    openPath = resolveWorkspacePath(workspace.path, indexed);
   }
 
   focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  provisioned.viewModel?.activePane.open('file', { path: resolvedPath }, { preview: false });
+  provisioned.viewModel?.activePane.open('file', { path: openPath }, { preview: false });
+}
+
+function isBareFilename(filePath: string): boolean {
+  return !filePath.includes('/') && !filePath.includes('\\');
+}
+
+/**
+ * Resolves a bare filename against the workspace file index. Returns the
+ * workspace-relative path of the shallowest exact-name match, or null when
+ * the name is unknown (e.g. a false-positive terminal link like `Node.js`).
+ */
+async function findWorkspaceFileByName(
+  workspaceId: string,
+  filename: string
+): Promise<string | null> {
+  const hits = await rpc.search.findWorkspaceFilesByName({ workspaceId, filename });
+  return hits[0]?.path ?? null;
 }
 
 /**

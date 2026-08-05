@@ -72,6 +72,21 @@ describe('WorkspaceFileIndexStore', () => {
     expect(store.search('ws-1', 'in')).toEqual([]);
   });
 
+  it('finds exact filenames without relevance ranking', async () => {
+    loadedStore = await loadStore();
+    const { store } = loadedStore;
+
+    store.syncRows(
+      'ws-1',
+      paths(['/repo/deep/nested/Notes.md', '/repo/Notes.md', '/repo/other/README.md'])
+    );
+
+    expect(store.findFilesByName('ws-1', 'Notes.md')).toEqual([
+      { path: '/repo/Notes.md', filename: 'Notes.md' },
+      { path: '/repo/deep/nested/Notes.md', filename: 'Notes.md' },
+    ]);
+  });
+
   it('deletes exact paths and escaped subtrees', async () => {
     loadedStore = await loadStore();
     const { store, sqlite } = loadedStore;
