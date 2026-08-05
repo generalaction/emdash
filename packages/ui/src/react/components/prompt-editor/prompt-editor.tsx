@@ -31,6 +31,7 @@ import { buildSlashCommandExtension } from './extensions/slash-command';
 import { buildSubmitKeymap } from './extensions/submit-keymap';
 import { fileIconClass } from './mention-pill-helpers';
 import { serializeDoc, serializeNode } from './serialize';
+import { submitAndClearUnchanged } from './submit-and-clear';
 import type {
   CommandItem,
   MentionItem,
@@ -210,6 +211,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
 
   // We capture the editor in a stable ref so the submit handler can read the doc.
   const editorRef = useRef<ReturnType<typeof useEditor> | null>(null);
+  const versionRef = useRef(0);
 
   // Stable submit callback that reads the doc from the current editor.
   const handleSubmitFromKeymap = useCallback(() => {
@@ -217,9 +219,16 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     if (!ed) return;
     const text = serializeDoc(ed.state.doc);
     if (!text.trim()) return;
-    if (!onSubmitRef.current) return;
-    ed.commands.clearContent(true);
-    onSubmitRef.current(text);
+    const submit = onSubmitRef.current;
+    if (!submit) return;
+    const version = ++versionRef.current;
+    void submitAndClearUnchanged(
+      text,
+      version,
+      submit,
+      () => versionRef.current,
+      () => editorRef.current?.commands.clearContent(true)
+    );
   }, []);
 
   const mentionExtension = buildMentionExtension(
@@ -300,6 +309,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
       },
     },
     onUpdate({ editor: e }) {
+      versionRef.current += 1;
       setIsEmpty(e.isEmpty);
       const text = serializeDoc(e.state.doc);
       onChange?.(text);
@@ -320,6 +330,13 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(funct
     getText() {
       if (!editor) return '';
       return serializeDoc(editor.state.doc);
+    },
+    beginSubmitAttempt() {
+      versionRef.current += 1;
+      return versionRef.current;
+    },
+    getVersion() {
+      return versionRef.current;
     },
     setText(text) {
       editor?.commands.setContent(plainTextDoc(text), { emitUpdate: true });

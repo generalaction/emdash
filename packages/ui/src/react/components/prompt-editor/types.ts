@@ -89,6 +89,10 @@ export interface PromptEditorRef {
   clear(): void;
   /** Read the current serialized plain text. */
   getText(): string;
+  /** Mark a submit attempt and return the editor version associated with it. */
+  beginSubmitAttempt(): number;
+  /** Read the current editor version. */
+  getVersion(): number;
   /** Replace the editor contents with serialized plain text. */
   setText(text: string): void;
   /** Imperatively insert a mention node at the current cursor position. */
@@ -108,8 +112,8 @@ export interface PromptEditorProps {
   disabled?: boolean;
   /** Called with the serialized plain-text value on every change. */
   onChange?: (text: string) => void;
-  /** Called when the user submits (Enter with no open suggestion). */
-  onSubmit?: (text: string) => void;
+  /** Called when the user submits (Enter with no open suggestion). Return false to retain the text. */
+  onSubmit?: (text: string) => boolean | void | Promise<boolean | void>;
   /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
   onMentionInsert?: (item: MentionItem) => void;
   /**

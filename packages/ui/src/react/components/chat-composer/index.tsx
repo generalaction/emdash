@@ -1,11 +1,20 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, ChevronRight, CircleAlert, Paperclip, ShieldCheck, X } from 'lucide-react';
+import {
+  ArrowUp,
+  ChevronRight,
+  CircleAlert,
+  Loader2,
+  Paperclip,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
+import { submitAndClearUnchanged } from '../prompt-editor/submit-and-clear';
 import type {
   CommandItem,
   ContextMentionProvider,
@@ -187,6 +196,7 @@ export interface ChatComposerProps {
 
   modelOptions?: Record<string, ComposerModelOption> | null;
   selectedModel?: string;
+  isModelChanging?: boolean;
   onModelChange?: (modelId: string) => void;
 
   effortOptions?: Record<string, ComposerEffortOption> | null;
@@ -197,7 +207,7 @@ export interface ChatComposerProps {
   selectedPermissionMode?: string;
   onPermissionModeChange?: (modeId: string) => void;
 
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => boolean | void | Promise<boolean | void>;
   /** Called whenever the editor serialized plain text changes. */
   onInputChange?: (text: string) => void;
   /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
@@ -208,7 +218,7 @@ export interface ChatComposerProps {
    * confirm interruption, or otherwise resolve the conflict.
    * When absent, submit attempts while working are silently ignored.
    */
-  onSubmitWhileWorking?: (text: string) => void;
+  onSubmitWhileWorking?: (text: string) => boolean | void | Promise<boolean | void>;
   onStop?: () => void;
   onAttach?: () => void;
   /** Context-window usage data for the toolbar donut indicator. Hidden when null/undefined. */
@@ -532,6 +542,7 @@ export function ChatComposer({
   agentLocked = false,
   modelOptions,
   selectedModel,
+  isModelChanging = false,
   onModelChange,
   effortOptions,
   selectedEffort,
@@ -596,15 +607,22 @@ export function ChatComposer({
   const handleSubmit = (text: string) => {
     // Allow image-only sends: a message with attachments but no text is valid.
     const hasImages = attachments.some((a) => a.kind === 'image');
-    if (!text.trim() && !hasImages) return;
+    if (!text.trim() && !hasImages) return false;
     // While the agent is actively working, route to the host's conflict handler
     // (e.g. queueing or a cancel-and-send confirmation) instead of submitting.
     if (isWorking) {
-      onSubmitWhileWorking?.(text);
-      return;
+      return onSubmitWhileWorking?.(text) ?? false;
     }
-    if (disabled || !canSubmit) return;
-    onSubmit(text);
+    if (disabled || !canSubmit) return false;
+    return onSubmit(text);
+  };
+
+  const handleSubmitButtonClick = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const text = editor.getText();
+    const version = editor.beginSubmitAttempt();
+    void submitAndClearUnchanged(text, version, handleSubmit, editor.getVersion, editor.clear);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -725,7 +743,8 @@ export function ChatComposer({
     !!onSendQueuedPromptNow;
   // The permission band takes priority over the notice band.
   const hasBand = canShowQueuedPrompts || !!(permissionRequest ?? notice);
-  const shouldHandleSubmitAttempt = !disabled && (isWorking ? !!onSubmitWhileWorking : canSubmit);
+  const shouldHandleSubmitAttempt =
+    !disabled && !isModelChanging && (isWorking ? !!onSubmitWhileWorking : canSubmit);
   const resolvedPlaceholder = disabled
     ? 'Session closed'
     : isWorking
@@ -850,10 +869,14 @@ export function ChatComposer({
                 onValueChange={(id) => onModelChange?.(id)}
                 itemToKey={(item) => item.id}
                 itemToLabel={(item) => item.name}
-                disabled={disabled}
+                disabled={disabled || isModelChanging}
                 searchPlaceholder="Search models…"
                 contentStyle={{ minWidth: '12.5rem' }}
-                triggerTitle={() => selectedAgentTitle}
+                triggerTitle={(selected) =>
+                  isModelChanging && selected
+                    ? `Changing model to ${selected.name}…`
+                    : selectedAgentTitle
+                }
                 renderTrigger={(selected) => (
                   <span
                     style={{
@@ -882,6 +905,9 @@ export function ChatComposer({
                     >
                       {selected?.name ?? 'Model…'}
                     </span>
+                    {isModelChanging && (
+                      <Loader2 aria-hidden className={styles.modelPendingSpinner} />
+                    )}
                   </span>
                 )}
                 renderItem={(item) => (
@@ -1025,8 +1051,8 @@ export function ChatComposer({
                   size="sm"
                   icon
                   className={styles.sendButtonRound}
-                  onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}
-                  disabled={disabled || !canSubmit}
+                  onClick={handleSubmitButtonClick}
+                  disabled={disabled || isModelChanging || !canSubmit}
                   aria-label="Send message"
                 >
                   <ArrowUp />

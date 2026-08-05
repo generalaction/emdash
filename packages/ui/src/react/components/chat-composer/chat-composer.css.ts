@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
@@ -203,6 +203,22 @@ export const toolbarRight = style({ display: 'flex', alignItems: 'center', gap: 
 export const permissionModeTrigger = style({
   paddingLeft: '0.1875rem',
   paddingRight: '0.1875rem',
+});
+
+const spin = keyframes({
+  to: { transform: 'rotate(360deg)' },
+});
+
+export const modelPendingSpinner = style({
+  width: '0.75rem',
+  height: '0.75rem',
+  flexShrink: 0,
+  animation: `${spin} 1s linear infinite`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
 });
 
 // ── Agent trigger ─────────────────────────────────────────────────────────────
