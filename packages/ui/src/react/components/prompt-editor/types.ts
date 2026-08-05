@@ -84,7 +84,7 @@ export interface CommandItem {
 
 export interface PromptEditorRef {
   /** Focus the editor. */
-  focus(): void;
+  focus(options?: { scrollIntoView?: boolean }): void;
   /** Clear all content. */
   clear(): void;
   /** Read the current serialized plain text. */

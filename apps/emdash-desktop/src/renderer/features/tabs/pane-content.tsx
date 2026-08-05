@@ -3,16 +3,8 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { PaneDimensionProvider } from '@renderer/features/tabs/pane-dimension-provider';
 import { usePaneContext } from '../tabs/pane-context';
+import { focusActiveContentElement } from './content-focus';
 import { TabBar } from './tab-bar';
-
-const CONTENT_FOCUS_SELECTOR = 'textarea, webview, [contenteditable="true"]';
-
-function focusActiveContentElement(container: HTMLElement): void {
-  for (const el of container.querySelectorAll<HTMLElement>(CONTENT_FOCUS_SELECTOR)) {
-    el.focus();
-    if (document.activeElement === el) return;
-  }
-}
 
 /** The content for a single pane: tab bar + content area. */
 export const PaneContent = observer(function PaneContent({
