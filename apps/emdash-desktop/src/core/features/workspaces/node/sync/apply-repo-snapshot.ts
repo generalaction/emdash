@@ -93,7 +93,7 @@ function applyRepoSnapshotTx(
   registry.refresh(
     input.repository.id,
     {
-      observedStatus: input.snapshot.repository.status,
+      observedStatus: collapseStatus(input.snapshot.repository.status),
       observedData: input.snapshot.repository.corruptionReason
         ? {
             version: '1',
@@ -143,7 +143,7 @@ function applyRepoSnapshotTx(
     registry.refresh(
       row.id,
       {
-        observedStatus: observation.status,
+        observedStatus: collapseStatus(observation.status),
         observedGitBranch: observation.branch,
         observedData,
         lastObservedAt: observedAt,
@@ -253,7 +253,7 @@ function adoptWorktree(
     parentId: repository.id,
     path,
     config: null,
-    observedStatus: observation.status,
+    observedStatus: collapseStatus(observation.status),
     observedGitBranch: observation.branch,
     observedData: observedDataFor(observation, desktopObservedAt),
     lastObservedAt: observedAt,
@@ -266,6 +266,11 @@ function adoptWorktree(
     hasTaskLink: false,
     isProjectRepository: false,
   };
+}
+
+/** The mirror collapsed 'corrupted' into 'missing' (ADR 0005); the reason survives in observedData. */
+function collapseStatus(status: 'present' | 'corrupted'): 'present' | 'missing' {
+  return status === 'corrupted' ? 'missing' : status;
 }
 
 function observedDataFor(

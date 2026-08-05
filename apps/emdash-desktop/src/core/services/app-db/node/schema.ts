@@ -20,6 +20,11 @@ import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
 import { workspaceObservedData } from '@core/primitives/workspaces/api';
+import {
+  workspaceCreateOutcome,
+  workspaceObservedGit,
+  workspaceRuntimeOverlay,
+} from '@core/primitives/workspaces/api';
 import type { WorkspaceKind } from '@core/primitives/workspaces/api';
 import { notificationPayload } from '@root/src/core/services/notifications/api';
 import type { StoredBranch } from './stored-branch';
@@ -193,13 +198,25 @@ export const workspaces = sqliteTable(
     /** Parent repository registry row for git worktrees. */
     parentId: text('parent_id'),
     path: text('path'),
+    /** The rich-provenance annotation (client-owned); adopted rows have none. */
     config: versionedJsonColumn(workspaceConfig)('config'),
-    linesAdded: integer('lines_added'),
-    linesDeleted: integer('lines_deleted'),
-    observedStatus: text('observed_status').$type<'present' | 'missing' | 'corrupted'>(),
-    observedGitBranch: text('observed_git_branch'),
-    observedData: versionedJsonColumn(workspaceObservedData)('observed_data'),
-    lastObservedAt: text('last_observed_at'),
+    linesAdded: integer('lines_added'), // @deprecated — use observedGit.diffStats
+    linesDeleted: integer('lines_deleted'), // @deprecated — use observedGit.diffStats
+    /** How the row entered the host registry: explicit registration or host adoption. */
+    origin: text('origin').$type<'registered' | 'adopted'>(),
+    observedStatus: text('observed_status').$type<'present' | 'missing'>(),
+    observedGitBranch: text('observed_git_branch'), // @deprecated — use observedGit.branch
+    observedData: versionedJsonColumn(workspaceObservedData)('observed_data'), // @deprecated — use observedGit
+    // Host registry observations (ADR 0005): refreshed wholesale on every `records`
+    // delivery. Timestamps are epoch-ms as delivered.
+    observedGit: versionedJsonColumn(workspaceObservedGit)('observed_git'),
+    lastCreateOutcome: versionedJsonColumn(workspaceCreateOutcome)('last_create_outcome'),
+    /** Persisted overlay for one renderer read path; a daemon-restart delivery clears it. */
+    runtimeOverlay: versionedJsonColumn(workspaceRuntimeOverlay)('runtime_overlay'),
+    lastActivatedAt: integer('last_activated_at'),
+    /** Epoch-ms host observation stamp for the registry sync path. */
+    observedAt: integer('observed_at'),
+    lastObservedAt: text('last_observed_at'), // @deprecated — use observedAt
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

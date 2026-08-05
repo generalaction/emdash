@@ -13,6 +13,21 @@ type WorkspaceObservation = Readonly<{
   observedGitBranch?: string | null;
   observedData?: WorkspaceObservedData | null;
   lastObservedAt: string;
+  // Host registry observations (ADR 0005): pushed by the records sync, refreshed
+  // wholesale. Structural facts (kind, parentId, origin, host identity) are host-owned
+  // there too, so they refresh rather than annotate.
+  kind?: WorkspaceRow['kind'];
+  parentId?: string | null;
+  origin?: WorkspaceRow['origin'];
+  location?: WorkspaceRow['location'];
+  sshConnectionId?: string | null;
+  observedGit?: WorkspaceRow['observedGit'];
+  lastCreateOutcome?: WorkspaceRow['lastCreateOutcome'];
+  runtimeOverlay?: WorkspaceRow['runtimeOverlay'];
+  lastActivatedAt?: number | null;
+  observedAt?: number | null;
+  linesAdded?: number | null;
+  linesDeleted?: number | null;
 }>;
 
 type WorkspaceAnnotation = Partial<
