@@ -81,6 +81,7 @@
     "apps/emdash-desktop/src/core/features/projects/browser/view.tsx",
     "apps/emdash-desktop/src/core/features/settings/api/browser/app-settings-client.ts",
     "apps/emdash-desktop/src/core/features/settings/api/browser/open-in-menu.tsx",
+    "apps/emdash-desktop/src/core/features/settings/browser/agents-page/AgentIntegrationSection.tsx",
     "apps/emdash-desktop/src/core/features/settings/browser/agents-page/AgentMcpSection.tsx",
     "apps/emdash-desktop/src/core/features/settings/browser/agents-page/AgentSignInModal.tsx",
     "apps/emdash-desktop/src/core/features/settings/browser/agents-page/InstalledAgentContent.tsx",

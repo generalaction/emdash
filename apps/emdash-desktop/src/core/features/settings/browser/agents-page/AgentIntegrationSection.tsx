@@ -42,13 +42,7 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AgentHooksSection({
-  agent,
-  host,
-}: {
-  agent: AgentPayload;
-  host: HostRef;
-}) {
+export function AgentHooksSection({ agent, host }: { agent: AgentPayload; host: HostRef }) {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
   const { status, isLoading } = useAgentHooksStatus(agent.id, host, supportsHooks);
 
@@ -100,9 +94,7 @@ export function AgentTrustSection({ agent }: { agent: AgentPayload }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Label>Workspace Trust</Label>
-          <InfoTooltip>
-            Skip the folder trust prompt in supported CLIs for new tasks.
-          </InfoTooltip>
+          <InfoTooltip>Skip the folder trust prompt in supported CLIs for new tasks.</InfoTooltip>
         </div>
         <Button
           type="button"
