@@ -5,9 +5,9 @@ import { EMDASH_RELEASES_URL } from '@shared/urls';
 import { formatUpdaterError } from './utils';
 
 export const updateController = createRPCController({
-  check: async () => {
+  check: async (args?: { source?: 'background' | 'manual' }) => {
     try {
-      const result = await updateService.checkForUpdates();
+      const result = await updateService.checkForUpdates(args?.source ?? 'manual');
       return { success: true, result: result ?? null };
     } catch (error) {
       return { success: false, error: formatUpdaterError(error) };

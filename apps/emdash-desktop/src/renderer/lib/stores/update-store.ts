@@ -29,7 +29,6 @@ export type UpdateState =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'available'; info?: { version: string } }
-  | { status: 'not-available' }
   | { status: 'downloading'; progress?: DownloadProgress }
   | { status: 'downloaded' }
   | { status: 'installing' }
@@ -89,7 +88,7 @@ export class UpdateStore {
 
     events.on(updateNotAvailableEvent, () => {
       runInAction(() => {
-        this.state = { status: 'not-available' };
+        this.state = { status: 'idle' };
       });
     });
 
@@ -132,10 +131,10 @@ export class UpdateStore {
     });
 
     events.on(menuCheckForUpdatesChannel, () => {
-      rpc.update.check().catch(() => {});
+      rpc.update.check({ source: 'manual' }).catch(() => {});
     });
 
-    rpc.update.check().catch(() => {});
+    rpc.update.check({ source: 'background' }).catch(() => {});
   }
 
   async check(): Promise<void> {
@@ -143,7 +142,7 @@ export class UpdateStore {
       this.state = { status: 'checking' };
     });
     try {
-      const res = await rpc.update.check();
+      const res = await rpc.update.check({ source: 'manual' });
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
