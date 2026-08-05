@@ -7,7 +7,7 @@ import {
 } from './tmux-session-name';
 
 describe('buildTmuxShellLine', () => {
-  it('enables tmux mouse scrolling and deep history before attach', () => {
+  it('enables tmux mouse scrolling, deep history and passthrough before attach', () => {
     const result = buildTmuxShellLine('agent-session', 'exec /bin/zsh -il');
 
     expect(result).toMatch(/^\/bin\/sh -c /);
@@ -17,9 +17,11 @@ describe('buildTmuxShellLine', () => {
     );
     expect(result).toContain('tmux set-option -t \\"agent-session\\" mouse on');
     expect(result).toContain('tmux set-option -t \\"agent-session\\" history-limit 100000');
+    expect(result).toContain('tmux set-option -t \\"agent-session\\" allow-passthrough on');
     expect(result).toContain('tmux -u attach-session -t \\"agent-session\\"');
     expect(result.indexOf('mouse on')).toBeLessThan(result.indexOf('attach-session'));
     expect(result.indexOf('history-limit')).toBeLessThan(result.indexOf('attach-session'));
+    expect(result.indexOf('allow-passthrough')).toBeLessThan(result.indexOf('attach-session'));
   });
 });
 

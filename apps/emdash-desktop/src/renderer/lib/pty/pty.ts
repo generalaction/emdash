@@ -1,3 +1,4 @@
+import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -11,6 +12,10 @@ import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
+// Decoded-image budget per terminal, in MB. Every session keeps its Terminal alive
+// off-screen, so the addon default of 128 would let a handful of image-heavy sessions
+// pin more than a gigabyte. Oldest images are evicted first once the budget is hit.
+const IMAGE_STORAGE_LIMIT_MB = 32;
 
 export const TERMINAL_PADDING_PX = 8;
 // The DOM renderer cannot draw custom contiguous block glyphs. Keep xterm's
@@ -122,6 +127,13 @@ export class FrontendPty {
     });
 
     this.terminal.loadAddon(webLinksAddon);
+
+    // Inline images (SIXEL and iTerm2 OSC 1337). Agents and CLIs that draw
+    // screenshots, plots or previews otherwise leave a blank gap here: xterm.js
+    // on its own drops the escape sequence and reserves no space for it.
+    // Disposed with the terminal by xterm's addon manager.
+    this.terminal.loadAddon(new ImageAddon({ storageLimit: IMAGE_STORAGE_LIMIT_MB }));
+
     if (onOpenFile && onOpenExternal) {
       this.terminal.registerLinkProvider(
         new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)
