@@ -65,12 +65,11 @@ export function AgentIntegrationSection({
 }) {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
   const supportsTrust = agent.capabilities.trust.kind !== 'none';
-  const { status, isLoading } = useAgentHooksStatus(agent.id, host, supportsHooks);
+  const { status, isError, isLoading } = useAgentHooksStatus(agent.id, host, supportsHooks);
   const { value: taskSettings } = useAppSettingsKey('tasks');
 
   const showHooks =
-    supportsHooks &&
-    (host.type !== 'remote' || isLoading || (status !== null && status !== undefined));
+    supportsHooks && (host.type !== 'remote' || isLoading || (!isError && status !== undefined));
   if (!showHooks && !supportsTrust) return null;
 
   return (

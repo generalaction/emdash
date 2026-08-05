@@ -64,6 +64,16 @@ describe('Kiro hook config', () => {
 
     fs.files.delete(KIRO_V3_HOOKS_PATH);
     await expect(hooks.getHooksInstalled(fs)).resolves.toBe(false);
+    await expect(hooks.readHooks(fs)).resolves.toEqual([]);
+  });
+
+  it('does not partially write classic hooks when the v3 config has an invalid shape', async () => {
+    const hooks = buildKiroHookConfig();
+    const fs = createMemoryFs();
+    fs.files.set(KIRO_V3_HOOKS_PATH, JSON.stringify({ hooks: 'invalid' }));
+
+    await expect(hooks.writeHooks(fs, [])).rejects.toThrow('expected "hooks" to be an array');
+    expect(fs.files.has(KIRO_CLASSIC_HOOKS_PATH)).toBe(false);
   });
 
   it('deletes hooks from both formats', async () => {

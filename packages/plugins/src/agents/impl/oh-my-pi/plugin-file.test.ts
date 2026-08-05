@@ -26,6 +26,32 @@ function createMemoryFs(): PluginFs & { files: Map<string, string> } {
 }
 
 describe('oh-my-pi plugin hooks', () => {
+  it('resolves the OMP agent directory from its documented environment hierarchy', () => {
+    const resolveConfigRoot = provider.behavior.plugins?.resolveConfigRoot;
+    expect(resolveConfigRoot).toBeDefined();
+
+    expect(resolveConfigRoot?.({ env: {}, homeDir: '/home/ada', platform: 'linux' })).toBe(
+      '/home/ada/.omp/agent'
+    );
+    expect(
+      resolveConfigRoot?.({
+        env: { PI_CONFIG_DIR: '.custom-omp' },
+        homeDir: '/home/ada',
+        platform: 'linux',
+      })
+    ).toBe('/home/ada/.custom-omp/agent');
+    expect(
+      resolveConfigRoot?.({
+        env: {
+          PI_CODING_AGENT_DIR: '/configs/omp-agent',
+          PI_CONFIG_DIR: '.ignored',
+        },
+        homeDir: '/home/ada',
+        platform: 'linux',
+      })
+    ).toBe('/configs/omp-agent');
+  });
+
   it('installs an OMP extension that reports turn completion from session_stop', async () => {
     const fs = createMemoryFs();
 

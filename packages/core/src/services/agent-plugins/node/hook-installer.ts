@@ -101,9 +101,7 @@ export class AgentHookInstaller {
         providerId: params.providerId,
         roots,
         isInstalled: async () =>
-          everyAsync(roots, (root) =>
-            behavior.getHooksInstalled(createLocalPluginFs(root))
-          ),
+          everyAsync(roots, (root) => behavior.getHooksInstalled(createLocalPluginFs(root))),
         install: async () => {
           for (const root of roots) {
             const fs = createLocalPluginFs(root);

@@ -4,6 +4,7 @@ import {
   envConfigRoot,
   filterUserHooks,
   homeConfigRoot,
+  hookEntriesFromConfig,
   makeStdinHookCommand,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
@@ -37,7 +38,7 @@ function buildKimiHookEntries(existing: unknown[]): unknown[] {
 export function addKimiHooksToConfigText(content: string): string {
   try {
     const config = JSON.parse(content) as Record<string, unknown>;
-    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    const hooks = hookEntriesFromConfig(config, 'inline Kimi config');
     config.hooks = buildKimiHookEntries(hooks);
     return JSON.stringify(config);
   } catch {
@@ -45,7 +46,7 @@ export function addKimiHooksToConfigText(content: string): string {
   }
   try {
     const config = parseTOML(content) as Record<string, unknown>;
-    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    const hooks = hookEntriesFromConfig(config, 'inline Kimi config');
     config.hooks = buildKimiHookEntries(hooks);
     return stringifyTOML(config);
   } catch {

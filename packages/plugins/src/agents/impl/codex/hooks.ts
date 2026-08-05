@@ -10,6 +10,7 @@ import {
   defaultHookEventParser,
   envConfigRoot,
   filterUserHooks,
+  hookMapFromConfig,
   makeHookPostCommand,
   makeNotificationHookCommand,
   readJsonConfig,
@@ -65,8 +66,11 @@ async function removeLegacyCodexNotify(fs: PluginFs): Promise<void> {
   await fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
 }
 
-function getHooks(config: Record<string, unknown>): Record<string, unknown[]> {
-  return (config.hooks ?? {}) as Record<string, unknown[]>;
+function getHooks(
+  config: Record<string, unknown>,
+  configPath: string
+): Record<string, Record<string, unknown>[]> {
+  return hookMapFromConfig(config, configPath);
 }
 
 function hasCodexEmdashHooks(hooks: Record<string, unknown[]>, specs: [string, string][]): boolean {
@@ -80,7 +84,7 @@ function hasCodexEmdashHooks(hooks: Record<string, unknown[]>, specs: [string, s
 
 async function readLegacyHooks(fs: PluginFs): Promise<Record<string, unknown[]>> {
   const config = await readJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH);
-  return getHooks(config);
+  return getHooks(config, CODEX_LEGACY_HOOKS_PATH);
 }
 
 async function migrateLegacyHooks(
@@ -92,11 +96,11 @@ async function migrateLegacyHooks(
   for (const [key, entries] of Object.entries(legacyHooks)) {
     if (!Array.isArray(entries)) continue;
 
-    const userEntries = filterUserHooks(entries as Record<string, unknown>[]);
+    const userEntries = filterUserHooks(entries);
     if (!userEntries.length) continue;
 
     const existing = Array.isArray(hooks[key]) ? hooks[key] : [];
-    hooks[key] = [...filterUserHooks(existing as Record<string, unknown>[]), ...userEntries];
+    hooks[key] = [...filterUserHooks(existing), ...userEntries];
   }
 
   return async () => {
@@ -107,7 +111,7 @@ async function migrateLegacyHooks(
 function makeCodexSessionStartCommand(): string {
   const post = makeHookPostCommand('session-start', 'stdin', {});
   if (process.platform === 'win32') return post;
-  return `INPUT="\${1:-$(cat)}"; printf '%s' "$INPUT" | ${post}`;
+  return `INPUT="\${1:-$(cat)}"; printf '%s' "$INPUT" | { ${post}; }`;
 }
 
 /**
@@ -151,10 +155,9 @@ export function buildCodexHookConfig() {
 
   return {
     resolveConfigRoots: configRoots(envConfigRoot('CODEX_HOME', '.codex')),
-    getHookPaths: () => [CODEX_CONFIG_PATH],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
-      if (hasCodexEmdashHooks(getHooks(config), specs)) {
+      if (hasCodexEmdashHooks(getHooks(config, CODEX_CONFIG_PATH), specs)) {
         return [{ event: 'emdash', command: EMDASH_MARKER }];
       }
 
@@ -164,15 +167,12 @@ export function buildCodexHookConfig() {
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
-      const hooks = getHooks(config);
+      const hooks = getHooks(config, CODEX_CONFIG_PATH);
       const cleanupLegacy = await migrateLegacyHooks(fs, hooks);
 
       for (const [key, cmd] of specs) {
         const existing = Array.isArray(hooks[key]) ? hooks[key] : [];
-        hooks[key] = [
-          ...filterUserHooks(existing as Record<string, unknown>[]),
-          buildNestedEntry(cmd),
-        ];
+        hooks[key] = [...filterUserHooks(existing), buildNestedEntry(cmd)];
       }
       await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
       await cleanupLegacy();
@@ -181,16 +181,16 @@ export function buildCodexHookConfig() {
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
-      const hooks = getHooks(config);
+      const hooks = getHooks(config, CODEX_CONFIG_PATH);
       for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+        hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
 
       const legacyConfig = await readJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH);
-      const legacyHooks = getHooks(legacyConfig);
+      const legacyHooks = getHooks(legacyConfig, CODEX_LEGACY_HOOKS_PATH);
       for (const key of Object.keys(legacyHooks)) {
-        legacyHooks[key] = filterUserHooks(legacyHooks[key] as Record<string, unknown>[]);
+        legacyHooks[key] = filterUserHooks(legacyHooks[key]);
       }
       if (Object.values(legacyHooks).some((entries) => Array.isArray(entries) && entries.length)) {
         await writeJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH, { ...legacyConfig, hooks: legacyHooks });
@@ -201,7 +201,7 @@ export function buildCodexHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
       return (
-        hasCodexEmdashHooks(getHooks(config), specs) ||
+        hasCodexEmdashHooks(getHooks(config, CODEX_CONFIG_PATH), specs) ||
         hasCodexEmdashHooks(await readLegacyHooks(fs), specs)
       );
     },

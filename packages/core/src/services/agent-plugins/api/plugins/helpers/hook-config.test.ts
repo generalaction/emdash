@@ -1,6 +1,11 @@
 import type { PluginFs } from '@primitives/plugin-fs/api';
 import { describe, expect, it, vi } from 'vitest';
-import { readJsonConfig, readTomlConfig } from './hook-config';
+import {
+  buildFlatJsonHookConfig,
+  buildFlatTomlHookConfig,
+  readJsonConfig,
+  readTomlConfig,
+} from './hook-config';
 
 function configFs(content: string): PluginFs {
   return {
@@ -29,5 +34,23 @@ describe('hook config parsing', () => {
     await expect(readTomlConfig(configFs('invalid = ['), 'config.toml')).rejects.toThrow(
       'Failed to parse config.toml'
     );
+  });
+
+  it('does not overwrite a structurally incompatible TOML hooks field', async () => {
+    const fs = configFs('hooks = "custom-command"\n');
+    const hooks = buildFlatTomlHookConfig('config.toml', [{ command: 'emdash' }]);
+
+    await expect(hooks.writeHooks(fs, [])).rejects.toThrow(
+      'expected "hooks" to be an array of objects'
+    );
+    expect(fs.write).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a structurally incompatible JSON hooks field', async () => {
+    const fs = configFs('{"hooks":[]}');
+    const hooks = buildFlatJsonHookConfig('hooks.json', [{ hookKey: 'Stop', command: 'emdash' }]);
+
+    await expect(hooks.writeHooks(fs, [])).rejects.toThrow('expected "hooks" to be an object');
+    expect(fs.write).not.toHaveBeenCalled();
   });
 });

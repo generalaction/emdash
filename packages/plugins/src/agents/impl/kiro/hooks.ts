@@ -1,13 +1,11 @@
-import type {
-  HookRegistration,
-  PluginFs,
-} from '@emdash/core/services/agent-plugins/api/plugins';
+import type { HookRegistration, PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   EMDASH_MARKER,
   buildMinimalJsonHookConfig,
   configRoots,
   envConfigRoot,
   filterUserHooks,
+  hookEntriesFromConfig,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
@@ -69,41 +67,37 @@ export function buildKiroHookConfig() {
     resolveConfigRoots: configRoots(envConfigRoot('KIRO_HOME', '.kiro')),
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const classicHooks = await classicBehavior.readHooks(fs);
-      if (classicHooks.length > 0) return classicHooks;
       const config = await readJsonConfig(fs, KIRO_V3_HOOKS_PATH);
-      const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-      return hasAllV3Hooks(hooks) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
+      const v3Installed = hasAllV3Hooks(hookEntriesFromConfig(config, KIRO_V3_HOOKS_PATH));
+      return classicHooks.length > 0 && v3Installed
+        ? [{ event: 'emdash', command: EMDASH_MARKER }]
+        : [];
     },
     async writeHooks(fs: PluginFs, hooks: HookRegistration[]): Promise<string[]> {
-      const classicPaths = await classicBehavior.writeHooks(fs, hooks);
-
       const v3Config = await readJsonConfig(fs, KIRO_V3_HOOKS_PATH);
-      const v3Hooks = Array.isArray(v3Config.hooks) ? v3Config.hooks : [];
+      const v3Hooks = hookEntriesFromConfig(v3Config, KIRO_V3_HOOKS_PATH);
+      const classicPaths = await classicBehavior.writeHooks(fs, hooks);
       await writeJsonConfig(fs, KIRO_V3_HOOKS_PATH, {
         ...v3Config,
         version: 'v1',
-        hooks: [
-          ...filterUserHooks(v3Hooks as Record<string, unknown>[]),
-          ...KIRO_V3_SPECS.map(buildV3Entry),
-        ],
+        hooks: [...filterUserHooks(v3Hooks), ...KIRO_V3_SPECS.map(buildV3Entry)],
       });
 
       return [...classicPaths, KIRO_V3_HOOKS_PATH];
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
-      await classicBehavior.deleteHooks(fs);
-
       const v3Config = await readJsonConfig(fs, KIRO_V3_HOOKS_PATH);
-      const v3Hooks = Array.isArray(v3Config.hooks) ? v3Config.hooks : [];
+      const v3Hooks = hookEntriesFromConfig(v3Config, KIRO_V3_HOOKS_PATH);
+      await classicBehavior.deleteHooks(fs);
       await writeJsonConfig(fs, KIRO_V3_HOOKS_PATH, {
         ...v3Config,
-        hooks: filterUserHooks(v3Hooks as Record<string, unknown>[]),
+        hooks: filterUserHooks(v3Hooks),
       });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const classicInstalled = await classicBehavior.getHooksInstalled(fs);
       const v3Config = await readJsonConfig(fs, KIRO_V3_HOOKS_PATH);
-      const v3Installed = hasAllV3Hooks(Array.isArray(v3Config.hooks) ? v3Config.hooks : []);
+      const v3Installed = hasAllV3Hooks(hookEntriesFromConfig(v3Config, KIRO_V3_HOOKS_PATH));
       return classicInstalled && v3Installed;
     },
   };

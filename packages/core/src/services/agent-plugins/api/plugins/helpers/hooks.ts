@@ -7,6 +7,8 @@ export type HookCommandOptions = {
 export const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 export const EMDASH_HOOK_CONFIG_VERSION = 1;
 export const EMDASH_HOOK_VERSION_MARKER = `EMDASH_HOOK_CONFIG_VERSION=${EMDASH_HOOK_CONFIG_VERSION}`;
+export const EMDASH_HOOK_POSIX_GUARD =
+  'if [ -z "${EMDASH_HOOK_PORT:-}" ] || [ -z "${EMDASH_HOOK_NONCE:-}" ] || [ -z "${EMDASH_PTY_ID:-}" ]; then exit 0; fi';
 
 /** Filter out emdash-managed entries from a hook array. */
 export function filterUserHooks<T>(entries: T[], stringify?: (entry: T) => string): T[] {
@@ -26,7 +28,7 @@ function makePosixHookPostCommand(eventType: string, payload: HookPostPayload): 
   const payloadPart =
     payload === 'stdin' ? '-d @- ' : `--data-binary '${JSON.stringify(payload.json)}' `;
   return (
-    `${EMDASH_HOOK_VERSION_MARKER}; curl -sf -X POST ` +
+    `${EMDASH_HOOK_VERSION_MARKER}; ${EMDASH_HOOK_POSIX_GUARD}; curl -sf -X POST ` +
     '-H "Content-Type: application/json" ' +
     '-H "X-Emdash-Token: $EMDASH_HOOK_NONCE" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +

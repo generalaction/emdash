@@ -108,7 +108,7 @@ export const agentsContract = defineContract({
   }),
   hooksStatus: fallible({
     input: agentConfigContract.hooksStatus.input.extend(hostInputSchema.shape),
-    data: hooksStatusSchema.nullable(),
+    data: hooksStatusSchema,
     error: runtimeResolveErrorSchema,
   }),
   startLogin: fallible({

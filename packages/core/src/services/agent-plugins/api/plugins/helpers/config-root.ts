@@ -31,7 +31,9 @@ export function envConfigRoot(envVar: string, fallbackDirectory: string): Config
 }
 
 /** Combine multiple single-root resolvers into a multi-root resolver returning all roots. */
-export function configRoots(...resolvers: ConfigRootResolver[]): (context: ConfigRootContext) => string[] {
+export function configRoots(
+  ...resolvers: ConfigRootResolver[]
+): (context: ConfigRootContext) => string[] {
   return (context) => resolvers.map((r) => r(context));
 }
 

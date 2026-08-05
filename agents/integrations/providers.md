@@ -48,12 +48,13 @@ The global roots used by the built-in integrations are:
 | Auggie, Command Code, Qoder, Grok, Amp, Kilo, Droid, Goose | Fixed home roots (`~/.augment`, `~/.commandcode`, `~/.qoder`, `~/.grok`, `~/.amp`, `~/.kilo`, `~/.factory`, `~/.agents`) |
 | Claude, Codex, Copilot, Qwen, Kimi, Kiro, Mistral Vibe | Provider home env override with a home fallback |
 | OpenCode, MiMoCode, Devin | Provider override where supported, then XDG config on POSIX or APPDATA on Windows |
-| Pi, Oh My Pi | `$PI_CODING_AGENT_DIR` with `~/.pi` or `~/.omp` fallback |
+| Pi | `$PI_CODING_AGENT_DIR` with `~/.pi/agent` fallback |
+| Oh My Pi | `$PI_CODING_AGENT_DIR`, then `$PI_CONFIG_DIR`, with `~/.omp/agent` fallback |
 
-Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro selects the classic
-`agents/emdash.json` format for 2.x and the standalone `hooks/emdash.json` v1 schema for 3.x. The
-agent details UI obtains read-only installed/pending status through the host's `agent-config`
-runtime; remote clients call that procedure only at workspace protocol minor 4 or newer.
+Kimi also keeps the legacy `~/.kimi/config.toml` root synchronized. Kiro maintains both the classic
+`agents/emdash.json` format and the standalone `hooks/emdash.json` v1 schema so classic and `--v3`
+sessions are covered. The agent details UI obtains read-only installed/pending status through the
+host's `agent-config` runtime for both local and remote hosts.
 
 ## Provider Runtime Notes
 

@@ -193,10 +193,8 @@ if (session.agreedMinor >= 1) {
 }
 ```
 
-The agent hook-status procedure was introduced at minor 4. Desktop clients gate remote calls on
-`agreedMinor >= 4`; older or unavailable daemons omit the read-only hook indicator instead of
-attempting the unsupported procedure. Local desktop workers always expose the procedure from the
-same build.
+The desktop forwards the read-only agent hook-status procedure to the selected host's
+`agent-config` runtime. Local and remote runtimes expose the same procedure from the same build.
 
 ## Key Files
 

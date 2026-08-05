@@ -6,8 +6,8 @@ import {
 import {
   buildStandardCommand,
   createFileDropPlugin,
-  envConfigRoot,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
+import { envConfigRoot } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { OH_MY_PI_EXTENSION_CONTENT } from './plugin-file';
@@ -122,7 +122,7 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   plugins: createFileDropPlugin({
-    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.omp'),
+    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.omp/agent'),
     relativePath: OH_MY_PI_EXTENSION_PATH,
     content: OH_MY_PI_EXTENSION_CONTENT,
   }),

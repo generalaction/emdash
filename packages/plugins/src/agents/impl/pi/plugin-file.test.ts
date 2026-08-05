@@ -26,6 +26,22 @@ function createMemoryFs(): PluginFs & { files: Map<string, string> } {
 }
 
 describe('pi plugin hooks', () => {
+  it('resolves the Pi agent directory and honors PI_CODING_AGENT_DIR', () => {
+    const resolveConfigRoot = provider.behavior.plugins?.resolveConfigRoot;
+    expect(resolveConfigRoot).toBeDefined();
+
+    expect(resolveConfigRoot?.({ env: {}, homeDir: '/home/ada', platform: 'linux' })).toBe(
+      '/home/ada/.pi/agent'
+    );
+    expect(
+      resolveConfigRoot?.({
+        env: { PI_CODING_AGENT_DIR: '/configs/pi-agent' },
+        homeDir: '/home/ada',
+        platform: 'linux',
+      })
+    ).toBe('/configs/pi-agent');
+  });
+
   it('installs a session hook that can report the active Pi session file', async () => {
     const fs = createMemoryFs();
 

@@ -50,6 +50,43 @@ export async function writeTomlConfig(
   await fs.write(path, toml.stringify(config));
 }
 
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Read a root-level `hooks` array without replacing structurally incompatible user config. */
+export function hookEntriesFromConfig(
+  config: Record<string, unknown>,
+  configPath: string
+): Record<string, unknown>[] {
+  const hooks = config.hooks;
+  if (hooks === undefined) return [];
+  if (!Array.isArray(hooks) || !hooks.every(isConfigObject)) {
+    throw new Error(`Invalid ${configPath}: expected "hooks" to be an array of objects`);
+  }
+  return hooks;
+}
+
+/** Read an event-keyed `hooks` object without replacing structurally incompatible user config. */
+export function hookMapFromConfig(
+  config: Record<string, unknown>,
+  configPath: string
+): Record<string, Record<string, unknown>[]> {
+  const hooks = config.hooks;
+  if (hooks === undefined) return {};
+  if (!isConfigObject(hooks)) {
+    throw new Error(`Invalid ${configPath}: expected "hooks" to be an object`);
+  }
+  for (const [hookKey, entries] of Object.entries(hooks)) {
+    if (!Array.isArray(entries) || !entries.every(isConfigObject)) {
+      throw new Error(
+        `Invalid ${configPath}: expected "hooks.${hookKey}" to be an array of objects`
+      );
+    }
+  }
+  return hooks as Record<string, Record<string, unknown>[]>;
+}
+
 // ── Entry builders ─────────────────────────────────────────────────────────
 
 /** Claude/Codex-style nested entry: `{ hooks: [{ type: 'command', command }] }` */
@@ -69,16 +106,25 @@ export function buildMinimalEntry(command: string): Record<string, unknown> {
 
 // ── Merge helpers ───────────────────────────────────────────────────────────
 
-export function mergeNestedEntries(existing: unknown[], command: string): unknown[] {
-  return [...filterUserHooks(existing as Record<string, unknown>[]), buildNestedEntry(command)];
+export function mergeNestedEntries(
+  existing: Record<string, unknown>[],
+  command: string
+): Record<string, unknown>[] {
+  return [...filterUserHooks(existing), buildNestedEntry(command)];
 }
 
-export function mergeFlatEntries(existing: unknown[], command: string): unknown[] {
-  return [...filterUserHooks(existing as Record<string, unknown>[]), buildFlatEntry(command)];
+export function mergeFlatEntries(
+  existing: Record<string, unknown>[],
+  command: string
+): Record<string, unknown>[] {
+  return [...filterUserHooks(existing), buildFlatEntry(command)];
 }
 
-export function mergeMinimalEntries(existing: unknown[], command: string): unknown[] {
-  return [...filterUserHooks(existing as Record<string, unknown>[]), buildMinimalEntry(command)];
+export function mergeMinimalEntries(
+  existing: Record<string, unknown>[],
+  command: string
+): Record<string, unknown>[] {
+  return [...filterUserHooks(existing), buildMinimalEntry(command)];
 }
 
 // ── Generic hook config builders ────────────────────────────────────────────
@@ -101,15 +147,14 @@ export function buildFlatTomlHookConfig(
   options: FlatTomlHookConfigOptions = {}
 ) {
   const stringifyEntry = options.stringifyEntry ?? JSON.stringify;
-  const getHookEntries = (config: Record<string, unknown>) =>
-    Array.isArray(config.hooks) ? (config.hooks as Record<string, unknown>[]) : [];
   const hasEmdashHook = (config: Record<string, unknown>) => {
-    const serializedEntries = getHookEntries(config).map((entry) => stringifyEntry(entry));
+    const serializedEntries = hookEntriesFromConfig(config, configPath).map((entry) =>
+      stringifyEntry(entry)
+    );
     return entries.every((entry) => serializedEntries.includes(stringifyEntry(entry)));
   };
 
   return {
-    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readTomlConfig(fs, configPath);
       return hasEmdashHook(config) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
@@ -117,7 +162,7 @@ export function buildFlatTomlHookConfig(
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readTomlConfig(fs, configPath);
       await options.beforeWrite?.(fs);
-      const userHooks = filterUserHooks(getHookEntries(config), stringifyEntry);
+      const userHooks = filterUserHooks(hookEntriesFromConfig(config, configPath), stringifyEntry);
       await writeTomlConfig(fs, configPath, { ...config, hooks: [...userHooks, ...entries] });
       const extraPaths = (await options.afterWrite?.(fs)) ?? [];
       return [configPath, ...extraPaths];
@@ -126,7 +171,7 @@ export function buildFlatTomlHookConfig(
       const config = await readTomlConfig(fs, configPath);
       await writeTomlConfig(fs, configPath, {
         ...config,
-        hooks: filterUserHooks(getHookEntries(config), stringifyEntry),
+        hooks: filterUserHooks(hookEntriesFromConfig(config, configPath), stringifyEntry),
       });
       await options.afterDelete?.(fs);
     },
@@ -160,19 +205,18 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
     });
 
   return {
-    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       return hasAllManagedNestedEntries(hooks) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       for (const [hookKey, specs] of specsByHookKey) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         hooks[hookKey] = [
-          ...filterUserHooks(existing as Record<string, unknown>[]),
+          ...filterUserHooks(existing),
           ...specs.map(({ command }) => buildNestedEntry(command)),
         ];
       }
@@ -181,15 +225,15 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+        hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeJsonConfig(fs, configPath, { ...config, hooks });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       return hasAllManagedNestedEntries(hooks);
     },
   };
@@ -207,10 +251,9 @@ export function buildFlatJsonHookConfig(
   extraRoot?: Record<string, unknown>
 ) {
   return {
-    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       const installed = hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         return entries.some(
@@ -221,7 +264,7 @@ export function buildFlatJsonHookConfig(
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       for (const { hookKey, command } of hookSpecs) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         hooks[hookKey] = mergeFlatEntries(existing, command);
@@ -231,15 +274,15 @@ export function buildFlatJsonHookConfig(
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+        hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeJsonConfig(fs, configPath, { ...config, hooks });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       return hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         return entries.some(
@@ -260,10 +303,9 @@ export function buildMinimalJsonHookConfig(
   extraRoot?: Record<string, unknown>
 ) {
   return {
-    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       const installed = hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         return entries.some(
@@ -274,7 +316,7 @@ export function buildMinimalJsonHookConfig(
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       for (const { hookKey, command } of hookSpecs) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         hooks[hookKey] = mergeMinimalEntries(existing, command);
@@ -284,15 +326,15 @@ export function buildMinimalJsonHookConfig(
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+        hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeJsonConfig(fs, configPath, { ...config, hooks });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, configPath);
-      const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+      const hooks = hookMapFromConfig(config, configPath);
       return hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         return entries.some(

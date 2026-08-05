@@ -6,6 +6,7 @@ import {
   configRoots,
   filterUserHooks,
   homeConfigRoot,
+  hookMapFromConfig,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
@@ -35,10 +36,6 @@ for (const spec of GOOSE_HOOK_SPECS) {
   specsByHookKey.set(spec.hookKey, [...(specsByHookKey.get(spec.hookKey) ?? []), spec]);
 }
 
-function getHooks(config: Record<string, unknown>): Record<string, unknown[]> {
-  return (config.hooks ?? {}) as Record<string, unknown[]>;
-}
-
 function hasAllManagedHooks(hooks: Record<string, unknown[]>): boolean {
   return [...specsByHookKey].every(([hookKey, specs]) => {
     const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
@@ -52,10 +49,9 @@ function hasAllManagedHooks(hooks: Record<string, unknown[]>): boolean {
 export function buildGooseHookConfig() {
   return {
     resolveConfigRoots: configRoots(homeConfigRoot('.agents')),
-    getHookPaths: () => [GOOSE_PLUGIN_MANIFEST_PATH, GOOSE_HOOKS_PATH],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, GOOSE_HOOKS_PATH);
-      return hasAllManagedHooks(getHooks(config))
+      return hasAllManagedHooks(hookMapFromConfig(config, GOOSE_HOOKS_PATH))
         ? [{ event: 'emdash', command: EMDASH_MARKER }]
         : [];
     },
@@ -63,12 +59,12 @@ export function buildGooseHookConfig() {
       await writeJsonConfig(fs, GOOSE_PLUGIN_MANIFEST_PATH, GOOSE_PLUGIN_MANIFEST);
 
       const config = await readJsonConfig(fs, GOOSE_HOOKS_PATH);
-      const hooks = getHooks(config);
+      const hooks = hookMapFromConfig(config, GOOSE_HOOKS_PATH);
 
       for (const [hookKey, specs] of specsByHookKey) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         hooks[hookKey] = [
-          ...filterUserHooks(existing as Record<string, unknown>[]),
+          ...filterUserHooks(existing),
           ...specs.map(({ command }) => buildNestedEntry(command)),
         ];
       }
@@ -78,15 +74,15 @@ export function buildGooseHookConfig() {
     },
     async deleteHooks(fs: PluginFs): Promise<void> {
       const config = await readJsonConfig(fs, GOOSE_HOOKS_PATH);
-      const hooks = getHooks(config);
+      const hooks = hookMapFromConfig(config, GOOSE_HOOKS_PATH);
       for (const key of Object.keys(hooks)) {
-        hooks[key] = filterUserHooks(hooks[key] as Record<string, unknown>[]);
+        hooks[key] = filterUserHooks(hooks[key]);
       }
       await writeJsonConfig(fs, GOOSE_HOOKS_PATH, { ...config, hooks });
     },
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, GOOSE_HOOKS_PATH);
-      return hasAllManagedHooks(getHooks(config));
+      return hasAllManagedHooks(hookMapFromConfig(config, GOOSE_HOOKS_PATH));
     },
   };
 }

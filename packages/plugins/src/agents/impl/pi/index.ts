@@ -58,7 +58,7 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   plugins: createFileDropPlugin({
-    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.pi'),
+    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.pi/agent'),
     relativePath: PI_EXTENSION_PATH,
     content: PI_EXTENSION_CONTENT,
   }),

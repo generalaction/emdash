@@ -22,7 +22,6 @@ import type {
   TuiStartSessionError,
 } from '@runtimes/tui-agents/api';
 import { persistedTuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
-import { AgentHookInstaller } from '@services/agent-plugins/node';
 import { TuiHookPipeline } from '@runtimes/tui-agents/node/hooks/hook-pipeline';
 import { TuiHookServer } from '@runtimes/tui-agents/node/hooks/hook-server';
 import {
@@ -38,6 +37,7 @@ import {
 } from '@runtimes/tui-agents/node/state/live-models';
 import { TuiWorkspaceTrust } from '@runtimes/tui-agents/node/trust/workspace-trust';
 import type { AgentCommand, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
+import { AgentHookInstaller } from '@services/agent-plugins/node';
 import {
   noopConversationLifecycleReporter,
   type ConversationLifecycleReporter,
