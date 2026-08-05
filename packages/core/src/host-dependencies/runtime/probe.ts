@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { IExecutionContext } from '../../exec/execution-context';
 import type { Platform } from '../capability';
 import { toPlatform } from './install-options';
@@ -6,6 +7,22 @@ import type { ProbeResult } from './types';
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 const REALPATH_TIMEOUT_MS = 5_000;
+
+function outputLines(stdout: string): string[] {
+  return stdout
+    .trim()
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function windowsCommandPaths(stdout: string): string[] {
+  const paths = outputLines(stdout);
+  const executablePaths = paths.filter((candidate) =>
+    ['.com', '.exe', '.cmd', '.bat'].includes(path.win32.extname(candidate).toLowerCase())
+  );
+  return executablePaths.length > 0 ? executablePaths : paths;
+}
 
 function targetPlatform(platform?: Platform): Platform {
   return platform ?? toPlatform(process.platform);
@@ -27,18 +44,10 @@ export async function resolveAllCommandPaths(
   try {
     if (plat === 'windows') {
       const { stdout } = await ctx.exec('where', [command], { timeout: WHICH_TIMEOUT_MS });
-      return stdout
-        .trim()
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      return windowsCommandPaths(stdout);
     }
     const { stdout } = await ctx.exec('which', ['-a', command], { timeout: WHICH_TIMEOUT_MS });
-    return stdout
-      .trim()
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    return outputLines(stdout);
   } catch {
     return [];
   }
@@ -54,10 +63,11 @@ export async function resolveCommandPath(
   ctx: IExecutionContext,
   platform?: Platform
 ): Promise<string | null> {
-  const resolveCmd = targetPlatform(platform) === 'windows' ? 'where' : 'which';
+  const plat = targetPlatform(platform);
+  const resolveCmd = plat === 'windows' ? 'where' : 'which';
   try {
     const { stdout } = await ctx.exec(resolveCmd, [command], { timeout: WHICH_TIMEOUT_MS });
-    const firstLine = stdout.trim().split('\n')[0]?.trim();
+    const firstLine = (plat === 'windows' ? windowsCommandPaths(stdout) : outputLines(stdout))[0];
     return firstLine ?? null;
   } catch {
     return null;

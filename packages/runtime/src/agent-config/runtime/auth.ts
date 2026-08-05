@@ -205,6 +205,7 @@ export class AgentAuthManager {
         env,
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
+        windowsScript: 'trusted',
       },
       {
         replaceExisting: false,

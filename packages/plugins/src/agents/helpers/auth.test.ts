@@ -39,6 +39,10 @@ describe('agent auth helpers', () => {
         authenticatedPattern: /authenticated/i,
       })
     ).resolves.toEqual({ kind: 'authenticated' });
+    expect(exec).toHaveBeenCalledWith('agent', ['login', 'status'], {
+      timeout: 5000,
+      windowsScript: 'trusted',
+    });
   });
 
   it('maps command errors to unauthenticated status when output matches', async () => {

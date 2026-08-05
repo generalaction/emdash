@@ -63,7 +63,12 @@ export type AgentAuthContext = {
   exec: (
     command: string,
     args?: string[],
-    opts?: { timeout?: number; maxBuffer?: number; signal?: AbortSignal }
+    opts?: {
+      timeout?: number;
+      maxBuffer?: number;
+      signal?: AbortSignal;
+      windowsScript?: 'trusted';
+    }
   ) => Promise<{ stdout: string; stderr: string }>;
   fs: PluginFs;
   env: Record<string, string>;

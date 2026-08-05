@@ -1,3 +1,4 @@
+import { resolveWindowsScriptCommand } from '../../exec/windows-script-command';
 import {
   normalizeSignal,
   PosixPtyTerminator,
@@ -13,7 +14,7 @@ const MIN_ROWS = 1;
 type NodePtyModule = {
   spawn(
     command: string,
-    args: string[],
+    args: string[] | string,
     options: {
       name: string;
       cols: number;
@@ -42,7 +43,14 @@ export class NodePtySpawner implements PtySpawner {
   async spawn(spec: PtySpawnSpec): Promise<PtyProcess> {
     try {
       const nodePty = await loadNodePty();
-      const proc = nodePty.spawn(spec.command, spec.args, {
+      const resolved = resolveWindowsScriptCommand(
+        spec.command,
+        spec.args,
+        spec.env,
+        process.platform,
+        spec.windowsScript === 'trusted'
+      );
+      const proc = nodePty.spawn(resolved.command, resolved.ptyCommandLine ?? resolved.args, {
         name: 'xterm-256color',
         cols: spec.cols,
         rows: spec.rows,

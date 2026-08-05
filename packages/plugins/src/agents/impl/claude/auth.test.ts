@@ -42,7 +42,10 @@ describe('claudeAuthStatus', () => {
       kind: 'authenticated',
       account: 'user@example.com',
     });
-    expect(exec).toHaveBeenCalledWith('claude', ['auth', 'status'], { timeout: 5000 });
+    expect(exec).toHaveBeenCalledWith('claude', ['auth', 'status'], {
+      timeout: 5000,
+      windowsScript: 'trusted',
+    });
   });
 
   it('reports unauthenticated when claude auth status exits 1 with status JSON', async () => {

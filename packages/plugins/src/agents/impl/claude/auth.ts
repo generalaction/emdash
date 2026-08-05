@@ -18,6 +18,7 @@ export async function claudeAuthStatus(ctx: AgentAuthContext): Promise<AgentAuth
   try {
     const { stdout } = await ctx.exec(ctx.cli, ['auth', 'status'], {
       timeout: AUTH_STATUS_TIMEOUT_MS,
+      windowsScript: 'trusted',
     });
     return { kind: 'authenticated', account: accountFromAuthStatus(stdout) };
   } catch (error) {

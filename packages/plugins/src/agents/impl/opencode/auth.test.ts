@@ -35,7 +35,10 @@ describe('opencodeAuthStatus', () => {
     });
 
     await expect(opencodeAuthStatus(ctx({ exec }))).resolves.toEqual({ kind: 'authenticated' });
-    expect(exec).toHaveBeenCalledWith('opencode', ['auth', 'list'], { timeout: 5000 });
+    expect(exec).toHaveBeenCalledWith('opencode', ['auth', 'list'], {
+      timeout: 5000,
+      windowsScript: 'trusted',
+    });
   });
 
   it('reports unauthenticated when opencode auth list reports zero credentials', async () => {
