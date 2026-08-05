@@ -1429,6 +1429,18 @@ fresh recreated green run becomes the final success report.
   every audited action but documented only one JSON shape. Document every strict action shape,
   surface the native failure ahead of the passing validation summary, and reserve attempt
   twenty-two for the unchanged clean replay.
+- [x] 2026-08-05: Attempts twenty-two through fifty-eight iteratively closed bounded clean-room,
+  lifecycle, native-protocol, fixture-hydration, and recovery defects without mutating the final
+  Summario checkpoint `7dc77816442cf9c529ce3a8f15491bb40f68ac33`. Attempt fifty-eight passed
+  every validation command and recorded 27 valid native observations, but its restarted ACP
+  runtimes lost earlier browser context. Emdash now carries a bounded redacted observation ledger
+  into each fresh recovery runtime.
+- [x] 2026-08-05: Attempt fifty-nine passed every validation command and recorded 23 valid native
+  observations. The observation ledger survived two fresh ACP runtime restarts, but a third
+  consecutive prompt stall failed before the separately reserved terminal-only recovery. Emdash
+  now promotes an exhausted exploratory-stall budget into that one terminal recovery, rejects
+  action requests once promoted, and covers the consecutive-stall path with a focused regression.
+  Preserve the clean feature checkpoint and use attempt sixty for the unchanged replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
