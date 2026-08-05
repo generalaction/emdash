@@ -92,7 +92,7 @@ export function createProjectsWireController(
         run: (input, ctx) => runCreateProjectFromRemote(dependencies, creation, input, ctx),
         toError: unknownToProjectCreationError,
       },
-      delete: (input) => enqueueDeleteProject(operations, input.projectId),
+      delete: (input) => enqueueDeleteProject(operations, dependencies.runtimes, input.projectId),
     },
     async dispose() {
       await creation.dispose();

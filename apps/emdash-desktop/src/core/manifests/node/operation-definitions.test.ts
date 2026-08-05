@@ -10,7 +10,6 @@ describe('desktop operation conflict policy', () => {
       deleteConversation: {} as never,
       deleteProject: {} as never,
       deleteTask: {} as never,
-      hostOutbox: {} as never,
     });
     const samples = created.definitions.flatMap((descriptor) => descriptor.examples);
 

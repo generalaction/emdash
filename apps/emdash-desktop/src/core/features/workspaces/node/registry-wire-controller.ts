@@ -1,9 +1,14 @@
-import { hostRef, isLocalHostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import { randomUUID } from 'node:crypto';
+import {
+  hostRef,
+  isLocalHostRef,
+  LOCAL_HOST_REF,
+  type HostRef,
+} from '@emdash/core/primitives/host/api';
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/api';
-import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,
@@ -98,7 +103,10 @@ export function createWorkspaceRegistryWireController(
   });
 }
 
-async function listWorkspaces(db: AppDb, input: ListWorkspacesInput): Promise<WorkspaceMirrorRow[]> {
+async function listWorkspaces(
+  db: AppDb,
+  input: ListWorkspacesInput
+): Promise<WorkspaceMirrorRow[]> {
   const tracking = input.includeUntracked ? undefined : liveWorkspaces();
   const rows =
     'host' in input.scope

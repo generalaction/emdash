@@ -67,12 +67,12 @@ import {
   createProjectSettingsWireController,
   createProjectWorkspacesWireController,
 } from '@core/features/workspaces/node/project-wire-controllers';
+import { createWorkspaceRegistryWireController } from '@core/features/workspaces/node/registry-wire-controller';
 import type { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@core/features/workspaces/node/wire-controller';
-import { createWorkspaceRegistryWireController } from '@core/features/workspaces/node/registry-wire-controller';
 import { WorkspaceScanCache } from '@core/features/workspaces/node/workspace-scan-cache';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
@@ -276,13 +276,14 @@ export const desktopNodeControllers = {
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, operations, scope, workspaces }) =>
+    create: ({ db, operations, runtimes, scope, workspaces }) =>
       controllerFromImpl(
         desktopDomainContracts.workspaces,
         createWorkspacesWireController({
           ...workspaces,
           db,
           operations,
+          runtimes,
         }),
         scope
       ),
@@ -371,12 +372,13 @@ export const desktopNodeControllers = {
     create: ({ remoteMachine }) => createRemoteMachineWireController(remoteMachine),
   },
   tasks: {
-    create: ({ db, operations, scope, taskService, taskSessions, telemetry }) =>
+    create: ({ db, operations, runtimes, scope, taskService, taskSessions, telemetry }) =>
       controllerFromImpl(
         desktopDomainContracts.tasks,
         createTasksWireController({
           db,
           operations,
+          runtimes,
           service: taskService,
           taskSessions,
           telemetry,

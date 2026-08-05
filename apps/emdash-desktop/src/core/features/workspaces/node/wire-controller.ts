@@ -8,8 +8,9 @@ import type {
   WorkspaceSliceError,
 } from '@core/features/workspaces/api';
 import {
-  enqueueArchiveWorkspace,
-  enqueueDeleteWorkspace,
+  archiveWorkspaceThroughRegistry,
+  deleteWorkspaceThroughRegistry,
+  type WorkspaceRemovalBroker,
 } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import { isWorkspacesRuntimeResolveError } from '@core/features/workspaces/api/runtime-adapter';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -28,11 +29,12 @@ export type WorkspacesWireTaskProvisioner = (
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
   operations: OperationsEngine;
+  runtimes: WorkspaceRemovalBroker;
   provisionTask: WorkspacesWireTaskProvisioner;
   reprovisionWorkspace(
     workspaceId: string,
     options?: { removeFirst?: boolean }
-  ): ReturnType<OperationsEngine['submit']>;
+  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
 };
 
 export type WorkspacesWireController = {
@@ -52,8 +54,10 @@ export function createWorkspacesWireController(
       reprovision: (input) => options.reprovisionWorkspace(input.workspaceId),
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
-      delete: (input) => enqueueDeleteWorkspace(options.operations, input.workspaceId),
-      archive: (input) => enqueueArchiveWorkspace(options.operations, input),
+      delete: (input) =>
+        deleteWorkspaceThroughRegistry(options.operations, options.runtimes, input.workspaceId),
+      archive: (input) =>
+        archiveWorkspaceThroughRegistry(options.operations, options.runtimes, input),
     },
     async dispose() {},
   };

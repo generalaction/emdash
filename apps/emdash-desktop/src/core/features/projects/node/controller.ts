@@ -41,7 +41,7 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
     ensureDefaultRepositoriesRoot: (host: HostRef) =>
       ensureDefaultRepositoriesRoot(dependencies, host),
     getProjects: () => getProjects(db),
-    deleteProject: (projectId: string) => deleteProject(operations, projectId),
+    deleteProject: (projectId: string) => deleteProject(operations, runtimes, projectId),
     getProjectSettingsPage: (projectId: string) =>
       projectSettings.getProjectSettingsPage(projectId),
     updateProjectSettings: (projectId: string, settings: ProjectSettings) =>

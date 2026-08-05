@@ -19,6 +19,7 @@ describe('createWorkspacesWireController', () => {
     const controller = createWorkspacesWireController({
       db: {} as never,
       operations: {} as never,
+      runtimes: {} as never,
       provisionTask,
       reprovisionWorkspace: vi.fn(),
     });
@@ -51,6 +52,7 @@ describe('createWorkspacesWireController', () => {
     const controller = createWorkspacesWireController({
       db: {} as never,
       operations: {} as never,
+      runtimes: {} as never,
       provisionTask: vi.fn(),
       reprovisionWorkspace: reprovisionWorkspace as never,
     });

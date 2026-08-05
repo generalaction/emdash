@@ -1,6 +1,9 @@
 import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
-import { enqueueDeleteWorkspacePath } from '@core/features/workspaces/api/node/operations/workspace-removal';
+import {
+  deleteWorkspacePathThroughRegistry,
+  type WorkspaceRemovalBroker,
+} from '@core/features/workspaces/api/node/operations/workspace-removal';
 import type {
   ProjectWorkspaceActionResult,
   ProjectWorkspaceActionSummary,
@@ -72,6 +75,7 @@ export async function deleteProjectWorkspaces(
 async function deleteProjectWorkspaceRow(
   dependencies: {
     operations: OperationsEngine;
+    runtimes: WorkspaceRemovalBroker;
     taskService: Pick<TaskService, 'deleteTask'>;
   },
   projectId: string,
@@ -117,8 +121,9 @@ async function deleteProjectWorkspaceRow(
       return success(row);
     }
 
-    const result = await enqueueDeleteWorkspacePath(
+    const result = await deleteWorkspacePathThroughRegistry(
       dependencies.operations,
+      dependencies.runtimes,
       {
         projectId,
         workspaceId: row.workspaceId ?? undefined,

@@ -7,6 +7,7 @@ import { tasksWireContract } from '@core/features/tasks/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { enqueueDeleteTask } from '@core/features/tasks/node/operations/delete-task-definition';
+import type { WorkspaceRemovalBroker } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
@@ -30,6 +31,7 @@ export type TasksWireController = {
 export function createTasksWireController(options: {
   db: AppDb;
   operations: OperationsEngine;
+  runtimes: WorkspaceRemovalBroker;
   service: TaskService;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
@@ -163,7 +165,7 @@ export function createTasksWireController(options: {
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       taskList: taskListProvider,
       taskStats: taskStatsProvider,
-      delete: (input) => enqueueDeleteTask(operations, input),
+      delete: (input) => enqueueDeleteTask(operations, options.runtimes, input),
     },
     async dispose() {
       await taskListProvider.dispose();

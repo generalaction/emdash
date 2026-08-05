@@ -174,10 +174,18 @@ export type TaskDeletePreflightItem = {
   taskId: string;
   /** taskBranch exists and no sibling task shares it */
   hasWorktree: boolean;
-  /** staged or unstaged changes exist in the worktree */
+  /** dirty per the mirror's host-synced git observation */
   hasUncommittedChanges: boolean;
   /** hasWorktree && taskBranch differs from sourceBranch */
   hasDeletableBranch: boolean;
+  /** Mirror diff stats; untracked files' lines count as additions. */
+  changedLines?: { added: number; deleted: number } | null;
+  /** Commits ahead of upstream per the mirror observation. */
+  unpushedCommits?: number | null;
+  /** Epoch-ms stamp of the host observation the stakes were read from. */
+  observedAt?: number | null;
+  /** False disables artifact deletion in the dialog — nothing is queued offline. */
+  hostReachable: boolean;
 };
 
 export type DeletePreflightResult = {

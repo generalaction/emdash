@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   enqueueDeleteProject: vi.fn(),
 }));
 const operations = {} as never;
+const runtimes = {} as never;
 
 vi.mock('./delete-project-definition', () => ({
   enqueueDeleteProject: mocks.enqueueDeleteProject,
@@ -20,9 +21,9 @@ describe('deleteProject', () => {
   });
 
   it('enqueues the project and its task cleanups', async () => {
-    await deleteProject(operations, 'project-1');
+    await deleteProject(operations, runtimes, 'project-1');
 
-    expect(mocks.enqueueDeleteProject).toHaveBeenCalledWith(operations, 'project-1');
+    expect(mocks.enqueueDeleteProject).toHaveBeenCalledWith(operations, runtimes, 'project-1');
   });
 
   it('keeps missing deletes idempotent', async () => {
@@ -31,7 +32,7 @@ describe('deleteProject', () => {
       error: { type: 'project-not-found', message: 'missing' },
     });
 
-    await expect(deleteProject(operations, 'missing')).resolves.toBeUndefined();
+    await expect(deleteProject(operations, runtimes, 'missing')).resolves.toBeUndefined();
   });
 
   it('surfaces enqueue failures', async () => {
@@ -40,6 +41,8 @@ describe('deleteProject', () => {
       error: { type: 'database-error', message: 'database failed' },
     });
 
-    await expect(deleteProject(operations, 'project-1')).rejects.toThrow('database failed');
+    await expect(deleteProject(operations, runtimes, 'project-1')).rejects.toThrow(
+      'database failed'
+    );
   });
 });

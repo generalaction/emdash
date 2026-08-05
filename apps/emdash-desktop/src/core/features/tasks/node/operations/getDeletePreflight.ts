@@ -1,17 +1,23 @@
-import { log } from '@emdash/shared/logger';
+import { formatHostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull, ne } from 'drizzle-orm';
-import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
+import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
-import { checkoutSelector } from '@core/services/runtime-broker/node/git';
 
+export type DeletePreflightHostProbe = (hostRef: SerializedHostRef) => boolean;
+
+/**
+ * Informed confirmation from the mirror alone (spec §7, planning ticket 09): dirty
+ * state, changed lines, unpushed commits, and the observation stamp come straight
+ * from the synced registry columns — no host round-trip. Host reachability gates the
+ * artifact-deletion option in the dialog; offline deletion stays desktop-only.
+ */
 async function getTaskPreflight(
   db: AppDb,
-  projects: Pick<ProjectSessionManager, 'getProject'>,
-  projectId: string,
+  hostIsReachable: DeletePreflightHostProbe,
   taskId: string
 ): Promise<TaskDeletePreflightItem> {
   const noWorktreeResult: TaskDeletePreflightItem = {
@@ -19,6 +25,7 @@ async function getTaskPreflight(
     hasWorktree: false,
     hasUncommittedChanges: false,
     hasDeletableBranch: false,
+    hostReachable: true,
   };
 
   const [task] = await db
@@ -46,49 +53,24 @@ async function getTaskPreflight(
   const fromBranch = ws.config?.git.kind === 'create-branch' ? ws.config.git.fromBranch : undefined;
   const hasDeletableBranch = hasWorktree && !!fromBranch && provisionedBranch !== fromBranch.branch;
 
-  let hasUncommittedChanges = false;
-  if (hasWorktree) {
-    const project = projects.getProject(projectId);
-    if (project) {
-      try {
-        const worktreePath = await project.findTaskWorktree(provisionedBranch);
-        if (worktreePath) {
-          const status = (
-            await project.git.checkout.model
-              .state(checkoutSelector(worktreePath), 'status')
-              .snapshot()
-          ).data;
-          if (status.kind === 'error') {
-            log.warn('getDeletePreflight: git status check failed', {
-              taskId,
-              error: status.message,
-            });
-          }
-          if (status.kind === 'ok') {
-            hasUncommittedChanges =
-              status.summary.staged > 0 ||
-              status.summary.unstaged > 0 ||
-              status.summary.untracked > 0;
-          }
-          if (status.kind === 'too-many-files') hasUncommittedChanges = true;
-        }
-      } catch (e) {
-        log.warn('getDeletePreflight: git status check failed', { taskId, error: String(e) });
-      }
-    }
-  }
-
-  return { taskId, hasWorktree, hasUncommittedChanges, hasDeletableBranch };
+  const observedGit = ws.observedGit ?? null;
+  return {
+    taskId,
+    hasWorktree,
+    hasUncommittedChanges: hasWorktree && (observedGit?.dirty ?? false),
+    hasDeletableBranch,
+    changedLines: observedGit?.diffStats ?? null,
+    unpushedCommits: observedGit?.ahead ?? null,
+    observedAt: ws.observedAt ?? null,
+    hostReachable: hostIsReachable(formatHostRef(operationHostRef({ workspace: ws }))),
+  };
 }
 
 export async function getDeletePreflight(
   db: AppDb,
-  projects: Pick<ProjectSessionManager, 'getProject'>,
-  projectId: string,
+  hostIsReachable: DeletePreflightHostProbe,
   taskIds: string[]
 ): Promise<DeletePreflightResult> {
-  const items = await Promise.all(
-    taskIds.map((id) => getTaskPreflight(db, projects, projectId, id))
-  );
+  const items = await Promise.all(taskIds.map((id) => getTaskPreflight(db, hostIsReachable, id)));
   return { tasks: items };
 }

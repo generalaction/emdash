@@ -16,10 +16,7 @@ const hostInput = z.object({ host: hostRefSchema });
 const workspaceKeyInput = hostInput.extend({ workspaceId: z.string().min(1) });
 
 export const listWorkspacesInputSchema = z.object({
-  scope: z.union([
-    z.object({ host: hostRefSchema }),
-    z.object({ projectId: z.string().min(1) }),
-  ]),
+  scope: z.union([z.object({ host: hostRefSchema }), z.object({ projectId: z.string().min(1) })]),
   /** Serves the machines-page tombstones; live rows only by default. */
   includeUntracked: z.boolean().optional(),
 });

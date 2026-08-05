@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   formatHostRef,
   LOCAL_HOST_REF,
@@ -19,13 +18,9 @@ import {
   type DeleteTaskOperationInput,
 } from '@core/features/tasks/api/node/delete-task-operation';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
-import {
-  hostRemoveWorktreeOperation,
-  type HostRemoveWorktreeInput,
-} from '@core/features/workspaces/api/node/host-outbox-operations';
 import { classifyWorkspaceOperationError } from '@core/features/workspaces/api/node/operation-error-classifier';
 import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
-import { compileRemoveWorktreePrediction } from '@core/features/workspaces/api/node/operations/compile-host-outbox-prediction';
+import type { WorkspaceRemovalBroker } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
   createWorkspaceRegistry,
   liveWorkspaces,
@@ -259,7 +254,11 @@ export function createDeleteProjectOperationDefinition(
   };
 }
 
-export async function enqueueDeleteProject(operations: OperationSubmitter, projectId: string) {
+export async function enqueueDeleteProject(
+  operations: OperationSubmitter,
+  runtimes: WorkspaceRemovalBroker,
+  projectId: string
+) {
   const createdAt = Date.now();
   const registry = createWorkspaceRegistry(operations.db, {
     now: () => new Date(createdAt).toISOString(),
@@ -329,12 +328,7 @@ export async function enqueueDeleteProject(operations: OperationSubmitter, proje
     },
   });
   if (result.success && loaded) {
-    await enqueueProvenanceWorktreeRemovals(
-      operations,
-      loaded.project,
-      loaded.registryRows,
-      createdAt
-    );
+    await removeProvenanceWorktrees(runtimes, loaded.project, loaded.registryRows);
   }
   return result;
 }
@@ -353,6 +347,7 @@ type ProjectRegistryRow = {
   path: string | null;
   kind: string | null;
   config: WorkspaceRow['config'];
+  location: 'local' | 'remote' | null;
   sshConnectionId: string | null;
   observedStatus: string | null;
   lastObservedAt: string | null;
@@ -378,6 +373,7 @@ async function loadProjectRegistryRows(
       path: workspaces.path,
       kind: workspaces.kind,
       config: workspaces.config,
+      location: workspaces.location,
       sshConnectionId: workspaces.sshConnectionId,
       observedStatus: workspaces.observedStatus,
       lastObservedAt: workspaces.lastObservedAt,
@@ -387,55 +383,34 @@ async function loadProjectRegistryRows(
 }
 
 /**
- * Queues a `host-remove-worktree` outbox entry per provenance worktree
- * (rows emdash created, `config != NULL`). Adopted rows are untracked only —
+ * Removes each provenance worktree (rows emdash created, `config != NULL`) through
+ * the fail-fast `deleteWorktree` registry verb. Adopted rows are untracked only —
  * emdash never removes artifacts it did not create as part of a bulk delete.
+ * Best-effort: rows are already untracked by the project tombstone, so a failed or
+ * unreachable call just leaves the worktree on the host.
  */
-async function enqueueProvenanceWorktreeRemovals(
-  operations: OperationSubmitter,
+async function removeProvenanceWorktrees(
+  runtimes: WorkspaceRemovalBroker,
   project: ProjectRemovalRow,
-  registryRows: readonly ProjectRegistryRow[],
-  createdAt: number
+  registryRows: readonly ProjectRegistryRow[]
 ): Promise<void> {
   // No repository path means no host to remove worktrees from.
   if (!project.repositoryPath) return;
   for (const row of registryRows) {
     if (row.kind !== 'worktree' || !row.path || row.config === null) continue;
-    const branchName = getProvisionedWorkspaceBranch(row) ?? undefined;
-    const input: HostRemoveWorktreeInput = {
-      version: '1',
-      source: 'user',
-      hostOperationId: randomUUID(),
-      hostRef: formatHostRef(
-        operationHostRef({
-          workspace: row,
-          repository: {
-            location: project.repositoryLocation,
-            sshConnectionId: project.repositorySshConnectionId,
-          },
-        })
-      ),
-      repoPath: project.repositoryPath,
-      projectId: project.id,
-      workspaceId: row.id,
-      entityName: row.path,
-      hostLabel: project.name,
-      workspacePath: row.path,
-      branchName,
-      deleteBranch: false,
-      deactivateConsumers: 'all',
-      prediction: compileRemoveWorktreePrediction({
-        now: createdAt,
-        workspacePath: row.path,
-        branchName,
-        deleteBranch: false,
-        observed: row,
-      }),
-      createdAt,
-    };
-    // Rows are already untracked by the project tombstone; admission rejects
-    // (e.g. duplicate key) are tolerable — the worktree stays on the host.
-    await operations.submit(hostRemoveWorktreeOperation, input);
+    const client = await runtimes.client(
+      operationHostRef({
+        workspace: row,
+        repository: {
+          location: project.repositoryLocation,
+          sshConnectionId: project.repositorySshConnectionId,
+        },
+      })
+    );
+    if (!client.success) continue;
+    await client.data.workspaceRegistry
+      .deleteWorktree({ id: row.id, deleteBranch: false })
+      .catch(() => undefined);
   }
 }
 

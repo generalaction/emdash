@@ -28,7 +28,10 @@ import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import { resolveLifecycleOperationContext } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
 import type { LifecycleOperationContextDependencies } from '@core/features/workspaces/api/node/operations/lifecycle-operation-context';
-import { enqueueDeleteWorkspace } from '@core/features/workspaces/api/node/operations/workspace-removal';
+import {
+  deleteWorkspaceThroughRegistry,
+  type WorkspaceRemovalBroker,
+} from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
@@ -209,7 +212,11 @@ export function createDeleteTaskOperationDefinition(
   };
 }
 
-export async function enqueueDeleteTask(operations: OperationSubmitter, input: DeleteTaskInput) {
+export async function enqueueDeleteTask(
+  operations: OperationSubmitter,
+  runtimes: WorkspaceRemovalBroker,
+  input: DeleteTaskInput
+) {
   const createdAt = Date.now();
   const deleteConversations = input.deleteConversations !== false;
   const conversationRegistry = createConversationRegistry(operations.db);
@@ -349,9 +356,12 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
   });
   if (result.success) {
     // Shared-workspace guard is an enqueue-time registry query: another live
-    // task on the row means unlink only — no host removal.
+    // task on the row means unlink only — no host removal. The verb call is
+    // fail-fast and best-effort here: desktop task deletion has already
+    // committed, and a failure leaves the workspace row live for a later
+    // removal from the workspaces surface.
     if (workspaceIdForRemoval && !workspaceShared && input.deleteWorktree !== false) {
-      await enqueueDeleteWorkspace(operations, workspaceIdForRemoval, {
+      await deleteWorkspaceThroughRegistry(operations, runtimes, workspaceIdForRemoval, {
         deleteBranch: input.deleteBranch ?? false,
       });
     }

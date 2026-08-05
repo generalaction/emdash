@@ -11,19 +11,11 @@ import { buildTaskFromWorkspace } from '@core/features/tasks/api/node/task-provi
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import {
-  decideWorkspaceActivation,
-  didOperationSettleAfterWorkspaceUpdate,
-} from '@core/features/tasks/api/node/workspace-activation-gate';
-import {
-  hostCreateWorktreeOperation,
-  hostReprovisionWorktreeOperation,
-} from '@core/features/workspaces/api/node/host-outbox-operations';
-import {
   activateWorkspaceParticipants,
   deactivateWorkspaceParticipants,
   type WorkspaceLifecycleParticipant,
 } from '@core/features/workspaces/api/node/lifecycle-participants';
-import { enqueueWorkspaceReprovision } from '@core/features/workspaces/api/node/operations/workspace-reprovision';
+import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import {
@@ -200,11 +192,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const workspaceRow = registry.getLive(taskRow.workspaceId);
     if (!workspaceRow?.path) return err({ type: 'missing-workspace' });
 
-    // New-model gate (ADR 0005): a creation still in flight is awaited; a durably
-    // failed creation is replayed through the registry verb with the identical stored
-    // spec. Rows that never went through the registry (no lastCreateOutcome) fall back
-    // to the legacy outbox gate until Ticket 13 removes it.
+    // Creation gate (ADR 0005): a creation still in flight is awaited; a durably
+    // failed creation — or a provenance worktree whose artifact is not observed
+    // present — is replayed through the registry verb with the identical stored spec.
+    void expectedOperationId; // Legacy outbox retry handle; the registry model keys retries by row.
     const pendingCreation = this.dependencies.creations.pending(workspaceRow.id);
+    const needsReplay =
+      (workspaceRow.lastCreateOutcome && workspaceRow.lastCreateOutcome.status !== 'succeeded') ||
+      (workspaceRow.observedStatus !== 'present' &&
+        workspaceRow.config?.workspace.kind === 'new-worktree');
     if (pendingCreation) {
       const outcome = await pendingCreation;
       if (signal?.aborted) {
@@ -218,10 +214,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           message: outcome.error.message,
         });
       }
-    } else if (
-      workspaceRow.lastCreateOutcome &&
-      workspaceRow.lastCreateOutcome.status !== 'succeeded'
-    ) {
+    } else if (needsReplay) {
       const replayed = await this.replayWorktreeCreation(workspaceRow);
       if (signal?.aborted) {
         return err({ type: 'cancelled', message: 'Workspace activation was cancelled' });
@@ -234,14 +227,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
           message: replayed.error.message,
         });
       }
-    } else if (!workspaceRow.lastCreateOutcome) {
-      const gated = await this.legacyOperationGate(
-        operations,
-        workspaceRow,
-        signal,
-        expectedOperationId
-      );
-      if (!gated.success) return gated;
     }
 
     const access = await tryAcquireWorkspaceRuntime(
@@ -405,104 +390,42 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   /**
-   * Legacy outbox gate for rows created before the registry model. Removed with the
-   * operation log in Ticket 13.
+   * User-requested reprovision: optionally force-removes the current artifact through
+   * `deleteWorktree` (sessions killed, teardown run, record unregistered), then replays
+   * the creation with the identical stored spec. The mirror row survives throughout —
+   * it is the durable intent the replay recompiles from.
    */
-  private async legacyOperationGate(
-    operations: OperationsEngine,
-    workspaceRow: WorkspaceRow,
-    signal?: AbortSignal,
-    expectedOperationId?: string
-  ): Promise<Result<void, ProvisionWorkspaceError>> {
-    let operation = expectedOperationId
-      ? await operations.getForWorkspace(
-          expectedOperationId,
-          [hostCreateWorktreeOperation.name, hostReprovisionWorktreeOperation.name],
-          workspaceRow.id
-        )
-      : workspaceRow.observedStatus === 'present'
-        ? undefined
-        : (
-            await Promise.all([
-              operations.latestForWorkspace(hostCreateWorktreeOperation.name, workspaceRow.id, {
-                rootOnly: true,
-              }),
-              operations.latestForWorkspace(
-                hostReprovisionWorktreeOperation.name,
-                workspaceRow.id,
-                { rootOnly: true }
-              ),
-            ])
-          )
-            .filter((candidate) => candidate !== undefined)
-            .sort((left, right) => right.seq - left.seq)[0];
-    if (expectedOperationId && !operation) {
+  async reprovisionWorkspace(
+    workspaceId: string,
+    options: { removeFirst?: boolean } = {}
+  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>> {
+    const workspaceRow = createWorkspaceRegistry(this.dependencies.db).getLive(workspaceId);
+    if (!workspaceRow?.path || workspaceRow.kind !== 'worktree' || !workspaceRow.config) {
       return err({
-        type: 'setup-failed',
-        stepKind: 'activation-gate',
-        stepErrorType: 'operation-missing',
-        message: 'The requested workspace operation was not found',
+        type: 'workspace-not-reprovisionable',
+        message: 'Workspace provenance is incomplete.',
       });
     }
-    if (
-      workspaceRow.observedStatus === null &&
-      !operation &&
-      workspaceRow.config?.workspace.kind === 'new-worktree'
-    ) {
-      const recovered = await enqueueWorkspaceReprovision(
-        operations,
-        this.dependencies.projects,
-        workspaceRow.id
-      );
-      if (!recovered.success) {
-        return err({
-          type: 'setup-failed',
-          stepKind: 'activation-gate',
-          stepErrorType: recovered.error.type,
-          message: recovered.error.message,
-        });
+    if (options.removeFirst) {
+      const host = operationHostRef({ workspace: workspaceRow });
+      const client = await this.dependencies.runtimes.client(host);
+      if (!client.success) {
+        return err({ type: 'host-unreachable', message: client.error.message });
       }
-      operation = recovered.data.operationId
-        ? await operations.getForWorkspace(
-            recovered.data.operationId,
-            [hostReprovisionWorktreeOperation.name],
-            workspaceRow.id
-          )
-        : undefined;
-    }
-    const workspaceObservationBoundary =
-      workspaceRow.observedData?.desktopObservedAt ?? workspaceRow.updatedAt;
-    const decision = decideWorkspaceActivation({
-      observedStatus: workspaceRow.observedStatus,
-      explicitOperation:
-        expectedOperationId !== undefined ||
-        (operation?.name === hostReprovisionWorktreeOperation.name &&
-          didOperationSettleAfterWorkspaceUpdate(operation, workspaceObservationBoundary)),
-      createOperation: operation,
-    });
-    if (decision.kind === 'refuse') {
-      return err({
-        type: 'setup-failed',
-        stepKind: 'activation-gate',
-        stepErrorType: decision.reason,
-        message: operation?.error?.message ?? `Workspace is ${decision.reason}`,
+      const removed = await client.data.workspaceRegistry.deleteWorktree({
+        id: workspaceId,
+        deleteBranch: false,
       });
-    }
-    if (decision.kind === 'await-operation') {
-      const settled = await operations.waitForTerminal(decision.operationId, signal);
-      if (signal?.aborted) {
-        return err({ type: 'cancelled', message: 'Workspace activation was cancelled' });
-      }
-      if (settled?.status !== 'succeeded') {
-        return err({
-          type: 'setup-failed',
-          stepKind: 'activation-gate',
-          stepErrorType: settled?.status ?? 'operation-missing',
-          message: settled?.error?.message ?? 'Workspace creation did not complete',
-        });
+      if (!removed.success) {
+        return err({ type: 'delete-failed', message: `Removal failed (${removed.error.type}).` });
       }
     }
-    return ok(undefined);
+    const replayed = await this.replayWorktreeCreation(workspaceRow);
+    if (!replayed.success) {
+      return err({ type: replayed.error.stage, message: replayed.error.message });
+    }
+    appDbPokes.workspaces.poke({});
+    return ok({});
   }
 
   private async _registerAndPersist(taskId: string, data: ActivatedTask): Promise<void> {
@@ -533,8 +456,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return this.dependencies.sessions.teardownTask(taskId, mode);
   }
 
-  async getDeletePreflight(projectId: string, taskIds: string[]) {
-    return getDeletePreflight(this.dependencies.db, this.dependencies.projects, projectId, taskIds);
+  async getDeletePreflight(
+    operations: Pick<OperationsEngine, 'hostIsReachable'>,
+    taskIds: string[]
+  ) {
+    return getDeletePreflight(
+      this.dependencies.db,
+      (hostRef) => operations.hostIsReachable(hostRef),
+      taskIds
+    );
   }
 
   async deleteTask(
@@ -543,7 +473,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     taskId: string,
     options?: DeleteTaskOptions
   ): Promise<void> {
-    await deleteTask(operations, projectId, taskId, options);
+    await deleteTask(operations, this.dependencies.runtimes, projectId, taskId, options);
     this.notifyTaskDeleted(taskId, projectId);
   }
 
@@ -561,7 +491,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     // already-removed tasks, or the renderer rollback would resurrect them.
     const results = await Promise.allSettled(
       taskIds.map(async (id) => {
-        await deleteTask(operations, projectId, id, options);
+        await deleteTask(operations, this.dependencies.runtimes, projectId, id, options);
         this.notifyTaskDeleted(id, projectId);
       })
     );

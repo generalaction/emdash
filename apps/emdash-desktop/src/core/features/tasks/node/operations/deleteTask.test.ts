@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   enqueueDeleteTask: vi.fn(),
 }));
 const operations = {} as never;
+const runtimes = {} as never;
 
 vi.mock('./delete-task-definition', () => ({
   enqueueDeleteTask: mocks.enqueueDeleteTask,
@@ -20,12 +21,12 @@ describe('deleteTask', () => {
   });
 
   it('enqueues cleanup with the existing delete options', async () => {
-    await deleteTask(operations, 'project-1', 'task-1', {
+    await deleteTask(operations, runtimes, 'project-1', 'task-1', {
       deleteWorktree: false,
       deleteBranch: true,
     });
 
-    expect(mocks.enqueueDeleteTask).toHaveBeenCalledWith(operations, {
+    expect(mocks.enqueueDeleteTask).toHaveBeenCalledWith(operations, runtimes, {
       taskId: 'task-1',
       deleteWorktree: false,
       deleteBranch: true,
@@ -38,7 +39,7 @@ describe('deleteTask', () => {
       error: { type: 'task-not-found', message: 'missing' },
     });
 
-    await expect(deleteTask(operations, 'project-1', 'missing')).resolves.toBeUndefined();
+    await expect(deleteTask(operations, runtimes, 'project-1', 'missing')).resolves.toBeUndefined();
   });
 
   it('surfaces enqueue failures', async () => {
@@ -47,6 +48,8 @@ describe('deleteTask', () => {
       error: { type: 'database-error', message: 'database failed' },
     });
 
-    await expect(deleteTask(operations, 'project-1', 'task-1')).rejects.toThrow('database failed');
+    await expect(deleteTask(operations, runtimes, 'project-1', 'task-1')).rejects.toThrow(
+      'database failed'
+    );
   });
 });

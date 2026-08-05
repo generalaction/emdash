@@ -22,8 +22,8 @@ export function createTaskOperations(dependencies: {
     async getTasks(projectId?: string) {
       return taskService.getTasks(projectId);
     },
-    async getDeletePreflight(projectId: string, taskIds: string[]) {
-      return taskService.getDeletePreflight(projectId, taskIds);
+    async getDeletePreflight(_projectId: string, taskIds: string[]) {
+      return taskService.getDeletePreflight(operations, taskIds);
     },
     async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions) {
       return taskService.deleteTask(operations, projectId, taskId, options);

@@ -161,7 +161,9 @@ function loadAnnotations(tx: DrizzleTx, workspaceIds: string[]) {
     .where(inArray(projects.repositoryWorkspaceId, workspaceIds))
     .all();
   return {
-    taskWorkspaceIds: new Set(taskRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))),
+    taskWorkspaceIds: new Set(
+      taskRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))
+    ),
     projectRepositoryWorkspaceIds: new Set(
       projectRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))
     ),

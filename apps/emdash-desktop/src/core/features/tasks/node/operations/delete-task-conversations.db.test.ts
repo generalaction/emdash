@@ -51,6 +51,8 @@ describe('enqueueDeleteTask conversation cascade', () => {
     }
   }
 
+  const runtimes = {} as never;
+
   function submitter(): OperationSubmitter & { submit: ReturnType<typeof vi.fn> } {
     return { db: fixture.db, submit: vi.fn(async () => ok({ operationId: 'op-1' })) };
   }
@@ -59,7 +61,7 @@ describe('enqueueDeleteTask conversation cascade', () => {
     seedTaskWithConversations('task-1', ['conv-a', 'conv-b']);
     const operations = submitter();
 
-    const result = await enqueueDeleteTask(operations, { taskId: 'task-1' });
+    const result = await enqueueDeleteTask(operations, runtimes, { taskId: 'task-1' });
 
     expect(result.success).toBe(true);
     const conversationSubmits = operations.submit.mock.calls.filter(
@@ -86,7 +88,7 @@ describe('enqueueDeleteTask conversation cascade', () => {
     seedTaskWithConversations('task-2', ['conv-c']);
     const operations = submitter();
 
-    const result = await enqueueDeleteTask(operations, {
+    const result = await enqueueDeleteTask(operations, runtimes, {
       taskId: 'task-2',
       deleteConversations: false,
     });
@@ -119,7 +121,7 @@ describe('enqueueDeleteTask conversation cascade', () => {
       }),
     };
 
-    const result = await enqueueDeleteTask(operations, { taskId: 'task-3' });
+    const result = await enqueueDeleteTask(operations, runtimes, { taskId: 'task-3' });
 
     expect(result.success).toBe(false);
     expect(createConversationRegistry(fixture.db).getLive('conv-d')).toBeDefined();
@@ -137,7 +139,7 @@ describe('enqueueDeleteTask conversation cascade', () => {
       })),
     };
 
-    const result = await enqueueDeleteTask(operations, {
+    const result = await enqueueDeleteTask(operations, runtimes, {
       taskId: 'task-4',
       deleteConversations: false,
     });

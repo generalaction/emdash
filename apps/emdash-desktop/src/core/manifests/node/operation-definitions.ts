@@ -24,16 +24,6 @@ import {
   deleteTaskOperationContribution,
   type DeleteTaskOperationDependencies,
 } from '@core/features/tasks/node/operations/delete-task-definition';
-import {
-  hostCreateWorktreeOperation,
-  hostReprovisionWorktreeOperation,
-  hostRemoveRepositoryOperation,
-  hostRemoveWorktreeOperation,
-} from '@core/features/workspaces/api/node/host-outbox-operations';
-import {
-  hostOutboxOperationContribution,
-  type HostOutboxDependencies,
-} from '@core/features/workspaces/node/operations/host-outbox-definitions';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { OperationDefinition } from '@core/services/operations/node';
 
@@ -45,7 +35,6 @@ export type OperationDefinitionOptions = {
   deleteConversation: DeleteConversationOperationDependencies;
   deleteProject: DeleteProjectOperationDependencies;
   deleteTask: DeleteTaskOperationDependencies;
-  hostOutbox: HostOutboxDependencies;
 };
 
 export type DesktopOperationDefinitions = {
@@ -66,7 +55,6 @@ export function createOperationDefinitions(
     ...deleteAutomationOperationContribution.create(options.deleteAutomation, runtime),
     ...deleteConversationOperationContribution.create(options.deleteConversation, runtime),
     ...deleteProjectOperationContribution.create(options.deleteProject, runtime),
-    ...hostOutboxOperationContribution.create(options.hostOutbox, runtime),
   ];
   const policy = createDesktopConflictPolicy(definitions);
   return { definitions, conflictPolicies: [policy] };
@@ -86,24 +74,12 @@ export function createDesktopConflictPolicy(descriptors: readonly OperationDefin
     deleteAutomationOperation,
     hostDeleteConversationOperation,
     deleteProjectOperation,
-    hostRemoveWorktreeOperation,
-    hostCreateWorktreeOperation,
-    hostReprovisionWorktreeOperation,
-    hostRemoveRepositoryOperation,
   ];
   return defineConflictPolicy((on) => {
     // Keep this pairwise matrix explicit: future pairs may dedupe or supersede.
     for (const first of definitions) {
       for (const second of definitions) {
-        const pair = on(get(first), get(second));
-        if (
-          first === hostReprovisionWorktreeOperation &&
-          second === hostReprovisionWorktreeOperation
-        ) {
-          pair.reject();
-        } else {
-          pair.queue();
-        }
+        on(get(first), get(second)).queue();
       }
     }
   });

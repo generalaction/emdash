@@ -30,9 +30,7 @@ const createOutcomeV1 = z.object({
   message: z.string().optional(),
 });
 
-export const workspaceCreateOutcome = defineVersionedSchema()
-  .initial('1', createOutcomeV1)
-  .build();
+export const workspaceCreateOutcome = defineVersionedSchema().initial('1', createOutcomeV1).build();
 export type WorkspaceCreateOutcome = typeof workspaceCreateOutcome.Type;
 
 const runtimeOverlayV1 = z.object({

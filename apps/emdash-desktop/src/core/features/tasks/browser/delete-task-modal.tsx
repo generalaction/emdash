@@ -57,11 +57,15 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
   const worktreeTasks = preflight?.filter((t) => t.hasWorktree) ?? [];
   const dirtyTasks = preflight?.filter((t) => t.hasUncommittedChanges) ?? [];
   const branchTasks = preflight?.filter((t) => t.hasDeletableBranch) ?? [];
+  // Nothing is queued for an unreachable host (ADR 0006): artifact deletion is
+  // disabled with the reason shown, never silently deferred.
+  const hostUnreachable = worktreeTasks.some((t) => t.hostReachable === false);
 
   const showWorktreeCheckbox = !isLoading && worktreeTasks.length > 0;
   const showBranchCheckbox = !isLoading && branchTasks.length > 0;
+  const effectiveDeleteWorktree = deleteWorktree && !hostUnreachable;
   const effectiveDeleteBranch = deleteBranchOverride ?? deleteBranchByDefault;
-  const shouldDeleteBranch = deleteWorktree && effectiveDeleteBranch;
+  const shouldDeleteBranch = effectiveDeleteWorktree && effectiveDeleteBranch;
 
   const handleWorktreeChange = (checked: boolean) => {
     setDeleteWorktree(checked);
@@ -85,12 +89,27 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
   const dirtyWarning = (() => {
     if (dirtyTasks.length === 0) return null;
     if (!isBulk) {
-      return `"${tasks[0]!.taskName}" has uncommitted changes that will be lost.`;
+      const stats = dirtyTasks[0]?.changedLines;
+      const lines =
+        stats && (stats.added > 0 || stats.deleted > 0)
+          ? ` (+${stats.added} −${stats.deleted})`
+          : '';
+      return `"${tasks[0]!.taskName}" has uncommitted changes${lines} that will be lost.`;
     }
     const names = dirtyTasks
       .map((t) => `"${tasks.find((task) => task.taskId === t.taskId)?.taskName ?? t.taskId}"`)
       .join(', ');
     return `${dirtyTasks.length} ${dirtyTasks.length === 1 ? 'task has' : 'tasks have'} uncommitted changes that will be lost: ${names}`;
+  })();
+
+  const unpushedWarning = (() => {
+    const unpushed = worktreeTasks.filter((t) => (t.unpushedCommits ?? 0) > 0);
+    if (unpushed.length === 0) return null;
+    if (!isBulk) {
+      const count = unpushed[0]!.unpushedCommits!;
+      return `"${tasks[0]!.taskName}" has ${count} unpushed ${count === 1 ? 'commit' : 'commits'}.`;
+    }
+    return `${unpushed.length} ${unpushed.length === 1 ? 'task has' : 'tasks have'} unpushed commits.`;
   })();
 
   return (
@@ -105,17 +124,36 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
           <div className="flex flex-col gap-3">
             {showWorktreeCheckbox && (
               <div className="flex flex-col gap-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <label
+                  className="flex cursor-pointer items-center gap-2 text-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                  aria-disabled={hostUnreachable}
+                >
                   <Checkbox
-                    checked={deleteWorktree}
+                    checked={effectiveDeleteWorktree}
                     onCheckedChange={(checked) => handleWorktreeChange(Boolean(checked))}
+                    disabled={hostUnreachable}
                   />
                   {worktreeLabel}
                 </label>
-                {deleteWorktree && dirtyWarning && (
+                {hostUnreachable && (
+                  <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+                    <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                    <span>
+                      The host is unreachable, so the worktree cannot be deleted right now. The task
+                      record will be removed; delete the worktree later from the workspaces view.
+                    </span>
+                  </div>
+                )}
+                {effectiveDeleteWorktree && dirtyWarning && (
                   <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
                     <TriangleAlert className="mt-px size-3.5 shrink-0" />
                     <span>{dirtyWarning}</span>
+                  </div>
+                )}
+                {effectiveDeleteWorktree && unpushedWarning && (
+                  <div className="flex items-start gap-1.5 rounded-md bg-background-warning px-3 py-2 text-xs text-foreground-warning">
+                    <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                    <span>{unpushedWarning}</span>
                   </div>
                 )}
               </div>
@@ -154,7 +192,7 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
           disabled={isLoading}
           onClick={() =>
             complete({
-              deleteWorktree,
+              deleteWorktree: effectiveDeleteWorktree,
               deleteBranch: showBranchCheckbox && shouldDeleteBranch,
               deleteConversations,
             })

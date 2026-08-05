@@ -1,7 +1,6 @@
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
 import type { EmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { GitHubAuthServerAdapter } from '@core/features/github/node/accounts/github-auth-server-adapter';
-import { enqueueWorkspaceReprovision } from '@core/features/workspaces/api/node/operations/workspace-reprovision';
 import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspaces/node/wire-controller';
 import type { DesktopControllerContext } from '@core/manifests/node/controllers';
 import { appOperations } from '@main/core/app/controller';
@@ -144,7 +143,7 @@ export function createDesktopWireOptions(
           : { success: false, error: provisionWorkspaceErrorToWorkspaceError(result.error) };
       },
       reprovisionWorkspace: (workspaceId, options) =>
-        enqueueWorkspaceReprovision(services.operations, services.projects, workspaceId, options),
+        taskService.reprovisionWorkspace(workspaceId, options),
     },
   };
 }

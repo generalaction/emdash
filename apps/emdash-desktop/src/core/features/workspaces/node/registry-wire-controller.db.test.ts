@@ -73,7 +73,9 @@ describe('createWorkspaceRegistryWireController', () => {
   function controller(mintId?: () => string) {
     const broker = {
       client: async () =>
-        reachable ? ok({ workspaceRegistry: hostVerbs }) : err(runtimeHostUnavailable(REMOTE_HOST, 'offline')),
+        reachable
+          ? ok({ workspaceRegistry: hostVerbs })
+          : err(runtimeHostUnavailable(REMOTE_HOST, 'offline')),
     };
     return createWorkspaceRegistryWireController({
       db: fixture.db,

@@ -572,12 +572,6 @@ export async function bootServices(
       pullRequests: pullRequestsRegistration,
       telemetry: telemetryService,
     },
-    hostOutbox: {
-      runtimes,
-      deactivateWorkspace: async (input) => {
-        await taskSessionManager.destroySessionsAt(input.hostRef, input.workspacePath);
-      },
-    },
   });
   const operations = await createOperationsEngine({
     scope: appScope,
