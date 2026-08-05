@@ -5,6 +5,7 @@ import {
   createWorkspaceErrorSchema,
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
+  deleteWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
 } from './errors';
 import {
@@ -13,6 +14,7 @@ import {
   createWorktreeInputSchema,
   deactivateWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
+  deleteWorktreeInputSchema,
   refreshWorkspacesInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
@@ -100,6 +102,19 @@ export const workspaceRegistryContract = defineContract({
     input: deleteWorkspaceInputSchema,
     data: z.void(),
     error: deleteWorkspaceErrorSchema,
+  }),
+
+  /**
+   * Deactivate (sessions + teardown) + force-remove the worktree artifact (+ branch when
+   * asked) + unregister — one call that leaves nothing behind. Worktree records only.
+   * No host-side dirty/unpushed refusals: informed confirmation is the client's job from
+   * mirror observations; the host executes what it is told. Idempotent: an absent id
+   * succeeds, which is what makes an external tombstone-and-reconcile sweep safe.
+   */
+  deleteWorktree: fallible({
+    input: deleteWorktreeInputSchema,
+    data: z.void(),
+    error: deleteWorktreeErrorSchema,
   }),
 
   /**

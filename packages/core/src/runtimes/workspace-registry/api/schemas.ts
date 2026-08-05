@@ -143,6 +143,13 @@ export const deleteWorkspaceInputSchema = z.object({
 });
 export type DeleteWorkspaceInput = z.infer<typeof deleteWorkspaceInputSchema>;
 
+export const deleteWorktreeInputSchema = z.object({
+  id: z.string().min(1),
+  /** The branch is deletable independently of its worktree. */
+  deleteBranch: z.boolean().default(false),
+});
+export type DeleteWorktreeInput = z.infer<typeof deleteWorktreeInputSchema>;
+
 export const createWorktreeInputSchema = z.object({
   /** Desktop-minted UUID for the new worktree record. */
   id: z.string().min(1),

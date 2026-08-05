@@ -24,6 +24,14 @@ export type CreateWorkspaceError = z.infer<typeof createWorkspaceErrorSchema>;
 export const deleteWorkspaceErrorSchema = z.never();
 export type DeleteWorkspaceError = z.infer<typeof deleteWorkspaceErrorSchema>;
 
+export const deleteWorktreeErrorSchema = z.discriminatedUnion('type', [
+  /** Worktree records only; unregistering other kinds is deleteWorkspace's job. */
+  z.object({ type: z.literal('not-a-worktree'), workspaceId: z.string() }),
+  /** Artifact removal failed; the record stays registered so the delete is retryable. */
+  z.object({ type: z.literal('remove-failed'), message: z.string() }),
+]);
+export type DeleteWorktreeError = z.infer<typeof deleteWorktreeErrorSchema>;
+
 export const activateWorkspaceErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('workspace-not-found'), workspaceId: z.string() }),
   /** The record survives as observedStatus 'missing' but there is nothing to prepare. */

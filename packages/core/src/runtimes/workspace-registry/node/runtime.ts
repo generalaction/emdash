@@ -13,6 +13,7 @@ import type {
   CreateWorkspaceError,
   CreateWorktreeError,
   DeleteWorkspaceError,
+  DeleteWorktreeError,
   WorkspaceNotFoundError,
 } from '../api/errors';
 import type {
@@ -21,6 +22,7 @@ import type {
   CreateWorktreeInput,
   DeactivateWorkspaceInput,
   DeleteWorkspaceInput,
+  DeleteWorktreeInput,
   RefreshWorkspacesInput,
   WorkspaceRecord,
   WorkspaceRecords,
@@ -28,6 +30,7 @@ import type {
 } from '../api/schemas';
 import { WorkspaceActivationManager } from './activation';
 import { executeCreateWorktree } from './create-worktree';
+import { executeDeleteWorktree } from './delete-worktree';
 import {
   canonicalizeWorkspacePath,
   inspectWorkspacePath,
@@ -149,8 +152,62 @@ export class WorkspaceRegistryRuntime {
     return this.enqueue(() => this.createWorkspaceLocked(input));
   }
 
+  /** Deactivate-if-active + unregister. Never touches disk; idempotent on absent ids. */
   deleteWorkspace(input: DeleteWorkspaceInput): Promise<Result<void, DeleteWorkspaceError>> {
-    return this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
+    return this.workspaceClaims.runExclusive(input.id, async () => {
+      const record = this.store.get(input.id);
+      if (record) await this.deactivateLocked(record);
+      return await this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
+    });
+  }
+
+  /**
+   * Deactivate + force-remove the worktree artifact (+ branch when asked) + unregister,
+   * as one call. Held under the per-workspace claim (serializing against activate/
+   * deactivate/delete on this record) and the per-repository claim (serializing against
+   * createWorktree on the same repository). A removal failure leaves the record
+   * registered so the delete stays retryable.
+   */
+  deleteWorktree(input: DeleteWorktreeInput): Promise<Result<void, DeleteWorktreeError>> {
+    return this.workspaceClaims.runExclusive(input.id, async () => {
+      const record = this.store.get(input.id);
+      if (!record) return ok(undefined);
+      if (record.kind !== 'worktree') {
+        return err({ type: 'not-a-worktree', workspaceId: input.id });
+      }
+
+      await this.deactivateLocked(record);
+
+      const parent = record.parentId === null ? null : this.store.get(record.parentId);
+      const repositoryPath = await this.resolveRepositoryPath(record, parent);
+      if (repositoryPath === null) {
+        if (await isDirectory(record.path)) {
+          return err({
+            type: 'remove-failed',
+            message: `Cannot resolve the owning repository of '${record.path}'`,
+          });
+        }
+        // Artifact already gone and no repository left to prune: just unregister.
+        return await this.enqueue(() =>
+          Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+        );
+      }
+
+      const result = await this.repositoryClaims.runExclusive(parent?.id ?? repositoryPath, () =>
+        executeDeleteWorktree({
+          repositoryPath,
+          worktreePath: record.path,
+          deleteBranch: input.deleteBranch,
+          branchHint: record.git?.branch ?? record.creation?.branch ?? null,
+        })
+      );
+      if (result.status === 'failed') {
+        return err({ type: 'remove-failed', message: result.message });
+      }
+      return await this.enqueue(() =>
+        Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+      );
+    });
   }
 
   /**
@@ -238,15 +295,30 @@ export class WorkspaceRegistryRuntime {
       if (!record) {
         return err({ type: 'workspace-not-found', workspaceId: input.id });
       }
-      try {
-        await this.killSessions(record.path);
-      } catch (error) {
-        // Best-effort by contract: teardown must still run.
-        this.logger.warn?.(`session cleanup for '${record.path}' failed`, { error });
-      }
-      await this.activationManager.deactivate(input.id);
+      await this.deactivateLocked(record);
       return ok(undefined);
     });
+  }
+
+  /** The shared deactivation step; callers must hold the per-workspace claim. */
+  private async deactivateLocked(record: DurableWorkspaceRecord): Promise<void> {
+    try {
+      await this.killSessions(record.path);
+    } catch (error) {
+      // Best-effort by contract: teardown must still run.
+      this.logger.warn?.(`session cleanup for '${record.path}' failed`, { error });
+    }
+    await this.activationManager.deactivate(record.id);
+  }
+
+  /** The parent record's path when it is usable, else what the disk says. */
+  private async resolveRepositoryPath(
+    record: DurableWorkspaceRecord,
+    parent: DurableWorkspaceRecord | null
+  ): Promise<string | null> {
+    if (parent && (await isDirectory(parent.path))) return parent.path;
+    const inspection = await this.inspector(record.path);
+    return inspection.kind === 'worktree' ? inspection.repositoryPath : null;
   }
 
   /** Scheduler entry point: executes one coalesced scan request under the writer lock. */
