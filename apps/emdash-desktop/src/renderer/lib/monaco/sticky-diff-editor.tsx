@@ -1,9 +1,11 @@
 import { autorun, observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
+import { updateDiffEditorFontOptions, type EditorFontDefaults } from './editor-font-settings';
 import { DIFF_EDITOR_BASE_OPTIONS } from './editorConfig';
 
 export interface StickyDiffEditorProps {
@@ -46,6 +48,8 @@ export function StickyDiffEditor({
   onEditorChangeRef.current = onEditorChange;
 
   const { effectiveTheme } = useTheme();
+  const { value: editorSettings } = useAppSettingsKey('editor');
+  const editorFontDefaultsRef = useRef<EditorFontDefaults | null>(null);
 
   // Create editor once on mount, dispose on unmount.
   // Monaco is guaranteed ready because monacoBootstrap.init() is awaited in main.tsx.
@@ -61,6 +65,10 @@ export function StickyDiffEditor({
     onEditorChangeRef.current?.(editor);
 
     const modifiedEditor = editor.getModifiedEditor();
+    editorFontDefaultsRef.current = {
+      fontFamily: modifiedEditor.getOption(m.editor.EditorOption.fontFamily),
+      lineHeight: modifiedEditor.getOption(m.editor.EditorOption.lineHeight),
+    };
     modifiedEditor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => {
       const uri = modifiedUriRef.current;
       if (!uri.startsWith('file://')) return;
@@ -88,9 +96,19 @@ export function StickyDiffEditor({
       }
       runInAction(() => editorBox.set(null));
       editor.dispose();
+      editorFontDefaultsRef.current = null;
     };
     // oxlint-disable-next-line react/exhaustive-deps
   }, []);
+
+  // Keep both sides of an already-mounted diff editor in sync with persisted
+  // typography settings. Monaco's diff-level update applies to both children.
+  useEffect(() => {
+    const editor = editorBox.get();
+    const defaults = editorFontDefaultsRef.current;
+    if (!editor || !defaults) return;
+    updateDiffEditorFontOptions(editor, editorSettings, defaults);
+  }, [editorBox, editorSettings]);
 
   // Sync diffStyle changes to the mounted editor.
   useEffect(() => {

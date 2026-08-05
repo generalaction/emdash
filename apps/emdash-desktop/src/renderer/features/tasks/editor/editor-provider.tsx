@@ -2,12 +2,17 @@ import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import {
+  updateCodeEditorFontOptions,
+  type EditorFontDefaults,
+} from '@renderer/lib/monaco/editor-font-settings';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import {
   addMonacoKeyboardShortcuts,
@@ -49,12 +54,14 @@ export const EditorProvider = observer(function EditorProvider({
   const { paneId, pane: paneTabManager } = usePaneContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
+  const { value: editorSettings } = useAppSettingsKey('editor');
 
   // Conflict dialog — shown when editorView.pendingConflictUri is set.
   const showConflictModal = useShowModal('conflictDialog');
 
   // The directly-created Monaco editor for this pane.
   const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const editorFontDefaultsRef = useRef<EditorFontDefaults | null>(null);
   // The container <div> appended to the pane's host element.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const focusPendingRef = useRef(false);
@@ -90,6 +97,9 @@ export const EditorProvider = observer(function EditorProvider({
 
     const editor = m.editor.create(container, { ...DEFAULT_EDITOR_OPTIONS, glyphMargin: true });
     editorRef.current = editor;
+    editorFontDefaultsRef.current = {
+      fontFamily: editor.getOption(m.editor.EditorOption.fontFamily),
+    };
 
     configureMonacoEditor(editor);
 
@@ -124,10 +134,20 @@ export const EditorProvider = observer(function EditorProvider({
       editor.dispose();
       container.remove();
       editorRef.current = null;
+      editorFontDefaultsRef.current = null;
       containerRef.current = null;
     };
     // oxlint-disable-next-line react/exhaustive-deps
   }, []);
+
+  // Apply persisted editor typography and keep the mounted Monaco instance in
+  // sync with optimistic settings updates without remounting its models.
+  useEffect(() => {
+    const editor = editorRef.current;
+    const defaults = editorFontDefaultsRef.current;
+    if (!editor || !defaults) return;
+    updateCodeEditorFontOptions(editor, editorSettings, defaults);
+  }, [editorSettings]);
 
   // ---------------------------------------------------------------------------
   // Save shortcut — handle at the task-pane level so preview/source transitions
