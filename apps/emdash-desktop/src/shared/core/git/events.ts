@@ -15,3 +15,11 @@ export type GitWorktreeUpdateEvent = {
 };
 
 export const gitWorktreeUpdateChannel = defineEvent<GitWorktreeUpdateEvent>('git:worktree-update');
+
+export type LastTurnBaselineEvent = {
+  projectId: string;
+  workspaceId: string;
+};
+
+/** Fires when the "last turn" diff baseline is (re)captured for a workspace (#1635). */
+export const lastTurnBaselineChannel = defineEvent<LastTurnBaselineEvent>('git:last-turn-baseline');
