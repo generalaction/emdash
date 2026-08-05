@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -735,6 +735,28 @@ describe('GitWorktree', () => {
       await lease.release();
     } finally {
       await runtime.dispose();
+    }
+  });
+
+  it('listIndexableFiles returns tracked and untracked files but skips gitignored paths', async () => {
+    const repo = await makeRepo();
+    const runtime = new GitRuntime();
+    try {
+      await writeFile(path.join(repo, '.gitignore'), '.tox/\n', 'utf8');
+      await execFileAsync('git', ['add', '.gitignore'], { cwd: repo });
+      await mkdir(path.join(repo, '.tox'), { recursive: true });
+      await writeFile(path.join(repo, '.tox', 'junk.txt'), 'x', 'utf8');
+      await writeFile(path.join(repo, 'untracked.ts'), 'y', 'utf8');
+
+      const lease = await runtime.openWorktree(repo);
+      const files = await lease.value.listIndexableFiles();
+
+      expect(files).toContain('tracked.txt');
+      expect(files).toContain('.gitignore');
+      expect(files).toContain('untracked.ts');
+      expect(files.some((entry) => entry.startsWith('.tox/'))).toBe(false);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
     }
   });
 });

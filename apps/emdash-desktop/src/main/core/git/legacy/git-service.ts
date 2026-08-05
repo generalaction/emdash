@@ -199,6 +199,17 @@ export class GitService implements IDisposable {
     }
   }
 
+  async listIndexableFiles(): Promise<string[]> {
+    const { stdout } = await this.ctx.exec('git', [
+      'ls-files',
+      '-z',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+    ]);
+    return stdout.split('\0').filter((entry) => entry.length > 0);
+  }
+
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();
