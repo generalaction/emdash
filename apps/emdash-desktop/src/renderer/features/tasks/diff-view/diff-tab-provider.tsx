@@ -117,5 +117,7 @@ export function diffGroupSuffix(diffGroup: DiffPayload['diffGroup']): string {
       return '(PR)';
     case 'git':
       return '(Git)';
+    case 'branch':
+      return '(Branch)';
   }
 }

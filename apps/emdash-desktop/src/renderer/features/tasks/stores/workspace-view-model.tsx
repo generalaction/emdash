@@ -233,7 +233,13 @@ export class WorkspaceViewModel implements ILifecycle {
     );
 
     // Create DiffViewStore with live git/pr references from the workspace.
-    this.diffView = new DiffViewStore(workspace.gitWorktree, this.prStore);
+    this.diffView = new DiffViewStore(
+      taskData.projectId,
+      workspaceId,
+      workspace.gitRepository,
+      workspace.gitWorktree,
+      this.prStore
+    );
     if (this._savedDiffViewSnapshot) {
       this.diffView.restoreSnapshot(
         normalizeDiffSnapshotPaths(this._savedDiffViewSnapshot, workspace.path)

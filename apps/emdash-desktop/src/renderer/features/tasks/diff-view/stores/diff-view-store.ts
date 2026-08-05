@@ -1,5 +1,7 @@
 import type { GitObjectRef } from '@emdash/core/git';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
+import type { GitRepositoryStore } from '@renderer/features/projects/stores/git-repository-store';
+import { BranchDiffStore } from '@renderer/features/tasks/diff-view/stores/branch-diff-store';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
@@ -28,6 +30,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   commitAction: CommitAction | null = null;
   prTab: 'files' | 'commits' | 'checks' = 'files';
 
+  readonly branchDiff: BranchDiffStore;
   readonly changesView: ChangesViewStore;
 
   /**
@@ -41,9 +44,13 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   private _disposeReactions: Array<() => void> = [];
 
   constructor(
+    projectId: string,
+    workspaceId: string,
+    gitRepository: GitRepositoryStore,
     private readonly gitWorktree: GitWorktreeStore,
     private readonly pr: PrStore
   ) {
+    this.branchDiff = new BranchDiffStore(projectId, workspaceId, gitRepository, gitWorktree);
     this.changesView = new ChangesViewStore(gitWorktree, pr);
 
     makeObservable(this, {
@@ -73,7 +80,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       reaction(
         () => this.activeFile,
         (file) => {
-          if (!file || file.group === 'git' || file.group === 'pr') return;
+          if (!file || file.group === 'git' || file.group === 'pr' || file.group === 'branch')
+            return;
           this.changesView.expandForActiveFileType(file.group);
         }
       )
@@ -91,7 +99,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (!override) return this._defaultActiveFile;
 
     // git/pr groups cannot be validated against working-tree lists — trust the override
-    if (override.group === 'git' || override.group === 'pr') return override;
+    if (override.group === 'git' || override.group === 'pr' || override.group === 'branch')
+      return override;
 
     const isStaged = override.group === 'staged';
     const ownList = isStaged
@@ -147,6 +156,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       activeFile: this.activeFileOverride ?? undefined,
       commitAction: this.commitAction,
       prTab: this.prTab,
+      branchCompareMode: this.branchDiff.compareMode,
     };
   }
 
@@ -163,6 +173,9 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     // store falls back to _defaultActiveFile automatically.
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
     if (snapshot.prTab) this.prTab = snapshot.prTab;
+    if (snapshot.branchCompareMode === 'committed' || snapshot.branchCompareMode === 'all') {
+      this.branchDiff.setCompareMode(snapshot.branchCompareMode);
+    }
   }
 
   get effectiveCommitAction(): CommitAction {
@@ -198,6 +211,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   dispose(): void {
     for (const dispose of this._disposeReactions) dispose();
     this._disposeReactions = [];
+    this.branchDiff.dispose();
     this.changesView.dispose();
   }
 

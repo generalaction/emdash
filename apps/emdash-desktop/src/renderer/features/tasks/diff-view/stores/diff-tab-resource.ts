@@ -14,7 +14,7 @@ export type DiffRendererData =
 
 export interface DiffPayload {
   path: string;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
   prNumber?: number;
@@ -40,7 +40,7 @@ export class DiffTabResource implements TabResource {
   path: string;
   viewMode: DiffViewMode = 'diff';
   renderer: DiffRendererData;
-  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr' | 'branch';
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
   prNumber: number | undefined;

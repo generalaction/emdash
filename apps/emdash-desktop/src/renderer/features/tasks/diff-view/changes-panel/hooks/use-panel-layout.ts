@@ -7,7 +7,12 @@ import type {
 
 // Unreachable in practice: callers guard with `if (!changesView) return null` before calling this
 // hook, so changesView is always non-null here. React Hooks rules prevent a conditional call.
-const DEFAULT_EXPANDED: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+const DEFAULT_EXPANDED: ExpandedSections = {
+  unstaged: true,
+  staged: true,
+  branch: true,
+  pullRequests: true,
+};
 
 // Matches the SectionHeader height: outer py-2 (8+8px) + button p-2 (8+8px) + size-4 icon (16px) = 48px
 export const SECTION_HEADER_HEIGHT = '40px';
@@ -24,6 +29,7 @@ type usePanelLayoutReturn = {
   };
   unstagedRef: ReturnType<typeof usePanelRef>;
   stagedRef: ReturnType<typeof usePanelRef>;
+  branchRef: ReturnType<typeof usePanelRef>;
   prRef: ReturnType<typeof usePanelRef>;
   spacerRef: ReturnType<typeof usePanelRef>;
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -35,6 +41,7 @@ export function usePanelLayout(
 ): usePanelLayoutReturn {
   const unstagedRef = usePanelRef();
   const stagedRef = usePanelRef();
+  const branchRef = usePanelRef();
   const prRef = usePanelRef();
   const spacerRef = usePanelRef();
 
@@ -63,6 +70,7 @@ export function usePanelLayout(
     const sections = [
       { key: 'unstaged' as const, ref: unstagedRef },
       { key: 'staged' as const, ref: stagedRef },
+      { key: 'branch' as const, ref: branchRef },
       { key: 'pullRequests' as const, ref: prRef },
     ];
 
@@ -78,7 +86,7 @@ export function usePanelLayout(
         ref.current?.collapse();
       }
     });
-  }, [expanded, isVisible, unstagedRef, stagedRef, prRef, spacerRef]);
+  }, [expanded, isVisible, unstagedRef, stagedRef, branchRef, prRef, spacerRef]);
 
   return {
     expanded,
@@ -88,6 +96,7 @@ export function usePanelLayout(
     pointerHandlers,
     unstagedRef,
     stagedRef,
+    branchRef,
     prRef,
     spacerRef,
     containerRef,

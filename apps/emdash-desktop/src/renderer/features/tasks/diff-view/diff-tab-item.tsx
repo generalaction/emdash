@@ -19,6 +19,8 @@ export function diffGroupSuffix(diffGroup: DiffTabResource['diffGroup']): string
       return '(PR)';
     case 'git':
       return '(Git)';
+    case 'branch':
+      return '(Branch)';
   }
 }
 

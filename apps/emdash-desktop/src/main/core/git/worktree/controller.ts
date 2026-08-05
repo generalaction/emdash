@@ -37,6 +37,22 @@ export const gitWorktreeController = createRPCController({
     }
   },
 
+  getMergeBase: async (
+    projectId: string,
+    workspaceId: string,
+    base: GitObjectRef,
+    head: GitObjectRef
+  ) => {
+    try {
+      const workspace = resolveWorkspace(projectId, workspaceId);
+      if (!workspace) return err({ type: 'not_found' as const });
+      return ok({ sha: await workspace.gitWorktree.getMergeBase(base, head) });
+    } catch (error) {
+      log.error('gitCtrl.getMergeBase failed', { projectId, workspaceId, base, head, error });
+      return err({ type: 'git_error' as const, message: gitErrorMessage(error) });
+    }
+  },
+
   getFileAtRef: async (projectId: string, workspaceId: string, filePath: string, ref: string) => {
     try {
       const workspace = resolveWorkspace(projectId, workspaceId);

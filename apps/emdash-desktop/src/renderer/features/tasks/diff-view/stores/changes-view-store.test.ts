@@ -64,6 +64,7 @@ describe('ChangesViewStore expanded sections', () => {
     expect(store.expandedSections).toEqual({
       unstaged: true,
       staged: false,
+      branch: true,
       pullRequests: false,
     });
   });
@@ -79,6 +80,7 @@ describe('ChangesViewStore expanded sections', () => {
     expect(store.expandedSections).toEqual({
       unstaged: false,
       staged: false,
+      branch: true,
       pullRequests: true,
     });
   });
@@ -92,6 +94,7 @@ describe('ChangesViewStore expanded sections', () => {
     expect(store.expandedSections).toEqual({
       unstaged: false,
       staged: true,
+      branch: true,
       pullRequests: false,
     });
   });
@@ -109,8 +112,20 @@ describe('ChangesViewStore expanded sections', () => {
     expect(store.expandedSections).toEqual({
       unstaged: true,
       staged: true,
+      branch: true,
       pullRequests: false,
     });
+  });
+
+  it('toggles the branch expand-section independently', () => {
+    // arrange
+    const { store } = createStore();
+
+    // act
+    store.toggleExpanded('branch');
+
+    // assert
+    expect(store.expandedSections.branch).toBe(false);
   });
 
   it('removes only completed unstaged paths so newer selections survive', () => {

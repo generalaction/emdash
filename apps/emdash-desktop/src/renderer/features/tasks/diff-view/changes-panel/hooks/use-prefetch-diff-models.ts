@@ -20,7 +20,7 @@ interface PrefetchEntry {
 export function usePrefetchDiffModels(
   projectId: string,
   workspaceId: string,
-  group: 'disk' | 'staged' | 'git' | 'pr',
+  group: 'disk' | 'staged' | 'git' | 'pr' | 'branch',
   originalRef: GitRef,
   modifiedRef?: GitRef
 ) {
@@ -65,9 +65,21 @@ export function usePrefetchDiffModels(
           modelRegistry.toGitUri(uri, HEAD_REF),
           modelRegistry.toGitUri(uri, STAGED_REF),
         ];
+      } else if (group === 'branch' && modifiedRef === undefined) {
+        // All mode: original is git/defaultBranch, modified is working tree (disk).
+        void modelRegistry
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
+          .catch(() => {});
+        void modelRegistry
+          .registerModel(projectId, workspaceId, root, filePath, language, 'disk')
+          .catch(() => {});
+        entry.diskUri = modelRegistry.toDiskUri(uri);
+        entry.gitUris = [modelRegistry.toGitUri(uri, originalRef)];
       } else {
         const effectiveModifiedRef =
-          (group === 'git' || group === 'pr') && modifiedRef ? modifiedRef : HEAD_REF;
+          (group === 'git' || group === 'pr' || group === 'branch') && modifiedRef
+            ? modifiedRef
+            : HEAD_REF;
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
           .catch(() => {});
