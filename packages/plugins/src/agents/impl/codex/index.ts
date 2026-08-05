@@ -71,8 +71,13 @@ export const plugin = definePlugin(
         },
         'gpt-5.5': {
           name: 'GPT-5.5',
-          description: 'Recommended Codex model for complex coding and agentic workflows.',
+          description: 'Frontier model for complex coding, research, and real-world work.',
           modelFeatures: { intelligence: 5, speed: 3 },
+        },
+        'gpt-5.4': {
+          name: 'GPT-5.4',
+          description: 'Strong model for everyday coding.',
+          modelFeatures: { intelligence: 4, speed: 3 },
         },
         'gpt-5.4-mini': {
           name: 'GPT-5.4 Mini',

@@ -89,32 +89,32 @@ const MOCK_MODELS: Record<string, ComposerModelOption> = {
   'claude-opus-4': {
     name: 'Claude Opus 4',
     description: 'Most capable model for complex reasoning and nuanced tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.4, intelligence: 1.0 },
+    modelFeatures: { contextWindowSize: 200_000, speed: 2, intelligence: 5 },
   },
   'claude-sonnet-4-5': {
     name: 'Claude Sonnet 4.5',
     description: 'Excellent balance of speed and intelligence for everyday tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.75, intelligence: 0.85 },
+    modelFeatures: { contextWindowSize: 200_000, speed: 4, intelligence: 4 },
   },
   'claude-haiku-4': {
     name: 'Claude Haiku 4',
     description: 'Fast and efficient, great for high-volume straightforward tasks.',
-    modelFeatures: { contextWindowSize: 200_000, speed: 0.95, intelligence: 0.65 },
+    modelFeatures: { contextWindowSize: 200_000, speed: 5, intelligence: 3 },
   },
   'gpt-4o': {
     name: 'GPT-4o',
     description: 'OpenAI flagship multimodal model.',
-    modelFeatures: { contextWindowSize: 128_000, speed: 0.7, intelligence: 0.9 },
+    modelFeatures: { contextWindowSize: 128_000, speed: 4, intelligence: 5 },
   },
   'gpt-4o-mini': {
     name: 'GPT-4o Mini',
     description: 'Lightweight, cost-efficient GPT-4o variant.',
-    modelFeatures: { contextWindowSize: 128_000, speed: 0.9, intelligence: 0.7 },
+    modelFeatures: { contextWindowSize: 128_000, speed: 5, intelligence: 4 },
   },
   'gemini-2.5-pro': {
     name: 'Gemini 2.5 Pro',
     description: "Google's most capable model with a 1M context window.",
-    modelFeatures: { contextWindowSize: 1_000_000, speed: 0.6, intelligence: 0.95 },
+    modelFeatures: { contextWindowSize: 1_000_000, speed: 3, intelligence: 5 },
   },
 };
 

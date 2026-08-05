@@ -3,6 +3,8 @@ import z from 'zod';
 
 export const modelOptionSchema = z.object({
   name: z.string(),
+  /** Provider-owned model identifiers that resolve to this catalog entry. */
+  aliases: z.array(z.string()).optional(),
   description: z.string().optional(),
   modelFeatures: z
     .object({

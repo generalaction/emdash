@@ -15,6 +15,7 @@ import type {
 } from '../prompt-editor/types';
 import { ContextUsageIndicator } from './context-usage-indicator';
 import type { ContextUsage } from './context-usage-indicator';
+import { modelFeatureDotCount } from './model-feature-score';
 import { PermissionBand } from './permission-band';
 import type { ComposerPermissionRequest } from './permission-band';
 import { QueuedPromptsBand } from './queued-prompts-band';
@@ -125,7 +126,9 @@ export interface ComposerModelOption {
   /** Optional capability metadata shown in the hover card detail. */
   modelFeatures?: {
     contextWindowSize?: number;
+    /** Relative provider rating on a 1–5 scale. */
     speed?: number;
+    /** Relative provider rating on a 1–5 scale. */
     intelligence?: number;
   };
 }
@@ -337,7 +340,7 @@ function ModelFeatureRow({ label, value }: { label: string; value: React.ReactNo
 }
 
 function BarMeter({ value }: { value: number }) {
-  const filled = Math.round(Math.max(0, Math.min(1, value)) * 5);
+  const filled = modelFeatureDotCount(value);
   return (
     <span className={styles.barMeter}>
       {Array.from({ length: 5 }, (_, i) => (
