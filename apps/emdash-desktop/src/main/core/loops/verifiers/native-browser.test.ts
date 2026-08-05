@@ -17,6 +17,7 @@ import {
   NATIVE_BROWSER_FAILED_PREFIX,
   NATIVE_BROWSER_PASSED_SENTINEL,
   NATIVE_BROWSER_TURN_TIMEOUT_MS,
+  NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS,
   parseNativeBrowserTerminal,
   type NativeBrowserSessionHandle,
   type NativeBrowserVerifierDependencies,
@@ -784,6 +785,54 @@ describe('native browser verifier', () => {
       const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
       expect(prompts[1]).toContain('Stalled-turn recovery 1 of 2');
       expect(prompts[1]).toContain('No action from it was executed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('requires a bounded terminal-only recovery after final diagnostics stalls', async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = makeHarness({
+        context: { promptTimeoutMs: NATIVE_BROWSER_TURN_TIMEOUT_MS * 3 },
+      });
+      harness.performAction.mockResolvedValue({
+        result: {
+          ok: true,
+          observation: { kind: 'diagnostics', entries: [], truncated: false },
+        },
+      });
+      const heldPrompt =
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>();
+      let promptIndex = 0;
+      harness.nestedDriver.sendPrompt = vi.fn(async () => {
+        promptIndex += 1;
+        if (promptIndex === 1) return ok({ finalText: actionBlock({ kind: 'diagnostics' }) });
+        if (promptIndex === 2) return await heldPrompt.promise;
+        return ok({ finalText: NATIVE_BROWSER_PASSED_SENTINEL });
+      });
+      harness.nestedDriver.cancelPrompt = vi.fn(async () => {
+        heldPrompt.resolve(err({ kind: 'prompt-failed', message: 'cancelled stalled turn' }));
+        return ok(undefined);
+      });
+
+      const runPromise = harness.verifier.run(harness.ctx);
+      for (
+        let index = 0;
+        index < 100 && vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.length < 2;
+        index += 1
+      ) {
+        await Promise.resolve();
+      }
+      expect(vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.length).toBe(2);
+      await vi.advanceTimersByTimeAsync(NATIVE_BROWSER_TURN_TIMEOUT_MS);
+      const result = await runPromise;
+
+      expect(result.success, JSON.stringify(result)).toBe(true);
+      const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[2]).toContain('return exactly one honest terminal outcome');
+      expect(prompts[2]).toContain('Do not request another browser action');
+      expect(NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS).toBe(2 * 60 * 1_000);
     } finally {
       vi.useRealTimers();
     }

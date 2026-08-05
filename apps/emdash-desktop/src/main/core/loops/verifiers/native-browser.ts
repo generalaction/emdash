@@ -40,6 +40,7 @@ const label = 'Native Browser Preview';
 
 const DEFAULT_NATIVE_BROWSER_TIMEOUT_MS = 30 * 60 * 1_000;
 export const NATIVE_BROWSER_TURN_TIMEOUT_MS = 8 * 60 * 1_000;
+export const NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS = 2 * 60 * 1_000;
 const MAX_NATIVE_BROWSER_ACTIONS = 128;
 const MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS = 2;
 const MAX_NATIVE_BROWSER_STALL_REPAIRS = 2;
@@ -423,6 +424,8 @@ async function runNativeBrowserVerification(
     let successfulObservations = 0;
     let protocolRepairs = 0;
     let stallRepairs = 0;
+    let stalledTurnRecovery = false;
+    let terminalDecisionRequired = false;
     const actionIds = new Set<string>();
     let finalText = '';
 
@@ -433,7 +436,10 @@ async function runNativeBrowserVerification(
           nestedSession.driver,
           nestedSession.conversationId,
           prompt,
-          control
+          control,
+          stalledTurnRecovery
+            ? NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS
+            : NATIVE_BROWSER_TURN_TIMEOUT_MS
         );
       } catch (error) {
         if (!(error instanceof NativeBrowserPromptTimeout)) throw error;
@@ -452,9 +458,11 @@ async function runNativeBrowserVerification(
             }),
           control
         );
-        prompt = buildStallRepairPrompt(stallRepairs);
+        prompt = buildStallRepairPrompt(stallRepairs, terminalDecisionRequired);
+        stalledTurnRecovery = true;
         continue;
       }
+      stalledTurnRecovery = false;
       if (!promptResult.success) {
         throw new NativeBrowserVerifierFailure(
           control.wasAborted ? control.abortKind : 'command-failed',
@@ -593,6 +601,7 @@ async function runNativeBrowserVerification(
         runEvidence,
         control
       );
+      if (safeResult.ok && turn.action.kind === 'diagnostics') terminalDecisionRequired = true;
 
       if (!safeResult.ok && safeResult.error.kind === 'not-ready') {
         control.assertActive();
@@ -867,7 +876,12 @@ function buildProtocolRepairPrompt(reason: string, attempt: number): string {
 Protocol repair ${attempt} of ${MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Never combine actions or combine an action with a terminal outcome. If you intended a sequence, request only its next single action and wait for the bounded observation.`;
 }
 
-function buildStallRepairPrompt(attempt: number): string {
+function buildStallRepairPrompt(attempt: number, terminalDecisionRequired: boolean): string {
+  if (terminalDecisionRequired) {
+    return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed. Diagnostics were already captured as the final inspection step.
+
+Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return exactly one honest terminal outcome with its sentinel on the final line. Do not request another browser action, repeat prior deliberation, or claim that a cancelled action ran.`;
+  }
   return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed.
 
 Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Do not repeat prior deliberation, combine actions, or claim that a cancelled action ran.`;
@@ -941,7 +955,8 @@ async function sendControlledPrompt(
   driver: LoopSessionDriver,
   conversationId: string,
   prompt: string,
-  control: NativeBrowserRunControl
+  control: NativeBrowserRunControl,
+  timeoutMs = NATIVE_BROWSER_TURN_TIMEOUT_MS
 ) {
   control.assertActive();
   const promptPromise = driver.sendPrompt(conversationId, prompt);
@@ -951,7 +966,7 @@ async function sendControlledPrompt(
     new Promise<never>((_resolve, reject) => {
       turnTimeout = setTimeout(
         () => reject(new NativeBrowserPromptTimeout('Native browser ACP turn timed out')),
-        NATIVE_BROWSER_TURN_TIMEOUT_MS
+        timeoutMs
       );
     }),
   ]);
