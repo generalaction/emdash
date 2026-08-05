@@ -41,6 +41,8 @@ const label = 'Native Browser Preview';
 const DEFAULT_NATIVE_BROWSER_TIMEOUT_MS = 30 * 60 * 1_000;
 export const NATIVE_BROWSER_TURN_TIMEOUT_MS = 8 * 60 * 1_000;
 export const NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS = 2 * 60 * 1_000;
+const NATIVE_BROWSER_TERMINAL_RESERVE_MS =
+  NATIVE_BROWSER_TURN_TIMEOUT_MS + NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS;
 const MAX_NATIVE_BROWSER_ACTIONS = 128;
 const MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS = 2;
 const MAX_NATIVE_BROWSER_STALL_REPAIRS = 2;
@@ -426,6 +428,7 @@ async function runNativeBrowserVerification(
     let stallRepairs = 0;
     let stalledTurnRecovery = false;
     let terminalDecisionRequired = false;
+    let terminalReserveRequired = false;
     const actionIds = new Set<string>();
     let finalText = '';
 
@@ -504,6 +507,26 @@ async function runNativeBrowserVerification(
           control
         );
         prompt = buildProtocolRepairPrompt(error.message, protocolRepairs);
+        continue;
+      }
+
+      if (terminalReserveRequired && turn.kind === 'action') {
+        if (protocolRepairs >= MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS) {
+          throw new NativeBrowserVerifierFailure(
+            'command-failed',
+            'Native browser verifier continued requesting actions after its terminal-decision reserve'
+          );
+        }
+        protocolRepairs += 1;
+        await waitForEvidenceOperation(
+          () =>
+            runEvidence.appendIntermediateFailure({
+              kind: 'protocol-repair',
+              message: `Rejected native verifier terminal-reserve action ${protocolRepairs} without executing it`,
+            }),
+          control
+        );
+        prompt = buildTerminalDecisionRepairPrompt(protocolRepairs);
         continue;
       }
 
@@ -691,7 +714,19 @@ async function runNativeBrowserVerification(
         throw new NativeBrowserVerifierFailure('command-failed', safeResult.error.message);
       }
       if (safeResult.ok) successfulObservations += 1;
-      prompt = buildObservationPrompt(actionId, turn.action.kind, safeResult);
+      if (
+        timeoutMs - (Date.now() - startedAt) <=
+        Math.min(NATIVE_BROWSER_TERMINAL_RESERVE_MS, Math.floor(timeoutMs / 3))
+      ) {
+        terminalDecisionRequired = true;
+        terminalReserveRequired = true;
+      }
+      prompt = buildObservationPrompt(
+        actionId,
+        turn.action.kind,
+        safeResult,
+        terminalDecisionRequired
+      );
     }
 
     if (!result) {
@@ -927,6 +962,12 @@ function buildProtocolRepairPrompt(reason: string, attempt: number): string {
 Protocol repair ${attempt} of ${MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Never combine actions or combine an action with a terminal outcome. If you intended a sequence, request only its next single action and wait for the bounded observation.`;
 }
 
+function buildTerminalDecisionRepairPrompt(attempt: number): string {
+  return `The previous native browser action request was rejected without executing it because the bounded verifier is in its terminal-decision reserve.
+
+Terminal decision repair ${attempt} of ${MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS}: return exactly one honest terminal outcome with its sentinel on the final line. Do not request another browser action or continue deliberating.`;
+}
+
 function buildStallRepairPrompt(attempt: number, terminalDecisionRequired: boolean): string {
   if (terminalDecisionRequired) {
     return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed. Diagnostics were already captured as the final inspection step.
@@ -1002,12 +1043,15 @@ End a terminal response with exactly one sentinel on its own final line:
 function buildObservationPrompt(
   actionId: string,
   actionKind: string,
-  result: LoopBrowserActionResult | RotationObservation
+  result: LoopBrowserActionResult | RotationObservation,
+  terminalDecisionRequired = false
 ): string {
   const nextStep =
     actionKind === 'diagnostics'
       ? 'Diagnostics are the final inspection step. Return an honest native browser terminal sentinel now unless one narrowly necessary allowlisted action remains; do not continue deliberating without a response.'
-      : 'Request exactly one next allowlisted action, or end with exactly one native browser terminal sentinel on its own final line.';
+      : terminalDecisionRequired
+        ? 'The bounded verifier is now in its terminal-decision reserve. Return an honest native browser terminal sentinel now. Do not request another browser action or continue deliberating.'
+        : 'Request exactly one next allowlisted action, or end with exactly one native browser terminal sentinel on its own final line.';
   return `The native Electron browser returned this bounded, redacted result for the one requested action:
 <emdash-loop-browser-result>
 ${serializePromptJson({ actionId, actionKind, result })}

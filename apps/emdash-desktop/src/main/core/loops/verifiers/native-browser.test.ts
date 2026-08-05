@@ -856,6 +856,48 @@ describe('native browser verifier', () => {
     }
   });
 
+  it('reserves enough verifier time for an honest terminal decision', async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = makeHarness({
+        context: { promptTimeoutMs: 30_000 },
+        responses: [
+          actionBlock({ kind: 'accessibility-snapshot' }),
+          actionBlock({ kind: 'keypress', key: 'Tab' }),
+          NATIVE_BROWSER_PASSED_SENTINEL,
+        ],
+      });
+      harness.performAction.mockImplementation(async () => {
+        vi.setSystemTime(Date.now() + 21_000);
+        return {
+          result: {
+            ok: true,
+            observation: {
+              kind: 'accessibility-snapshot',
+              snapshot: 'Observed bounded state',
+              truncated: false,
+            },
+          },
+        };
+      });
+
+      const result = await harness.verifier.run(harness.ctx);
+
+      expect(result.success, JSON.stringify(result)).toBe(true);
+      const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[1]).toContain('terminal-decision reserve');
+      expect(prompts[1]).toContain('Do not request another browser action');
+      expect(prompts[2]).toContain('Terminal decision repair 1 of 2');
+      expect(harness.performAction).toHaveBeenCalledTimes(1);
+      expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
+        kind: 'protocol-repair',
+        message: 'Rejected native verifier terminal-reserve action 1 without executing it',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('parses only one safe terminal sentinel on the final line', () => {
     expect(parseNativeBrowserTerminal(NATIVE_BROWSER_PASSED_SENTINEL)).toEqual({ kind: 'passed' });
     expect(
