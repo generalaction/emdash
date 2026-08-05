@@ -29,6 +29,7 @@ import { provider as kiro } from './impl/kiro';
 import { provider as letta } from './impl/letta';
 import { provider as mimocode } from './impl/mimocode';
 import { provider as mistral } from './impl/mistral';
+import { provider as muse } from './impl/muse';
 import { provider as ohMyPi } from './impl/oh-my-pi';
 import { provider as opencode } from './impl/opencode';
 import { provider as pi } from './impl/pi';
@@ -77,6 +78,7 @@ for (const p of [
   letta,
   autohand,
   mimocode,
+  muse,
   zero,
 ]) {
   pluginRegistry.register(p);

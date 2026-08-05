@@ -7,9 +7,9 @@
 - `src/main/core/dependencies/dependency-managers.ts`
 - `src/main/core/pty/`
 
-## Current Providers (35)
+## Current Providers (36)
 
-codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, jules, junie, oh-my-pi, pi, autohand, letta, mimocode, zero
+codex, claude, grok, devin, qwen, qoder, droid, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, codebuddy, continue, codebuff, freebuff, mistral, muse, jules, junie, oh-my-pi, pi, autohand, letta, mimocode, zero
 
 ## Current ACP-Capable Providers (22)
 
