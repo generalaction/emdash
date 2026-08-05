@@ -1,4 +1,4 @@
-import type { PreviewServer } from '@shared/core/preview-servers/types';
+import type { PreviewServer, PreviewServerStatus } from '@shared/core/preview-servers/types';
 
 export function formatPreviewUrl(url: string): string {
   try {
@@ -32,7 +32,11 @@ export function previewServerStatusLabel(server: PreviewServer): string {
 }
 
 export function previewServerStatusClasses(server: PreviewServer): string {
-  switch (server.status.kind) {
+  return previewServerStatusKindClasses(server.status.kind);
+}
+
+export function previewServerStatusKindClasses(kind: PreviewServerStatus['kind']): string {
+  switch (kind) {
     case 'ready':
       return 'bg-background-info text-foreground-info hover:bg-background-info-hover';
     case 'starting':
@@ -41,4 +45,13 @@ export function previewServerStatusClasses(server: PreviewServer): string {
     case 'failed':
       return 'bg-background-destructive text-foreground-destructive hover:bg-destructive/20';
   }
+}
+
+export function previewServersSummaryStatusKind(
+  servers: PreviewServer[]
+): PreviewServerStatus['kind'] {
+  if (servers.some((server) => server.status.kind === 'failed')) return 'failed';
+  if (servers.some((server) => server.status.kind === 'reconnecting')) return 'reconnecting';
+  if (servers.some((server) => server.status.kind === 'starting')) return 'starting';
+  return 'ready';
 }

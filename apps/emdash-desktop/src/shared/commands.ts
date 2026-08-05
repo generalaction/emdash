@@ -65,6 +65,14 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'message-square-share',
   },
   {
+    id: 'app.stopAllPreviewServers',
+    label: 'Stop All Preview Servers',
+    description: 'Stop preview servers and port forwards across all projects and tasks',
+    scope: 'app',
+    group: 'App',
+    iconKey: 'globe',
+  },
+  {
     id: 'app.toggleTheme',
     label: 'Toggle Theme',
     description: 'Switch between light and dark themes',
