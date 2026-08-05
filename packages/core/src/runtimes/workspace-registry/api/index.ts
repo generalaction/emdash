@@ -10,6 +10,7 @@ export {
 export {
   createWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
+  refreshWorkspacesInputSchema,
   workspaceCreateOutcomeSchema,
   workspaceCreationSchema,
   workspaceGitObservationsSchema,
@@ -22,6 +23,7 @@ export {
   workspaceRuntimeOverlaySchema,
   type CreateWorkspaceInput,
   type DeleteWorkspaceInput,
+  type RefreshWorkspacesInput,
   type WorkspaceCreateOutcome,
   type WorkspaceCreation,
   type WorkspaceGitObservations,

@@ -142,3 +142,9 @@ export const deleteWorkspaceInputSchema = z.object({
   id: z.string().min(1),
 });
 export type DeleteWorkspaceInput = z.infer<typeof deleteWorkspaceInputSchema>;
+
+/** Explicit "refresh now": rescans one workspace, or the whole host when id is omitted. */
+export const refreshWorkspacesInputSchema = z.object({
+  id: z.string().min(1).optional(),
+});
+export type RefreshWorkspacesInput = z.infer<typeof refreshWorkspacesInputSchema>;

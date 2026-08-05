@@ -7,5 +7,6 @@ export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRunt
     records: runtime.recordsHost,
     createWorkspace: (input) => runtime.createWorkspace(input),
     deleteWorkspace: (input) => runtime.deleteWorkspace(input),
+    refresh: (input) => runtime.refresh(input),
   });
 }

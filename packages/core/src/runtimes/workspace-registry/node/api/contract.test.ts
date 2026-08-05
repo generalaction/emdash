@@ -211,6 +211,95 @@ describe('workspace registry contract', () => {
     expect(absent).toEqual({ success: true, data: undefined });
   });
 
+  it('refresh observes git state with untracked lines counted as additions', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreePath = await makeWorktree(repoPath, root, 'wt-1');
+    const created = await wire.client.createWorkspace({ id: 'ws-wt', path: worktreePath });
+    expect(created).toMatchObject({ success: true });
+
+    // Only untracked changes: a new 3-line file plus an ignored file that must not count.
+    await fs.writeFile(path.join(worktreePath, 'new-file.txt'), 'one\ntwo\nthree\n');
+    await fs.writeFile(path.join(worktreePath, '.gitignore'), 'ignored.txt\n');
+    await fs.writeFile(path.join(worktreePath, 'ignored.txt'), 'x\n'.repeat(100));
+
+    const refreshed = await wire.client.refresh({ id: 'ws-wt' });
+    expect(refreshed).toEqual({ success: true, data: undefined });
+
+    const records = await listRecords();
+    const record = records['ws-wt']!;
+    expect(record.git).toMatchObject({
+      branch: 'branch-wt-1',
+      dirty: true,
+      // 3 lines from new-file.txt + 1 line from .gitignore; ignored.txt excluded.
+      diffStats: { added: 4, deleted: 0 },
+    });
+  });
+
+  it('refresh adopts hand-made worktrees and un-adopts vanished ones', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const worktreePath = await makeWorktree(repoPath, root, 'hand-made');
+
+    await wire.client.refresh({});
+    let records = await listRecords();
+    const adopted = Object.values(records).find((record) => record.path === worktreePath);
+    expect(adopted).toMatchObject({
+      kind: 'worktree',
+      origin: 'adopted',
+      parentId: 'ws-repo',
+      gitAdminName: 'hand-made',
+      observedStatus: 'present',
+    });
+
+    // Deleted on disk: the adopted record follows the disk and disappears.
+    await fs.rm(worktreePath, { recursive: true, force: true });
+    await wire.client.refresh({});
+    records = await listRecords();
+    expect(Object.values(records).some((record) => record.path === worktreePath)).toBe(false);
+  });
+
+  it('refresh flips vanished registered workspaces to missing and back', async () => {
+    const plain = path.join(root, 'plain');
+    await fs.mkdir(plain);
+    await wire.client.createWorkspace({ id: 'ws-dir', path: plain });
+
+    await fs.rm(plain, { recursive: true, force: true });
+    await wire.client.refresh({});
+    let records = await listRecords();
+    expect(records['ws-dir']).toMatchObject({ observedStatus: 'missing' });
+
+    await fs.mkdir(plain);
+    await wire.client.refresh({});
+    records = await listRecords();
+    expect(records['ws-dir']).toMatchObject({ observedStatus: 'present' });
+  });
+
+  it('refresh relinks a moved worktree by its admin name, preserving identity', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    const worktreePath = await makeWorktree(repoPath, root, 'movable');
+    await wire.client.createWorkspace({ id: 'ws-moved', path: worktreePath });
+
+    const movedPath = path.join(root, 'relocated');
+    git(repoPath, 'worktree', 'move', worktreePath, movedPath);
+
+    await wire.client.refresh({});
+    const records = await listRecords();
+    expect(records['ws-moved']).toMatchObject({
+      id: 'ws-moved',
+      path: await fs.realpath(movedPath),
+      gitAdminName: 'movable',
+      observedStatus: 'present',
+    });
+  });
+
+  it('refresh of an unknown id is a typed not-found error', async () => {
+    const refreshed = await wire.client.refresh({ id: 'unknown' });
+    expect(refreshed).toEqual({
+      success: false,
+      error: { type: 'workspace-not-found', workspaceId: 'unknown' },
+    });
+  });
+
   it('registry state survives a runtime rebuild over the same store', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });

@@ -1,9 +1,14 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
-import { createWorkspaceErrorSchema, deleteWorkspaceErrorSchema } from './errors';
+import {
+  createWorkspaceErrorSchema,
+  deleteWorkspaceErrorSchema,
+  workspaceNotFoundErrorSchema,
+} from './errors';
 import {
   createWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
+  refreshWorkspacesInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
 } from './schemas';
@@ -50,6 +55,17 @@ export const workspaceRegistryContract = defineContract({
     input: deleteWorkspaceInputSchema,
     data: z.void(),
     error: deleteWorkspaceErrorSchema,
+  }),
+
+  /**
+   * Explicit freshness verb: rescans one workspace (or the whole host), reconciling the
+   * registry with the disk — adoption/un-adoption, missing flips, admin-name relinks —
+   * and recomputing git observations. Results arrive through `records`.
+   */
+  refresh: fallible({
+    input: refreshWorkspacesInputSchema,
+    data: z.void(),
+    error: workspaceNotFoundErrorSchema,
   }),
 });
 

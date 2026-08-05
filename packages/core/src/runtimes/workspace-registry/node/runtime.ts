@@ -1,14 +1,20 @@
 import crypto from 'node:crypto';
+import { promises as fs } from 'node:fs';
 import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { cell, expose, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '../api/contract';
-import type { CreateWorkspaceError, DeleteWorkspaceError } from '../api/errors';
+import type {
+  CreateWorkspaceError,
+  DeleteWorkspaceError,
+  WorkspaceNotFoundError,
+} from '../api/errors';
 import type {
   CreateWorkspaceInput,
   DeleteWorkspaceInput,
+  RefreshWorkspacesInput,
   WorkspaceRecord,
   WorkspaceRecords,
   WorkspaceRuntimeOverlay,
@@ -20,6 +26,11 @@ import {
 } from './inspect-path';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
+import {
+  listRepositoryWorktrees,
+  observeWorkspaceGit,
+  type WorktreeListing,
+} from './scan/observe-git';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -31,9 +42,10 @@ export type WorkspaceRegistryRuntimeOptions = {
 
 /**
  * The sole writer of the host workspace registry (ADR 0005): clients mutate only through
- * the wire verbs; the scan (ticket 02+) is the second feeder. Nothing else touches the
- * storage. `records` merges durable rows with the in-memory runtime overlay — the overlay
- * dies with the daemon, by design.
+ * the wire verbs; the scan is the second feeder — it reconciles the registry with the
+ * disk (adopt/un-adopt worktrees, flip missing, relink moves) but never converges the
+ * disk toward a record. `records` merges durable rows with the in-memory runtime
+ * overlay — the overlay dies with the daemon, by design.
  */
 export class WorkspaceRegistryRuntime {
   private readonly store: WorkspaceRecordStore;
@@ -73,6 +85,10 @@ export class WorkspaceRegistryRuntime {
 
   deleteWorkspace(input: DeleteWorkspaceInput): Promise<Result<void, DeleteWorkspaceError>> {
     return this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
+  }
+
+  refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
+    return this.enqueue(() => this.refreshLocked(input));
   }
 
   private async createWorkspaceLocked(
@@ -151,6 +167,206 @@ export class WorkspaceRegistryRuntime {
     return ok(undefined);
   }
 
+  // -------------------------------------------------------------------------
+  // Scan: the registry's reconciliation with the disk. The filesystem is the
+  // source of truth — records follow it, never the other way around.
+  // -------------------------------------------------------------------------
+
+  private async refreshLocked(
+    input: RefreshWorkspacesInput
+  ): Promise<Result<void, WorkspaceNotFoundError>> {
+    if (input.id !== undefined) {
+      const record = this.store.get(input.id);
+      if (!record) {
+        return err({ type: 'workspace-not-found', workspaceId: input.id });
+      }
+      await this.scanRecord(record);
+      return ok(undefined);
+    }
+    await this.scanHost();
+    return ok(undefined);
+  }
+
+  async scanHost(): Promise<void> {
+    const records = this.store.list();
+    const repositories = records.filter((record) => record.kind === 'repository');
+    const reconciledWorktreeIds = new Set<string>();
+
+    for (const repository of repositories) {
+      const childIds = await this.scanRepository(repository, records);
+      for (const id of childIds) reconciledWorktreeIds.add(id);
+    }
+
+    // Records the repository pass did not cover: directories, and worktrees whose
+    // parent repository is unknown, missing, or unscannable.
+    for (const record of this.store.list()) {
+      if (record.kind === 'repository' || reconciledWorktreeIds.has(record.id)) continue;
+      await this.scanStandalone(record);
+    }
+  }
+
+  private async scanRecord(record: DurableWorkspaceRecord): Promise<void> {
+    if (record.kind === 'repository') {
+      await this.scanRepository(record, this.store.list());
+      return;
+    }
+    if (record.kind === 'worktree' && record.parentId !== null) {
+      const parent = this.store.get(record.parentId);
+      if (parent && (await isDirectory(parent.path))) {
+        // Reconcile through the owning repository so relinks and locked/prunable land.
+        await this.scanRepository(parent, this.store.list());
+        return;
+      }
+    }
+    await this.scanStandalone(record);
+  }
+
+  /**
+   * Reconciles one present repository and its worktrees with the disk. Returns the ids
+   * of every worktree record it settled (so the host scan skips them).
+   */
+  private async scanRepository(
+    repository: DurableWorkspaceRecord,
+    records: DurableWorkspaceRecord[]
+  ): Promise<Set<string>> {
+    const settled = new Set<string>();
+    const now = this.clock.now();
+
+    if (!(await isDirectory(repository.path))) {
+      this.recordVanished(repository, now);
+      return settled;
+    }
+
+    let listings: WorktreeListing[];
+    try {
+      listings = await listRepositoryWorktrees(repository.path);
+    } catch (error) {
+      // Positive assertion: an unscannable repository degrades its own observations and
+      // asserts nothing about its worktrees.
+      this.logger.warn?.(
+        `workspace registry scan of '${repository.path}' failed: ${String(error)}`
+      );
+      this.saveRecord({ ...repository, observedStatus: 'present', git: null }, now);
+      return settled;
+    }
+
+    const children = records.filter(
+      (record) => record.kind === 'worktree' && record.parentId === repository.id
+    );
+    const childByPath = new Map(children.map((child) => [child.path, child]));
+    const childByAdminName = new Map(
+      children.flatMap((child) => (child.gitAdminName ? [[child.gitAdminName, child]] : []))
+    );
+
+    for (const listing of listings) {
+      if (listing.isMain) continue;
+      const canonicalPath = await realpathSafe(listing.path);
+      if (!(await isDirectory(canonicalPath))) {
+        // Prunable admin debris without a directory: nothing to track.
+        continue;
+      }
+
+      const byPath = childByPath.get(canonicalPath);
+      const byAdmin = listing.adminName ? childByAdminName.get(listing.adminName) : undefined;
+      const child = byPath ?? byAdmin;
+      if (child) {
+        settled.add(child.id);
+        this.saveRecord(
+          {
+            ...child,
+            // Moved worktrees relink by admin name: identity survives, path follows.
+            path: canonicalPath,
+            gitAdminName: listing.adminName ?? child.gitAdminName,
+            observedStatus: 'present',
+            git: await observeWorkspaceGit(canonicalPath, listing),
+          },
+          now
+        );
+        continue;
+      }
+
+      // Host-discovered worktree of a registered repository: adopt under a host-minted id.
+      const adopted: DurableWorkspaceRecord = {
+        id: crypto.randomUUID(),
+        kind: 'worktree',
+        path: canonicalPath,
+        parentId: repository.id,
+        origin: 'adopted',
+        gitAdminName: listing.adminName ?? null,
+        observedStatus: 'present',
+        creation: null,
+        lastCreateOutcome: null,
+        git: await observeWorkspaceGit(canonicalPath, listing),
+        lastActivatedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        lastObservedAt: now,
+      };
+      settled.add(adopted.id);
+      this.store.insert(adopted);
+      this.publish(adopted);
+    }
+
+    for (const child of children) {
+      if (settled.has(child.id)) continue;
+      settled.add(child.id);
+      if (await isDirectory(child.path)) {
+        // On disk but no longer listed by the repository (e.g. pruned admin data):
+        // observe it directly rather than asserting it gone.
+        this.saveRecord(
+          { ...child, observedStatus: 'present', git: await observeWorkspaceGit(child.path) },
+          now
+        );
+      } else {
+        this.recordVanished(child, now);
+      }
+    }
+
+    this.saveRecord(
+      {
+        ...repository,
+        observedStatus: 'present',
+        git: await observeWorkspaceGit(repository.path),
+      },
+      now
+    );
+    return settled;
+  }
+
+  /** Presence + observations for a record outside any repository reconciliation. */
+  private async scanStandalone(record: DurableWorkspaceRecord): Promise<void> {
+    const now = this.clock.now();
+    if (!(await isDirectory(record.path))) {
+      this.recordVanished(record, now);
+      return;
+    }
+    const git = record.kind === 'directory' ? null : await observeWorkspaceGit(record.path);
+    this.saveRecord({ ...record, observedStatus: 'present', git }, now);
+  }
+
+  /** Adopted records follow the disk; registered records survive as 'missing'. */
+  private recordVanished(record: DurableWorkspaceRecord, now: number): void {
+    if (record.origin === 'adopted') {
+      this.deleteWorkspaceLocked({ id: record.id });
+      return;
+    }
+    this.saveRecord({ ...record, observedStatus: 'missing', git: null }, now);
+  }
+
+  /** Persists a scan result, stamping observation time and bumping updatedAt on change. */
+  private saveRecord(next: DurableWorkspaceRecord, now: number): void {
+    const previous = this.store.get(next.id);
+    const changed =
+      !previous || JSON.stringify(recordEssence(previous)) !== JSON.stringify(recordEssence(next));
+    const record: DurableWorkspaceRecord = {
+      ...next,
+      updatedAt: changed ? now : (previous?.updatedAt ?? now),
+      lastObservedAt: now,
+    };
+    this.store.update(record);
+    this.publish(record);
+  }
+
   /**
    * Registering a worktree of an unregistered repository auto-registers the parent as
    * adopted (host-minted id) so `parentId` always resolves.
@@ -193,5 +409,29 @@ export class WorkspaceRegistryRuntime {
 
   private toWire(record: DurableWorkspaceRecord): WorkspaceRecord {
     return { ...record, runtime: this.overlays.get(record.id) ?? null };
+  }
+}
+
+/** The change-detection view of a record: everything except the bookkeeping stamps. */
+function recordEssence(
+  record: DurableWorkspaceRecord
+): Omit<DurableWorkspaceRecord, 'updatedAt' | 'lastObservedAt'> {
+  const { updatedAt: _updatedAt, lastObservedAt: _lastObservedAt, ...essence } = record;
+  return essence;
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await fs.stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function realpathSafe(target: string): Promise<string> {
+  try {
+    return await fs.realpath(target);
+  } catch {
+    return target;
   }
 }
