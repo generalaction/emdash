@@ -38,6 +38,7 @@ vi.mock('@renderer/features/conversations/conversation-title-utils', () => ({
 
 const mocks = vi.hoisted(() => ({
   focusUrl: vi.fn(),
+  getBrowserControls: vi.fn(),
   getRegisteredTaskData: vi.fn(),
   getTaskGitWorktreeStore: vi.fn(),
   getTaskManagerStore: vi.fn(),
@@ -48,6 +49,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openExternal: vi.fn(),
   reload: vi.fn(),
+  reloadBrowser: vi.fn(),
   showModal: vi.fn(),
   toast: vi.fn(),
   visibleTaskEntries: [
@@ -59,16 +61,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
   browserControlsRegistry: {
-    get: vi.fn(() => ({
-      adapter: {
-        canGoBack: () => true,
-        canGoForward: () => true,
-        goBack: mocks.goBack,
-        goForward: mocks.goForward,
-        reload: mocks.reload,
-      },
-      focusUrl: mocks.focusUrl,
-    })),
+    get: mocks.getBrowserControls,
+    reload: mocks.reloadBrowser,
   },
 }));
 
@@ -131,13 +125,24 @@ function activeBrowserTab() {
     isActive: true,
     isPreview: false,
     state: { initialUrl: 'example.com', session },
-    resource: { session },
+    resource: { browserId: session.browserId, session },
   };
 }
 
 describe('createTaskCommandProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getBrowserControls.mockReturnValue({
+      adapter: {
+        canGoBack: () => true,
+        canGoForward: () => true,
+        goBack: mocks.goBack,
+        goForward: mocks.goForward,
+        reload: mocks.reload,
+      },
+      focusUrl: mocks.focusUrl,
+      reload: mocks.reload,
+    });
     mocks.getTaskStore.mockReturnValue({
       state: 'provisioned',
       setPinned: vi.fn(),
@@ -297,16 +302,12 @@ describe('createTaskCommandProvider', () => {
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 
-  it('executes active browser commands through the browser controls registry', () => {
+  it('executes active browser URL commands through the browser controls registry', () => {
     const taskView = mocks.getTaskView();
     taskView.activePane.resolvedTabs = [activeBrowserTab()];
     mocks.getTaskView.mockReturnValue(taskView);
     const provider = createTaskCommandProvider('project-1', 'task-1');
 
-    provider
-      .getCommands()
-      .find((candidate) => candidate.id === 'task.browserReload')
-      ?.execute();
     provider
       .getCommands()
       .find((candidate) => candidate.id === 'task.browserFocusUrl')
@@ -320,10 +321,29 @@ describe('createTaskCommandProvider', () => {
       .find((candidate) => candidate.id === 'task.browserCopyUrl')
       ?.execute();
 
-    expect(mocks.reload).toHaveBeenCalledWith();
     expect(mocks.focusUrl).toHaveBeenCalledWith();
     expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
     expect(mocks.writeText).toHaveBeenCalledWith('https://example.com/');
+  });
+
+  it('reloads the active browser before its webview adapter is ready', () => {
+    const taskView = mocks.getTaskView();
+    taskView.activePane.resolvedTabs = [activeBrowserTab()];
+    mocks.getTaskView.mockReturnValue(taskView);
+    mocks.getBrowserControls.mockReturnValue({
+      adapter: null,
+      focusUrl: mocks.focusUrl,
+      reload: mocks.reload,
+    });
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const reloadCommand = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserReload');
+    reloadCommand?.execute();
+
+    expect(reloadCommand?.enabled).toBe(true);
+    expect(mocks.reloadBrowser).toHaveBeenCalledWith('browser-1');
   });
 
   it('navigates browser history through the browser controls registry', () => {

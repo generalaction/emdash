@@ -1,4 +1,5 @@
 import { reaction } from 'mobx';
+import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import type { TabEntry, TabHandle, TabResource } from '@renderer/features/tabs/core/tab-provider';
@@ -58,6 +59,7 @@ export class BrowserTabResource implements TabResource {
   dispose(): void {
     this._unsubscribeOpenInNewTab();
     this._disposeSessionSync();
+    browserControlsRegistry.remove(this.browserId);
     browserDiagnosticsStore.clearBrowser(this.browserId);
     browserSessionStore.removeSession(this.browserId);
     void rpc.browser.unregisterSession(this.browserId);

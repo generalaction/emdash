@@ -2,6 +2,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { browserControlsRegistry } from './browser-controls-registry';
 import { BrowserPane } from './browser-pane';
 import { browserSessionStore } from './browser-session-store';
 
@@ -51,12 +52,14 @@ describe('BrowserPane', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     container = dom.window.document.getElementById('root')!;
     root = createRoot(container);
+    browserControlsRegistry.clear();
     browserSessionStore.clear();
     browserRpc.registerSession.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
     act(() => root.unmount());
+    browserControlsRegistry.clear();
     browserSessionStore.clear();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
@@ -96,6 +99,33 @@ describe('BrowserPane', () => {
 
     expect(webview.getAttribute('src')).toBe('https://linkedin.com/');
     expect(loadURL).not.toHaveBeenCalled();
+  });
+
+  it('retries the browser URL when reloaded before the webview adapter is ready', async () => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      initialUrl: 'https://example.com/',
+    });
+
+    await act(async () => {
+      root.render(
+        React.createElement(BrowserPane, { browserId: session.browserId, visible: true })
+      );
+    });
+
+    const initialWebview = container.querySelector('webview');
+    const controls = browserControlsRegistry.get(session.browserId);
+    expect(initialWebview).not.toBeNull();
+    expect(controls).toBeDefined();
+    if (!controls) throw new Error('Browser controls were not registered');
+    expect(controls.adapter).toBeNull();
+
+    await act(async () => controls.reload());
+
+    expect(container.querySelector('webview')).not.toBe(initialWebview);
   });
 
   it('renders a minimal load error state', async () => {

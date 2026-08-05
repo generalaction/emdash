@@ -8,6 +8,7 @@ import {
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
   menuRedoChannel,
+  menuReloadChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
 import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
@@ -132,7 +133,18 @@ export function setupApplicationMenu(): void {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' as const },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            const win = getMainWindow();
+            if (!win || win.webContents.isLoading()) {
+              win?.webContents.reload();
+              return;
+            }
+            events.emit(menuReloadChannel, undefined);
+          },
+        },
         { role: 'forceReload' as const },
         { role: 'toggleDevTools' as const },
         { type: 'separator' as const },
