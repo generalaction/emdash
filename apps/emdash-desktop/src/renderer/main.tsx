@@ -18,10 +18,19 @@ import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
+import { captureException } from '@renderer/utils/telemetryClient';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
+
+window.addEventListener('error', (event) => {
+  captureException(event.error ?? event.message, 'window_error');
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  captureException(event.reason, 'unhandled_rejection');
+});
 
 async function bootstrap() {
   // Wire invalidation bridges so FS and git events flow into the model registry.
@@ -70,4 +79,5 @@ async function bootstrap() {
 
 bootstrap().catch((error: unknown) => {
   log.error('Renderer bootstrap failed:', error);
+  captureException(error, 'bootstrap');
 });

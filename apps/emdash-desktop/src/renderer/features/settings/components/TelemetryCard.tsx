@@ -4,6 +4,7 @@ import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { SettingRow } from './SettingRow';
 
@@ -40,10 +41,10 @@ const TelemetryCard: React.FC = () => {
           <Switch
             checked={prefEnabled}
             onCheckedChange={async (checked) => {
-              void import('../../../utils/telemetryClient').then(({ captureTelemetry }) => {
+              await setTelemetryEnabled(checked);
+              if (checked) {
                 captureTelemetry('setting_changed', { setting: 'telemetry' });
-              });
-              void setTelemetryEnabled(checked);
+              }
             }}
             disabled={loading || envDisabled}
             aria-label="Enable anonymous telemetry"

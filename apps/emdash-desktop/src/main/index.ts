@@ -71,8 +71,33 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 initializeFileLogger();
-registerProcessErrorLogging(log);
+let resolveTelemetryInitialization = () => {};
+const telemetryInitialization = new Promise<void>((resolve) => {
+  resolveTelemetryInitialization = resolve;
+});
+registerProcessErrorLogging(log, async (error, mechanism) => {
+  await telemetryInitialization;
+  await telemetryService.captureExceptionImmediate(error, {
+    process_type: 'main',
+    mechanism,
+  });
+});
 registerRendererLogHandler(ipcMain);
+
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason === 'clean-exit') return;
+  telemetryService.captureException(
+    new Error(
+      `Electron ${details.type} process exited unexpectedly: ${details.reason} (${details.exitCode})`
+    ),
+    {
+      process_type: details.type,
+      reason: details.reason,
+      exit_code: details.exitCode,
+      mechanism: 'child_process_gone',
+    }
+  );
+});
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
@@ -110,6 +135,15 @@ void app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
+
+    try {
+      await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+    } catch (e) {
+      log.warn('telemetry init failed:', e);
+    } finally {
+      resolveTelemetryInitialization();
+    }
+
     await resetStaleAcpAgentStatuses();
     searchService.initialize();
     workspaceFileIndexService.initialize();
@@ -128,12 +162,6 @@ void app.whenReady().then(async () => {
     );
     app.quit();
     return;
-  }
-
-  try {
-    await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
-  } catch (e) {
-    log.warn('telemetry init failed:', e);
   }
 
   emdashAccountService.on('accountChanged', (username, userId, email) => {

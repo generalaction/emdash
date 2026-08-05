@@ -1,4 +1,5 @@
 import React from 'react';
+import { captureException } from '@renderer/utils/telemetryClient';
 import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 
@@ -33,6 +34,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    captureException(error, 'react', info.componentStack ?? undefined);
   }
 
   handleReload = () => {
