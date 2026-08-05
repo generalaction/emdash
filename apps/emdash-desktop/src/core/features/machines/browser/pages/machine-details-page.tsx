@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { McpServersListForHost } from '@core/features/mcp/api/browser/components/McpServersList';
 import { CliAgentsList } from '@core/features/settings/api/browser/agents-page/CliAgentsList';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { SkillsListForHost } from '@core/features/skills/api/browser/components/SkillsList';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
@@ -379,7 +380,12 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
       {section === 'agents' && (
         <SettingsCard>
           {serverUsable ? (
-            <CliAgentsList connectionId={machine.id} />
+            <CliAgentsList
+              connectionId={machine.id}
+              onManageSettings={() =>
+                appState.navigation.navigate(settingsViewDef({ tab: 'general' }))
+              }
+            />
           ) : (
             <div className="p-4 text-sm text-foreground-muted">
               Agent detection is available when the workspace server is healthy.

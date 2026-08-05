@@ -1,6 +1,7 @@
 import { definePluginCapability } from '@emdash/shared/plugins';
 import type { PluginFs } from '@primitives/plugin-fs/api';
 import z from 'zod';
+import type { ConfigRootContext } from '../helpers/config-root';
 import type { CanonicalHookEvent, HookRegistration } from './hooks-types';
 
 export type { HookRegistration };
@@ -8,6 +9,7 @@ export type { CanonicalHookEvent, HookEvent, NotificationType } from './hooks-ty
 export { HOOK_EVENTS } from './hooks-types';
 
 export type IHooksBehavior = {
+  resolveConfigRoots(context: ConfigRootContext): string[];
   readHooks(fs: PluginFs): Promise<HookRegistration[]>;
   /** Write hooks and return the root-relative paths written. */
   writeHooks(fs: PluginFs, hooks: HookRegistration[]): Promise<string[]>;

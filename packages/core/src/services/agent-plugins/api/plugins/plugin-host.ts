@@ -2,6 +2,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { compose, deduplicate } from '@emdash/shared/requests';
+import { buildAllowlistedAgentEnv } from '@primitives/agent-env/api';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type { HostDependencyResolver, Platform } from '@primitives/host-dependencies/api';
 import type { PluginFs } from '@primitives/plugin-fs/api';
@@ -25,6 +26,7 @@ import {
   type SpawnContextError,
   type SpawnContextResolver,
 } from '@services/agent-plugins/api/spawn-context';
+import type { ConfigRootContext } from './helpers/config-root';
 import type { CLIAgentPluginProvider } from './index';
 
 export type ResolvedAcpProvider = {
@@ -112,6 +114,17 @@ export class AgentPluginHost {
 
   get homeDir(): string {
     return this.deps.homeDir;
+  }
+
+  configRootContext(): ConfigRootContext {
+    return {
+      env: buildAllowlistedAgentEnv(this.deps.env, {
+        homeDir: this.deps.homeDir,
+        includeShellVar: true,
+      }),
+      homeDir: this.deps.homeDir,
+      platform: this.deps.platform ?? currentPlatform(),
+    };
   }
 
   get(providerId: string): CLIAgentPluginProvider | undefined {
@@ -321,4 +334,10 @@ export class AgentPluginHost {
     }
     return ok(provider.behavior.mcp);
   }
+}
+
+function currentPlatform(): Platform {
+  if (process.platform === 'darwin') return 'macos';
+  if (process.platform === 'win32') return 'windows';
+  return 'linux';
 }

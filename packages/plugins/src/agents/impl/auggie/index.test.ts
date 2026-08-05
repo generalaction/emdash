@@ -59,7 +59,7 @@ describe('auggie provider', () => {
     });
   });
 
-  it('installs Auggie workspace hooks using the native settings schema', async () => {
+  it('installs Auggie global hooks using the native settings schema', async () => {
     const files = new Map<string, string>();
     const fs = createMemoryFs(files);
 

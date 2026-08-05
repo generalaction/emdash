@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveLog, liveModel, liveState, procedure } from '@emdash/wire';
 import { agentAuthStatusSchema } from '@services/agent-plugins/api/plugins/capabilities/auth';
 import { z } from 'zod';
 import {
@@ -9,6 +9,7 @@ import {
   agentConfigSkillsErrorSchema,
   createSkillInputSchema,
   installedSkillsSchema,
+  hooksStatusSchema,
   markUrlHandledCommandSchema,
   mcpServerListSchema,
   mcpServerSchema,
@@ -30,6 +31,10 @@ export const agentConfigContract = defineContract({
     input: z.object({ providerId: z.string().optional(), refreshShellEnv: z.boolean().optional() }),
     data: z.void(),
     error: agentConfigRefreshErrorSchema,
+  }),
+  hooksStatus: procedure({
+    input: providerCommandSchema,
+    output: hooksStatusSchema,
   }),
 
   startLogin: fallible({

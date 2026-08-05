@@ -1,6 +1,7 @@
 export * from './command-builder';
 export * from './host-dependency';
 export * from './config';
+export * from './config-root';
 export * from './file-drop';
 export * from './hierarchical';
 export * from './hook-config';

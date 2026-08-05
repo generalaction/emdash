@@ -6,12 +6,16 @@ import type {
   AgentConfigMcpError,
   AgentConfigRefreshError,
   AgentConfigSkillsError,
+  HooksStatus,
 } from '@runtimes/agent-config/api';
 import type { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';
 import type { AgentAuthStatus } from '@services/agent-plugins/api/plugins';
 
 export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
   return {
+    hooksStatus(input: { providerId: string }): Promise<HooksStatus> {
+      return runtime.hooksStatus(input.providerId);
+    },
     refreshAgents(input: {
       providerId?: string;
       refreshShellEnv?: boolean;

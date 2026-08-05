@@ -87,6 +87,10 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
       withAgentConfigResult(options.runtimes, input.host, (client) =>
         client.refreshAgents(withoutHost(input), callOptions(meta))
       ),
+    hooksStatus: ({ host, providerId }, meta) =>
+      withHostRuntime(options.runtimes, host, (runtime) =>
+        runtime.agentConfig.hooksStatus({ providerId }, callOptions(meta))
+      ),
     startLogin: (input, meta) =>
       withAgentConfigResult(options.runtimes, input.host, (client) =>
         client.startLogin(withoutHost(input), callOptions(meta))

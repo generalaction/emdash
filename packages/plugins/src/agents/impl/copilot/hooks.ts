@@ -3,6 +3,8 @@ import type { HookRegistration } from '@emdash/core/services/agent-plugins/api/p
 import {
   EMDASH_MARKER,
   buildFlatEntry,
+  configRoots,
+  envConfigRoot,
   filterUserHooks,
   makeNotificationHookCommand,
   makeStdinHookCommand,
@@ -10,7 +12,7 @@ import {
   writeJsonConfig,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
+export const COPILOT_HOOKS_PATH = 'hooks/emdash.json';
 
 export function buildCopilotHookConfig() {
   const stopCmd = makeStdinHookCommand('stop');
@@ -18,12 +20,20 @@ export function buildCopilotHookConfig() {
   const permCmd = makeNotificationHookCommand('permission_prompt');
 
   return {
+    resolveConfigRoots: configRoots(envConfigRoot('COPILOT_HOME', '.copilot')),
+    getHookPaths: () => [COPILOT_HOOKS_PATH],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+      const installed = [
+        ['agentStop', stopCmd],
+        ['sessionStart', sessionCmd],
+        ['permissionRequest', permCmd],
+      ].every(([key, command]) => {
+        const entries = Array.isArray(hooks[key]) ? hooks[key] : [];
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildFlatEntry(command))
+        );
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
@@ -64,9 +74,15 @@ export function buildCopilotHookConfig() {
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, COPILOT_HOOKS_PATH);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return ['agentStop', 'sessionStart', 'permissionRequest'].some((k) => {
-        const entries = Array.isArray(hooks[k]) ? hooks[k] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+      return [
+        ['agentStop', stopCmd],
+        ['sessionStart', sessionCmd],
+        ['permissionRequest', permCmd],
+      ].every(([key, command]) => {
+        const entries = Array.isArray(hooks[key]) ? hooks[key] : [];
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildFlatEntry(command))
+        );
       });
     },
   };

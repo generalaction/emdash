@@ -5,11 +5,12 @@ import {
 import {
   buildStandardCommand,
   createFileDropPlugin,
+  envConfigRoot,
   npmDependency,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { PI_EXTENSION_CONTENT } from './plugin-file';
 
-const PI_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
+const PI_EXTENSION_PATH = 'extensions/emdash-hook.ts';
 import { icon } from './icon';
 
 export const plugin = definePlugin(
@@ -23,7 +24,7 @@ export const plugin = definePlugin(
   {
     hooks: {
       kind: 'plugin',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['session', 'stop'],
     },
     hostDependency: npmDependency({
@@ -33,7 +34,7 @@ export const plugin = definePlugin(
     }),
     plugins: {
       kind: 'file-drop',
-      scope: 'workspace',
+      scope: 'global',
     },
     prompt: {
       kind: 'argv',
@@ -56,5 +57,9 @@ export const provider = registerPluginBehavior(plugin, {
         sessionIdOnResumeOnly: true,
       }),
   },
-  plugins: createFileDropPlugin({ relativePath: PI_EXTENSION_PATH, content: PI_EXTENSION_CONTENT }),
+  plugins: createFileDropPlugin({
+    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.pi'),
+    relativePath: PI_EXTENSION_PATH,
+    content: PI_EXTENSION_CONTENT,
+  }),
 });

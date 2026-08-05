@@ -189,14 +189,6 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Push the new branch to the selected project remote and set upstream.',
     keywords: ['git', 'remote', 'upstream'],
   },
-  {
-    id: 'auto-update-gitignore',
-    label: 'Auto-update .gitignore',
-    tab: 'repository',
-    description: 'When Emdash writes CLI hook configs, also add their paths to .gitignore.',
-    keywords: ['git', 'ignore'],
-  },
-
   // Local workspaces
   {
     id: 'task-worktree-storage',

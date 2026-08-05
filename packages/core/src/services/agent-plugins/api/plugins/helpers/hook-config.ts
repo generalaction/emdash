@@ -9,12 +9,17 @@ export type { HookCommandOptions } from './hooks';
 
 export async function readJsonConfig(fs: PluginFs, path: string): Promise<Record<string, unknown>> {
   const content = await fs.read(path);
-  if (!content) return {};
+  if (!content || content.trim() === '') return {};
+  let parsed: unknown;
   try {
-    return (JSON.parse(content) as Record<string, unknown>) ?? {};
-  } catch {
-    return {};
+    parsed = JSON.parse(content);
+  } catch (error) {
+    throw new Error(`Failed to parse ${path}: ${String(error)}`);
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Failed to parse ${path}: expected an object at the config root`);
+  }
+  return parsed as Record<string, unknown>;
 }
 
 export async function writeJsonConfig(
@@ -98,10 +103,13 @@ export function buildFlatTomlHookConfig(
   const stringifyEntry = options.stringifyEntry ?? JSON.stringify;
   const getHookEntries = (config: Record<string, unknown>) =>
     Array.isArray(config.hooks) ? (config.hooks as Record<string, unknown>[]) : [];
-  const hasEmdashHook = (config: Record<string, unknown>) =>
-    getHookEntries(config).some((entry) => stringifyEntry(entry).includes(EMDASH_MARKER));
+  const hasEmdashHook = (config: Record<string, unknown>) => {
+    const serializedEntries = getHookEntries(config).map((entry) => stringifyEntry(entry));
+    return entries.every((entry) => serializedEntries.includes(stringifyEntry(entry)));
+  };
 
   return {
+    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readTomlConfig(fs, configPath);
       return hasEmdashHook(config) ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
@@ -152,6 +160,7 @@ export function buildNestedJsonHookConfig(configPath: string, hookSpecs: HookSpe
     });
 
   return {
+    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
@@ -198,12 +207,15 @@ export function buildFlatJsonHookConfig(
   extraRoot?: Record<string, unknown>
 ) {
   return {
+    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = hookSpecs.some(({ hookKey }) => {
+      const installed = hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildFlatEntry(command))
+        );
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
@@ -228,9 +240,11 @@ export function buildFlatJsonHookConfig(
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return hookSpecs.some(({ hookKey }) => {
+      return hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildFlatEntry(command))
+        );
       });
     },
   };
@@ -246,12 +260,15 @@ export function buildMinimalJsonHookConfig(
   extraRoot?: Record<string, unknown>
 ) {
   return {
+    getHookPaths: () => [configPath],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      const installed = hookSpecs.some(({ hookKey }) => {
+      const installed = hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildMinimalEntry(command))
+        );
       });
       return installed ? [{ event: 'emdash', command: EMDASH_MARKER }] : [];
     },
@@ -276,9 +293,11 @@ export function buildMinimalJsonHookConfig(
     async getHooksInstalled(fs: PluginFs): Promise<boolean> {
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-      return hookSpecs.some(({ hookKey }) => {
+      return hookSpecs.every(({ hookKey, command }) => {
         const entries = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        return entries.some((e) => JSON.stringify(e).includes(EMDASH_MARKER));
+        return entries.some(
+          (entry) => JSON.stringify(entry) === JSON.stringify(buildMinimalEntry(command))
+        );
       });
     },
   };

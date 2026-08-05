@@ -15,21 +15,10 @@ const RepositorySettingsCard: React.FC = () => {
     isFieldOverridden: isProjectFieldOverridden,
     resetField: resetProjectField,
   } = useAppSettingsKey('project');
-  const {
-    value: localProject,
-    update: updateLocalProject,
-    isLoading: localProjectLoading,
-    isSaving: localProjectSaving,
-    isFieldOverridden: isLocalProjectFieldOverridden,
-    resetField: resetLocalProjectField,
-  } = useAppSettingsKey('localProject');
-
   const branchPrefix = project?.branchPrefix ?? '';
   const appendRandomBranchSuffix = project?.appendRandomBranchSuffix ?? true;
   const pushOnCreate = project?.pushOnCreate ?? true;
-  const writeAgentConfigToGitIgnore = localProject?.writeAgentConfigToGitIgnore ?? true;
   const projectBusy = projectLoading || projectSaving;
-  const localProjectBusy = localProjectLoading || localProjectSaving;
 
   return (
     <div className="grid gap-8">
@@ -97,28 +86,6 @@ const RepositorySettingsCard: React.FC = () => {
               onCheckedChange={(checked) => updateProject({ pushOnCreate: checked })}
               disabled={projectBusy}
               aria-label="Enable automatic push on create"
-            />
-          </>
-        }
-      />
-      <SettingRow
-        title="Auto-update .gitignore"
-        description="When Emdash writes CLI hook configs, also add their paths to .gitignore."
-        control={
-          <>
-            <ResetToDefaultButton
-              visible={isLocalProjectFieldOverridden('writeAgentConfigToGitIgnore')}
-              defaultLabel="on"
-              onReset={() => resetLocalProjectField('writeAgentConfigToGitIgnore')}
-              disabled={localProjectBusy}
-            />
-            <Switch
-              checked={writeAgentConfigToGitIgnore}
-              onCheckedChange={(checked) =>
-                updateLocalProject({ writeAgentConfigToGitIgnore: checked })
-              }
-              disabled={localProjectBusy}
-              aria-label="Enable .gitignore updates for CLI hook configs"
             />
           </>
         }

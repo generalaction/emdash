@@ -77,7 +77,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['start', 'notification', 'stop'],
     },
     hostDependency: {

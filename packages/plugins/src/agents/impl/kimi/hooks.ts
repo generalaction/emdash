@@ -1,14 +1,14 @@
-import type { PluginFs } from '@emdash/core/services/agent-plugins/api/plugins';
-import type { HookRegistration } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
-  EMDASH_MARKER,
+  buildFlatTomlHookConfig,
+  configRoots,
+  envConfigRoot,
   filterUserHooks,
+  homeConfigRoot,
   makeStdinHookCommand,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
 
-export const KIMI_CONFIG_PATH = '.kimi-code/config.toml';
-export const KIMI_LEGACY_CONFIG_PATH = '.kimi/config.toml';
+export const KIMI_CONFIG_PATH = 'config.toml';
 
 const KIMI_HOOK_SPECS = [
   { hookKey: 'SessionStart', command: makeStdinHookCommand('session') },
@@ -53,73 +53,14 @@ export function addKimiHooksToConfigText(content: string): string {
   }
 }
 
-async function writeKimiHookPath(fs: PluginFs, path: string): Promise<boolean> {
-  const content = await fs.read(path);
-  let config: Record<string, unknown> = {};
-  if (content) {
-    try {
-      config = parseTOML(content) as Record<string, unknown>;
-    } catch {
-      return false;
-    }
-  }
-  const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-  config.hooks = buildKimiHookEntries(hooks);
-  await fs.write(path, stringifyTOML(config));
-  return true;
-}
-
 export function buildKimiHookConfig() {
+  const legacyRoot = homeConfigRoot('.kimi');
+  const behavior = buildFlatTomlHookConfig(
+    KIMI_CONFIG_PATH,
+    KIMI_HOOK_SPECS.map(({ hookKey, command }) => ({ event: hookKey, command }))
+  );
   return {
-    async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
-      for (const path of [KIMI_CONFIG_PATH, KIMI_LEGACY_CONFIG_PATH]) {
-        const content = await fs.read(path);
-        if (!content) continue;
-        try {
-          const config = parseTOML(content) as Record<string, unknown>;
-          const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-          if (hooks.some((e) => JSON.stringify(e).includes(EMDASH_MARKER))) {
-            return [{ event: 'emdash', command: EMDASH_MARKER }];
-          }
-        } catch {
-          /* skip */
-        }
-      }
-      return [];
-    },
-    async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
-      await writeKimiHookPath(fs, KIMI_CONFIG_PATH);
-      await writeKimiHookPath(fs, KIMI_LEGACY_CONFIG_PATH);
-      return [KIMI_CONFIG_PATH, KIMI_LEGACY_CONFIG_PATH];
-    },
-    async deleteHooks(fs: PluginFs): Promise<void> {
-      for (const path of [KIMI_CONFIG_PATH, KIMI_LEGACY_CONFIG_PATH]) {
-        const content = await fs.read(path);
-        if (!content) continue;
-        try {
-          const config = parseTOML(content) as Record<string, unknown>;
-          if (Array.isArray(config.hooks)) {
-            config.hooks = filterUserHooks(config.hooks as Record<string, unknown>[]);
-          }
-          await fs.write(path, stringifyTOML(config));
-        } catch {
-          /* skip */
-        }
-      }
-    },
-    async getHooksInstalled(fs: PluginFs): Promise<boolean> {
-      for (const path of [KIMI_CONFIG_PATH, KIMI_LEGACY_CONFIG_PATH]) {
-        const content = await fs.read(path);
-        if (!content) continue;
-        try {
-          const config = parseTOML(content) as Record<string, unknown>;
-          const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-          if (hooks.some((e) => JSON.stringify(e).includes(EMDASH_MARKER))) return true;
-        } catch {
-          /* skip */
-        }
-      }
-      return false;
-    },
+    ...behavior,
+    resolveConfigRoots: configRoots(envConfigRoot('KIMI_CODE_HOME', '.kimi-code'), legacyRoot),
   };
 }

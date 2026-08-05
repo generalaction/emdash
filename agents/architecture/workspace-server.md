@@ -60,7 +60,7 @@ The wire contract is versioned with a single [semver](https://semver.org) string
 [`packages/core/src/workspace-server/versions/index.ts`](../../packages/core/src/workspace-server/versions/index.ts):
 
 ```ts
-export const PROTOCOL_VERSION = '7.0.0';
+export const PROTOCOL_VERSION = '7.4.0';
 ```
 
 ### What each component means
@@ -192,6 +192,11 @@ if (session.agreedMinor >= 1) {
   // fall back to polling
 }
 ```
+
+The agent hook-status procedure was introduced at minor 4. Desktop clients gate remote calls on
+`agreedMinor >= 4`; older or unavailable daemons omit the read-only hook indicator instead of
+attempting the unsupported procedure. Local desktop workers always expose the procedure from the
+same build.
 
 ## Key Files
 

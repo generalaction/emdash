@@ -53,6 +53,10 @@ Emdash detects installed provider CLIs automatically. It supports agents like Cl
 Code, Codex, Cursor, OpenCode, Amp, Devin, Qwen Code, Droid, and GitHub
 Copilot.
 
+For agents with lifecycle-hook support, Emdash installs marker-tagged entries in the agent's
+user-level config. These hooks let Emdash track status, notifications, and resumable sessions, and
+silently do nothing when the agent runs outside an Emdash session.
+
 See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,
 and provider-specific behavior.
 

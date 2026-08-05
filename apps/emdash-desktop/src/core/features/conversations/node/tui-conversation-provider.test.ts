@@ -180,7 +180,6 @@ function createProvider(
     },
     {
       db: { select: vi.fn() } as never,
-      getLocalProjectSettings: () => Promise.resolve({ writeAgentConfigToGitIgnore: true }),
       getProviderConfig: () => Promise.resolve(undefined),
       getTaskSettings:
         overrides.getTaskSettings ??

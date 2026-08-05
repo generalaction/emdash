@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useLayoutEffect, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, type ReactNode } from 'react';
 import { SettingsPage } from '@core/features/settings/browser/components/SettingsPage';
 import { settingsScope } from '@core/features/settings/contributions/scopes';
 import { settingsViewDef, type SettingsPageTab } from '@core/features/settings/contributions/views';
@@ -9,16 +9,7 @@ import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-s
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
-
-interface SettingsTabContextValue {
-  tab: SettingsPageTab;
-  detail?: string;
-  onTabChange: (tab: SettingsPageTab) => void;
-  openDetail: (detailId: string) => void;
-  closeDetail: () => void;
-}
-
-const SettingsTabContext = createContext<SettingsTabContextValue | null>(null);
+import { SettingsTabProvider, useSettingsTab } from './settings-tab-context';
 
 export function SettingsViewWrapper({
   children,
@@ -59,21 +50,13 @@ export function SettingsViewWrapper({
   if (!instance) return null;
   return (
     <ViewScopeInstanceProvider instance={instance}>
-      <SettingsTabContext.Provider
+      <SettingsTabProvider
         value={{ tab, detail, onTabChange: handleTabChange, openDetail, closeDetail }}
       >
         {children}
-      </SettingsTabContext.Provider>
+      </SettingsTabProvider>
     </ViewScopeInstanceProvider>
   );
-}
-
-export function useSettingsTab() {
-  const context = useContext(SettingsTabContext);
-  if (!context) {
-    throw new Error('useSettingsTab must be used within a SettingsViewWrapper');
-  }
-  return context;
 }
 
 export function SettingsTitlebar() {

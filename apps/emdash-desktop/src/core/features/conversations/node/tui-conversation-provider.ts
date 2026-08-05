@@ -51,7 +51,6 @@ export type TuiConversationProviderOptions = {
 
 export type TuiConversationProviderDependencies = {
   db: AppDb;
-  getLocalProjectSettings(): Promise<{ writeAgentConfigToGitIgnore?: boolean }>;
   getProviderConfig(providerId: string): Promise<ProviderCustomConfig | undefined>;
   getTaskSettings(): Promise<{ autoTrustWorktrees: boolean }>;
   getTerminalColorEnv(): Promise<Record<string, string>>;
@@ -137,7 +136,6 @@ export class TuiConversationProvider implements ConversationProvider {
     initialPrompt: string | undefined
   ): Promise<TuiAgentStartInput> {
     const providerConfig = await this.dependencies.getProviderConfig(conversation.providerId);
-    const localProjectSettings = await this.dependencies.getLocalProjectSettings();
     const trustWorkspace =
       conversation.autoApprove === true ||
       (await this.dependencies.getTaskSettings()).autoTrustWorktrees;
@@ -172,9 +170,6 @@ export class TuiConversationProvider implements ConversationProvider {
       rows: initialSize.rows,
       shellSetup: this.shellSetup,
       tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
-      hookInstall: {
-        writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
-      },
     };
   }
 

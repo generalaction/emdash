@@ -3,7 +3,6 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type { LiveLogOptions } from '@emdash/wire';
 import type { IdlePolicyConfig } from '@primitives/io-activity/api';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
-import type { HookInstallPolicy } from '@runtimes/tui-agents/node/hooks/types';
 import type { AgentPluginHost } from '@services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '@services/conversation-reports/node';
 import type { IExecutionContext } from '@services/exec/api';
@@ -17,7 +16,6 @@ export interface TuiAgentsRuntimeDeps {
   intents: SessionIntentStore;
   /** Lifecycle reports into the conversation index (spec §3.3); defaults to a no-op. */
   conversationReports?: ConversationLifecycleReporter;
-  hookInstall?: HookInstallPolicy;
   log?: LiveLogOptions;
   clock?: Clock;
   lifecycle?: {

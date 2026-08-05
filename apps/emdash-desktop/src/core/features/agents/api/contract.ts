@@ -4,6 +4,7 @@ import {
   agentConfigContract,
   agentConfigListSchema,
   agentConfigRefreshErrorSchema,
+  hooksStatusSchema,
 } from '@emdash/core/runtimes/agent-config/api';
 import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
@@ -104,6 +105,11 @@ export const agentsContract = defineContract({
     input: agentConfigContract.refreshAgents.input.extend(hostInputSchema.shape),
     data: z.void(),
     error: agentsRefreshErrorSchema,
+  }),
+  hooksStatus: fallible({
+    input: agentConfigContract.hooksStatus.input.extend(hostInputSchema.shape),
+    data: hooksStatusSchema.nullable(),
+    error: runtimeResolveErrorSchema,
   }),
   startLogin: fallible({
     input: agentConfigContract.startLogin.input.extend(hostInputSchema.shape),

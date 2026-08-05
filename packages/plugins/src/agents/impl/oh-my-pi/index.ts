@@ -6,13 +6,13 @@ import {
 import {
   buildStandardCommand,
   createFileDropPlugin,
+  envConfigRoot,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 import { createNativeAcpBehavior } from '../../helpers/acp-stdio';
 import { icon } from './icon';
 import { OH_MY_PI_EXTENSION_CONTENT } from './plugin-file';
 
-const OH_MY_PI_EXTENSION_PATH = '.omp/extensions/emdash-hook.ts';
-const OH_MY_PI_EXTENSION_ARG = `./${OH_MY_PI_EXTENSION_PATH}`;
+const OH_MY_PI_EXTENSION_PATH = 'extensions/emdash-hook.ts';
 
 export const plugin = definePlugin(
   {
@@ -28,7 +28,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'plugin',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['session', 'stop'],
     },
     hostDependency: {
@@ -94,7 +94,7 @@ export const plugin = definePlugin(
     },
     plugins: {
       kind: 'file-drop',
-      scope: 'workspace',
+      scope: 'global',
     },
     prompt: {
       kind: 'argv',
@@ -114,7 +114,6 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx: CommandContext) =>
       buildStandardCommand(ctx, {
-        defaultArgs: ['--extension', OH_MY_PI_EXTENSION_ARG],
         initialPromptFlag: '',
         resumeFlag: '--session',
         sessionIdFlag: '--session',
@@ -123,6 +122,7 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   plugins: createFileDropPlugin({
+    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.omp'),
     relativePath: OH_MY_PI_EXTENSION_PATH,
     content: OH_MY_PI_EXTENSION_CONTENT,
   }),

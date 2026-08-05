@@ -27,7 +27,6 @@ describe('slugifySettingLabel', () => {
 
   it('strips punctuation and collapses separators', () => {
     expect(slugifySettingLabel('Privacy & Telemetry')).toBe('privacy-telemetry');
-    expect(slugifySettingLabel('Auto-update .gitignore')).toBe('auto-update-gitignore');
     expect(slugifySettingLabel('  Use Option as Meta key ')).toBe('use-option-as-meta-key');
   });
 });
@@ -144,7 +143,6 @@ describe('SETTINGS_SEARCH_INDEX integrity', () => {
       'notifications',
       'os-notifications',
       'disable-cors-for-localhost',
-      'auto-update-gitignore',
     ];
     for (const id of rowBackedIds) {
       const entry = SETTINGS_SEARCH_INDEX.find((candidate) => candidate.id === id);

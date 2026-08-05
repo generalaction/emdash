@@ -29,13 +29,10 @@ describe('oh-my-pi plugin hooks', () => {
   it('installs an OMP extension that reports turn completion from session_stop', async () => {
     const fs = createMemoryFs();
 
-    const written = await provider.behavior.plugins?.installPlugin(fs, {
-      kind: 'workspace',
-      path: '/workspace',
-    });
+    const written = await provider.behavior.plugins?.installPlugin(fs, { kind: 'global' });
 
-    expect(written).toEqual(['.omp/extensions/emdash-hook.ts']);
-    const content = await fs.read('.omp/extensions/emdash-hook.ts');
+    expect(written).toEqual(['extensions/emdash-hook.ts']);
+    const content = await fs.read('extensions/emdash-hook.ts');
     expect(content).toContain("pi.on('session_stop'");
     expect(content).toContain('event.session_file');
     expect(content).toContain("notifyEmdash('stop'");

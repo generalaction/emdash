@@ -99,7 +99,6 @@ export type DesktopWorkersHandle = {
 
 export type StartDesktopWorkersDeps = {
   readonly scope: Scope;
-  getLocalProjectSettings(): Promise<{ writeAgentConfigToGitIgnore?: boolean }>;
   getFilesSettings(): Promise<{ watcherExclude: string[] }>;
 };
 
@@ -291,29 +290,24 @@ async function startDesktopWorkersWithHost(
     });
     return await worker.ready();
   });
-  const tuiAgentsReady = Promise.all([deps.getLocalProjectSettings(), conversationsReady]).then(
-    async ([localProjectSettings, conversations]) => {
-      const worker = host.create(createTuiAgentsComponent({ pluginRegistry, logger: log }), {
-        name: 'tui-agents',
-        executable: desktopWorkerPath('tui-agents'),
-        env: process.env,
-        dependencies: {
-          hostDependencies: hostDependencies.client.resolver,
-          conversations,
+  const tuiAgentsReady = conversationsReady.then(async (conversations) => {
+    const worker = host.create(createTuiAgentsComponent({ pluginRegistry, logger: log }), {
+      name: 'tui-agents',
+      executable: desktopWorkerPath('tui-agents'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        conversations,
+      },
+      config: {
+        intentsFilePath: sessionIntentFilePaths().tuiAgents,
+        lifecycle: {
+          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
         },
-        config: {
-          intentsFilePath: sessionIntentFilePaths().tuiAgents,
-          lifecycle: {
-            session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-          },
-          hookInstall: {
-            writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
-          },
-        },
-      });
-      return { client: await worker.ready(), worker };
-    }
-  );
+      },
+    });
+    return { client: await worker.ready(), worker };
+  });
   const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
     async ([acp, terminals, tuiAgents]) => {
       const worker = host.create(workspaceHostComponent, {

@@ -18,7 +18,6 @@ export async function bootRuntimes(
   try {
     workers = await startDesktopWorkers({
       scope,
-      getLocalProjectSettings: () => database.appSettings.get('localProject'),
       getFilesSettings: () => database.appSettings.get('files'),
     });
     const broker = createDesktopRuntimeBroker(workers.clients, infrastructure.remoteMachine);

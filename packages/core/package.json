@@ -181,6 +181,10 @@
       "types": "./dist/services-agent-plugins-api-spawn-context.d.mts",
       "default": "./dist/services-agent-plugins-api-spawn-context.mjs"
     },
+    "./services/agent-plugins/node": {
+      "types": "./dist/services-agent-plugins-node.d.mts",
+      "default": "./dist/services-agent-plugins-node.mjs"
+    },
     "./services/session-intents/api": {
       "types": "./dist/services-session-intents-api.d.mts",
       "default": "./dist/services-session-intents-api.mjs"

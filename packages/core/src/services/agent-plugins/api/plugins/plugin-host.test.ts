@@ -83,6 +83,7 @@ describe('AgentPluginHost', () => {
         behavior: {
           prompt: { buildCommand },
           hooks: {
+            resolveConfigRoots: ({ homeDir }) => [`${homeDir}/.test`],
             readHooks: async () => [],
             writeHooks: async () => [],
             deleteHooks: async () => {},

@@ -22,7 +22,7 @@ import type {
   TuiStartSessionError,
 } from '@runtimes/tui-agents/api';
 import { persistedTuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
-import { TuiHookInstaller } from '@runtimes/tui-agents/node/hooks/hook-installer';
+import { AgentHookInstaller } from '@services/agent-plugins/node';
 import { TuiHookPipeline } from '@runtimes/tui-agents/node/hooks/hook-pipeline';
 import { TuiHookServer } from '@runtimes/tui-agents/node/hooks/hook-server';
 import {
@@ -80,7 +80,7 @@ export class TuiAgentsRuntime {
   private readonly sessionsList: TuiSessionsListModel;
   private readonly agentStatesList: TuiAgentStatesListModel;
   private readonly agentStates: TuiAgentStates;
-  private readonly hookInstaller: TuiHookInstaller;
+  private readonly hookInstaller: AgentHookInstaller;
   private readonly hookServer: TuiHookServer;
   private readonly hookPipeline: TuiHookPipeline;
   private readonly workspaceTrust: TuiWorkspaceTrust;
@@ -112,7 +112,7 @@ export class TuiAgentsRuntime {
         if (config) this.persistActiveIntent(config.input);
       }
     );
-    this.hookInstaller = new TuiHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
+    this.hookInstaller = new AgentHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
     this.workspaceTrust = new TuiWorkspaceTrust({
       agentHost: deps.agentHost,
       logger: deps.logger,
@@ -671,7 +671,6 @@ export class TuiAgentsRuntime {
     const hooksAvailable = await this.hookInstaller.ensureHooksInstalled({
       providerId: input.providerId,
       workspacePath: input.cwd,
-      policy: input.hookInstall ?? this.deps.hookInstall,
     });
     if (!hooksAvailable) return {};
 

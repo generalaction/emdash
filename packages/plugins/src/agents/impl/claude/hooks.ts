@@ -1,11 +1,13 @@
 import type { CanonicalHookEvent } from '@emdash/core/services/agent-plugins/api/plugins';
 import {
   buildNestedJsonHookConfig,
+  configRoots,
   defaultHookEventParser,
+  envConfigRoot,
   makeStdinHookCommand,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+export const CLAUDE_SETTINGS_PATH = 'settings.json';
 
 /**
  * Claude's Notification events carry no `notification_type` field.
@@ -41,6 +43,7 @@ export function buildClaudeHookConfig() {
       { hookKey: 'Notification', command: makeStdinHookCommand('notification') },
       { hookKey: 'Stop', command: makeStdinHookCommand('stop') },
     ]),
+    resolveConfigRoots: configRoots(envConfigRoot('CLAUDE_CONFIG_DIR', '.claude')),
     parseHookEvent: parseClaudeHookEvent,
   };
 }

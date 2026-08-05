@@ -217,7 +217,6 @@ export async function bootServices(
   });
   const tuiConversationDependencies = {
     db,
-    getLocalProjectSettings: () => appSettingsService.get('localProject'),
     getProviderConfig: (providerId: string) => providerOverrideSettings.getItem(providerId),
     getTaskSettings: () => appSettingsService.get('tasks'),
     getTerminalColorEnv,

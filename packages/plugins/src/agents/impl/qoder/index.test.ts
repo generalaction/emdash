@@ -59,15 +59,15 @@ describe('qoder provider', () => {
     });
   });
 
-  it('declares workspace config hooks', () => {
+  it('declares global config hooks', () => {
     expect(provider.capabilities.hooks).toEqual({
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['notification', 'stop', 'session', 'start', 'tool-use', 'tool-use-failure'],
     });
   });
 
-  it('installs Qoder lifecycle hooks in project-local settings', async () => {
+  it('installs Qoder lifecycle hooks in global settings', async () => {
     const files = new Map<string, string>();
     const fs = createMemoryFs(files);
 

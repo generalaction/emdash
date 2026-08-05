@@ -16,7 +16,6 @@ const projectSettingsSchema = z.object({
 const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
   defaultWorktreeDirectory: z.string(),
-  writeAgentConfigToGitIgnore: z.boolean(),
 });
 
 export const projectSettingsContribution = defineSettingsContribution<'project', ProjectSettings>({
@@ -39,6 +38,5 @@ export const localProjectSettingsContribution = defineSettingsContribution<
   defaults: () => ({
     defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
     defaultWorktreeDirectory: getDefaultLocalWorktreeDirectory(),
-    writeAgentConfigToGitIgnore: true,
   }),
 });

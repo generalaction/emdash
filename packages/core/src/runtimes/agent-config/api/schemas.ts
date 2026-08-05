@@ -98,6 +98,11 @@ export const agentConfigEntrySchema = z.object({
 
 export const agentConfigListSchema = z.record(z.string(), agentConfigEntrySchema);
 
+export const hooksStatusSchema = z.object({
+  state: z.enum(['installed', 'pending-install']),
+  resolvedRoot: z.string(),
+});
+
 export const startLoginCommandSchema = z.object({
   providerId: z.string(),
   methodId: z.string(),
@@ -125,3 +130,4 @@ export type AuthLoginState = z.infer<typeof authLoginStateSchema>;
 export type AuthPendingUrl = z.infer<typeof authPendingUrlSchema>;
 export type AgentConfigEntry = z.infer<typeof agentConfigEntrySchema>;
 export type AgentConfigList = z.infer<typeof agentConfigListSchema>;
+export type HooksStatus = z.infer<typeof hooksStatusSchema>;

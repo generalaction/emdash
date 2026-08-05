@@ -7,6 +7,7 @@ import type {
   AgentConfigMcpError,
   AgentConfigRefreshError,
   AgentConfigSkillsError,
+  HooksStatus,
 } from '@runtimes/agent-config/api';
 import {
   createAgentConfigAgentsLiveHost,
@@ -20,6 +21,7 @@ import {
   type AgentConfigSkillsLiveHost,
 } from '@runtimes/agent-config/node/state/live-models';
 import type { AgentAuthStatus } from '@services/agent-plugins/api/plugins';
+import { AgentHookInstaller } from '@services/agent-plugins/node';
 import { AgentAuthManager } from './auth';
 import { AgentInstallManager } from './install';
 import { AgentMcpConfigManager } from './mcp';
@@ -38,12 +40,14 @@ export class AgentConfigRuntime {
   readonly auth: AgentAuthManager;
   readonly mcp: AgentMcpConfigManager;
   readonly skills: AgentSkillsManager;
+  private readonly hooks: AgentHookInstaller;
 
   constructor(private readonly deps: AgentConfigRuntimeDeps) {
     this.install = new AgentInstallManager(deps, this.agentsModel);
     this.auth = new AgentAuthManager(deps, this.install);
     this.mcp = new AgentMcpConfigManager(deps, this.mcpModel);
     this.skills = new AgentSkillsManager(deps, this.skillsModel);
+    this.hooks = new AgentHookInstaller({ agentHost: deps.agentHost, logger: deps.logger });
     this.deps.scope.add(async () => {
       await this.auth.dispose();
       this.install.dispose();
@@ -73,6 +77,12 @@ export class AgentConfigRuntime {
     refreshShellEnv?: boolean;
   }): Promise<Result<void, AgentConfigRefreshError>> {
     return this.install.refresh(input);
+  }
+
+  async hooksStatus(providerId: string): Promise<HooksStatus> {
+    const status = await this.hooks.hooksStatus(providerId);
+    if (!status) throw new Error(`Provider '${providerId}' does not support hooks`);
+    return status;
   }
 
   refreshAuthStatus(providerId: string): Promise<Result<AgentAuthStatus, AgentConfigAuthError>> {

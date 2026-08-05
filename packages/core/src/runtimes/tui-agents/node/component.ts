@@ -24,11 +24,6 @@ import { z } from 'zod';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   intentsFilePath: z.string().min(1).optional(),
-  hookInstall: z
-    .object({
-      writeGitIgnoreEntries: z.boolean().optional(),
-    })
-    .optional(),
   lifecycle: z
     .object({
       session: idlePolicyConfigSchema.optional(),
@@ -81,7 +76,6 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
           logger: runtimeLogger,
         }),
         spawner: new NodePtySpawner(),
-        hookInstall: config.hookInstall,
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
       });

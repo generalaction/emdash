@@ -29,13 +29,10 @@ describe('pi plugin hooks', () => {
   it('installs a session hook that can report the active Pi session file', async () => {
     const fs = createMemoryFs();
 
-    const written = await provider.behavior.plugins?.installPlugin(fs, {
-      kind: 'workspace',
-      path: '/workspace',
-    });
+    const written = await provider.behavior.plugins?.installPlugin(fs, { kind: 'global' });
 
-    expect(written).toEqual(['.pi/extensions/emdash-hook.ts']);
-    const content = await fs.read('.pi/extensions/emdash-hook.ts');
+    expect(written).toEqual(['extensions/emdash-hook.ts']);
+    const content = await fs.read('extensions/emdash-hook.ts');
     expect(content).toContain("eventType: 'stop' | 'error' | 'notification' | 'session'");
     expect(content).toContain("pi.on('session_start'");
     expect(content).toContain('ctx.sessionManager.getSessionFile()');

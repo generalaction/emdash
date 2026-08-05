@@ -25,7 +25,7 @@ export const plugin = definePlugin(
     },
     hooks: {
       kind: 'config',
-      scope: 'workspace',
+      scope: 'global',
       supportedEvents: ['session', 'start', 'stop', 'tool-use', 'tool-use-failure'],
     },
     hostDependency: {

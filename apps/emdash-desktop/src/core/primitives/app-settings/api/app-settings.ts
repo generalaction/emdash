@@ -5,7 +5,6 @@ import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps
 export type LocalProjectSettings = {
   defaultProjectsDirectory: string;
   defaultWorktreeDirectory: string;
-  writeAgentConfigToGitIgnore: boolean;
 };
 
 export type ProjectSettings = {

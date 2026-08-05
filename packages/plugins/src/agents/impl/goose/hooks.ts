@@ -3,14 +3,16 @@ import type { HookRegistration } from '@emdash/core/services/agent-plugins/api/p
 import {
   EMDASH_MARKER,
   buildNestedEntry,
+  configRoots,
   filterUserHooks,
+  homeConfigRoot,
   makeStdinHookCommand,
   readJsonConfig,
   writeJsonConfig,
 } from '@emdash/core/services/agent-plugins/api/plugins/helpers';
 
-export const GOOSE_PLUGIN_MANIFEST_PATH = '.agents/plugins/emdash/plugin.json';
-export const GOOSE_HOOKS_PATH = '.agents/plugins/emdash/hooks/hooks.json';
+export const GOOSE_PLUGIN_MANIFEST_PATH = 'plugins/emdash/plugin.json';
+export const GOOSE_HOOKS_PATH = 'plugins/emdash/hooks/hooks.json';
 
 const GOOSE_PLUGIN_MANIFEST = {
   name: 'emdash',
@@ -49,6 +51,8 @@ function hasAllManagedHooks(hooks: Record<string, unknown[]>): boolean {
 
 export function buildGooseHookConfig() {
   return {
+    resolveConfigRoots: configRoots(homeConfigRoot('.agents')),
+    getHookPaths: () => [GOOSE_PLUGIN_MANIFEST_PATH, GOOSE_HOOKS_PATH],
     async readHooks(fs: PluginFs): Promise<HookRegistration[]> {
       const config = await readJsonConfig(fs, GOOSE_HOOKS_PATH);
       return hasAllManagedHooks(getHooks(config))

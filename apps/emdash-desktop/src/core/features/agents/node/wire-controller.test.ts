@@ -1,4 +1,4 @@
-import { hostRef } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
 import type { LiveSource } from '@emdash/wire';
 import { encodeTopic } from '@emdash/wire/api';
@@ -91,6 +91,42 @@ describe('createAgentsWireController', () => {
     await expect(
       controller.call('listAgentInstallationStatus', { host: remoteHost })
     ).resolves.toEqual(err(resolveError));
+  });
+
+  it('forwards remote hook status', async () => {
+    const status = {
+      state: 'installed' as const,
+      resolvedRoot: '/remote/home/.claude',
+    };
+    const hooksStatus = vi.fn(async () => status);
+    const client = vi.fn(async () => ok({ agentConfig: { hooksStatus } }));
+    const controller = createAgentsWireController({
+      operations: legacyOperations as never,
+      runtimes: { client } as never,
+    });
+
+    await expect(
+      controller.call('hooksStatus', { host: remoteHost, providerId: 'claude' })
+    ).resolves.toEqual(ok(status));
+    expect(hooksStatus).toHaveBeenCalledWith({ providerId: 'claude' }, {});
+  });
+
+  it('forwards local hook status', async () => {
+    const status = {
+      state: 'pending-install' as const,
+      resolvedRoot: '/home/user/.claude',
+    };
+    const hooksStatus = vi.fn(async () => status);
+    const client = vi.fn(async () => ok({ agentConfig: { hooksStatus } }));
+    const controller = createAgentsWireController({
+      operations: legacyOperations as never,
+      runtimes: { client } as never,
+    });
+
+    await expect(
+      controller.call('hooksStatus', { host: LOCAL_HOST_REF, providerId: 'claude' })
+    ).resolves.toEqual(ok(status));
+    expect(hooksStatus).toHaveBeenCalledWith({ providerId: 'claude' }, {});
   });
 
   it('passes the active host dependency client to install operations', async () => {
