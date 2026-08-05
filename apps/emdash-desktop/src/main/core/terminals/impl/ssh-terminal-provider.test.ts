@@ -113,7 +113,9 @@ describe('SshTerminalProvider', () => {
     expect(ptySessionRegistry.register).toHaveBeenCalledWith(
       sessionId,
       expect.anything(),
-      expect.objectContaining({ metadata: { title: terminal.name, isRemote: true } })
+      expect.objectContaining({
+        metadata: expect.objectContaining({ title: terminal.name, isRemote: true }),
+      })
     );
   });
 

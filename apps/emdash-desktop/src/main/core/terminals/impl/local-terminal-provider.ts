@@ -270,7 +270,7 @@ export class LocalTerminalProvider implements TerminalProvider {
 
     ptySessionRegistry.register(sessionId, pty, {
       preserveBufferOnExit: policy.preserveBufferOnExit,
-      metadata,
+      metadata: { ...metadata, tmux: this.tmux },
     });
     this.sessions.set(sessionId, pty);
   }

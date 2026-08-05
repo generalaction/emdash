@@ -250,6 +250,7 @@ export class LocalConversationProvider implements ConversationProvider {
         metadata: {
           providerId: conversation.providerId,
           title: conversation.title,
+          tmux: this.tmux,
         },
       });
       this.sessions.set(sessionId, pty);

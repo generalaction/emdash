@@ -3,11 +3,19 @@ import { events } from '@main/lib/events';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/core/pty/ptyEvents';
 import { ptyStartedChannel } from '@shared/events/appEvents';
 import type { Pty, PtyExitInfo } from './pty';
+import { stripUnsolicitedTerminalReplies } from './terminal-reply-filter';
 
 export interface PtySessionMetadata {
   providerId?: AgentProviderId;
   title?: string;
   isRemote?: boolean;
+  /**
+   * Session runs under a tmux client. Enables stripping of tmux's attach-time
+   * outer-terminal probe replies (`ESC[?...c` / `ESC[>...c` / XTVERSION) on the
+   * input path, which otherwise leak into the focused pane over SSH. See
+   * {@link stripUnsolicitedTerminalReplies}.
+   */
+  tmux?: boolean;
 }
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
@@ -94,6 +102,17 @@ export class PtySessionRegistry {
     const off = events.on(
       ptyInputChannel,
       (data) => {
+        if (this.metadata.get(sessionId)?.tmux) {
+          // Drop tmux's attach-time outer-terminal probe replies that xterm.js
+          // auto-generates; they would otherwise leak into the focused pane as
+          // `1;2c0;276;0c`. tmux already has these capabilities pre-declared via
+          // `terminal-features` (see buildTmuxShellLine), so the replies are
+          // redundant. Returns '' only for pure-reply chunks; real input is
+          // forwarded unchanged.
+          const filtered = stripUnsolicitedTerminalReplies(data);
+          if (filtered) pty.write(filtered);
+          return;
+        }
         pty.write(data);
       },
       sessionId
