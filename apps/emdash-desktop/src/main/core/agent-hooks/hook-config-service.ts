@@ -1,13 +1,55 @@
 import { homedir } from 'node:os';
+import type { PluginFs } from '@emdash/core/agents/plugins';
 import { createPluginFs } from '@main/core/agents/plugin-fs';
 import { getPlugin } from '@main/core/agents/plugin-registry';
+import { createRemotePluginFs } from '@main/core/agents/remote-plugin-fs';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { IFilesRuntime } from '@main/core/runtime/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
 
 const GITIGNORE_PATH = '.gitignore';
 
-async function ensureGitIgnoreEntries(taskPath: string, entries: string[]): Promise<void> {
-  const wsFs = createPluginFs(taskPath);
+/**
+ * Where the agent that will consume these hooks actually runs. Remote agents
+ * need the config written on the remote box, not on the machine running the
+ * desktop app.
+ */
+export type HookInstallHost =
+  | { kind: 'local' }
+  | { kind: 'ssh'; ctx: IExecutionContext; files: IFilesRuntime };
+
+/** Lazily resolved plugin filesystems for the workspace and the agent's home. */
+type HookInstallTarget = {
+  workspace: PluginFs;
+  global: () => Promise<PluginFs>;
+};
+
+async function resolveHookInstallTarget(
+  host: HookInstallHost,
+  taskPath: string
+): Promise<HookInstallTarget> {
+  if (host.kind === 'local') {
+    return {
+      workspace: createPluginFs(taskPath),
+      global: async () => createPluginFs(homedir()),
+    };
+  }
+
+  const opened = host.files.fileSystem();
+  if (!opened.success) {
+    throw new Error(`failed to open remote filesystem: ${opened.error.message}`);
+  }
+
+  const remoteFs = opened.data;
+  return {
+    workspace: createRemotePluginFs(host.ctx, remoteFs, taskPath),
+    global: async () => createRemotePluginFs(host.ctx, remoteFs, await resolveRemoteHome(host.ctx)),
+  };
+}
+
+async function ensureGitIgnoreEntries(wsFs: PluginFs, entries: string[]): Promise<void> {
   const existing = (await wsFs.read(GITIGNORE_PATH)) ?? '';
   const existingLines = existing
     .split(/\r?\n/)
@@ -45,9 +87,11 @@ async function ensureGitIgnoreEntries(taskPath: string, entries: string[]): Prom
 export async function ensureHooksInstalled({
   providerId,
   taskPath,
+  host = { kind: 'local' },
 }: {
   providerId: string;
   taskPath: string;
+  host?: HookInstallHost;
 }): Promise<boolean> {
   try {
     const localProjectSettings = await appSettingsService.get('localProject');
@@ -59,19 +103,18 @@ export async function ensureHooksInstalled({
     let hooksAvailable = false;
 
     let writtenPaths: string[] = [];
+    const target = await resolveHookInstallTarget(host, taskPath);
 
     if (hooksKind === 'config' && plugin.behavior.hooks) {
       const scope = hooksDescriptor.scope;
-      const root = scope === 'global' ? homedir() : taskPath;
-      const fs = createPluginFs(root);
+      const fs = scope === 'global' ? await target.global() : target.workspace;
       const paths = await plugin.behavior.hooks.writeHooks(fs, []);
       // For global-scope hooks the paths are relative to homedir; don't add
       // them to the workspace .gitignore (they live in the user's home).
       writtenPaths = scope === 'global' ? [] : paths;
       hooksAvailable = true;
     } else if (hooksKind === 'plugin' && plugin.behavior.plugins) {
-      const fs = createPluginFs(taskPath);
-      writtenPaths = await plugin.behavior.plugins.installPlugin(fs, {
+      writtenPaths = await plugin.behavior.plugins.installPlugin(target.workspace, {
         kind: 'workspace',
         path: taskPath,
       });
@@ -79,7 +122,7 @@ export async function ensureHooksInstalled({
     }
 
     if (writeGitIgnoreEntries && writtenPaths.length > 0) {
-      await ensureGitIgnoreEntries(taskPath, writtenPaths);
+      await ensureGitIgnoreEntries(target.workspace, writtenPaths);
     }
 
     return hooksAvailable;

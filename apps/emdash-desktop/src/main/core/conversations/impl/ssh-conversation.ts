@@ -1,3 +1,6 @@
+import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import { ensureHooksInstalled } from '@main/core/agent-hooks/hook-config-service';
+import { remoteHookTunnels } from '@main/core/agent-hooks/remote-hook-tunnel';
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
@@ -6,7 +9,9 @@ import type { ConversationProvider } from '@main/core/conversations/types';
 import { hostDependencyStore } from '@main/core/dependencies/host-dependency-store';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Pty } from '@main/core/pty/pty';
+import { buildHookEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { makePtyId } from '@main/core/pty/ptyId';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { getTerminalColorEnv } from '@main/core/pty/terminal-color-scheme';
@@ -123,6 +128,11 @@ export class SshConversationProvider implements ConversationProvider {
         host: { kind: 'ssh', ctx: this.ctx, files: this.filesRuntime },
         force: conversation.autoApprove === true,
       });
+      const hooksAvailable = await ensureHooksInstalled({
+        providerId: conversation.providerId,
+        taskPath: this.taskPath,
+        host: { kind: 'ssh', ctx: this.ctx, files: this.filesRuntime },
+      });
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
@@ -171,14 +181,15 @@ export class SshConversationProvider implements ConversationProvider {
         resume: agentSession.isResuming,
       };
 
-      const [profile, colorEnv] = await Promise.all([
+      const [profile, colorEnv, hookEnv] = await Promise.all([
         this.proxy.getRemoteShellProfile(),
         getTerminalColorEnv(),
+        hooksAvailable ? this.resolveHookEnv(conversation) : {},
       ]);
       const sshCommand = resolveSshCommand(
         'agent',
         cfg,
-        { ...providerEnv, ...colorEnv, ...this.taskEnvVars },
+        { ...providerEnv, ...colorEnv, ...hookEnv, ...this.taskEnvVars },
         profile
       );
 
@@ -298,6 +309,23 @@ export class SshConversationProvider implements ConversationProvider {
       this.supervisor.failSpawn(sessionId, spawnToken);
       throw error;
     }
+  }
+
+  /**
+   * Hook callbacks run on the remote host, so `127.0.0.1:$EMDASH_HOOK_PORT` has
+   * to resolve there: reverse-forward a remote loopback port to the local hook
+   * server and hand the agent that port. Without a tunnel the agent would post
+   * into the remote box's own loopback, so leave the vars unset instead.
+   */
+  private async resolveHookEnv(conversation: Conversation): Promise<Record<string, string>> {
+    const remotePort = await remoteHookTunnels.ensure(this.proxy, agentHookService.getPort());
+    if (remotePort === null) return {};
+
+    return buildHookEnv({
+      port: remotePort,
+      ptyId: makePtyId(conversation.providerId, conversation.id),
+      token: agentHookService.getToken(),
+    });
   }
 
   private detachPty(sessionId: string): void {
