@@ -14,6 +14,7 @@ import {
   type ResolvedSshConfig,
 } from '../config/resolve-ssh-config';
 import type { SshConnectDeps, SshConnectInput } from './resolve-ssh-connect-config';
+import { defaultSshAgentSocket } from './ssh-agent-socket';
 
 const { utils } = ssh2;
 
@@ -149,7 +150,7 @@ export async function buildAuthConfig(
           ? agentSocket.path
           : agentSocket.kind === 'disabled'
             ? undefined
-            : deps.env.SSH_AUTH_SOCK;
+            : defaultSshAgentSocket(deps.env, deps.platform);
       if (agentSocket.kind === 'disabled') {
         throw new Error(`SSH agent is disabled by SSH config for connection '${base.name}'`);
       }
