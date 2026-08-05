@@ -191,7 +191,39 @@ export class GitWorktree implements IGitWorktree {
   }
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    return this.repository.readBlobAtRef(ref, this.toRelativePath(filePath));
+    return this.repository.readBlobAtRef(
+      await this.resolveRefOid(ref),
+      this.toRelativePath(filePath)
+    );
+  }
+
+  /**
+   * Resolve a ref to an immutable commit oid against *this* worktree's HEAD.
+   *
+   * The `GitRepository` is shared by every worktree on the same common dir, and its
+   * `exec` is bound to whichever worktree opened it first. Passing a symbolic ref like
+   * `HEAD` straight to `repository.readBlobAtRef` would therefore resolve it against that
+   * first worktree, not the caller — so a task worktree on its own branch reads the wrong
+   * branch's blob (empty, or the previous branch's content after a switch). That is the
+   * stale Changed-diff in #2576. Resolving here with the worktree-bound `exec` pins the
+   * correct HEAD, and the resulting oid is content-addressed so the shared object store
+   * reads it regardless of cwd. Already-immutable oids and resolution failures pass through
+   * untouched (the existing `git show` fallback still handles odd refs).
+   */
+  private async resolveRefOid(ref: string): Promise<string> {
+    if (/^[0-9a-f]{40}$/i.test(ref) || /^[0-9a-f]{64}$/i.test(ref)) return ref;
+    try {
+      const { stdout } = await this.exec.exec([
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        `${ref}^{commit}`,
+      ]);
+      const oid = stdout.trim();
+      return oid.length > 0 ? oid : ref;
+    } catch {
+      return ref;
+    }
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
