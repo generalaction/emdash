@@ -36,13 +36,16 @@ export type ProjectWorkspaceRow = {
   branch?: string;
   tasks: ProjectWorkspaceTask[];
   usage: ProjectWorkspaceUsage | null;
+  /** Mirror-derived stats; `added` includes untracked files' lines (registry contract). */
+  gitStats: ProjectWorkspaceGitStats | null;
   pathState: ProjectWorkspacePathState;
   pathIssue?: ProjectWorkspacePathIssue;
   canCleanArtifacts: boolean;
   canDelete: boolean;
   hasActiveSessions: boolean;
   lastActivityAt?: string;
-  observedStatus?: 'present' | 'missing' | 'corrupted';
+  observedStatus?: 'present' | 'missing';
+  /** ISO stamp of the host observation the row was read from; staleness is displayed. */
   lastObservedAt?: string;
   errors: { path: string; message: string }[];
 };
@@ -54,6 +57,17 @@ export type ProjectWorkspacesResult = {
   totalBytes: number;
   artifactBytes: number;
   warnings: string[];
+};
+
+/** One machines-page group per project on a host, served live from the mirror. */
+export type HostWorkspaceGroup = {
+  project: { id: string; name: string };
+  workspaces: ProjectWorkspaceRow[];
+  warnings: string[];
+};
+
+export type HostWorkspaceGroupsData = {
+  groups: HostWorkspaceGroup[];
 };
 
 export type MeasureProjectWorkspacesInput = {

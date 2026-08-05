@@ -4,7 +4,7 @@ import type { ProjectWorkspaceRow } from '@core/primitives/workspaces/api';
 import { joinWorkspaceRows } from './workspace-rows';
 
 describe('joinWorkspaceRows', () => {
-  it('joins usage, git stats, and kernel operations into one row', () => {
+  it('joins usage, mirror git stats, and kernel operations into one row', () => {
     const joined = joinWorkspaceRows({
       rows: [workspaceRow()],
       usageResults: [
@@ -12,13 +12,6 @@ describe('joinWorkspaceRows', () => {
           path: '/repo/task',
           success: true,
           usage: { totalBytes: 100, artifactBytes: 40, errors: [] },
-        },
-      ],
-      gitStatsResults: [
-        {
-          path: '/repo/task',
-          success: true,
-          stats: { added: 2, removed: 1, ahead: 1, behind: 0 },
         },
       ],
       operationTrees: [operationTree()],
@@ -75,6 +68,7 @@ function workspaceRow(): ProjectWorkspaceRow {
     branch: 'task',
     tasks: [],
     usage: null,
+    gitStats: { added: 2, removed: 1, ahead: 1, behind: 0 },
     pathState: 'measured',
     canCleanArtifacts: true,
     canDelete: true,

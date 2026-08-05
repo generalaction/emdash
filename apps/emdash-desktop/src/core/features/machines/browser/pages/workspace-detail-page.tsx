@@ -7,7 +7,6 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import { useQueryClient } from '@tanstack/react-query';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, type ReactNode } from 'react';
@@ -138,11 +137,9 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   connected: boolean;
   machineName?: string;
 } & SettingsPageDetailProps) {
-  const queryClient = useQueryClient();
   const openConfirm = useOpenModal('confirmActionModal');
-  const isLocal = scope.kind === 'local';
   const workspaceRows = useWorkspaceRows({ scope, projectId: detailId, enabled: connected });
-  const { workspaceQuery, group, rows, operationTrees, usageQuery, gitStatsQuery } = workspaceRows;
+  const { workspaceQuery, group, rows, operationTrees, usageQuery } = workspaceRows;
   const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
   const rootJoined = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
@@ -157,7 +154,6 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
       buildWorktreeItem({
         joined,
         loadingUsage: usageQuery.isLoading || usageQuery.isFetching,
-        loadingGitStats: gitStatsQuery.isLoading || gitStatsQuery.isFetching,
       })
     );
 
@@ -206,10 +202,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         toast({ title: `Deleted ${deletableRows.length} workspaces` });
         closeDetail();
       }
-
-      await queryClient.invalidateQueries({
-        queryKey: ['machineWorkspaces', isLocal ? 'local' : scope.machineId],
-      });
+      // No cache invalidation: the mirror live model streams the deletions.
     } catch (error) {
       toast({
         title: 'Could not delete workspaces',
@@ -217,7 +210,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         variant: 'destructive',
       });
     }
-  }, [busyPaths, closeDetail, group, isLocal, openConfirm, queryClient, scope]);
+  }, [busyPaths, closeDetail, group, openConfirm]);
 
   if (!connected) return <DetailOfflineState machineName={machineName} />;
   if (workspaceQuery.isLoading) return <DetailLoadingState />;
@@ -237,10 +230,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
           loadingUsage={
             (usageQuery.isLoading || usageQuery.isFetching) && rootRow.pathState === 'measured'
           }
-          loadingGitStats={
-            (gitStatsQuery.isLoading || gitStatsQuery.isFetching) &&
-            rootRow.pathState === 'measured'
-          }
+          loadingGitStats={false}
           operationTrees={operationTrees.trees}
           warnings={group.warnings}
           onDelete={() => void handleDelete()}
@@ -277,11 +267,9 @@ function WorkspaceSection({ label, children }: { label: string; children: ReactN
 function buildWorktreeItem({
   joined,
   loadingUsage,
-  loadingGitStats,
 }: {
   joined: JoinedWorkspaceRow;
   loadingUsage: boolean;
-  loadingGitStats: boolean;
 }): WorkspaceDetailListItem {
   const { row } = joined;
   return {
@@ -296,7 +284,7 @@ function buildWorktreeItem({
     linkedTaskCount: row.tasks.length,
     activeTaskCount: activeTaskCount(row),
     loadingUsage: loadingUsage && row.pathState === 'measured',
-    loadingGitStats: loadingGitStats && row.pathState === 'measured',
+    loadingGitStats: false,
     operation: joined.operation,
     ...(row.pathIssue ? { pathIssue: row.pathIssue } : {}),
   };

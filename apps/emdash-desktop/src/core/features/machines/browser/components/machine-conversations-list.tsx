@@ -25,7 +25,7 @@ import {
   useMachineConversations,
   type MachineConversationsScope,
 } from '../use-machine-conversations';
-import { useLocalWorkspaces, useMachineWorkspaces } from '../use-machine-workspaces';
+import { useWorkspaceGroups } from '../use-machine-workspaces';
 
 type ConversationListRow = {
   item: MachineConversationItem;
@@ -100,13 +100,13 @@ export function MachineConversationsList({
 
   // Dangling-path detection is a client presentation over workspace observations
   // (spec §7.5) — only asserted once the workspace listing for this host has loaded.
-  const isLocal = scope.kind === 'local';
-  const remoteWorkspaces = useMachineWorkspaces(
-    isLocal ? undefined : scope.connectionId,
-    !isLocal && hostReachable
-  );
-  const localWorkspaces = useLocalWorkspaces(isLocal);
-  const workspaceGroups = (isLocal ? localWorkspaces : remoteWorkspaces).data;
+  // The mirror serves cached rows even while the host is unreachable, so the
+  // subscription is always on; missing workspaces stay listed with their last
+  // observation instead of being falsely reported as dangling.
+  const workspaceGroups = useWorkspaceGroups(
+    scope.kind === 'local' ? { kind: 'local' } : { kind: 'machine', machineId: scope.connectionId },
+    true
+  ).data;
   const knownWorkspacePaths = useMemo(
     () =>
       workspaceGroups === undefined

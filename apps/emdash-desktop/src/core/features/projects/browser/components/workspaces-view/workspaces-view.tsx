@@ -1,3 +1,4 @@
+import { createScope } from '@emdash/shared/concurrency';
 import {
   compareDates,
   compareNumbers,
@@ -9,12 +10,15 @@ import {
   defineSort,
   ListView,
 } from '@emdash/ui/react/patterns';
+import { observe, remote } from '@emdash/wire';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { projectWorkspacesContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { projectHostRef } from '@core/primitives/projects/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/ui/browser/cn';
@@ -44,80 +48,120 @@ import { formatBytes } from '@renderer/utils/formatBytes';
 type UsageFilter = 'all' | 'used' | 'unused';
 type LoadStatus = 'idle' | 'loading' | 'error';
 
+/**
+ * Rows stream from the mirror-backed `projectWorkspaceList` live model — the host
+ * registry sync keeps the mirror fresh, so the view updates without any pull loop.
+ * Disk usage stays an on-demand measurement merged over the live rows.
+ */
 class ProjectWorkspacesStore {
   rows: ProjectWorkspaceRow[] = [];
   warnings: string[] = [];
-  status: LoadStatus = 'idle';
+  status: LoadStatus = 'loading';
   measuring = false;
   error: string | null = null;
-  private loadToken = 0;
+  private readonly scope = createScope({ label: 'project-workspaces-view' });
+  private usageByPath = new Map<string, ProjectWorkspaceUsageResult>();
+  private measureToken = 0;
+  private measuredOnce = false;
+  private disposed = false;
 
   constructor(private readonly projectId: string) {
     makeAutoObservable(this, { rows: observable.ref }, { autoBind: true });
+    void this.subscribe();
   }
 
-  async load(): Promise<void> {
-    const token = ++this.loadToken;
-    runInAction(() => {
-      this.status = 'loading';
-      this.measuring = false;
-      this.error = null;
-      this.warnings = [];
-      this.rows = [];
-    });
+  dispose(): void {
+    this.disposed = true;
+    void this.scope.dispose();
+  }
 
+  private async subscribe(): Promise<void> {
     try {
-      const result = await (
-        await getDesktopWireClient()
-      ).projectWorkspaces.listProjectWorkspaces({ projectId: this.projectId });
-      if (token !== this.loadToken) return;
-      runInAction(() => {
-        this.rows = result.rows;
-        this.warnings = result.warnings;
-        this.status = 'idle';
-        this.measuring = result.rows.length > 0;
-      });
-
-      if (result.rows.length === 0) {
-        runInAction(() => {
-          if (token === this.loadToken) this.measuring = false;
-        });
-        return;
-      }
-
-      try {
-        const measured = await (
-          await getDesktopWireClient()
-        ).projectWorkspaces.measureProjectWorkspaces({
-          projectId: this.projectId,
-          paths: result.rows.map((row) => row.path),
-        });
-        if (token !== this.loadToken) return;
-        runInAction(() => {
-          this.mergeUsageResults(measured.results);
-          this.measuring = false;
-        });
-      } catch (error) {
-        if (token !== this.loadToken) return;
-        runInAction(() => {
-          this.warnings = [...this.warnings, usageErrorMessage(error)];
-          this.measuring = false;
-        });
-      }
+      const client = await getDesktopWireClient();
+      if (this.disposed) return;
+      const list = remote(
+        projectWorkspacesContract.projectWorkspaceList,
+        client.projectWorkspaces.projectWorkspaceList,
+        { scope: this.scope }
+      );
+      observe(
+        list({ projectId: this.projectId }).states.list,
+        (current) => {
+          if (current.status === 'error') {
+            runInAction(() => {
+              this.status = 'error';
+              this.error =
+                current.error instanceof Error ? current.error.message : String(current.error);
+            });
+            return;
+          }
+          if (!current.value) return;
+          const result = current.value;
+          runInAction(() => {
+            this.rows = this.withUsage(result.rows);
+            this.warnings = result.warnings;
+            this.status = 'idle';
+            this.error = null;
+          });
+          if (!this.measuredOnce && result.rows.length > 0) {
+            this.measuredOnce = true;
+            void this.measure();
+          }
+        },
+        { scope: this.scope }
+      );
     } catch (error) {
-      if (token !== this.loadToken) return;
       runInAction(() => {
         this.status = 'error';
         this.error = error instanceof Error ? error.message : String(error);
+      });
+    }
+  }
+
+  /** Explicit refresh: ask the host registry to re-observe, then re-measure usage. */
+  async refresh(): Promise<void> {
+    try {
+      const client = await getDesktopWireClient();
+      const projectList = await client.projects.projectList.state(undefined, 'list').snapshot();
+      const project = projectList.data.projects.find((entry) => entry.id === this.projectId);
+      if (project) {
+        await client.workspaceRegistry.refresh({ host: projectHostRef(project) });
+      }
+    } catch {
+      // Unreachable host: the mirror keeps serving cached rows with their stamps.
+    }
+    await this.measure();
+  }
+
+  async measure(): Promise<void> {
+    const paths = this.rows.map((row) => row.path);
+    if (paths.length === 0) return;
+    const token = ++this.measureToken;
+    runInAction(() => {
+      this.measuring = true;
+    });
+    try {
+      const measured = await (
+        await getDesktopWireClient()
+      ).projectWorkspaces.measureProjectWorkspaces({ projectId: this.projectId, paths });
+      if (token !== this.measureToken || this.disposed) return;
+      runInAction(() => {
+        for (const result of measured.results) this.usageByPath.set(result.path, result);
+        this.rows = this.withUsage(this.rows);
+        this.measuring = false;
+      });
+    } catch (error) {
+      if (token !== this.measureToken || this.disposed) return;
+      runInAction(() => {
+        this.warnings = [...this.warnings, usageErrorMessage(error)];
         this.measuring = false;
       });
     }
   }
 
-  private mergeUsageResults(results: ProjectWorkspaceUsageResult[]): void {
-    const resultsByPath = new Map(results.map((result) => [result.path, result]));
-    this.rows = this.rows.map((row) => {
-      const result = resultsByPath.get(row.path);
+  private withUsage(rows: ProjectWorkspaceRow[]): ProjectWorkspaceRow[] {
+    return rows.map((row) => {
+      const result = this.usageByPath.get(row.path);
       if (!result) return row;
       if (!result.success) {
         return {
@@ -202,7 +246,7 @@ export const WorkspacesView = observer(function WorkspacesView({
   const operationTrees = useOperationTrees(projectId, getOperationsClient);
 
   useEffect(() => {
-    void store.load();
+    return () => store.dispose();
   }, [store]);
 
   return (
@@ -270,7 +314,12 @@ const WorkspacesHeader = observer(function WorkspacesHeader({
               {usage[0]!.toUpperCase() + usage.slice(1)}
             </ListView.FilterButton>
           ))}
-          <Button variant="outline" size="sm" disabled={loading} onClick={() => void store.load()}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => void store.refresh()}
+          >
             <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
             Refresh
           </Button>
@@ -455,7 +504,8 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
               });
         showActionResult(kind, result);
         if (result.failedCount === 0) selection.clear();
-        await store.load();
+        // Row removal streams in via the live model; only disk usage needs a re-measure.
+        await store.measure();
       } catch (error) {
         toast({
           title:

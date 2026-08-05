@@ -1,4 +1,3 @@
-import { hostRefKey } from '@emdash/core/primitives/host/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import {
   deleteWorkspacePathThroughRegistry,
@@ -10,11 +9,9 @@ import type {
   ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
 import type { OperationsEngine } from '@core/services/operations/node';
-import type { WorkspaceScanCache } from '../workspace-scan-cache';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
-  projectWorkspaceHost,
   type ListProjectWorkspacesDependencies,
 } from './list-project-workspaces';
 
@@ -22,7 +19,6 @@ export async function deleteProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies & {
     operations: OperationsEngine;
     taskService: Pick<TaskService, 'deleteTask'>;
-    workspaceScanCache: WorkspaceScanCache;
   },
   input: {
     projectId: string;
@@ -34,11 +30,7 @@ export async function deleteProjectWorkspaces(
   if (input.paths.length === 0) return { succeededCount: 0, failedCount: 0, results: [] };
 
   const project = await getProjectWorkspaceProject(dependencies.db, input.projectId);
-  const rows = await dependencies.workspaceScanCache.getOrRefresh(
-    input.projectId,
-    () => listProjectWorkspaces(dependencies, input.projectId),
-    { hostId: hostRefKey(projectWorkspaceHost(project)) }
-  );
+  const rows = await listProjectWorkspaces(dependencies, input.projectId);
   const rowsByPath = new Map(rows.rows.map((row) => [row.path, row]));
   const results: ProjectWorkspaceActionResult[] = [];
 
@@ -60,7 +52,6 @@ export async function deleteProjectWorkspaces(
       row,
       { deleteConversations: input.deleteConversations ?? false }
     );
-    if (result.success) dependencies.workspaceScanCache.evict(input.projectId, row.path);
     results.push(result);
   }
 

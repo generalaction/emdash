@@ -35,6 +35,7 @@ describe('measureProjectWorkspaces', () => {
       path: '/srv/repo',
       tasks: [],
       usage: null,
+      gitStats: null,
       pathState: 'measured',
       canCleanArtifacts: false,
       canDelete: false,

@@ -1,6 +1,5 @@
 import type { OperationDisplayState, OperationTree } from '@emdash/core/primitives/operations/api';
 import type {
-  GetProjectWorkspaceGitStatsResult,
   MeasureProjectWorkspacesResult,
   ProjectWorkspaceGitStats,
   ProjectWorkspaceRow,
@@ -27,13 +26,11 @@ export type JoinedWorkspaceRow = {
 export type WorkspaceRowSources = {
   rows: readonly ProjectWorkspaceRow[];
   usageResults?: MeasureProjectWorkspacesResult['results'];
-  gitStatsResults?: GetProjectWorkspaceGitStatsResult['results'];
   operationTrees: readonly OperationTree[];
 };
 
 export function joinWorkspaceRows(sources: WorkspaceRowSources): JoinedWorkspaceRow[] {
   const usageByPath = successfulResultsByPath(sources.usageResults, (result) => result.usage);
-  const gitStatsByPath = successfulResultsByPath(sources.gitStatsResults, (result) => result.stats);
   const operationByPath = desktopOperationByPath(sources.operationTrees);
 
   return sources.rows.map((row) => {
@@ -44,7 +41,8 @@ export function joinWorkspaceRows(sources: WorkspaceRowSources): JoinedWorkspace
       status: workspaceRowStatus(row, operation),
       operationErrorMessage: operation?.node.status === 'failed' ? operation.node.error : undefined,
       usage: usageByPath.get(row.path),
-      gitStats: gitStatsByPath.get(row.path),
+      // Mirror-derived; `added` includes untracked files' lines.
+      gitStats: row.gitStats ?? undefined,
       operation,
       operationBusy: operation !== undefined && !isSettledOperation(operation.node),
     };

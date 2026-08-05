@@ -1,13 +1,8 @@
 import { hostRefFromParts, type HostRef } from '@emdash/core/primitives/host/api';
-import { parseAbsolute } from '@emdash/core/primitives/path/api';
-import {
-  runtimeResolveErrorAsError,
-  type RuntimeBroker,
-} from '@emdash/core/services/runtime-broker/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import {
-  createWorkspaceRegistry,
   isAnnotatedWorkspace,
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
@@ -15,14 +10,14 @@ import {
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
+  ProjectWorkspaceGitStats,
   ProjectWorkspaceRow,
   ProjectWorkspaceTask,
   ProjectWorkspacesResult,
 } from '@core/primitives/workspaces/api';
-import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { WorkspaceConfig, WorkspaceObservedGit } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks } from '@core/services/app-db/node/schema';
-import { applyRepoSnapshot } from '../sync/apply-repo-snapshot';
 
 export type ProjectWorkspaceProjectRow = {
   id: string;
@@ -34,6 +29,7 @@ export type ProjectWorkspaceProjectRow = {
 
 export type ListProjectWorkspacesDependencies = {
   db: AppDb;
+  /** Unused by the mirror read itself; shared with sibling operations (deletes). */
   runtimes: Pick<RuntimeBroker, 'client'>;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
 };
@@ -46,10 +42,9 @@ type WorkspaceRow = {
   sshConnectionId: string | null;
   path: string | null;
   config: WorkspaceConfig | null;
-  observedStatus: 'present' | 'missing' | 'corrupted' | null;
-  observedGitBranch: string | null;
-  observedData: { corruptionReason?: string } | null;
-  lastObservedAt: string | null;
+  observedStatus: 'present' | 'missing' | null;
+  observedGit: WorkspaceObservedGit | null;
+  observedAt: number | null;
 };
 
 type TaskRow = {
@@ -68,11 +63,16 @@ type RowCandidate = {
   branch?: string;
   isMain: boolean;
   prunable: boolean;
-  prunableReason?: string;
   workspace: WorkspaceRow | undefined;
   tasks: ProjectWorkspaceTask[];
 };
 
+/**
+ * A pure mirror read (planning ticket 09): the host registry sync keeps the mirror's
+ * observation columns fresh, so listing never scans the host. Callers wanting an
+ * eager re-observation use the registry `refresh` verb; staleness is displayed from
+ * `lastObservedAt`, not hidden behind a scan.
+ */
 export async function listProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies,
   projectId: string
@@ -80,8 +80,6 @@ export async function listProjectWorkspaces(
   const project = await getProjectWorkspaceProject(dependencies.db, projectId);
   const projectHost = projectWorkspaceHost(project);
   const taskRows = await getTaskRows(dependencies.db, projectId);
-  const scan = await scanAndApplyRepositorySnapshot(dependencies, project);
-  const warnings = scan.warning ? [scan.warning] : [];
   const workspaceRows = await getWorkspaceRows(
     dependencies.db,
     project.repositoryWorkspaceId,
@@ -103,12 +101,9 @@ export async function listProjectWorkspaces(
           ? 'workspace'
           : 'candidate',
       path: workspace.path,
-      branch: workspace.observedGitBranch ?? workspaceBranch(workspace),
+      branch: workspace.observedGit?.branch ?? workspaceBranch(workspace),
       isMain,
-      prunable: workspace.observedStatus === 'corrupted',
-      ...(workspace.observedData?.corruptionReason
-        ? { prunableReason: workspace.observedData.corruptionReason }
-        : {}),
+      prunable: workspace.observedGit?.prunable ?? false,
       workspace,
       tasks: rowTasks,
     });
@@ -121,7 +116,7 @@ export async function listProjectWorkspaces(
     candidates.push({
       kind: 'root',
       path: project.path,
-      branch: workspaceBranch(rootWorkspace),
+      branch: rootWorkspace?.observedGit?.branch ?? workspaceBranch(rootWorkspace),
       isMain: true,
       prunable: false,
       workspace: rootWorkspace,
@@ -139,13 +134,18 @@ export async function listProjectWorkspaces(
     return left.path.localeCompare(right.path);
   });
 
+  const latestObservation = workspaceRows.reduce<number>(
+    (latest, row) => Math.max(latest, row.observedAt ?? 0),
+    0
+  );
+
   return {
-    scannedAt: scan.scannedAt,
+    scannedAt: new Date(latestObservation > 0 ? latestObservation : Date.now()).toISOString(),
     projectId,
     rows,
     totalBytes: rows.reduce((sum, row) => sum + (row.usage?.totalBytes ?? 0), 0),
     artifactBytes: rows.reduce((sum, row) => sum + (row.usage?.artifactBytes ?? 0), 0),
-    warnings,
+    warnings: [],
   };
 }
 
@@ -184,6 +184,7 @@ function buildCandidateRow(
     candidate.tasks.flatMap((task) => [task.lastInteractedAt, task.updatedAt])
   );
 
+  const observedAt = candidate.workspace?.observedAt;
   const base: ProjectWorkspaceRow = {
     kind: candidate.kind,
     projectId: project.id,
@@ -192,29 +193,25 @@ function buildCandidateRow(
     branch: candidate.branch,
     tasks: candidate.tasks,
     usage: null,
+    gitStats: mirrorGitStats(candidate.workspace?.observedGit ?? null),
     pathState: 'no-path',
     canCleanArtifacts: false,
     canDelete: candidate.kind !== 'root' && !remote,
     hasActiveSessions,
     lastActivityAt,
     observedStatus: candidate.workspace?.observedStatus ?? undefined,
-    lastObservedAt: candidate.workspace?.lastObservedAt ?? undefined,
+    lastObservedAt: observedAt ? new Date(observedAt).toISOString() : undefined,
     errors: [],
   };
 
   const observedMissing = candidate.workspace?.observedStatus === 'missing';
-  const observedCorrupted = candidate.workspace?.observedStatus === 'corrupted';
-  if (candidate.prunable || observedMissing || observedCorrupted) {
+  if (candidate.prunable || observedMissing) {
     return {
       ...base,
       pathState: 'missing',
       pathIssue: {
-        kind: candidate.prunable || observedCorrupted ? 'prunable' : 'path-gone',
-        ...(candidate.prunableReason
-          ? { reason: candidate.prunableReason }
-          : observedCorrupted
-            ? { reason: 'Host inventory reported this worktree as corrupted.' }
-            : {}),
+        kind: candidate.prunable ? 'prunable' : 'path-gone',
+        ...(candidate.prunable ? { reason: 'Git reports this worktree as prunable.' } : {}),
       },
       canDelete: candidate.kind !== 'root' && !remote,
     };
@@ -224,6 +221,19 @@ function buildCandidateRow(
     ...base,
     pathState: 'measured',
     canCleanArtifacts: !remote,
+  };
+}
+
+function mirrorGitStats(observedGit: WorkspaceObservedGit | null): ProjectWorkspaceGitStats | null {
+  if (!observedGit) return null;
+  if (observedGit.diffStats === null && observedGit.ahead === null && observedGit.behind === null) {
+    return null;
+  }
+  return {
+    added: observedGit.diffStats?.added ?? 0,
+    removed: observedGit.diffStats?.deleted ?? 0,
+    ahead: observedGit.ahead ?? 0,
+    behind: observedGit.behind ?? 0,
   };
 }
 
@@ -281,9 +291,8 @@ async function getWorkspaceRows(
       path: workspaces.path,
       config: workspaces.config,
       observedStatus: workspaces.observedStatus,
-      observedGitBranch: workspaces.observedGitBranch,
-      observedData: workspaces.observedData,
-      lastObservedAt: workspaces.lastObservedAt,
+      observedGit: workspaces.observedGit,
+      observedAt: workspaces.observedAt,
     })
     .from(workspaces)
     .where(and(scope, isNotNull(workspaces.path), liveWorkspaces()))) as WorkspaceRow[];
@@ -302,42 +311,6 @@ async function getTaskRows(db: AppDb, projectId: string): Promise<TaskRow[]> {
     })
     .from(tasks)
     .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
-}
-
-async function scanAndApplyRepositorySnapshot(
-  dependencies: Pick<ListProjectWorkspacesDependencies, 'db' | 'runtimes'>,
-  project: ProjectWorkspaceProjectRow
-): Promise<{ scannedAt: string; warning?: string }> {
-  try {
-    if (!project.repositoryWorkspaceId) throw new Error('Project has no repository workspace.');
-    const repository = createWorkspaceRegistry(dependencies.db).getLive(
-      project.repositoryWorkspaceId
-    );
-    if (!repository?.path) throw new Error('Repository workspace has no path.');
-    const repoRoot = parseAbsolute(repository.path);
-    if (!repoRoot.success) throw new Error(`Repository path is not absolute: ${repository.path}`);
-    const runtime = await dependencies.runtimes.client(projectWorkspaceHost(project));
-    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    const desktopObservedAt = new Date().toISOString();
-    const result = await runtime.data.workspaceHost.snapshotRepository({
-      repoRoot: repoRoot.data,
-      tier: 'presence',
-    });
-    if (!result.success) throw new Error(result.error.message);
-    await applyRepoSnapshot({
-      db: dependencies.db,
-      repository,
-      snapshot: result.data,
-      desktopObservedAt,
-      projectId: project.id,
-    });
-    return { scannedAt: new Date(result.data.scannedAt).toISOString() };
-  } catch (error) {
-    return {
-      scannedAt: new Date().toISOString(),
-      warning: `Could not scan git worktrees: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
 }
 
 function groupTasks(rows: TaskRow[]): Map<string, ProjectWorkspaceTask[]> {

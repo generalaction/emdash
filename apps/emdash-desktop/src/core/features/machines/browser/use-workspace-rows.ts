@@ -2,32 +2,25 @@ import { useMemo } from 'react';
 import { useOperationTrees } from '@core/services/operations/browser/use-operation-trees';
 import {
   getMachineOperationsClient,
-  useLocalWorkspaces,
-  useMachineWorkspaces,
-  useProjectWorkspaceGitStats,
   useProjectWorkspaceUsage,
+  useWorkspaceGroups,
+  type WorkspacesScope,
 } from './use-machine-workspaces';
 import { joinWorkspaceRows, type JoinedWorkspaceRow } from './workspace-rows';
 
-/** Which host's workspaces to read: this device or a remote machine. */
-export type WorkspacesScope = { kind: 'local' } | { kind: 'machine'; machineId: string };
+export type { WorkspacesScope } from './use-machine-workspaces';
 
 export type WorkspaceRowsOptions = {
   scope: WorkspacesScope;
   projectId?: string;
+  /** Gates on-demand disk usage measurement (needs a reachable host). Rows always render from the mirror. */
   enabled: boolean;
 };
 
 const EMPTY_GROUPS: never[] = [];
 
 export function useWorkspaceRows({ scope, projectId, enabled }: WorkspaceRowsOptions) {
-  const isLocal = scope.kind === 'local';
-  const localQuery = useLocalWorkspaces(enabled && isLocal);
-  const machineQuery = useMachineWorkspaces(
-    scope.kind === 'machine' ? scope.machineId : undefined,
-    enabled && !isLocal
-  );
-  const workspaceQuery = isLocal ? localQuery : machineQuery;
+  const workspaceQuery = useWorkspaceGroups(scope, true);
   const sourceGroups = workspaceQuery.data ?? EMPTY_GROUPS;
   const sourceGroup = projectId
     ? sourceGroups.find((group) => group.project.id === projectId)
@@ -48,21 +41,15 @@ export function useWorkspaceRows({ scope, projectId, enabled }: WorkspaceRowsOpt
     measuredPaths,
     enabled && !!projectId && sourceRows.length > 0
   );
-  const gitStatsQuery = useProjectWorkspaceGitStats(
-    projectId,
-    measuredPaths,
-    enabled && !!projectId && sourceRows.length > 0
-  );
   const operationTrees = useOperationTrees(projectId ?? '', getMachineOperationsClient);
   const joinedRows = useMemo(
     () =>
       joinWorkspaceRows({
         rows: sourceRows,
         usageResults: usageQuery.data?.results,
-        gitStatsResults: gitStatsQuery.data?.results,
         operationTrees: operationTrees.trees,
       }),
-    [sourceRows, usageQuery.data?.results, gitStatsQuery.data?.results, operationTrees.trees]
+    [sourceRows, usageQuery.data?.results, operationTrees.trees]
   );
   const rowsBySource = useMemo(
     () => new Map(joinedRows.map((row) => [sourceKey(row), row])),
@@ -91,7 +78,6 @@ export function useWorkspaceRows({ scope, projectId, enabled }: WorkspaceRowsOpt
     rows: joinedRows,
     operationTrees,
     usageQuery,
-    gitStatsQuery,
   };
 }
 

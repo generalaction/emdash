@@ -195,19 +195,19 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       id: workspaces.id,
       path: workspaces.path,
       observedStatus: workspaces.observedStatus,
-      observedData: workspaces.observedData,
-      linesAdded: workspaces.linesAdded,
-      linesDeleted: workspaces.linesDeleted,
+      observedGit: workspaces.observedGit,
     })
     .from(workspaces)
     .where(and(inArray(workspaces.id, workspaceIds), liveWorkspaces()));
   return {
+    // Mirror diff stats; untracked files' lines count as additions.
     byWorkspaceId: Object.fromEntries(
-      rows.flatMap((row) =>
-        row.linesAdded == null
+      rows.flatMap((row) => {
+        const stats = row.observedGit?.diffStats;
+        return stats == null
           ? []
-          : [[row.id, { linesAdded: row.linesAdded, linesDeleted: row.linesDeleted ?? 0 }]]
-      )
+          : [[row.id, { linesAdded: stats.added, linesDeleted: stats.deleted }]];
+      })
     ),
     workspaceById: Object.fromEntries(
       rows.map((row) => [
@@ -215,7 +215,6 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
         {
           path: row.path,
           observedStatus: row.observedStatus,
-          corruptionReason: row.observedData?.corruptionReason,
         },
       ])
     ),

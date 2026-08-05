@@ -1,9 +1,8 @@
-import { defineContract, procedure } from '@emdash/wire';
+import { defineContract, liveModel, liveState, procedure } from '@emdash/wire';
 import { z } from 'zod';
 import type { ProjectSettingsLoadResult } from '@core/primitives/project-settings/api';
 import type {
-  GetProjectWorkspaceGitStatsInput,
-  GetProjectWorkspaceGitStatsResult,
+  HostWorkspaceGroupsData,
   MeasureProjectWorkspacesInput,
   MeasureProjectWorkspacesResult,
   ProjectWorkspaceActionSummary,
@@ -17,18 +16,29 @@ export const projectSettingsContract = defineContract({
   }),
 });
 
+/**
+ * Mirror-served workspace reads (planning ticket 09): both live models are DB reads
+ * poked by app-db changes — the registry sync keeps the mirror fresh, so no read here
+ * ever scans a host. Disk usage stays an on-demand measurement.
+ */
 export const projectWorkspacesContract = defineContract({
-  listProjectWorkspaces: procedure({
-    input: z.object({ projectId: z.string() }),
-    output: z.custom<ProjectWorkspacesResult>(),
+  /** Project detail view rows, live from the mirror. */
+  projectWorkspaceList: liveModel({
+    key: z.object({ projectId: z.string() }),
+    states: {
+      list: liveState({ data: z.custom<ProjectWorkspacesResult>() }),
+    },
+  }),
+  /** Machines-page grouping: one group per project on the host, live from the mirror. */
+  workspaceGroups: liveModel({
+    key: z.object({ hostKey: z.string() }),
+    states: {
+      list: liveState({ data: z.custom<HostWorkspaceGroupsData>() }),
+    },
   }),
   measureProjectWorkspaces: procedure({
     input: z.custom<MeasureProjectWorkspacesInput>(),
     output: z.custom<MeasureProjectWorkspacesResult>(),
-  }),
-  getProjectWorkspaceGitStats: procedure({
-    input: z.custom<GetProjectWorkspaceGitStatsInput>(),
-    output: z.custom<GetProjectWorkspaceGitStatsResult>(),
   }),
   deleteProjectWorkspaces: procedure({
     input: z.object({
@@ -37,9 +47,5 @@ export const projectWorkspacesContract = defineContract({
       deleteConversations: z.boolean().optional(),
     }),
     output: z.custom<ProjectWorkspaceActionSummary>(),
-  }),
-  invalidateWorkspaceScanCache: procedure({
-    input: z.object({ projectId: z.string().optional(), path: z.string().optional() }),
-    output: z.void(),
   }),
 });

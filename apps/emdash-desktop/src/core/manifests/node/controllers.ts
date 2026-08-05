@@ -68,12 +68,10 @@ import {
   createProjectWorkspacesWireController,
 } from '@core/features/workspaces/node/project-wire-controllers';
 import { createWorkspaceRegistryWireController } from '@core/features/workspaces/node/registry-wire-controller';
-import type { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@core/features/workspaces/node/wire-controller';
-import { WorkspaceScanCache } from '@core/features/workspaces/node/workspace-scan-cache';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
@@ -81,7 +79,6 @@ import type { AppDb } from '@core/services/app-db/node/db';
 import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
 import type { OperationsEngine } from '@core/services/operations/node';
-import { onOperationSettled } from '@core/services/operations/node/pokes';
 import { createOperationsWireController } from '@core/services/operations/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
@@ -94,11 +91,6 @@ import {
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/controller';
-
-const workspaceScanCache = new WorkspaceScanCache();
-// Host operations (worktree create/remove, repository removal) change what a
-// listing scan would find, so drop cached listings when one settles.
-onOperationSettled(() => workspaceScanCache.evictAll());
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;
@@ -140,7 +132,6 @@ export type DesktopControllerContext = {
   readonly updateOperations: UpdateOperations;
   readonly workspaceIdentity: WorkspaceIdentityService;
   readonly workspacePlacement: WorkspacePlacementResolver;
-  readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
     'db' | 'operations' | 'runtimes' | 'workspaceIdentity'
@@ -196,16 +187,17 @@ export const desktopNodeControllers = {
       createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: ({ db, operations, runtimes, taskService, taskSessions, workspaceSnapshotSync }) =>
-      createProjectWorkspacesWireController({
+    create: ({ db, operations, runtimes, scope, taskService, taskSessions }) => {
+      const controller = createProjectWorkspacesWireController({
         db,
         operations,
         runtimes,
         taskService,
         taskSessions,
-        workspaceScanCache,
-        workspaceSnapshotSync,
-      }),
+      });
+      scope.add(() => controller.dispose());
+      return controller.controller;
+    },
   },
   promptLibrary: {
     create: ({ promptLibrary }) => createPromptLibraryWireController(promptLibrary),

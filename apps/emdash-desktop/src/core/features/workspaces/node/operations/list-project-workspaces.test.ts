@@ -1,30 +1,6 @@
-import { parseAbsolute } from '@emdash/core/primitives/path/api';
-import { workspaceHostRepoSnapshotSchema } from '@emdash/core/runtimes/workspace-host/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({
-  repository: {
-    id: 'project-1-repository-workspace',
-    type: 'local' as const,
-    kind: 'repository' as const,
-    location: 'local' as const,
-    sshConnectionId: null,
-    parentId: null,
-    path: '/repo',
-    config: null,
-    linesAdded: null,
-    linesDeleted: null,
-    observedStatus: null,
-    observedGitBranch: null,
-    observedData: null,
-    lastObservedAt: null,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    untrackedAt: null,
-  },
-}));
 const select = vi.fn();
-const applyRepoSnapshot = vi.fn();
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => 'and'),
@@ -36,7 +12,6 @@ vi.mock('drizzle-orm', () => ({
 }));
 
 vi.mock('@core/features/workspaces/api/node/registry', () => ({
-  createWorkspaceRegistry: () => ({ getLive: () => state.repository }),
   isAnnotatedWorkspace: (row: { config: unknown; hasTaskLink?: boolean }) =>
     row.config !== null || row.hasTaskLink === true,
   liveWorkspaces: () => 'liveWorkspaces',
@@ -50,9 +25,8 @@ vi.mock('@core/features/workspaces/api/node/registry', () => ({
     path: 'workspaces.path',
     config: 'workspaces.config',
     observedStatus: 'workspaces.observedStatus',
-    observedGitBranch: 'workspaces.observedGitBranch',
-    observedData: 'workspaces.observedData',
-    lastObservedAt: 'workspaces.lastObservedAt',
+    observedGit: 'workspaces.observedGit',
+    observedAt: 'workspaces.observedAt',
   },
 }));
 
@@ -75,103 +49,88 @@ vi.mock('@core/services/app-db/node/schema', () => ({
   },
 }));
 
-vi.mock('../sync/apply-repo-snapshot', () => ({ applyRepoSnapshot }));
 vi.mock('@core/features/workspaces/api/node/workspace-branch', () => ({
   getProvisionedWorkspaceBranch: vi.fn(() => undefined),
 }));
 
 const db = { select } as never;
 const taskSessions = { getTask: vi.fn(() => undefined) };
+const OBSERVED_AT = Date.parse('2026-01-01T00:00:00.000Z');
 
 describe('listProjectWorkspaces', () => {
   beforeEach(() => {
     select.mockReset();
-    applyRepoSnapshot.mockReset();
-    Object.assign(state.repository, {
-      id: 'project-1-repository-workspace',
-      location: 'local',
-      sshConnectionId: null,
-      path: '/repo',
-    });
   });
 
-  it('returns registry root rows without mutating observations when scanning fails', async () => {
+  it('serves rows and git stats from mirror observations without touching the host', async () => {
+    const client = vi.fn();
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
       .mockReturnValueOnce(taskRows([]))
       .mockReturnValueOnce(
-        workspaceRows([registryRow({ id: state.repository.id, path: '/repo' })])
+        workspaceRows([
+          mirrorRow({
+            id: 'project-1-repository-workspace',
+            kind: 'repository',
+            path: '/repo',
+            observedGit: observedGit({ branch: 'main' }),
+          }),
+          mirrorRow({
+            id: 'workspace-1',
+            path: '/repo/feature',
+            config: { version: '2' },
+            observedGit: observedGit({
+              branch: 'feature',
+              diffStats: { added: 12, deleted: 3 },
+              ahead: 2,
+              behind: 1,
+            }),
+          }),
+        ])
       );
 
-    const result = await list({
-      client: vi.fn(async () => ({
-        success: true,
-        data: {
-          workspaceHost: {
-            snapshotRepository: vi.fn(async () => ({
-              success: false,
-              error: { type: 'git-command-failed', message: 'not a git repository' },
-            })),
-          },
-        },
-      })),
-    });
+    const result = await list({ client });
 
-    expect(result.warnings[0]).toContain('not a git repository');
-    expect(applyRepoSnapshot).not.toHaveBeenCalled();
-    expect(result.rows[0]).toMatchObject({ kind: 'root', path: '/repo', pathState: 'measured' });
+    expect(client).not.toHaveBeenCalled();
+    expect(result.rows[0]).toMatchObject({
+      kind: 'root',
+      path: '/repo',
+      branch: 'main',
+      pathState: 'measured',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(result.rows[1]).toMatchObject({
+      kind: 'workspace',
+      path: '/repo/feature',
+      branch: 'feature',
+      gitStats: { added: 12, removed: 3, ahead: 2, behind: 1 },
+    });
+    expect(result.scannedAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
-  it('scans through the remote workspace host, applies, then reads rows', async () => {
-    const remotePath = '/srv/projects/remote-repo';
-    Object.assign(state.repository, {
-      id: 'project-remote-repository-workspace',
-      location: 'remote',
-      sshConnectionId: 'ssh-1',
-      path: remotePath,
-    });
+  it('returns null git stats when the mirror has no observation yet', async () => {
     select
-      .mockReturnValueOnce(
-        projectQuery([
-          {
-            id: 'project-remote',
-            path: remotePath,
-            location: 'remote',
-            sshConnectionId: 'ssh-1',
-          },
-        ])
-      )
+      .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
       .mockReturnValueOnce(taskRows([]))
       .mockReturnValueOnce(
         workspaceRows([
-          registryRow({ id: state.repository.id, path: remotePath, location: 'remote' }),
+          mirrorRow({
+            id: 'project-1-repository-workspace',
+            kind: 'repository',
+            path: '/repo',
+            observedGit: null,
+            observedAt: null,
+          }),
         ])
       );
-    const client = vi.fn(async () => ({
-      success: true,
-      data: {
-        workspaceHost: {
-          snapshotRepository: vi.fn(async () => ({
-            success: true,
-            data: snapshot(remotePath, []),
-          })),
-        },
-      },
-    }));
 
-    const result = await list({ client }, 'project-remote');
+    const result = await list({ client: vi.fn() });
 
-    expect(client).toHaveBeenCalledWith({ type: 'remote', id: 'ssh-1' });
-    expect(applyRepoSnapshot).toHaveBeenCalledOnce();
-    expect(result.rows[0]).toMatchObject({
-      kind: 'root',
-      path: remotePath,
-      canCleanArtifacts: false,
-      canDelete: false,
-    });
+    expect(result.rows[0]).toMatchObject({ kind: 'root', gitStats: null });
+    expect(result.rows[0]!.lastObservedAt).toBeUndefined();
   });
 
-  it('projects a missing annotated registry row without probing stat', async () => {
+  it('projects a missing annotated workspace as path-gone', async () => {
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
       .mockReturnValueOnce(
@@ -189,16 +148,17 @@ describe('listProjectWorkspaces', () => {
       )
       .mockReturnValueOnce(
         workspaceRows([
-          registryRow({ id: state.repository.id, path: '/repo' }),
-          registryRow({
+          mirrorRow({ id: 'project-1-repository-workspace', kind: 'repository', path: '/repo' }),
+          mirrorRow({
             id: 'workspace-1',
             path: '/repo/missing',
             observedStatus: 'missing',
+            observedGit: null,
           }),
         ])
       );
 
-    const result = await list({ client: successfulClient('/repo') });
+    const result = await list({ client: vi.fn() });
 
     expect(result.rows.find((row) => row.workspaceId === 'workspace-1')).toMatchObject({
       kind: 'workspace',
@@ -207,29 +167,27 @@ describe('listProjectWorkspaces', () => {
     });
   });
 
-  it('projects host corruption details from the converged registry', async () => {
-    const reason = 'gitdir file points to non-existent location';
+  it('projects prunable worktrees from the git observation', async () => {
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
       .mockReturnValueOnce(taskRows([]))
       .mockReturnValueOnce(
         workspaceRows([
-          registryRow({ id: state.repository.id, path: '/repo' }),
-          registryRow({
+          mirrorRow({ id: 'project-1-repository-workspace', kind: 'repository', path: '/repo' }),
+          mirrorRow({
             id: 'stale',
             path: '/repo/stale',
-            observedStatus: 'corrupted',
-            observedData: { corruptionReason: reason },
+            observedGit: observedGit({ prunable: true }),
           }),
         ])
       );
 
-    const result = await list({ client: successfulClient('/repo') });
+    const result = await list({ client: vi.fn() });
 
     expect(result.rows.find((row) => row.workspaceId === 'stale')).toMatchObject({
       kind: 'candidate',
       pathState: 'missing',
-      pathIssue: { kind: 'prunable', reason },
+      pathIssue: { kind: 'prunable' },
     });
   });
 });
@@ -239,43 +197,22 @@ async function list(runtimes: { client: ReturnType<typeof vi.fn> }, projectId = 
   return listProjectWorkspaces({ db, taskSessions, runtimes } as never, projectId);
 }
 
-function successfulClient(repoPath: string) {
-  return vi.fn(async () => ({
-    success: true,
-    data: {
-      workspaceHost: {
-        snapshotRepository: vi.fn(async () => ({
-          success: true,
-          data: snapshot(repoPath, []),
-        })),
-      },
-    },
-  }));
+function observedGit(overrides: Record<string, unknown>) {
+  return {
+    version: '1',
+    branch: null,
+    head: null,
+    dirty: false,
+    diffStats: null,
+    ahead: null,
+    behind: null,
+    upstream: null,
+    prunable: false,
+    ...overrides,
+  };
 }
 
-function snapshot(repoPath: string, worktrees: string[]) {
-  const parsed = parseAbsolute(repoPath);
-  if (!parsed.success) throw new Error('Expected absolute test path');
-  return workspaceHostRepoSnapshotSchema.parse({
-    repoRoot: parsed.data,
-    scannedAt: Date.parse('2026-01-01T00:00:00.000Z'),
-    tier: 'presence',
-    repository: { path: parsed.data, status: 'present' },
-    worktrees: worktrees.map((value) => {
-      const path = parseAbsolute(value);
-      if (!path.success) throw new Error('Expected absolute worktree path');
-      return {
-        path: path.data,
-        isMain: false,
-        head: { kind: 'detached' },
-        branch: null,
-        status: 'present',
-      };
-    }),
-  });
-}
-
-function registryRow(overrides: Record<string, unknown>) {
+function mirrorRow(overrides: Record<string, unknown>) {
   return {
     id: 'workspace',
     type: 'local',
@@ -285,22 +222,13 @@ function registryRow(overrides: Record<string, unknown>) {
     path: '/repo/worktree',
     config: null,
     observedStatus: 'present',
-    observedGitBranch: null,
-    observedData: null,
-    lastObservedAt: '2026-01-01T00:00:00.000Z',
+    observedGit: null,
+    observedAt: OBSERVED_AT,
     ...overrides,
   };
 }
 
-function projectQuery(
-  rows: Array<{
-    id: string;
-    path: string;
-    location?: 'local' | 'remote';
-    sshConnectionId?: string | null;
-    repositoryWorkspaceId?: string | null;
-  }>
-) {
+function projectQuery(rows: Array<{ id: string; path: string }>) {
   return {
     from: () => ({
       leftJoin: () => ({
@@ -308,10 +236,10 @@ function projectQuery(
           limit: async () =>
             rows.map((row) => ({
               id: row.id,
-              repositoryWorkspaceId: row.repositoryWorkspaceId ?? `${row.id}-repository-workspace`,
+              repositoryWorkspaceId: `${row.id}-repository-workspace`,
               repositoryWorkspacePath: row.path,
-              repositoryWorkspaceLocation: row.location ?? 'local',
-              repositoryWorkspaceSshConnectionId: row.sshConnectionId ?? null,
+              repositoryWorkspaceLocation: 'local',
+              repositoryWorkspaceSshConnectionId: null,
             })),
         }),
       }),
