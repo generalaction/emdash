@@ -3,6 +3,7 @@ import { arch, release } from 'node:os';
 import { promisify } from 'node:util';
 import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { AppMenuId } from '@shared/events/appEvents';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
 import { appService } from './service';
@@ -154,6 +155,14 @@ export const appController = createRPCController({
     return { success: true };
   },
   isWindowMaximized: () => appService.isWindowMaximized(),
+  popupAppMenu: (args: { menu: AppMenuId; x: number; y: number }) => {
+    try {
+      appService.popupAppMenu(args);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
