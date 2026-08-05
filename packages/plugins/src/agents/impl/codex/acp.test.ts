@@ -62,3 +62,29 @@ describe('codex acp behavior', () => {
     });
   });
 });
+
+describe('codex host dependency behavior', () => {
+  const resolveStatus = pluginRegistry.get('codex')!.behavior.hostDependency!.resolveStatus!;
+  const probeResult = {
+    command: 'codex',
+    path: '/usr/local/bin/codex',
+    stdout: '',
+    stderr: '',
+    exitCode: 0,
+    timedOut: false,
+  };
+
+  it('accepts a successful version probe', () => {
+    expect(resolveStatus(probeResult)).toBe('available');
+  });
+
+  it('rejects a broken installation that prints an error', () => {
+    expect(
+      resolveStatus({
+        ...probeResult,
+        stderr: 'Missing optional dependency @openai/codex-darwin-arm64',
+        exitCode: 1,
+      })
+    ).toBe('error');
+  });
+});

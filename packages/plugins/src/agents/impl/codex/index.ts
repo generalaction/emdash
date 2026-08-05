@@ -138,6 +138,9 @@ export const provider = registerPluginBehavior(plugin, {
       return connectStdioAcp(io, toClient);
     },
   },
+  hostDependency: {
+    resolveStatus: (result) => (result.exitCode === 0 ? 'available' : 'error'),
+  },
   auth: {
     checkStatus: async (ctx) => {
       const envStatus = authenticatedFromEnv(ctx, ['OPENAI_API_KEY']);
