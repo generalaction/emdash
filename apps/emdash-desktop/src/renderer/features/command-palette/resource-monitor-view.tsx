@@ -25,8 +25,10 @@ import {
 
 export const ResourceMonitorView = observer(function ResourceMonitorView({
   onBack,
+  onClose,
 }: {
   onBack: () => void;
+  onClose: () => void;
 }) {
   const store = appState.resourceMonitor;
   const snapshot = store.snapshot;
@@ -56,6 +58,19 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
           <Stat label="CPU" value={cpuLabel} />
           <Stat label="Mem" value={memLabel} />
           <CopyReportButton snapshot={snapshot} groups={groups} />
+          <Tooltip>
+            <TooltipTrigger>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/50 transition-colors hover:bg-background-2 hover:text-foreground"
+                aria-label="Close resource monitor"
+              >
+                <X size={13} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Close</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

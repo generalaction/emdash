@@ -297,7 +297,7 @@ export function CommandPaletteModal({
   if (view === 'resource-monitor') {
     return (
       <div className="flex flex-col overflow-hidden">
-        <ResourceMonitorView onBack={handleResourceMonitorBack} />
+        <ResourceMonitorView onBack={handleResourceMonitorBack} onClose={handleClose} />
         <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
           <span className="flex items-center gap-1 text-xs text-foreground/40">
             <Shortcut hotkey="Escape" variant="keycaps" />
