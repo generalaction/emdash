@@ -1473,6 +1473,18 @@ fresh recreated green run becomes the final success report.
   `b9f53681364ae21a5d30838ca5c25a5fe22dda02`; the requested rebase was a clean no-op with no
   conflicts, so the feature head remains unchanged and clean.
 - [x] Complete the Summario custom-vocabulary pilot Loop.
+- [x] 2026-08-05: Add the fail-closed Wave 6 launcher and approved-legal-facts contract at
+  integration checkpoint `7993ae99f6`. `prepare` now refuses to launch Electron or create durable
+  Wave 6 state until `EMDASH_LOOPS_WAVE6_LEGAL_FACTS` names a bounded regular mode-0600 JSON file
+  with explicit product-owner approval, complete controller/jurisdiction/retention/deletion/legal
+  basis/subprocessor/optional-technology facts, no placeholders, and a consistent consent-or-notice
+  decision. The persisted state records only approval metadata and a SHA-256 digest of the facts.
+  Runtime agents may read credentials already present in their exact verification environment; raw
+  values still must not be copied into repository files, prompts, logs, screenshots, or evidence.
+  Thirteen focused contract tests, strict app typecheck, focused lint/format, a no-facts side-effect
+  smoke test, `git diff --check`, and the Loops-Electron production bundle build passed. No Wave 6
+  project, task, Loop, worktree, backend, or browser profile exists yet because approved legal facts
+  have not been supplied.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
 
@@ -1620,8 +1632,11 @@ through Wave 4 on the isolated integration branch. Wave 5 is complete on clean S
 commands, exact-checkpoint replay, and native browser acceptance passed. Attempt sixty-two recorded
 38 native observations and proved the user-visible vocabulary and completed-Meeting contract. Its
 six-table cleanup audit is empty, run-owned backend and credential projections are removed, and the
-requested rebase onto current `origin/main` was a conflict-free no-op. Wave 6 and the final two
-Summario acceptance pilots remain incomplete.
+requested rebase onto current `origin/main` was a conflict-free no-op. The Wave 6 Summario
+acceptance pilot and final review remain incomplete. The Wave 6 launcher and strict approval
+contract are green at `7993ae99f6`; execution is intentionally fail-closed until the product owner
+supplies the approved controller, jurisdiction, effective-date, retention/deletion, legal-basis,
+subprocessor, purpose, and optional-technology facts needed to avoid inventing a privacy policy.
 At final completion, compare the observable result with `Purpose and observable outcome`, list exact
 validation evidence, and state any remaining blocker without claiming success for an unverified
 path.
