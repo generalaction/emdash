@@ -9,9 +9,10 @@ const isLinux = detectPlatform() === 'linux';
 
 /**
  * Linux-only top overlay providing a draggable strip and window controls for
- * full-screen views that do not render the {@link Titlebar} (onboarding and the
- * welcome splash). Sits above the welcome screen's `z-50` overlay. No-op on
- * macOS/Windows, which keep their native frame or traffic lights.
+ * full-screen views that do not render the {@link Titlebar}, including workspace
+ * views, onboarding, and the welcome splash. Sits above the welcome screen's
+ * `z-50` overlay. No-op on macOS/Windows, which keep their native frame or traffic
+ * lights.
  */
 export function FramelessTitlebarOverlay() {
   if (!isLinux) return null;
