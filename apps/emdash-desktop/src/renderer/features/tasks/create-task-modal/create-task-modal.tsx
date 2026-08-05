@@ -102,7 +102,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const initialConversation = useInitialConversationState(
     selectedProjectId,
     undefined,
-    autoApproveByDefault
+    autoApproveByDefault,
+    { persistPromptPerProject: true }
   );
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();

@@ -29,6 +29,7 @@ export function useCreateTaskCallback({
     if (!taskManager) return;
 
     const id = crypto.randomUUID();
+    const initialConversationConfig = buildInitialConversation(initialConversation);
     void taskManager
       .createTask({
         id,
@@ -38,9 +39,14 @@ export function useCreateTaskCallback({
           name: state.taskName.effectiveTaskName,
           linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
           initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-          initialConversation: buildInitialConversation(initialConversation),
+          initialConversation: initialConversationConfig,
         },
         workspaceConfig: state.workspaceConfig.resolvedConfig,
+      })
+      .then(() => {
+        if (taskManager.tasks.get(id)?.phase !== 'provision-error') {
+          initialConversation.clearPrompt();
+        }
       })
       .catch((e) => log.error('create task failed', e));
 

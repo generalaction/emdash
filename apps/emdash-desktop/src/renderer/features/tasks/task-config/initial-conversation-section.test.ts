@@ -229,6 +229,52 @@ describe('useInitialConversationState', () => {
     expect(latestState?.prompt).toBe('Keep this automation prompt');
   });
 
+  it('restores a persisted prompt for the same project after remounting', async () => {
+    await renderProbe('project-1', { persistPromptPerProject: true });
+    await setPrompt('A long task description');
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await renderProbe('project-1', { persistPromptPerProject: true });
+
+    expect(latestState?.prompt).toBe('A long task description');
+  });
+
+  it.each([null, 42, { text: 'not a string' }])(
+    'ignores a persisted non-string prompt: %j',
+    async (persistedValue) => {
+      dom.window.localStorage.setItem(
+        'initial-conversation:draft:project-1',
+        JSON.stringify(persistedValue)
+      );
+
+      await renderProbe('project-1', { persistPromptPerProject: true });
+
+      expect(latestState?.prompt).toBe('');
+    }
+  );
+
+  it('keeps persisted prompts isolated by project', async () => {
+    await renderProbe('project-1', { persistPromptPerProject: true });
+    await setPrompt('Project one draft');
+
+    await renderProbe('project-2', { persistPromptPerProject: true });
+    expect(latestState?.prompt).toBe('');
+
+    await setPrompt('Project two draft');
+    await renderProbe('project-1', { persistPromptPerProject: true });
+
+    expect(latestState?.prompt).toBe('Project one draft');
+  });
+
+  it('removes a persisted prompt when it is cleared', async () => {
+    await renderProbe('project-1', { persistPromptPerProject: true });
+    await setPrompt('Draft to clear');
+    await setPrompt('');
+
+    expect(dom.window.localStorage.getItem('initial-conversation:draft:project-1')).toBeNull();
+  });
+
   it('persists the auto-approve preference', async () => {
     await renderProbe('project-1');
 
