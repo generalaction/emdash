@@ -939,7 +939,7 @@ describe('native browser verifier', () => {
             ok: true,
             observation: {
               kind: 'accessibility-snapshot',
-              snapshot: 'Observed bounded state',
+              snapshot: 'Observed bounded state token=ledger-secret-value',
               truncated: false,
             },
           },
@@ -964,7 +964,13 @@ describe('native browser verifier', () => {
       expect(result.success, JSON.stringify(result)).toBe(true);
       expect(harness.nestedDriver.restartVerificationSession).toHaveBeenCalledTimes(3);
       const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[3]).toContain('<emdash-loop-browser-observation-ledger>');
+      expect(prompts[3]).toContain('Observed bounded state');
+      expect(prompts[3]).not.toContain('ledger-secret-value');
       expect(prompts[4]).toContain('terminal-decision reserve');
+      expect(prompts[5]).toContain('<emdash-loop-browser-observation-ledger>');
+      expect(prompts[5]).toContain('Observed bounded state');
+      expect(prompts[5]).not.toContain('ledger-secret-value');
       expect(prompts[5]).toContain('Terminal stalled-turn recovery 1 of 1');
       expect(prompts[5]).toContain('return exactly one honest terminal outcome');
       expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({

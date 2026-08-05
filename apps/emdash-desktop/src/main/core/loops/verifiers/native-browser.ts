@@ -48,6 +48,8 @@ const MAX_NATIVE_BROWSER_ACTIONS = 128;
 const MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS = 2;
 const MAX_NATIVE_BROWSER_STALL_REPAIRS = 2;
 const MAX_NATIVE_BROWSER_TERMINAL_STALL_REPAIRS = 1;
+const MAX_NATIVE_BROWSER_RECOVERY_OBSERVATIONS = 32;
+const MAX_NATIVE_BROWSER_RECOVERY_OBSERVATION_LENGTH = 1_536;
 const MAX_TRUSTED_ENVIRONMENT_BYTES = 64 * 1024;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
@@ -131,6 +133,12 @@ type RotationObservation = {
   workspaceId: string;
   allowedPreviewOrigin: string;
   actionReplayed: false;
+};
+
+type NativeBrowserRecoveryObservation = {
+  actionId: string;
+  actionKind: string;
+  summary: string;
 };
 
 class NativeBrowserVerifierFailure extends Error {
@@ -432,6 +440,7 @@ async function runNativeBrowserVerification(
     let stalledTurnRecovery = false;
     let terminalDecisionRequired = false;
     let terminalReserveRequired = false;
+    const recoveryObservations: NativeBrowserRecoveryObservation[] = [];
     const actionIds = new Set<string>();
     let finalText = '';
 
@@ -491,7 +500,8 @@ async function runNativeBrowserVerification(
           binding,
           activeSession,
           recoveryAttempt,
-          terminalStall
+          terminalStall,
+          recoveryObservations
         );
         stalledTurnRecovery = true;
         continue;
@@ -655,6 +665,7 @@ async function runNativeBrowserVerification(
         runEvidence,
         control
       );
+      retainRecoveryObservation(recoveryObservations, actionId, turn.action.kind, safeResult);
       if (safeResult.ok && turn.action.kind === 'diagnostics') terminalDecisionRequired = true;
 
       if (!safeResult.ok && safeResult.error.kind === 'not-ready') {
@@ -1009,13 +1020,43 @@ function buildRestartStallRepairPrompt(
   binding: TrustedNativeBrowserBinding,
   session: NativeBrowserVerificationSession,
   attempt: number,
-  terminalDecisionRequired: boolean
+  terminalDecisionRequired: boolean,
+  recoveryObservations: readonly NativeBrowserRecoveryObservation[]
 ): string {
   return `${buildInitialPrompt(ctx, binding, session)}
 
 The ACP runtime was restarted after a cancelled stalled turn. The browser lease and exact clean-room target above are unchanged, but the provider may have started a fresh underlying session. Re-establish the complete native browser protocol from this prompt; do not rely on prior chat context.
 
+The following bounded, redacted observation ledger contains browser results already recorded earlier in this same verification run. Treat these entries as observed evidence, combine them with the current browser state, and do not repeat an interaction solely because it predates this fresh ACP runtime:
+<emdash-loop-browser-observation-ledger>
+${serializePromptJson(recoveryObservations)}
+</emdash-loop-browser-observation-ledger>
+
 ${buildStallRepairPrompt(attempt, terminalDecisionRequired)}`;
+}
+
+function retainRecoveryObservation(
+  observations: NativeBrowserRecoveryObservation[],
+  actionId: string,
+  actionKind: string,
+  result: LoopBrowserActionResult
+): void {
+  if (
+    result.ok &&
+    (result.observation.kind === 'interaction' || result.observation.kind === 'screenshot')
+  ) {
+    return;
+  }
+  observations.push({
+    actionId,
+    actionKind,
+    summary: safeText(
+      serializePromptJson(result),
+      'Recorded browser observation',
+      MAX_NATIVE_BROWSER_RECOVERY_OBSERVATION_LENGTH
+    ),
+  });
+  if (observations.length > MAX_NATIVE_BROWSER_RECOVERY_OBSERVATIONS) observations.shift();
 }
 
 function buildInitialPrompt(
