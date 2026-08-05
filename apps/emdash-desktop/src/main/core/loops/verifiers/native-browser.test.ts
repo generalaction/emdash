@@ -787,6 +787,9 @@ describe('native browser verifier', () => {
           'Cancelled stalled native verifier turn 1 and restarted its exact ACP runtime without executing an action',
       });
       const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[1]).toContain('fresh native browser verification session');
+      expect(prompts[1]).toContain('<emdash-loop-browser-criteria>');
+      expect(prompts[1]).toContain('do not rely on prior chat context');
       expect(prompts[1]).toContain('Stalled-turn recovery 1 of 2');
       expect(prompts[1]).toContain('No action from it was executed');
     } finally {
@@ -834,6 +837,9 @@ describe('native browser verifier', () => {
 
       expect(result.success, JSON.stringify(result)).toBe(true);
       const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[2]).toContain('fresh native browser verification session');
+      expect(prompts[2]).toContain('<emdash-loop-browser-target>');
+      expect(prompts[2]).toContain('do not rely on prior chat context');
       expect(prompts[2]).toContain('return exactly one honest terminal outcome');
       expect(prompts[2]).toContain('Do not request another browser action');
       expect(harness.nestedDriver.restartVerificationSession).toHaveBeenCalledWith({

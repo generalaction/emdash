@@ -464,7 +464,13 @@ async function runNativeBrowserVerification(
             }),
           control
         );
-        prompt = buildStallRepairPrompt(stallRepairs, terminalDecisionRequired);
+        prompt = buildRestartStallRepairPrompt(
+          ctx,
+          binding,
+          activeSession,
+          stallRepairs,
+          terminalDecisionRequired
+        );
         stalledTurnRecovery = true;
         continue;
       }
@@ -930,6 +936,20 @@ Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return 
   return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed.
 
 Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Do not repeat prior deliberation, combine actions, or claim that a cancelled action ran.`;
+}
+
+function buildRestartStallRepairPrompt(
+  ctx: VerifierRunContext,
+  binding: TrustedNativeBrowserBinding,
+  session: NativeBrowserVerificationSession,
+  attempt: number,
+  terminalDecisionRequired: boolean
+): string {
+  return `${buildInitialPrompt(ctx, binding, session)}
+
+The ACP runtime was restarted after a cancelled stalled turn. The browser lease and exact clean-room target above are unchanged, but the provider may have started a fresh underlying session. Re-establish the complete native browser protocol from this prompt; do not rely on prior chat context.
+
+${buildStallRepairPrompt(attempt, terminalDecisionRequired)}`;
 }
 
 function buildInitialPrompt(
