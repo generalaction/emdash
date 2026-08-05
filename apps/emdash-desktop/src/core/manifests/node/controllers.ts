@@ -72,6 +72,7 @@ import {
   createWorkspacesWireController,
   type CreateWorkspacesWireControllerOptions,
 } from '@core/features/workspaces/node/wire-controller';
+import { createWorkspaceRegistryWireController } from '@core/features/workspaces/node/registry-wire-controller';
 import { WorkspaceScanCache } from '@core/features/workspaces/node/workspace-scan-cache';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
@@ -285,6 +286,9 @@ export const desktopNodeControllers = {
         }),
         scope
       ),
+  },
+  workspaceRegistry: {
+    create: ({ db, runtimes }) => createWorkspaceRegistryWireController({ db, runtimes }),
   },
   projects: {
     create: ({ db, operations, projects, projectSettings, runtimes, scope, workspacePlacement }) =>

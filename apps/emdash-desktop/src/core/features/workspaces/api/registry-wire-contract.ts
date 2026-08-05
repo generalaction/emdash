@@ -1,0 +1,113 @@
+import { hostRefSchema } from '@emdash/core/primitives/host/api';
+import {
+  activateWorkspaceErrorSchema,
+  createWorkspaceErrorSchema,
+  createWorktreeErrorSchema,
+  deleteWorktreeErrorSchema,
+  workspaceNotFoundErrorSchema,
+  workspaceRecordSchema,
+} from '@emdash/core/runtimes/workspace-registry/api';
+import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
+import { defineContract, fallible, procedure } from '@emdash/wire';
+import { z } from 'zod';
+import type { WorkspaceConfig, WorkspaceMirrorRow } from '@core/primitives/workspaces/api';
+
+const hostInput = z.object({ host: hostRefSchema });
+const workspaceKeyInput = hostInput.extend({ workspaceId: z.string().min(1) });
+
+export const listWorkspacesInputSchema = z.object({
+  scope: z.union([
+    z.object({ host: hostRefSchema }),
+    z.object({ projectId: z.string().min(1) }),
+  ]),
+  /** Serves the machines-page tombstones; live rows only by default. */
+  includeUntracked: z.boolean().optional(),
+});
+export type ListWorkspacesInput = z.infer<typeof listWorkspacesInputSchema>;
+
+/**
+ * The consolidated renderer workspace API (ADR 0005): list from the mirror, call any
+ * lifecycle verb against any reachable host, untrack rows for hosts the desktop can no
+ * longer reach. Verbs are 1:1 pass-throughs to the host registry contract plus the host
+ * ref — the desktop mints UUIDs for the create verbs and fails fast with a typed
+ * runtime-resolve error when the host is unreachable; nothing is queued, ever.
+ */
+export const workspaceRegistryWireContract = defineContract({
+  /** Mirror rows (record + annotations + host ref); never touches the host. */
+  listWorkspaces: procedure({
+    input: listWorkspacesInputSchema,
+    output: z.custom<WorkspaceMirrorRow[]>(),
+  }),
+
+  /**
+   * Register an existing path; success registers/annotates the mirror row immediately
+   * so links can attach without waiting for sync.
+   */
+  createWorkspace: fallible({
+    input: hostInput.extend({
+      path: z.string().min(1),
+      config: z.custom<WorkspaceConfig>().optional(),
+    }),
+    data: workspaceRecordSchema,
+    error: z.union([createWorkspaceErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  /**
+   * Create a worktree from a registered repository; success registers/annotates the
+   * mirror row immediately. Progress is the records overlay via sync — no job objects.
+   */
+  createWorktree: fallible({
+    input: hostInput.extend({
+      repositoryId: z.string().min(1),
+      branch: z.string().min(1),
+      baseRef: z.string().min(1),
+      path: z.string().min(1),
+      preservePatterns: z.array(z.string()).optional(),
+      pushBranch: z.boolean().optional(),
+      config: z.custom<WorkspaceConfig>().optional(),
+    }),
+    data: workspaceRecordSchema,
+    error: z.union([createWorktreeErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  activateWorkspace: fallible({
+    input: workspaceKeyInput,
+    data: workspaceRecordSchema,
+    error: z.union([activateWorkspaceErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  deactivateWorkspace: fallible({
+    input: workspaceKeyInput,
+    data: z.void(),
+    error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  deleteWorkspace: fallible({
+    input: workspaceKeyInput,
+    data: z.void(),
+    error: runtimeResolveErrorSchema,
+  }),
+
+  deleteWorktree: fallible({
+    input: workspaceKeyInput.extend({ deleteBranch: z.boolean().optional() }),
+    data: z.void(),
+    error: z.union([deleteWorktreeErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  refresh: fallible({
+    input: hostInput.extend({ workspaceId: z.string().min(1).optional() }),
+    data: z.void(),
+    error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
+  /**
+   * Desktop-only escape hatch for unreachable or identity-lost rows: a durable
+   * tombstone sync never resurrects. Reachable-host removals go through the verbs.
+   */
+  untrackWorkspace: procedure({
+    input: z.object({ workspaceId: z.string().min(1) }),
+    output: z.void(),
+  }),
+});
+
+export type WorkspaceRegistryWireContract = typeof workspaceRegistryWireContract;

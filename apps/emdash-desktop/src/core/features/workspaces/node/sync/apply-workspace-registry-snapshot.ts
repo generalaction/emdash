@@ -2,7 +2,7 @@ import type {
   WorkspaceRecord,
   WorkspaceRecords,
 } from '@emdash/core/runtimes/workspace-registry/api';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,
   isAnnotatedWorkspace,
@@ -73,9 +73,15 @@ function applyWorkspaceRegistrySnapshotTx(
     untracked: 0,
   };
 
+  const tombstoned = loadTombstonedIds(
+    tx,
+    Object.values(input.records).map((record) => record.id)
+  );
   const seen = new Set<string>();
   for (const record of Object.values(input.records)) {
     seen.add(record.id);
+    // Desktop untracking is durable: a delivery never resurrects a tombstoned row.
+    if (tombstoned.has(record.id)) continue;
     // Matching is a primary-key lookup on the preserved workspace UUID — the host
     // already resolved moves and adoptions; no path or admin-name matching here.
     const existing = registry.getLive(record.id, tx);
@@ -84,7 +90,7 @@ function applyWorkspaceRegistrySnapshotTx(
         {
           id: record.id,
           type: input.host.location === 'remote' ? 'project-ssh' : 'local',
-          ...observationFor(record, input.host, observedAt),
+          ...mirrorObservationFromRecord(record, input.host, observedAt),
           createdAt: new Date(record.createdAt).toISOString(),
         },
         tx
@@ -92,7 +98,7 @@ function applyWorkspaceRegistrySnapshotTx(
       counts.adopted += 1;
       continue;
     }
-    registry.refresh(record.id, observationFor(record, input.host, observedAt), tx);
+    registry.refresh(record.id, mirrorObservationFromRecord(record, input.host, observedAt), tx);
     counts.refreshed += 1;
   }
 
@@ -162,7 +168,25 @@ function loadAnnotations(tx: DrizzleTx, workspaceIds: string[]) {
   };
 }
 
-function observationFor(record: WorkspaceRecord, host: WorkspaceHostIdentity, observedAt: number) {
+function loadTombstonedIds(tx: DrizzleTx, recordIds: string[]): Set<string> {
+  if (recordIds.length === 0) return new Set();
+  const rows = tx
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(and(inArray(workspaces.id, recordIds), isNotNull(workspaces.untrackedAt)))
+    .all();
+  return new Set(rows.map((row) => row.id));
+}
+
+/**
+ * Maps one host record into the mirror's observation fields. Shared with the wire
+ * controller, which registers/annotates the mirror row immediately on create success.
+ */
+export function mirrorObservationFromRecord(
+  record: WorkspaceRecord,
+  host: WorkspaceHostIdentity,
+  observedAt: number
+) {
   return {
     kind: record.kind,
     path: record.path,

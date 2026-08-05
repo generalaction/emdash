@@ -26,6 +26,7 @@ import { desktopHostContract } from '@core/features/workbench/api';
 import {
   projectSettingsContract,
   projectWorkspacesContract,
+  workspaceRegistryWireContract,
   workspacesWireContract,
 } from '@core/features/workspaces/api';
 import { mementosWireContract } from '@core/primitives/mementos/api';
@@ -59,6 +60,7 @@ export const desktopDomainContracts = {
   pullRequests: pullRequestsContract,
   catalog: catalogWireContract,
   workspaces: workspacesWireContract,
+  workspaceRegistry: workspaceRegistryWireContract,
   projects: projectsWireContract,
   automations: automationsContract,
   browser: browserContract,
