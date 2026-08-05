@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AcpTurn } from '@emdash/core/acp';
 import { acpSessionManager } from '@main/core/acp/production-acp-session-manager';
 import { createConversation } from '@main/core/conversations/createConversation';
+import { getConversationsForTask } from '@main/core/conversations/getConversationsForTask';
 import { err, ok, type Result } from '@main/lib/result';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { resolveLoopModel, resolveLoopProvider } from '@shared/core/loops/loops';
@@ -12,6 +13,7 @@ import {
   type LoopSessionDriverError,
   type LoopSessionInfo,
   type PromptResult,
+  type RestartVerificationSessionContext,
   type StartPhaseSessionContext,
   type StartVerificationSessionContext,
 } from './session-driver';
@@ -112,6 +114,56 @@ async function startConversation(
   return ok({ conversationId, title });
 }
 
+async function restartVerificationConversation(
+  ctx: RestartVerificationSessionContext
+): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
+  const stopped = acpSessionManager.stop(ctx.conversationId);
+  if (!stopped.success) {
+    return err({
+      kind: 'cancel-failed',
+      message: errorMessage(stopped.error, 'Failed to stop stalled ACP verification runtime'),
+    });
+  }
+
+  let conversation: Conversation | undefined;
+  try {
+    const conversations = await getConversationsForTask(ctx.loop.projectId, ctx.loop.taskId);
+    conversation = conversations.find((candidate) => candidate.id === ctx.conversationId);
+  } catch (error) {
+    return err({
+      kind: 'hydrate-failed',
+      message: errorMessage(error, 'Failed to reload stalled ACP verification conversation'),
+    });
+  }
+  if (!conversation || conversation.type !== 'acp') {
+    return err({
+      kind: 'hydrate-failed',
+      message: 'Persisted ACP verification conversation is unavailable for bounded recovery',
+    });
+  }
+
+  acpSessionManager.registerPermissionAutoApproval(ctx.conversationId);
+  const started = await acpSessionManager.start(
+    conversation,
+    ctx.target.workspaceId,
+    ctx.target.path,
+    ctx.target.machine,
+    undefined,
+    ctx.taskEnvironment
+  );
+  if (!started.success) {
+    return err({
+      kind: 'hydrate-failed',
+      message: errorMessage(started.error, 'Failed to restart stalled ACP verification runtime'),
+    });
+  }
+
+  return ok({
+    conversationId: ctx.conversationId,
+    title: verificationConversationTitle(ctx.loop, ctx.phase, ctx.purpose),
+  });
+}
+
 export const acpLoopSessionDriver: LoopSessionDriver = {
   kind: 'acp',
 
@@ -127,6 +179,8 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
     return startConversation(ctx, verificationConversationTitle(ctx.loop, ctx.phase, ctx.purpose));
   },
+
+  restartVerificationSession: restartVerificationConversation,
 
   async sendPrompt(
     conversationId: string,

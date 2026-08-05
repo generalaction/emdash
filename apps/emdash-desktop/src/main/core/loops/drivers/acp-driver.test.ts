@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversation } from '@main/core/conversations/createConversation';
+import { getConversationsForTask } from '@main/core/conversations/getConversationsForTask';
 import type { Loop, LoopPhase } from '@shared/core/loops/loops';
 import { acpLoopSessionDriver } from './acp-driver';
 
@@ -8,6 +9,7 @@ const acpSessionManagerMock = vi.hoisted(() => ({
   start: vi.fn(),
   prompt: vi.fn(),
   cancel: vi.fn(),
+  stop: vi.fn(),
   getChatHistory: vi.fn(),
 }));
 vi.mock('@main/core/acp/production-acp-session-manager', () => ({
@@ -18,11 +20,17 @@ vi.mock('@main/core/conversations/createConversation', () => ({
   createConversation: vi.fn(),
 }));
 
+vi.mock('@main/core/conversations/getConversationsForTask', () => ({
+  getConversationsForTask: vi.fn(),
+}));
+
 describe('acpLoopSessionDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     acpSessionManagerMock.getChatHistory.mockReturnValue({ turns: [], complete: true });
     acpSessionManagerMock.start.mockResolvedValue({ success: true, data: undefined });
+    acpSessionManagerMock.stop.mockReturnValue({ success: true, data: undefined });
+    vi.mocked(getConversationsForTask).mockResolvedValue([]);
   });
 
   function makeLoopContext(patch: Partial<Loop> = {}): {
@@ -109,7 +117,7 @@ describe('acpLoopSessionDriver', () => {
       id: 'conv-codex',
       projectId: 'project-1',
       taskId: 'task-1',
-      providerId: 'codex',
+      providerId: 'codex' as const,
       title: 'loop-1',
       type: 'acp',
       isInitialConversation: false,
@@ -196,6 +204,44 @@ describe('acpLoopSessionDriver', () => {
       expect(result.error.message).toBe('ACP prompt failed');
       expect(result.error.message).not.toBe('undefined');
     }
+  });
+
+  it('restarts the same persisted verification conversation with exact target authority', async () => {
+    const context = makeLoopContext();
+    const conversation = {
+      id: 'conv-verify',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'codex' as const,
+      title: 'loop-1-verify',
+      type: 'acp' as const,
+      isInitialConversation: false,
+      lastInteractedAt: null,
+    };
+    vi.mocked(getConversationsForTask).mockResolvedValueOnce([conversation]);
+
+    const result = await acpLoopSessionDriver.restartVerificationSession!({
+      loop: context.loop,
+      phase: context.phase,
+      purpose: 'browser-verification',
+      conversationId: conversation.id,
+      target: context.target,
+      taskEnvironment: context.taskEnvironment,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: { conversationId: conversation.id, title: 'loop-1-verify' },
+    });
+    expect(acpSessionManagerMock.stop).toHaveBeenCalledWith(conversation.id);
+    expect(acpSessionManagerMock.start).toHaveBeenCalledWith(
+      conversation,
+      context.target.workspaceId,
+      context.target.path,
+      context.target.machine,
+      undefined,
+      context.taskEnvironment
+    );
   });
 
   it('ignores literal undefined ACP error messages', async () => {

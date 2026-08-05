@@ -29,6 +29,13 @@ export type StartVerificationSessionContext = {
   conversationId?: string;
 };
 
+export type RestartVerificationSessionContext = Omit<
+  StartVerificationSessionContext,
+  'conversationId'
+> & {
+  conversationId: string;
+};
+
 export type LoopSessionInfo = {
   conversationId: string;
   title: string;
@@ -45,6 +52,10 @@ export interface LoopSessionDriver {
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>>;
   startVerificationSession(
     ctx: StartVerificationSessionContext
+  ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>>;
+  /** Restarts the same persisted verification conversation after a cancelled provider turn. */
+  restartVerificationSession?(
+    ctx: RestartVerificationSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>>;
   sendPrompt(
     conversationId: string,

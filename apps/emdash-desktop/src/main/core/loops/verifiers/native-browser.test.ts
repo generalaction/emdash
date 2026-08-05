@@ -101,6 +101,9 @@ function makeDriver(responses: string[]): LoopSessionDriver {
     startVerificationSession: vi.fn(async () =>
       ok({ conversationId: 'legacy-fallback', title: 'must not be used' })
     ),
+    restartVerificationSession: vi.fn(async (ctx) =>
+      ok({ conversationId: ctx.conversationId, title: 'restarted verification' })
+    ),
     sendPrompt: vi.fn(async () =>
       ok({ finalText: responses.shift() ?? 'missing scripted response' })
     ),
@@ -780,7 +783,8 @@ describe('native browser verifier', () => {
       expect(harness.performAction).toHaveBeenCalledTimes(1);
       expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
         kind: 'prompt-timeout-repair',
-        message: 'Cancelled stalled native verifier turn 1 without executing an action',
+        message:
+          'Cancelled stalled native verifier turn 1 and restarted its exact ACP runtime without executing an action',
       });
       const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
       expect(prompts[1]).toContain('Stalled-turn recovery 1 of 2');
@@ -832,6 +836,14 @@ describe('native browser verifier', () => {
       const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
       expect(prompts[2]).toContain('return exactly one honest terminal outcome');
       expect(prompts[2]).toContain('Do not request another browser action');
+      expect(harness.nestedDriver.restartVerificationSession).toHaveBeenCalledWith({
+        loop: harness.ctx.loop,
+        phase: harness.ctx.phase,
+        purpose: 'browser-verification',
+        conversationId: 'nested-conversation',
+        target: LOCAL_TARGET,
+        taskEnvironment: taskEnvironment(LOCAL_TARGET),
+      });
       expect(NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS).toBe(2 * 60 * 1_000);
     } finally {
       vi.useRealTimers();

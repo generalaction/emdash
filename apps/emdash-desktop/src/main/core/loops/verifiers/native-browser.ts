@@ -450,11 +450,17 @@ async function runNativeBrowserVerification(
           );
         }
         stallRepairs += 1;
+        nestedSession = await restartStalledVerificationSession(
+          nestedSession,
+          binding,
+          ctx,
+          control
+        );
         await waitForEvidenceOperation(
           () =>
             runEvidence.appendIntermediateFailure({
               kind: 'prompt-timeout-repair',
-              message: `Cancelled stalled native verifier turn ${stallRepairs} without executing an action`,
+              message: `Cancelled stalled native verifier turn ${stallRepairs} and restarted its exact ACP runtime without executing an action`,
             }),
           control
         );
@@ -815,6 +821,45 @@ async function runNativeBrowserVerification(
       )
     )
   );
+}
+
+async function restartStalledVerificationSession(
+  session: NativeBrowserSessionHandle,
+  binding: TrustedNativeBrowserBinding,
+  ctx: VerifierRunContext,
+  control: NativeBrowserRunControl
+): Promise<NativeBrowserSessionHandle> {
+  const restart = session.driver.restartVerificationSession;
+  if (!restart) {
+    throw new NativeBrowserVerifierFailure(
+      'execution-error',
+      'Native browser ACP runtime does not support bounded stalled-turn recovery'
+    );
+  }
+  control.assertActive();
+  const restarted = await control.wait(
+    restart.call(session.driver, {
+      loop: ctx.loop,
+      phase: ctx.phase,
+      purpose: 'browser-verification',
+      conversationId: session.conversationId,
+      target: cloneTarget(binding.target),
+      taskEnvironment: { ...binding.taskEnvironment },
+    })
+  );
+  if (!restarted.success) {
+    throw new NativeBrowserVerifierFailure(
+      'execution-error',
+      safeText(restarted.error.message, 'Native browser ACP runtime recovery failed')
+    );
+  }
+  if (restarted.data.conversationId !== session.conversationId) {
+    throw new NativeBrowserVerifierFailure(
+      'execution-error',
+      'Native browser ACP runtime recovery changed the preallocated conversation identity'
+    );
+  }
+  return { ...session, title: safeText(restarted.data.title, session.title, 512) };
 }
 
 export function parseNativeBrowserTerminal(text: string): NativeBrowserTerminalOutcome | null {
