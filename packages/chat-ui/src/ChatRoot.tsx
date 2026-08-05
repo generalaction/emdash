@@ -1523,7 +1523,10 @@ export function ChatRoot(props: ChatRootProps) {
 
     const roHeight = new ResizeObserver((entries) => {
       const h = entries[0]?.contentRect.height;
-      if (h && h > 0) setViewHeight(h);
+      if (!h || h <= 0 || h === untrack(viewHeight)) return;
+      setViewHeight(h);
+      needsProject = true;
+      scheduler.request();
     });
     roHeight.observe(el);
     onCleanup(() => roHeight.disconnect());
@@ -1545,7 +1548,11 @@ export function ChatRoot(props: ChatRootProps) {
     if (props.composer === 'slot' && composerSlotEl) {
       const roSlot = new ResizeObserver((entries) => {
         const h = entries[0]?.contentRect.height ?? 0;
-        setSlotPadBottom(effectiveComposerPlacement() === 'center' ? 0 : h);
+        const next = effectiveComposerPlacement() === 'center' ? 0 : h;
+        if (next === untrack(slotPadBottom)) return;
+        setSlotPadBottom(next);
+        needsProject = true;
+        scheduler.request();
       });
       roSlot.observe(composerSlotEl);
       onCleanup(() => roSlot.disconnect());

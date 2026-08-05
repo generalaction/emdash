@@ -81,6 +81,44 @@ describe('createChatView', () => {
     document.body.removeChild(host);
   });
 
+  it('stays pinned to the bottom when the viewport and composer resize after mount', async () => {
+    const ctx = createChatContext({ theme: DEFAULT_THEME });
+    const state = createChatState(ctx);
+    state.transcript.history.seed(generateMockTranscript(80, 12));
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:420px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({
+      context: ctx,
+      state,
+      parent: host,
+      composer: 'slot',
+      stickToBottom: true,
+    });
+    await nextPaint();
+
+    const scrollEl = host.querySelector('[data-chat-scroll]') as HTMLElement | null;
+    expect(scrollEl).not.toBeNull();
+    expect(view.composerSlot).not.toBeNull();
+
+    view.scrollToBottom();
+    await nextPaint();
+
+    host.style.height = '280px';
+    view.composerSlot!.style.height = '140px';
+    await nextPaint();
+    await nextPaint();
+
+    expect(scrollEl!.scrollHeight - scrollEl!.clientHeight - scrollEl!.scrollTop).toBeLessThan(2);
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
+
   it('aligns pinned user messages with the measured transcript column', async () => {
     const ctx = createChatContext({ theme: DEFAULT_THEME });
     const state = createChatState(ctx);

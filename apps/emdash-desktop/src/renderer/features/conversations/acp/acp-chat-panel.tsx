@@ -53,6 +53,7 @@ import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
 import { buildIssueMentionHiddenContext } from './issue-mention-context';
+import { selectRetainedChatStore } from './select-retained-chat-store';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -584,6 +585,7 @@ const ComposerForStore = observer(function ComposerForStore({
       <ChatComposer
         isWorking={a.isWorking}
         canSubmit={a.canSubmit}
+        initialValue={store.draftText}
         onSubmit={handleSubmit}
         onInputChange={(text) => store.setDraftText(text)}
         onSubmitWhileWorking={handleSubmitWhileWorking}
@@ -646,9 +648,19 @@ const ComposerForStore = observer(function ComposerForStore({
 
 export const AcpChatPanel = observer(function AcpChatPanel() {
   const { pane } = usePaneContext();
-
+  const retainedStoreRef = useRef<AcpChatStore | null>(null);
   const activeTab = pane.resolvedTabs.find((t) => t.isActive && t.kind === 'acp-chat');
-  const store = activeTab ? (activeTab.resource as AcpChatTabResource).store : null;
+  const openStores = pane.resolvedTabs
+    .filter((tab) => tab.kind === 'acp-chat')
+    .map((tab) => (tab.resource as AcpChatTabResource).store);
+  const activeStore = activeTab ? (activeTab.resource as AcpChatTabResource).store : null;
+  retainedStoreRef.current = selectRetainedChatStore(
+    openStores,
+    activeStore,
+    retainedStoreRef.current
+  );
+  const store = retainedStoreRef.current;
+  const isShowingActiveChat = pane.isVisible && activeStore === store;
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ChatView | null>(null);
@@ -689,11 +701,12 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   // scrollToItem on submit. Only the active store holds the handle.
   useEffect(() => {
     if (!store) return;
-    store.bindView(viewRef.current);
+    const view = viewRef.current;
+    store.bindView(view?.composerSlot?.isConnected ? view : null);
     return () => {
       store.bindView(null);
     };
-  }, [store]);
+  }, [store, composerSlot]);
 
   // State-driven notification clearing: mark the active conversation as seen
   // immediately when the panel is showing it. This covers the split-pane case
@@ -725,10 +738,10 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
   }, [agent?.name, cliAuthMethod, providerId, store]);
 
   useEffect(() => {
-    if (conversationStore && !conversationStore.seen) {
+    if (isShowingActiveChat && conversationStore && !conversationStore.seen) {
       conversationStore.markSeen();
     }
-  }, [conversationStore, conversationSeen]);
+  }, [isShowingActiveChat, conversationStore, conversationSeen]);
 
   useEffect(() => {
     if (!store) return;
@@ -806,6 +819,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
 
   const showComposer = !store.historyLoading && store.loadError === null;
   const showHero = showComposer && store.isEmpty;
+  const connectedComposerSlot = composerSlot?.isConnected ? composerSlot : null;
+  const connectedHeroSlot = heroSlot?.isConnected ? heroSlot : null;
+  const connectedOverlaySlot = overlaySlot?.isConnected ? overlaySlot : null;
 
   return (
     <div ref={rootRef} className="relative h-full overflow-hidden bg-background-secondary-1">
@@ -827,7 +843,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           The slot sits at z-index 15 (above pinned, below composer at 20).
           Hide the composer in error state so the overlay owns the whole content area.
           Precedence: error > loading. */}
-      {overlaySlot &&
+      {connectedOverlaySlot &&
         (store.loadError !== null || store.historyLoading) &&
         createPortal(
           <div
@@ -876,29 +892,29 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
               'Loading chat...'
             )}
           </div>,
-          overlaySlot
+          connectedOverlaySlot
         )}
 
       {showHero &&
-        heroSlot &&
+        connectedHeroSlot &&
         createPortal(
           <div className="px-4 text-center">
             <h1 className="text-2xl tracking-tight text-foreground">What are we building today?</h1>
           </div>,
-          heroSlot
+          connectedHeroSlot
         )}
 
-      {showComposer && composerSlot && (
+      {showComposer && connectedComposerSlot && (
         <ComposerForStore
           key={store.conversationId}
           store={store}
-          composerSlot={composerSlot}
+          composerSlot={connectedComposerSlot}
           onViewerOpen={handleViewerOpen}
         />
       )}
 
       {showComposer &&
-        composerSlot &&
+        connectedComposerSlot &&
         !atBottom &&
         createPortal(
           <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
@@ -912,7 +928,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
               <ArrowDown />
             </Button>
           </div>,
-          composerSlot
+          connectedComposerSlot
         )}
 
       <ImageViewerDialog
