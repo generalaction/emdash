@@ -1,7 +1,6 @@
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import { conversationWireEvents } from '@core/features/conversations/node/event-host';
 import { renameConversation } from '@core/features/conversations/node/renameConversation';
-import { setSessionId } from '@core/features/conversations/node/set-session-id';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { setAgentStatusConversationEventPublisher } from '@main/core/agent-status/agent-status-service';
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
@@ -43,7 +42,15 @@ export function installGateway(
     },
     {
       renameConversation: (conversationId, name) =>
-        renameConversation(database.db, conversationId, name),
+        renameConversation(
+          {
+            db: database.db,
+            runtimes: runtimes.broker,
+            hostIsReachable: (hostRef) => services.operations.hostIsReachable(hostRef),
+          },
+          conversationId,
+          name
+        ),
     }
   );
   const publishConversationEvent = (event: Parameters<typeof conversationWireEvents.emit>[1]) =>
@@ -52,8 +59,6 @@ export function installGateway(
   tuiAgentStatusBridge.initialize({
     client: runtimes.clients.tuiAgents,
     onStateChanged: runtimes.workers.tuiAgents.onStateChanged.bind(runtimes.workers.tuiAgents),
-    setSessionId: (conversationId, sessionId) =>
-      setSessionId(conversationId, sessionId, database.db),
     publishConversationEvent,
   });
 

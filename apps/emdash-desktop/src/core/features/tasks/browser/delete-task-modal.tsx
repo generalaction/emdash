@@ -23,6 +23,7 @@ export type DeleteTaskModalArgs = {
 export type DeleteTaskModalResult = {
   deleteWorktree: boolean;
   deleteBranch: boolean;
+  deleteConversations: boolean;
 };
 
 export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
@@ -30,6 +31,7 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
   const { deleteBranchByDefault } = useTaskSettings();
   const [deleteWorktree, setDeleteWorktree] = useState(true);
   const [deleteBranchOverride, setDeleteBranchOverride] = useState<boolean>();
+  const [deleteConversations, setDeleteConversations] = useState(true);
 
   const count = tasks.length;
   const isBulk = count > 1;
@@ -134,6 +136,14 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
             )}
           </div>
         )}
+
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            checked={deleteConversations}
+            onCheckedChange={(checked) => setDeleteConversations(Boolean(checked))}
+          />
+          Delete conversations
+        </label>
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={dismiss}>
@@ -146,6 +156,7 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
             complete({
               deleteWorktree,
               deleteBranch: showBranchCheckbox && shouldDeleteBranch,
+              deleteConversations,
             })
           }
         >

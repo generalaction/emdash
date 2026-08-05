@@ -25,6 +25,7 @@ export const deleteTaskInputSchema = z.object({
   taskId: z.string(),
   deleteWorktree: z.boolean().optional(),
   deleteBranch: z.boolean().optional(),
+  deleteConversations: z.boolean().optional(),
 });
 
 const taskIdInputSchema = z.object({

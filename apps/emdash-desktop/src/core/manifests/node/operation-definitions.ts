@@ -9,6 +9,11 @@ import {
   deleteAutomationOperationContribution,
   type DeleteAutomationOperationDependencies,
 } from '@core/features/automations/node/operations/delete-automation-definition';
+import { hostDeleteConversationOperation } from '@core/features/conversations/api/node/host-delete-conversation-operation';
+import {
+  deleteConversationOperationContribution,
+  type DeleteConversationOperationDependencies,
+} from '@core/features/conversations/node/operations/host-delete-conversation-definition';
 import {
   deleteProjectOperation,
   deleteProjectOperationContribution,
@@ -37,6 +42,7 @@ export type OperationDefinitionOptions = {
   clock?: Clock;
   initiatedBy?: string;
   deleteAutomation: DeleteAutomationOperationDependencies;
+  deleteConversation: DeleteConversationOperationDependencies;
   deleteProject: DeleteProjectOperationDependencies;
   deleteTask: DeleteTaskOperationDependencies;
   hostOutbox: HostOutboxDependencies;
@@ -58,6 +64,7 @@ export function createOperationDefinitions(
   const definitions = [
     ...deleteTaskOperationContribution.create(options.deleteTask, runtime),
     ...deleteAutomationOperationContribution.create(options.deleteAutomation, runtime),
+    ...deleteConversationOperationContribution.create(options.deleteConversation, runtime),
     ...deleteProjectOperationContribution.create(options.deleteProject, runtime),
     ...hostOutboxOperationContribution.create(options.hostOutbox, runtime),
   ];
@@ -77,6 +84,7 @@ export function createDesktopConflictPolicy(descriptors: readonly OperationDefin
   const definitions = [
     deleteTaskOperation,
     deleteAutomationOperation,
+    hostDeleteConversationOperation,
     deleteProjectOperation,
     hostRemoveWorktreeOperation,
     hostCreateWorktreeOperation,

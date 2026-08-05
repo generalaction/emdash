@@ -78,6 +78,10 @@ import {
   type SessionLiveModels,
   type SessionsListModel,
 } from '@runtimes/acp/node/state/live-models';
+import {
+  noopConversationLifecycleReporter,
+  type ConversationLifecycleReporter,
+} from '@services/conversation-reports/node';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 
@@ -115,6 +119,7 @@ export class SessionManager implements InboundRouter {
   private readonly activity = new Map<string, IoActivityTracker>();
   private readonly sessionIdlePolicy: IdlePolicy;
   private readonly idleSweeper: IdleSweeper;
+  private readonly reports: ConversationLifecycleReporter;
 
   constructor(
     private readonly deps: AcpRuntimeDeps & { logger: Logger },
@@ -122,6 +127,7 @@ export class SessionManager implements InboundRouter {
     private readonly terminals: AgentTerminalManager,
     private readonly ports: { fs: FsPort; terminals: TerminalPort }
   ) {
+    this.reports = deps.conversationReports ?? noopConversationLifecycleReporter;
     this.sessionIdlePolicy = compileIdlePolicy(
       deps.lifecycle?.session ?? { kind: 'idle-after', outputMs: 60 * 60_000 }
     );
@@ -185,6 +191,12 @@ export class SessionManager implements InboundRouter {
     const mcpServers = await this.resolveSessionMcpServers(input.providerId, connection);
     const mcpServerSummary = summarizeAcpMcpServers(mcpServers);
     let record: SessionRecord | null = null;
+    // Resume outcome for the lifecycle report (spec §7.4): null when no resume was attempted
+    // (fresh conversation); 'loaded' when the provider replayed the prior session;
+    // 'replaced-by-new' when a prior session existed but could not be restored.
+    let resumeOutcome: 'loaded' | 'replaced-by-new' | null = input.sessionId
+      ? 'replaced-by-new'
+      : null;
 
     try {
       if (input.sessionId && connection.supportsLoadSession && connection.agent.loadSession) {
@@ -217,6 +229,7 @@ export class SessionManager implements InboundRouter {
           if (!queueResult.success) return queueResult;
           record.cell.endReplay();
           loaded = true;
+          resumeOutcome = 'loaded';
         } catch (e) {
           if (isAuthRequiredError(e)) throw e;
           this.deps.logger.warn('SessionManager: loadSession failed, starting a new session', {
@@ -271,6 +284,11 @@ export class SessionManager implements InboundRouter {
       this.publishSessionMcpServers(record, mcpServerSummary);
       this.syncRecord(record);
       this.persistActiveIntent(input, record.cell.acpSessionId);
+      this.reports.sessionStarted({
+        id: input.conversationId,
+        providerSessionId: record.cell.acpSessionId,
+        resumeOutcome,
+      });
       return ok({ sessionId: record.cell.acpSessionId });
     } catch (e) {
       if (record) this.removeRecord(record.input.conversationId, false);
@@ -344,6 +362,7 @@ export class SessionManager implements InboundRouter {
     if (record) {
       record.cell.closeSession().catch(() => {});
       this.removeRecord(conversationId, true);
+      this.reports.sessionEnded(conversationId);
     }
     this.persistSuspendedIntent(conversationId, cause);
     return ok();
@@ -475,6 +494,7 @@ export class SessionManager implements InboundRouter {
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
       this.registerRoute(connection.key, params.sessionId, conversationId);
+      this.reports.providerSessionId({ id: conversationId, providerSessionId: params.sessionId });
     }
     record.cell.recordRaw({
       kind: 'session_update',
@@ -516,6 +536,7 @@ export class SessionManager implements InboundRouter {
       record.cell.processClosed(exitCode);
       this.removeRecord(record.input.conversationId, false);
       this.deleteSessionSummary(record.input.conversationId);
+      this.reports.sessionEnded(record.input.conversationId);
       void this.connections.invalidate({
         providerId: record.input.providerId,
         cwd: record.input.cwd,
@@ -736,11 +757,13 @@ export class SessionManager implements InboundRouter {
   private recordInputActivity(conversationId: string): void {
     this.activityFor(conversationId).recordInput();
     this.syncSessionActivity(conversationId);
+    this.reports.activity(conversationId);
   }
 
   private recordOutputActivity(conversationId: string): void {
     this.activityFor(conversationId).recordOutput();
     this.syncSessionActivity(conversationId);
+    this.reports.activity(conversationId);
   }
 
   private syncSessionActivity(conversationId: string): void {

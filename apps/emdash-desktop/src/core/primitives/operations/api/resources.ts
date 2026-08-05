@@ -48,6 +48,16 @@ export const automationKernelResource = defineResource<'automation', AutomationR
   parent: (ref) => ({ def: projectKernelResource, ref: { projectId: ref.projectId } }),
 });
 
+export interface ConversationResourceRef {
+  conversationId: string;
+}
+
+// No project parent: a conversation record may be an unlinked host mirror (no project).
+export const conversationKernelResource = defineResource<'conversation', ConversationResourceRef>({
+  name: 'conversation',
+  key: (ref) => `conversation:${encodeURIComponent(ref.conversationId)}`,
+});
+
 export const branchKernelResource = defineResource<'branch', BranchResourceRef>({
   name: 'branch',
   key: (ref) =>

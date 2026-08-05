@@ -156,21 +156,39 @@ async function startDesktopWorkersWithHost(
     dependencies: {},
     config: {},
   });
-  const acpWorker = host.create(createAcpComponent({ pluginRegistry, logger: log }), {
-    name: 'acp',
-    executable: desktopWorkerPath('acp'),
+  // The conversations index depends on nothing and spawns first (spec §3.4); the session
+  // runtimes report into it, so their spawns chain on its readiness. Default supervision
+  // (restart on failure) is deliberate: a durable index should come back.
+  const conversationsWorker = host.create(conversationsComponent, {
+    name: 'conversations',
+    executable: desktopWorkerPath('conversations'),
     env: process.env,
-    dependencies: {
-      hostDependencies: hostDependencies.client.resolver,
-    },
+    dependencies: {},
     config: {
-      attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
-      intentsFilePath: sessionIntentFilePaths().acp,
-      lifecycle: {
-        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-        connectionIdleTtlMs: 120_000,
-      },
+      databasePath: join(app.getPath('userData'), 'conversations.db'),
     },
+    shutdownGraceMs: 3_000,
+  });
+  const conversationsReady = conversationsWorker.ready();
+  const acpStart = conversationsReady.then(async (conversations) => {
+    const worker = host.create(createAcpComponent({ pluginRegistry, logger: log }), {
+      name: 'acp',
+      executable: desktopWorkerPath('acp'),
+      env: process.env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        conversations,
+      },
+      config: {
+        attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
+        intentsFilePath: sessionIntentFilePaths().acp,
+        lifecycle: {
+          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+          connectionIdleTtlMs: 120_000,
+        },
+      },
+    });
+    return { client: await worker.ready(), worker };
   });
   const agentConfigWorker = host.create(
     createAgentConfigComponent({ pluginRegistry, logger: log }),
@@ -184,18 +202,6 @@ async function startDesktopWorkersWithHost(
       config: {},
     }
   );
-  // The conversations index depends on nothing and spawns first (spec §3.4). Default
-  // supervision (restart on failure) is deliberate: a durable index should come back.
-  const conversationsWorker = host.create(conversationsComponent, {
-    name: 'conversations',
-    executable: desktopWorkerPath('conversations'),
-    env: process.env,
-    dependencies: {},
-    config: {
-      databasePath: join(app.getPath('userData'), 'conversations.db'),
-    },
-    shutdownGraceMs: 3_000,
-  });
   const mementosWorker = host.create(mementosComponent, {
     name: 'mementos',
     executable: desktopWorkerPath('mementos'),
@@ -242,8 +248,7 @@ async function startDesktopWorkersWithHost(
   });
 
   const watcherReady = fsWatchWorker.ready();
-  const acpReady = acpWorker.ready();
-  const conversationsReady = conversationsWorker.ready();
+  const acpReady = acpStart.then((result) => result.client);
   const agentConfigReady = agentConfigWorker.ready();
   const mementosReady = mementosWorker.ready();
   const pullRequestsReady = pullRequestsWorker.ready();
@@ -286,26 +291,29 @@ async function startDesktopWorkersWithHost(
     });
     return await worker.ready();
   });
-  const tuiAgentsReady = deps.getLocalProjectSettings().then(async (localProjectSettings) => {
-    const worker = host.create(createTuiAgentsComponent({ pluginRegistry, logger: log }), {
-      name: 'tui-agents',
-      executable: desktopWorkerPath('tui-agents'),
-      env: process.env,
-      dependencies: {
-        hostDependencies: hostDependencies.client.resolver,
-      },
-      config: {
-        intentsFilePath: sessionIntentFilePaths().tuiAgents,
-        lifecycle: {
-          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+  const tuiAgentsReady = Promise.all([deps.getLocalProjectSettings(), conversationsReady]).then(
+    async ([localProjectSettings, conversations]) => {
+      const worker = host.create(createTuiAgentsComponent({ pluginRegistry, logger: log }), {
+        name: 'tui-agents',
+        executable: desktopWorkerPath('tui-agents'),
+        env: process.env,
+        dependencies: {
+          hostDependencies: hostDependencies.client.resolver,
+          conversations,
         },
-        hookInstall: {
-          writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
+        config: {
+          intentsFilePath: sessionIntentFilePaths().tuiAgents,
+          lifecycle: {
+            session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+          },
+          hookInstall: {
+            writeGitIgnoreEntries: localProjectSettings.writeAgentConfigToGitIgnore ?? true,
+          },
         },
-      },
-    });
-    return { client: await worker.ready(), worker };
-  });
+      });
+      return { client: await worker.ready(), worker };
+    }
+  );
   const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
     async ([acp, terminals, tuiAgents]) => {
       const worker = host.create(workspaceHostComponent, {
@@ -325,24 +333,28 @@ async function startDesktopWorkersWithHost(
       return await worker.ready();
     }
   );
-  const automationsReady = Promise.all([workspaceHostReady, acpReady, tuiAgentsReady]).then(
-    async ([workspaceHost, acp, tuiAgents]) => {
-      const paths = automationRuntimePaths(resolveDatabasePath());
-      const worker = host.create(createAutomationsComponent(), {
-        name: 'automations',
-        executable: desktopWorkerPath('automations'),
-        env: process.env,
-        dependencies: {
-          workspaceHost,
-          acpSessions: acp,
-          tuiSessions: tuiAgents.client,
-        },
-        config: { dbFile: paths.dbFile },
-        shutdownGraceMs: 3_000,
-      });
-      return { client: await worker.ready(), worker };
-    }
-  );
+  const automationsReady = Promise.all([
+    workspaceHostReady,
+    acpReady,
+    tuiAgentsReady,
+    conversationsReady,
+  ]).then(async ([workspaceHost, acp, tuiAgents, conversationsClient]) => {
+    const paths = automationRuntimePaths(resolveDatabasePath());
+    const worker = host.create(createAutomationsComponent(), {
+      name: 'automations',
+      executable: desktopWorkerPath('automations'),
+      env: process.env,
+      dependencies: {
+        workspaceHost,
+        acpSessions: acp,
+        tuiSessions: tuiAgents.client,
+        conversationIndex: conversationsClient,
+      },
+      config: { dbFile: paths.dbFile },
+      shutdownGraceMs: 3_000,
+    });
+    return { client: await worker.ready(), worker };
+  });
 
   const [
     acp,
@@ -395,7 +407,7 @@ async function startDesktopWorkersWithHost(
       workspaceHost,
     },
     workers: {
-      acp: acpWorker,
+      acp: (await acpStart).worker,
       tuiAgents: tuiAgentsResult.worker,
     },
     dispose() {

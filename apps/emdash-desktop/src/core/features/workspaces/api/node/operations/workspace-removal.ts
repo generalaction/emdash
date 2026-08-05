@@ -1,7 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import { formatHostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
+import {
+  formatHostRef,
+  hostRefFromParts,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
+import {
+  hostDeleteConversationOperation,
+  type HostDeleteConversationInput,
+} from '@core/features/conversations/api/node/host-delete-conversation-operation';
+import { compileConversationDeletionInput } from '@core/features/conversations/api/node/operations/conversation-removal';
+import {
+  createConversationRegistry,
+  conversationRegistryTable as conversationRows,
+  liveConversations,
+} from '@core/features/conversations/api/node/registry';
 import {
   hostRemoveWorktreeOperation,
   type HostRemoveWorktreeInput,
@@ -35,7 +49,7 @@ export type ArchiveWorkspaceInput = {
 export async function enqueueDeleteWorkspace(
   operations: OperationSubmitter,
   workspaceId: string,
-  options: { deleteBranch?: boolean } = {}
+  options: { deleteBranch?: boolean; deleteConversations?: boolean } = {}
 ) {
   const workspace = createWorkspaceRegistry(operations.db).getLive(workspaceId);
   if (!workspace) {
@@ -68,14 +82,19 @@ export async function enqueueDeleteWorkspace(
     ),
     requireUnused: true,
     deleteBranch: options.deleteBranch ?? false,
+    deleteConversations: options.deleteConversations ?? false,
   });
 }
 
 export async function enqueueDeleteWorkspacePath(
   operations: OperationSubmitter,
-  input: ArchiveWorkspaceInput
+  input: ArchiveWorkspaceInput,
+  options: { deleteConversations?: boolean } = {}
 ) {
-  return enqueueWorkspacePathRemoval(operations, input, { requireUnused: true });
+  return enqueueWorkspacePathRemoval(operations, input, {
+    requireUnused: true,
+    deleteConversations: options.deleteConversations ?? false,
+  });
 }
 
 export async function enqueueArchiveWorkspace(
@@ -88,7 +107,7 @@ export async function enqueueArchiveWorkspace(
 async function enqueueWorkspacePathRemoval(
   operations: OperationSubmitter,
   input: ArchiveWorkspaceInput,
-  options: { requireUnused: boolean }
+  options: { requireUnused: boolean; deleteConversations?: boolean }
 ) {
   const [project] = await getProjectRemovalRow(operations.db, input.projectId, {
     liveOnly: true,
@@ -122,6 +141,7 @@ async function enqueueWorkspacePathRemoval(
       })
     ),
     requireUnused: options.requireUnused && input.workspaceId !== undefined,
+    deleteConversations: options.deleteConversations ?? false,
   });
 }
 
@@ -137,6 +157,7 @@ async function enqueueWorkspaceRemoval(
     hostRef: SerializedHostRef;
     requireUnused: boolean;
     deleteBranch?: boolean;
+    deleteConversations?: boolean;
   }
 ) {
   const createdAt = Date.now();
@@ -147,6 +168,19 @@ async function enqueueWorkspaceRemoval(
   // Only git worktrees map onto the `removeWorktree` verb; directory rows
   // (and rows without a row at all when path-addressed) are untracked only.
   const hostRemovable = !params.workspace || params.workspace.kind === 'worktree';
+  // Opt-in only (spec §7.1): removal defaults to archive semantics — records survive with
+  // dangling paths and stay resumable if the path is recreated. The `removeWorktree` verb
+  // itself never touches conversation records; the coupling is these explicit per-record
+  // requests, snapshot-compiled at enqueue time.
+  const conversationDeletions = params.deleteConversations
+    ? snapshotWorkspaceConversationDeletions(operations.db, {
+        workspacePath: params.workspacePath,
+        hostRef: params.hostRef,
+        createdAt,
+      })
+    : [];
+  const conversationIds = conversationDeletions.map((deletion) => deletion.conversationId);
+  const conversationRegistry = createConversationRegistry(operations.db);
 
   // Nothing to remove on the host: untrack the row inline.
   if (!params.workspacePath || !params.repoPath || !hostRemovable) {
@@ -157,13 +191,15 @@ async function enqueueWorkspaceRemoval(
       workspaceId,
       requireUnused: params.requireUnused,
       createdAt,
+      conversationIds,
     });
     if (!untracked.success) return untracked;
+    await submitConversationDeletions(operations, params.projectId, conversationDeletions);
     appDbPokes.workspaces.poke({ projectId: params.projectId });
     return ok({});
   }
 
-  return enqueueTombstoned(operations, {
+  const result = await enqueueTombstoned(operations, {
     definition: hostRemoveWorktreeOperation,
     load: () => params,
     notFound: () => ({ type: 'workspace-not-found', message: 'Workspace was not found.' }),
@@ -196,20 +232,76 @@ async function enqueueWorkspaceRemoval(
         workspaceId,
         requireUnused: params.requireUnused,
       }),
-    tombstone: (tx) =>
-      workspaceId
+    tombstone: (tx) => {
+      const changes = workspaceId
         ? registry.untrack([workspaceId], new Date(createdAt).toISOString(), undefined, tx)
-        : 1,
+        : 1;
+      if (changes > 0) {
+        conversationRegistry.untrack(conversationIds, new Date(createdAt).toISOString(), tx);
+      }
+      return changes;
+    },
     revert: (tx) => {
       if (workspaceId) registry.revertUntrack([workspaceId], tx);
+      conversationRegistry.revertUntrack(conversationIds, tx);
     },
     poke: () => appDbPokes.workspaces.poke({ projectId: params.projectId }),
   });
+  if (result.success) {
+    await submitConversationDeletions(operations, params.projectId, conversationDeletions);
+  }
+  return result;
+}
+
+/**
+ * Snapshot-compiles per-record delete requests for the workspace's cached conversation
+ * records: same observed path, same host. Compiled before any tombstone so identity rides
+ * the operation inputs.
+ */
+function snapshotWorkspaceConversationDeletions(
+  db: AppDb,
+  params: { workspacePath: string | undefined; hostRef: SerializedHostRef; createdAt: number }
+): HostDeleteConversationInput[] {
+  if (!params.workspacePath) return [];
+  const rows = db
+    .select()
+    .from(conversationRows)
+    .where(and(eq(conversationRows.workspacePath, params.workspacePath), liveConversations()))
+    .all();
+  return rows
+    .filter((row) => {
+      try {
+        return (
+          formatHostRef(hostRefFromParts(row.location, row.sshConnectionId)) === params.hostRef
+        );
+      } catch {
+        return false;
+      }
+    })
+    .map((row) => compileConversationDeletionInput(row, params.createdAt));
+}
+
+async function submitConversationDeletions(
+  operations: OperationSubmitter,
+  projectId: string | undefined,
+  deletions: readonly HostDeleteConversationInput[]
+): Promise<void> {
+  for (const deletion of deletions) {
+    await operations.submit(hostDeleteConversationOperation, deletion);
+  }
+  if (deletions.length > 0) {
+    appDbPokes.conversations.poke({ projectId });
+  }
 }
 
 function untrackWorkspaceInline(
   db: AppDb,
-  input: { workspaceId: string; requireUnused: boolean; createdAt: number }
+  input: {
+    workspaceId: string;
+    requireUnused: boolean;
+    createdAt: number;
+    conversationIds?: readonly string[];
+  }
 ): Result<Record<string, never>, { type: string; message: string }> {
   const registry = createWorkspaceRegistry(db, {
     now: () => new Date(input.createdAt).toISOString(),
@@ -222,6 +314,13 @@ function untrackWorkspaceInline(
     });
     if (failure) return;
     registry.untrack([input.workspaceId], new Date(input.createdAt).toISOString(), undefined, tx);
+    if (input.conversationIds?.length) {
+      createConversationRegistry(db).untrack(
+        input.conversationIds,
+        new Date(input.createdAt).toISOString(),
+        tx
+      );
+    }
   });
   return failure ? err(failure) : ok({});
 }

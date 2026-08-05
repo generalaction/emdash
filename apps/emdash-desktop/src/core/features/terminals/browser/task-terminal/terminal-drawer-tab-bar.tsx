@@ -255,7 +255,7 @@ export function NewTerminalButton({
           ) : shellMenuState.kind === 'error' ? (
             <DropdownMenuItem title={shellMenuState.message} onClick={onRetryShellAvailability}>
               <RefreshCw />
-              Failed toload shells
+              Failed to load shells
             </DropdownMenuItem>
           ) : shellMenuState.availability.length === 0 ? (
             <DropdownMenuItem disabled>No shells found</DropdownMenuItem>

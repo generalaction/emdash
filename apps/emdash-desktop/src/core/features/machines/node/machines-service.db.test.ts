@@ -1,10 +1,14 @@
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createConversationRegistry,
+  conversationRegistryTable as conversationRows,
+} from '@core/features/conversations/api/node/registry';
 import { MachinesService } from '@core/features/machines/api/node/machines-service';
 import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { projects, sshConnections } from '@core/services/app-db/node/schema';
+import { projects, sshConnections, tasks } from '@core/services/app-db/node/schema';
 
 async function insertSshConnection(db: AppDb): Promise<void> {
   await db.insert(sshConnections).values({
@@ -152,6 +156,46 @@ describe('MachinesService', () => {
     expect(deleteAllCredentials).toHaveBeenCalledWith('ssh-1');
     expect(removeRuntimeState).toHaveBeenCalledWith('ssh-1');
     expect(events).toEqual([{ type: 'deleted', connectionId: 'ssh-1' }]);
+  });
+
+  it('applies the conversation mirror rules when forgetting a host', async () => {
+    await insertSshConnection(fixture.db);
+    // A task-linked cached record and an unlinked mirror row, both from this host. The
+    // task's project must not reference the machine or deletion is refused.
+    await fixture.db.insert(projects).values({ id: 'project-1', name: 'Unrelated Project' });
+    await fixture.db
+      .insert(tasks)
+      .values({ id: 'task-1', projectId: 'project-1', name: 'Task', status: 'running' });
+    const registry = createConversationRegistry(fixture.db);
+    registry.register({
+      id: 'conv-linked',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      title: 'Linked',
+      provider: 'claude',
+      type: 'acp',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+      isInitialConversation: true,
+    });
+    registry.adopt({
+      id: 'conv-unlinked',
+      title: 'Unlinked mirror',
+      provider: 'codex',
+      type: 'pty',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedStatus: 'present',
+    });
+
+    await service.deleteMachine('ssh-1');
+
+    // Spec §7.3: linked records stay visible as stale observations; unlinked mirror rows
+    // drop with the mirror. The host's own index is untouched — re-adding reconverges.
+    const rows = await fixture.db.select().from(conversationRows);
+    expect(rows.map((row) => row.id)).toEqual(['conv-linked']);
+    expect(rows[0]).toMatchObject({ taskId: 'task-1', untrackedAt: null });
   });
 
   it('does not delete credentials when a project still uses the machine', async () => {

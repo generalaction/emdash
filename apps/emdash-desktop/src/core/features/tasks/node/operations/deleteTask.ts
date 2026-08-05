@@ -13,6 +13,7 @@ export async function deleteTask(
     taskId,
     deleteWorktree: options.deleteWorktree,
     deleteBranch: options.deleteBranch,
+    deleteConversations: options.deleteConversations,
   });
   if (!result.success && result.error.type !== 'task-not-found') {
     throw new Error(result.error.message);

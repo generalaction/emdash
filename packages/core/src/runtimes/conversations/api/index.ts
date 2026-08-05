@@ -21,6 +21,10 @@ export {
   createConversationInputSchema,
   deleteConversationInputSchema,
   renameConversationInputSchema,
+  reportProviderSessionIdInputSchema,
+  reportSessionActivityInputSchema,
+  reportSessionEndedInputSchema,
+  reportSessionStartedInputSchema,
   updateConversationConfigInputSchema,
   type ConversationConfig,
   type ConversationIdRegime,
@@ -31,6 +35,10 @@ export {
   type CreateConversationInput,
   type DeleteConversationInput,
   type RenameConversationInput,
+  type ReportProviderSessionIdInput,
+  type ReportSessionActivityInput,
+  type ReportSessionEndedInput,
+  type ReportSessionStartedInput,
   type UpdateConversationConfigInput,
 } from './schemas';
 export { conversationsWorker } from './worker';

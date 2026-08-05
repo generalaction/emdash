@@ -246,6 +246,34 @@
       "when": 1785875538731,
       "tag": "0034_retirement_untracked_at_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1785890007455,
+      "tag": "0035_conversation_registry_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1785890023973,
+      "tag": "0036_conversation_registry_data_train",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1785890119634,
+      "tag": "0037_conversation_registry_drops",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1785899023869,
+      "tag": "0038_conversation_task_cascade_retirement",
+      "breakpoints": true
     }
   ]
 }

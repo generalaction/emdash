@@ -31,7 +31,11 @@ export const projectWorkspacesContract = defineContract({
     output: z.custom<GetProjectWorkspaceGitStatsResult>(),
   }),
   deleteProjectWorkspaces: procedure({
-    input: z.object({ projectId: z.string(), paths: z.array(z.string()) }),
+    input: z.object({
+      projectId: z.string(),
+      paths: z.array(z.string()),
+      deleteConversations: z.boolean().optional(),
+    }),
     output: z.custom<ProjectWorkspaceActionSummary>(),
   }),
   invalidateWorkspaceScanCache: procedure({

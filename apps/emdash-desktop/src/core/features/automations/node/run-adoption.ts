@@ -8,6 +8,7 @@ import { isAutomationRunAdoptable } from '@core/features/automations/api/automat
 import { upsertRunProjection } from '@core/features/automations/api/node/run-projection';
 import { conversationWireEvents } from '@core/features/conversations/api/node';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
+import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
@@ -19,12 +20,7 @@ import { projectHostRef, type Project } from '@core/primitives/projects/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import {
-  conversations,
-  tasks,
-  type ConversationRow,
-  type TaskRow,
-} from '@core/services/app-db/node/schema';
+import { tasks, type ConversationRow, type TaskRow } from '@core/services/app-db/node/schema';
 import {
   automationRunMetaForRun,
   conversationForRun,
@@ -228,7 +224,30 @@ async function adoptRunOnce(
         .all();
       created = true;
       if (conversationInsert) {
-        [conversationRow] = tx.insert(conversations).values(conversationInsert).returning().all();
+        // Record creation happened host-side when the run's session started (spec §10.5);
+        // adoption only gives the mirror row its task link. Convergence may have mirrored
+        // the record already — annotate then; otherwise seed the mirror row directly.
+        const conversationRegistry = createConversationRegistry(dependencies.db);
+        if (conversationRegistry.getLive(conversationInsert.id, tx)) {
+          conversationRegistry.annotate(
+            conversationInsert.id,
+            { projectId, taskId, isInitialConversation: true },
+            tx
+          );
+          conversationRow = conversationRegistry.getLive(conversationInsert.id, tx);
+        } else {
+          conversationRow = conversationRegistry.register(
+            {
+              ...conversationInsert,
+              cwd: workspacePath,
+              workspacePath,
+              idRegime: conversationInsert.type === 'acp' ? 'provider-minted' : 'emdash-chosen',
+              location: workspaceStorage.location,
+              sshConnectionId: workspaceStorage.sshConnectionId,
+            },
+            tx
+          );
+        }
       }
     });
 
@@ -236,9 +255,11 @@ async function adoptRunOnce(
     if (created) dependencies.taskService.notifyTaskCreated(task, taskParams);
     if (created && conversationRow) {
       const conversation = mapConversationRowToConversation(conversationRow);
-      conversationEvents._emit('conversation:created', conversation);
-      conversationWireEvents.emit(undefined, { type: 'created', conversation });
-      appDbPokes.conversations.poke({ projectId: task.projectId, taskId: task.id });
+      if (conversation !== null) {
+        conversationEvents._emit('conversation:created', conversation);
+        conversationWireEvents.emit(undefined, { type: 'created', conversation });
+        appDbPokes.conversations.poke({ projectId: task.projectId, taskId: task.id });
+      }
     }
     if (created) appDbPokes.tasks.poke({ projectId: task.projectId, taskId: task.id });
     return ok({ taskId: task.id, projectId: task.projectId });

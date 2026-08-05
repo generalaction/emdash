@@ -318,6 +318,14 @@ export class OperationsEngine {
     return active.records.some((record) => claimsCollide(claims, record.claims));
   }
 
+  /** Parsed inputs of every non-settled record of one operation (pending-work presentation). */
+  async activeOperationInputs(operationName: string): Promise<readonly unknown[]> {
+    const active = await this.kernel.query({ name: operationName, active: true });
+    return active.records
+      .map((record) => this.parseRecord(record)?.input)
+      .filter((input) => input !== undefined);
+  }
+
   async latestForWorkspace(
     operationName: string,
     workspaceId: string,

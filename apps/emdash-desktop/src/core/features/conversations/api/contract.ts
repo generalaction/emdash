@@ -13,6 +13,7 @@ import type {
   Conversation,
   ConversationEvent,
   CreateConversationParams,
+  HostConversationRow,
 } from '@core/primitives/conversations/api';
 import {
   runtimeFallibleProcedure,
@@ -177,6 +178,22 @@ export const conversationsContract = defineContract({
     output: z.custom<Conversation[]>(),
   }),
   markConversationSeen: procedure({
+    input: z.object({ conversationId: z.string() }),
+    output: z.void(),
+  }),
+  // Machine-page surface (spec §8): host-scoped registry reads plus link-free management.
+  listHostConversations: procedure({
+    input: z.object({
+      location: z.enum(['local', 'remote']),
+      sshConnectionId: z.string().nullable(),
+    }),
+    output: z.custom<HostConversationRow[]>(),
+  }),
+  linkConversationToTask: procedure({
+    input: z.object({ conversationId: z.string(), projectId: z.string(), taskId: z.string() }),
+    output: z.void(),
+  }),
+  deleteHostConversation: procedure({
     input: z.object({ conversationId: z.string() }),
     output: z.void(),
   }),

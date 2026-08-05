@@ -4,6 +4,7 @@ import { provisionWorkspaceErrorToWorkspaceError } from '@core/features/workspac
 vi.mock('@core/services/app-db/node/schema', () => ({
   tasks: {},
   workspaces: {},
+  conversations: {},
 }));
 
 describe('provisionWorkspaceErrorToWorkspaceError', () => {

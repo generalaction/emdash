@@ -5,6 +5,7 @@ import { createWorkspacesWireController } from './wire-controller';
 vi.mock('@core/services/app-db/node/schema', () => ({
   tasks: {},
   workspaces: {},
+  conversations: {},
 }));
 
 describe('createWorkspacesWireController', () => {

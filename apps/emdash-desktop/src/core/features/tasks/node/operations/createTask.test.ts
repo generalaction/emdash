@@ -21,14 +21,24 @@ const operations = {
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
 const projects = { getProject: mocks.getProject };
 const placement = { resolveWorktreeRoot: mocks.resolveWorktreeRoot };
+const hostConversations = {
+  create: vi.fn(async (input: { id: string }) => ({ success: true as const, data: input })),
+  delete: vi.fn(async () => ({ success: true as const, data: undefined })),
+};
+const runtimes = {
+  client: vi.fn(async () => ({
+    success: true as const,
+    data: { conversations: hostConversations },
+  })),
+} as never;
 
 function createTask(
   _db: typeof db,
   _projects: typeof projects,
   _operations: typeof operations,
-  params: Parameters<typeof createTaskOperation>[4]
+  params: Parameters<typeof createTaskOperation>[5]
 ) {
-  return createTaskOperation(db, projects, operations, placement, params);
+  return createTaskOperation(db, projects, operations, placement, runtimes, params);
 }
 
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {
@@ -93,6 +103,8 @@ function fakeTx(captured: unknown[]) {
       set: () => ({ where: () => ({ run: () => ({ changes: 1 }) }) }),
     }),
     delete: () => ({ where: () => ({ run: () => ({ changes: 1 }) }) }),
+    // Conversation-registry purge checks that no live (tracked) rows remain first.
+    select: () => ({ from: () => ({ where: () => ({ all: () => [] }) }) }),
   };
 }
 
@@ -110,7 +122,13 @@ function setupSelectMock() {
       : {
           from: () => ({
             where: () => ({
-              limit: () => ({ get: () => mocks.registryRows.shift() }),
+              limit: () => ({
+                get: () => mocks.registryRows.shift(),
+                all: () => {
+                  const row = mocks.registryRows.shift();
+                  return row === undefined ? [] : [row];
+                },
+              }),
             }),
           }),
         }
@@ -411,6 +429,29 @@ describe('createTask', () => {
       );
     });
 
+    it('refuses repository-instance creation when the remote host is unreachable', async () => {
+      makeProjectRemote();
+      mocks.hostIsReachable.mockReturnValue(false);
+      const { captured } = setupTransactionMock();
+
+      const result = await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+        },
+      });
+
+      // One rule (spec §6.3): this path was previously ungated because it only
+      // wrote client SQLite; under host residency it refuses like new-worktree.
+      expect(result.success).toBe(false);
+      expect(captured).toHaveLength(0);
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
+
     it('untracks the Registry row and rolls back task rows when enqueue is rejected', async () => {
       const { captured } = setupTransactionMock();
       const mutationRuns = vi.fn(() => ({ changes: 1 }));
@@ -458,7 +499,136 @@ describe('createTask', () => {
         success: false,
         error: { type: 'provision-failed', message: 'conflict' },
       });
-      expect(mutationRuns).toHaveBeenCalledTimes(3);
+      // Workspace untrack + task-row delete; no initial conversation exists here, so the
+      // registry-mediated conversation rollback contributes no mutations.
+      expect(mutationRuns).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('host-first conversation record (spec §6.2)', () => {
+    const worktreeParams = {
+      id: 'task-1',
+      projectId: 'project-1',
+      taskConfig: {
+        version: '1' as const,
+        name: 'Test Task',
+        initialConversation: {
+          id: 'conv-1',
+          provider: 'claude-code',
+          type: 'acp' as const,
+          title: 'First conversation',
+          initialQueue: [{ text: 'do the thing' }],
+        },
+      },
+      workspaceConfig: {
+        version: '2' as const,
+        git: {
+          kind: 'create-branch' as const,
+          branchName: 'feature/test',
+          fromBranch: { type: 'local' as const, branch: 'main' },
+        },
+        workspace: { kind: 'new-worktree' as const },
+      },
+    };
+
+    it('registers the record on the host before the desktop commit, path frozen and prompt in config', async () => {
+      setupTransactionMock();
+
+      const result = await createTask(db, projects, operations, worktreeParams);
+      expect(result.success).toBe(true);
+
+      expect(hostConversations.create).toHaveBeenCalledTimes(1);
+      const hostInput = hostConversations.create.mock.calls[0][0] as Record<string, unknown>;
+      const outboxInput = mocks.submitWithTombstone.mock.calls[0][1] as Record<string, unknown>;
+      // conv.path-frozen: the record is born dangling with the Placement-computed
+      // path already frozen — identical to the path the pending worktree operation
+      // (and any same-path retry of it) will materialize.
+      expect(hostInput.workspacePath).toBe(outboxInput.workspacePath);
+      expect(hostInput.cwd).toBe(outboxInput.workspacePath);
+      expect(hostInput).toMatchObject({
+        id: 'conv-1',
+        provider: 'claude-code',
+        type: 'acp',
+        idRegime: 'provider-minted',
+        title: 'First conversation',
+        config: expect.objectContaining({ initialQueue: [{ text: 'do the thing' }] }),
+      });
+      // Host-first ordering: index registration precedes the desktop transaction.
+      expect(hostConversations.create.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.submitWithTombstone.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('fails creation without a desktop commit when host registration fails', async () => {
+      setupTransactionMock();
+      hostConversations.create.mockResolvedValueOnce({
+        success: false,
+        error: { type: 'immutable-field-mismatch', message: 'id reuse' },
+      } as never);
+
+      const result = await createTask(db, projects, operations, worktreeParams);
+
+      expect(result).toEqual({
+        success: false,
+        error: { type: 'provision-failed', message: 'id reuse' },
+      });
+      expect(mocks.submitWithTombstone).not.toHaveBeenCalled();
+      expect(hostConversations.delete).not.toHaveBeenCalled();
+    });
+
+    it('compensates with a direct foreground delete when the desktop commit fails', async () => {
+      const { captured } = setupTransactionMock();
+      mocks.submitWithTombstone.mockImplementationOnce(
+        async (
+          _definition: unknown,
+          _input: unknown,
+          options: { tombstone(tx: unknown): number; revertTombstone(tx: unknown): void }
+        ) => {
+          options.tombstone(fakeTx(captured));
+          options.revertTombstone(fakeTx(captured));
+          return { success: false, error: { type: 'operation-conflict', message: 'conflict' } };
+        }
+      );
+
+      const result = await createTask(db, projects, operations, worktreeParams);
+
+      expect(result.success).toBe(false);
+      expect(hostConversations.delete).toHaveBeenCalledWith({ id: 'conv-1' });
+    });
+
+    it('freezes the existing workspace path for repository-instance targets', async () => {
+      const { captured } = setupTransactionMock();
+      mocks.registryRows.push({ id: 'ws-repo-1', path: '/repo' });
+
+      const result = await createTask(db, projects, operations, {
+        ...worktreeParams,
+        taskConfig: {
+          ...worktreeParams.taskConfig,
+          initialConversation: {
+            ...worktreeParams.taskConfig.initialConversation,
+            type: 'pty' as const,
+            initialQueue: undefined,
+            initialPrompt: 'do the thing',
+          },
+        },
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+        },
+      });
+      expect(result.success).toBe(true);
+
+      const hostInput = hostConversations.create.mock.calls[0][0] as Record<string, unknown>;
+      expect(hostInput).toMatchObject({
+        workspacePath: '/repo',
+        cwd: '/repo',
+        idRegime: 'emdash-chosen',
+        config: expect.objectContaining({ initialPrompt: 'do the thing' }),
+      });
+      // captured[0]=task, captured[1]=conversation registry row with the same frozen path.
+      const convInsert = captured[1] as Record<string, unknown>;
+      expect(convInsert).toMatchObject({ id: 'conv-1', workspacePath: '/repo', cwd: '/repo' });
     });
   });
 });

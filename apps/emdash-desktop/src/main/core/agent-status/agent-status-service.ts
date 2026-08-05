@@ -89,6 +89,8 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
 
     if (status) {
       const derivedSeen = status === 'working' ? 1 : 0;
+      // Direct write is sanctioned: agent_status/agent_status_seen are a device-local
+      // cache outside the registry's observation discipline (see schema comment).
       const [row] = await getAppDb()
         .update(conversations)
         .set(
@@ -102,8 +104,10 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
           agentStatusSeen: conversations.agentStatusSeen,
         });
       if (!row) return;
+      // Unlinked mirror rows have no task surface to notify.
+      if (row.projectId === null || row.taskId === null) return;
 
-      context = row;
+      context = { projectId: row.projectId, taskId: row.taskId, providerId: row.providerId };
       publishConversationEvent({
         type: 'agent-status-changed',
         conversationId: signal.conversationId,
@@ -119,7 +123,8 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
         .where(eq(conversations.id, signal.conversationId))
         .limit(1);
       if (!row) return;
-      context = row;
+      if (row.projectId === null || row.taskId === null) return;
+      context = { projectId: row.projectId, taskId: row.taskId, providerId: row.providerId };
     }
 
     if (deliver) {
@@ -144,6 +149,7 @@ export class AgentStatusService implements Hookable<AgentStatusServiceHooks> {
       )
       .returning(conversationContextSelection());
     if (!row) return;
+    if (row.projectId === null || row.taskId === null) return;
 
     publishConversationEvent({
       type: 'agent-status-changed',

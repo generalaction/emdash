@@ -1,4 +1,5 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { conversationIndexContract } from '@services/conversation-index/api';
 import { acpSessionStartContract, tuiSessionStartContract } from '@services/session-start/api';
 import { workspaceHostActionsContract } from '@services/workspace-host-actions/api';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ export function createAutomationsComponent() {
       workspaceHost: requireContract(workspaceHostActionsContract),
       acpSessions: requireContract(acpSessionStartContract),
       tuiSessions: requireContract(tuiSessionStartContract),
+      conversationIndex: requireContract(conversationIndexContract),
     },
     configSchema: automationsComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -36,6 +38,7 @@ export function createAutomationsComponent() {
           workspaceHost: dependencies.workspaceHost,
           acp: dependencies.acpSessions,
           tui: dependencies.tuiSessions,
+          conversationIndex: dependencies.conversationIndex,
         }),
         logger,
         tickIntervalMs: config.tickIntervalMs,

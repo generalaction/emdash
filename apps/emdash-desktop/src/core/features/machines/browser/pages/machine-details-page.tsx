@@ -2,7 +2,16 @@ import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
 import { Button, DropdownMenu, Heading, SeparatedList } from '@emdash/ui/react/primitives';
 import { SelectableCard } from '@emdash/ui/react/primitives';
-import { Activity, Brain, EllipsisIcon, Folder, PencilIcon, Trash2Icon, User } from 'lucide-react';
+import {
+  Activity,
+  Brain,
+  EllipsisIcon,
+  Folder,
+  MessageSquare,
+  PencilIcon,
+  Trash2Icon,
+  User,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +28,7 @@ import { isServerUsable } from '@core/services/remote-machine/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';
+import { MachineConversationsList } from '../components/machine-conversations-list';
 import { ResourceUtilizationRow } from '../components/machine-resources';
 import { deriveMachineStatusKind } from '../components/machine-status-kind';
 import { MachineSystemDependenciesCard } from '../components/machine-system-dependencies';
@@ -27,7 +37,13 @@ import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { useMachineMetrics } from '../use-machine-metrics';
 import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
 
-type MachineDetailsSection = 'system' | 'workspaces' | 'agents' | 'mcp' | 'skills';
+type MachineDetailsSection =
+  | 'system'
+  | 'workspaces'
+  | 'conversations'
+  | 'agents'
+  | 'mcp'
+  | 'skills';
 
 function MachineDetailsCard({
   children,
@@ -262,7 +278,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         </DropdownMenu.Root>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-6 gap-2">
         <MachineDetailsCard
           icon={<Activity size={14} />}
           title="System"
@@ -274,6 +290,12 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           title="Workspaces"
           selected={section === 'workspaces'}
           onClick={() => setSection('workspaces')}
+        />
+        <MachineDetailsCard
+          icon={<MessageSquare size={14} />}
+          title="Conversations"
+          selected={section === 'conversations'}
+          onClick={() => setSection('conversations')}
         />
         <MachineDetailsCard
           icon={<User size={14} />}
@@ -343,6 +365,14 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
           machineId={machine.id}
           connectionId={machine.id}
           enabled={serverUsable}
+        />
+      )}
+
+      {/* Reads this device's registry cache, so it stays available while the host is offline. */}
+      {section === 'conversations' && (
+        <MachineConversationsList
+          scope={{ kind: 'remote', connectionId: machine.id }}
+          hostReachable={connected}
         />
       )}
 

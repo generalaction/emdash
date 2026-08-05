@@ -8,7 +8,7 @@ import {
 import { type ConversationRow } from '@core/services/app-db/node/schema';
 
 function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undefined {
-  if (row.sessionId !== null) return undefined;
+  if (row.providerSessionId !== null) return undefined;
   const config = row.config;
   if (config?.type !== 'acp') return undefined;
   if (config.initialQueue?.length) return config.initialQueue;
@@ -16,7 +16,13 @@ function initialQueueFromRow(row: ConversationRow): InitialQueuePrompt[] | undef
   return legacyPrompt ? [{ text: legacyPrompt }] : undefined;
 }
 
-export function mapConversationRowToConversation(row: ConversationRow): Conversation {
+/**
+ * Maps a registry row to the task-surface Conversation DTO. Unlinked rows (adopted mirror
+ * rows with no task annotation) map to null: they never appear inside task surfaces
+ * (spec §5.4) — they surface on the machine page instead.
+ */
+export function mapConversationRowToConversation(row: ConversationRow): Conversation | null {
+  if (row.taskId === null || row.projectId === null) return null;
   const config = row.config;
   return {
     id: row.id,
@@ -25,14 +31,21 @@ export function mapConversationRowToConversation(row: ConversationRow): Conversa
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
     autoApprove: config?.autoApprove,
-    sessionId: row.sessionId ?? undefined,
+    sessionId: row.providerSessionId ?? undefined,
     model: config?.model,
     modeId: config?.type === 'acp' ? config.modeId : undefined,
     initialQueue: initialQueueFromRow(row),
-    lastInteractedAt: row.lastInteractedAt ?? null,
+    lastInteractedAt: row.lastSessionActivityAt ?? null,
     isInitialConversation: row.isInitialConversation,
     agentStatus: (row.agentStatus as AgentStatus | null) ?? null,
     agentStatusSeen: row.agentStatusSeen === 1,
     type: (row.type as ConversationType | null) ?? 'pty',
   };
+}
+
+/** List-mapping helper: maps rows and drops unlinked mirror rows. */
+export function mapConversationRowsToConversations(rows: ConversationRow[]): Conversation[] {
+  return rows
+    .map(mapConversationRowToConversation)
+    .filter((conversation): conversation is Conversation => conversation !== null);
 }

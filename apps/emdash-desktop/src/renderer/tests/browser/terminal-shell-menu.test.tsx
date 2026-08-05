@@ -66,7 +66,7 @@ describe('terminal shell menu', () => {
     });
     const retry = Array.from(
       document.body.querySelectorAll<HTMLElement>('[data-slot="dropdown-menu-item"]')
-    ).find((item) => item.textContent?.includes("Couldn't load shells"));
+    ).find((item) => item.textContent?.includes('Failed to load shells'));
 
     expect(retry?.title).toBe('Remote endpoint unavailable');
     await act(async () => retry!.click());

@@ -1,11 +1,23 @@
 import crypto from 'node:crypto';
-import { formatHostRef } from '@emdash/core/primitives/host/api';
+import { formatHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { ResourceClaim } from '@emdash/core/primitives/kernel/api';
+import type { CreateConversationInput } from '@emdash/core/runtimes/conversations/api';
 import { compileWorktreePayload } from '@emdash/core/services/workspace-host-actions/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { conversationWireEvents } from '@core/features/conversations/api/node';
+import {
+  buildHostConversationCreateInput,
+  compensateHostConversationRecord,
+  conversationIdRegimeFor,
+  createHostConversationRecord,
+} from '@core/features/conversations/api/node/host-index';
+import {
+  createConversationRegistry,
+  type ConversationRegistry,
+} from '@core/features/conversations/api/node/registry';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
+import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
 import {
@@ -32,19 +44,26 @@ import type {
 } from '@core/primitives/tasks/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { conversations, projects, tasks } from '@core/services/app-db/node/schema';
-import type { ConversationRow, TaskRow, WorkspaceInsert } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
+import type {
+  ConversationInsert,
+  ConversationRow,
+  TaskRow,
+  WorkspaceInsert,
+} from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 
-type ConvInsert = typeof conversations.$inferInsert;
+type ConvInsert = ConversationInsert;
 
 export interface PreparedCreateTask {
   params: CreateTaskParams;
   initialStatus: TaskLifecycleStatus;
+  host: HostRef;
   workspaceId: string;
   newWorkspaceValues: WorkspaceInsert | null;
   createWorktreeInput?: HostCreateWorktreeInput;
   convInsert: ConvInsert | undefined;
+  hostConversationInput: CreateConversationInput | undefined;
 }
 
 /**
@@ -98,8 +117,20 @@ export async function prepareCreateTask(
     });
   }
 
+  // Creation is UX-gated on host availability (spec §6.3, one rule for every target
+  // kind): the outbox absorbs transient disconnects mid-operation, but starting new
+  // work against an offline host is refused outright. Deletions never hit this gate.
+  if (project.host.type === 'remote' && !operations.hostIsReachable(formatHostRef(project.host))) {
+    return err({
+      type: 'provision-failed',
+      message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
+    });
+  }
+
+  let conversationWorkspacePath: string | null = null;
   if (wsTarget.kind === 'repository-instance') {
     workspaceId = wsTarget.workspaceId;
+    conversationWorkspacePath = createWorkspaceRegistry(db).getLive(workspaceId)?.path ?? null;
   } else {
     // 'new-worktree' — derive location from the project.
     workspaceId = crypto.randomUUID();
@@ -114,16 +145,6 @@ export async function prepareCreateTask(
     const location = isRemote ? 'remote' : 'local';
     const sshConnectionId = isRemote ? project.host.id : null;
     const legacyType = isRemote ? 'project-ssh' : 'local';
-
-    // Task creation is UX-gated on host availability: the outbox absorbs
-    // transient disconnects mid-operation, but starting new work against an
-    // offline host is refused outright. Deletions never hit this gate.
-    if (isRemote && !operations.hostIsReachable(formatHostRef(project.host))) {
-      return err({
-        type: 'provision-failed',
-        message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
-      });
-    }
 
     if (!branchName) {
       return err({
@@ -152,6 +173,7 @@ export async function prepareCreateTask(
       sshConnectionId,
       compiled.worktreePath
     );
+    conversationWorkspacePath = workspacePath;
     const gitOperation = compileGitOperation(
       workspaceConfig.git,
       pushRequested(workspaceConfig.git) ? await project.settings.getPushRemote() : undefined
@@ -197,6 +219,7 @@ export async function prepareCreateTask(
   }
 
   let convInsert: ConvInsert | undefined;
+  let hostConversationInput: CreateConversationInput | undefined;
   if (params.taskConfig.initialConversation) {
     const ic = params.taskConfig.initialConversation;
     const conversationType = ic.type ?? 'pty';
@@ -217,6 +240,13 @@ export async function prepareCreateTask(
             ...(ic.initialPrompt?.trim() && { initialPrompt: ic.initialPrompt.trim() }),
             ...(ic.model && { model: ic.model }),
           };
+    if (conversationWorkspacePath === null) {
+      return err({
+        type: 'provision-failed',
+        message: 'The target workspace has no path to freeze into the conversation record.',
+      });
+    }
+    const isRemote = project.host.type === 'remote';
     convInsert = {
       id: ic.id,
       projectId: params.projectId,
@@ -225,18 +255,36 @@ export async function prepareCreateTask(
       provider: ic.provider,
       config: configObj,
       isInitialConversation: true,
-      lastInteractedAt: new Date().toISOString(),
+      lastSessionActivityAt: new Date().toISOString(),
       type: conversationType,
+      // Frozen at creation (spec §6.1): the record's paths are set before the
+      // worktree exists; sessions run in the workspace root, so cwd matches.
+      cwd: conversationWorkspacePath,
+      workspacePath: conversationWorkspacePath,
+      idRegime: conversationIdRegimeFor(conversationType),
+      location: isRemote ? 'remote' : 'local',
+      sshConnectionId: isRemote ? project.host.id : null,
     };
+    hostConversationInput = buildHostConversationCreateInput({
+      id: ic.id,
+      provider: ic.provider,
+      type: conversationType,
+      title: ic.title ?? '',
+      workspacePath: conversationWorkspacePath,
+      config: configObj,
+      createdAt: Date.now(),
+    });
   }
 
   return ok({
     params,
     initialStatus,
+    host: project.host,
     workspaceId,
     newWorkspaceValues,
     createWorktreeInput,
     convInsert,
+    hostConversationInput,
   });
 }
 
@@ -249,7 +297,8 @@ export async function prepareCreateTask(
 export function commitCreateTask(
   prepared: PreparedCreateTask,
   tx: DrizzleTx,
-  registry: WorkspaceRegistry
+  registry: WorkspaceRegistry,
+  conversationRegistry: ConversationRegistry
 ): { taskRow: TaskRow; convRow: ConversationRow | undefined } {
   const { params, initialStatus, workspaceId, newWorkspaceValues, convInsert } = prepared;
 
@@ -276,7 +325,7 @@ export function commitCreateTask(
 
   let convRow: ConversationRow | undefined;
   if (convInsert) {
-    [convRow] = tx.insert(conversations).values(convInsert).returning().all();
+    convRow = conversationRegistry.register(convInsert, tx);
   }
 
   return { taskRow, convRow };
@@ -295,15 +344,17 @@ export function finalizeCreateTask(
 
   let initialConversation: Conversation | undefined;
   if (convRow) {
-    initialConversation = mapConversationRowToConversation(convRow);
-    conversationWireEvents.emit(undefined, {
-      type: 'created',
-      conversation: initialConversation,
-    });
-    appDbPokes.conversations.poke({
-      projectId: prepared.params.projectId,
-      taskId: prepared.params.id,
-    });
+    initialConversation = mapConversationRowToConversation(convRow) ?? undefined;
+    if (initialConversation) {
+      conversationWireEvents.emit(undefined, {
+        type: 'created',
+        conversation: initialConversation,
+      });
+      appDbPokes.conversations.poke({
+        projectId: prepared.params.projectId,
+        taskId: prepared.params.id,
+      });
+    }
   }
 
   appDbPokes.tasks.poke({ projectId: prepared.params.projectId, taskId: prepared.params.id });
@@ -322,37 +373,76 @@ export async function createTask(
   projects: Pick<ProjectSessionManager, 'getProject'>,
   operations: OperationsEngine,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
+  runtimes: ConversationsRuntimeBroker,
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const prepared = await prepareCreateTask(db, projects, operations, placement, params);
   if (!prepared.success) return prepared;
 
+  // Host-first ordering (spec §6.2): the index is authoritative for conversation
+  // existence, so the record must exist — dangling — before the desktop transaction
+  // links to it. The host is reachable by construction (gate in prepare).
+  const hostInput = prepared.data.hostConversationInput;
+  if (hostInput) {
+    const registered = await createHostConversationRecord(runtimes, prepared.data.host, hostInput);
+    if (!registered.success) {
+      return err({ type: 'provision-failed', message: registered.message });
+    }
+  }
+  const compensate = async () => {
+    if (hostInput) {
+      await compensateHostConversationRecord(runtimes, prepared.data.host, hostInput.id);
+    }
+  };
+
   let taskRow!: TaskRow;
   let convRow: ConversationRow | undefined;
   const registry = createWorkspaceRegistry(db);
-  if (prepared.data.createWorktreeInput) {
-    const submitted = await operations.submitWithTombstone(
-      hostCreateWorktreeOperation,
-      prepared.data.createWorktreeInput,
-      {
-        tombstone: (tx) => {
-          ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry));
-          return 1;
-        },
-        revertTombstone: (tx) => {
-          registry.untrack([prepared.data.workspaceId], new Date().toISOString(), undefined, tx);
-          tx.delete(conversations).where(eq(conversations.taskId, params.id)).run();
-          tx.delete(tasks).where(eq(tasks.id, params.id)).run();
-        },
+  const conversationRegistry = createConversationRegistry(db);
+  try {
+    if (prepared.data.createWorktreeInput) {
+      const submitted = await operations.submitWithTombstone(
+        hostCreateWorktreeOperation,
+        prepared.data.createWorktreeInput,
+        {
+          tombstone: (tx) => {
+            ({ taskRow, convRow } = commitCreateTask(
+              prepared.data,
+              tx,
+              registry,
+              conversationRegistry
+            ));
+            return 1;
+          },
+          revertTombstone: (tx) => {
+            const now = new Date().toISOString();
+            registry.untrack([prepared.data.workspaceId], now, undefined, tx);
+            const conversationId = prepared.data.convInsert?.id;
+            if (conversationId) {
+              conversationRegistry.untrack([conversationId], now, tx);
+              conversationRegistry.purge([conversationId], tx);
+            }
+            tx.delete(tasks).where(eq(tasks.id, params.id)).run();
+          },
+        }
+      );
+      if (!submitted.success) {
+        await compensate();
+        return err({ type: 'provision-failed', message: submitted.error.message });
       }
-    );
-    if (!submitted.success) {
-      return err({ type: 'provision-failed', message: submitted.error.message });
+    } else {
+      db.transaction((tx) => {
+        ({ taskRow, convRow } = commitCreateTask(
+          prepared.data,
+          tx,
+          registry,
+          conversationRegistry
+        ));
+      });
     }
-  } else {
-    db.transaction((tx) => {
-      ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry));
-    });
+  } catch (error) {
+    await compensate();
+    throw error;
   }
 
   return ok(finalizeCreateTask(prepared.data, taskRow, convRow));

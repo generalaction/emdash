@@ -5,6 +5,7 @@ import type { IdlePolicyConfig } from '@primitives/io-activity/api';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { HookInstallPolicy } from '@runtimes/tui-agents/node/hooks/types';
 import type { AgentPluginHost } from '@services/agent-plugins/api/plugins';
+import type { ConversationLifecycleReporter } from '@services/conversation-reports/node';
 import type { IExecutionContext } from '@services/exec/api';
 import type { PtySpawner } from '@services/pty/api';
 import type { SessionIntentStore } from '@services/session-intents/api';
@@ -14,6 +15,8 @@ export interface TuiAgentsRuntimeDeps {
   exec: IExecutionContext;
   spawner: PtySpawner;
   intents: SessionIntentStore;
+  /** Lifecycle reports into the conversation index (spec §3.3); defaults to a no-op. */
+  conversationReports?: ConversationLifecycleReporter;
   hookInstall?: HookInstallPolicy;
   log?: LiveLogOptions;
   clock?: Clock;
@@ -29,4 +32,6 @@ export type TuiStartIntent = 'fresh' | 'resume' | 'stopped';
 export type TuiSessionConfig = {
   input: TuiAgentStartInput;
   intent: TuiStartIntent;
+  /** A resume was requested but could not be honored; this fresh spawn replaces it. */
+  resumeFallback?: boolean;
 };

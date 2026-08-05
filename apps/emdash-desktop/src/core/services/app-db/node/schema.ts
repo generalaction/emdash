@@ -378,18 +378,31 @@ export const automationRuns = sqliteTable(
   })
 );
 
+/**
+ * The conversation registry (spec §5): a per-host mirror of host conversation records plus
+ * client-owned annotations, keyed by the emdash conversation id the host record carries.
+ * All writes go through the ConversationRegistry sole-writer module.
+ */
 export const conversations = sqliteTable(
   'conversations',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    taskId: text('task_id')
-      .notNull()
-      .references(() => tasks.id, { onDelete: 'cascade' }),
+    // Annotations (client-owned, never in host payloads). Links are nullable: an adopted
+    // mirror row has none. The task cascade is retired (spec §10.5): task deletion unlinks
+    // — records only leave the registry through explicit, declinable delete requests
+    // (conv.explicit-delete).
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    isInitialConversation: integer('is_initial_conversation', {
+      mode: 'boolean',
+    }),
+    agentStatusSeen: integer('agent_status_seen').default(1),
+    /** Device-local cache converging from the live session model — outside the observation discipline. */
+    agentStatus: text('agent_status'),
+    // Observations (cached host record fields, host-owned).
     title: text('title').notNull(),
     provider: text('provider'),
+    type: text('type'),
     config: versionedJsonColumn(conversationConfig)('config'),
     createdAt: text('created_at')
       .notNull()
@@ -397,14 +410,25 @@ export const conversations = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
-    lastInteractedAt: text('last_interacted_at'),
-    isInitialConversation: integer('is_initial_conversation', {
-      mode: 'boolean',
+    /** Frozen working directory of the host record. */
+    cwd: text('cwd'),
+    /** Observed workspace association (path value, not a FK; may dangle). */
+    workspacePath: text('workspace_path'),
+    /** Last-observed provider resume handle — a pointer, never the record's identity. */
+    providerSessionId: text('provider_session_id'),
+    idRegime: text('id_regime').$type<'emdash-chosen' | 'provider-minted' | 'none'>(),
+    lastSessionActivityAt: text('last_session_activity_at'),
+    observedStatus: text('observed_status').$type<'present' | 'missing'>(),
+    lastObservedAt: text('last_observed_at'),
+    // Registry bookkeeping (spec §5.1).
+    /** How the row entered the registry — bookkeeping only, never missing-sweep input. */
+    origin: text('origin').$type<'registered' | 'adopted'>().notNull().default('registered'),
+    /** Source host identity; refreshable (last-observed host wins on duplicated ids). */
+    location: text('location').$type<'local' | 'remote'>(),
+    sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
+      onDelete: 'set null',
     }),
-    sessionId: text('session_id'),
-    agentStatus: text('agent_status'),
-    agentStatusSeen: integer('agent_status_seen').default(1),
-    type: text('type'),
+    untrackedAt: text('untracked_at'),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
@@ -433,26 +457,6 @@ export const terminals = sqliteTable(
   },
   (table) => ({
     taskIdIdx: index('idx_terminals_task_id').on(table.taskId),
-  })
-);
-
-export const messages = sqliteTable(
-  'messages',
-  {
-    id: text('id').primaryKey(),
-    conversationId: text('conversation_id')
-      .notNull()
-      .references(() => conversations.id, { onDelete: 'cascade' }),
-    content: text('content').notNull(),
-    sender: text('sender').notNull(),
-    timestamp: text('timestamp')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    metadata: text('metadata'),
-  },
-  (table) => ({
-    conversationIdIdx: index('idx_messages_conversation_id').on(table.conversationId),
-    timestampIdx: index('idx_messages_timestamp').on(table.timestamp),
   })
 );
 
@@ -533,8 +537,8 @@ export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
 export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
+export type ConversationInsert = typeof conversations.$inferInsert;
 export type TerminalRow = typeof terminals.$inferSelect;
-export type MessageRow = typeof messages.$inferSelect;
 export type EditorBufferRow = typeof editorBuffers.$inferSelect;
 export type EditorBufferInsert = typeof editorBuffers.$inferInsert;
 export type KvRow = typeof kv.$inferSelect;

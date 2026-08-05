@@ -8,6 +8,7 @@ import type {
   PromptInput,
 } from '@runtimes/acp/api';
 import type { AgentPluginHost, ResolvedAcpProvider } from '@services/agent-plugins/api/plugins';
+import type { ConversationLifecycleReporter } from '@services/conversation-reports/node';
 import type { SessionIntentStore } from '@services/session-intents/api';
 import type { AttachmentStore } from './attachment-store';
 
@@ -32,6 +33,8 @@ export interface AcpRuntimeDeps {
   resolveAttachment: ResolvePromptAttachment;
   attachmentStore?: AttachmentStore;
   intents: SessionIntentStore;
+  /** Lifecycle reports into the conversation index (spec §3.3); defaults to a no-op. */
+  conversationReports?: ConversationLifecycleReporter;
   clock?: Clock;
   lifecycle?: {
     session?: IdlePolicyConfig;

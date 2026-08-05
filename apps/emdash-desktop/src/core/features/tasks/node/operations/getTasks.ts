@@ -1,5 +1,6 @@
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getRunProjectionsByRunIds } from '@core/features/automations/api/node/run-projection';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import {
   mapAutomationRunRowToMeta,
   mapTaskRowToTask,
@@ -10,7 +11,7 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import { type Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations, tasks } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
 
 export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
   const rows = projectId
@@ -38,6 +39,7 @@ export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
 
   const convByTask = new Map<string, Record<string, number>>();
   for (const { taskId, provider, count: c } of convRows) {
+    if (taskId === null) continue;
     const rec = convByTask.get(taskId) ?? {};
     rec[provider ?? 'unknown'] = c;
     convByTask.set(taskId, rec);

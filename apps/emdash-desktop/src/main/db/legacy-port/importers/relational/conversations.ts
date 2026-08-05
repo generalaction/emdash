@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
+import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { conversations, tasks } from '@core/services/app-db/node/schema';
@@ -414,6 +415,7 @@ export async function portConversations({
   const summary = createPortSummary('conversations');
   const nowIso = new Date().toISOString();
   const legacyPtySessionTargets = readLegacyPtySessionTargets(userDataPath);
+  const registry = createConversationRegistry(appDb);
 
   const taskRows = await appDb
     .select({
@@ -486,6 +488,10 @@ export async function portConversations({
       legacyPtySessionTargets,
     });
 
+    // Registry shape (spec §10.5): task/project links are annotations; the legacy
+    // authoritative values become the first cached observation. Legacy conversations are
+    // local PTY sessions; rows without a cwd stay stale cached observations (the upgrade
+    // backfill skips them) but keep their links.
     const insertValues = {
       id: preferredConversationId,
       projectId: mappedProjectId,
@@ -493,7 +499,11 @@ export async function portConversations({
       title:
         toTrimmedString(row.title) ?? `Legacy conversation ${legacyConversationId.slice(0, 8)}`,
       provider: legacyProvider,
+      type: 'pty' as const,
       config: null,
+      idRegime: 'emdash-chosen' as const,
+      location: 'local' as const,
+      sshConnectionId: null,
       createdAt: toIsoTimestamp(row.created_at, nowIso),
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
@@ -505,7 +515,9 @@ export async function portConversations({
       setId: (id) => {
         insertValues.id = id;
       },
-      insert: () => appDb.insert(conversations).values(insertValues).execute(),
+      insert: async () => {
+        registry.register(insertValues);
+      },
     });
 
     if (!insertResult.inserted) {

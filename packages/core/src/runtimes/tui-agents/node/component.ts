@@ -8,6 +8,8 @@ import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/control
 import { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
+import { conversationReportsContract } from '@services/conversation-reports/api';
+import { createConversationLifecycleReporter } from '@services/conversation-reports/node';
 import { NodeExecutionContext } from '@services/exec/api';
 import {
   createHostDependencyResolverFromDependency,
@@ -47,6 +49,7 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
     contract: tuiAgentsContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
+      conversations: requireContract(conversationReportsContract),
     },
     configSchema: tuiAgentsComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -73,6 +76,10 @@ export function createTuiAgentsComponent(options: CreateTuiAgentsComponentOption
         agentHost,
         exec,
         intents,
+        conversationReports: createConversationLifecycleReporter({
+          client: dependencies.conversations,
+          logger: runtimeLogger,
+        }),
         spawner: new NodePtySpawner(),
         hookInstall: config.hookInstall,
         lifecycle: config.lifecycle,

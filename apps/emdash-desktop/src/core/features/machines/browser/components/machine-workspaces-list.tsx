@@ -362,7 +362,11 @@ const MachineWorkspacesSelectionBar = observer(function MachineWorkspacesSelecti
   );
 
   const runAction = useCallback(
-    async (kind: PendingAction, items: MachineWorkspaceItem[]) => {
+    async (
+      kind: PendingAction,
+      items: MachineWorkspaceItem[],
+      options: { deleteConversations?: boolean } = {}
+    ) => {
       if (items.length === 0) return;
       setPendingAction(kind);
       try {
@@ -371,7 +375,7 @@ const MachineWorkspacesSelectionBar = observer(function MachineWorkspacesSelecti
             ? await cleanWorkspaceArtifacts(items)
             : kind === 'teardown'
               ? await teardownWorkspaces(items)
-              : await deleteWorkspaces(items);
+              : await deleteWorkspaces(items, options);
         showActionResult(kind, result);
         if (result.failedCount === 0) selection.clear();
         await queryClient.invalidateQueries({ queryKey: ['machineWorkspaces', queryKeyId] });
@@ -408,8 +412,12 @@ const MachineWorkspacesSelectionBar = observer(function MachineWorkspacesSelecti
         confirmLabel:
           kind === 'clean' ? 'Delete Artifacts' : kind === 'teardown' ? 'Teardown' : 'Delete',
         variant: kind === 'delete' ? 'destructive' : undefined,
+        // Unchecked default (spec §7.1): removal keeps conversation records.
+        checkbox: kind === 'delete' ? { label: 'Delete their conversations too' } : undefined,
       }).then((outcome) => {
-        if (outcome.success) void runAction(kind, items);
+        if (outcome.success) {
+          void runAction(kind, items, { deleteConversations: outcome.data?.checked ?? false });
+        }
       });
     },
     [openConfirm, runAction]
@@ -606,7 +614,8 @@ async function teardownWorkspaces(
 }
 
 async function deleteWorkspaces(
-  items: MachineWorkspaceItem[]
+  items: MachineWorkspaceItem[],
+  options: { deleteConversations?: boolean } = {}
 ): Promise<ProjectWorkspaceActionSummary> {
   const results: ProjectWorkspaceActionResult[] = [];
   for (const [projectId, projectItems] of groupByProject(items)) {
@@ -614,6 +623,7 @@ async function deleteWorkspaces(
       const result = await deleteMachineProjectWorkspaces({
         projectId,
         paths: projectItems.map((item) => item.row.path),
+        deleteConversations: options.deleteConversations,
       });
       results.push(...result.results);
     } catch (error) {

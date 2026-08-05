@@ -38,6 +38,10 @@ import {
 } from '@runtimes/tui-agents/node/state/live-models';
 import type { AgentCommand, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
 import {
+  noopConversationLifecycleReporter,
+  type ConversationLifecycleReporter,
+} from '@services/conversation-reports/node';
+import {
   buildTmuxShellLine,
   killTmuxSession,
   listTmuxSessionActivity,
@@ -83,8 +87,10 @@ export class TuiAgentsRuntime {
   private readonly activity = new Map<string, IoActivityTracker>();
   private tmuxActivity = new Map<string, number>();
   private readonly unexpectedRespawns = new Map<string, number>();
+  private readonly reports: ConversationLifecycleReporter;
 
   constructor(private readonly deps: TuiAgentsRuntimeDeps) {
+    this.reports = deps.conversationReports ?? noopConversationLifecycleReporter;
     this.registry = new PtyRegistry(deps.spawner);
     this.sessionsHost = createTuiSessionsLiveHost();
     this.agentStatesHost = createTuiAgentStatesLiveHost();
@@ -93,9 +99,11 @@ export class TuiAgentsRuntime {
     this.agentStates = new TuiAgentStates(
       this.sessionsList,
       this.agentStatesList,
-      (conversationId) => {
+      (conversationId, providerSessionId) => {
         const config = this.configs.get(conversationId);
         if (config) this.persistActiveIntent(config.input);
+        // Hook-driven session-id capture reports through the same surface as ACP rebinds.
+        this.reports.providerSessionId({ id: conversationId, providerSessionId });
       },
       (conversationId) => {
         const config = this.configs.get(conversationId);
@@ -181,7 +189,11 @@ export class TuiAgentsRuntime {
       if (active?.pty) return ok({ outcome: 'attached' });
 
       const intent = input.sessionId ? 'resume' : 'fresh';
-      const config: TuiSessionConfig = { input, intent };
+      const config: TuiSessionConfig = {
+        input,
+        intent,
+        ...(input.sessionId ? {} : { resumeFallback: true }),
+      };
       this.configs.set(input.conversationId, config);
       this.recordInputActivity(input.conversationId);
       this.unexpectedRespawns.delete(input.conversationId);
@@ -257,6 +269,7 @@ export class TuiAgentsRuntime {
     });
     this.agentStates.clear(conversationId);
     this.persistSuspendedIntent(conversationId, cause);
+    this.reports.sessionEnded(conversationId);
     return ok(undefined);
   }
 
@@ -455,7 +468,11 @@ export class TuiAgentsRuntime {
                 outcome: 'fresh-fallback',
                 reason: 'resume-process-exited-early',
               });
-              const nextConfig: TuiSessionConfig = { input: config.input, intent: 'fresh' };
+              const nextConfig: TuiSessionConfig = {
+                input: config.input,
+                intent: 'fresh',
+                resumeFallback: true,
+              };
               this.configs.set(config.input.conversationId, nextConfig);
               void this.launchCurrentConfig(config.input.conversationId);
               return;
@@ -501,6 +518,21 @@ export class TuiAgentsRuntime {
     }
 
     session.pty = pty;
+    // Lifecycle report (spec §7.4): a resume spawn is optimistically 'loaded' (the CLI owns
+    // replay; early exit triggers the fresh-fallback respawn below, which reports
+    // 'replaced-by-new'); a fresh-fallback respawn means history was not restored; a plain
+    // fresh start is not a resume attempt at all.
+    this.reports.sessionStarted({
+      id: config.input.conversationId,
+      // A resume attempt (re)asserts the handle it spawned with. A fresh spawn's
+      // provider-native id is unknown until hook capture, but the caller may declare an
+      // emdash-chosen resume handle up front (spec §3.1) — report it so the index holds
+      // the handle the session will actually resume by.
+      providerSessionId: isResuming
+        ? (config.input.sessionId ?? null)
+        : (config.input.chosenSessionId ?? null),
+      resumeOutcome: isResuming ? 'loaded' : config.resumeFallback ? 'replaced-by-new' : null,
+    });
     if (!isResuming) {
       this.agentStates.markInitialPromptSubmitted(
         config.input.conversationId,
@@ -688,11 +720,13 @@ export class TuiAgentsRuntime {
   private recordInputActivity(conversationId: string): void {
     this.activityFor(conversationId).recordInput();
     this.syncSessionActivity(conversationId);
+    this.reports.activity(conversationId);
   }
 
   private recordOutputActivity(conversationId: string): void {
     this.activityFor(conversationId).recordOutput();
     this.syncSessionActivity(conversationId);
+    this.reports.activity(conversationId);
   }
 
   private lifecycleSnapshot(conversationId: string): IoActivitySnapshot | null {
@@ -799,6 +833,7 @@ export class TuiAgentsRuntime {
         ? { exitCode: info.exitCode, signal: info.signal ?? undefined }
         : undefined;
     });
+    this.reports.sessionEnded(conversationId);
   }
 
   private updateSessionSize(conversationId: string, cols: number, rows: number): void {

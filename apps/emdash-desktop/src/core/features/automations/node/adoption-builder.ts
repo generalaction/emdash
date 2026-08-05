@@ -2,7 +2,7 @@ import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { AutomationRunMeta, CreateTaskParams } from '@core/primitives/tasks/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
-import type { conversations } from '@core/services/app-db/node/schema';
+import type { ConversationInsert } from '@core/services/app-db/node/schema';
 
 function workspaceGitForRun(runtimeRun: AutomationRun): WorkspaceConfig['git'] {
   const workspace = runtimeRun.configSnapshot.workspace;
@@ -44,7 +44,7 @@ export function conversationForRun(
   runtimeRun: AutomationRun,
   projectId: string,
   taskId: string
-): typeof conversations.$inferInsert | undefined {
+): ConversationInsert | undefined {
   if (!runtimeRun.conversationId) return undefined;
   const agent = runtimeRun.configSnapshot.agent;
   const config: ConversationConfig =
@@ -70,10 +70,10 @@ export function conversationForRun(
     title: agent.title ?? runtimeRun.configSnapshot.name,
     provider: agent.start.providerId,
     config,
-    sessionId: runtimeRun.sessionId,
+    providerSessionId: runtimeRun.sessionId,
     isInitialConversation: true,
     type: agent.type === 'acp' ? 'acp' : 'pty',
-    lastInteractedAt: new Date().toISOString(),
+    lastSessionActivityAt: new Date().toISOString(),
   };
 }
 

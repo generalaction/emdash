@@ -94,19 +94,28 @@ function createAppDb(): {
 
     CREATE TABLE conversations (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+      task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+      is_initial_conversation INTEGER,
+      agent_status_seen INTEGER DEFAULT 1,
+      agent_status TEXT,
       title TEXT NOT NULL,
       provider TEXT,
+      type TEXT,
       config TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      last_interacted_at TEXT,
-      is_initial_conversation INTEGER,
-      session_id TEXT,
-      agent_status TEXT,
-      agent_status_seen INTEGER DEFAULT 1,
-      type TEXT
+      cwd TEXT,
+      workspace_path TEXT,
+      provider_session_id TEXT,
+      id_regime TEXT,
+      last_session_activity_at TEXT,
+      observed_status TEXT,
+      last_observed_at TEXT,
+      origin TEXT DEFAULT 'registered' NOT NULL,
+      location TEXT,
+      ssh_connection_id TEXT,
+      untracked_at TEXT
     );
   `);
 
@@ -403,9 +412,26 @@ describe('legacy-port table passes', () => {
     expect(conversationsSummary.considered).toBe(2);
     expect(conversationsSummary.skippedDedup).toBe(1);
 
+    // Imported rows carry the registry shape (spec §10.5): links as annotations plus
+    // observation seeds identifying them as local PTY records, tracked and live.
     const conversations = appSqlite
-      .prepare(`SELECT id, task_id, project_id, title FROM conversations ORDER BY id ASC`)
-      .all() as Array<{ id: string; task_id: string; project_id: string; title: string }>;
+      .prepare(
+        `SELECT id, task_id, project_id, title, type, id_regime, location, ssh_connection_id,
+                origin, untracked_at
+         FROM conversations ORDER BY id ASC`
+      )
+      .all() as Array<{
+      id: string;
+      task_id: string;
+      project_id: string;
+      title: string;
+      type: string | null;
+      id_regime: string | null;
+      location: string | null;
+      ssh_connection_id: string | null;
+      origin: string;
+      untracked_at: string | null;
+    }>;
 
     expect(conversations).toEqual([
       {
@@ -413,6 +439,12 @@ describe('legacy-port table passes', () => {
         task_id: insertedTaskId!,
         project_id: mappedSshProjectId!,
         title: 'New conversation',
+        type: 'pty',
+        id_regime: 'emdash-chosen',
+        location: 'local',
+        ssh_connection_id: null,
+        origin: 'registered',
+        untracked_at: null,
       },
     ]);
   });

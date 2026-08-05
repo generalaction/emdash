@@ -11,6 +11,10 @@ import {
   createConversationInputSchema,
   deleteConversationInputSchema,
   renameConversationInputSchema,
+  reportProviderSessionIdInputSchema,
+  reportSessionActivityInputSchema,
+  reportSessionEndedInputSchema,
+  reportSessionStartedInputSchema,
   updateConversationConfigInputSchema,
 } from './schemas';
 
@@ -46,6 +50,30 @@ export const conversationsContract = defineContract({
     input: deleteConversationInputSchema,
     data: z.void(),
     error: deleteConversationErrorSchema,
+  }),
+
+  // Lifecycle reports — the second feeder (spec §3.3). One-way, same-host calls from the
+  // session runtimes; the index stamps observation times with its own clock. Reports never
+  // create records: a report against a deleted record is a not-found error the feeder logs.
+  reportSessionStarted: fallible({
+    input: reportSessionStartedInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+  reportProviderSessionId: fallible({
+    input: reportProviderSessionIdInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+  reportSessionActivity: fallible({
+    input: reportSessionActivityInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+  reportSessionEnded: fallible({
+    input: reportSessionEndedInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
   }),
 });
 

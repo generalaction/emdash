@@ -109,8 +109,9 @@ export async function createWorkspaceServerRuntimeHost(
     validate: options.validate,
   });
 
-  // The conversations index depends on nothing and spawns first (spec §3.4). Default
-  // supervision (restart on failure) is deliberate: a durable index should come back.
+  // The conversations index depends on nothing and spawns first (spec §3.4); the session
+  // runtimes report into it, so their spawns chain on its readiness. Default supervision
+  // (restart on failure) is deliberate: a durable index should come back.
   const conversationsPromise = workerHost.spawn(conversationsComponent, {
     name: 'conversations',
     executable: workspaceWorkerPath('conversations'),
@@ -145,22 +146,25 @@ export async function createWorkspaceServerRuntimeHost(
     dependencies: {},
     config: {},
   });
-  const acpPromise = workerHost.spawn(createAcpComponent({ pluginRegistry, env }), {
-    name: 'acp',
-    executable: workspaceWorkerPath('acp'),
-    env,
-    dependencies: {
-      hostDependencies: hostDependencies.client.resolver,
-    },
-    config: {
-      attachmentsDir: paths.attachmentsDirectory,
-      intentsFilePath: paths.acpIntentsFile,
-      lifecycle: {
-        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-        connectionIdleTtlMs: 120_000,
+  const acpPromise = conversationsPromise.then((conversations) =>
+    workerHost.spawn(createAcpComponent({ pluginRegistry, env }), {
+      name: 'acp',
+      executable: workspaceWorkerPath('acp'),
+      env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        conversations,
       },
-    },
-  });
+      config: {
+        attachmentsDir: paths.attachmentsDirectory,
+        intentsFilePath: paths.acpIntentsFile,
+        lifecycle: {
+          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+          connectionIdleTtlMs: 120_000,
+        },
+      },
+    })
+  );
   const agentConfigPromise = workerHost.spawn(createAgentConfigComponent({ pluginRegistry, env }), {
     name: 'agent-config',
     executable: workspaceWorkerPath('agent-config'),
@@ -170,20 +174,23 @@ export async function createWorkspaceServerRuntimeHost(
     },
     config: {},
   });
-  const tuiAgentsPromise = workerHost.spawn(createTuiAgentsComponent({ pluginRegistry, env }), {
-    name: 'tui-agents',
-    executable: workspaceWorkerPath('tui-agents'),
-    env,
-    dependencies: {
-      hostDependencies: hostDependencies.client.resolver,
-    },
-    config: {
-      intentsFilePath: paths.tuiAgentsIntentsFile,
-      lifecycle: {
-        session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+  const tuiAgentsPromise = conversationsPromise.then((conversations) =>
+    workerHost.spawn(createTuiAgentsComponent({ pluginRegistry, env }), {
+      name: 'tui-agents',
+      executable: workspaceWorkerPath('tui-agents'),
+      env,
+      dependencies: {
+        hostDependencies: hostDependencies.client.resolver,
+        conversations,
       },
-    },
-  });
+      config: {
+        intentsFilePath: paths.tuiAgentsIntentsFile,
+        lifecycle: {
+          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+        },
+      },
+    })
+  );
 
   const [conversations, watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] =
     await Promise.all([
@@ -246,6 +253,7 @@ export async function createWorkspaceServerRuntimeHost(
       workspaceHost,
       acpSessions: acp,
       tuiSessions: tuiAgents,
+      conversationIndex: conversations,
     },
     config: { dbFile: paths.automationsDatabase },
     shutdownGraceMs: 3_000,

@@ -10,6 +10,16 @@ import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import type { Clock } from '@emdash/shared/scheduling';
 import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm';
 import {
+  hostDeleteConversationOperation,
+  type HostDeleteConversationInput,
+} from '@core/features/conversations/api/node/host-delete-conversation-operation';
+import { compileConversationDeletionInput } from '@core/features/conversations/api/node/operations/conversation-removal';
+import {
+  createConversationRegistry,
+  conversationRegistryTable as conversationRows,
+  liveConversations,
+} from '@core/features/conversations/api/node/registry';
+import {
   deleteTaskOperation,
   deleteTaskOperationKey,
   type DeleteTaskOperationInput,
@@ -56,6 +66,12 @@ export type DeleteTaskInput = {
   taskId: string;
   deleteWorktree?: boolean;
   deleteBranch?: boolean;
+  /**
+   * Explicit, declinable, default-on cascade (spec §7.2): delete the task's conversation
+   * records on their host as per-record outbox requests enqueued alongside. Declining
+   * unlinks the records instead — they orphan into the discovery surface.
+   */
+  deleteConversations?: boolean;
 };
 
 export type DeleteTaskOperationDependencies = {
@@ -184,6 +200,7 @@ export function createDeleteTaskOperationDefinition(
     ],
     purge: async ({ input, db }) => {
       db.transaction((tx) => {
+        purgeUntrackedTaskConversationRows(db, input.taskId, tx);
         tx.delete(tasks).where(eq(tasks.id, input.taskId)).run();
       });
       await purgeTaskLocalState({ projectId: input.projectId, taskId: input.taskId }, dependencies);
@@ -194,8 +211,13 @@ export function createDeleteTaskOperationDefinition(
 
 export async function enqueueDeleteTask(operations: OperationSubmitter, input: DeleteTaskInput) {
   const createdAt = Date.now();
+  const deleteConversations = input.deleteConversations !== false;
+  const conversationRegistry = createConversationRegistry(operations.db);
   let workspaceIdForRemoval: string | undefined;
   let workspaceShared = false;
+  // Snapshot-compiled at enqueue time: the handler's task-row purge clears the tombstoned
+  // client mirror rows, so per-record delete inputs must never be resolved later.
+  let conversationDeletions: HostDeleteConversationInput[] = [];
   const result = await enqueueTombstoned(operations, {
     definition: deleteTaskOperation,
     load: async () => {
@@ -232,9 +254,16 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
             )
             .limit(1)
         : [];
+      const taskConversations = await operations.db
+        .select()
+        .from(conversationRows)
+        .where(and(eq(conversationRows.taskId, task.id), liveConversations()));
       workspaceIdForRemoval = task.workspaceId ?? undefined;
       workspaceShared = otherTaskRows.length > 0;
-      return { task, workspace, project, workspaceShared };
+      conversationDeletions = deleteConversations
+        ? taskConversations.map((row) => compileConversationDeletionInput(row, createdAt))
+        : [];
+      return { task, workspace, project, workspaceShared, taskConversations };
     },
     notFound: () => ({
       type: 'task-not-found',
@@ -267,16 +296,56 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
       createdAt,
     }),
     precondition: (tx, { task }) => projectIsActive(tx, task.projectId),
-    tombstone: (tx, { task }) =>
-      tx
+    tombstone: (tx, { task, taskConversations }) => {
+      const changes = tx
         .update(tasks)
         .set({ deletedAt: new Date(createdAt).toISOString() })
         .where(and(eq(tasks.id, task.id), isNull(tasks.deletedAt)))
-        .run().changes,
-    revert: (tx, { task }) => {
-      tx.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, task.id)).run();
+        .run().changes;
+      if (changes === 0) return 0;
+      const conversationIds = taskConversations.map((row) => row.id);
+      if (deleteConversations) {
+        // Cascade accepted: the rows tombstone with the task; per-record host deletes are
+        // submitted below (spec §7.2 — the FK cascade no longer determines record lifetime).
+        conversationRegistry.untrack(conversationIds, new Date(createdAt).toISOString(), tx);
+      } else {
+        // Cascade declined: annotation delete — the records orphan into the discovery
+        // surface instead of being swept away by the task-row FK cascade.
+        for (const id of conversationIds) {
+          conversationRegistry.annotate(
+            id,
+            { taskId: null, projectId: null, isInitialConversation: false },
+            tx
+          );
+        }
+      }
+      return changes;
     },
-    poke: ({ task }) => appDbPokes.tasks.poke({ projectId: task.projectId, taskId: task.id }),
+    revert: (tx, { task, taskConversations }) => {
+      tx.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, task.id)).run();
+      if (deleteConversations) {
+        conversationRegistry.revertUntrack(
+          taskConversations.map((row) => row.id),
+          tx
+        );
+      } else {
+        for (const row of taskConversations) {
+          conversationRegistry.annotate(
+            row.id,
+            {
+              taskId: row.taskId,
+              projectId: row.projectId,
+              isInitialConversation: row.isInitialConversation,
+            },
+            tx
+          );
+        }
+      }
+    },
+    poke: ({ task }) => {
+      appDbPokes.tasks.poke({ projectId: task.projectId, taskId: task.id });
+      appDbPokes.conversations.poke({ projectId: task.projectId, taskId: task.id });
+    },
   });
   if (result.success) {
     // Shared-workspace guard is an enqueue-time registry query: another live
@@ -285,6 +354,13 @@ export async function enqueueDeleteTask(operations: OperationSubmitter, input: D
       await enqueueDeleteWorkspace(operations, workspaceIdForRemoval, {
         deleteBranch: input.deleteBranch ?? false,
       });
+    }
+    // Explicit per-record host deletes, submitted directly from the enqueue-time snapshot:
+    // rows are already untracked in the task tombstone tx, so `enqueueTombstoned` would
+    // misread them as duplicates, and the task handler may FK-cascade the mirror rows
+    // before a later reload could see them.
+    for (const deletion of conversationDeletions) {
+      await operations.submit(hostDeleteConversationOperation, deletion);
     }
   }
   return result;
@@ -410,11 +486,30 @@ async function purgeTaskRows(
     await dependencies.unregisterFileSearchRoot(workspace.path, workspace.host);
   }
   db.transaction((tx) => {
+    purgeUntrackedTaskConversationRows(db, operation.taskId!, tx);
     tx.delete(tasks).where(eq(tasks.id, operation.taskId!)).run();
   });
   await purgeTaskLocalState(
     { projectId: operation.projectId, taskId: operation.taskId },
     dependencies
+  );
+}
+
+/**
+ * The task cascade is retired (spec §10.5): the task-row delete only nulls surviving
+ * links. Tombstoned mirror rows — untracked at enqueue with their own delete verbs in
+ * flight — are cleared here through the registry so they don't linger link-less forever.
+ */
+function purgeUntrackedTaskConversationRows(db: AppDb, taskId: string, tx: DrizzleTx): void {
+  const registry = createConversationRegistry(db);
+  const untracked = tx
+    .select({ id: conversationRows.id })
+    .from(conversationRows)
+    .where(and(eq(conversationRows.taskId, taskId), isNotNull(conversationRows.untrackedAt)))
+    .all();
+  registry.purge(
+    untracked.map(({ id }) => id),
+    tx
   );
 }
 

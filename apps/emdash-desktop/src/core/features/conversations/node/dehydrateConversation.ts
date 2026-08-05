@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { resolveTask } from '@core/features/projects/api/node/utils';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations } from '@core/services/app-db/node/schema';
 
 export async function dehydrateConversation(
   db: AppDb,

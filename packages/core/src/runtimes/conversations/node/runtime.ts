@@ -15,6 +15,10 @@ import type {
   CreateConversationInput,
   DeleteConversationInput,
   RenameConversationInput,
+  ReportProviderSessionIdInput,
+  ReportSessionActivityInput,
+  ReportSessionEndedInput,
+  ReportSessionStartedInput,
   UpdateConversationConfigInput,
 } from '../api/schemas';
 import { ConversationRecordStore } from './persistence/record-store';
@@ -130,6 +134,45 @@ export class ConversationsRuntime {
     return ok(undefined);
   }
 
+  reportSessionStarted(input: ReportSessionStartedInput): Result<void, ConversationMutationError> {
+    const now = this.clock.now();
+    return dropData(
+      this.mutate(input.id, (record) => ({
+        ...record,
+        lastSpawnedAt: now,
+        ...(input.providerSessionId === null
+          ? {}
+          : { providerSessionId: input.providerSessionId, providerSessionIdObservedAt: now }),
+        ...(input.resumeOutcome === null ? {} : { lastResumeOutcome: input.resumeOutcome }),
+      }))
+    );
+  }
+
+  reportProviderSessionId(
+    input: ReportProviderSessionIdInput
+  ): Result<void, ConversationMutationError> {
+    const now = this.clock.now();
+    return dropData(
+      this.mutate(input.id, (record) => ({
+        ...record,
+        providerSessionId: input.providerSessionId,
+        providerSessionIdObservedAt: now,
+      }))
+    );
+  }
+
+  reportSessionActivity(
+    input: ReportSessionActivityInput
+  ): Result<void, ConversationMutationError> {
+    const now = this.clock.now();
+    return dropData(this.mutate(input.id, (record) => ({ ...record, lastSessionActivityAt: now })));
+  }
+
+  reportSessionEnded(input: ReportSessionEndedInput): Result<void, ConversationMutationError> {
+    const now = this.clock.now();
+    return dropData(this.mutate(input.id, (record) => ({ ...record, lastSessionActivityAt: now })));
+  }
+
   private mutate(
     id: string,
     change: (record: ConversationRecord) => ConversationRecord
@@ -151,4 +194,8 @@ export class ConversationsRuntime {
   private publish(record: ConversationRecord): void {
     this.recordsCell.update((previous) => ({ ...previous, [record.id]: record }));
   }
+}
+
+function dropData<E>(result: Result<unknown, E>): Result<void, E> {
+  return result.success ? ok(undefined) : result;
 }

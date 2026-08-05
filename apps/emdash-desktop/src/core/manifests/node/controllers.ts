@@ -323,6 +323,7 @@ export const desktopNodeControllers = {
       compensation,
       db,
       logger,
+      operations,
       projects,
       providerSettings,
       runtimes,
@@ -340,6 +341,9 @@ export const desktopNodeControllers = {
         telemetry,
         workspaceIdentity,
         withCompensation: compensation,
+        hostIsReachable: (hostRef) => operations.hostIsReachable(hostRef),
+        operations,
+        activeOperationInputs: (name) => operations.activeOperationInputs(name),
       }),
   },
   previewServers: {

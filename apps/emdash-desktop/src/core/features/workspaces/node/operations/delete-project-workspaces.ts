@@ -24,6 +24,8 @@ export async function deleteProjectWorkspaces(
   input: {
     projectId: string;
     paths: string[];
+    /** Opt-in (spec §7.1): delete the workspaces' conversation records on the host too. */
+    deleteConversations?: boolean;
   }
 ): Promise<ProjectWorkspaceActionSummary> {
   if (input.paths.length === 0) return { succeededCount: 0, failedCount: 0, results: [] };
@@ -52,7 +54,8 @@ export async function deleteProjectWorkspaces(
       dependencies,
       input.projectId,
       project.path,
-      row
+      row,
+      { deleteConversations: input.deleteConversations ?? false }
     );
     if (result.success) dependencies.workspaceScanCache.evict(input.projectId, row.path);
     results.push(result);
@@ -73,7 +76,8 @@ async function deleteProjectWorkspaceRow(
   },
   projectId: string,
   projectPath: string,
-  row: ProjectWorkspaceRow
+  row: ProjectWorkspaceRow,
+  options: { deleteConversations: boolean }
 ): Promise<ProjectWorkspaceActionResult> {
   if (row.kind === 'root') {
     return {
@@ -101,6 +105,9 @@ async function deleteProjectWorkspaceRow(
         await dependencies.taskService.deleteTask(dependencies.operations, projectId, task.taskId, {
           deleteWorktree: true,
           deleteBranch: false,
+          // The workspace-removal dialog's choice is the visible intent here; the
+          // task-deletion default (delete) does not apply.
+          deleteConversations: options.deleteConversations,
         });
       }
       return success(row);
@@ -110,12 +117,16 @@ async function deleteProjectWorkspaceRow(
       return success(row);
     }
 
-    const result = await enqueueDeleteWorkspacePath(dependencies.operations, {
-      projectId,
-      workspaceId: row.workspaceId ?? undefined,
-      workspacePath: row.path,
-      branchName: row.branch ?? undefined,
-    });
+    const result = await enqueueDeleteWorkspacePath(
+      dependencies.operations,
+      {
+        projectId,
+        workspaceId: row.workspaceId ?? undefined,
+        workspacePath: row.path,
+        branchName: row.branch ?? undefined,
+      },
+      { deleteConversations: options.deleteConversations }
+    );
     if (!result.success) {
       return {
         path: row.path,

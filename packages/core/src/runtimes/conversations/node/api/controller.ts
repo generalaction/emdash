@@ -9,5 +9,9 @@ export function createConversationsController(runtime: ConversationsRuntime): Co
     rename: (input) => runtime.rename(input),
     updateConfig: (input) => runtime.updateConfig(input),
     delete: (input) => runtime.delete(input),
+    reportSessionStarted: (input) => runtime.reportSessionStarted(input),
+    reportProviderSessionId: (input) => runtime.reportProviderSessionId(input),
+    reportSessionActivity: (input) => runtime.reportSessionActivity(input),
+    reportSessionEnded: (input) => runtime.reportSessionEnded(input),
   });
 }

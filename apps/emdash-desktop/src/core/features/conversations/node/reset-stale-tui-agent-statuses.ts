@@ -1,7 +1,7 @@
 import { log } from '@emdash/shared/logger';
 import { and, eq, inArray } from 'drizzle-orm';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations } from '@core/services/app-db/node/schema';
 
 export async function resetStaleTuiAgentStatuses(db: AppDb): Promise<void> {
   try {

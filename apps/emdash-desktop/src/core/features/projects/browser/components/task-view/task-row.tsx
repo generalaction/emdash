@@ -47,8 +47,12 @@ export const TaskRow = observer(function TaskRow({
       tasks: [{ taskId: task.data.id, taskName: task.data.name }],
     }).then((outcome) => {
       if (!outcome.success) return;
-      const { deleteWorktree, deleteBranch } = outcome.data;
-      void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch });
+      const { deleteWorktree, deleteBranch, deleteConversations } = outcome.data;
+      void taskManager?.deleteTasks([task.data.id], {
+        deleteWorktree,
+        deleteBranch,
+        deleteConversations,
+      });
     });
   };
   const handleRename = () => {

@@ -1,0 +1,177 @@
+import { openFixture } from '@tooling/utils/db';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  createConversationRegistry,
+  isAnnotatedConversation,
+  type ConversationRegistry,
+} from './conversation-registry';
+
+describe('ConversationRegistry', () => {
+  let fixture: Awaited<ReturnType<typeof openFixture>>;
+
+  beforeEach(async () => {
+    fixture = await openFixture('empty');
+  });
+
+  afterEach(() => {
+    fixture.close();
+  });
+
+  function seedTask(projectId: string, taskId: string): void {
+    fixture.sqlite
+      .prepare(`INSERT INTO projects (id, name) VALUES (?, ?)`)
+      .run(projectId, `project-${projectId}`);
+    fixture.sqlite
+      .prepare(`INSERT INTO tasks (id, project_id, name, status) VALUES (?, ?, ?, 'running')`)
+      .run(taskId, projectId, `task-${taskId}`);
+  }
+
+  function registerLinked(registry: ConversationRegistry, id: string): void {
+    seedTask(`project-${id}`, `task-${id}`);
+    registry.register({
+      id,
+      projectId: `project-${id}`,
+      taskId: `task-${id}`,
+      title: 'Linked conversation',
+      provider: 'claude',
+      type: 'acp',
+      location: 'local',
+      isInitialConversation: true,
+    });
+  }
+
+  it('registers linked rows and adopts unlinked mirror rows reusing the host id', () => {
+    const registry = createConversationRegistry(fixture.db, {
+      now: () => '2026-01-01T00:00:00.000Z',
+    });
+
+    registerLinked(registry, 'registered');
+    registry.adopt({
+      id: 'host-minted-id',
+      title: 'Discovered on host',
+      provider: 'codex',
+      type: 'pty',
+      location: 'local',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedStatus: 'present',
+    });
+
+    const registered = registry.getLive('registered');
+    expect(registered).toMatchObject({ origin: 'registered', taskId: 'task-registered' });
+    expect(registered && isAnnotatedConversation(registered)).toBe(true);
+
+    const adopted = registry.getLive('host-minted-id');
+    expect(adopted).toMatchObject({
+      origin: 'adopted',
+      taskId: null,
+      projectId: null,
+      observedStatus: 'present',
+    });
+    expect(adopted && isAnnotatedConversation(adopted)).toBe(false);
+  });
+
+  it('refreshes observation columns wholesale and stamps the observation time', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'conv');
+
+    const changed = registry.refresh('conv', {
+      title: 'Host title wins',
+      providerSessionId: 'session-9',
+      idRegime: 'provider-minted',
+      lastSessionActivityAt: '2026-01-03T00:00:00.000Z',
+      observedStatus: 'present',
+      workspacePath: '/hosts/worktree',
+      cwd: '/hosts/worktree',
+      lastObservedAt: '2026-01-04T00:00:00.000Z',
+    });
+
+    expect(changed).toBe(1);
+    expect(registry.getLive('conv')).toMatchObject({
+      title: 'Host title wins',
+      providerSessionId: 'session-9',
+      idRegime: 'provider-minted',
+      lastSessionActivityAt: '2026-01-03T00:00:00.000Z',
+      observedStatus: 'present',
+      workspacePath: '/hosts/worktree',
+      cwd: '/hosts/worktree',
+      lastObservedAt: '2026-01-04T00:00:00.000Z',
+      // Annotations untouched by observation writes.
+      taskId: 'task-conv',
+      isInitialConversation: true,
+    });
+  });
+
+  it('annotates without touching observation columns', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registry.adopt({
+      id: 'orphan',
+      title: 'Orphan',
+      provider: 'claude',
+      type: 'acp',
+      location: 'local',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedStatus: 'present',
+    });
+    seedTask('project-link', 'task-link');
+
+    const changed = registry.annotate('orphan', {
+      taskId: 'task-link',
+      projectId: 'project-link',
+      agentStatusSeen: 0,
+    });
+
+    expect(changed).toBe(1);
+    expect(registry.getLive('orphan')).toMatchObject({
+      taskId: 'task-link',
+      projectId: 'project-link',
+      agentStatusSeen: 0,
+      // Observations untouched by annotation writes.
+      title: 'Orphan',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('untracks and reverts atomically through an optional transaction', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'conv');
+
+    const changed = fixture.db.transaction((tx) =>
+      registry.untrack(['conv'], '2026-01-05T00:00:00.000Z', tx)
+    );
+    expect(changed).toBe(1);
+    expect(registry.getLive('conv')).toBeUndefined();
+
+    const reverted = registry.revertUntrack(['conv']);
+    expect(reverted).toBe(1);
+    expect(registry.getLive('conv')).toBeDefined();
+  });
+
+  it('refresh skips untracked rows; annotate still reaches them', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'conv');
+    registry.untrack(['conv'], '2026-01-05T00:00:00.000Z');
+
+    expect(
+      registry.refresh('conv', {
+        title: 'Should not land',
+        lastObservedAt: '2026-01-06T00:00:00.000Z',
+      })
+    ).toBe(0);
+    expect(registry.annotate('conv', { agentStatusSeen: 0 })).toBe(1);
+  });
+
+  it('purges only rows that are already untracked', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'tracked');
+    registerLinked(registry, 'untracked');
+    registry.untrack(['untracked'], '2026-01-05T00:00:00.000Z');
+
+    expect(() => registry.purge(['tracked', 'untracked'])).toThrow(
+      /must be untracked before purge/
+    );
+
+    expect(registry.purge(['untracked'])).toBe(1);
+    expect(registry.revertUntrack(['untracked'])).toBe(0);
+    expect(registry.getLive('tracked')).toBeDefined();
+  });
+});

@@ -44,6 +44,7 @@ export function createAutomationRunExecutor(
       conversationId,
       cwd: workspace,
       agent: run.configSnapshot.agent,
+      fallbackTitle: run.configSnapshot.name,
       signal,
     });
 

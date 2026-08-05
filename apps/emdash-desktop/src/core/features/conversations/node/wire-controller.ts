@@ -1,19 +1,24 @@
-import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import {
+  LOCAL_HOST_REF,
+  type HostRef,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { and, eq } from 'drizzle-orm';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { createConversationOperations } from '@core/features/conversations/node/controller';
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
+import type { ActiveOperationInputsReader } from '@core/features/conversations/node/list-host-conversations';
 import { setConversationModeId } from '@core/features/conversations/node/set-mode-id';
-import { setSessionId } from '@core/features/conversations/node/set-session-id';
-import { touchConversation } from '@core/features/conversations/node/touchConversation';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations, tasks } from '@core/services/app-db/node/schema';
+import { tasks } from '@core/services/app-db/node/schema';
+import type { OperationSubmitter } from '@core/services/operations/api/node';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
@@ -43,7 +48,6 @@ type WorkspaceIdentityResolver = Readonly<{
 }>;
 
 type ConversationRuntimeHooks = Readonly<{
-  persistAcpSessionId(target: ConversationRuntimeTarget, sessionId: string): Promise<void>;
   persistAcpMode(target: ConversationRuntimeTarget, modeId: string): Promise<void>;
   recordTuiInput(target: ConversationRuntimeTarget): Promise<void>;
 }>;
@@ -60,6 +64,9 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   telemetry: TelemetryService;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   withCompensation: CompensationRunner;
+  hostIsReachable: (hostRef: SerializedHostRef) => boolean;
+  operations: OperationSubmitter;
+  activeOperationInputs: ActiveOperationInputsReader;
 }>;
 
 export function createConversationsWireController(
@@ -81,6 +88,11 @@ export function createConversationsWireController(
     taskSessions: options.taskSessions,
     telemetry: options.telemetry,
     withCompensation: options.withCompensation,
+    runtimes: options.runtimes,
+    hostIsReachable: options.hostIsReachable,
+    workspaceIdentity: options.workspaceIdentity,
+    operations: options.operations,
+    activeOperationInputs: options.activeOperationInputs,
   });
   const target = (conversationId: string) => resolveTarget(conversationId);
   const run = <T, E>(
@@ -124,24 +136,22 @@ export function createConversationsWireController(
       conversationOperations.getConversationsForProject(projectId),
     markConversationSeen: ({ conversationId }) =>
       conversationOperations.markConversationSeen(conversationId),
+    listHostConversations: (scope) => conversationOperations.listHostConversations(scope),
+    linkConversationToTask: (input) => conversationOperations.linkConversationToTask(input),
+    deleteHostConversation: ({ conversationId }) =>
+      conversationOperations.deleteHostConversation(conversationId),
     events: conversationWireEvents,
     acp: {
+      // The returned session id is not persisted client-side: the ACP runtime reports it
+      // into the conversation index (spec §3.3) and convergence caches it here.
       startSession: async ({ conversationId }, meta) => {
         const runtimeTarget = await target(conversationId);
         if (!runtimeTarget.acpInput) {
           throw missingAcpInputError(runtimeTarget);
         }
         const input = runtimeTarget.acpInput;
-        return withConversationRuntime(
-          options.runtimes,
-          Promise.resolve(runtimeTarget),
-          async (client) => {
-            const result = await client.acp.startSession({ input }, callOptions(meta));
-            if (result.success) {
-              await hooks.persistAcpSessionId(runtimeTarget, result.data.sessionId);
-            }
-            return result;
-          }
+        return withConversationRuntime(options.runtimes, Promise.resolve(runtimeTarget), (client) =>
+          client.acp.startSession({ input }, callOptions(meta))
         );
       },
       resumeSession: async ({ conversationId }, meta) => {
@@ -154,19 +164,8 @@ export function createConversationsWireController(
           throw new Error(`Conversation '${conversationId}' has no ACP session to resume`);
         }
         const sessionId = input.sessionId;
-        return withConversationRuntime(
-          options.runtimes,
-          Promise.resolve(runtimeTarget),
-          async (client) => {
-            const result = await client.acp.resumeSession(
-              { input: { ...input, sessionId } },
-              callOptions(meta)
-            );
-            if (result.success) {
-              await hooks.persistAcpSessionId(runtimeTarget, result.data.sessionId);
-            }
-            return result;
-          }
+        return withConversationRuntime(options.runtimes, Promise.resolve(runtimeTarget), (client) =>
+          client.acp.resumeSession({ input: { ...input, sessionId } }, callOptions(meta))
         );
       },
       stopSession: (input, meta) =>
@@ -287,30 +286,19 @@ export function createConversationsWireController(
 }
 
 function createDefaultRuntimeHooks(
-  options: Pick<CreateConversationsWireControllerOptions, 'db' | 'logger' | 'telemetry'>
+  options: Pick<
+    CreateConversationsWireControllerOptions,
+    'db' | 'logger' | 'telemetry' | 'runtimes' | 'hostIsReachable'
+  >
 ): ConversationRuntimeHooks {
-  const { db, logger, telemetry } = options;
+  const { db, logger, telemetry, runtimes, hostIsReachable } = options;
   return {
-    async persistAcpSessionId(target, sessionId) {
-      const result = await setSessionId(target.conversationId, sessionId, db);
-      if (!result.success) {
-        logger.warn('ACP runtime failed to persist returned session id', {
-          conversationId: target.conversationId,
-          error: result.error,
-        });
-        return;
-      }
-      if (target.sessionId === sessionId) return;
-      conversationWireEvents.emit(undefined, {
-        type: 'changed',
-        conversationId: target.conversationId,
-        taskId: result.data.taskId,
-        projectId: result.data.projectId,
-        changes: { sessionId },
-      });
-    },
     async persistAcpMode(target, modeId) {
-      const result = await setConversationModeId(target.conversationId, modeId, db);
+      const result = await setConversationModeId(
+        { db, runtimes, hostIsReachable },
+        target.conversationId,
+        modeId
+      );
       if (!result.success) {
         logger.warn('ACP runtime failed to persist selected mode id', {
           conversationId: target.conversationId,
@@ -319,6 +307,7 @@ function createDefaultRuntimeHooks(
         return;
       }
       if (target.modeId === modeId) return;
+      if (result.data.taskId === null || result.data.projectId === null) return;
       conversationWireEvents.emit(undefined, {
         type: 'changed',
         conversationId: target.conversationId,
@@ -327,6 +316,8 @@ function createDefaultRuntimeHooks(
         changes: { modeId },
       });
     },
+    // Recency is a host fact now: the runtime's activity report feeds
+    // `lastSessionActivityAt` and convergence caches it — only telemetry stays client-side.
     async recordTuiInput(target) {
       if (target.providerId) {
         telemetry.capture('agent_run_started', {
@@ -336,15 +327,6 @@ function createDefaultRuntimeHooks(
           conversation_id: target.conversationId,
         });
       }
-      const lastInteractedAt = new Date().toISOString();
-      await touchConversation(target.conversationId, lastInteractedAt, db);
-      conversationWireEvents.emit(undefined, {
-        type: 'changed',
-        conversationId: target.conversationId,
-        taskId: target.taskId,
-        projectId: target.projectId,
-        changes: { lastInteractedAt },
-      });
     },
   };
 }
@@ -369,7 +351,7 @@ async function resolveConversationRuntimeTarget(
       projectId: conversations.projectId,
       taskId: conversations.taskId,
       providerId: conversations.provider,
-      sessionId: conversations.sessionId,
+      sessionId: conversations.providerSessionId,
       config: conversations.config,
       type: conversations.type,
       workspaceId: tasks.workspaceId,
@@ -382,6 +364,10 @@ async function resolveConversationRuntimeTarget(
     .where(eq(conversations.id, conversationId))
     .limit(1);
   if (!row) throw new Error(`Conversation '${conversationId}' was not found`);
+  if (row.projectId === null || row.taskId === null) {
+    // Sessions run inside task surfaces; unlinked mirror rows have no runtime target.
+    throw new Error(`Conversation '${conversationId}' has no task link`);
+  }
 
   const identity = row.workspaceId ? await workspaceIdentity.resolve(row.workspaceId) : null;
   const acpConfig = row.config?.type === 'acp' ? row.config : undefined;

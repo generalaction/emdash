@@ -208,5 +208,29 @@
     "tag": "0034_retirement_untracked_at_rename",
     "when": 1785875538731,
     "hash": "1cba347cc7babde8cd6127086462a38d6401304b6a1d40f8cd09d8d92f6641b6"
+  },
+  {
+    "idx": 35,
+    "tag": "0035_conversation_registry_columns",
+    "when": 1785890007455,
+    "hash": "5537f8720fb312d4d2b55f0ca905a9217acb22b35e04819ae13ef015cef071fd"
+  },
+  {
+    "idx": 36,
+    "tag": "0036_conversation_registry_data_train",
+    "when": 1785890023973,
+    "hash": "c22685607b3fd6c974762b76b9a81c5c35e70da068dff7ec7cc43421dfee7620"
+  },
+  {
+    "idx": 37,
+    "tag": "0037_conversation_registry_drops",
+    "when": 1785890119634,
+    "hash": "d369017a68ca3408810021ae65fd1849d12fce7421b3655a387e1ddaa633025e"
+  },
+  {
+    "idx": 38,
+    "tag": "0038_conversation_task_cascade_retirement",
+    "when": 1785899023869,
+    "hash": "555f8b08ed90a1572e594e34c1e21899d26c557a5d9d3a2b92f4fff67215ebfd"
   }
 ]

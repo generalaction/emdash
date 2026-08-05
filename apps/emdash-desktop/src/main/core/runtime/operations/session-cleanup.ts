@@ -90,6 +90,7 @@ export async function resolveLifecycleSessionTargets(
       targets.terminalSessionIds.add(makePtySessionId(row.projectId, row.taskId, row.id));
     }
     for (const row of [...acpRows, ...tuiRows, ...terminalRows]) {
+      if (row.projectId === null || row.taskId === null) continue;
       targets.tmuxSessionNames.add(
         makeTmuxSessionName(makePtySessionId(row.projectId, row.taskId, row.id))
       );

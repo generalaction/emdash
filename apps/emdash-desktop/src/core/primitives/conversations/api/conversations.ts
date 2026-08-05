@@ -65,6 +65,37 @@ export type RenameConversationParams = {
   newTitle: string;
 };
 
+/** Which host's cached conversation observations to list. */
+export type HostConversationScope = {
+  location: 'local' | 'remote';
+  sshConnectionId: string | null;
+};
+
+/**
+ * One cached host conversation observation for the machine page (spec §8): the full
+ * registry row shape — task-linked and orphaned alike — unlike `Conversation`, which
+ * only exists for task-linked records.
+ */
+export type HostConversationRow = {
+  id: string;
+  title: string;
+  provider: string | null;
+  type: string | null;
+  projectId: string | null;
+  taskId: string | null;
+  /** Resolved link names for presentation; null when the link is absent or dangling. */
+  projectName: string | null;
+  taskName: string | null;
+  workspacePath: string | null;
+  lastSessionActivityAt: string | null;
+  observedStatus: 'present' | 'missing' | null;
+  lastObservedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Tombstoned locally with a live `host-delete-conversation` outbox entry in flight. */
+  pendingRemoval: boolean;
+};
+
 export type CreateConversationParams = {
   id: string;
   projectId: string;

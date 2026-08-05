@@ -24,13 +24,6 @@ import {
 type TuiAgentStatusBridgeDependencies = {
   client: TuiAgentsRuntimeClient;
   onStateChanged: WireWorker<TuiAgentsContract>['onStateChanged'];
-  setSessionId(
-    conversationId: string,
-    sessionId: string
-  ): Promise<
-    | { success: true; data: { taskId: string; projectId: string } }
-    | { success: false; error: { type: string } }
-  >;
   publishConversationEvent(event: ConversationEvent): void;
 };
 
@@ -178,10 +171,11 @@ class TuiAgentStatusBridge {
     const bootstrap = options.bootstrap ?? false;
     const seen = new Set<string>();
 
+    // Session ids are not persisted here: the TUI runtime reports resume handles into
+    // the conversation index (spec §3.3) and convergence caches them client-side.
     for (const session of Object.values(nextSessions)) {
       seen.add(session.conversationId);
       const previous = this.sessions.get(session.conversationId);
-      await this.persistSessionIdIfChanged(previous, session);
       if (!bootstrap && previous?.status !== 'exited' && session.status === 'exited') {
         await this.resetConversation(session.conversationId);
       }
@@ -217,31 +211,6 @@ class TuiAgentStatusBridge {
 
   private async resetConversation(conversationId: string): Promise<void> {
     await agentStatusService.resetToIdle({ conversationId });
-  }
-
-  private async persistSessionIdIfChanged(
-    previous: TuiSessionState | undefined,
-    session: TuiSessionState
-  ): Promise<void> {
-    if (!session.sessionId || previous?.sessionId === session.sessionId) return;
-    const dependencies = this.dependencies;
-    if (!dependencies) throw new Error('TUI agent status bridge has not been initialized');
-    const result = await dependencies.setSessionId(session.conversationId, session.sessionId);
-    if (!result.success) {
-      log.warn('TUI agent status bridge failed to persist session id', {
-        conversationId: session.conversationId,
-        error: result.error.type,
-      });
-      return;
-    }
-
-    dependencies.publishConversationEvent({
-      type: 'changed',
-      conversationId: session.conversationId,
-      taskId: result.data.taskId,
-      projectId: result.data.projectId,
-      changes: { sessionId: session.sessionId },
-    });
   }
 }
 

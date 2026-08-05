@@ -1,7 +1,6 @@
 import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
-import { log } from '@emdash/shared/logger';
 import { and, eq } from 'drizzle-orm';
-import { conversationWireEvents } from '@core/features/conversations/api/node';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type { EnsureConversationSessionOutcome } from '@core/features/conversations/api/node/types';
 import { mapConversationRowToConversation } from '@core/features/conversations/api/node/utils';
 import { resolveTask } from '@core/features/projects/api/node/utils';
@@ -9,8 +8,6 @@ import type { TaskSessionManager } from '@core/features/tasks/api/node/task-sess
 import type { Conversation } from '@core/primitives/conversations/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations } from '@core/services/app-db/node/schema';
-import { setSessionIdIfUnset } from './set-session-id';
 
 type LaunchTuiConversationDb = Pick<AppDb, 'select' | 'update'>;
 
@@ -54,15 +51,16 @@ export async function launchTuiConversation({
       .limit(1);
 
     if (!row) throw new Error('Conversation not found');
+    const conversation = mapConversationRowToConversation(row);
+    if (conversation === null) throw new Error('Conversation has no task link');
     if (row.type === 'acp') {
-      return { conversation: mapConversationRowToConversation(row), outcome: 'attached' };
+      return { conversation, outcome: 'attached' };
     }
 
     const task = resolveTask(taskSessions, projectId, taskId);
     if (!task) throw new Error('Task not found');
 
-    const isFirstSpawn = row.sessionId === null;
-    const conversation = mapConversationRowToConversation(row);
+    const isFirstSpawn = row.providerSessionId === null;
     const initialPrompt =
       isFirstSpawn && row.config?.type === 'pty' ? row.config.initialPrompt : undefined;
 
@@ -82,34 +80,9 @@ export async function launchTuiConversation({
       });
     }
 
-    if (!isFirstSpawn || launched.outcome === 'attached') {
-      return { conversation, outcome: launched.outcome };
-    }
-
-    const persisted = await setSessionIdIfUnset(conversationId, conversationId, database);
-    if (!persisted.success) {
-      await task.conversations.stopSession(conversationId);
-      throw new Error(`Failed to persist PTY session id: ${JSON.stringify(persisted.error)}`);
-    }
-
-    if (persisted.data.updated) {
-      conversationWireEvents.emit(undefined, {
-        type: 'changed',
-        conversationId,
-        taskId,
-        projectId,
-        changes: { sessionId: persisted.data.sessionId },
-      });
-    } else if (persisted.data.sessionId !== conversationId) {
-      log.debug('launchTuiConversation: native session id won placeholder race', {
-        conversationId,
-        sessionId: persisted.data.sessionId,
-      });
-    }
-
-    return {
-      conversation: { ...conversation, sessionId: persisted.data.sessionId },
-      outcome: launched.outcome,
-    };
+    // The resume handle is host truth now: the TUI runtime reports the emdash-chosen
+    // handle (or a hook-captured native id) into the index at spawn, and convergence
+    // flows it into `providerSessionId` here — no client placeholder write (spec §3.3).
+    return { conversation, outcome: launched.outcome };
   });
 }

@@ -166,6 +166,8 @@ export type ProvisionWorkspaceError =
 export type DeleteTaskOptions = {
   deleteWorktree?: boolean;
   deleteBranch?: boolean;
+  /** Default-on cascade: delete the task's conversation records on their host. */
+  deleteConversations?: boolean;
 };
 
 export type TaskDeletePreflightItem = {

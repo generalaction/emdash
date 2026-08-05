@@ -4,6 +4,8 @@ import { createManualClock, type ManualClock } from '@emdash/shared/testing';
 import { peek } from '@emdash/wire';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { AgentPluginHost, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
+import type { ConversationLifecycleReporter } from '@services/conversation-reports/node';
+import { createRecordingConversationLifecycleReporter } from '@services/conversation-reports/node/testing';
 import type { IExecutionContext } from '@services/exec/api';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
 import { createMemorySessionIntentStore } from '@services/session-intents/api';
@@ -58,6 +60,7 @@ function createRuntime(
     lifecycle?: ConstructorParameters<typeof TuiAgentsRuntime>[0]['lifecycle'];
     exec?: Partial<IExecutionContext>;
     intents?: ReturnType<typeof createMemorySessionIntentStore>;
+    conversationReports?: ConversationLifecycleReporter;
   } = {}
 ) {
   const spawner = new FakePtySpawner();
@@ -86,6 +89,7 @@ function createRuntime(
     agentHost,
     exec,
     intents: options.intents ?? createMemorySessionIntentStore(),
+    conversationReports: options.conversationReports,
     spawner,
     clock: options.clock,
     lifecycle: options.lifecycle,
@@ -332,5 +336,82 @@ describe('TuiAgentsRuntime', () => {
 
     expect(spawner.processes[0]!.kill).toHaveBeenCalled();
     await vi.waitFor(() => expect(intents.snapshot()).toEqual([]));
+  });
+});
+
+// Property conv.sole-writer / spec §7.4: session facts (spawn, hook-captured provider id,
+// activity, end, resume outcome) flow from the TUI runtime into the conversation index via
+// lifecycle reports.
+describe('TuiAgentsRuntime conversation lifecycle reports', () => {
+  it('reports a fresh session start with no provider session id and no resume outcome', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const { runtime } = createRuntime({ conversationReports: reports });
+
+    await runtime.startSession(startInput());
+
+    expect(reports.started).toEqual([
+      { id: 'conversation-1', providerSessionId: null, resumeOutcome: null },
+    ]);
+    expect(reports.activities).toContain('conversation-1');
+  });
+
+  it('reports the caller-declared emdash-chosen handle on a fresh spawn (spec §3.1)', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const { runtime } = createRuntime({ conversationReports: reports });
+
+    await runtime.startSession(startInput({ chosenSessionId: 'conversation-1' }));
+
+    expect(reports.started).toEqual([
+      { id: 'conversation-1', providerSessionId: 'conversation-1', resumeOutcome: null },
+    ]);
+  });
+
+  it("reports 'loaded' on resume and 'replaced-by-new' when the resume spawn exits early", async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const { runtime, spawner } = createRuntime({ conversationReports: reports });
+
+    await runtime.resumeSession(startInput({ sessionId: 'provider-session' }));
+    expect(reports.started).toEqual([
+      { id: 'conversation-1', providerSessionId: 'provider-session', resumeOutcome: 'loaded' },
+    ]);
+
+    spawner.processes[0]!.emitExit({ exitCode: 0, signal: null });
+    await vi.waitFor(() => {
+      expect(reports.started).toHaveLength(2);
+    });
+    expect(reports.started[1]).toEqual({
+      id: 'conversation-1',
+      providerSessionId: null,
+      resumeOutcome: 'replaced-by-new',
+    });
+  });
+
+  it('reports hook-captured provider session ids through the id-changed callback', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const { runtime } = createRuntime({ conversationReports: reports });
+    await runtime.startSession(startInput());
+
+    // The hook server -> pipeline chain needs a live HTTP round-trip, so drive the state
+    // seam it lands on directly; the runtime's constructor callback is what is under test.
+    runtime['agentStates'].setProviderSessionId('conversation-1', 'captured-session');
+
+    expect(reports.providerIds).toEqual([
+      { id: 'conversation-1', providerSessionId: 'captured-session' },
+    ]);
+  });
+
+  it('reports session end on stop and on process exit', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const { runtime, spawner } = createRuntime({ conversationReports: reports });
+
+    await runtime.startSession(startInput());
+    runtime.stopSession('conversation-1');
+    expect(reports.ended).toEqual(['conversation-1']);
+
+    await runtime.startSession(startInput());
+    spawner.processes[1]!.emitExit({ exitCode: 0, signal: null });
+    await vi.waitFor(() => {
+      expect(reports.ended).toEqual(['conversation-1', 'conversation-1']);
+    });
   });
 });

@@ -1,35 +1,55 @@
-import { eq } from 'drizzle-orm';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
+import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
-import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations } from '@core/services/app-db/node/schema';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { conversationWireEvents } from './event-host';
+import type { HostConversationMutationDeps } from './host-mutation';
+import { resolveConversationHostClient } from './host-mutation';
 
-export async function renameConversation(db: AppDb, conversationId: string, name: string) {
+/**
+ * Renames a conversation through its host index (spec §4.3): a foreground wire mutation,
+ * last-write-wins at the sole-writer index. The local cache is only updated with the
+ * host-acknowledged value from the response — no local dirty state; offline renames are
+ * refused like offline creation.
+ */
+export async function renameConversation(
+  deps: HostConversationMutationDeps,
+  conversationId: string,
+  name: string
+) {
   const title = name.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
+  const { row, client } = await resolveConversationHostClient(deps, conversationId);
 
-  const [existing] = await db
-    .select({ projectId: conversations.projectId, taskId: conversations.taskId })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId))
-    .limit(1);
+  const renamed = await client.rename({ id: conversationId, title });
+  if (!renamed.success) {
+    throw new Error(`Rename was rejected by the host: ${renamed.error.message}`);
+  }
 
-  await db.update(conversations).set({ title }).where(eq(conversations.id, conversationId));
+  const now = new Date().toISOString();
+  createConversationRegistry(deps.db).refresh(conversationId, {
+    title: renamed.data.title,
+    updatedAt: new Date(renamed.data.updatedAt).toISOString(),
+    lastObservedAt: now,
+  });
 
-  if (existing) {
+  if (row.projectId !== null && row.taskId !== null) {
     conversationEvents._emit(
       'conversation:renamed',
       conversationId,
-      existing.projectId,
-      existing.taskId,
-      title
+      row.projectId,
+      row.taskId,
+      renamed.data.title
     );
     conversationWireEvents.emit(undefined, {
       type: 'changed',
       conversationId,
-      taskId: existing.taskId,
-      projectId: existing.projectId,
-      changes: { title },
+      taskId: row.taskId,
+      projectId: row.projectId,
+      changes: { title: renamed.data.title },
     });
   }
+  appDbPokes.conversations.poke({
+    projectId: row.projectId ?? undefined,
+    taskId: row.taskId ?? undefined,
+  });
 }

@@ -12,6 +12,8 @@ import { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
 import type { AcpRuntimeDeps } from '@runtimes/acp/node/runtime/types';
 import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
+import { conversationReportsContract } from '@services/conversation-reports/api';
+import { createConversationLifecycleReporter } from '@services/conversation-reports/node';
 import { NodeExecutionContext } from '@services/exec/api';
 import {
   createHostDependencyResolverFromDependency,
@@ -47,6 +49,7 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
     contract: acpApiContract,
     requirements: {
       hostDependencies: requireContract(hostDependencyResolverContract),
+      conversations: requireContract(conversationReportsContract),
     },
     configSchema: acpComponentConfigSchema,
     create: ({ config, dependencies, instance, logger, scope }) => {
@@ -91,6 +94,10 @@ export function createAcpComponent(options: CreateAcpComponentOptions) {
         },
         attachmentStore,
         intents,
+        conversationReports: createConversationLifecycleReporter({
+          client: dependencies.conversations,
+          logger: runtimeLogger,
+        }),
         lifecycle: config.lifecycle,
         logger: runtimeLogger,
       } satisfies AcpRuntimeDeps);

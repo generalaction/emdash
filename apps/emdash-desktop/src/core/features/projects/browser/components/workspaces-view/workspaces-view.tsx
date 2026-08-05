@@ -434,7 +434,11 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
   const activeSelected = selectedRows.some((row) => row.hasActiveSessions);
 
   const runAction = useCallback(
-    async (kind: 'archive' | 'delete', rows: ProjectWorkspaceRow[]) => {
+    async (
+      kind: 'archive' | 'delete',
+      rows: ProjectWorkspaceRow[],
+      options: { deleteConversations?: boolean } = {}
+    ) => {
       if (rows.length === 0) return;
       const paths = rows.map((row) => row.path);
       setPendingAction(kind);
@@ -444,7 +448,11 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
             ? await archiveProjectWorkspaces(projectId, rows)
             : await (
                 await getDesktopWireClient()
-              ).projectWorkspaces.deleteProjectWorkspaces({ projectId, paths });
+              ).projectWorkspaces.deleteProjectWorkspaces({
+                projectId,
+                paths,
+                deleteConversations: options.deleteConversations,
+              });
         showActionResult(kind, result);
         if (result.failedCount === 0) selection.clear();
         await store.load();
@@ -484,8 +492,14 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
         : 'This removes selected workspaces. Linked tasks are deleted with their owned worktrees.',
       confirmLabel: 'Delete',
       variant: 'destructive',
+      // Unchecked default (spec §7.1): removal keeps conversation records.
+      checkbox: { label: 'Delete their conversations too' },
     }).then((outcome) => {
-      if (outcome.success) void runAction('delete', deletableRows);
+      if (outcome.success) {
+        void runAction('delete', deletableRows, {
+          deleteConversations: outcome.data?.checked ?? false,
+        });
+      }
     });
   }, [activeSelected, deletableRows, openConfirm, runAction]);
 

@@ -161,6 +161,8 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
         'This deletes linked task worktrees for this repository where supported. Repository roots are preserved.',
       confirmLabel: 'Delete',
       variant: 'destructive',
+      // Unchecked default (spec §7.1): removal keeps conversation records.
+      checkbox: { label: 'Delete their conversations too' },
     });
 
     if (!outcome.success) return;
@@ -169,6 +171,7 @@ export const LocalWorkspaceDetailPage = observer(function LocalWorkspaceDetailPa
       const result = await deleteMachineProjectWorkspaces({
         projectId: group.project.id,
         paths: deletableRows.map((row) => row.row.path),
+        deleteConversations: outcome.data?.checked ?? false,
       });
       const failed = result.results.filter((row) => !row.success);
 

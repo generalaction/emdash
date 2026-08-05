@@ -98,13 +98,16 @@ export function useProjectWorkspaceGitStats(
 export async function deleteMachineProjectWorkspaces({
   projectId,
   paths,
+  deleteConversations,
 }: {
   projectId: string;
   paths: string[];
+  deleteConversations?: boolean;
 }) {
   return (await getDesktopWireClient()).projectWorkspaces.deleteProjectWorkspaces({
     projectId,
     paths,
+    deleteConversations,
   });
 }
 

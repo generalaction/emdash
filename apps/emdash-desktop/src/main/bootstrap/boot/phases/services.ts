@@ -1,3 +1,4 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -11,6 +12,8 @@ import { getPlugin, getPluginMetadata } from '@core/features/agents/api/node/plu
 import { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { buildAutomationDeployment } from '@core/features/automations/node/deployment-builder';
+import { ConversationBackfillService } from '@core/features/conversations/node/sync/conversation-backfill';
+import { ConversationSyncService } from '@core/features/conversations/node/sync/conversation-sync-service';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
@@ -151,6 +154,7 @@ export type ServicesBundle = {
   readonly taskSessions: TaskSessionManager;
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
+  readonly conversationSync: ConversationSyncService;
 };
 
 export async function bootServices(
@@ -517,6 +521,21 @@ export async function bootServices(
     onError: (context, error) => log.warn(context, { error }),
   });
   const snapshotRequester: SnapshotRequester = workspaceSnapshotSync;
+  const conversationSync = new ConversationSyncService({
+    db,
+    runtimes,
+    scope: appScope,
+    onError: (context, error) => log.warn(context, { error }),
+  });
+  const conversationBackfill = new ConversationBackfillService({
+    db,
+    runtimes,
+    onError: (context, error) => log.warn(context, { error }),
+  });
+  // Backfill precedes attach so the first missing-sweep already sees pre-upgrade records.
+  void conversationBackfill
+    .backfillHost(LOCAL_HOST_REF)
+    .then(() => conversationSync.attachHost(LOCAL_HOST_REF));
   const operationDefinitions = createOperationDefinitions({
     db,
     initiatedBy: desktopClientId,
@@ -528,6 +547,7 @@ export async function bootServices(
       unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
     },
     deleteAutomation: { runtimes },
+    deleteConversation: { runtimes },
     deleteProject: {
       automations: automationsService,
       getMementosRuntimeClient,
@@ -594,6 +614,19 @@ export async function bootServices(
   appScope.add(() => {
     infrastructure.ssh.manager.off('connection-event', handleWorkspaceSnapshotSshEvent);
   });
+  const handleConversationSyncSshEvent = (event: { type: string; connectionId?: string }) => {
+    if (!event.connectionId) return;
+    if (event.type === 'connected' || event.type === 'reconnected') {
+      const host = hostRef('remote', event.connectionId);
+      void conversationBackfill.backfillHost(host).then(() => conversationSync.attachHost(host));
+    } else if (event.type === 'disconnected' || event.type === 'reconnect-failed') {
+      conversationSync.detachHost(hostRef('remote', event.connectionId));
+    }
+  };
+  infrastructure.ssh.manager.on('connection-event', handleConversationSyncSshEvent);
+  appScope.add(() => {
+    infrastructure.ssh.manager.off('connection-event', handleConversationSyncSshEvent);
+  });
   const unsubscribeWorkspaceSnapshotProjects = projectManager.on('projectOpened', (projectId) => {
     void workspaceSnapshotSync.requestProject(projectId, 'full');
   });
@@ -617,5 +650,6 @@ export async function bootServices(
     taskSessions: taskSessionManager,
     workspacePlacement,
     workspaceSnapshotSync,
+    conversationSync,
   };
 }

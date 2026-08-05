@@ -61,6 +61,11 @@
                 "name": "@core/services/app-db/node/schema",
                 "importNames": ["workspaces"],
                 "message": "The Workspace Registry is the sole writer. Import workspaceRegistryTable/liveWorkspaces from @core/features/workspaces/api/node/registry."
+              },
+              {
+                "name": "@core/services/app-db/node/schema",
+                "importNames": ["conversations"],
+                "message": "The Conversation Registry is the sole writer. Import conversationRegistryTable/liveConversations from @core/features/conversations/api/node/registry."
               }
             ]
           }
@@ -68,7 +73,10 @@
       }
     },
     {
-      "files": ["src/core/features/workspaces/api/node/registry/**/*.{ts,tsx}"],
+      "files": [
+        "src/core/features/workspaces/api/node/registry/**/*.{ts,tsx}",
+        "src/core/features/conversations/api/node/registry/**/*.{ts,tsx}"
+      ],
       "rules": {
         "no-restricted-imports": "off"
       }

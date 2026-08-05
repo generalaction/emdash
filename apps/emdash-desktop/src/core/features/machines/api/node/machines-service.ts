@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { formatHostRef, hostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import {
+  createConversationRegistry,
+  conversationRegistryTable as conversationRows,
+} from '@core/features/conversations/api/node/registry';
+import {
   createWorkspaceRegistry,
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
@@ -235,6 +239,24 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       .all()
       .map(({ id: workspaceId }) => workspaceId);
     createWorkspaceRegistry(this.deps.db).untrack(registryIds, new Date(this.now()).toISOString());
+
+    // Conversation mirror rules (spec §7.3): task-linked cached records stay visible as
+    // stale observations; unlinked mirror rows drop with the mirror. The host's own index
+    // is untouched — re-adding the host reconverges everything, because the client never
+    // held authority.
+    const unlinkedMirrorIds = this.deps.db
+      .select({ id: conversationRows.id })
+      .from(conversationRows)
+      .where(and(eq(conversationRows.sshConnectionId, id), isNull(conversationRows.taskId)))
+      .all()
+      .map(({ id: conversationId }) => conversationId);
+    if (unlinkedMirrorIds.length > 0) {
+      const conversationRegistry = createConversationRegistry(this.deps.db);
+      this.deps.db.transaction((tx) => {
+        conversationRegistry.untrack(unlinkedMirrorIds, new Date(this.now()).toISOString(), tx);
+        conversationRegistry.purge(unlinkedMirrorIds, tx);
+      });
+    }
 
     await this.deps.ssh.dropConnection(id).catch((error: unknown) => {
       this.deps.log.warn('MachinesService.deleteMachine: error disconnecting', {

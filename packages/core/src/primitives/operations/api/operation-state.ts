@@ -13,7 +13,13 @@ export const operationNeedsConfirmationErrorSchema = z.object({
   message: z.string().optional(),
 });
 
-export const operationEntityKindSchema = z.enum(['task', 'automation', 'workspace', 'project']);
+export const operationEntityKindSchema = z.enum([
+  'task',
+  'automation',
+  'workspace',
+  'project',
+  'conversation',
+]);
 
 /** Canonical identity and presentation fields shared by plans, predictions, and journals. */
 export const operationStageSchema = z.object({

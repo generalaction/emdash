@@ -25,6 +25,7 @@ const expectedModalIds = [
   'githubConnectModal',
   'githubDeviceFlowModal',
   'integrationSetupModal',
+  'linkConversationModal',
   'projectConfigImportModal',
   'promptModal',
   'quitUnsavedChangesModal',

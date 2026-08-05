@@ -1,77 +1,110 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
+import type { HostConversationMutationDeps } from './host-mutation';
 import { setConversationModeId } from './set-mode-id';
 
 type FakeRow = {
   config: ConversationConfig | null;
   projectId: string;
   taskId: string;
+  location: 'local' | 'remote';
+  sshConnectionId: string | null;
 };
 
 describe('setConversationModeId', () => {
   it('rejects an empty mode id', async () => {
-    const { database } = fakeDatabase(acpRow());
+    const { deps } = fakeDeps(acpRow());
 
-    const result = await setConversationModeId('conversation-1', '  ', database as never);
+    const result = await setConversationModeId(deps, 'conversation-1', '  ');
 
     expect(result).toEqual({ success: false, error: { type: 'empty-mode-id' } });
   });
 
   it('returns conversation-not-found when the row is missing', async () => {
-    const { database } = fakeDatabase(undefined);
+    const { deps } = fakeDeps(undefined);
 
-    const result = await setConversationModeId('conversation-1', 'agent', database as never);
+    const result = await setConversationModeId(deps, 'conversation-1', 'agent');
 
     expect(result).toMatchObject({ success: false, error: { type: 'conversation-not-found' } });
   });
 
   it('rejects non-ACP conversations', async () => {
-    const { database } = fakeDatabase({
+    const { deps } = fakeDeps({
       config: { version: '1', type: 'pty' },
       projectId: 'project-1',
       taskId: 'task-1',
+      location: 'local',
+      sshConnectionId: null,
     });
 
-    const result = await setConversationModeId('conversation-1', 'agent', database as never);
+    const result = await setConversationModeId(deps, 'conversation-1', 'agent');
 
     expect(result).toMatchObject({ success: false, error: { type: 'not-acp-conversation' } });
   });
 
-  it('writes the mode id into the ACP config and preserves other fields', async () => {
+  it('writes the mode id through the host updateConfig verb and caches the acknowledged config', async () => {
     const row = acpRow({ model: 'claude-sonnet-5' });
-    const { database, updates } = fakeDatabase(row);
+    const { deps, hostCalls, cacheWrites } = fakeDeps(row);
 
-    const result = await setConversationModeId(
-      'conversation-1',
-      'agent-full-access',
-      database as never
-    );
+    const result = await setConversationModeId(deps, 'conversation-1', 'agent-full-access');
 
     expect(result).toEqual({
       success: true,
       data: { projectId: 'project-1', taskId: 'task-1' },
     });
-    expect(updates).toHaveLength(1);
-    expect(updates[0]?.config).toEqual({
-      version: '1',
-      type: 'acp',
-      model: 'claude-sonnet-5',
-      modeId: 'agent-full-access',
+    expect(hostCalls).toHaveLength(1);
+    expect(hostCalls[0]).toEqual({
+      id: 'conversation-1',
+      config: {
+        version: '1',
+        type: 'acp',
+        model: 'claude-sonnet-5',
+        modeId: 'agent-full-access',
+      },
     });
-    expect(updates[0]?.updatedAt).toEqual(expect.any(String));
+    // The cache write holds the host-acknowledged config, not the optimistic value.
+    expect(cacheWrites).toHaveLength(1);
+    expect(cacheWrites[0]?.config).toEqual(hostCalls[0]?.config);
   });
 
   it('skips the write when the mode id is unchanged', async () => {
     const row = acpRow({ modeId: 'agent' });
-    const { database, updates } = fakeDatabase(row);
+    const { deps, hostCalls } = fakeDeps(row);
 
-    const result = await setConversationModeId('conversation-1', 'agent', database as never);
+    const result = await setConversationModeId(deps, 'conversation-1', 'agent');
 
     expect(result).toEqual({
       success: true,
       data: { projectId: 'project-1', taskId: 'task-1' },
     });
-    expect(updates).toHaveLength(0);
+    expect(hostCalls).toHaveLength(0);
+  });
+
+  it('refuses the edit when the remote host is unreachable', async () => {
+    const { deps, hostCalls } = fakeDeps({
+      ...acpRow(),
+      location: 'remote',
+      sshConnectionId: 'conn-1',
+    });
+    deps.hostIsReachable = vi.fn(() => false);
+
+    const result = await setConversationModeId(deps, 'conversation-1', 'agent');
+
+    expect(result).toMatchObject({ success: false });
+    expect(hostCalls).toHaveLength(0);
+  });
+
+  it('surfaces host rejection without a cache write', async () => {
+    const { deps, cacheWrites, host } = fakeDeps(acpRow());
+    host.updateConfig.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'conversation-not-found', conversationId: 'conversation-1', message: 'gone' },
+    } as never);
+
+    const result = await setConversationModeId(deps, 'conversation-1', 'agent');
+
+    expect(result).toMatchObject({ success: false, error: { type: 'host-rejected' } });
+    expect(cacheWrites).toHaveLength(0);
   });
 });
 
@@ -80,11 +113,23 @@ function acpRow(config: Partial<ConversationConfig> = {}): FakeRow {
     config: { version: '1', type: 'acp', ...config } as ConversationConfig,
     projectId: 'project-1',
     taskId: 'task-1',
+    location: 'local',
+    sshConnectionId: null,
   };
 }
 
-function fakeDatabase(row: FakeRow | undefined) {
-  const updates: Array<Record<string, unknown>> = [];
+function fakeDeps(row: FakeRow | undefined) {
+  const hostCalls: Array<{ id: string; config: Record<string, unknown> }> = [];
+  const cacheWrites: Array<Record<string, unknown>> = [];
+  const host = {
+    updateConfig: vi.fn(async (input: { id: string; config: Record<string, unknown> }) => {
+      hostCalls.push(input);
+      return {
+        success: true as const,
+        data: { ...input, updatedAt: Date.now() },
+      };
+    }),
+  };
   const database = {
     select: () => ({
       from: () => ({
@@ -95,11 +140,24 @@ function fakeDatabase(row: FakeRow | undefined) {
     }),
     update: () => ({
       set: (values: Record<string, unknown>) => ({
-        where: async () => {
-          updates.push(values);
-        },
+        where: () => ({
+          run: () => {
+            cacheWrites.push(values);
+            return { changes: 1 };
+          },
+        }),
       }),
     }),
   };
-  return { database, updates };
+  const deps: HostConversationMutationDeps = {
+    db: database as never,
+    runtimes: {
+      client: vi.fn(async () => ({
+        success: true as const,
+        data: { conversations: host },
+      })),
+    } as never,
+    hostIsReachable: vi.fn(() => true),
+  };
+  return { deps, hostCalls, cacheWrites, host };
 }

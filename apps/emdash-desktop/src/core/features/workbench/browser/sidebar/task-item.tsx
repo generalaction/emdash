@@ -75,8 +75,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       tasks: [{ taskId, taskName }],
     }).then((outcome) => {
       if (!outcome.success) return;
-      const { deleteWorktree, deleteBranch } = outcome.data;
-      void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
+      const { deleteWorktree, deleteBranch, deleteConversations } = outcome.data;
+      void taskManager?.deleteTasks([taskId], {
+        deleteWorktree,
+        deleteBranch,
+        deleteConversations,
+      });
       if (isActive) navigate(projectViewDef({ projectId }));
     });
   };

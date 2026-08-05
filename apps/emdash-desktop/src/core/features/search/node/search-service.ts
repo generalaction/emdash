@@ -17,6 +17,7 @@ import {
 import type Database from 'better-sqlite3';
 import { and, eq, isNull } from 'drizzle-orm';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { projectEvents } from '@core/features/projects/api/node/project-events';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import {
@@ -36,7 +37,7 @@ import type {
 } from '@core/primitives/search/api';
 import type { Task } from '@core/primitives/tasks/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations, projects, tasks } from '@core/services/app-db/node/schema';
+import { projects, tasks } from '@core/services/app-db/node/schema';
 import { contentSearchRuntimeContract, type searchContract } from '../api';
 
 type FtsRow = {
@@ -284,7 +285,7 @@ export class SearchService {
           `SELECT c.id, c.title, c.project_id, c.task_id
            FROM conversations c
            WHERE c.task_id = ?
-           ORDER BY c.last_interacted_at DESC
+           ORDER BY c.last_session_activity_at DESC
            LIMIT 10`
         )
         .all(context.taskId) as RecentConversationRow[];

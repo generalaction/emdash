@@ -42,27 +42,19 @@ const target = {
 type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
-  it('awaits ACP session persistence after the runtime call', async () => {
-    const order: string[] = [];
-    const startSession = vi.fn(async () => {
-      order.push('runtime');
-      return ok({ sessionId: 'session-1' });
-    });
-    const persistAcpSessionId = vi.fn(async () => {
-      order.push('persist');
-    });
+  it('passes ACP session start through without a client session id write', async () => {
+    const startSession = vi.fn(async () => ok({ sessionId: 'session-1' }));
     const controller = setupController({
       client: { acp: { startSession } },
-      hooks: { persistAcpSessionId },
     });
 
     await expect(
       controller.call('acp.startSession', { conversationId: target.conversationId })
     ).resolves.toEqual(ok({ sessionId: 'session-1' }));
 
+    // The ACP runtime reports the session id into the conversation index (spec §3.3);
+    // the desktop no longer persists it from the response.
     expect(startSession).toHaveBeenCalledWith({ input: target.acpInput }, {});
-    expect(persistAcpSessionId).toHaveBeenCalledWith(target, 'session-1');
-    expect(order).toEqual(['runtime', 'persist']);
   });
 
   it('records submitted TUI input only after a successful carriage return', async () => {
@@ -184,13 +176,11 @@ function setupController(options: {
   client: object;
   runtimeError?: RuntimeResolveError;
   hooks?: Partial<{
-    persistAcpSessionId: (target: TestRuntimeTarget, sessionId: string) => Promise<void>;
     persistAcpMode: (target: TestRuntimeTarget, modeId: string) => Promise<void>;
     recordTuiInput: (target: TestRuntimeTarget) => Promise<void>;
   }>;
 }) {
   const hooks = {
-    persistAcpSessionId: async () => {},
     persistAcpMode: async () => {},
     recordTuiInput: async () => {},
     ...options.hooks,
@@ -206,6 +196,9 @@ function setupController(options: {
     projects: { getProject: vi.fn() },
     taskSessions: { getTask: vi.fn() },
     withCompensation: async ({ action }) => action(),
+    hostIsReachable: () => true,
+    operations: {} as never,
+    activeOperationInputs: async () => [],
     resolveTarget: async () => target,
     hooks,
   });

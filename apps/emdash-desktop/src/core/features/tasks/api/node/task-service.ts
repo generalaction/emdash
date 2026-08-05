@@ -106,6 +106,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       this.dependencies.projects,
       operations,
       this.dependencies.workspacePlacement,
+      this.dependencies.runtimes,
       params
     );
     if (result.success) {

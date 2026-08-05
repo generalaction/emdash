@@ -24,7 +24,11 @@ export async function deleteSelectedTasks(projectId: string): Promise<void> {
   });
   if (!outcome.success) return;
 
-  const { deleteWorktree, deleteBranch } = outcome.data;
-  await taskManager.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
+  const { deleteWorktree, deleteBranch, deleteConversations } = outcome.data;
+  await taskManager.deleteTasks([...taskView.selectedIds], {
+    deleteWorktree,
+    deleteBranch,
+    deleteConversations,
+  });
   taskView.setSelectedIds(new Set());
 }

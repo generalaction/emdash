@@ -233,6 +233,130 @@ describe('conversations contract', () => {
   });
 });
 
+describe('conversations lifecycle reports', () => {
+  // Session runtimes are the second feeder (spec §3.3): they report lifecycle facts into the
+  // index component; the last-observed providerSessionId update lives in exactly one place.
+  let handle: TempStoreHandle<ConversationsDb>;
+  let clock: ManualClock;
+  let runtime: ConversationsRuntime;
+  let wire: TestWire<typeof conversationsContract>;
+
+  beforeEach(async () => {
+    handle = await conversationsStore.openTemp();
+    clock = new ManualClock(10_000);
+    runtime = new ConversationsRuntime({ handle, clock });
+    wire = createTestWire(conversationsContract, createConversationsController(runtime), {
+      validate: 'full',
+    });
+    await wire.client.create(baseCreate);
+  });
+
+  afterEach(() => {
+    wire.dispose();
+    runtime.dispose();
+    handle.close();
+  });
+
+  async function recordSnapshot() {
+    const records = remote(conversationsContract.records, wire.client.records);
+    const model = records(undefined);
+    try {
+      await model.states.list.refresh();
+      return snapshot(model.states.list).value?.['conv-1'];
+    } finally {
+      await records.dispose();
+    }
+  }
+
+  it('session start stamps lastSpawnedAt and the observed provider session id', async () => {
+    await clock.advanceTo(20_000);
+    const reported = await wire.client.reportSessionStarted({
+      id: 'conv-1',
+      providerSessionId: 'provider-session-9',
+      resumeOutcome: null,
+    });
+    expect(reported).toEqual({ success: true, data: undefined });
+
+    expect(await recordSnapshot()).toMatchObject({
+      lastSpawnedAt: 20_000,
+      providerSessionId: 'provider-session-9',
+      providerSessionIdObservedAt: 20_000,
+      // A fresh start is not a resume attempt; the outcome stays never-resumed.
+      lastResumeOutcome: 'never-resumed',
+      updatedAt: 20_000,
+    });
+  });
+
+  it('resume outcomes record loaded and replaced-by-new', async () => {
+    await clock.advanceTo(20_000);
+    await wire.client.reportSessionStarted({
+      id: 'conv-1',
+      providerSessionId: 'provider-session-9',
+      resumeOutcome: 'loaded',
+    });
+    expect(await recordSnapshot()).toMatchObject({ lastResumeOutcome: 'loaded' });
+
+    await clock.advanceTo(30_000);
+    // The loadSession-fallback moment: the provider pruned its transcript, resume fell back
+    // to a new session — the honest "history could not be restored" signal (spec §7.4).
+    await wire.client.reportSessionStarted({
+      id: 'conv-1',
+      providerSessionId: 'provider-session-10',
+      resumeOutcome: 'replaced-by-new',
+    });
+    expect(await recordSnapshot()).toMatchObject({
+      lastResumeOutcome: 'replaced-by-new',
+      providerSessionId: 'provider-session-10',
+      providerSessionIdObservedAt: 30_000,
+      lastSpawnedAt: 30_000,
+    });
+  });
+
+  it('mid-stream provider-id rebinds update the linkage sub-record', async () => {
+    await wire.client.reportSessionStarted({
+      id: 'conv-1',
+      providerSessionId: 'provider-session-9',
+      resumeOutcome: null,
+    });
+
+    await clock.advanceTo(25_000);
+    await wire.client.reportProviderSessionId({
+      id: 'conv-1',
+      providerSessionId: 'provider-session-rebound',
+    });
+    expect(await recordSnapshot()).toMatchObject({
+      providerSessionId: 'provider-session-rebound',
+      providerSessionIdObservedAt: 25_000,
+      // The rebind touches only the linkage; spawn stamp is untouched.
+      lastSpawnedAt: 10_000,
+    });
+  });
+
+  it('activity and session end stamp lastSessionActivityAt', async () => {
+    await clock.advanceTo(21_000);
+    await wire.client.reportSessionActivity({ id: 'conv-1' });
+    expect(await recordSnapshot()).toMatchObject({ lastSessionActivityAt: 21_000 });
+
+    await clock.advanceTo(22_000);
+    await wire.client.reportSessionEnded({ id: 'conv-1' });
+    expect(await recordSnapshot()).toMatchObject({ lastSessionActivityAt: 22_000 });
+  });
+
+  it('reports for unknown records are conversation-not-found errors', async () => {
+    // A report must never create a record (conv.records-only: reports carry facts about
+    // records that exist; deletion wins over late reports).
+    const reported = await wire.client.reportSessionStarted({
+      id: 'conv-unknown',
+      providerSessionId: 's',
+      resumeOutcome: null,
+    });
+    expect(reported).toMatchObject({
+      success: false,
+      error: { type: 'conversation-not-found', conversationId: 'conv-unknown' },
+    });
+  });
+});
+
 describe('conversations durability', () => {
   it('records survive a runtime restart on the same database file', async () => {
     // Worker restart / host reboot: a fresh runtime over the same WAL SQLite file serves

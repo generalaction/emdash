@@ -8,6 +8,7 @@ import {
   makeAcpHarness,
   makeStartInput,
 } from '@runtimes/acp/node/acp-test-support';
+import { createRecordingConversationLifecycleReporter } from '@services/conversation-reports/node/testing';
 import { createMemorySessionIntentStore } from '@services/session-intents/api';
 import { describe, expect, it, vi } from 'vitest';
 import { AcpRuntime } from './runtime';
@@ -565,6 +566,110 @@ describe('AcpRuntime session manager', () => {
     expect(rt.sessionLiveModels('conv-a')).toBeNull();
     expect(rt.sessionLiveModels('conv-b')).toBeNull();
     expect(peek(rt.sessionsListLiveModel().states.list)).toEqual({});
+  });
+});
+
+// Property conv.sole-writer / spec §7.4: session facts (spawn, provider-id rebind, activity,
+// end, resume outcome) flow from the session runtime into the conversation index via
+// lifecycle reports.
+describe('AcpRuntime conversation lifecycle reports', () => {
+  it('reports a fresh session start with the provider session id and no resume outcome', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+
+    await rt.startSession(makeStartInput({ conversationId: 'conv-fresh' }));
+
+    expect(reports.started).toEqual([
+      { id: 'conv-fresh', providerSessionId: 'session-1', resumeOutcome: null },
+    ]);
+    expect(reports.activities).toContain('conv-fresh');
+  });
+
+  it("reports resumeOutcome 'loaded' when the provider replays the session", async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+    h.agent.loadSession = vi.fn(async () => ({}));
+
+    await rt.resumeSession({
+      ...makeStartInput({ conversationId: 'conv-resume' }),
+      sessionId: 'session-old',
+    });
+
+    expect(reports.started).toEqual([
+      { id: 'conv-resume', providerSessionId: 'session-old', resumeOutcome: 'loaded' },
+    ]);
+  });
+
+  it("reports resumeOutcome 'replaced-by-new' when loadSession fails and a fresh session starts", async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+    h.agent.loadSession = vi.fn(async () => {
+      throw new Error('session file is gone');
+    });
+
+    const result = await rt.resumeSession({
+      ...makeStartInput({ conversationId: 'conv-fallback' }),
+      sessionId: 'session-old',
+    });
+
+    expect(isOk(result)).toBe(true);
+    expect(reports.started).toEqual([
+      { id: 'conv-fallback', providerSessionId: 'session-1', resumeOutcome: 'replaced-by-new' },
+    ]);
+  });
+
+  it('reports the rebound provider session id when updates arrive under a new id', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+    h.agent.loadSession = vi.fn(async () => {
+      await h.client().sessionUpdate({
+        sessionId: 'session-rebound',
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          sessionId: 'session-rebound',
+          messageId: 'msg-1',
+          content: { type: 'text', text: 'hello' },
+        } as SessionUpdate,
+      });
+      return {};
+    });
+
+    await rt.resumeSession({
+      ...makeStartInput({ conversationId: 'conv-rebind' }),
+      sessionId: 'session-old',
+    });
+
+    expect(reports.providerIds).toEqual([
+      { id: 'conv-rebind', providerSessionId: 'session-rebound' },
+    ]);
+  });
+
+  it('reports session end on user stop', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-stop' }));
+
+    rt.stopSession('conv-stop');
+
+    expect(reports.ended).toEqual(['conv-stop']);
+  });
+
+  it('reports session end when the provider process dies', async () => {
+    const reports = createRecordingConversationLifecycleReporter();
+    const h = makeAcpHarness({ conversationReports: reports });
+    const rt = new AcpRuntime(h.deps);
+    await rt.startSession(makeStartInput({ conversationId: 'conv-died' }));
+
+    h.lastChild.emitExit(42);
+
+    await vi.waitFor(() => {
+      expect(reports.ended).toEqual(['conv-died']);
+    });
   });
 });
 

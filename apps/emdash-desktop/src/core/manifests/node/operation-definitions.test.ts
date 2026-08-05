@@ -7,6 +7,7 @@ describe('desktop operation conflict policy', () => {
     const created = createOperationDefinitions({
       db: {} as never,
       deleteAutomation: {} as never,
+      deleteConversation: {} as never,
       deleteProject: {} as never,
       deleteTask: {} as never,
       hostOutbox: {} as never,

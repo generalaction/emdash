@@ -5,6 +5,7 @@ import type { TuiAgentStartInput } from '@emdash/core/runtimes/tui-agents/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq } from 'drizzle-orm';
 import type { WorkspaceTrustService } from '@core/features/agents/api/node/workspace-trust';
+import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type {
   ConversationProvider,
   EnsureConversationSessionRequest,
@@ -19,7 +20,6 @@ import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import { conversations } from '@core/services/app-db/node/schema';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
   fileMutationKey,
@@ -166,6 +166,9 @@ export class TuiConversationProvider implements ConversationProvider {
       providerId: conversation.providerId,
       cwd: this.taskPath,
       sessionId: agentSession.isResuming ? agentSession.sessionId : null,
+      // Fresh spawns declare the emdash-chosen resume handle (resolveAgentSession falls
+      // back to the conversation id), so the index learns it at spawn (spec §3.1).
+      chosenSessionId: agentSession.isResuming ? null : agentSession.sessionId,
       model: conversation.model ?? null,
       initialPrompt: effectiveInitialPrompt,
       autoApprove: conversation.autoApprove ?? false,
