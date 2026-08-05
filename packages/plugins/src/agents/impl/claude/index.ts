@@ -169,11 +169,16 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
+        defaultArgs:
+          !ctx.autoApprove && ctx.canToggleBypassPermissions
+            ? ['--allow-dangerously-skip-permissions']
+            : undefined,
         autoApproveFlag: '--dangerously-skip-permissions',
         initialPromptFlag: '',
         resumeFlag: '--resume',
         sessionIdFlag: '--session-id',
         modelFlag: '--model',
+        deduplicateFlags: ['--allow-dangerously-skip-permissions'],
       }),
   },
   hooks: buildClaudeHookConfig(),

@@ -1,5 +1,6 @@
 import { getPlugin } from '@main/core/agents/plugin-registry';
 import { workspaceTrustService } from '@main/core/agents/workspace-trust';
+import { canExposeClaudeBypassPermissions } from '@main/core/conversations/claude-permission-mode-capability';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -141,6 +142,14 @@ export class SshConversationProvider implements ConversationProvider {
         hostDependencyStore,
         connectionId: this.proxy.connectionId,
       });
+      const canToggleBypassPermissions =
+        conversation.providerId === 'claude' && !conversation.autoApprove
+          ? await canExposeClaudeBypassPermissions({
+              cli: executableCli,
+              ctx: this.ctx,
+              host: { kind: 'ssh' },
+            })
+          : false;
 
       const agentCommand = plugin.behavior.prompt!.buildCommand({
         cli: executableCli,
@@ -151,6 +160,7 @@ export class SshConversationProvider implements ConversationProvider {
         providerSessionId: conversation.sessionId ?? undefined,
         isResuming: agentSession.isResuming,
         model: conversation.model ?? '',
+        canToggleBypassPermissions,
       });
 
       const customEnv = providerConfig?.env ?? {};
