@@ -113,6 +113,32 @@ export async function observeWorkspaceGit(
   }
 }
 
+/**
+ * The cheap scan path for ref-only changes (commit, branch switch, fetch): re-reads
+ * branch and divergence, carrying dirty/diff/lock state from the previous observation —
+ * no `git status`, no untracked line counting.
+ */
+export async function observeWorkspaceGitRefs(
+  workspacePath: string,
+  previous: WorkspaceGitObservations | null
+): Promise<WorkspaceGitObservations | null> {
+  const exec = createRegistryGitExec(workspacePath);
+  try {
+    const [branch, divergence] = await Promise.all([readBranch(exec), readDivergence(exec)]);
+    return {
+      branch,
+      dirty: previous?.dirty ?? false,
+      diffStats: previous?.diffStats ?? null,
+      ahead: divergence?.ahead ?? null,
+      behind: divergence?.behind ?? null,
+      locked: previous?.locked ?? false,
+      prunable: previous?.prunable ?? false,
+    };
+  } catch {
+    return previous;
+  }
+}
+
 async function readBranch(exec: BoundExec): Promise<string | null> {
   try {
     const result = await exec.exec(['rev-parse', '--abbrev-ref', 'HEAD'], {

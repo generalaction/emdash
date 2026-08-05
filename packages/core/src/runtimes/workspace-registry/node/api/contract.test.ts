@@ -12,8 +12,24 @@ import {
   type WorkspaceRegistryDb,
 } from '@runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '@runtimes/workspace-registry/node/runtime';
+import { WorkspaceScanScheduler } from '@runtimes/workspace-registry/node/scan/scheduler';
+import { nativeWatchBackend } from '@services/fs-watch/impl/native-backend';
+import { createWatchService } from '@services/fs-watch/impl/watch-service';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspaceRegistryController } from './controller';
+
+async function eventually(assertion: () => Promise<void>, timeoutMs = 10_000): Promise<void> {
+  const started = Date.now();
+  for (;;) {
+    try {
+      await assertion();
+      return;
+    } catch (error) {
+      if (Date.now() - started > timeoutMs) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+}
 
 // Contract-seam tests for the host workspace registry (ADR 0005), against real SQLite
 // and real git repositories in a temp dir. Property statements under test:
@@ -298,6 +314,36 @@ describe('workspace registry contract', () => {
       success: false,
       error: { type: 'workspace-not-found', workspaceId: 'unknown' },
     });
+  });
+
+  it('fs events refresh observations without any client call', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-live', path: repoPath });
+
+    const watchService = createWatchService({ backend: nativeWatchBackend() });
+    const scheduler = new WorkspaceScanScheduler({
+      watcher: watchService,
+      execute: (request) => runtime.executeScanRequest(request),
+      listTargets: () => runtime.scanTargets(),
+      isActive: () => false,
+      debounceMs: 25,
+      pollIntervalMs: 60 * 60_000,
+    });
+    runtime.setOnRecordsChanged(() => scheduler.syncWatches());
+    scheduler.start();
+    try {
+      await fs.writeFile(path.join(repoPath, 'untracked.txt'), 'a\nb\n');
+      await eventually(async () => {
+        const records = await listRecords();
+        expect(records['ws-live']?.git).toMatchObject({
+          dirty: true,
+          diffStats: { added: 2, deleted: 0 },
+        });
+      });
+    } finally {
+      await scheduler.dispose();
+      await watchService.dispose();
+    }
   });
 
   it('registry state survives a runtime rebuild over the same store', async () => {

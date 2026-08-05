@@ -29,8 +29,10 @@ import type { WorkspaceRegistryDb } from './persistence/store';
 import {
   listRepositoryWorktrees,
   observeWorkspaceGit,
+  observeWorkspaceGitRefs,
   type WorktreeListing,
 } from './scan/observe-git';
+import type { ScanRequest, ScanTarget } from './scan/scheduler';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -38,6 +40,8 @@ export type WorkspaceRegistryRuntimeOptions = {
   logger?: Logger;
   /** Test seam for hosts without git; production always inspects the real filesystem. */
   inspector?: PathInspector;
+  /** Invoked after every records change; the component points the scheduler at it. */
+  onRecordsChanged?: () => void;
 };
 
 /**
@@ -52,6 +56,7 @@ export class WorkspaceRegistryRuntime {
   private readonly clock: Clock;
   private readonly logger: Logger;
   private readonly inspector: PathInspector;
+  private onRecordsChanged: (() => void) | undefined;
   private readonly overlays = new Map<string, WorkspaceRuntimeOverlay>();
   private readonly recordsCell: Cell<WorkspaceRecords>;
   private mutationQueue: Promise<unknown> = Promise.resolve();
@@ -61,6 +66,7 @@ export class WorkspaceRegistryRuntime {
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
     this.inspector = options.inspector ?? inspectWorkspacePath;
+    this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle);
 
     const initial: WorkspaceRecords = {};
@@ -89,6 +95,44 @@ export class WorkspaceRegistryRuntime {
 
   refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
     return this.enqueue(() => this.refreshLocked(input));
+  }
+
+  /** Scheduler entry point: executes one coalesced scan request under the writer lock. */
+  executeScanRequest(request: ScanRequest): Promise<void> {
+    return this.enqueue(async () => {
+      const record = this.store.get(request.id);
+      if (!record) return;
+      if (request.kind === 'repository') {
+        await this.scanRepository(record, this.store.list());
+        return;
+      }
+      if (request.mode === 'refs') {
+        await this.scanRefsOnly(record);
+        return;
+      }
+      await this.scanRecord(record);
+    });
+  }
+
+  /** The scheduler's view of the registry: present paths to watch, staleness to bound. */
+  scanTargets(): ScanTarget[] {
+    return this.store.list().map((record) => ({
+      id: record.id,
+      kind: record.kind,
+      path: record.path,
+      parentId: record.parentId,
+      observedStatus: record.observedStatus,
+      lastObservedAt: record.lastObservedAt,
+    }));
+  }
+
+  /** Activity escalation gate: activated workspaces (or fresh activations) scan eagerly. */
+  isWorkspaceActive(id: string): boolean {
+    const overlay = this.overlays.get(id);
+    if (overlay?.activation) return true;
+    const record = this.store.get(id);
+    if (!record || record.lastActivatedAt === null) return false;
+    return this.clock.now() - record.lastActivatedAt < 60 * 60_000;
   }
 
   private async createWorkspaceLocked(
@@ -152,6 +196,11 @@ export class WorkspaceRegistryRuntime {
     return ok(this.toWire(record));
   }
 
+  /** Late-bound because the scheduler needs the runtime before it can be pointed at. */
+  setOnRecordsChanged(callback: () => void): void {
+    this.onRecordsChanged = callback;
+  }
+
   private deleteWorkspaceLocked(input: DeleteWorkspaceInput): Result<void, DeleteWorkspaceError> {
     const deleted = this.store.delete(input.id);
     if (deleted) {
@@ -161,6 +210,7 @@ export class WorkspaceRegistryRuntime {
         delete next[input.id];
         return next;
       });
+      this.onRecordsChanged?.();
     } else {
       this.logger.debug?.(`delete of absent workspace '${input.id}' — idempotent no-op`);
     }
@@ -333,6 +383,18 @@ export class WorkspaceRegistryRuntime {
     return settled;
   }
 
+  /** The cheap scan path: ref-only change — no status, no untracked counting. */
+  private async scanRefsOnly(record: DurableWorkspaceRecord): Promise<void> {
+    const now = this.clock.now();
+    if (record.kind === 'directory') return;
+    if (!(await isDirectory(record.path))) {
+      this.recordVanished(record, now);
+      return;
+    }
+    const git = await observeWorkspaceGitRefs(record.path, record.git);
+    this.saveRecord({ ...record, observedStatus: 'present', git }, now);
+  }
+
   /** Presence + observations for a record outside any repository reconciliation. */
   private async scanStandalone(record: DurableWorkspaceRecord): Promise<void> {
     const now = this.clock.now();
@@ -405,6 +467,7 @@ export class WorkspaceRegistryRuntime {
   private publish(record: DurableWorkspaceRecord): void {
     const wire = this.toWire(record);
     this.recordsCell.update((previous) => ({ ...previous, [record.id]: wire }));
+    this.onRecordsChanged?.();
   }
 
   private toWire(record: DurableWorkspaceRecord): WorkspaceRecord {

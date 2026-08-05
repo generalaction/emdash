@@ -123,17 +123,6 @@ export async function createWorkspaceServerRuntimeHost(
     config: { databasePath: paths.conversationsDatabase },
     shutdownGraceMs: 3_000,
   });
-  // The workspace registry depends on nothing and owns its database exclusively (ADR
-  // 0005). Default supervision (restart on failure) is deliberate: a durable index
-  // should come back; its runtime overlay is ephemeral by design.
-  const workspaceRegistryPromise = workerHost.spawn(workspaceRegistryComponent, {
-    name: 'workspace-registry',
-    executable: workspaceWorkerPath('workspace-registry'),
-    env,
-    dependencies: {},
-    config: { databasePath: paths.workspaceRegistryDatabase },
-    shutdownGraceMs: 3_000,
-  });
   const watcherPromise = workerHost.spawn(fsWatchComponent, {
     name: 'fs-watch',
     executable: workspaceWorkerPath('fs-watch'),
@@ -160,6 +149,19 @@ export async function createWorkspaceServerRuntimeHost(
     dependencies: {},
     config: {},
   });
+  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
+  // its freshness scheduler. Default supervision (restart on failure) is deliberate: a
+  // durable index should come back; its runtime overlay is ephemeral by design.
+  const workspaceRegistryPromise = watcherPromise.then((watcher) =>
+    workerHost.spawn(workspaceRegistryComponent, {
+      name: 'workspace-registry',
+      executable: workspaceWorkerPath('workspace-registry'),
+      env,
+      dependencies: { watcher },
+      config: { databasePath: paths.workspaceRegistryDatabase },
+      shutdownGraceMs: 3_000,
+    })
+  );
   const acpPromise = conversationsPromise.then((conversations) =>
     workerHost.spawn(createAcpComponent({ pluginRegistry, env }), {
       name: 'acp',

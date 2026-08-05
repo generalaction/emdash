@@ -173,20 +173,6 @@ async function startDesktopWorkersWithHost(
     shutdownGraceMs: 3_000,
   });
   const conversationsReady = conversationsWorker.ready();
-  // The workspace registry depends on nothing and owns its database exclusively (ADR
-  // 0005). Default supervision (restart on failure) is deliberate: a durable index
-  // should come back; its runtime overlay is ephemeral by design.
-  const workspaceRegistryWorker = host.create(workspaceRegistryComponent, {
-    name: 'workspace-registry',
-    executable: desktopWorkerPath('workspace-registry'),
-    env: process.env,
-    dependencies: {},
-    config: {
-      databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
-    },
-    shutdownGraceMs: 3_000,
-  });
-  const workspaceRegistryReady = workspaceRegistryWorker.ready();
   const acpStart = conversationsReady.then(async (conversations) => {
     const worker = host.create(createAcpComponent({ pluginRegistry, logger: log }), {
       name: 'acp',
@@ -279,6 +265,22 @@ async function startDesktopWorkersWithHost(
       env: process.env,
       dependencies: { watcher },
       config: { watchIgnore: filesSettings.watcherExclude },
+    });
+    return await worker.ready();
+  });
+  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
+  // its freshness scheduler. Default supervision (restart on failure) is deliberate: a
+  // durable index should come back; its runtime overlay is ephemeral by design.
+  const workspaceRegistryReady = watcherReady.then(async (watcher) => {
+    const worker = host.create(workspaceRegistryComponent, {
+      name: 'workspace-registry',
+      executable: desktopWorkerPath('workspace-registry'),
+      env: process.env,
+      dependencies: { watcher },
+      config: {
+        databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+      },
+      shutdownGraceMs: 3_000,
     });
     return await worker.ready();
   });
