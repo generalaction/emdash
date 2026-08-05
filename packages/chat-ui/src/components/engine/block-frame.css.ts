@@ -8,7 +8,8 @@
 import { style } from '@vanilla-extract/css';
 
 export const pblock = style({
-  position: 'absolute',
+  position: 'relative',
+  display: 'flow-root',
   left: 0,
   width: '100%',
   overflow: 'visible',

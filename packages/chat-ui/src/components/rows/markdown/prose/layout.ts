@@ -161,7 +161,12 @@ export function layoutProse(
       for (const f of line.fragments) {
         x += f.gapBefore;
         // Map from per-segment item index back to original block.runs index.
-        frags.push({ text: f.text, x, runIndex: indexMap[f.itemIndex] ?? f.itemIndex });
+        frags.push({
+          text: f.text,
+          gapBefore: f.gapBefore,
+          occupiedWidth: f.occupiedWidth,
+          runIndex: indexMap[f.itemIndex] ?? f.itemIndex,
+        });
         x += f.occupiedWidth;
       }
 
