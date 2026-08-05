@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { AgentCommand, CommandContext } from '../capabilities/prompt';
 
 /** Quote a single shell argument safely for POSIX shells. */
@@ -8,10 +9,58 @@ export function quoteShellArg(arg: string): string {
 }
 
 /** Wrap a command with stdin pipe delivery for an initial prompt. */
-export function wrapWithStdinPipe(cmd: AgentCommand, prompt: string): AgentCommand {
+export function wrapWithStdinPipe(
+  cmd: AgentCommand,
+  prompt: string,
+  platform: NodeJS.Platform = process.platform
+): AgentCommand {
+  if (platform === 'win32') return wrapWithWindowsStdinPipe(cmd, prompt);
+
   const agentLine = [cmd.command, ...cmd.args].map(quoteShellArg).join(' ');
   const shellLine = `printf '%s\n' ${quoteShellArg(prompt)} | ${agentLine}`;
   return { command: 'bash', args: ['-c', shellLine], env: cmd.env };
+}
+
+function quotePowerShellArg(arg: string): string {
+  return `'${arg.replaceAll("'", "''")}'`;
+}
+
+function toBase64Utf8(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64');
+}
+
+function wrapWithWindowsStdinPipe(cmd: AgentCommand, prompt: string): AgentCommand {
+  const promptBase64 = toBase64Utf8(`${prompt}\n`);
+  const commandBase64 = toBase64Utf8(cmd.command);
+  const argBase64List = cmd.args.map((arg) => quotePowerShellArg(toBase64Utf8(arg))).join(', ');
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    '$OutputEncoding = [Text.UTF8Encoding]::new($false)',
+    'function Decode-Utf8Base64([string] $value) { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($value)) }',
+    `function Quote-CmdArg([string] $value) { '"' + ($value -replace '(["^&|<>()%!])', '^$1') + '"' }`,
+    `$command = Decode-Utf8Base64 '${commandBase64}'`,
+    'if (-not [IO.Path]::HasExtension($command)) {',
+    "  $cmdShim = $command + '.cmd'",
+    '  if (Test-Path -LiteralPath $cmdShim -PathType Leaf) { $command = $cmdShim }',
+    '}',
+    `$agentArgs = @(${argBase64List}) | ForEach-Object { Decode-Utf8Base64 $_ }`,
+    '$promptPath = [IO.Path]::GetTempFileName()',
+    'try {',
+    `  [IO.File]::WriteAllBytes($promptPath, [Convert]::FromBase64String('${promptBase64}'))`,
+    `  $agentLine = @((Quote-CmdArg $command), ($agentArgs | ForEach-Object { Quote-CmdArg $_ })) -join ' '`,
+    `  $cmdTail = '"' + "$agentLine < $(Quote-CmdArg $promptPath)" + '"'`,
+    '  & $env:ComSpec /d /s /c $cmdTail',
+    '  exit $LASTEXITCODE',
+    '} finally {',
+    '  Remove-Item -LiteralPath $promptPath -Force -ErrorAction SilentlyContinue',
+    '}',
+  ].join('; ');
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  return {
+    command: 'powershell.exe',
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+    env: cmd.env,
+  };
 }
 
 /**
@@ -156,7 +205,7 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
 
   // Wrap with stdin pipe if needed
   if (!ctx.isResuming && ctx.initialPrompt && spec.initialPromptViaStdinPipe) {
-    return wrapWithStdinPipe(command, ctx.initialPrompt);
+    return wrapWithStdinPipe(command, ctx.initialPrompt, ctx.platform);
   }
 
   return command;

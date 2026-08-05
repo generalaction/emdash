@@ -6,6 +6,8 @@ export type CommandContext = {
   extraArgs?: string[]; // user-configured in settings
   autoApprove: boolean;
   initialPrompt?: string;
+  /** Platform where the command will run. Defaults to the local process platform. */
+  platform?: NodeJS.Platform;
   /** Emdash conversation UUID — used as the session token for providers that track their
    * own session across the emdash lifetime (e.g. claude --session-id, opencode --session). */
   sessionId?: string;
