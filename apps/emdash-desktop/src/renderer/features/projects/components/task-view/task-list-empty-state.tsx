@@ -24,8 +24,15 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
 }) {
   const showTaskModal = useShowModal('taskModal');
   const { navigate } = useNavigate();
-  const { hasAnyIssueIntegration } = useConnectedIssueProviders();
   const repositoryStore = getGitRepositoryStore(projectId);
+  // Pass the repository URL as context so repository-scoped issue providers
+  // (e.g. GitHub on github.com, which declares requiresRepositoryUrl) are
+  // considered usable here. Without it, isProviderUsable() rejects them and
+  // "Create from Issue" always routes to Integrations settings even when the
+  // provider is connected. Mirrors create-task-modal.tsx.
+  const repositoryUrl =
+    repositoryStore?.canonicalRepositoryUrl ?? repositoryStore?.pullRequestRepositoryUrl;
+  const { hasAnyIssueIntegration } = useConnectedIssueProviders({ repositoryUrl });
   const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
   const supportsGhesIssues = Boolean(
     repositoryStore?.issueRepositoryUrl &&
