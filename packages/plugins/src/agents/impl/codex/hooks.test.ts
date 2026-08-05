@@ -28,6 +28,12 @@ function createMemoryFs(initial: Record<string, string> = {}): PluginFs & {
 }
 
 describe('buildCodexHookConfig', () => {
+  it('parses the configured start hook event', () => {
+    const hooks = buildCodexHookConfig();
+
+    expect(hooks.parseHookEvent('start', {})).toEqual({ kind: 'status', type: 'start' });
+  });
+
   it('writes Codex hooks to config.toml and removes legacy hooks.json', async () => {
     const fs = createMemoryFs({
       [CODEX_CONFIG_PATH]: 'model = "gpt-5"\n',
@@ -67,6 +73,8 @@ describe('buildCodexHookConfig', () => {
     expect(config).toContain('model = "gpt-5"');
     expect(config).toContain('echo user-stop');
     expect(config).toContain('echo user-prompt');
+    expect(config).toContain('UserPromptSubmit');
+    expect(config).toContain('X-Emdash-Event-Type: start');
     expect(config).toContain('notification_type');
     expect(config).toContain('session-start');
   });
