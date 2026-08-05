@@ -17,6 +17,7 @@ import { PaneSizingContextProvider } from '@renderer/lib/pty/pane-sizing-context
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
+import { shouldSkipAutofocus } from '@renderer/lib/region-focus';
 import type { ConversationTabResource } from './conversation-tab-resource';
 import {
   activeConversationResource,
@@ -74,6 +75,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
 
   useEffect(() => {
     if (!autoFocus) return;
+    if (shouldSkipAutofocus(containerRef.current)) return;
     if (terminalRef.current) {
       terminalRef.current.focus();
       focusPendingRef.current = false;
@@ -131,14 +133,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           ref={containerRef}
           tabIndex={-1}
           className="flex h-full min-w-0 flex-1 flex-col outline-none"
-          onFocus={() => {
-            if (isActive) taskView.setFocusedRegion('main');
-          }}
-          onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-              // focus left the panel — no region change needed
-            }
-          }}
         >
           <PaneSizingContextProvider sessionIds={allSessionIds} bottomPadding={contextBarHeight}>
             <div className="flex min-h-0 flex-1 flex-col">

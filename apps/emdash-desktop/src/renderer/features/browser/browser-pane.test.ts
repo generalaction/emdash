@@ -13,6 +13,7 @@ const browserRpc = vi.hoisted(() => ({
 
 vi.mock('@renderer/features/tasks/task-view-context', () => ({
   usePreviewServers: () => ({ urls: [] }),
+  useWorkspaceViewModel: () => ({ focusedRegion: 'main' }),
 }));
 
 vi.mock('@renderer/features/tabs/pane-context', () => ({

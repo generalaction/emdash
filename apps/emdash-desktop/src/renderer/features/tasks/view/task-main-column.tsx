@@ -15,6 +15,7 @@ import { PaneContent } from '@renderer/features/tabs/pane-content';
 import { PaneProvider } from '@renderer/features/tabs/pane-context';
 import type { Pane as PaneGroup } from '@renderer/features/tabs/pane-layout-store';
 import { TabDragPreview } from '@renderer/features/tabs/tab-bar/tab-drag-preview';
+import { TASK_FOCUS_REGION_ATTR } from '@renderer/lib/region-focus';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { PaneEmptyState } from '../pane-empty-state';
 import { TabBarActions } from '../tab-bar-actions';
@@ -64,6 +65,9 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
         { terminalId: terminalDragData.terminalId },
         { target: { paneId } }
       );
+      // The drag started in the drawer (region 'bottom'); the dropped terminal's
+      // autofocus is gated on region 'main', so move the region explicitly.
+      taskView.setFocusedRegion('main');
       return;
     }
 
@@ -79,12 +83,23 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
       onDragCancel={() => setActiveDrag(null)}
     >
       <ResizablePanelGroup orientation="vertical" id="task-main-vertical">
-        <ResizablePanel id="task-main-content" minSize="30%">
+        <ResizablePanel
+          id="task-main-content"
+          minSize="30%"
+          {...{ [TASK_FOCUS_REGION_ATTR]: 'main' }}
+          // Region-level focus tracking for every main-pane tab kind. contains()
+          // skips popups portaled to document.body (menus, popovers), whose React
+          // onFocus still bubbles here but shouldn't move the region.
+          onFocus={(e) => {
+            if (e.currentTarget.contains(e.target as Node)) taskView.setFocusedRegion('main');
+          }}
+        >
           <SplitPaneLayout />
         </ResizablePanel>
         <ResizableHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
         <ResizablePanel
           id="task-terminal-drawer"
+          {...{ [TASK_FOCUS_REGION_ATTR]: 'bottom' }}
           panelRef={bottomPanelRef}
           collapsible
           collapsedSize="0%"

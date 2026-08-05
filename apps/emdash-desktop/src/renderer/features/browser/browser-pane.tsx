@@ -1,7 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
-import { usePreviewServers } from '@renderer/features/tasks/task-view-context';
+import {
+  usePreviewServers,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@shared/browser';
@@ -36,6 +39,7 @@ export const BrowserPane = observer(function BrowserPane({
   const session = browserSessionStore.getSession(browserId);
   const { pane } = usePaneContext();
   const previewServers = usePreviewServers();
+  const taskView = useWorkspaceViewModel();
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
@@ -242,6 +246,16 @@ export const BrowserPane = observer(function BrowserPane({
     });
   }, [adapter, sessionBrowserId]);
 
+  // Clicking into the guest page focuses the <webview> element itself, but the
+  // event doesn't reliably reach the region-tracking onFocus on the ancestor
+  // panel; claim the region directly so typing in the page counts as 'main'.
+  useEffect(() => {
+    if (!webviewElement) return;
+    const claimRegion = () => taskView.setFocusedRegion('main');
+    webviewElement.addEventListener('focus', claimRegion);
+    return () => webviewElement.removeEventListener('focus', claimRegion);
+  }, [webviewElement, taskView]);
+
   if (!session) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center bg-background text-sm text-foreground-muted">
@@ -255,7 +269,9 @@ export const BrowserPane = observer(function BrowserPane({
       <BrowserToolbar
         session={session}
         adapter={adapter}
-        autoFocusUrl={showStartPage}
+        // Gated on the region so a restored start page doesn't steal focus
+        // from the terminal drawer.
+        autoFocusUrl={showStartPage && taskView.focusedRegion === 'main'}
         onNavigate={navigateTo}
         onGoBack={goBack}
         onGoForward={goForward}

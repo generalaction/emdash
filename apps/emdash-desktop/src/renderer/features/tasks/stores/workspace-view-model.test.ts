@@ -384,6 +384,71 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
   });
 });
 
+describe('WorkspaceViewModel focused region', () => {
+  it('moves focusedRegion only on real drawer open/close transitions', () => {
+    const viewModel = makeViewModel();
+
+    viewModel.setTerminalDrawerOpen(true);
+    expect(viewModel.focusedRegion).toBe('bottom');
+
+    viewModel.setTerminalDrawerOpen(false);
+    expect(viewModel.focusedRegion).toBe('main');
+
+    viewModel.setTerminalDrawerOpen(true);
+    expect(viewModel.focusedRegion).toBe('bottom');
+
+    // Programmatic drawer expand echoes the current state back through
+    // TaskMainColumn's onResize; it must not clobber the remembered region.
+    viewModel.setFocusedRegion('main');
+    viewModel.setTerminalDrawerOpen(true);
+    expect(viewModel.focusedRegion).toBe('main');
+
+    viewModel.dispose();
+  });
+
+  it('openTerminalDrawer focuses the drawer even when it is already open', () => {
+    const viewModel = makeViewModel();
+
+    viewModel.openTerminalDrawer();
+    expect(viewModel.isTerminalDrawerOpen).toBe(true);
+    expect(viewModel.focusedRegion).toBe('bottom');
+
+    viewModel.setFocusedRegion('main');
+    viewModel.openTerminalDrawer();
+    expect(viewModel.focusedRegion).toBe('bottom');
+
+    viewModel.dispose();
+  });
+
+  it('round-trips focusedRegion "bottom" through the snapshot while the drawer is open', () => {
+    const source = makeViewModel();
+    source.setTerminalDrawerOpen(true);
+    expect(source.focusedRegion).toBe('bottom');
+
+    const restored = makeViewModel();
+    restored.restoreSnapshot(source.snapshot);
+
+    expect(restored.isTerminalDrawerOpen).toBe(true);
+    expect(restored.focusedRegion).toBe('bottom');
+
+    source.dispose();
+    restored.dispose();
+  });
+
+  it('normalizes a restored "bottom" region to "main" when the drawer is closed', () => {
+    const viewModel = makeViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: false,
+    });
+
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
+
+    viewModel.dispose();
+  });
+});
+
 describe('WorkspaceViewModel default conversation tab', () => {
   it('opens the initial conversation for a new task without restored tab state', async () => {
     const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
