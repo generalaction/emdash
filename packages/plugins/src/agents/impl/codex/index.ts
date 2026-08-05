@@ -151,8 +151,7 @@ export const provider = registerPluginBehavior(plugin, {
   prompt: {
     buildCommand: (ctx) =>
       buildStandardCommand(ctx, {
-        autoApproveFlag:
-          '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
+        autoApproveFlag: '-c approval_policy="never" -c sandbox_mode="danger-full-access"',
         initialPromptFlag: '',
         resumeFlag: 'resume',
         sessionIdFlag: ' ',

@@ -76,27 +76,6 @@ async function readLegacyHooks(fs: PluginFs): Promise<Record<string, unknown[]>>
   return getHooks(config);
 }
 
-async function migrateLegacyHooks(
-  fs: PluginFs,
-  hooks: Record<string, unknown[]>
-): Promise<() => Promise<void>> {
-  const legacyHooks = await readLegacyHooks(fs);
-
-  for (const [key, entries] of Object.entries(legacyHooks)) {
-    if (!Array.isArray(entries)) continue;
-
-    const userEntries = filterUserHooks(entries as Record<string, unknown>[]);
-    if (!userEntries.length) continue;
-
-    const existing = Array.isArray(hooks[key]) ? hooks[key] : [];
-    hooks[key] = [...filterUserHooks(existing as Record<string, unknown>[]), ...userEntries];
-  }
-
-  return async () => {
-    await fs.delete(CODEX_LEGACY_HOOKS_PATH).catch(() => {});
-  };
-}
-
 function makeCodexSessionStartCommand(): string {
   const post = makeHookPostCommand('session-start', 'stdin', {});
   if (process.platform === 'win32') return post;
@@ -149,9 +128,30 @@ export function buildCodexHookConfig() {
         : [];
     },
     async writeHooks(fs: PluginFs, _hooks: HookRegistration[]): Promise<string[]> {
+      const legacyConfig = await readJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH);
+      if (await fs.exists(CODEX_LEGACY_HOOKS_PATH)) {
+        const legacyHooks = getHooks(legacyConfig);
+        for (const [key, cmd] of [
+          ['Stop', stopCmd],
+          ['PermissionRequest', permCmd],
+          ['SessionStart', sessionCmd],
+        ] as [string, string][]) {
+          const existing = Array.isArray(legacyHooks[key]) ? legacyHooks[key] : [];
+          legacyHooks[key] = [
+            ...filterUserHooks(existing as Record<string, unknown>[]),
+            buildNestedEntry(cmd),
+          ];
+        }
+        await writeJsonConfig(fs, CODEX_LEGACY_HOOKS_PATH, {
+          ...legacyConfig,
+          hooks: legacyHooks,
+        });
+        await removeLegacyCodexNotify(fs).catch(() => {});
+        return [CODEX_LEGACY_HOOKS_PATH];
+      }
+
       const config = await readTomlConfig(fs, CODEX_CONFIG_PATH);
       const hooks = getHooks(config);
-      const cleanupLegacy = await migrateLegacyHooks(fs, hooks);
 
       for (const [key, cmd] of [
         ['Stop', stopCmd],
@@ -165,7 +165,6 @@ export function buildCodexHookConfig() {
         ];
       }
       await writeTomlConfig(fs, CODEX_CONFIG_PATH, { ...config, hooks });
-      await cleanupLegacy();
       await removeLegacyCodexNotify(fs).catch(() => {});
       return [CODEX_CONFIG_PATH];
     },
