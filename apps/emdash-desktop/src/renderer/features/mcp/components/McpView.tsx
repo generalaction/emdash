@@ -5,25 +5,29 @@ import { PageHeader } from '@renderer/lib/components/page-header';
 import { useModalContext, useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
+import { normalizeMcpUrl } from './mcp-url';
 import { McpCard } from './McpCard';
 import type { McpModalMode } from './McpModal';
 import { useMcps } from './useMcps';
 
 export const McpView: React.FC = () => {
+  const [search, setSearch] = useState('');
   const {
     installed,
     catalog,
+    integrationsShEntries,
+    integrationsShError,
+    isSearchingIntegrationsSh,
     providers,
     isLoading,
     isRefreshing,
     saveServer,
     removeServer,
     refresh,
-  } = useMcps();
+  } = useMcps(search);
 
   const { showModal, closeModal } = useModalContext();
   const showConfirm = useShowModal('confirmActionModal');
-  const [search, setSearch] = useState('');
 
   const handleRemoveRequest = (serverName: string) => {
     closeModal();
@@ -35,9 +39,10 @@ export const McpView: React.FC = () => {
     });
   };
 
-  const openModal = (mode: McpModalMode) => {
-    const source =
-      mode.type === 'add-catalog' ? 'catalog' : mode.type === 'add-custom' ? 'custom' : null;
+  const openModal = (
+    mode: McpModalMode,
+    source: 'catalog' | 'integrations_sh' | 'custom' | null = null
+  ) => {
     showModal('mcpServerModal', {
       mode,
       providers,
@@ -59,6 +64,24 @@ export const McpView: React.FC = () => {
         c.name.toLowerCase().includes(lowerSearch) ||
         c.description.toLowerCase().includes(lowerSearch))
   );
+  const catalogUrls = new Set(
+    catalog.flatMap((entry) =>
+      typeof entry.defaultConfig.url === 'string' ? [normalizeMcpUrl(entry.defaultConfig.url)] : []
+    )
+  );
+  const installedUrls = new Set(
+    installed.flatMap((server) => (server.url ? [normalizeMcpUrl(server.url)] : []))
+  );
+  const integrationsShResults = integrationsShEntries.filter((entry) => {
+    const url = entry.defaultConfig.url;
+    if (typeof url !== 'string') return !installedNames.has(entry.key);
+    const normalizedUrl = normalizeMcpUrl(url);
+    return (
+      !installedNames.has(entry.key) &&
+      !catalogUrls.has(normalizedUrl) &&
+      !installedUrls.has(normalizedUrl)
+    );
+  });
 
   if (isLoading) {
     return (
@@ -93,7 +116,7 @@ export const McpView: React.FC = () => {
                 className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
               />
             </Button>
-            <Button onClick={() => openModal({ type: 'add-custom' })}>
+            <Button onClick={() => openModal({ type: 'add-custom' }, 'custom')}>
               <Plus className="size-4" />
               Custom MCP
             </Button>
@@ -121,19 +144,43 @@ export const McpView: React.FC = () => {
               <McpCard
                 key={entry.key}
                 catalogEntry={entry}
-                onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
+                onAdd={(e) => openModal({ type: 'add-catalog', entry: e }, 'catalog')}
               />
             ))}
           </CardGridSection>
         )}
 
-        {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-muted-foreground text-sm">
-              {search ? 'No servers match your search.' : 'No servers available.'}
-            </p>
-          </div>
+        {(isSearchingIntegrationsSh || integrationsShResults.length > 0) && (
+          <CardGridSection
+            title={isSearchingIntegrationsSh ? 'Searching integrations.sh...' : 'integrations.sh'}
+          >
+            {integrationsShResults.map((entry) => (
+              <McpCard
+                key={entry.key}
+                catalogEntry={entry}
+                onAdd={(result) =>
+                  openModal({ type: 'add-catalog', entry: result }, 'integrations_sh')
+                }
+              />
+            ))}
+          </CardGridSection>
         )}
+
+        {search.trim().length >= 2 && integrationsShError && (
+          <p className="text-destructive text-sm">integrations.sh search is unavailable.</p>
+        )}
+
+        {filteredInstalled.length === 0 &&
+          filteredCatalog.length === 0 &&
+          integrationsShResults.length === 0 &&
+          !integrationsShError &&
+          !isSearchingIntegrationsSh && (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground text-sm">
+                {search ? 'No servers match your search.' : 'No servers available.'}
+              </p>
+            </div>
+          )}
       </div>
     </div>
   );

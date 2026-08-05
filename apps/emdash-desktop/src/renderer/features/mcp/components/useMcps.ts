@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
@@ -8,7 +9,7 @@ import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/c
 const MCP_QUERY_KEY = ['mcp', 'all'] as const;
 const PROVIDERS_QUERY_KEY = ['mcp', 'providers'] as const;
 
-export function useMcps() {
+export function useMcps(searchQuery = '') {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -29,6 +30,21 @@ export function useMcps() {
 
   const installed: McpServer[] = mcpData?.installed ?? [];
   const catalog: McpCatalogEntry[] = mcpData?.catalog ?? [];
+  const integrationsShQuery = useDebounce(searchQuery.trim(), 300);
+  const {
+    data: integrationsShEntries = [],
+    error: integrationsShError,
+    isFetching: isSearchingIntegrationsSh,
+  } = useQuery({
+    queryKey: ['mcp', 'integrations-sh-search', integrationsShQuery],
+    queryFn: async () => {
+      const result = await rpc.mcp.searchIntegrationsSh({ query: integrationsShQuery });
+      if (result.success && result.data) return result.data;
+      throw new Error(result.error ?? 'Failed to search integrations.sh');
+    },
+    enabled: integrationsShQuery.length >= 2,
+    staleTime: 60_000,
+  });
 
   const { data: providers = [] } = useQuery({
     queryKey: PROVIDERS_QUERY_KEY,
@@ -42,7 +58,10 @@ export function useMcps() {
   // ── Mutations ────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
-    mutationFn: async (payload: { server: McpServer; source: 'catalog' | 'custom' | null }) => {
+    mutationFn: async (payload: {
+      server: McpServer;
+      source: 'catalog' | 'integrations_sh' | 'custom' | null;
+    }) => {
       const result = await rpc.mcp.saveServer(payload.server);
       if (!result.success) throw new Error(result.error ?? 'Failed to save server');
     },
@@ -62,7 +81,7 @@ export function useMcps() {
   });
 
   const saveServer = useCallback(
-    async (server: McpServer, source: 'catalog' | 'custom' | null = null) => {
+    async (server: McpServer, source: 'catalog' | 'integrations_sh' | 'custom' | null = null) => {
       await saveMutation.mutateAsync({ server, source });
     },
     [saveMutation]
@@ -113,6 +132,9 @@ export function useMcps() {
   return {
     installed,
     catalog,
+    integrationsShEntries,
+    integrationsShError,
+    isSearchingIntegrationsSh,
     providers,
     isLoading,
     isRefreshing: refreshMutation.isPending,

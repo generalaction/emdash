@@ -32,6 +32,7 @@ export interface McpCatalogEntry {
   name: string;
   description: string;
   docsUrl: string;
+  iconUrl?: string;
   defaultConfig: RawServerEntry;
   credentialKeys: CredentialKey[];
 }
