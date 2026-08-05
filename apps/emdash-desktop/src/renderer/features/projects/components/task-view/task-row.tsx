@@ -18,6 +18,7 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
 import { type Task } from '@shared/core/tasks/tasks';
+import { TaskRowInteractionSurface } from './task-row-interaction-surface';
 
 export type ReadyTask = TaskStore & { data: Task };
 
@@ -44,7 +45,10 @@ export const TaskRow = observer(function TaskRow({
       projectId: task.data.projectId,
       tasks: [{ taskId: task.data.id, taskName: task.data.name }],
       onSuccess: ({ deleteWorktree, deleteBranch }) =>
-        void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch }),
+        void taskManager?.deleteTasks([task.data.id], {
+          deleteWorktree,
+          deleteBranch,
+        }),
     });
   const handleRename = () =>
     showRename({
@@ -73,13 +77,16 @@ export const TaskRow = observer(function TaskRow({
       onConvertAutomation={undefined}
       onDelete={handleDelete}
     >
-      <button
-        onClick={() => {
-          if (isArchived) return;
+      <TaskRowInteractionSurface
+        taskName={task.data.name}
+        disabled={isArchived}
+        onOpen={() => {
           handleProvision();
-          navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
+          navigate('task', {
+            projectId: task.data.projectId,
+            taskId: task.data.id,
+          });
         }}
-        className="group flex w-full items-center gap-2 rounded-lg p-3 transition-colors hover:bg-background-1"
       >
         <div
           onPointerDownCapture={(e) => {
@@ -128,7 +135,7 @@ export const TaskRow = observer(function TaskRow({
             />
           )}
         </div>
-      </button>
+      </TaskRowInteractionSurface>
     </TaskContextMenu>
   );
 });
