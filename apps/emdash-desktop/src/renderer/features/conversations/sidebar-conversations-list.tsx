@@ -1,9 +1,12 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { conversationTabKind } from '@renderer/features/conversations/conversation-tab-kind';
-import { formatConversationTitleForDisplay } from '@renderer/features/conversations/conversation-title-utils';
+import {
+  formatConversationTitleForDisplay,
+  matchesConversationSearch,
+} from '@renderer/features/conversations/conversation-title-utils';
 // TODO(conversations-extraction): Expose tab selection through a conversation scope instead of the task tab view.
 import { useTabSelection } from '@renderer/features/tasks/task-tab-registry';
 // TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
@@ -13,6 +16,11 @@ import {
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import { AgentStatusIndicator } from '@renderer/lib/components/agent-status-indicator';
+import { getNextCycleIndex } from '@renderer/lib/find/cycle-index';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
+import { findTargetRegistry } from '@renderer/lib/find/find-target-registry';
+import type { FindSearchStatus } from '@renderer/lib/find/types';
+import { useFindTargetActivation } from '@renderer/lib/find/use-find-target-activation';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -32,10 +40,20 @@ import { ConversationAgentIcon } from './conversation-agent-icon';
 
 const ROW_HEIGHT = 32;
 
+const EMPTY_SEARCH_STATUS: FindSearchStatus = {
+  found: false,
+  currentIndex: 0,
+  total: 0,
+};
+
+const CONVERSATIONS_FIND_TARGET_ID = 'sidebar-conversations-list';
+
 const ConversationRow = observer(function ConversationRow({
   conversationId,
+  isCurrentMatch,
 }: {
   conversationId: string;
+  isCurrentMatch?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
@@ -123,6 +141,9 @@ const ConversationRow = observer(function ConversationRow({
               openConversation({ conversationId }, { preview: true });
             }
           }}
+          style={{
+            backgroundColor: isCurrentMatch ? 'var(--find-match-highlight-bg)' : undefined,
+          }}
           className={cn(
             'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
@@ -202,13 +223,40 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const conversations = useConversations();
   const { paneLayout } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const conversationIds = Array.from(conversations.conversations.values())
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const allConversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
       const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
       const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
       return bTime - aTime;
     })
     .map((c) => c.data.id);
+
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  // Filtering (not just highlighting) matters here: unlike the file tree or
+  // markdown preview, this list is short and fully in view, so narrowing it
+  // down is more useful than scrolling through everything with the current
+  // match merely highlighted.
+  const conversationIds = normalizedQuery
+    ? allConversationIds.filter((id) => {
+        const data = conversations.conversations.get(id)?.data;
+        if (!data) return false;
+        return matchesConversationSearch(data.providerId, data.title ?? '', searchQuery);
+      })
+    : allConversationIds;
+
+  const searchStatus: FindSearchStatus = normalizedQuery
+    ? {
+        found: conversationIds.length > 0,
+        currentIndex: conversationIds.length > 0 ? currentMatchIndex + 1 : 0,
+        total: conversationIds.length,
+      }
+    : EMPTY_SEARCH_STATUS;
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -217,6 +265,63 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
+  });
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    setCurrentMatchIndex(-1);
+  }, []);
+
+  const handleSearchQueryChange = useCallback((nextQuery: string) => {
+    setSearchQuery(nextQuery);
+    setCurrentMatchIndex(nextQuery.trim() ? 0 : -1);
+  }, []);
+
+  const stepSearch = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (conversationIds.length === 0) return;
+      const nextIndex = getNextCycleIndex(conversationIds.length, currentMatchIndex, direction);
+      setCurrentMatchIndex(nextIndex);
+      virtualizer.scrollToIndex(nextIndex, { align: 'center' });
+    },
+    [conversationIds.length, currentMatchIndex, virtualizer]
+  );
+
+  useEffect(() => {
+    if (currentMatchIndex < 0) return;
+    virtualizer.scrollToIndex(currentMatchIndex, { align: 'center' });
+  }, [currentMatchIndex, virtualizer]);
+
+  const handleFindActivate = useCallback(() => {
+    if (isSearchOpen) {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+      return;
+    }
+    setIsSearchOpen(true);
+  }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (!isSearchOpen) return;
+    const id = requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isSearchOpen]);
+
+  useEffect(() => {
+    return findTargetRegistry.register({
+      id: CONVERSATIONS_FIND_TARGET_ID,
+      openFind: handleFindActivate,
+    });
+  }, [handleFindActivate]);
+
+  useFindTargetActivation({
+    containerRef: parentRef,
+    targetId: CONVERSATIONS_FIND_TARGET_ID,
+    enabled: true,
   });
 
   const handleCreate = () => {
@@ -242,27 +347,52 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
         </Button>
       </div>
 
-      <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-2">
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const conversationId = conversationIds[virtualItem.index]!;
-            return (
-              <div
-                key={virtualItem.key}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: ROW_HEIGHT,
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                <ConversationRow conversationId={conversationId} />
-              </div>
-            );
-          })}
+      {isSearchOpen && (
+        <div className="px-2 pb-2">
+          <FindOverlay
+            isOpen={isSearchOpen}
+            inline
+            searchQuery={searchQuery}
+            searchStatus={searchStatus}
+            searchInputRef={searchInputRef}
+            onQueryChange={handleSearchQueryChange}
+            onStep={stepSearch}
+            onClose={closeSearch}
+            placeholder="Find conversation..."
+            ariaLabel="Find in conversations"
+          />
         </div>
+      )}
+      <div ref={parentRef} className="relative min-h-0 flex-1 overflow-y-auto px-2">
+        {conversationIds.length === 0 && normalizedQuery ? (
+          <div className="text-muted-foreground flex h-16 items-center justify-center text-xs">
+            No matching conversations
+          </div>
+        ) : (
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const conversationId = conversationIds[virtualItem.index]!;
+              return (
+                <div
+                  key={virtualItem.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: ROW_HEIGHT,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <ConversationRow
+                    conversationId={conversationId}
+                    isCurrentMatch={isSearchOpen && virtualItem.index === currentMatchIndex}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

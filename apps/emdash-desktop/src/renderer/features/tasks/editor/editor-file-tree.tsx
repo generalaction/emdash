@@ -37,6 +37,7 @@ import {
   setDraggedWorkspaceFile,
 } from '@renderer/lib/drag-files';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -49,6 +50,7 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
 import { basenameFromAnyPath } from '@shared/path-name';
+import { useFileTreeSearch } from '../file-tree/use-file-tree-search';
 import type { FileTabResource } from './stores/file-tab-resource';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
@@ -163,9 +165,11 @@ async function importLocalFiles(args: {
 const FileTreeRow = observer(function FileTreeRow({
   row,
   style,
+  isCurrentMatch,
 }: {
   row: TreeRow;
   style: React.CSSProperties;
+  isCurrentMatch?: boolean;
 }) {
   const taskView = useWorkspaceViewModel();
   const { projectId } = useTaskViewContext();
@@ -436,7 +440,11 @@ const FileTreeRow = observer(function FileTreeRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger
-        style={{ ...style, paddingLeft }}
+        style={{
+          ...style,
+          paddingLeft,
+          backgroundColor: isCurrentMatch ? 'var(--find-match-highlight-bg)' : undefined,
+        }}
         className={cn(
           'flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 hover:bg-background-1',
           isSelected && 'bg-background-2 hover:bg-background-2',
@@ -553,6 +561,26 @@ export const EditorFileTree = observer(function EditorFileTree() {
     overscan: 10,
   });
 
+  const hasVisibleRows = visibleRows.length > 0;
+
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    currentMatchPath,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useFileTreeSearch({
+    files,
+    expandedPaths: editorView.expandedPaths,
+    virtualizer,
+    workspaceId,
+    containerRef: parentRef,
+    hasVisibleRows,
+  });
+
   const handleRootDrop = (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -621,7 +649,23 @@ export const EditorFileTree = observer(function EditorFileTree() {
       onDragLeave={handleRootDragLeave}
       onDrop={handleRootDrop}
     >
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
+      {isSearchOpen && (
+        <div className="px-2 pt-2">
+          <FindOverlay
+            isOpen={isSearchOpen}
+            inline
+            searchQuery={searchQuery}
+            searchStatus={searchStatus}
+            searchInputRef={searchInputRef}
+            onQueryChange={handleSearchQueryChange}
+            onStep={stepSearch}
+            onClose={closeSearch}
+            placeholder="Find in files..."
+            ariaLabel="Find in file tree"
+          />
+        </div>
+      )}
+      <div ref={parentRef} className="relative flex-1 overflow-y-auto px-2 py-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
             const row = visibleRows[vItem.index];
@@ -629,6 +673,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
               <FileTreeRow
                 key={row.node.path}
                 row={row}
+                isCurrentMatch={isSearchOpen && row.node.path === currentMatchPath}
                 style={{
                   position: 'absolute',
                   top: vItem.start,

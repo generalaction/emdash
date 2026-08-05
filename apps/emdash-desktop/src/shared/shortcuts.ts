@@ -103,6 +103,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
   },
+  find: {
+    defaultHotkey: 'Mod+F',
+    label: 'Find',
+    description: 'Find in the current file, terminal, file tree, or list',
+    category: 'Navigation',
+    ignoreWhenMonacoFocused: true,
+  },
   settings: {
     defaultHotkey: 'Mod+,',
     label: 'Settings',

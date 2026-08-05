@@ -1,3 +1,5 @@
+export type StopFindInPageAction = 'clearSelection' | 'keepSelection' | 'activateSelection';
+
 export type BrowserWebviewEventMap = {
   'dom-ready': Event;
   'did-start-loading': Event;
@@ -8,6 +10,7 @@ export type BrowserWebviewEventMap = {
   'console-message': { level: number; message: string; line: number; sourceId: string };
   'page-title-updated': { title: string };
   'page-favicon-updated': { favicons: string[] };
+  'found-in-page': { result: Electron.FoundInPageResult };
 };
 
 export type BrowserWebviewElement = HTMLElement & {
@@ -23,6 +26,8 @@ export type BrowserWebviewElement = HTMLElement & {
   stop(): void;
   loadURL(url: string): Promise<void> | void;
   setZoomFactor(factor: number): void;
+  findInPage(text: string, options?: Electron.FindInPageOptions): number;
+  stopFindInPage(action: StopFindInPageAction): void;
   addEventListener<K extends keyof BrowserWebviewEventMap>(
     type: K,
     listener: (event: BrowserWebviewEventMap[K]) => void
@@ -46,6 +51,8 @@ export type BrowserWebviewAdapter = {
   loadUrl(url: string): Promise<void>;
   setZoomFactor(factor: number): void;
   focus(): void;
+  find(text: string, options?: Electron.FindInPageOptions): number;
+  stopFind(action: StopFindInPageAction): void;
 };
 
 export function createBrowserWebviewAdapter(webview: BrowserWebviewElement): BrowserWebviewAdapter {
@@ -64,5 +71,7 @@ export function createBrowserWebviewAdapter(webview: BrowserWebviewElement): Bro
     },
     setZoomFactor: (factor: number) => webview.setZoomFactor(factor),
     focus: () => webview.focus(),
+    find: (text: string, options?: Electron.FindInPageOptions) => webview.findInPage(text, options),
+    stopFind: (action: StopFindInPageAction) => webview.stopFindInPage(action),
   };
 }

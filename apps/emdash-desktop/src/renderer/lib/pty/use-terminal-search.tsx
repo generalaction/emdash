@@ -1,5 +1,8 @@
 import type { Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { findTargetRegistry } from '@renderer/lib/find/find-target-registry';
+import type { FindSearchStatus } from '@renderer/lib/find/types';
+import { useFindTargetActivation } from '@renderer/lib/find/use-find-target-activation';
 import {
   collectTerminalSearchMatches,
   getNextTerminalSearchIndex,
@@ -7,11 +10,10 @@ import {
   type TerminalSearchMatch,
 } from './terminal-search';
 
-export type TerminalSearchStatus = {
-  found: boolean;
-  currentIndex: number;
-  total: number;
-};
+export type TerminalSearchStatus = FindSearchStatus;
+
+const IS_MAC_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 const EMPTY_SEARCH_STATUS: TerminalSearchStatus = {
   found: false,
@@ -19,13 +21,11 @@ const EMPTY_SEARCH_STATUS: TerminalSearchStatus = {
   total: 0,
 };
 
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
 interface UseTerminalSearchOptions {
   terminal: Terminal | null | undefined;
   containerRef: RefObject<HTMLElement | null>;
   enabled: boolean;
+  targetId: string;
   onCloseFocus?: () => void;
 }
 
@@ -33,6 +33,7 @@ export function useTerminalSearch({
   terminal,
   containerRef,
   enabled,
+  targetId,
   onCloseFocus,
 }: UseTerminalSearchOptions) {
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -204,6 +205,28 @@ export function useTerminalSearch({
     return () => cancelAnimationFrame(id);
   }, [enabled, isSearchOpen, runTerminalSearch, searchQuery, terminal]);
 
+  const handleFindActivate = useCallback(() => {
+    if (isSearchOpen) {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+      return;
+    }
+    openSearch();
+  }, [isSearchOpen, openSearch]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    return findTargetRegistry.register({ id: targetId, openFind: handleFindActivate });
+  }, [enabled, handleFindActivate, targetId]);
+
+  useFindTargetActivation({ containerRef, targetId, enabled });
+
+  // xterm's own key handler (see Terminal.attachCustomKeyEventHandler in
+  // use-pty.ts) calls stopPropagation() on keydown while its hidden textarea
+  // is focused, which prevents the bubble-phase CommandShortcutBinder hotkey
+  // from ever seeing Cmd/Ctrl+F. Intercept it here at capture phase — same
+  // trick monaco-keyboard-bridge.tsx uses for Monaco — so find still opens
+  // while a terminal has focus.
   useEffect(() => {
     if (!enabled) return;
 
@@ -226,18 +249,13 @@ export function useTerminalSearch({
       event.stopImmediatePropagation();
       event.stopPropagation();
 
-      if (isSearchOpen) {
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-        return;
-      }
-
-      openSearch();
+      findTargetRegistry.setActive(targetId);
+      handleFindActivate();
     };
 
     window.addEventListener('keydown', handleSearchShortcut, true);
     return () => window.removeEventListener('keydown', handleSearchShortcut, true);
-  }, [containerRef, enabled, isSearchOpen, openSearch]);
+  }, [containerRef, enabled, handleFindActivate, targetId]);
 
   useEffect(() => {
     return () => clearTerminalSelection();

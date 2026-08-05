@@ -57,6 +57,14 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'square-plus',
   },
   {
+    id: 'app.find',
+    label: 'Find',
+    description: 'Find in the current file, terminal, file tree, or list',
+    scope: 'app',
+    shortcutKey: 'find',
+    group: 'Navigation',
+  },
+  {
     id: 'app.giveFeedback',
     label: 'Give Feedback',
     description: 'Send feedback to the emdash team',

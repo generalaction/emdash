@@ -1,4 +1,5 @@
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
+import { findTargetRegistry } from '@renderer/lib/find/find-target-registry';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -32,6 +33,7 @@ function createAppCommandProvider(): CommandProvider {
       const settingsDef = appDef('app.settings');
       const libraryDef = appDef('app.library');
       const newProjectDef = appDef('app.newProject');
+      const findDef = appDef('app.find');
       const giveFeedbackDef = appDef('app.giveFeedback');
       const toggleThemeDef = appDef('app.toggleTheme');
       const navigateBackDef = appDef('app.navigateBack');
@@ -78,6 +80,18 @@ function createAppCommandProvider(): CommandProvider {
           },
         },
       ];
+
+      commands.push({
+        id: findDef.id,
+        label: findDef.label,
+        description: findDef.description,
+        shortcutKey: findDef.shortcutKey,
+        group: findDef.group,
+        hideFromPalette: true,
+        execute() {
+          findTargetRegistry.activate();
+        },
+      });
 
       commands.push({
         id: giveFeedbackDef.id,

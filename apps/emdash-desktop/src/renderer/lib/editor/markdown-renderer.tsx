@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { usePaneContext } from '@renderer/features/tabs/pane-context';
 import type { FileTabResource } from '@renderer/features/tasks/editor/stores/file-tab-resource';
 import {
@@ -8,6 +8,8 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { FindOverlay } from '@renderer/lib/find/find-overlay';
+import { useDomTextSearch } from '@renderer/lib/find/use-dom-text-search';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -34,6 +36,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const { pane } = usePaneContext();
   const showExternalSpinner = useDelayedBoolean(!!(tab.isExternal && tab.isLoading), 200);
   const bufferUri = tab.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, tab.path);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Reading bufferVersions creates a MobX tracking dependency so this observer
   // component re-renders whenever the buffer content changes or is first populated.
@@ -68,8 +71,39 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
     [workspacePath, tab.path, pane]
   );
 
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useDomTextSearch({
+    containerRef,
+    enabled: !tab.isExternal || (!tab.isLoading && !tab.externalError),
+    targetId: `markdown-preview-${tab.path}`,
+  });
+
   return (
-    <div className="relative h-full overflow-y-auto bg-background-secondary-1">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      onMouseDown={() => containerRef.current?.focus()}
+      className="relative h-full overflow-y-auto bg-background-secondary-1 outline-none"
+    >
+      <FindOverlay
+        isOpen={isSearchOpen}
+        fullWidth
+        searchQuery={searchQuery}
+        searchStatus={searchStatus}
+        searchInputRef={searchInputRef}
+        onQueryChange={handleSearchQueryChange}
+        onStep={stepSearch}
+        onClose={closeSearch}
+        placeholder="Find in preview..."
+        ariaLabel="Find in preview"
+      />
       {tab.isExternal && tab.isLoading ? (
         showExternalSpinner ? (
           <div className="flex h-full items-center justify-center">
