@@ -28,7 +28,7 @@ function createMemoryFs(initial: Record<string, string> = {}): PluginFs & {
 }
 
 describe('buildCodexHookConfig', () => {
-  it('writes Codex hooks to config.toml and removes legacy hooks.json', async () => {
+  it('writes Codex hooks to an existing hooks.json without changing config.toml', async () => {
     const fs = createMemoryFs({
       [CODEX_CONFIG_PATH]: 'model = "gpt-5"\n',
       [CODEX_LEGACY_HOOKS_PATH]: JSON.stringify(
@@ -60,18 +60,18 @@ describe('buildCodexHookConfig', () => {
     });
     const hooks = buildCodexHookConfig();
 
-    await expect(hooks.writeHooks(fs, [])).resolves.toEqual([CODEX_CONFIG_PATH]);
+    await expect(hooks.writeHooks(fs, [])).resolves.toEqual([CODEX_LEGACY_HOOKS_PATH]);
 
-    await expect(fs.exists(CODEX_LEGACY_HOOKS_PATH)).resolves.toBe(false);
     const config = await fs.read(CODEX_CONFIG_PATH);
-    expect(config).toContain('model = "gpt-5"');
-    expect(config).toContain('echo user-stop');
-    expect(config).toContain('echo user-prompt');
-    expect(config).toContain('notification_type');
-    expect(config).toContain('session-start');
+    expect(config).toBe('model = "gpt-5"\n');
+    const legacy = await fs.read(CODEX_LEGACY_HOOKS_PATH);
+    expect(legacy).toContain('echo user-stop');
+    expect(legacy).toContain('echo user-prompt');
+    expect(legacy).toContain('notification_type');
+    expect(legacy).toContain('session-start');
   });
 
-  it('keeps legacy hooks.json when writing config.toml fails', async () => {
+  it('keeps legacy hooks.json when updating it fails', async () => {
     const legacyHooks = JSON.stringify({
       hooks: {
         Stop: [
@@ -87,7 +87,7 @@ describe('buildCodexHookConfig', () => {
     });
     const write = fs.write.bind(fs);
     fs.write = async (path, content) => {
-      if (path === CODEX_CONFIG_PATH) {
+      if (path === CODEX_LEGACY_HOOKS_PATH) {
         throw new Error('permission denied');
       }
       await write(path, content);

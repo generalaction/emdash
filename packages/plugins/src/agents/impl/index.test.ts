@@ -54,6 +54,22 @@ describe('pluginRegistry', () => {
     expect(cliLoginArgs(opencode, 'opencode-login')).toEqual(['auth', 'login']);
   });
 
+  it('keeps Codex hook trust enabled in auto-approve mode', () => {
+    const codex = pluginRegistry.get('codex')!;
+    const command = codex.behavior.prompt!.buildCommand({
+      cli: 'codex',
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: false,
+      model: '',
+    });
+
+    expect(command.args).toContain('approval_policy="never"');
+    expect(command.args).toContain('sandbox_mode="danger-full-access"');
+    expect(command.args).not.toContain('--dangerously-bypass-hook-trust');
+  });
+
   it('each entry has hostDependency.updates with valid kind', () => {
     for (const d of pluginRegistry.getAll()) {
       expect(d.capabilities.hostDependency.updates).toBeDefined();
