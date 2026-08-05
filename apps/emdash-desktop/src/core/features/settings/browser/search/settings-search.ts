@@ -136,7 +136,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
   {
     id: 'mcp',
-    label: 'MCPs',
+    label: 'MCP',
     tab: 'mcp',
     description: 'Manage local MCP servers available to agents.',
     keywords: ['model context protocol', 'servers', 'tools'],

@@ -305,7 +305,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         />
         <MachineDetailsCard
           icon={<McpIcon size={14} />}
-          title="MCP Servers"
+          title="MCP"
           selected={section === 'mcp'}
           onClick={() => setSection('mcp')}
         />

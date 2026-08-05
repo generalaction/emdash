@@ -8,7 +8,7 @@ import { McpView } from '../api/browser/components/McpView';
 
 export const mcpSettingsPage = defineSettingsPageContribution({
   id: 'mcp',
-  label: 'MCPs',
+  label: 'MCP',
   icon: <McpIcon size={14} />,
   component: McpView,
 } satisfies SettingsPageContribution<SettingsPageTab>);

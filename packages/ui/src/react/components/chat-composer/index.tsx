@@ -998,7 +998,7 @@ export function ChatComposer({
               <Popover.Root>
                 <Popover.Trigger className={styles.mcpTrigger} disabled={disabled}>
                   <Plug style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
-                  MCPs {mcpServers.length}
+                  MCP {mcpServers.length}
                 </Popover.Trigger>
                 <Popover.Content
                   align="start"
