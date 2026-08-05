@@ -1,5 +1,11 @@
 # Teardown scripts run inside the removeWorktree verb
 
+> **Superseded by ADR 0005.** Workspace removals are no longer queued offline — they are plain
+> RPCs that fail fast when the host is unreachable — so the queued-offline case this exception
+> existed for is gone. Teardown now runs inside `deactivateWorkspace` (kill-sessions + time-boxed
+> non-fatal teardown), which the delete verbs compose server-side. The narrowing constraints
+> below (non-fatal, time-boxed, only user script inside a verb) carry over to that placement.
+
 Host verbs are pure inventory mutations — user scripts were deliberately kept out of them:
 `scripts.prepare` and `scripts.setup` run in the session plane (stamped workspace
 initialization), so a durable host operation never blocks on or fails from user code. We made
