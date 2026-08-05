@@ -13,8 +13,10 @@ Workspace lifecycle is six task-independent verbs — `createWorkspace`, `create
 `activateWorkspace`, `deactivateWorkspace`, `deleteWorkspace`, `deleteWorktree` — modeled as
 **plain wire RPCs**. This supersedes ADR 0001's transport clause ("mutating host state happens
 only through one-shot durable commands in an outbox") for workspace mutations: no inbox/outbox,
-no durable operation log, no liveJob endpoints. Handlers still use kernel claims (exclusive
-per-repository for worktree create/delete, per-workspace for activate/deactivate/delete).
+no durable operation log, no liveJob endpoints. Handlers serialize exclusively per-repository
+for worktree create/delete and per-workspace for activate/deactivate/delete (waits, not
+errors). *(ADR 0006 fixed the implementation: a `KeyedMutex` with fixed repo-before-workspace
+acquisition order — the kernel claim machinery retires entirely.)*
 
 ## Why plain RPCs
 

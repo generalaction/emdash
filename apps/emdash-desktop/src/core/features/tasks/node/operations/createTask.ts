@@ -20,16 +20,17 @@ import { mapConversationRowToConversation } from '@core/features/conversations/a
 import type { ConversationsRuntimeBroker } from '@core/features/conversations/api/runtime-adapter';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { mapTaskRowToTask } from '@core/features/tasks/api/node/utils/utils';
-import {
-  hostCreateWorktreeOperation,
-  type HostCreateWorktreeInput,
-} from '@core/features/workspaces/api/node/host-outbox-operations';
-import { compileCreateWorktreePrediction } from '@core/features/workspaces/api/node/operations/compile-host-outbox-prediction';
 import type { WorkspacePlacementResolver } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
 import {
   createWorkspaceRegistry,
   type WorkspaceRegistry,
 } from '@core/features/workspaces/api/node/registry';
+import {
+  compileRegistryGitSpec,
+  createWorktreeThroughRegistry,
+  type RegistryWorktreeSpec,
+  type WorkspaceCreations,
+} from '@core/features/workspaces/api/node/registry-verbs';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import {
@@ -61,7 +62,7 @@ export interface PreparedCreateTask {
   host: HostRef;
   workspaceId: string;
   newWorkspaceValues: WorkspaceInsert | null;
-  createWorktreeInput?: HostCreateWorktreeInput;
+  registryCreate?: RegistryWorktreeSpec;
   convInsert: ConvInsert | undefined;
   hostConversationInput: CreateConversationInput | undefined;
 }
@@ -88,7 +89,7 @@ export async function prepareCreateTask(
 
   let workspaceId: string;
   let newWorkspaceValues: WorkspaceInsert | null = null;
-  let createWorktreeInput: HostCreateWorktreeInput | undefined;
+  let registryCreate: RegistryWorktreeSpec | undefined;
 
   const wsTarget = workspaceConfig.workspace;
   const branchName =
@@ -118,8 +119,8 @@ export async function prepareCreateTask(
   }
 
   // Creation is UX-gated on host availability (spec §6.3, one rule for every target
-  // kind): the outbox absorbs transient disconnects mid-operation, but starting new
-  // work against an offline host is refused outright. Deletions never hit this gate.
+  // kind): verbs are plain fail-fast RPCs (ADR 0005), so starting new work against an
+  // offline host is refused outright. Deletions never hit this gate.
   if (project.host.type === 'remote' && !operations.hostIsReachable(formatHostRef(project.host))) {
     return err({
       type: 'provision-failed',
@@ -174,12 +175,10 @@ export async function prepareCreateTask(
       compiled.worktreePath
     );
     conversationWorkspacePath = workspacePath;
-    const gitOperation = compileGitOperation(
-      workspaceConfig.git,
-      pushRequested(workspaceConfig.git) ? await project.settings.getPushRemote() : undefined
-    );
-    const serializedHostRef = formatHostRef(project.host);
-    const now = Date.now();
+    const gitSpec = compileRegistryGitSpec(workspaceConfig.git);
+    if (!gitSpec.success) {
+      return err({ type: 'provision-failed', message: gitSpec.error.message });
+    }
 
     newWorkspaceValues = {
       id: workspaceId,
@@ -188,33 +187,20 @@ export async function prepareCreateTask(
       sshConnectionId,
       parentId: projectRow?.repositoryWorkspaceId ?? null,
       type: legacyType,
+      origin: 'registered',
       config: workspaceConfig,
       path: workspacePath,
     };
-    createWorktreeInput = {
-      version: '1',
-      source: 'user',
-      hostOperationId: crypto.randomUUID(),
-      hostRef: serializedHostRef,
-      repoPath: project.repoPath,
-      projectId: params.projectId,
+    registryCreate = {
+      host: project.host,
+      repositoryWorkspaceId: projectRow?.repositoryWorkspaceId ?? null,
+      repositoryPath: project.repoPath,
       workspaceId,
-      entityName: params.taskConfig.name,
-      workspacePath,
-      branchName,
-      startPoint: gitOperation.startPoint,
-      fetch: gitOperation.fetch,
-      pushRemote: gitOperation.pushRemote,
+      branch: gitSpec.data.branch,
+      baseRef: gitSpec.data.baseRef,
+      path: workspacePath,
       preservePatterns: compiled.preservePatterns,
-      prediction: compileCreateWorktreePrediction({
-        now,
-        workspacePath,
-        branchName,
-        fetch: gitOperation.fetch,
-        pushRemote: gitOperation.pushRemote,
-        preservePatterns: compiled.preservePatterns,
-      }),
-      createdAt: now,
+      pushBranch: gitSpec.data.pushBranch,
     };
   }
 
@@ -282,7 +268,7 @@ export async function prepareCreateTask(
     host: project.host,
     workspaceId,
     newWorkspaceValues,
-    createWorktreeInput,
+    registryCreate,
     convInsert,
     hostConversationInput,
   });
@@ -374,6 +360,7 @@ export async function createTask(
   operations: OperationsEngine,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   runtimes: ConversationsRuntimeBroker,
+  creations: WorkspaceCreations,
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const prepared = await prepareCreateTask(db, projects, operations, placement, params);
@@ -389,60 +376,31 @@ export async function createTask(
       return err({ type: 'provision-failed', message: registered.message });
     }
   }
-  const compensate = async () => {
-    if (hostInput) {
-      await compensateHostConversationRecord(runtimes, prepared.data.host, hostInput.id);
-    }
-  };
 
   let taskRow!: TaskRow;
   let convRow: ConversationRow | undefined;
   const registry = createWorkspaceRegistry(db);
   const conversationRegistry = createConversationRegistry(db);
   try {
-    if (prepared.data.createWorktreeInput) {
-      const submitted = await operations.submitWithTombstone(
-        hostCreateWorktreeOperation,
-        prepared.data.createWorktreeInput,
-        {
-          tombstone: (tx) => {
-            ({ taskRow, convRow } = commitCreateTask(
-              prepared.data,
-              tx,
-              registry,
-              conversationRegistry
-            ));
-            return 1;
-          },
-          revertTombstone: (tx) => {
-            const now = new Date().toISOString();
-            registry.untrack([prepared.data.workspaceId], now, undefined, tx);
-            const conversationId = prepared.data.convInsert?.id;
-            if (conversationId) {
-              conversationRegistry.untrack([conversationId], now, tx);
-              conversationRegistry.purge([conversationId], tx);
-            }
-            tx.delete(tasks).where(eq(tasks.id, params.id)).run();
-          },
-        }
-      );
-      if (!submitted.success) {
-        await compensate();
-        return err({ type: 'provision-failed', message: submitted.error.message });
-      }
-    } else {
-      db.transaction((tx) => {
-        ({ taskRow, convRow } = commitCreateTask(
-          prepared.data,
-          tx,
-          registry,
-          conversationRegistry
-        ));
-      });
-    }
+    db.transaction((tx) => {
+      ({ taskRow, convRow } = commitCreateTask(prepared.data, tx, registry, conversationRegistry));
+    });
   } catch (error) {
-    await compensate();
+    if (hostInput) {
+      await compensateHostConversationRecord(runtimes, prepared.data.host, hostInput.id);
+    }
     throw error;
+  }
+
+  // The worktree is created through the plain registry verb (ADR 0005), in the
+  // background: progress and the durable outcome surface through the records live
+  // model and the mirror. Provisioning awaits the pending creation; a failure shows
+  // its stage on the task and a retry replays the identical spec.
+  const registryCreate = prepared.data.registryCreate;
+  if (registryCreate) {
+    void creations.run(registryCreate.workspaceId, () =>
+      createWorktreeThroughRegistry(runtimes, registryCreate)
+    );
   }
 
   return ok(finalizeCreateTask(prepared.data, taskRow, convRow));
@@ -458,30 +416,4 @@ function allocateRegistryPath(
     const candidate = suffix === 1 ? basePath : `${basePath}-${suffix}`;
     if (!registry.findLiveByPath(location, sshConnectionId, candidate)) return candidate;
   }
-}
-
-function pushRequested(git: CreateTaskParams['workspaceConfig']['git']): boolean {
-  if (git.kind === 'create-branch') return git.pushBranch === true;
-  if (git.kind === 'pr-branch') return git.pushBranch === true && git.taskBranch !== undefined;
-  return false;
-}
-
-function compileGitOperation(
-  git: CreateTaskParams['workspaceConfig']['git'],
-  pushRemote: string | undefined
-): Pick<HostCreateWorktreeInput, 'startPoint' | 'fetch' | 'pushRemote'> {
-  if (git.kind === 'create-branch') {
-    return {
-      startPoint:
-        git.fromBranch.type === 'remote'
-          ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
-          : git.fromBranch.branch,
-      fetch: git.fromBranch.type === 'remote',
-      pushRemote,
-    };
-  }
-  if (git.kind === 'pr-branch') {
-    return { startPoint: git.taskBranch ? git.headBranch : undefined, fetch: true, pushRemote };
-  }
-  return {};
 }

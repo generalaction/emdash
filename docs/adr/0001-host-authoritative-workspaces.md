@@ -1,10 +1,12 @@
 # Host-authoritative workspaces: the inventory-and-command model
 
-> **Partially superseded by ADR 0005.** The host-authoritative stance, the rejection of
-> spec/status convergence, and the registry consequences below all stand. The transport clause —
-> "mutating host state happens only through one-shot durable commands in an outbox" — no longer
-> holds for workspace mutations, which are plain fail-fast RPCs; the durable index also now
-> lives host-side (the workspace registry), with the desktop keeping a mirror + annotations.
+> **Partially superseded by ADR 0005 and ADR 0006.** The host-authoritative stance, the
+> rejection of spec/status convergence, and the registry consequences below all stand. The
+> transport clause — "mutating host state happens only through one-shot durable commands in an
+> outbox" — no longer holds at all: mutations are plain fail-fast RPCs (0005 for workspace
+> verbs, 0006 generally), and deletion intent survives unreachability as a durable client
+> tombstone swept by a deletion-only reconcile loop (0006). The durable index also now lives
+> host-side (the workspace registry), with the desktop keeping a mirror + annotations.
 
 Workspaces (repos, worktrees, directories) live on hosts that emdash shares with humans and other tools. We decided the host is authoritative for what exists: the desktop keeps a *registry* — a tracking index of discovered reality plus desktop-only annotations — and sync converges the *record* toward the *world* (adopt untracked worktrees, mark tracked-but-gone rows missing). Mutating host state happens only through one-shot durable commands in an outbox (idempotent by deterministic id, executed when the host is reachable, cancelled when the host is forgotten). Desktop-owned records (tasks, automations, projects) delete immediately and never block on a host.
 

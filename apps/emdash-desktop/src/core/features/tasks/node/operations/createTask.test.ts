@@ -1,5 +1,6 @@
 import { formatHostRef, hostRef } from '@emdash/core/primitives/host/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import type { TaskRow } from '@core/services/app-db/node/schema';
 import { createTask as createTaskOperation } from './createTask';
 
@@ -9,14 +10,12 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   hasClaimConflict: vi.fn(),
   hostIsReachable: vi.fn(),
-  submitWithTombstone: vi.fn(),
   resolveWorktreeRoot: vi.fn(),
   registryRows: [] as unknown[],
 }));
 const operations = {
   hasClaimConflict: mocks.hasClaimConflict,
   hostIsReachable: mocks.hostIsReachable,
-  submitWithTombstone: mocks.submitWithTombstone,
 } as never;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
 const projects = { getProject: mocks.getProject };
@@ -25,20 +24,36 @@ const hostConversations = {
   create: vi.fn(async (input: { id: string }) => ({ success: true as const, data: input })),
   delete: vi.fn(async () => ({ success: true as const, data: undefined })),
 };
+const workspaceRegistry = {
+  createWorkspace: vi.fn(async (input: { id: string; path: string }) => ({
+    success: true as const,
+    data: { id: input.id },
+  })),
+  createWorktree: vi.fn(async (_input: Record<string, unknown>) => ({
+    success: true as const,
+    data: undefined,
+  })),
+};
 const runtimes = {
   client: vi.fn(async () => ({
     success: true as const,
-    data: { conversations: hostConversations },
+    data: { conversations: hostConversations, workspaceRegistry },
   })),
 } as never;
+let creations: WorkspaceCreations;
 
 function createTask(
   _db: typeof db,
   _projects: typeof projects,
   _operations: typeof operations,
-  params: Parameters<typeof createTaskOperation>[5]
+  params: Parameters<typeof createTaskOperation>[6]
 ) {
-  return createTaskOperation(db, projects, operations, placement, runtimes, params);
+  return createTaskOperation(db, projects, operations, placement, runtimes, creations, params);
+}
+
+/** Awaits the background worktree creation kicked off for the inserted workspace row. */
+async function settleCreation(workspaceId: unknown) {
+  await (creations.pending(String(workspaceId)) ?? Promise.resolve());
 }
 
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {
@@ -75,12 +90,6 @@ function setupTransactionMock() {
     captured.length = 0;
     return cb(fakeTx(captured));
   });
-  mocks.submitWithTombstone.mockImplementation(
-    async (_definition: unknown, _input: unknown, options: { tombstone(tx: unknown): number }) => {
-      options.tombstone(fakeTx(captured));
-      return { success: true, data: { operationId: 'operation-1' } };
-    }
-  );
 
   return { captured };
 }
@@ -151,6 +160,7 @@ function makeProjectRemote() {
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    creations = new WorkspaceCreations();
     mocks.getProject.mockReturnValue({
       project: { id: 'project-1', path: '/repo' },
       repoPath: '/repo',
@@ -260,8 +270,7 @@ describe('createTask', () => {
       expect((captured[0] as Record<string, unknown>).workspaceId).toBe('ws-repo-1');
     });
 
-    it('does not insert a new workspace row', async () => {
-      const { captured } = setupTransactionMock();
+    it('does not call the registry verbs', async () => {
       await createTask(db, projects, operations, {
         id: 'task-1',
         projectId: 'project-1',
@@ -273,13 +282,13 @@ describe('createTask', () => {
         },
       });
 
-      // captured[0] = task. No workspace insert at index 1.
-      expect(captured).toHaveLength(1);
+      expect(workspaceRegistry.createWorkspace).not.toHaveBeenCalled();
+      expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
     });
   });
 
   describe('new-worktree workspace target', () => {
-    it('inserts a workspace row with kind=worktree and the config serialized', async () => {
+    it('inserts a workspace row and runs the registry verbs with the compiled spec', async () => {
       const { captured } = setupTransactionMock();
       const workspaceConfig = {
         version: '2' as const,
@@ -304,25 +313,31 @@ describe('createTask', () => {
       const wsInsert = captured[1] as Record<string, unknown>;
       expect(wsInsert.kind).toBe('worktree');
       expect(wsInsert.location).toBe('local');
+      expect(wsInsert.origin).toBe('registered');
       expect(wsInsert.config).toEqual(workspaceConfig);
       expect(wsInsert.path).toMatch(/^\/worktrees\/repo-[a-f0-9]{8}\/feature-test$/u);
       expect(wsInsert.key).toBeUndefined();
-      expect(mocks.submitWithTombstone).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'host-create-worktree' }),
-        expect.objectContaining({
-          repoPath: '/repo',
-          workspacePath: wsInsert.path,
-          branchName: 'feature/test',
-          startPoint: 'main',
-          pushRemote: 'origin',
-          preservePatterns: ['.env'],
-        }),
-        expect.any(Object)
-      );
+
+      await settleCreation(wsInsert.id);
+      // The project row already links a repository workspace; it is re-registered
+      // idempotently under its preserved id before the worktree verb runs.
+      expect(workspaceRegistry.createWorkspace).toHaveBeenCalledWith({
+        id: 'repo-workspace',
+        path: '/repo',
+      });
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith({
+        id: wsInsert.id,
+        repositoryId: 'repo-workspace',
+        branch: 'feature/test',
+        baseRef: 'main',
+        path: wsInsert.path,
+        preservePatterns: ['.env'],
+        pushBranch: true,
+      });
     });
 
     it('does not request a push when pushBranch is not set', async () => {
-      setupTransactionMock();
+      const { captured } = setupTransactionMock();
 
       await createTask(db, projects, operations, {
         id: 'task-1',
@@ -339,10 +354,37 @@ describe('createTask', () => {
         },
       });
 
-      expect(mocks.submitWithTombstone).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ pushRemote: undefined }),
-        expect.any(Object)
+      await settleCreation((captured[1] as Record<string, unknown>).id);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ pushBranch: false })
+      );
+    });
+
+    it('compiles a remote fromBranch into a remote-qualified baseRef', async () => {
+      const { captured } = setupTransactionMock();
+
+      await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/remote',
+            fromBranch: {
+              type: 'remote',
+              branch: 'main',
+              remote: { name: 'origin', url: 'git@example.com:repo.git' },
+            },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      await settleCreation((captured[1] as Record<string, unknown>).id);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ baseRef: 'origin/main' })
       );
     });
 
@@ -370,6 +412,7 @@ describe('createTask', () => {
       expect(wsInsert.location).toBe('remote');
       expect(wsInsert.type).toBe('project-ssh');
       expect(wsInsert.sshConnectionId).toBe('conn-1');
+      await settleCreation(wsInsert.id);
     });
 
     it('refuses creation when the remote host is unreachable', async () => {
@@ -404,6 +447,7 @@ describe('createTask', () => {
 
     it('suffixes paths against live Registry rows without probing the host', async () => {
       mocks.registryRows.push({ id: 'existing' });
+      const { captured } = setupTransactionMock();
 
       await createTask(db, projects, operations, {
         id: 'task-1',
@@ -420,12 +464,11 @@ describe('createTask', () => {
         },
       });
 
-      expect(mocks.submitWithTombstone).toHaveBeenCalledWith(
-        expect.anything(),
+      await settleCreation((captured[1] as Record<string, unknown>).id);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
         expect.objectContaining({
-          workspacePath: expect.stringMatching(/\/feature-test-2$/u),
-        }),
-        expect.anything()
+          path: expect.stringMatching(/\/feature-test-2$/u),
+        })
       );
     });
 
@@ -452,33 +495,12 @@ describe('createTask', () => {
       expect(mocks.transaction).not.toHaveBeenCalled();
     });
 
-    it('untracks the Registry row and rolls back task rows when enqueue is rejected', async () => {
+    it('commits the task even when the background worktree creation fails', async () => {
       const { captured } = setupTransactionMock();
-      const mutationRuns = vi.fn(() => ({ changes: 1 }));
-      mocks.submitWithTombstone.mockImplementationOnce(
-        async (
-          _definition: unknown,
-          _input: unknown,
-          options: {
-            tombstone(tx: unknown): number;
-            revertTombstone(tx: unknown): void;
-          }
-        ) => {
-          const tx = {
-            ...fakeTx(captured),
-            update: () => ({
-              set: () => ({ where: () => ({ run: mutationRuns }) }),
-            }),
-            delete: () => ({ where: () => ({ run: mutationRuns }) }),
-          };
-          options.tombstone(tx);
-          options.revertTombstone(tx);
-          return {
-            success: false,
-            error: { type: 'operation-conflict', message: 'conflict' },
-          };
-        }
-      );
+      workspaceRegistry.createWorktree.mockResolvedValueOnce({
+        success: false,
+        error: { type: 'stage-failed', stage: 'add-worktree', message: 'branch exists' },
+      } as never);
 
       const result = await createTask(db, projects, operations, {
         id: 'task-1',
@@ -495,13 +517,15 @@ describe('createTask', () => {
         },
       });
 
-      expect(result).toEqual({
+      // The verb failure is durable on the host record (ADR 0005); desktop rows stay
+      // and provisioning surfaces the failure from the pending creation outcome.
+      expect(result.success).toBe(true);
+      const wsInsert = captured[1] as Record<string, unknown>;
+      const outcome = await creations.pending(String(wsInsert.id));
+      expect(outcome).toEqual({
         success: false,
-        error: { type: 'provision-failed', message: 'conflict' },
+        error: { stage: 'add-worktree', message: 'branch exists' },
       });
-      // Workspace untrack + task-row delete; no initial conversation exists here, so the
-      // registry-mediated conversation rollback contributes no mutations.
-      expect(mutationRuns).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -532,19 +556,21 @@ describe('createTask', () => {
     };
 
     it('registers the record on the host before the desktop commit, path frozen and prompt in config', async () => {
-      setupTransactionMock();
+      const { captured } = setupTransactionMock();
 
       const result = await createTask(db, projects, operations, worktreeParams);
       expect(result.success).toBe(true);
 
       expect(hostConversations.create).toHaveBeenCalledTimes(1);
       const hostInput = hostConversations.create.mock.calls[0][0] as Record<string, unknown>;
-      const outboxInput = mocks.submitWithTombstone.mock.calls[0][1] as Record<string, unknown>;
+      const wsInsert = captured[1] as Record<string, unknown>;
+      await settleCreation(wsInsert.id);
+      const verbInput = workspaceRegistry.createWorktree.mock.calls[0][0];
       // conv.path-frozen: the record is born dangling with the Placement-computed
-      // path already frozen — identical to the path the pending worktree operation
-      // (and any same-path retry of it) will materialize.
-      expect(hostInput.workspacePath).toBe(outboxInput.workspacePath);
-      expect(hostInput.cwd).toBe(outboxInput.workspacePath);
+      // path already frozen — identical to the path the worktree verb (and any
+      // same-path retry of it) will materialize.
+      expect(hostInput.workspacePath).toBe(verbInput.path);
+      expect(hostInput.cwd).toBe(verbInput.path);
       expect(hostInput).toMatchObject({
         id: 'conv-1',
         provider: 'claude-code',
@@ -555,7 +581,7 @@ describe('createTask', () => {
       });
       // Host-first ordering: index registration precedes the desktop transaction.
       expect(hostConversations.create.mock.invocationCallOrder[0]).toBeLessThan(
-        mocks.submitWithTombstone.mock.invocationCallOrder[0]
+        mocks.transaction.mock.invocationCallOrder[0]
       );
     });
 
@@ -572,28 +598,21 @@ describe('createTask', () => {
         success: false,
         error: { type: 'provision-failed', message: 'id reuse' },
       });
-      expect(mocks.submitWithTombstone).not.toHaveBeenCalled();
+      expect(mocks.transaction).not.toHaveBeenCalled();
+      expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
       expect(hostConversations.delete).not.toHaveBeenCalled();
     });
 
     it('compensates with a direct foreground delete when the desktop commit fails', async () => {
-      const { captured } = setupTransactionMock();
-      mocks.submitWithTombstone.mockImplementationOnce(
-        async (
-          _definition: unknown,
-          _input: unknown,
-          options: { tombstone(tx: unknown): number; revertTombstone(tx: unknown): void }
-        ) => {
-          options.tombstone(fakeTx(captured));
-          options.revertTombstone(fakeTx(captured));
-          return { success: false, error: { type: 'operation-conflict', message: 'conflict' } };
-        }
+      mocks.transaction.mockImplementationOnce(() => {
+        throw new Error('constraint violated');
+      });
+
+      await expect(createTask(db, projects, operations, worktreeParams)).rejects.toThrow(
+        'constraint violated'
       );
-
-      const result = await createTask(db, projects, operations, worktreeParams);
-
-      expect(result.success).toBe(false);
       expect(hostConversations.delete).toHaveBeenCalledWith({ id: 'conv-1' });
+      expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
     });
 
     it('freezes the existing workspace path for repository-instance targets', async () => {

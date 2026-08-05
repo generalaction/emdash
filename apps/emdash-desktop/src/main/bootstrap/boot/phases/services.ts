@@ -69,6 +69,7 @@ import {
   loadProjectWorktreeDirectory,
   WorkspacePlacementResolver,
 } from '@core/features/workspaces/api/node/placement/workspace-placement-resolver';
+import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { SnapshotRequester } from '@core/features/workspaces/node/sync/snapshot-requester';
@@ -268,6 +269,7 @@ export async function bootServices(
       },
       tuiConversationDependencies
     );
+  const workspaceCreations = new WorkspaceCreations();
   const taskService = new TaskService({
     db,
     projects: projectManager,
@@ -277,6 +279,7 @@ export async function bootServices(
     lifecycleParticipants,
     createConversationProvider,
     workspaceIdentity,
+    creations: workspaceCreations,
   });
   const searchService = createSearchService({
     db,

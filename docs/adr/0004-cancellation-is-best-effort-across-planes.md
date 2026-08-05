@@ -1,5 +1,11 @@
 # Cancellation is best-effort across planes
 
+> **Retired by ADR 0006.** The outbox and its pending desktop records no longer exist, so
+> there is no desktop-local `cancelled` state to define. What remains of this ADR's reasoning:
+> forget-host and "Untrack anyway" purge deletion intent without host confirmation, an
+> in-flight create cancels via the RPC signal, and orphaned host effects still surface through
+> the observation plane (adoption) — never silently lost.
+
 A desktop cancellation settles the desktop record immediately, without waiting for the host to
 confirm. `cancelled` on the desktop means "I stopped asking" — not "it didn't happen." If the
 intent already reached an unreachable host, the host may run the operation to completion

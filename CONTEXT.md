@@ -7,9 +7,8 @@ Emdash runs AI coding agents in parallel across isolated git worktrees on local 
 ### The model
 
 **Inventory-and-command model**:
-Emdash's state model for host artifacts: the host's inventory is authoritative — for Workspaces indexed by the Host registry — the desktop Registry converges toward it, and there is no standing desired state: emdash never re-converges the world toward a record. Workspace mutations are plain fail-fast wire RPCs, not durable commands (ADR 0005). See ADR 0001 for the authority stance.
-_Avoid_: Spec/status, desired state, reconciling the host (the record reconciles, the host does not)
-_In transition (2026-08-05)_: conversations deletion still runs through the Outbox until the operation-log-retirement effort replaces it with tombstone-and-reconcile.
+Emdash's state model for host artifacts: the host's inventory is authoritative — for Workspaces indexed by the Host registry — the desktop Registry converges toward it, and there is no standing desired state: emdash never re-converges the world toward a record. Mutations are plain fail-fast wire RPCs (ADR 0005), with one deliberate exception: deletion intent survives unreachability as a Tombstone, swept by the Reconcile sweep (ADR 0006). Creation never converges; only tombstoned deletions do. See ADR 0001 for the authority stance.
+_Avoid_: Spec/status, desired state, converging the world toward a record (the one convergence loop removes tombstoned artifacts, nothing else)
 
 ### Places and artifacts
 
@@ -85,7 +84,7 @@ Hard-deleting already-untracked Registry rows as retention cleanup. Never valid 
 A registered Workspace whose path a reachable host reports as gone. The Host registry keeps the record (observedStatus missing) until a delete verb removes it; adopted records are instead deleted outright — pure mirror entries follow the disk.
 
 **Tracked / Untracked**:
-Whether a host artifact has a Registry entry. Untracking is a desktop decision about the Registry; deleting is a Host operation against the artifact.
+Whether a host artifact has a Registry entry. Untracking is a desktop decision about the Registry; deleting is a host verb against the artifact.
 
 **Identity lost**:
 A Registry row whose Host can no longer be decoded — a remote row whose SSH connection was deleted, or a row with no location. Never reinterpreted as local: host-mutating flows refuse, a Project whose Repository row is identity-lost is skipped like a missing one, reads surface the loss rather than guess.
@@ -94,28 +93,19 @@ _Avoid_: Falling back to local, empty connection ids
 ### Operations
 
 **Workspace verb**:
-One of the six plain RPCs on the Host registry contract: createWorkspace, createWorktree, activateWorkspace, deactivateWorkspace, deleteWorkspace, deleteWorktree. Fail fast when the host is unreachable — nothing is queued. Handlers serialize with kernel claims; killing dependent sessions is part of deactivate, which the delete verbs compose server-side. Deletes are idempotent; deleteWorktree is the only artifact-destroying verb.
-_Avoid_: Host operation (for workspaces), enqueue/queue language, preflight RPCs (informed confirmation reads the mirror)
-
-**Host operation**:
-A durable, host-centric mutation of host state, executed through the Outbox. Since ADR 0005 this is legacy vocabulary — Workspaces use Workspace verbs; conversations deletion is the remaining durable-command user until the operation-log-retirement effort lands.
+One of the six plain RPCs on the Host registry contract: createWorkspace, createWorktree, activateWorkspace, deactivateWorkspace, deleteWorkspace, deleteWorktree. Fail fast when the host is unreachable — nothing is queued. Handlers serialize with a keyed mutex (per-repo exclusive for worktree create/delete, per-workspace for activate/deactivate/delete; waits, not errors); killing dependent sessions is part of deactivate, which the delete verbs compose server-side. Deletes are idempotent and identity-keyed (a different record id at the path no-ops); deleteWorktree is the only artifact-destroying verb.
+_Avoid_: Host operation, enqueue/queue language, claims, preflight RPCs (informed confirmation reads the mirror)
 
 **Desktop operation**:
-A durable mutation of desktop-owned records (tasks, projects, links). Completes against desktop records immediately — it may enqueue Host operations into the Outbox, but never blocks on host availability.
+A mutation of desktop-owned records (tasks, projects, links). Completes against desktop records immediately and never blocks on host availability — the host-artifact halves of a cascade become Tombstones for the Reconcile sweep.
 
-**Outbox**:
-The desktop's durable queue of Host operations awaiting their host (the kernel's host-gated operations). Survives restarts, drains on reconnect, and is cancelled when the host is forgotten. Workspace verbs never use it (ADR 0005).
-_In transition (2026-08-05)_: being retired for its remaining users in favor of tombstone-and-reconcile (operation-log-retirement effort); the tombstoned registry row becomes the durable intent.
+**Tombstone**:
+A durable mark on a mirror row recording that the user deleted the entity: the deletion intent itself, carrying the frozen deletion options and the target record's id. Visible as the pending state until the Reconcile sweep converges it (or the user chooses Untrack anyway); purged when the mirror confirms the host record gone, and by forget-host. Tombstones have no expiry — boundedness comes from visibility and the terminal-failure stop.
+_Avoid_: Queue/outbox language, "removal pending" as a separate state (the visible tombstoned row is the pending state), expiring intent
 
-**Host claim**:
-An exclusive claim on a Host's kernel resource — the designated admission guard for host-level verbs. Artifact operations propagate intent claims to their Host, so an exclusive host claim conflicts with all in-flight work on that host. Claims guard admission only: the Outbox still cancels when the host is forgotten, and referential checks ("does anything still point here") stay data checks.
-_Avoid_: Using claims to block forgetting, ad-hoc per-verb host guards
-
-**Plan preview**:
-A desktop-compiled, non-authoritative prediction of how the host will expand a Host operation, shown for UI steps while offline. The host's actual expansion replaces it when execution starts.
-
-**Removal pending**:
-_Retired for workspaces (2026-08-05, ADR 0005)_: Workspace verbs fail fast instead of enqueueing, so no workspace removal is ever pending. The notion survives only where the Outbox does (conversations deletion) until that effort retires it too.
+**Reconcile sweep**:
+The client-side loop that converges tombstoned entities: whenever a host is reachable (boot, reconnect, tombstoned-while-online, 10-minute backstop), it calls each kind's idempotent removal verb for that host's tombstones and purges on mirror-confirmed absence. Entity-generic — one sweep, per-kind removal functions; failure classes are host-written on the record (transient retries silently, terminal stops with Retry / Untrack anyway). Deletion-only: it removes what tombstones name and converges nothing else.
+_Avoid_: Reconciling the host toward records generally (ADR 0001 still rejects that), cross-kind ordering guarantees, treating RPC returns as truth (the record's outcome metadata is)
 
 **Placement**:
 The desktop policy that picks the intended path for a new Workspace — computed from settings and Registry knowledge only, never by probing the host. The host is the final arbiter of what actually happens at that path.
@@ -126,5 +116,5 @@ The moment a Workspace accepts Sessions. Session start waits for the prepare scr
 _Avoid_: Provisioning (that creates the artifact; activation starts using it), durable "active" flags
 
 **Workspace notice**:
-A surfaced, non-fatal event about a Workspace's session plane (a failed prepare or setup script). Informational with a re-run affordance, carried on the workspace's Runtime overlay — ephemeral like the activation it belongs to, never an operation-log entry, because it mutates no inventory and holds no claims.
+A surfaced, non-fatal event about a Workspace's session plane (a failed prepare or setup script). Informational with a re-run affordance, carried on the workspace's Runtime overlay — ephemeral like the activation it belongs to. The durable trace is the per-script last-outcome on the workspace record, which survives daemon restarts and syncs to the mirror.
 _Avoid_: Operation, error state (the workspace keeps working)
