@@ -1,14 +1,17 @@
 import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
 import {
+  activateWorkspaceErrorSchema,
   createWorkspaceErrorSchema,
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
   workspaceNotFoundErrorSchema,
 } from './errors';
 import {
+  activateWorkspaceInputSchema,
   createWorkspaceInputSchema,
   createWorktreeInputSchema,
+  deactivateWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
   refreshWorkspacesInputSchema,
   workspaceRecordSchema,
@@ -61,6 +64,32 @@ export const workspaceRegistryContract = defineContract({
     input: createWorktreeInputSchema,
     data: workspaceRecordSchema,
     error: createWorktreeErrorSchema,
+  }),
+
+  /**
+   * Returns when the prepare script completes (the session-gating point); setup runs
+   * after, concurrent with sessions; run waits on setup success. Script failures —
+   * prepare included — surface as notices in the runtime overlay and never fail the
+   * verb. Activation is ephemeral: it lives in the overlay and dies with the daemon;
+   * only lastActivatedAt persists, as an observation. Re-activating an active
+   * workspace is a no-op success.
+   */
+  activateWorkspace: fallible({
+    input: activateWorkspaceInputSchema,
+    data: workspaceRecordSchema,
+    error: activateWorkspaceErrorSchema,
+  }),
+
+  /**
+   * The sole owner of session-plane shutdown (ADR 0005, superseding ADR 0003): kills
+   * every session under the workspace path, then runs the teardown script time-boxed
+   * and non-fatal — a failed or hanging teardown becomes a notice, never a verb error.
+   * Idempotent on inactive workspaces: teardown runs at most once per activation.
+   */
+  deactivateWorkspace: fallible({
+    input: deactivateWorkspaceInputSchema,
+    data: z.void(),
+    error: workspaceNotFoundErrorSchema,
   }),
 
   /**

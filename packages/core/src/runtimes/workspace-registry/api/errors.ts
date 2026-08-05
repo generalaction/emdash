@@ -24,6 +24,13 @@ export type CreateWorkspaceError = z.infer<typeof createWorkspaceErrorSchema>;
 export const deleteWorkspaceErrorSchema = z.never();
 export type DeleteWorkspaceError = z.infer<typeof deleteWorkspaceErrorSchema>;
 
+export const activateWorkspaceErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('workspace-not-found'), workspaceId: z.string() }),
+  /** The record survives as observedStatus 'missing' but there is nothing to prepare. */
+  z.object({ type: z.literal('workspace-missing'), workspaceId: z.string() }),
+]);
+export type ActivateWorkspaceError = z.infer<typeof activateWorkspaceErrorSchema>;
+
 export const createWorktreeErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('repository-not-found'), repositoryId: z.string() }),
   z.object({

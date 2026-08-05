@@ -268,22 +268,6 @@ async function startDesktopWorkersWithHost(
     });
     return await worker.ready();
   });
-  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
-  // its freshness scheduler. Default supervision (restart on failure) is deliberate: a
-  // durable index should come back; its runtime overlay is ephemeral by design.
-  const workspaceRegistryReady = watcherReady.then(async (watcher) => {
-    const worker = host.create(workspaceRegistryComponent, {
-      name: 'workspace-registry',
-      executable: desktopWorkerPath('workspace-registry'),
-      env: process.env,
-      dependencies: { watcher },
-      config: {
-        databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
-      },
-      shutdownGraceMs: 3_000,
-    });
-    return await worker.ready();
-  });
   const fileSearchReady = watcherReady.then(async (watcher) => {
     const worker = host.create(fileSearchComponent, {
       name: 'file-search',
@@ -327,6 +311,28 @@ async function startDesktopWorkersWithHost(
       },
     });
     return { client: await worker.ready(), worker };
+  });
+  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
+  // its freshness scheduler; the session runtimes are deactivateWorkspace's kill-sessions
+  // plane. Default supervision (restart on failure) is deliberate: a durable index should
+  // come back; its runtime overlay is ephemeral by design.
+  const workspaceRegistryReady = Promise.all([
+    watcherReady,
+    acpReady,
+    terminalsReady,
+    tuiAgentsReady,
+  ]).then(async ([watcher, acp, terminals, tuiAgents]) => {
+    const worker = host.create(workspaceRegistryComponent, {
+      name: 'workspace-registry',
+      executable: desktopWorkerPath('workspace-registry'),
+      env: process.env,
+      dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client },
+      config: {
+        databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+      },
+      shutdownGraceMs: 3_000,
+    });
+    return await worker.ready();
   });
   const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
     async ([acp, terminals, tuiAgents]) => {

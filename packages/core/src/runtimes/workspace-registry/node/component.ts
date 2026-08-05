@@ -2,12 +2,14 @@ import path from 'node:path';
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
 import { fsWatchContract } from '@services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
+import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
 import { workspaceRegistryContract } from '../api';
 import { createWorkspaceRegistryController } from './api/controller';
 import { workspaceRegistryStore } from './persistence/store';
 import { WorkspaceRegistryRuntime } from './runtime';
 import { WorkspaceScanScheduler } from './scan/scheduler';
+import { createSessionKiller } from './session-cleanup';
 
 export const workspaceRegistryComponentConfigSchema = z.object({
   databasePath: z
@@ -35,13 +37,25 @@ export const workspaceRegistryComponent = defineWireComponent({
   contract: workspaceRegistryContract,
   requirements: {
     watcher: requireContract(fsWatchContract),
+    // deactivateWorkspace owns kill-sessions; these are the session planes it sweeps.
+    acp: requireContract(hostRuntimesDefinitions.acp),
+    terminals: requireContract(hostRuntimesDefinitions.terminals),
+    tuiAgents: requireContract(hostRuntimesDefinitions.tuiAgents),
   },
   configSchema: workspaceRegistryComponentConfigSchema,
   create: ({ config, dependencies, instance, logger, scope }) => {
     const handle = workspaceRegistryStore.open(config.databasePath);
     scope.add(() => handle.close());
 
-    const runtime = new WorkspaceRegistryRuntime({ handle, logger });
+    const killSessions = createSessionKiller(
+      {
+        acp: dependencies.acp,
+        terminals: dependencies.terminals,
+        tuiAgents: dependencies.tuiAgents,
+      },
+      logger
+    );
+    const runtime = new WorkspaceRegistryRuntime({ handle, logger, killSessions });
     scope.add(() => runtime.dispose());
 
     const watcher = createProcessWatchServiceFromDependency({

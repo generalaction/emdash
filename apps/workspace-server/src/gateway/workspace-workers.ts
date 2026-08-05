@@ -149,19 +149,6 @@ export async function createWorkspaceServerRuntimeHost(
     dependencies: {},
     config: {},
   });
-  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
-  // its freshness scheduler. Default supervision (restart on failure) is deliberate: a
-  // durable index should come back; its runtime overlay is ephemeral by design.
-  const workspaceRegistryPromise = watcherPromise.then((watcher) =>
-    workerHost.spawn(workspaceRegistryComponent, {
-      name: 'workspace-registry',
-      executable: workspaceWorkerPath('workspace-registry'),
-      env,
-      dependencies: { watcher },
-      config: { databasePath: paths.workspaceRegistryDatabase },
-      shutdownGraceMs: 3_000,
-    })
-  );
   const acpPromise = conversationsPromise.then((conversations) =>
     workerHost.spawn(createAcpComponent({ pluginRegistry, env }), {
       name: 'acp',
@@ -208,25 +195,16 @@ export async function createWorkspaceServerRuntimeHost(
     })
   );
 
-  const [
-    conversations,
-    workspaceRegistry,
-    watcher,
-    terminals,
-    resourceUsage,
-    acp,
-    agentConfig,
-    tuiAgents,
-  ] = await Promise.all([
-    conversationsPromise,
-    workspaceRegistryPromise,
-    watcherPromise,
-    terminalsPromise,
-    resourceUsagePromise,
-    acpPromise,
-    agentConfigPromise,
-    tuiAgentsPromise,
-  ]);
+  const [conversations, watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] =
+    await Promise.all([
+      conversationsPromise,
+      watcherPromise,
+      terminalsPromise,
+      resourceUsagePromise,
+      acpPromise,
+      agentConfigPromise,
+      tuiAgentsPromise,
+    ]);
 
   const filesPromise = workerHost.spawn(filesComponent, {
     name: 'files',
@@ -263,12 +241,25 @@ export async function createWorkspaceServerRuntimeHost(
     config: { stateDirectory: paths.workspaceHostStateDirectory },
     supervision: { restart: 'never' },
   });
+  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
+  // its freshness scheduler; the session runtimes are deactivateWorkspace's kill-sessions
+  // plane. Default supervision (restart on failure) is deliberate: a durable index should
+  // come back; its runtime overlay is ephemeral by design.
+  const workspaceRegistryPromise = workerHost.spawn(workspaceRegistryComponent, {
+    name: 'workspace-registry',
+    executable: workspaceWorkerPath('workspace-registry'),
+    env,
+    dependencies: { watcher, acp, terminals, tuiAgents },
+    config: { databasePath: paths.workspaceRegistryDatabase },
+    shutdownGraceMs: 3_000,
+  });
 
-  const [files, fileSearch, git, workspaceHost] = await Promise.all([
+  const [files, fileSearch, git, workspaceHost, workspaceRegistry] = await Promise.all([
     filesPromise,
     fileSearchPromise,
     gitPromise,
     workspaceHostPromise,
+    workspaceRegistryPromise,
   ]);
   const automations = await workerHost.spawn(createAutomationsComponent(), {
     name: 'automations',

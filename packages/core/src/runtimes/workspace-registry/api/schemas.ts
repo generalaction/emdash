@@ -161,3 +161,13 @@ export const refreshWorkspacesInputSchema = z.object({
   id: z.string().min(1).optional(),
 });
 export type RefreshWorkspacesInput = z.infer<typeof refreshWorkspacesInputSchema>;
+
+export const activateWorkspaceInputSchema = z.object({
+  id: z.string().min(1),
+});
+export type ActivateWorkspaceInput = z.infer<typeof activateWorkspaceInputSchema>;
+
+export const deactivateWorkspaceInputSchema = z.object({
+  id: z.string().min(1),
+});
+export type DeactivateWorkspaceInput = z.infer<typeof deactivateWorkspaceInputSchema>;

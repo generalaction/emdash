@@ -9,20 +9,24 @@ import { KeyedMutex } from '@primitives/lib/api';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
+  ActivateWorkspaceError,
   CreateWorkspaceError,
   CreateWorktreeError,
   DeleteWorkspaceError,
   WorkspaceNotFoundError,
 } from '../api/errors';
 import type {
+  ActivateWorkspaceInput,
   CreateWorkspaceInput,
   CreateWorktreeInput,
+  DeactivateWorkspaceInput,
   DeleteWorkspaceInput,
   RefreshWorkspacesInput,
   WorkspaceRecord,
   WorkspaceRecords,
   WorkspaceRuntimeOverlay,
 } from '../api/schemas';
+import { WorkspaceActivationManager } from './activation';
 import { executeCreateWorktree } from './create-worktree';
 import {
   canonicalizeWorkspacePath,
@@ -38,6 +42,8 @@ import {
   type WorktreeListing,
 } from './scan/observe-git';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
+import type { WorkspaceScriptRunner } from './script-runner';
+import type { SessionKiller } from './session-cleanup';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -47,6 +53,12 @@ export type WorkspaceRegistryRuntimeOptions = {
   inspector?: PathInspector;
   /** Invoked after every records change; the component points the scheduler at it. */
   onRecordsChanged?: () => void;
+  /** deactivateWorkspace's session-plane step; the component builds it from the session runtimes. */
+  killSessions?: SessionKiller;
+  activation?: {
+    runner?: WorkspaceScriptRunner;
+    teardownTimeoutMs?: number;
+  };
 };
 
 /**
@@ -67,6 +79,10 @@ export class WorkspaceRegistryRuntime {
   private mutationQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-repository claim: concurrent same-repo creations wait, never error. */
   private readonly repositoryClaims = new KeyedMutex();
+  /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
+  private readonly workspaceClaims = new KeyedMutex();
+  private readonly killSessions: SessionKiller;
+  private readonly activationManager: WorkspaceActivationManager;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
 
   constructor(options: WorkspaceRegistryRuntimeOptions) {
@@ -75,6 +91,42 @@ export class WorkspaceRegistryRuntime {
     this.inspector = options.inspector ?? inspectWorkspacePath;
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle);
+    this.killSessions = options.killSessions ?? (async () => undefined);
+    this.activationManager = new WorkspaceActivationManager({
+      publishActivation: (id, activation) =>
+        this.updateOverlay(id, (overlay) => ({ ...overlay, activation })),
+      setNotice: (id, script, message) =>
+        this.updateOverlay(id, (overlay) => ({
+          ...overlay,
+          notices: [
+            ...overlay.notices.filter((notice) => notice.id !== `script-failed:${script}`),
+            {
+              id: `script-failed:${script}`,
+              kind: 'script-failed',
+              script,
+              message,
+              at: this.clock.now(),
+            },
+          ],
+        })),
+      clearNotice: (id, script) =>
+        this.updateOverlay(id, (overlay) => ({
+          ...overlay,
+          notices: overlay.notices.filter((notice) => notice.id !== `script-failed:${script}`),
+        })),
+      recordActivated: (id, at) =>
+        this.enqueue(async () => {
+          const record = this.store.get(id);
+          if (!record) return;
+          const updated: DurableWorkspaceRecord = { ...record, lastActivatedAt: at, updatedAt: at };
+          this.store.update(updated);
+          this.publish(updated);
+        }),
+      runner: options.activation?.runner,
+      teardownTimeoutMs: options.activation?.teardownTimeoutMs,
+      clock: this.clock,
+      logger: this.logger,
+    });
 
     const initial: WorkspaceRecords = {};
     for (const record of this.store.list()) {
@@ -87,6 +139,7 @@ export class WorkspaceRegistryRuntime {
   }
 
   dispose(): void {
+    this.activationManager.dispose();
     this.recordsHost.dispose();
   }
 
@@ -147,6 +200,53 @@ export class WorkspaceRegistryRuntime {
 
   refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
     return this.enqueue(() => this.refreshLocked(input));
+  }
+
+  /**
+   * Returns when prepare completes; setup/run continue in the background through the
+   * activation manager. Held under the per-workspace claim so a concurrent deactivate
+   * waits for the session-gating point instead of interleaving.
+   */
+  activateWorkspace(
+    input: ActivateWorkspaceInput
+  ): Promise<Result<WorkspaceRecord, ActivateWorkspaceError>> {
+    return this.workspaceClaims.runExclusive(input.id, async () => {
+      const record = this.store.get(input.id);
+      if (!record) {
+        return err({ type: 'workspace-not-found', workspaceId: input.id });
+      }
+      if (record.observedStatus === 'missing') {
+        return err({ type: 'workspace-missing', workspaceId: input.id });
+      }
+      await this.activationManager.activate(input.id, record.path);
+      const current = this.store.get(input.id) ?? record;
+      return ok(this.toWire(current));
+    });
+  }
+
+  /**
+   * Sole owner of session-plane shutdown: kills every session under the workspace path
+   * (even for never-activated workspaces — the delete verbs compose this), then runs
+   * teardown time-boxed and non-fatal when an activation exists. Idempotent: a second
+   * call finds nothing active and no sessions, so teardown runs at most once.
+   */
+  deactivateWorkspace(
+    input: DeactivateWorkspaceInput
+  ): Promise<Result<void, WorkspaceNotFoundError>> {
+    return this.workspaceClaims.runExclusive(input.id, async () => {
+      const record = this.store.get(input.id);
+      if (!record) {
+        return err({ type: 'workspace-not-found', workspaceId: input.id });
+      }
+      try {
+        await this.killSessions(record.path);
+      } catch (error) {
+        // Best-effort by contract: teardown must still run.
+        this.logger.warn?.(`session cleanup for '${record.path}' failed`, { error });
+      }
+      await this.activationManager.deactivate(input.id);
+      return ok(undefined);
+    });
   }
 
   /** Scheduler entry point: executes one coalesced scan request under the writer lock. */
