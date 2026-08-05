@@ -20,8 +20,6 @@ export type ExecuteVars = {
   linePadX: number;
   /** Width and height of the thin native scrollbar. */
   scrollbarSize: number;
-  /** Visual separation between command text and the horizontal scrollbar. */
-  scrollbarGap: number;
   /** Max lines shown in the collapsed (preview) state. */
   collapsedMaxLines: number;
   /** Max lines shown / scrollable in the expanded state. */
@@ -32,11 +30,32 @@ const EXECUTE_VARS: ExecuteVars = {
   rowH: ROW_H,
   border: 1,
   linePadX: 12,
-  scrollbarSize: 8,
-  scrollbarGap: 3,
+  scrollbarSize: 6,
   collapsedMaxLines: 2,
   expandedMaxLines: 16,
 };
+
+let measuredScrollbarH: number | undefined;
+
+function scrollbarClearance(maxSize: number): number {
+  if (typeof document === 'undefined' || !document.body) return maxSize;
+  if (measuredScrollbarH === undefined) {
+    // Overlay scrollbars consume no layout height; classic scrollbars do.
+    const probe = document.createElement('div');
+    Object.assign(probe.style, {
+      position: 'absolute',
+      visibility: 'hidden',
+      width: '100px',
+      height: '100px',
+      overflow: 'scroll',
+      scrollbarWidth: 'thin',
+    });
+    document.body.appendChild(probe);
+    measuredScrollbarH = probe.offsetHeight - probe.clientHeight;
+    probe.remove();
+  }
+  return Math.min(measuredScrollbarH, maxSize);
+}
 
 /** 3 borders: top card edge + header-separator + bottom card edge. */
 function chromeY(vars: ExecuteVars): number {
@@ -52,13 +71,15 @@ function outputLines(outputText: string | undefined): string[] {
   return outputText.replace(/\r\n/g, '\n').split('\n');
 }
 
-function executeLines(item: ChatExecute): ExecuteDisplayLine[] {
+function executeLines(item: ChatExecute, isExpanded: boolean): ExecuteDisplayLine[] {
   const command = commandLines(item.command).map(
     (line, index): ExecuteDisplayLine => ({
       kind: 'command',
       text: `${index === 0 ? '$' : ' '} ${line}`,
     })
   );
+  if (!isExpanded) return command;
+
   const output = outputLines(item.outputText).map(
     (line): ExecuteDisplayLine => ({ kind: 'output', text: line })
   );
@@ -78,6 +99,17 @@ function executeBodyH(
   return { bodyH, contentH };
 }
 
+function executeLineWidth(text: string, ctx: MeasureCtx): number {
+  const block: ProseBlock = {
+    kind: 'prose',
+    id: 'execute-width',
+    variant: 'body',
+    runs: [{ kind: 'text', text }],
+  };
+  const codeFonts = { ...ctx.theme.fonts, body: ctx.theme.fonts.code };
+  return measureProseNaturalWidth(block, codeFonts);
+}
+
 function hasHorizontalOverflow(
   lines: ExecuteDisplayLine[],
   ctx: MeasureCtx,
@@ -85,17 +117,7 @@ function hasHorizontalOverflow(
   verticalScrollbarW: number
 ): boolean {
   const availableWidth = ctx.width - 2 * vars.border - 2 * vars.linePadX - verticalScrollbarW;
-  const codeFonts = { ...ctx.theme.fonts, body: ctx.theme.fonts.code };
-
-  return lines.some((line) => {
-    const block: ProseBlock = {
-      kind: 'prose',
-      id: 'execute-width',
-      variant: 'body',
-      runs: [{ kind: 'text', text: line.text }],
-    };
-    return measureProseNaturalWidth(block, codeFonts) > availableWidth;
-  });
+  return lines.some((line) => executeLineWidth(line.text, ctx) > availableWidth);
 }
 
 function scrollbarSpace(
@@ -106,13 +128,13 @@ function scrollbarSpace(
 ): number {
   const verticalScrollbarW = hasVerticalOverflow ? vars.scrollbarSize : 0;
   return hasHorizontalOverflow(lines, ctx, vars, verticalScrollbarW)
-    ? vars.scrollbarGap + vars.scrollbarSize
+    ? scrollbarClearance(vars.scrollbarSize)
     : 0;
 }
 
 function executeUnitH(item: ChatExecute, ctx: MeasureCtx, vars: ExecuteVars): number {
   const isExpanded = ctx.expanded(item.id);
-  const lines = executeLines(item);
+  const lines = executeLines(item, isExpanded);
   const { bodyH, contentH } = executeBodyH(
     lines,
     ctx.theme.fonts.code.lineHeight,
@@ -128,8 +150,11 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
   // Inverted semantics: stored "collapsed" bool = "expanded".
   const isExpanded = () => props.ctx.viewState.isCollapsed(props.data.id);
 
-  const lines = createMemo(() => executeLines(props.data));
-  const codeLineH = createMemo(() => mCtx()?.theme.fonts.code.lineHeight ?? 0);
+  const lines = createMemo(() => executeLines(props.data, isExpanded()));
+  const codeLineH = createMemo(() => {
+    const ctx = mCtx();
+    return ctx?.theme.fonts.code.lineHeight ?? 0;
+  });
   const bodyGeometry = createMemo(() => {
     const lineH = codeLineH();
     if (!lineH) return { bodyH: 0, contentH: 0 };
@@ -171,8 +196,8 @@ function ExecuteUnitRender(props: { data: ChatExecute; ctx: RenderCtx; vars: Exe
           contentH={bodyGeometry().contentH}
           codeLineH={codeLineH()}
           linePadX={props.vars.linePadX}
-          scrollbarH={showScrollbar() ? props.vars.scrollbarSize : 0}
-          scrollbarGap={showScrollbar() ? props.vars.scrollbarGap : 0}
+          scrollbarSize={showScrollbar() ? props.vars.scrollbarSize : 0}
+          scrollbarH={showScrollbar() ? scrollbarClearance(props.vars.scrollbarSize) : 0}
           expanded={isExpanded()}
         />
       </Show>
@@ -187,10 +212,8 @@ export const executeUnitDef = defineUnit<ChatExecute, ExecuteVars>({
 
   estimate(item, ctx, vars): number {
     // Use the collapsed line cap and current width for stable initial geometry.
-    const lines = executeLines(item);
-    // Approximate code line height — use a fixed fallback of 20px for estimate.
-    const approxLineH = 20;
-    const { bodyH } = executeBodyH(lines, approxLineH, false, vars);
+    const lines = executeLines(item, false);
+    const { bodyH } = executeBodyH(lines, ctx.theme.fonts.code.lineHeight, false, vars);
     return vars.rowH + bodyH + scrollbarSpace(lines, ctx, vars, false) + chromeY(vars);
   },
 
