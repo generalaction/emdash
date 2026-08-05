@@ -4,6 +4,7 @@ import { utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/core/ssh/ssh';
+import { parseSshGOutput } from '../config/resolve-ssh-config';
 import {
   createSshConnectConfigResolver,
   resolveSshConnectConfig,
@@ -104,6 +105,164 @@ function row(partial: Partial<SshConnectionRow> = {}): SshConnectionRow {
 }
 
 describe('resolveSshConnectConfig', () => {
+  it('applies wildcard system config routing without replacing manual connection fields', async () => {
+    const resolvedHosts: string[] = [];
+    const spawned: Array<{ command: string; host: string; port: number; username: string }> = [];
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: {
+          ...baseConfig({
+            host: 'work-host.internal.example',
+            port: 2202,
+            username: 'manual-user',
+          }),
+          password: 'manual-password',
+        },
+      },
+      deps({
+        resolveSshConfig: async (host) => {
+          resolvedHosts.push(host);
+          return parseSshGOutput(`
+hostname config-host.internal.example
+user config-user
+port 2222
+proxycommand cloudflared access ssh --hostname %h
+forwardagent yes
+connecttimeout 17
+`);
+        },
+        spawnProxyCommand: (command, tokens) => {
+          spawned.push({ command, ...tokens });
+          return {
+            sock: new PassThrough(),
+            cleanup: () => {},
+            debugLogs: ['wildcard proxy'],
+          };
+        },
+      })
+    );
+
+    expect(resolvedHosts).toEqual(['work-host.internal.example']);
+    expect(result.config).toMatchObject({
+      host: 'work-host.internal.example',
+      port: 2202,
+      username: 'manual-user',
+      password: 'manual-password',
+      agentForward: true,
+      agent: '/tmp/default-agent.sock',
+      readyTimeout: 17_000,
+    });
+    expect(result.config.sock).toBeDefined();
+    expect(spawned).toEqual([
+      {
+        command: 'cloudflared access ssh --hostname %h',
+        host: 'work-host.internal.example',
+        port: 2202,
+        username: 'manual-user',
+        originalHost: 'work-host.internal.example',
+      },
+    ]);
+    expect(result.debugLogs).toEqual(['wildcard proxy']);
+  });
+
+  it('does not override an explicit manual ForwardAgent false with system config', async () => {
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: {
+          ...baseConfig({ forwardAgent: false }),
+          password: 'manual-password',
+        },
+      },
+      deps({
+        resolveSshConfig: async () => ({
+          ...(await deps().resolveSshConfig('manual.example.com')),
+          forwardAgent: true,
+          forwardAgentValue: '/tmp/system-forward-agent.sock',
+        }),
+      })
+    );
+
+    expect(result.config).toMatchObject({
+      host: 'manual.example.com',
+      username: 'alice',
+      password: 'manual-password',
+    });
+    expect(result.config.agentForward).toBeUndefined();
+    expect(result.config.agent).toBeUndefined();
+  });
+
+  it('keeps ssh -G defaults from replacing explicit manual fields when no rule matches', async () => {
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: {
+          ...baseConfig({
+            host: 'plain.example.com',
+            port: 2205,
+            username: 'manual-user',
+          }),
+          password: 'manual-password',
+        },
+      },
+      deps({
+        resolveSshConfig: async () =>
+          parseSshGOutput(`
+hostname plain.example.com
+user local-default-user
+port 22
+proxycommand none
+proxyjump none
+forwardagent no
+connecttimeout none
+serveraliveinterval 0
+serveralivecountmax 3
+`),
+      })
+    );
+
+    expect(result.config).toMatchObject({
+      host: 'plain.example.com',
+      port: 2205,
+      username: 'manual-user',
+      password: 'manual-password',
+    });
+    expect(result.config.sock).toBeUndefined();
+  });
+
+  it('uses a resolved ProxyJump when a manual connection does not provide one', async () => {
+    const jumps: string[] = [];
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: { ...baseConfig(), password: 'manual-password' },
+      },
+      deps({
+        resolveSshConfig: async () => ({
+          ...(await deps().resolveSshConfig('manual.example.com')),
+          proxyJump: 'system-bastion',
+        }),
+        spawnProxyJump: (jumpSpec, host, port) => {
+          jumps.push(`${jumpSpec}->${host}:${port}`);
+          return {
+            sock: new PassThrough(),
+            cleanup: () => {},
+            debugLogs: ['system jump'],
+          };
+        },
+      })
+    );
+
+    expect(jumps).toEqual(['system-bastion->manual.example.com:22']);
+    expect(result.config).toMatchObject({
+      host: 'manual.example.com',
+      username: 'alice',
+      password: 'manual-password',
+    });
+    expect(result.config.sock).toBeDefined();
+  });
+
   it('uses ssh -G as authoritative for alias-backed ProxyCommand', async () => {
     const spawned: string[] = [];
     const result = await resolveSshConnectConfig(
@@ -150,7 +309,7 @@ describe('resolveSshConnectConfig', () => {
     expect(result.debugLogs).toEqual(['command debug']);
   });
 
-  it('ignores manual ProxyCommand but supports manual ProxyJump and ForwardAgent', async () => {
+  it('gives explicit manual ProxyJump precedence over resolved transports', async () => {
     const jumps: string[] = [];
     const result = await resolveSshConnectConfig(
       {
@@ -166,8 +325,14 @@ describe('resolveSshConnectConfig', () => {
         } as SshConfig & { password: string; proxyCommand: string },
       },
       deps({
+        resolveSshConfig: async () => ({
+          ...(await deps().resolveSshConfig('manual.example.com')),
+          identityAgent: undefined,
+          proxyCommand: 'resolved proxy command',
+          proxyJump: 'resolved-bastion',
+        }),
         spawnProxyCommand: () => {
-          throw new Error('manual proxy command must not execute');
+          throw new Error('resolved proxy command must not override manual ProxyJump');
         },
         spawnProxyJump: (jumpSpec, host, port) => {
           jumps.push(`${jumpSpec}->${host}:${port}`);
@@ -439,7 +604,7 @@ describe('resolveSshConnectConfig', () => {
         deps({
           resolveSshConfig: async () => ({
             ...(await deps().resolveSshConfig('x')),
-            identityFile: [],
+            identityFile: ['~/.ssh/config-default-key'],
           }),
         })
       )
@@ -467,7 +632,13 @@ describe('resolveSshConnectConfig', () => {
           kind: 'transient',
           config: { ...baseConfig({ authType: 'password', forwardAgent: true }), password: 'pw' },
         },
-        deps({ env: {} })
+        deps({
+          env: {},
+          resolveSshConfig: async () => ({
+            ...(await deps().resolveSshConfig('manual.example.com')),
+            identityAgent: undefined,
+          }),
+        })
       )
     ).rejects.toThrow('no SSH agent socket is available');
   });
@@ -491,16 +662,10 @@ describe('resolveSshConnectConfig', () => {
             identityAgent: '/tmp/legacy-agent.sock',
             identityAgentDisabled: false,
             identitiesOnly: false,
-            proxyCommand: 'should-not-run',
-            proxyJump: 'should-not-run',
+            proxyCommand: undefined,
+            proxyJump: undefined,
             forwardAgent: false,
           };
-        },
-        spawnProxyCommand: () => {
-          throw new Error('manual host proxy command must not execute');
-        },
-        spawnProxyJump: () => {
-          throw new Error('manual host proxy jump must not execute');
         },
       })
     );

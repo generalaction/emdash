@@ -103,9 +103,9 @@ async function readIdentityKeys(paths: string[], deps: SshConnectDeps): Promise<
 
 export async function resolveManualAgentSshConfig(
   host: string,
-  deps: SshConnectDeps
+  deps: SshConnectDeps,
+  direct: ResolvedSshConfig | undefined
 ): Promise<ResolvedSshConfig | undefined> {
-  const direct = await deps.resolveSshConfig(host).catch(() => undefined);
   if (direct) {
     const agentSocket = resolveAgentSocketFromResolved(direct, deps.env);
     if (agentSocket.kind !== 'unset') return direct;

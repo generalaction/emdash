@@ -146,6 +146,32 @@ Host corp-dev
     });
   });
 
+  it('resolves a host that exists only through a wildcard OpenSSH rule', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-wildcard-config-'));
+    const configPath = join(dir, 'config');
+    await writeFile(
+      configPath,
+      `
+Host *.internal.example
+  User wildcard-user
+  Port 2207
+  ProxyCommand cloudflared access ssh --hostname %h
+  ForwardAgent yes
+`
+    );
+
+    const runner = createExecFileSshConfigRunner({ extraArgs: ['-F', configPath] });
+    await expect(resolveSshConfig('work-host.internal.example', { runner })).resolves.toMatchObject(
+      {
+        hostname: 'work-host.internal.example',
+        user: 'wildcard-user',
+        port: 2207,
+        proxyCommand: 'cloudflared access ssh --hostname %h',
+        forwardAgent: true,
+      }
+    );
+  });
+
   it('expands IdentityAgent environment variable values when resolving agent sockets', async () => {
     await expect(
       resolveAgentSocketFromSshConfig('corp-dev', {
