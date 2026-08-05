@@ -60,7 +60,9 @@ export class EncryptedAppSecretsStore {
     const backend = this.safeStorageApi.getSelectedStorageBackend?.();
     if (backend === 'basic_text') {
       throw new Error(
-        'Secure secret storage is unavailable: Linux safeStorage backend is basic_text.'
+        'Secure secret storage is unavailable: Linux safeStorage backend is basic_text. ' +
+          'Install a secure keyring backend such as GNOME libsecret, or launch Emdash ' +
+          'with --password-store=gnome-libsecret.'
       );
     }
   }
