@@ -4,6 +4,7 @@ import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
 import { quoteCshArg } from '@main/utils/shellEscape';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
+import type { TmuxSessionConfig } from '@shared/core/pty/tmux';
 import { buildTmuxShellLine } from './tmux-session-name';
 
 export type PtyCommandSpec =
@@ -16,7 +17,7 @@ export type PtySpawnIntent =
       cwd: string;
       shellProfile?: ResolvedShellProfile;
       shellSetup?: string;
-      tmuxSessionName?: string;
+      tmuxSession?: TmuxSessionConfig;
     }
   | {
       kind: 'run-command';
@@ -24,7 +25,7 @@ export type PtySpawnIntent =
       command: PtyCommandSpec;
       shellProfile?: ResolvedShellProfile;
       shellSetup?: string;
-      tmuxSessionName?: string;
+      tmuxSession?: TmuxSessionConfig;
     };
 
 export type LocalPtySpawnWarning = 'shell_setup_ignored_on_windows' | 'tmux_unsupported_on_windows';
@@ -192,7 +193,7 @@ function resolveWindowsCommandPath({
 function windowsWarnings(intent: PtySpawnIntent): LocalPtySpawnWarning[] {
   const warnings: LocalPtySpawnWarning[] = [];
   if (intent.shellSetup) warnings.push('shell_setup_ignored_on_windows');
-  if (intent.tmuxSessionName) warnings.push('tmux_unsupported_on_windows');
+  if (intent.tmuxSession) warnings.push('tmux_unsupported_on_windows');
   return warnings;
 }
 
@@ -350,7 +351,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
   const setupWrapperArgs = getSetupWrapperArgs(intent);
 
   if (intent.kind === 'interactive-shell') {
-    if (intent.tmuxSessionName) {
+    if (intent.tmuxSession) {
       const commandLine = intent.shellSetup
         ? `${intent.shellSetup} && exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`
         : `exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`;
@@ -358,7 +359,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
         command: shell,
         args: [
           ...(intent.shellSetup ? setupWrapperArgs : commandArgs),
-          buildTmuxShellLine(intent.tmuxSessionName, commandLine),
+          buildTmuxShellLine(intent.tmuxSession, commandLine, shellArgQuoter(intent)),
         ],
         cwd: intent.cwd,
         warnings: [],
@@ -398,10 +399,13 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
     ? `${intent.shellSetup} && ${commandLine}`
     : commandLine;
 
-  if (intent.tmuxSessionName) {
+  if (intent.tmuxSession) {
     return {
       command: shell,
-      args: [...commandArgs, buildTmuxShellLine(intent.tmuxSessionName, fullCommandLine)],
+      args: [
+        ...commandArgs,
+        buildTmuxShellLine(intent.tmuxSession, fullCommandLine, shellArgQuoter(intent)),
+      ],
       cwd: intent.cwd,
       warnings: [],
     };

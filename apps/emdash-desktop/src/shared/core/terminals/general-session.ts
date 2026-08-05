@@ -1,3 +1,5 @@
+import type { TmuxSessionConfig } from '@shared/core/pty/tmux';
+
 export interface GeneralSession {
   type: 'general';
   config: GeneralSessionConfig;
@@ -8,7 +10,7 @@ export interface GeneralSessionConfig {
   cwd: string;
   projectPath?: string;
   shellSetup?: string;
-  tmuxSessionName?: string;
+  tmuxSession?: TmuxSessionConfig;
   command?: string;
   args?: string[];
 }

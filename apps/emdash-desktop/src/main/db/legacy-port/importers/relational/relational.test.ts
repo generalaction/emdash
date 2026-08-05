@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { makeLegacyTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { ensureImportedTaskWorkspaces } from '../../task-workspace-backfill';
@@ -851,7 +851,7 @@ describe('legacy-port table passes', () => {
       tmuxExec,
     });
 
-    const newTmuxName = makeTmuxSessionName(
+    const newTmuxName = makeLegacyTmuxSessionName(
       makePtySessionId('proj-legacy-tmux', 'task-legacy-tmux', mappedChatUuid)
     );
 

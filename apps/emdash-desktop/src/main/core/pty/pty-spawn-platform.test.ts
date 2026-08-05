@@ -1,6 +1,12 @@
+import { execFileSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { resolveLocalPtySpawn } from './pty-spawn-platform';
+import { makeTmuxSession } from './tmux-session-name';
 
 const winEnv = {
   ComSpec: 'C:\\Windows\\System32\\cmd.exe',
@@ -401,7 +407,12 @@ describe('resolveLocalPtySpawn - Windows', () => {
         kind: 'interactive-shell',
         cwd: 'C:\\repo',
         shellSetup: 'source ~/.nvm/nvm.sh',
-        tmuxSessionName: 'session-1',
+        tmuxSession: {
+          name: 'session-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          leafId: 'terminal-1',
+        },
       },
     });
 
@@ -458,6 +469,60 @@ describe('resolveLocalPtySpawn - POSIX', () => {
       cwd: '/repo',
       warnings: [],
     });
+  });
+
+  it('executes the local tmux wrapper and resumes an identity under its previous label', () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'emdash-local-tmux-'));
+    const tmuxStub = path.join(tempDir, 'tmux');
+    const callsFile = path.join(tempDir, 'calls.log');
+    try {
+      writeFileSync(
+        tmuxStub,
+        `#!/bin/sh
+printf '%s\\n' "$*" >> "$TMUX_CALLS"
+if [ "$1" = "list-sessions" ]; then
+  printf '%s\\t%s\\t%s\\t%s\\n' "$TMUX_EXISTING_NAME" "$TMUX_PROJECT" "$TMUX_TASK" "$TMUX_LEAF"
+fi
+exit 0
+`
+      );
+      chmodSync(tmuxStub, 0o755);
+      const sessionId = makePtySessionId('local-project', 'local-task', 'local-leaf');
+      const oldSession = makeTmuxSession(sessionId, '/tmp/old-local-label');
+      const currentSession = makeTmuxSession(sessionId, '/tmp/current-local-label');
+      const result = resolveLocalPtySpawn({
+        platform: 'darwin',
+        env: posixEnv,
+        intent: {
+          kind: 'run-command',
+          cwd: tempDir,
+          shellProfile: shProfile,
+          command: { kind: 'shell-line', commandLine: 'echo should-not-start' },
+          tmuxSession: currentSession,
+        },
+      });
+
+      execFileSync(result.command, result.args, {
+        cwd: result.cwd,
+        env: {
+          ...process.env,
+          PATH: `${tempDir}:/usr/bin:/bin`,
+          TMPDIR: tempDir,
+          TMUX_CALLS: callsFile,
+          TMUX_EXISTING_NAME: oldSession.name,
+          TMUX_PROJECT: oldSession.projectId,
+          TMUX_TASK: oldSession.taskId,
+          TMUX_LEAF: oldSession.leafId,
+        },
+      });
+
+      const calls = readFileSync(callsFile, 'utf8');
+      expect(calls).toContain('list-sessions -F');
+      expect(calls).not.toContain('new-session');
+      expect(calls).toContain(`attach-session -t ${oldSession.name}`);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('uses the selected terminal shell profile for interactive shells', () => {

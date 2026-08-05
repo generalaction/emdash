@@ -91,6 +91,8 @@ describe('SshTerminalProvider', () => {
     previewServerServiceMock.registerDetectedTarget.mockResolvedValue(undefined);
     previewServerServiceMock.handleTerminalSourceClosed.mockClear();
     vi.mocked(ptySessionRegistry.register).mockClear();
+    ctx.exec.mockReset();
+    ctx.exec.mockResolvedValue({ stdout: '', stderr: '' });
     proxy.getRemoteShellProfile = vi.fn(async () => ({
       shell: '/bin/bash',
       env: { PATH: '/usr/bin', HOME: '/home/me' },
@@ -178,5 +180,28 @@ describe('SshTerminalProvider', () => {
       port: 5173,
       urlPath: '/',
     });
+  });
+
+  it('keeps a terminal retryable when tmux discovery fails', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      tmux: true,
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+    await provider.spawnTerminal(terminal);
+    ctx.exec.mockRejectedValue(new Error('connection timed out'));
+
+    await expect(provider.killTerminal(terminal.id)).rejects.toThrow(
+      'Failed to discover tmux sessions'
+    );
+
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    expect(
+      (provider as unknown as { knownSessionIds: Set<string> }).knownSessionIds.has(sessionId)
+    ).toBe(true);
   });
 });

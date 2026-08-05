@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { makeLegacyTmuxSessionName as makeEncodedTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
@@ -323,7 +323,7 @@ async function renameLegacyTmuxSession(params: {
   if (!tmuxExec || !legacyPtyId) return;
 
   const oldName = makeLegacyTmuxSessionName(legacyPtyId);
-  const newName = makeTmuxSessionName(
+  const newName = makeEncodedTmuxSessionName(
     makePtySessionId(mappedProjectId, mappedTaskId, conversationId)
   );
   if (oldName === newName) return;

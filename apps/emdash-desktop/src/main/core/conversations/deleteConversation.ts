@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { killTmuxSessionsByPtyIds } from '@main/core/pty/tmux-reaper';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
@@ -25,6 +25,20 @@ export async function deleteConversation(
     )
     .limit(1);
 
+  if (convRow?.type !== 'acp') {
+    const task = resolveTask(projectId, taskId);
+    if (task) {
+      await task.conversations.stopSession(conversationId);
+    } else {
+      const project = projectManager.getProject(projectId);
+      if (project) {
+        await killTmuxSessionsByPtyIds(project.ctx, [
+          makePtySessionId(projectId, taskId, conversationId),
+        ]);
+      }
+    }
+  }
+
   await db
     .delete(conversations)
     .where(
@@ -36,28 +50,6 @@ export async function deleteConversation(
     );
 
   conversationEvents._emit('conversation:deleted', conversationId);
-
-  if (convRow?.type === 'acp') {
-    telemetryService.capture('conversation_deleted', {
-      project_id: projectId,
-      task_id: taskId,
-      conversation_id: conversationId,
-    });
-    return;
-  }
-
-  const task = resolveTask(projectId, taskId);
-  if (task) {
-    await task.conversations.stopSession(conversationId);
-  } else {
-    const project = projectManager.getProject(projectId);
-    if (project) {
-      await killTmuxSession(
-        project.ctx,
-        makeTmuxSessionName(makePtySessionId(projectId, taskId, conversationId))
-      );
-    }
-  }
   telemetryService.capture('conversation_deleted', {
     project_id: projectId,
     task_id: taskId,

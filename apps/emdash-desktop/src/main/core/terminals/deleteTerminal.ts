@@ -13,6 +13,9 @@ export async function deleteTerminal({
   taskId: string;
   terminalId: string;
 }) {
+  const task = resolveTask(projectId, taskId);
+  await task?.terminals.killTerminal(terminalId);
+
   await db
     .delete(terminals)
     .where(
@@ -23,8 +26,6 @@ export async function deleteTerminal({
       )
     );
 
-  const task = resolveTask(projectId, taskId);
-  await task?.terminals.killTerminal(terminalId);
   telemetryService.capture('terminal_deleted', {
     terminal_id: terminalId,
     project_id: projectId,

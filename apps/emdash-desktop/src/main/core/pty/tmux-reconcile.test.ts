@@ -4,7 +4,7 @@ import { getProjectSessionLeafIds } from '@main/core/tasks/session-targets';
 import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import { reconcileProjectTmuxSessions } from './tmux-reconcile';
-import { makeTmuxSessionName } from './tmux-session-name';
+import { makeLegacyTmuxSessionName } from './tmux-session-name';
 
 vi.mock('@main/core/tasks/session-targets', () => ({
   getProjectSessionLeafIds: vi.fn(),
@@ -52,13 +52,17 @@ beforeEach(() => {
 
 describe('reconcileProjectTmuxSessions', () => {
   const projectId = 'projA';
-  const liveConversation = makeTmuxSessionName(makePtySessionId(projectId, 't1', 'conv-live'));
-  const liveTerminal = makeTmuxSessionName(makePtySessionId(projectId, 't1', 'term-live'));
-  const deadConversation = makeTmuxSessionName(makePtySessionId(projectId, 't1', 'conv-dead'));
-  const lifecycleSession = makeTmuxSessionName(
+  const liveConversation = makeLegacyTmuxSessionName(
+    makePtySessionId(projectId, 't1', 'conv-live')
+  );
+  const liveTerminal = makeLegacyTmuxSessionName(makePtySessionId(projectId, 't1', 'term-live'));
+  const deadConversation = makeLegacyTmuxSessionName(
+    makePtySessionId(projectId, 't1', 'conv-dead')
+  );
+  const lifecycleSession = makeLegacyTmuxSessionName(
     makePtySessionId(projectId, 'ws1', createLifecycleScriptTerminalId('run'))
   );
-  const otherProjectSession = makeTmuxSessionName(makePtySessionId('projB', 't1', 'conv-x'));
+  const otherProjectSession = makeLegacyTmuxSessionName(makePtySessionId('projB', 't1', 'conv-x'));
   const unparseableSession = 'emdash-not*base64url';
 
   it('reaps only this project orphans, preserving live, lifecycle and foreign sessions', async () => {

@@ -11,6 +11,11 @@ export type LifecycleHooks<T> = {
   postTeardown?: (id: string, value: T) => Promise<void> | void;
 };
 
+export type TeardownOptions = {
+  /** Keep the active value and suppress postTeardown when cleanup fails so callers can retry. */
+  retainOnFailure?: boolean;
+};
+
 /**
  * Manages the lifecycle state machine for a collection of async resources.
  *
@@ -99,7 +104,8 @@ export class LifecycleMap<T, PE, TE> {
 
   teardown(
     id: string,
-    run: (value: T) => Promise<Result<void, TE>>
+    run: (value: T) => Promise<Result<void, TE>>,
+    options: TeardownOptions = {}
   ): Promise<Result<void, TE>> | null {
     const inFlight = this._tearingDown.get(id);
     if (inFlight) return inFlight;
@@ -108,17 +114,23 @@ export class LifecycleMap<T, PE, TE> {
     if (value === undefined) return null;
 
     const promise = (async () => {
+      let success = false;
       try {
         await this._hooks.preTeardown?.(id, value);
         const result = await run(value);
-        if (!result.success) {
-          this._teardownErrors.set(id, result.error);
+        if (result.success) {
+          success = true;
+          this._teardownErrors.delete(id);
+          return ok<void>();
         }
-        return result.success ? ok<void>() : err(result.error);
+        this._teardownErrors.set(id, result.error);
+        return err(result.error);
       } finally {
-        this._active.delete(id);
         this._tearingDown.delete(id);
-        await this._hooks.postTeardown?.(id, value);
+        if (success || !options.retainOnFailure) {
+          this._active.delete(id);
+          await this._hooks.postTeardown?.(id, value);
+        }
       }
     })();
 
