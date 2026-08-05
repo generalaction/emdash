@@ -11,6 +11,7 @@ import {
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { getTaskGitWorktreeStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
+import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
@@ -666,6 +667,10 @@ export class TaskManagerStore {
         t.dispose();
       });
       await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
+      for (const id of taskIds) {
+        snapshotRegistry.evict(`task:${id}`);
+        snapshotRegistry.evict(`task:${id}:tabs`);
+      }
     } catch (e) {
       runInAction(() => {
         removed.forEach((t, id) => {

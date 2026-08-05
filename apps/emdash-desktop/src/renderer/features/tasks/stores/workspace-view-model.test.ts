@@ -784,6 +784,39 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
     viewModel.dispose();
   });
 
+  it('restores dedicated tabs when the legacy aggregate is absent', () => {
+    conversationRegistry.acquire(PERSISTOR_TASK_ID, 'project-1', [
+      makeConversation({ id: 'pi-conversation', taskId: PERSISTOR_TASK_ID }),
+    ]);
+    viewStateCache.set(`task:${PERSISTOR_TASK_ID}:tabs`, {
+      groups: [
+        {
+          groupId: 'group-1',
+          tabManager: {
+            tabs: [
+              {
+                kind: 'conversation',
+                tabId: 'pi-tab',
+                conversationId: 'pi-conversation',
+                isPreview: false,
+              },
+            ],
+            activeTabId: 'pi-tab',
+          },
+        },
+      ],
+      activeGroupId: 'group-1',
+      paneSizes: [100],
+    });
+    const viewModel = makePersistorViewModel();
+
+    viewModel.restoreSnapshot({});
+
+    expect(conversationTabIds(viewModel)).toEqual(['pi-conversation']);
+    viewModel.dispose();
+    conversationRegistry.release(PERSISTOR_TASK_ID);
+  });
+
   it('gates default-conversation auto-open when tab state is restored', () => {
     const conversations = conversationRegistry.acquire(PERSISTOR_TASK_ID, 'project-1', [
       makeConversation({
@@ -842,4 +875,74 @@ describe('WorkspaceViewModel tab persistence adapter', () => {
     );
     viewModel.dispose();
   });
+
+  it('synchronously dispatches every agent tab snapshot', () => {
+    workspaceRegistry.acquire('project-1', 'workspace-1', '/tmp/emdash-test-workspace', {
+      settings: {},
+    } as never);
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', [
+      makeConversation({ id: 'amp-conversation', providerId: 'amp' }),
+      makeConversation({ id: 'opencode-conversation', providerId: 'opencode' }),
+      makeConversation({ id: 'pi-conversation', providerId: 'pi' }),
+    ]);
+    vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
+    vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
+
+    const source = makeProvisionedViewModel();
+    source.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: {
+              tabs: [
+                {
+                  kind: 'conversation',
+                  tabId: 'amp-tab',
+                  conversationId: 'amp-conversation',
+                  isPreview: false,
+                },
+              ],
+              activeTabId: 'amp-tab',
+            },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+    source.initialize();
+    vi.mocked(rpc.viewState.save).mockClear();
+
+    source.activePane.closeTab('amp-tab');
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(1);
+    expect(lastSavedConversationIds()).toEqual([]);
+
+    source.paneLayout.open('conversation', { conversationId: 'opencode-conversation' });
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(2);
+    expect(lastSavedConversationIds()).toEqual(['opencode-conversation']);
+
+    source.paneLayout.open('conversation', { conversationId: 'pi-conversation' });
+    expect(rpc.viewState.save).toHaveBeenCalledTimes(3);
+    expect(lastSavedConversationIds()).toEqual(['opencode-conversation', 'pi-conversation']);
+    expect(conversationTabIds(source)).toEqual(['opencode-conversation', 'pi-conversation']);
+
+    source.dispose();
+  });
 });
+
+function lastSavedConversationIds(): string[] {
+  const snapshot = vi
+    .mocked(rpc.viewState.save)
+    .mock.calls.findLast(([key]) => key === 'task:task-1:tabs')?.[1] as
+    | TaskViewSnapshot['tabGroups']
+    | undefined;
+  return (
+    snapshot?.groups.flatMap((group) =>
+      group.tabManager.tabs.flatMap((tab) =>
+        tab.kind === 'conversation' ? [tab.conversationId] : []
+      )
+    ) ?? []
+  );
+}

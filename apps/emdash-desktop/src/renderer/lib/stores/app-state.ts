@@ -32,7 +32,6 @@ class AppState {
     });
     this.resourceMonitor = new ResourceMonitorStore();
     snapshotRegistry.register('navigation', () => this.navigation.snapshot);
-    snapshotRegistry.register('sidebar', () => this.sidebar.snapshot);
     this.sshConnections.start();
   }
 }

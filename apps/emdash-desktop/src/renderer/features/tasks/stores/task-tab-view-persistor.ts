@@ -3,6 +3,7 @@ import type { TabPersistenceAdapter } from '@renderer/features/tabs/persistence'
 import { rpc } from '@renderer/lib/ipc';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { log } from '@renderer/utils/logger';
 import type { TabDescriptor, TabGroupsSnapshot, TaskViewSnapshot } from '@shared/view-state';
 import { resolveWorkspacePath } from './workspace-path';
 
@@ -41,13 +42,15 @@ export class TaskTabViewPersistor implements TabPersistenceAdapter {
     // Eager-write so the dedicated key is populated before the next aggregate
     // save (which no longer includes tabGroups).
     viewStateCache.set(this._key, migrated);
-    void rpc.viewState.save(this._key, migrated);
+    void Promise.resolve(rpc.viewState.save(this._key, migrated)).catch((error: unknown) => {
+      log.error(`Failed to migrate tab view state "${this._key}":`, error);
+    });
 
     return normalizeTabGroupsSnapshot(migrated, this._ctx.workspacePath);
   }
 
   start(getSnapshot: () => TabGroupsSnapshot): () => void {
-    return snapshotRegistry.register(this._key, getSnapshot);
+    return snapshotRegistry.register(this._key, getSnapshot, 0);
   }
 }
 

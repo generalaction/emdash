@@ -2,6 +2,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
+import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
@@ -370,7 +371,12 @@ export class ProjectManagerStore {
     });
     appState.navigation.revalidate();
     try {
-      await rpc.projects.deleteProject(projectId);
+      const taskIds = await rpc.projects.deleteProject(projectId);
+      snapshotRegistry.evict(`project:${projectId}`);
+      for (const taskId of taskIds) {
+        snapshotRegistry.evict(`task:${taskId}`);
+        snapshotRegistry.evict(`task:${taskId}:tabs`);
+      }
     } catch (err) {
       runInAction(() => {
         if (snapshot) this.projects.set(projectId, snapshot);

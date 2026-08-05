@@ -185,7 +185,7 @@ export class WorkspaceViewModel implements ILifecycle {
    * Restore persisted UI state from a saved snapshot. Call this before
    * initialize() so the reaction baseline is correct.
    */
-  restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
+  restoreSnapshot(savedSnapshot: Partial<TaskViewSnapshot>): void {
     this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';

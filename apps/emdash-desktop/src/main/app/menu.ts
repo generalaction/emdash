@@ -7,6 +7,7 @@ import {
   menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
+  menuReloadRequestedChannel,
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
@@ -35,6 +36,16 @@ function requestQuit(): void {
   win.show();
   win.focus();
   events.emit(menuQuitRequestedChannel, undefined);
+}
+
+function requestReload(): void {
+  const win = getMainWindow();
+  if (!win) return;
+  if (win.webContents.isLoading()) {
+    win.webContents.reload();
+    return;
+  }
+  events.emit(menuReloadRequestedChannel, undefined);
 }
 
 export function setupApplicationMenu(): void {
@@ -132,7 +143,11 @@ export function setupApplicationMenu(): void {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' as const },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: requestReload,
+        },
         { role: 'forceReload' as const },
         { role: 'toggleDevTools' as const },
         { type: 'separator' as const },

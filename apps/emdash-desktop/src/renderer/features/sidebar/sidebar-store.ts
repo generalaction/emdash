@@ -166,7 +166,12 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     return {
       expandedProjectIds: [...this.expandedProjectIds],
       projectOrder: [...this.projectOrder],
-      taskOrderByProject: { ...this.taskOrderByProject },
+      taskOrderByProject: Object.fromEntries(
+        Object.entries(this.taskOrderByProject).map(([projectId, taskIds]) => [
+          projectId,
+          [...taskIds],
+        ])
+      ),
       taskSortBy: this.taskSortBy,
     };
   }

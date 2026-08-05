@@ -10,18 +10,37 @@ import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
 import { monacoBootstrap } from '@renderer/lib/monaco/monaco-bootstrap';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
+import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
+import { menuReloadRequestedChannel } from '@shared/events/appEvents';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
+
+let viewStateReady = false;
+let reloadRequested = false;
+
+events.on(menuReloadRequestedChannel, () => {
+  if (reloadRequested) return;
+  reloadRequested = true;
+  void (viewStateReady ? snapshotRegistry.flush() : Promise.resolve())
+    .then(async () => {
+      const result = await rpc.app.reload();
+      if (!result.success) throw new Error(result.error);
+    })
+    .catch((error: unknown) => {
+      reloadRequested = false;
+      log.error('Failed to persist view state before reload:', error);
+    });
+});
 
 async function bootstrap() {
   // Wire invalidation bridges so FS and git events flow into the model registry.
@@ -59,6 +78,8 @@ async function bootstrap() {
   } else {
     appState.sidebar.expandAllProjects();
   }
+  appState.snapshots.register('sidebar', () => appState.sidebar.snapshot, 0);
+  viewStateReady = true;
 
   // Avoid double-mount in dev which can duplicate PTY sessions
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

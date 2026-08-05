@@ -21,6 +21,7 @@ export const menuUndoChannel = defineEvent<void>('menu:undo');
 export const menuRedoChannel = defineEvent<void>('menu:redo');
 export const menuCloseTabChannel = defineEvent<void>('menu:close-tab');
 export const menuQuitRequestedChannel = defineEvent<void>('menu:quit-requested');
+export const menuReloadRequestedChannel = defineEvent<void>('menu:reload-requested');
 export const menuGiveFeedbackChannel = defineEvent<void>('menu:give-feedback');
 
 /** Emitted by main process when the window maximize state changes (Linux custom controls). */
