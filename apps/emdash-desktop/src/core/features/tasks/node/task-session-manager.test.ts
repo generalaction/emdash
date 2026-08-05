@@ -7,6 +7,7 @@ import {
 } from '@core/features/tasks/api/node/task-session-manager';
 
 const deactivateParticipants = vi.hoisted(() => vi.fn());
+const hostDeactivate = vi.hoisted(() => vi.fn(async () => ({ success: true as const })));
 
 const dependencies = {
   db: {} as never,
@@ -19,7 +20,12 @@ const dependencies = {
       path: '/repo/task',
     })),
   },
-  runtimes: {},
+  runtimes: {
+    client: vi.fn(async () => ({
+      success: true as const,
+      data: { workspaceRegistry: { deactivateWorkspace: hostDeactivate } },
+    })),
+  },
 } as never;
 
 function makeTask(taskId = 'task-1') {
@@ -75,5 +81,33 @@ describe('executeTeardown', () => {
 
     await Promise.all([manager.teardownTask('task-1'), manager.teardownTask('task-2')]);
     expect(deactivateParticipants).toHaveBeenCalledOnce();
+    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ id: 'workspace-1' });
+  });
+
+  it('leaves the workspace active on the host when detaching', async () => {
+    const { task } = makeTask();
+    const manager = new TaskSessionManager(dependencies);
+    await manager.registerTask(
+      task.taskId,
+      { taskProvider: task, persistData: { workspaceId: 'workspace-1' } },
+      'project-1'
+    );
+
+    await manager.teardownTask('task-1', 'detach');
+    expect(deactivateParticipants).toHaveBeenCalledOnce();
+    expect(hostDeactivate).not.toHaveBeenCalled();
+  });
+
+  it('deactivates on the host for archive teardown', async () => {
+    const { task } = makeTask();
+    const manager = new TaskSessionManager(dependencies);
+    await manager.registerTask(
+      task.taskId,
+      { taskProvider: task, persistData: { workspaceId: 'workspace-1' } },
+      'project-1'
+    );
+
+    await manager.teardownTask('task-1', 'archive');
+    expect(hostDeactivate).toHaveBeenCalledExactlyOnceWith({ id: 'workspace-1' });
   });
 });

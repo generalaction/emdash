@@ -9,7 +9,7 @@ import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/a
 import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/api';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,
   liveWorkspaces,
@@ -151,7 +151,7 @@ function listProjectRows(
   return db
     .select()
     .from(workspaces)
-    .where(and(tracking, or(inArray(workspaces.id, ids))))
+    .where(and(tracking, inArray(workspaces.id, ids)))
     .all();
 }
 

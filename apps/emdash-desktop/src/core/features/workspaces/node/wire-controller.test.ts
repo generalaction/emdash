@@ -43,7 +43,7 @@ describe('createWorkspacesWireController', () => {
       })
     );
 
-    expect(provisionTask).toHaveBeenCalledWith('task-1', expect.any(AbortSignal), undefined);
+    expect(provisionTask).toHaveBeenCalledWith('task-1', expect.any(AbortSignal));
     await controller.dispose();
   });
 

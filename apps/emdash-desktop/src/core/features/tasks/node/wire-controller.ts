@@ -196,6 +196,8 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
       path: workspaces.path,
       observedStatus: workspaces.observedStatus,
       observedGit: workspaces.observedGit,
+      runtimeOverlay: workspaces.runtimeOverlay,
+      lastCreateOutcome: workspaces.lastCreateOutcome,
     })
     .from(workspaces)
     .where(and(inArray(workspaces.id, workspaceIds), liveWorkspaces()));
@@ -215,6 +217,14 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
         {
           path: row.path,
           observedStatus: row.observedStatus,
+          creation: row.runtimeOverlay?.creation ?? null,
+          lastCreateOutcome: row.lastCreateOutcome
+            ? {
+                status: row.lastCreateOutcome.status,
+                stage: row.lastCreateOutcome.stage,
+                message: row.lastCreateOutcome.message,
+              }
+            : null,
         },
       ])
     ),

@@ -12,7 +12,8 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { loadWorkspaceAnnotations } from './workspace-annotations';
 
 export type WorkspaceHostIdentity = Readonly<{
   location: 'local' | 'remote';
@@ -62,7 +63,7 @@ function applyWorkspaceRegistrySnapshotTx(
 ): ApplyWorkspaceRegistrySnapshotResult {
   const observedAt = input.observedAt ?? Date.now();
   const hostRows = loadLiveHostRows(tx, input.host);
-  const annotations = loadAnnotations(
+  const annotations = loadWorkspaceAnnotations(
     tx,
     hostRows.map((row) => row.id)
   );
@@ -133,33 +134,6 @@ function loadLiveHostRows(tx: DrizzleTx, host: WorkspaceHostIdentity): Workspace
     .from(workspaces)
     .where(and(liveWorkspaces(), eq(workspaces.location, host.location), hostIdentity))
     .all();
-}
-
-function loadAnnotations(tx: DrizzleTx, workspaceIds: string[]) {
-  if (workspaceIds.length === 0) {
-    return {
-      taskWorkspaceIds: new Set<string>(),
-      projectRepositoryWorkspaceIds: new Set<string>(),
-    };
-  }
-  const taskRows = tx
-    .select({ workspaceId: tasks.workspaceId })
-    .from(tasks)
-    .where(inArray(tasks.workspaceId, workspaceIds))
-    .all();
-  const projectRows = tx
-    .select({ workspaceId: projects.repositoryWorkspaceId })
-    .from(projects)
-    .where(inArray(projects.repositoryWorkspaceId, workspaceIds))
-    .all();
-  return {
-    taskWorkspaceIds: new Set(
-      taskRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))
-    ),
-    projectRepositoryWorkspaceIds: new Set(
-      projectRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))
-    ),
-  };
 }
 
 function loadTombstonedIds(tx: DrizzleTx, recordIds: string[]): Set<string> {

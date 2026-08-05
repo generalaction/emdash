@@ -299,7 +299,12 @@ export class TaskSessionManager {
             const identity = await this.dependencies.workspaceIdentity.resolve(
               persistData.workspaceId
             );
-            if (identity) await this.dependencies.deactivateWorkspaceParticipants(identity);
+            if (identity) {
+              await this.dependencies.deactivateWorkspaceParticipants(identity);
+              // Terminate/archive deactivate on the host (kill sessions + teardown
+              // script); detach leaves the workspace active for a later remount.
+              if (mode !== 'detach') await this.deactivateOnHost(identity);
+            }
           }
         },
         {
@@ -328,6 +333,31 @@ export class TaskSessionManager {
             ? { type: 'timeout', message: e.message, timeout: e.durationMs }
             : { type: 'error', message: e instanceof Error ? e.message : String(e) },
       };
+    }
+  }
+
+  /**
+   * Best-effort host-side deactivation (registry verb: kill sessions + teardown
+   * script). An unreachable host or an unregistered workspace only warns — desktop
+   * teardown already reaped this task's own sessions.
+   */
+  private async deactivateOnHost(identity: WorkspaceIdentity): Promise<void> {
+    const client = await this.dependencies.runtimes.client(identity.host);
+    if (!client.success) {
+      log.warn('TaskManager: could not resolve host for workspace deactivation', {
+        workspaceId: identity.workspaceId,
+        error: runtimeResolveErrorAsError(client.error).message,
+      });
+      return;
+    }
+    const deactivated = await client.data.workspaceRegistry
+      .deactivateWorkspace({ id: identity.workspaceId })
+      .catch((error) => ({ success: false as const, error }));
+    if (!deactivated.success) {
+      log.warn('TaskManager: host workspace deactivation failed', {
+        workspaceId: identity.workspaceId,
+        error: deactivated.error,
+      });
     }
   }
 

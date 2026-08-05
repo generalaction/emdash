@@ -22,8 +22,7 @@ type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWi
 
 export type WorkspacesWireTaskProvisioner = (
   taskId: string,
-  signal?: AbortSignal,
-  operationId?: string
+  signal?: AbortSignal
 ) => Promise<Result<WorkspaceProvisionResult, WorkspaceSliceError>>;
 
 export type CreateWorkspacesWireControllerOptions = {
@@ -65,7 +64,7 @@ export function createWorkspacesWireController(
 
 async function runProvisionJob(
   options: CreateWorkspacesWireControllerOptions,
-  input: { workspaceId: string; taskId?: string; operationId?: string },
+  input: { workspaceId: string; taskId?: string },
   signal?: AbortSignal
 ): Promise<Result<WorkspaceProvisionResult, WorkspaceSliceError>> {
   const taskId = input.taskId ?? (await resolveTaskIdForWorkspace(options.db, input.workspaceId));
@@ -75,7 +74,7 @@ async function runProvisionJob(
       error: workspaceError('missing-task', `No task is linked to workspace ${input.workspaceId}`),
     };
   }
-  return options.provisionTask(taskId, signal, input.operationId);
+  return options.provisionTask(taskId, signal);
 }
 
 async function resolveTaskIdForWorkspace(

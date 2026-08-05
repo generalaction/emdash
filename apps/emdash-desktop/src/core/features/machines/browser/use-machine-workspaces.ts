@@ -1,8 +1,8 @@
-import { createScope } from '@emdash/shared/concurrency';
-import { observe, remote } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { projectWorkspacesContract } from '@core/features/workspaces/api';
+import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import type {
   HostWorkspaceGroup,
   MeasureProjectWorkspacesResult,
@@ -14,10 +14,20 @@ export type WorkspacesScope = { kind: 'local' } | { kind: 'machine'; machineId: 
 
 export type MachineProjectWorkspaces = HostWorkspaceGroup;
 
-type WorkspaceGroupsState = {
-  data?: MachineProjectWorkspaces[];
-  error?: unknown;
-};
+let workspaceGroupsRemotePromise:
+  | Promise<RemoteModel<typeof projectWorkspacesContract.workspaceGroups>>
+  | undefined;
+
+function getWorkspaceGroupsRemote(): Promise<
+  RemoteModel<typeof projectWorkspacesContract.workspaceGroups>
+> {
+  workspaceGroupsRemotePromise ??= getDesktopWireClient().then((client) =>
+    remote(projectWorkspacesContract.workspaceGroups, client.projectWorkspaces.workspaceGroups, {
+      lingerMs: 15_000,
+    })
+  );
+  return workspaceGroupsRemotePromise;
+}
 
 /**
  * Mirror-served workspace groups, live: the node-side family re-queries on app-db
@@ -27,43 +37,19 @@ type WorkspaceGroupsState = {
  */
 export function useWorkspaceGroups(scope: WorkspacesScope, enabled: boolean) {
   const hostKey = scope.kind === 'local' ? 'local' : `ssh:${scope.machineId}`;
-  const [state, setState] = useState<WorkspaceGroupsState>({});
-
-  useEffect(() => {
-    if (!enabled) return;
-    setState({});
-    const subscription = createScope({ label: `workspace-groups:${hostKey}` });
-    let cancelled = false;
-    void (async () => {
-      const client = await getDesktopWireClient();
-      if (cancelled) return;
-      const groups = remote(
-        projectWorkspacesContract.workspaceGroups,
-        client.projectWorkspaces.workspaceGroups,
-        { scope: subscription }
-      );
-      observe(
-        groups({ hostKey }).states.list,
-        (current) => {
-          if (current.status === 'error') {
-            setState({ error: current.error ?? new Error('Could not load workspaces.') });
-          } else if (current.value) {
-            setState({ data: current.value.groups });
-          }
-        },
-        { scope: subscription }
-      );
-    })();
-    return () => {
-      cancelled = true;
-      void subscription.dispose();
-    };
-  }, [enabled, hostKey]);
+  const key = useMemo(() => ({ hostKey }), [hostKey]);
+  const state = useRemoteModelState(
+    projectWorkspacesContract.workspaceGroups,
+    getWorkspaceGroupsRemote,
+    key,
+    'list',
+    { enabled }
+  );
 
   return {
-    data: state.data,
-    isLoading: enabled && state.data === undefined && state.error === undefined,
-    isError: state.error !== undefined,
+    data: state.value?.groups,
+    isLoading: enabled && state.isLoading,
+    isError: state.status === 'error',
     error: state.error,
   };
 }

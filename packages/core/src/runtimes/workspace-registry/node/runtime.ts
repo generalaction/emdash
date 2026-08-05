@@ -168,46 +168,54 @@ export class WorkspaceRegistryRuntime {
    * createWorktree on the same repository). A removal failure leaves the record
    * registered so the delete stays retryable.
    */
-  deleteWorktree(input: DeleteWorktreeInput): Promise<Result<void, DeleteWorktreeError>> {
-    return this.workspaceClaims.runExclusive(input.id, async () => {
-      const record = this.store.get(input.id);
-      if (!record) return ok(undefined);
-      if (record.kind !== 'worktree') {
-        return err({ type: 'not-a-worktree', workspaceId: input.id });
-      }
+  async deleteWorktree(input: DeleteWorktreeInput): Promise<Result<void, DeleteWorktreeError>> {
+    // The repository key is resolved before claiming so acquisition keeps the fixed
+    // repo-before-workspace order (spec locking rule) shared with createWorktree.
+    const record = this.store.get(input.id);
+    if (!record) return ok(undefined);
+    if (record.kind !== 'worktree') {
+      return err({ type: 'not-a-worktree', workspaceId: input.id });
+    }
+    const parent = record.parentId === null ? null : this.store.get(record.parentId);
+    const repositoryPath = await this.resolveRepositoryPath(record, parent);
 
-      await this.deactivateLocked(record);
-
-      const parent = record.parentId === null ? null : this.store.get(record.parentId);
-      const repositoryPath = await this.resolveRepositoryPath(record, parent);
-      if (repositoryPath === null) {
-        if (await isDirectory(record.path)) {
+    if (repositoryPath === null) {
+      return this.workspaceClaims.runExclusive(input.id, async () => {
+        const current = this.store.get(input.id);
+        if (!current) return ok(undefined);
+        await this.deactivateLocked(current);
+        if (await isDirectory(current.path)) {
           return err({
             type: 'remove-failed',
-            message: `Cannot resolve the owning repository of '${record.path}'`,
+            message: `Cannot resolve the owning repository of '${current.path}'`,
           });
         }
         // Artifact already gone and no repository left to prune: just unregister.
         return await this.enqueue(() =>
           Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
         );
-      }
+      });
+    }
 
-      const result = await this.repositoryClaims.runExclusive(parent?.id ?? repositoryPath, () =>
-        executeDeleteWorktree({
+    return this.repositoryClaims.runExclusive(parent?.id ?? repositoryPath, () =>
+      this.workspaceClaims.runExclusive(input.id, async () => {
+        const current = this.store.get(input.id);
+        if (!current) return ok(undefined);
+        await this.deactivateLocked(current);
+        const result = await executeDeleteWorktree({
           repositoryPath,
-          worktreePath: record.path,
+          worktreePath: current.path,
           deleteBranch: input.deleteBranch,
-          branchHint: record.git?.branch ?? record.creation?.branch ?? null,
-        })
-      );
-      if (result.status === 'failed') {
-        return err({ type: 'remove-failed', message: result.message });
-      }
-      return await this.enqueue(() =>
-        Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
-      );
-    });
+          branchHint: current.git?.branch ?? current.creation?.branch ?? null,
+        });
+        if (result.status === 'failed') {
+          return err({ type: 'remove-failed', message: result.message });
+        }
+        return await this.enqueue(() =>
+          Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+        );
+      })
+    );
   }
 
   /**

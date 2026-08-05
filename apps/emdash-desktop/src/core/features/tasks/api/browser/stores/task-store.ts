@@ -43,6 +43,14 @@ export class TaskStore implements TaskState {
   workspacePath: string | null = null;
   workspaceSshConnectionId: string | undefined;
   workspaceObservedStatus: 'present' | 'missing' | null = null;
+  /** In-flight createWorktree stage streamed from the host records overlay. */
+  workspaceCreation: { stage: string; startedAt: number } | null = null;
+  /** Durable outcome of the last createWorktree run for this task's workspace. */
+  workspaceCreateOutcome: {
+    status: 'started' | 'succeeded' | 'failed';
+    stage?: string;
+    message?: string;
+  } | null = null;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -73,6 +81,8 @@ export class TaskStore implements TaskState {
       workspacePath: observable,
       workspaceSshConnectionId: observable,
       workspaceObservedStatus: observable,
+      workspaceCreation: observable,
+      workspaceCreateOutcome: observable,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
@@ -86,9 +96,17 @@ export class TaskStore implements TaskState {
   setWorkspaceProjection(projection?: {
     path: string | null;
     observedStatus: 'present' | 'missing' | null;
+    creation?: { stage: string; startedAt: number } | null;
+    lastCreateOutcome?: {
+      status: 'started' | 'succeeded' | 'failed';
+      stage?: string;
+      message?: string;
+    } | null;
   }): void {
     this.workspacePath = projection?.path ?? this.workspacePath;
     this.workspaceObservedStatus = projection?.observedStatus ?? null;
+    this.workspaceCreation = projection?.creation ?? null;
+    this.workspaceCreateOutcome = projection?.lastCreateOutcome ?? null;
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {

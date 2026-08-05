@@ -169,7 +169,7 @@ async function reprovisionWorkspace(
       ? await client.removeAndReprovision({ workspaceId })
       : await client.reprovision({ workspaceId });
     if (!result.success) throw new Error(result.error.message);
-    await getTaskManagerStore(projectId)?.provisionTask(taskId, result.data.operationId);
+    await getTaskManagerStore(projectId)?.provisionTask(taskId);
   } catch (error) {
     toast.error('Could not re-provision workspace', {
       description: error instanceof Error ? error.message : String(error),
@@ -178,6 +178,16 @@ async function reprovisionWorkspace(
 }
 
 const PROVISION_LOADER_DELAY_MS = 300;
+
+/** Human labels for the host createWorktree stages streamed via the records overlay. */
+const CREATION_STAGE_LABELS: Record<string, string> = {
+  inspect: 'Inspecting the repository',
+  fetch: 'Fetching the base branch',
+  'add-worktree': 'Creating the worktree',
+  verify: 'Verifying the worktree',
+  'copy-preserved-files': 'Copying preserved files',
+  'push-branch': 'Pushing the branch',
+};
 
 const TaskProvisionLoader = observer(function TaskProvisionLoader({
   projectId,
@@ -192,6 +202,9 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
 }) {
   const showLoader = useDelayedVisible(error ? 0 : PROVISION_LOADER_DELAY_MS);
   const errorMessage = taskErrorMessage(taskStore);
+  const creation = taskStore.workspaceCreation;
+  const failedCreation =
+    taskStore.workspaceCreateOutcome?.status === 'failed' ? taskStore.workspaceCreateOutcome : null;
 
   const retry = () => {
     void getTaskManagerStore(projectId)?.provisionTask(taskId);
@@ -205,10 +218,30 @@ const TaskProvisionLoader = observer(function TaskProvisionLoader({
     <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8">
       {!error && <Loader2 className="size-5 animate-spin text-foreground-muted" />}
       <p className="text-sm font-medium text-foreground">
-        {error ? 'Workspace activation failed' : 'Activating workspace…'}
+        {error
+          ? failedCreation
+            ? 'Workspace creation failed'
+            : 'Workspace activation failed'
+          : creation
+            ? 'Creating workspace…'
+            : 'Activating workspace…'}
       </p>
-      {error && errorMessage && (
-        <p className="text-center font-sans text-xs text-foreground-muted">{errorMessage}</p>
+      {!error && creation && (
+        <p className="text-center font-sans text-xs text-foreground-muted">
+          {CREATION_STAGE_LABELS[creation.stage] ?? creation.stage}…
+        </p>
+      )}
+      {error && (
+        <p className="text-center font-sans text-xs text-foreground-muted">
+          {failedCreation
+            ? [
+                failedCreation.stage ? `Failed at ${failedCreation.stage}` : null,
+                failedCreation.message ?? null,
+              ]
+                .filter(Boolean)
+                .join(': ')
+            : errorMessage}
+        </p>
       )}
       {error && (
         <Button size="sm" variant="ghost" onClick={retry}>

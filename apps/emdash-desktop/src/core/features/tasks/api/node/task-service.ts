@@ -131,8 +131,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async provisionWorkspace(
     operations: OperationsEngine,
     taskId: string,
-    signal?: AbortSignal,
-    expectedOperationId?: string
+    signal?: AbortSignal
   ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
     const [row] = await this.dependencies.db
       .select()
@@ -155,7 +154,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
-    const result = await this._activateWorkspace(operations, row, signal, expectedOperationId);
+    const result = await this._activateWorkspace(operations, row, signal);
     if (!result.success) return err(result.error);
 
     await this._registerAndPersist(taskId, result.data);
@@ -184,8 +183,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   private async _activateWorkspace(
     operations: OperationsEngine,
     taskRow: typeof tasks.$inferSelect,
-    signal?: AbortSignal,
-    expectedOperationId?: string
+    signal?: AbortSignal
   ): Promise<Result<ActivatedTask, ProvisionWorkspaceError>> {
     if (!taskRow.workspaceId) return err({ type: 'missing-workspace' });
     const registry = createWorkspaceRegistry(this.dependencies.db);
@@ -195,7 +193,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     // Creation gate (ADR 0005): a creation still in flight is awaited; a durably
     // failed creation — or a provenance worktree whose artifact is not observed
     // present — is replayed through the registry verb with the identical stored spec.
-    void expectedOperationId; // Legacy outbox retry handle; the registry model keys retries by row.
     const pendingCreation = this.dependencies.creations.pending(workspaceRow.id);
     const needsReplay =
       (workspaceRow.lastCreateOutcome && workspaceRow.lastCreateOutcome.status !== 'succeeded') ||

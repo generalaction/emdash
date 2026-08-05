@@ -5,7 +5,7 @@ import {
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import {
   isAnnotatedWorkspace,
   liveWorkspaces,
@@ -13,7 +13,8 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
-import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { type WorkspaceRow } from '@core/services/app-db/node/schema';
+import { loadWorkspaceAnnotations } from './workspace-annotations';
 
 export interface WorkspaceRegistryBackfillServiceOptions {
   db: AppDb;
@@ -95,7 +96,10 @@ export class WorkspaceRegistryBackfillService {
         )
       )
       .all();
-    const annotations = this.loadAnnotations(rows.map((row) => row.id));
+    const annotations = loadWorkspaceAnnotations(
+      this.options.db,
+      rows.map((row) => row.id)
+    );
     const annotated = rows.filter((row) =>
       isAnnotatedWorkspace({
         config: row.config,
@@ -107,32 +111,5 @@ export class WorkspaceRegistryBackfillService {
       ...annotated.filter((row) => row.kind !== 'worktree'),
       ...annotated.filter((row) => row.kind === 'worktree'),
     ];
-  }
-
-  private loadAnnotations(workspaceIds: string[]) {
-    if (workspaceIds.length === 0) {
-      return {
-        taskWorkspaceIds: new Set<string>(),
-        projectRepositoryWorkspaceIds: new Set<string>(),
-      };
-    }
-    const taskRows = this.options.db
-      .select({ workspaceId: tasks.workspaceId })
-      .from(tasks)
-      .where(inArray(tasks.workspaceId, workspaceIds))
-      .all();
-    const projectRows = this.options.db
-      .select({ workspaceId: projects.repositoryWorkspaceId })
-      .from(projects)
-      .where(inArray(projects.repositoryWorkspaceId, workspaceIds))
-      .all();
-    return {
-      taskWorkspaceIds: new Set(
-        taskRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))
-      ),
-      projectRepositoryWorkspaceIds: new Set(
-        projectRows.flatMap((row) => (row.workspaceId ? [row.workspaceId] : []))
-      ),
-    };
   }
 }

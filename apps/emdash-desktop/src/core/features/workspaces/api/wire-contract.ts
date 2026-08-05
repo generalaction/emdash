@@ -29,7 +29,6 @@ export const workspaceSliceErrorSchema = z.union([runtimeResolveErrorSchema, wor
 export const provisionWorkspaceByIdInputSchema = z.object({
   workspaceId: z.string(),
   taskId: z.string().optional(),
-  operationId: z.string().optional(),
 });
 
 const workspaceIdInputSchema = z.object({

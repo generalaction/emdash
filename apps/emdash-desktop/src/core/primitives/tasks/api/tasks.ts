@@ -102,6 +102,14 @@ export type TaskStatsData = {
     {
       path: string | null;
       observedStatus: 'present' | 'missing' | null;
+      /** In-flight createWorktree stage from the host runtime overlay. */
+      creation: { stage: string; startedAt: number } | null;
+      /** Durable outcome of the last createWorktree run for this record. */
+      lastCreateOutcome: {
+        status: 'started' | 'succeeded' | 'failed';
+        stage?: string;
+        message?: string;
+      } | null;
     }
   >;
 };
