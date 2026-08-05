@@ -24,6 +24,8 @@ const POSITION_CLASSES: Record<ModalPosition, string> = {
   top: 'top-[15%] translate-y-0',
 };
 
+const CLOSE_ANIMATION_FALLBACK_MS = 200;
+
 export const ModalRenderer = observer(function ModalRenderer() {
   const entry = (
     modalStore.activeModalId
@@ -52,8 +54,23 @@ export const ModalRenderer = observer(function ModalRenderer() {
   const activeModalId = modalStore.activeModalId;
   const activeEntryRef = useRef<ModalRegistryEntry | null>(null);
   const ignoreNextOutsidePressRef = useRef(false);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const dialogActionsRef = useRef<DialogPrimitive.Root.Actions>(null);
+  const isOpen = modalStore.isOpen;
 
   activeEntryRef.current = entry;
+
+  useEffect(() => {
+    if (isOpen) return;
+
+    const timeout = window.setTimeout(() => {
+      if (!modalStore.isOpen && popupRef.current?.hasAttribute('data-closed')) {
+        dialogActionsRef.current?.unmount();
+      }
+    }, CLOSE_ANIMATION_FALLBACK_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [isOpen]);
 
   useEffect(() => {
     ignoreNextOutsidePressRef.current = false;
@@ -92,8 +109,6 @@ export const ModalRenderer = observer(function ModalRenderer() {
     }
   };
 
-  const popupRef = useRef<HTMLDivElement>(null);
-
   // Restore focus to the element captured by modalStore.setModal when the modal closes.
   useEffect(
     () =>
@@ -122,7 +137,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
   }, []);
 
   return (
-    <Dialog open={modalStore.isOpen} onOpenChange={handleOpenChange}>
+    <Dialog actionsRef={dialogActionsRef} open={modalStore.isOpen} onOpenChange={handleOpenChange}>
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Popup
