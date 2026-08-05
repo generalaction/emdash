@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { DEFAULT_BROWSER_PROFILE_ID, DEFAULT_BROWSER_PROFILES } from '@shared/browser';
 import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
+import { CHAT_FONT_SIZE_DEFAULT } from '@shared/core/chat-settings';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/core/terminals/terminal-settings';
 import type { OpenInAppId } from '@shared/openInApps';
 import { getDefaultLocalWorktreeDirectory } from './worktree-defaults';
@@ -61,6 +62,7 @@ export const SETTINGS_DEFAULTS = {
     showLeftSidebarPrStatus: true,
     showLeftSidebarTimestamps: true,
     hideContextBar: false,
+    chatFontSize: CHAT_FONT_SIZE_DEFAULT,
   },
   browserPreview: {
     enabled: true,

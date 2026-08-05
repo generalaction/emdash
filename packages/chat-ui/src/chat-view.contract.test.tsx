@@ -6,7 +6,7 @@
  * Monaco-style model-swap introduced in the ChatView setModel refactor.
  */
 
-import { DEFAULT_THEME } from '@core/theme';
+import { DEFAULT_CONFIG, DEFAULT_THEME } from '@core/theme';
 import { describe, expect, it } from 'vitest';
 import { createChatContext } from '@/chat-context';
 import { createChatView } from '@/chat-view';
@@ -107,6 +107,38 @@ describe('createChatView', () => {
     const probeRect = probe!.getBoundingClientRect();
     expect(Math.abs(pinRect.left - probeRect.left)).toBeLessThan(1);
     expect(Math.abs(pinRect.width - probeRect.width)).toBeLessThan(1);
+
+    view.dispose();
+    ctx.dispose();
+    state.dispose();
+    document.body.removeChild(host);
+  });
+
+  it('updates rendered typography when the shared config changes', async () => {
+    const ctx = createChatContext();
+    const state = createChatState(ctx);
+    state.transcript.history.seed(generateMockTranscript(10, 12));
+
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;top:0;left:0;width:800px;height:600px;';
+    document.body.appendChild(host);
+
+    const view = createChatView({ context: ctx, state, parent: host });
+    await nextPaint();
+
+    const scrollEl = host.querySelector('[data-chat-scroll]') as HTMLElement;
+    expect(scrollEl.style.getPropertyValue('--chat-type-body-font-size')).toBe('14px');
+
+    ctx.setConfig({
+      ...DEFAULT_CONFIG,
+      roles: {
+        ...DEFAULT_CONFIG.roles,
+        body: { ...DEFAULT_CONFIG.roles.body, size: 18, lineHeight: 24 },
+      },
+    });
+    await nextPaint();
+
+    expect(scrollEl.style.getPropertyValue('--chat-type-body-font-size')).toBe('18px');
 
     view.dispose();
     ctx.dispose();

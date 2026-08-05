@@ -16,7 +16,7 @@
  *   const view  = createChatView({ context: ctx, state, parent });
  */
 
-import { createRoot, createSignal } from 'solid-js';
+import { batch, createRoot, createSignal } from 'solid-js';
 import type { SharedCaches } from './core/caches';
 import { createSharedCaches } from './core/caches';
 import type { ChatConfig } from './core/config';
@@ -73,6 +73,8 @@ export type ChatContext = {
    * when fonts load or theme typography changes.
    */
   readonly measureEpoch: () => number;
+  /** Update typography and chip geometry across every mounted chat view. */
+  setConfig(config: ChatConfig): void;
   /**
    * Bump the measurement epoch, invalidating all per-block geometry caches.
    * Call after fonts load (handled automatically) or after a typography change.
@@ -90,16 +92,19 @@ export type ChatContext = {
  * invalidates all block geometry caches.
  */
 export function createChatContext(opts: ChatContextOptions = {}): ChatContext {
-  const config = opts.config ?? DEFAULT_CONFIG;
-  const theme = opts.theme ?? buildChatTheme(config);
+  const initialConfig = opts.config ?? DEFAULT_CONFIG;
+  const initialTheme = opts.theme ?? buildChatTheme(initialConfig);
   const sharedCaches = createSharedCaches(opts.highlighter);
 
+  let theme!: () => ChatTheme;
+  let setTheme!: (theme: ChatTheme) => void;
   let measureEpoch!: () => number;
   let bumpEpoch!: () => void;
   let disposeRoot!: () => void;
 
   createRoot((dispose) => {
     disposeRoot = dispose;
+    [theme, setTheme] = createSignal(initialTheme);
     const [epoch, setEpoch] = createSignal(0);
     measureEpoch = epoch;
     bumpEpoch = () => setEpoch((e) => e + 1);
@@ -114,12 +119,24 @@ export function createChatContext(opts: ChatContextOptions = {}): ChatContext {
   });
 
   return {
-    theme,
-    config,
+    get theme() {
+      return theme();
+    },
+    get config() {
+      return theme().config;
+    },
     mentionProvider: opts.mentionProvider,
     commandProvider: opts.commandProvider,
     sharedCaches,
     measureEpoch,
+    setConfig(config) {
+      const nextTheme = buildChatTheme(config);
+      sharedCaches.clearTextMeasure();
+      batch(() => {
+        setTheme(nextTheme);
+        bumpEpoch();
+      });
+    },
     bumpEpoch,
     dispose() {
       disposed = true;

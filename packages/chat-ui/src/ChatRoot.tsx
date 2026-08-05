@@ -294,19 +294,17 @@ export function ChatRoot(props: ChatRootProps) {
     ...state().parseCaches,
   }));
 
-  // Theme and CSS vars — set once at creation time. Color theme changes are
-  // free (CSS-variable themed). Typography changes require bumping measureEpoch.
-  const resolved = props.context.theme;
-  const scrollElStyle = (() => {
-    const tv = resolved.themeVars;
+  // Theme and CSS vars update reactively when the host changes typography.
+  const theme = () => props.context.theme;
+  const scrollElStyle = createMemo(() => {
+    const tv = theme().themeVars;
     const style: Record<string, string> = {};
     for (const k of Object.keys(tv) as ThemeVarKey[]) {
       const ref = String(vars[k as keyof typeof vars]);
       style[ref.startsWith('var(') ? ref.slice(4, -1) : ref] = tv[k];
     }
     return style;
-  })();
-  const theme = () => resolved;
+  });
   const contentClass = () => props.contentClass ?? DEFAULT_CONTENT_CLASS;
   const commands = () => props.commands?.() ?? {};
   const [composerPlacement, setComposerPlacementSignal] = createSignal<ComposerPlacement>(
@@ -652,9 +650,13 @@ export function ChatRoot(props: ChatRootProps) {
   let lastVisibleEnd = -1;
 
   // ── Count sync effect ─────────────────────────────────────────────────────
+  let previousMeasureEpoch = untrack(measureEpoch);
   createEffect(() => {
     const us = units();
     const t = theme();
+    const currentMeasureEpoch = measureEpoch();
+    const typographyChanged = currentMeasureEpoch !== previousMeasureEpoch;
+    previousMeasureEpoch = currentMeasureEpoch;
     untrack(() => {
       const estimateCtx = {
         theme: t,
@@ -668,8 +670,8 @@ export function ChatRoot(props: ChatRootProps) {
       // lastWidth > 0 iff onCleanup wrote a snapshot on a prior dispose.
       // Skip the Map.get pass entirely on cold mounts (empty heightmap).
       const currentState = state();
-      const hasHeightmapSnapshot = currentState.heightmap.lastWidth > 0;
-      virt.setCount(us.length, (i) => {
+      const hasHeightmapSnapshot = !typographyChanged && currentState.heightmap.lastWidth > 0;
+      const estimateUnit = (i: number) => {
         const u = us.at(i);
         if (!u) return 60;
         // Use the persisted measured height if available (avoids scrollbar drift
@@ -685,7 +687,14 @@ export function ChatRoot(props: ChatRootProps) {
           unitDef?.estimate?.(u.data, estimateCtx, unitDef.vars ?? {}) ??
           genericEstimate(u.data as unknown as ChatItem, estimateCtx);
         return unitReservedHeight(u, contentH);
-      });
+      };
+      virt.setCount(us.length, estimateUnit);
+      if (typographyChanged) {
+        currentState.heightmap.lastWidth = 0;
+        for (let i = 0; i < us.length; i++) {
+          virt.setSize(i, estimateUnit(i));
+        }
+      }
       refreshTotal();
       // Defer projection to the write phase: projectAnchor will fire once per
       // frame (not once per row) preventing layout thrashing on streaming updates.
@@ -1670,7 +1679,7 @@ export function ChatRoot(props: ChatRootProps) {
                   }}
                   data-chat-scroll
                   class={`${scrollContainer}${props.class ? ` ${props.class}` : ''}`}
-                  style={scrollElStyle}
+                  style={scrollElStyle()}
                 >
                   {/* Zero-height probe: same max-width cap as rows; the width
                       ResizeObserver targets this to isolate layout-width changes
