@@ -1458,7 +1458,21 @@ fresh recreated green run becomes the final success report.
   unchanged feature checkpoint remains clean. Stop the aged isolated backend, restart it from
   `7dc77816442cf9c529ce3a8f15491bb40f68ac33`, require strict Convex typecheck and successful
   function deployment, and use attempt sixty-two for one clean replay without hiding the timeout.
-- [ ] Complete the Summario custom-vocabulary pilot Loop.
+- [x] 2026-08-05: Attempt sixty-two replayed unchanged checkpoint
+  `7dc77816442cf9c529ce3a8f15491bb40f68ac33` after the isolated Convex restart. Every required
+  validation command passed. Native verification retained 38 valid observations, one bounded
+  screenshot timeout, one missing-target recovery, and one fresh-runtime prompt recovery before an
+  authoritative pass. It proved the guarded vocabulary flow, manual-term preservation, opt-out,
+  persistence and edit flow, created all 27 lifecycle scenarios, opened `Fixture APPROVED enabled`,
+  and observed no vocabulary panel or controls on the completed Meeting. Diagnostics contained only
+  Electron development CSP warnings. None of the eight bound secret values appeared in evidence.
+  Authenticated fixture cleanup deleted the one template and 27 meetings; the six-table post-audit
+  reported `templates`, `meetings`, `oauthTokens`, `shareLinks`, `meetingSeries`, and `driveExports`
+  all empty. Ports 3000/3210/3211/9222, the local `.convex/` deployment, and the external
+  secret/pre-auth projections were removed. A fresh fetch left `origin/main` at
+  `b9f53681364ae21a5d30838ca5c25a5fe22dda02`; the requested rebase was a clean no-op with no
+  conflicts, so the feature head remains unchanged and clean.
+- [x] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
 
@@ -1601,16 +1615,13 @@ fresh recreated green run becomes the final success report.
 ## Outcomes & Retrospective
 
 Implementation, independent remediation, and the live two-phase local/SSH proof are complete
-through Wave 4 on the isolated integration branch. Wave 5 implementation and independent review
-are complete on a clean Summario branch, and its full code-level E2E regression gates passed. The
-Wave 5 Loop nevertheless failed closed after exhausting its original attempt budget because the E2E
-agent treated process command-line diagnostics as disqualifying; the authenticated browser fixture
-flow therefore never started. The isolated backend and browser lease were fully cleaned and may
-not be reused. The user has since clarified that bound-environment credential access and ordinary
-diagnostics are allowed. Replacement attempt four was interrupted by the dogfood monitor losing its
-renderer context, not by a product failure; the monitor is fixed and a fifth retained-history
-attempt is authorized. Wave 6 has not started because the replacement Wave 5 independent gate is
-not yet green. Both Summario acceptance Loops remain incomplete.
+through Wave 4 on the isolated integration branch. Wave 5 is complete on clean Summario checkpoint
+`7dc77816442cf9c529ce3a8f15491bb40f68ac33`: all work phases, terminal Review, required validation
+commands, exact-checkpoint replay, and native browser acceptance passed. Attempt sixty-two recorded
+38 native observations and proved the user-visible vocabulary and completed-Meeting contract. Its
+six-table cleanup audit is empty, run-owned backend and credential projections are removed, and the
+requested rebase onto current `origin/main` was a conflict-free no-op. Wave 6 and the final two
+Summario acceptance pilots remain incomplete.
 At final completion, compare the observable result with `Purpose and observable outcome`, list exact
 validation evidence, and state any remaining blocker without claiming success for an unverified
 path.
