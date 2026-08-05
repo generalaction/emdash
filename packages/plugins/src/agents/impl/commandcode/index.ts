@@ -12,6 +12,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://commandcode.ai/docs/reference/cli',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.commandcode/skills', isolation: 'provider' }],
+    },
     autoApprove: {
       kind: 'supported',
     },

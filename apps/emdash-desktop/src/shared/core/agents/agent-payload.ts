@@ -173,6 +173,16 @@ export type AgentModelsCapability =
   | { kind: 'none' }
   | { kind: 'selectable'; modelOptions: Record<string, AgentModelOption> };
 
+export type AgentSkillsCapability =
+  | {
+      kind: 'supported';
+      locations: Array<{
+        relativeDir: string;
+        isolation: 'provider' | 'shared';
+      }>;
+    }
+  | { kind: 'none' };
+
 export type AgentCapabilities = {
   acp: { kind: string };
   auth: AgentAuthDescriptor;
@@ -185,6 +195,7 @@ export type AgentCapabilities = {
   hooks: { kind: string; scope?: string };
   mcp: { kind: string };
   plugins: { kind: string };
+  skills: AgentSkillsCapability;
 };
 
 export function agentSupportsAcp(capabilities: AgentCapabilities | undefined | null): boolean {

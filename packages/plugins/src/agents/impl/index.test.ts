@@ -37,9 +37,48 @@ describe('pluginRegistry', () => {
       expect(capabilities.hooks).toBeDefined();
       expect(capabilities.mcp).toBeDefined();
       expect(capabilities.plugins).toBeDefined();
+      expect(capabilities.skills).toBeDefined();
       expect(['supported', 'none']).toContain(capabilities.acp.kind);
       expect(['supported', 'none']).toContain(capabilities.autoApprove.kind);
       expect(['resumable', 'stateless']).toContain(capabilities.sessions.kind);
+    }
+  });
+
+  it('declares only direct provider-specific skill locations', () => {
+    const expectedLocations: Record<string, string> = {
+      claude: '.claude/skills',
+      cursor: '.cursor/skills',
+      codex: '.codex/skills',
+      opencode: '.config/opencode/skills',
+      copilot: '.copilot/skills',
+      qwen: '.qwen/skills',
+      goose: '.config/goose/skills',
+      continue: '.continue/skills',
+      kilocode: '.kilocode/skills',
+      kiro: '.kiro/skills',
+      qoder: '.qoder/skills',
+      junie: '.junie/skills',
+      commandcode: '.commandcode/skills',
+      autohand: '.autohand/skills',
+      auggie: '.augment/skills',
+      hermes: '.hermes/skills',
+      pi: '.pi/agent/skills',
+      devin: '.config/devin/skills',
+      rovo: '.rovodev/skills',
+      antigravity: '.gemini/antigravity/skills',
+      mimocode: '.config/mimocode/skills',
+    };
+
+    for (const provider of pluginRegistry.getAll()) {
+      const expected = expectedLocations[provider.metadata.id];
+      if (expected) {
+        expect(provider.capabilities.skills).toEqual({
+          kind: 'supported',
+          locations: [{ relativeDir: expected, isolation: 'provider' }],
+        });
+      } else {
+        expect(provider.capabilities.skills).toEqual({ kind: 'none' });
+      }
     }
   });
 

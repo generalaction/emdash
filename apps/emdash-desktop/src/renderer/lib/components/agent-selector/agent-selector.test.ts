@@ -22,6 +22,7 @@ const capabilities = (acpKind: string = 'none'): AgentCapabilities => ({
   hooks: { kind: 'none' },
   mcp: { kind: 'none' },
   plugins: { kind: 'none' },
+  skills: { kind: 'none' },
 });
 
 const agents = [

@@ -13,6 +13,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.devin.ai/cli',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.config/devin/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

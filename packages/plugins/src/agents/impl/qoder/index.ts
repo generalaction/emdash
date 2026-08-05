@@ -13,6 +13,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://qoder.com/en/cli',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.qoder/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

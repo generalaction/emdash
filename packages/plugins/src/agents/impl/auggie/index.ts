@@ -13,6 +13,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.augmentcode.com/cli/overview',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.augment/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

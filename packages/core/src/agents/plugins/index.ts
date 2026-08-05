@@ -18,6 +18,7 @@ import { modelsCapability } from './capabilities/models';
 import { pluginsCapability } from './capabilities/plugins';
 import { promptCapability } from './capabilities/prompt';
 import { sessionsCapability } from './capabilities/sessions';
+import { skillsCapability } from './capabilities/skills';
 import { trustCapability } from './capabilities/trust';
 
 export const PLUGIN_CAPABILITIES = {
@@ -32,6 +33,7 @@ export const PLUGIN_CAPABILITIES = {
   plugins: pluginsCapability,
   prompt: promptCapability,
   sessions: sessionsCapability,
+  skills: skillsCapability,
   trust: trustCapability,
 } as const;
 
@@ -112,6 +114,7 @@ export type { IHooksBehavior } from './capabilities/hooks';
 export type { IMcpBehavior, McpServerRegistration } from './capabilities/mcp';
 export type { IPlugins } from './capabilities/plugins';
 export type { ISessionsBehavior } from './capabilities/sessions';
+export type { SkillsDescriptor } from './capabilities/skills';
 export type { ITrustBehavior, TrustContext } from './capabilities/trust';
 export { AgentPluginHost } from './plugin-host';
 export type {

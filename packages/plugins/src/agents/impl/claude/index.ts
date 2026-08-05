@@ -27,6 +27,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.claude/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

@@ -13,6 +13,7 @@ import { useSkills } from './useSkills';
 export const SkillsView: React.FC = () => {
   const {
     catalog,
+    providers,
     isLoading,
     isRefreshing,
     searchQuery,
@@ -26,6 +27,8 @@ export const SkillsView: React.FC = () => {
     isSearchingSkillSh,
     refresh,
     install,
+    setTargets,
+    adopt,
     uninstall,
     openDetail,
     closeDetail,
@@ -102,8 +105,8 @@ export const SkillsView: React.FC = () => {
               <SkillCard
                 key={skill.id}
                 skill={skill}
+                providers={providers}
                 isInstalled={true}
-                onInstall={install}
                 onUninstall={handleUninstallRequest}
                 onClick={() => openDetail(skill)}
               />
@@ -116,8 +119,8 @@ export const SkillsView: React.FC = () => {
               <SkillCard
                 key={skill.id}
                 skill={skill}
+                providers={providers}
                 isInstalled={false}
-                onInstall={install}
                 onUninstall={handleUninstallRequest}
                 onClick={() => openDetail(skill)}
               />
@@ -130,8 +133,8 @@ export const SkillsView: React.FC = () => {
               <SkillCard
                 key={skill.id}
                 skill={skill}
+                providers={providers}
                 isInstalled={false}
-                onInstall={install}
                 onUninstall={handleUninstallRequest}
                 onClick={() => openDetail(skill)}
               />
@@ -140,11 +143,15 @@ export const SkillsView: React.FC = () => {
         )}
       </div>
       <SkillDetailModal
+        key={selectedSkill?.id ?? 'closed'}
         skill={selectedSkill}
+        providers={providers}
         isLoading={isLoadingDetail}
         isOpen={showDetailModal}
         onClose={closeDetail}
         onInstall={install}
+        onSetTargets={setTargets}
+        onAdopt={adopt}
         onUninstall={handleUninstallRequest}
         onOpenTerminal={handleOpenTerminal}
       />

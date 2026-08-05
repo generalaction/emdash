@@ -11,6 +11,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.continue.dev/guides/cli',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.continue/skills', isolation: 'provider' }],
+    },
     autoApprove: {
       kind: 'supported',
     },

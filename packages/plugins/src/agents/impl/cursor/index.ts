@@ -13,6 +13,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://cursor.com/docs/cli/overview',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.cursor/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

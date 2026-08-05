@@ -1,5 +1,7 @@
-import { FolderOpen, Trash2 } from 'lucide-react';
+import type { AgentProviderId } from '@emdash/plugins/agents';
+import { ExternalLink, FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { AgentIcon } from '@renderer/lib/components/agent-icon';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -11,9 +13,10 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import type { CatalogSkill } from '@shared/core/skills/types';
+import type { CatalogSkill, SkillProvider, SkillTargetSelection } from '@shared/core/skills/types';
 import { parseFrontmatter } from '@shared/core/skills/validation';
 import { SkillIconRenderer } from './SkillIconRenderer';
+import { SkillSyncPopover } from './SkillSyncPopover';
 
 const sourceMeta = {
   openai: { name: 'OpenAI', icon: 'https://github.com/openai.png' },
@@ -23,39 +26,72 @@ const sourceMeta = {
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
+  providers: SkillProvider[];
   isLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
-  onInstall: (skillId: string) => Promise<boolean>;
+  onInstall: (skillId: string, targets: SkillTargetSelection) => Promise<boolean>;
+  onSetTargets: (installId: string, targets: SkillTargetSelection) => Promise<boolean>;
+  onAdopt: (installId: string, targets: SkillTargetSelection) => Promise<boolean>;
   onUninstall: (skillId: string) => void;
   onOpenTerminal?: (skillPath: string) => void;
 }
 
+function getInitialTargets(skill: CatalogSkill | null): SkillTargetSelection {
+  if (!skill) return { mode: 'all' };
+  if (skill.installed && !skill.managedByEmdash) {
+    const providerIds = [
+      ...new Set(skill.locations?.flatMap((location) => location.providerIds) ?? []),
+    ];
+    return { mode: 'providers', providerIds };
+  }
+  return skill.targets ?? { mode: 'all' };
+}
+
 export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
+  providers,
   isLoading,
   isOpen,
   onClose,
   onInstall,
+  onSetTargets,
+  onAdopt,
   onUninstall,
   onOpenTerminal,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [targets, setTargets] = useState<SkillTargetSelection>(() => getInitialTargets(skill));
 
   const handleInstall = useCallback(async () => {
     if (!skill) return;
     setIsProcessing(true);
     try {
-      const success = await onInstall(skill.id);
+      const success = await onInstall(skill.id, targets);
       if (success) onClose();
     } finally {
       setIsProcessing(false);
     }
-  }, [skill, onInstall, onClose]);
+  }, [skill, targets, onInstall, onClose]);
+
+  const handleTargetsChange = useCallback(
+    async (next: SkillTargetSelection) => {
+      if (!skill) return;
+      setTargets(next);
+      if (!skill.installed) return;
+      setIsProcessing(true);
+      const success = skill.managedByEmdash
+        ? await onSetTargets(skill.installId ?? skill.id, next)
+        : await onAdopt(skill.installId ?? skill.id, next);
+      if (!success) setTargets(targets);
+      setIsProcessing(false);
+    },
+    [skill, targets, onSetTargets, onAdopt]
+  );
 
   const handleUninstall = useCallback(() => {
     if (!skill) return;
-    onUninstall(skill.id);
+    onUninstall(skill.installId ?? skill.id);
   }, [skill, onUninstall]);
 
   const handleOpen = useCallback(() => {
@@ -109,34 +145,98 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               className="bg-muted/20 text-muted-foreground rounded-md px-3 py-2 text-xs"
             />
           )}
+
+          {!showLoadingContent && (skill.locations?.length ?? 0) > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-muted-foreground text-xs font-medium">Found in</p>
+              <div className="flex flex-wrap gap-1.5">
+                {skill.locations?.map((location) => {
+                  const resolvedProviders = location.providerIds
+                    .map((id) => providers.find((provider) => provider.id === id))
+                    .filter((provider): provider is SkillProvider => !!provider);
+                  const isCanonical = location.kind === 'canonical';
+                  const isShared = !isCanonical && resolvedProviders.length === 0;
+                  const label = isCanonical
+                    ? 'Emdash'
+                    : isShared
+                      ? `Shared · ~/${location.relativeDir}`
+                      : resolvedProviders.map((provider) => provider.name).join(', ');
+                  return (
+                    <span
+                      key={`${location.relativeDir}:${location.ownership}`}
+                      className="text-muted-foreground flex items-center gap-1.5 rounded-md border border-border bg-background-1 px-2 py-1 text-xs"
+                    >
+                      {isShared && <FolderOpen className="h-3 w-3 shrink-0 opacity-70" />}
+                      {!isCanonical && !isShared && (
+                        <span className="flex flex-wrap items-center gap-1">
+                          {resolvedProviders.slice(0, 3).map((provider) => (
+                            <AgentIcon
+                              key={provider.id}
+                              id={provider.id as AgentProviderId}
+                              size={13}
+                              className="rounded-sm"
+                            />
+                          ))}
+                        </span>
+                      )}
+                      {label}
+                      {location.ownership === 'external' && (
+                        <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-50" />
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </DialogContentArea>
 
         <DialogFooter className="gap-2 sm:gap-2">
-          {skill.installed && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleUninstall}
-                disabled={isProcessing}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Uninstall
-              </Button>
-              {skill.localPath && onOpenTerminal && (
-                <Button variant="outline" size="sm" onClick={handleOpen}>
-                  <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
-                  Open
-                </Button>
+          <div className="flex w-full flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {providers.some((provider) => provider.installed) && (
+                <SkillSyncPopover
+                  providers={providers}
+                  targets={targets}
+                  disabled={isProcessing}
+                  onChange={(next) => void handleTargetsChange(next)}
+                />
               )}
-            </>
-          )}
-          {!skill.installed && (
-            <ConfirmButton size="sm" onClick={() => void handleInstall()} disabled={isProcessing}>
-              {isProcessing ? 'Installing...' : 'Install'}
-            </ConfirmButton>
-          )}
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              {skill.installed && (
+                <>
+                  {skill.managedByEmdash && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleUninstall}
+                      disabled={isProcessing}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Uninstall
+                    </Button>
+                  )}
+                  {skill.localPath && onOpenTerminal && (
+                    <Button variant="outline" size="sm" onClick={handleOpen}>
+                      <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+                      Open
+                    </Button>
+                  )}
+                </>
+              )}
+              {!skill.installed && (
+                <ConfirmButton
+                  size="sm"
+                  onClick={() => void handleInstall()}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? 'Installing...' : 'Install'}
+                </ConfirmButton>
+              )}
+            </div>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

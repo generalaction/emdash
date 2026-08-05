@@ -60,6 +60,10 @@ function makeProvider(id: string, binaryName: string): CLIAgentPluginProvider {
       hooks: { kind: 'none' },
       mcp: { kind: 'none' },
       plugins: { kind: 'none' },
+      skills: {
+        kind: 'supported',
+        locations: [{ relativeDir: '.claude/skills', isolation: 'provider' }],
+      },
     },
     assets: { icon: dummyIcon },
     behavior: {
@@ -118,6 +122,10 @@ describe('buildAgentPayload', () => {
     expect(payload!.settings).toBeDefined();
     expect(payload!.capabilities.models).toEqual({ kind: 'none' });
     expect(payload!.capabilities.effort).toEqual({ kind: 'none' });
+    expect(payload!.capabilities.skills).toEqual({
+      kind: 'supported',
+      locations: [{ relativeDir: '.claude/skills', isolation: 'provider' }],
+    });
     expect(Array.isArray(payload!.installOptions)).toBe(true);
     expect(payload!.installDocs).toBeNull();
   });

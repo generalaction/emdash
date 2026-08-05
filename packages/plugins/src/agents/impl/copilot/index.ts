@@ -18,6 +18,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.copilot/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },

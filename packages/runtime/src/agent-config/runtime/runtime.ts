@@ -1,6 +1,6 @@
 import type { AgentAuthStatus } from '@emdash/core/agents/plugins';
 import type { McpServer } from '@emdash/core/mcp';
-import type { CatalogSkill } from '@emdash/core/skills';
+import type { CatalogSkill, SkillTargetSelection } from '@emdash/core/skills';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
@@ -152,6 +152,7 @@ export class AgentConfigRuntime {
       catalogSkillId?: string;
       skillShPath?: string;
       iconUrl?: string;
+      targets?: SkillTargetSelection;
     };
   }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     return this.skills.installSkill(input.skill);
@@ -161,10 +162,18 @@ export class AgentConfigRuntime {
     return this.skills.removeSkill(name);
   }
 
+  setSkillTargets(
+    installName: string,
+    targets: SkillTargetSelection
+  ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
+    return this.skills.setTargets(installName, targets);
+  }
+
   createSkill(input: {
     name: string;
     description: string;
     content?: string;
+    targets?: SkillTargetSelection;
   }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
     return this.skills.createSkill(input);
   }

@@ -26,6 +26,10 @@ export const plugin = definePlugin(
     websiteUrl: 'https://github.com/openai/codex',
   },
   {
+    skills: {
+      kind: 'supported',
+      locations: [{ relativeDir: '.codex/skills', isolation: 'provider' }],
+    },
     acp: {
       kind: 'supported',
     },
