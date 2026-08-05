@@ -360,6 +360,13 @@ const ComposerForStore = observer(function ComposerForStore({
     [store]
   );
 
+  const handleFastModeChange = useCallback(
+    (fastModeId: string) => {
+      store.setFastMode(fastModeId);
+    },
+    [store]
+  );
+
   const handleAttach = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -603,6 +610,9 @@ const ComposerForStore = observer(function ComposerForStore({
         effortOptions={store.effortOptions}
         selectedEffort={store.effort ?? undefined}
         onEffortChange={handleEffortChange}
+        fastModeOptions={store.fastModeOptions}
+        selectedFastMode={store.fastMode ?? undefined}
+        onFastModeChange={handleFastModeChange}
         permissionModeOptions={store.permissionModeOptions}
         selectedPermissionMode={store.permissionMode ?? undefined}
         onPermissionModeChange={handleModeChange}

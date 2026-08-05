@@ -87,7 +87,7 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     },
     setModelOption(input: {
       conversationId: string;
-      dimension: 'model' | 'effort';
+      dimension: 'model' | 'effort' | 'fastMode';
       value: string;
     }): Promise<Result<void, AcpSetModelOptionError>> {
       return runtime.setModelOption(input.conversationId, input.dimension, input.value);

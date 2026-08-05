@@ -210,7 +210,10 @@ export class AcpLiveSession {
     return this.client.setPromptDraft({ conversationId: this.conversationId, draft });
   }
 
-  setModelOption(dimension: 'model' | 'effort', value: string): Promise<Result<void, unknown>> {
+  setModelOption(
+    dimension: 'model' | 'effort' | 'fastMode',
+    value: string
+  ): Promise<Result<void, unknown>> {
     return this.client.setModelOption({ conversationId: this.conversationId, dimension, value });
   }
 

@@ -145,7 +145,7 @@ export class AcpRuntime {
 
   setModelOption(
     conversationId: string,
-    dimension: 'model' | 'effort',
+    dimension: 'model' | 'effort' | 'fastMode',
     value: string
   ): Promise<Result<void, AcpSetModelOptionError>> {
     return this.manager.setConfigOption(conversationId, dimension, value);

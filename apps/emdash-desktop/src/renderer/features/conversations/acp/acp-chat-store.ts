@@ -11,6 +11,7 @@ import type {
 import type {
   CommandItem,
   ComposerEffortOption,
+  ComposerFastModeOption,
   ComposerModelOption,
   ComposerPermissionModeOption,
   ComposerQueuedPrompt,
@@ -98,6 +99,8 @@ export class AcpChatStore {
       permissionModeOptions: computed,
       effort: computed,
       effortOptions: computed,
+      fastMode: computed,
+      fastModeOptions: computed,
       commands: computed,
       permissionQueue: computed,
       queuedPrompts: computed,
@@ -110,6 +113,7 @@ export class AcpChatStore {
       setModel: action,
       setMode: action,
       setEffort: action,
+      setFastMode: action,
       resolvePermission: action,
       editQueuedPrompt: action,
       deleteQueuedPrompt: action,
@@ -157,6 +161,21 @@ export class AcpChatStore {
 
   get effortOptions(): Record<string, ComposerEffortOption> | null {
     const options = this.session?.config.current().efforts;
+    if (!options) return null;
+    return Object.fromEntries(
+      options.available.map((option) => [
+        option.id,
+        { name: option.name, description: option.description },
+      ])
+    );
+  }
+
+  get fastMode(): string | null {
+    return this.session?.config.current().fastMode?.selected ?? null;
+  }
+
+  get fastModeOptions(): Record<string, ComposerFastModeOption> | null {
+    const options = this.session?.config.current().fastMode;
     if (!options) return null;
     return Object.fromEntries(
       options.available.map((option) => [
@@ -355,6 +374,15 @@ export class AcpChatStore {
         if (!result.success) this._toastError('Failed to change effort', result.error);
       })
       .catch((error: unknown) => this._toastError('Failed to change effort', error));
+  }
+
+  setFastMode(fastMode: string): void {
+    void this.session
+      ?.setModelOption('fastMode', fastMode)
+      .then((result) => {
+        if (!result.success) this._toastError('Failed to change fast mode', result.error);
+      })
+      .catch((error: unknown) => this._toastError('Failed to change fast mode', error));
   }
 
   resolvePermission(optionId: string): void {

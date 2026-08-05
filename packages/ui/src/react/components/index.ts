@@ -3,6 +3,7 @@ export type {
   ChatComposerProps,
   ComposerAttachment,
   ComposerAgentOption,
+  ComposerFastModeOption,
   ComposerModelOption,
   ComposerEffortOption,
   ComposerPermissionModeOption,

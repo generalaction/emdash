@@ -28,6 +28,9 @@ export type ModelChoice = ModelOption;
 export const effortOptionSchema = configOptionBaseSchema;
 export type EffortOption = z.infer<typeof effortOptionSchema>;
 
+export const fastModeOptionSchema = configOptionBaseSchema;
+export type FastModeOption = z.infer<typeof fastModeOptionSchema>;
+
 export const modeOptionSchema = configOptionBaseSchema;
 export type ModeOption = z.infer<typeof modeOptionSchema>;
 
@@ -60,6 +63,15 @@ export const sessionConfigStateSchema = z.object({
       available: z.array(effortOptionSchema),
     })
     .nullable(),
+  /** Fast-mode selector state; null when unsupported by the provider. */
+  fastMode: z
+    .object({
+      /** Provider-owned ACP config option id used when sending config updates. */
+      configId: z.string(),
+      selected: z.string().nullable(),
+      available: z.array(fastModeOptionSchema),
+    })
+    .nullable(),
   /** Permission/mode selector state; null when unsupported by the provider. */
   modeOptions: z
     .object({
@@ -77,6 +89,7 @@ export type SessionConfigState = z.infer<typeof sessionConfigStateSchema>;
 export const initialSessionConfigState: SessionConfigState = {
   modelOptions: null,
   efforts: null,
+  fastMode: null,
   modeOptions: null,
   availableCommands: [],
 };

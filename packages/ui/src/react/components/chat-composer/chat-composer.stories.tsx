@@ -7,6 +7,7 @@ import { ChatComposer } from '.';
 import type {
   ComposerAgentOption,
   ComposerEffortOption,
+  ComposerFastModeOption,
   ComposerModelOption,
   ComposerNotice,
   ComposerNoticeVariant,
@@ -712,6 +713,11 @@ const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
   high: { name: 'High', description: 'Deepest reasoning, slower.' },
 };
 
+const MOCK_FAST_MODE_OPTIONS: Record<string, ComposerFastModeOption> = {
+  off: { name: 'Off', description: 'Use the standard model path.' },
+  on: { name: 'On', description: 'Prioritize faster responses.' },
+};
+
 /**
  * WithEffortSelector — demonstrates the effort/thought-level submenu rendered
  * in the model popover footer. Click the model name in the toolbar, then hover
@@ -721,6 +727,7 @@ const MOCK_EFFORT_OPTIONS: Record<string, ComposerEffortOption> = {
 function EffortSelectorDemo() {
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5');
   const [selectedEffort, setSelectedEffort] = useState<string | undefined>('medium');
+  const [selectedFastMode, setSelectedFastMode] = useState<string | undefined>('off');
 
   return (
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
@@ -731,6 +738,9 @@ function EffortSelectorDemo() {
         effortOptions={MOCK_EFFORT_OPTIONS}
         selectedEffort={selectedEffort}
         onEffortChange={setSelectedEffort}
+        fastModeOptions={MOCK_FAST_MODE_OPTIONS}
+        selectedFastMode={selectedFastMode}
+        onFastModeChange={setSelectedFastMode}
         onSubmit={() => {}}
       />
     </Box>

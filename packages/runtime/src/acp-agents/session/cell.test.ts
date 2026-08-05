@@ -275,6 +275,49 @@ describe('SessionCell config options', () => {
     });
     expect(cell.config.efforts?.selected).toBe('high');
   });
+
+  it('resolves fast-mode dimension to the provider config option id', async () => {
+    const { cell, agent } = makeCell();
+    cell.applySessionMeta({
+      configOptions: [
+        {
+          id: 'fast_mode',
+          name: 'Fast mode',
+          category: 'model_config',
+          type: 'select',
+          currentValue: 'off',
+          options: [
+            { value: 'off', name: 'Off' },
+            { value: 'on', name: 'On' },
+          ],
+        },
+      ],
+    });
+    agent.setSessionConfigOption = vi.fn().mockResolvedValue({
+      configOptions: [
+        {
+          id: 'fast_mode',
+          category: 'model_config',
+          type: 'select',
+          currentValue: 'on',
+          options: [
+            { value: 'off', name: 'Off' },
+            { value: 'on', name: 'On' },
+          ],
+        },
+      ],
+    });
+
+    const result = await cell.setConfigOption('fastMode', 'on');
+
+    expect(isOk(result)).toBe(true);
+    expect(agent.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      configId: 'fast_mode',
+      value: 'on',
+    });
+    expect(cell.config.fastMode?.selected).toBe('on');
+  });
 });
 
 describe('SessionCell idle turns and queue commands', () => {
