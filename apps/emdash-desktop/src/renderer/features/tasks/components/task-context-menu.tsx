@@ -88,7 +88,10 @@ export function TaskContextMenu({
           </ContextMenuItem>
         )}
         {!isArchived && (
-          <ContextMenuItem onClick={onArchive}>
+          <ContextMenuItem
+            title="Stops running agents and hides the task. The worktree and branch are kept."
+            onClick={onArchive}
+          >
             <Archive className="size-4" />
             Archive
           </ContextMenuItem>
