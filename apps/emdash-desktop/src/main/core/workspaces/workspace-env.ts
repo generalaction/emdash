@@ -23,7 +23,7 @@ export function getTaskEnvVars(ctx: TaskEnvContext): Record<string, string> {
 function slugify(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
