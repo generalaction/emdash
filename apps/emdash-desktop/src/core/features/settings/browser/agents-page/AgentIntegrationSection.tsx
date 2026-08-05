@@ -2,6 +2,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import { CheckCircle2, Clock3, ExternalLink, Info, Loader2 } from 'lucide-react';
 import { useAgentHooksStatus } from '@core/features/agents/api/browser/use-agent-hooks-status';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { AgentPayload } from '@core/primitives/agents/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Field } from '@core/primitives/ui/browser/field';
@@ -12,6 +13,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@core/primitives/ui/browser/tooltip';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+
+const HOME_PREFIX_RE = /^\/(?:Users|home)\/[^/]+/;
+
+function tildify(absolutePath: string): string {
+  return absolutePath.replace(HOME_PREFIX_RE, '~');
+}
 
 function InfoTooltip({ children }: { children: React.ReactNode }) {
   return (
@@ -34,100 +42,89 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function IntegrationRow({
-  label,
-  tooltip,
-  children,
-}: {
-  label: string;
-  tooltip: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium text-foreground">{label}</span>
-        <InfoTooltip>{tooltip}</InfoTooltip>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-export function AgentIntegrationSection({
+export function AgentHooksSection({
   agent,
   host,
-  onManageSettings,
 }: {
   agent: AgentPayload;
   host: HostRef;
-  onManageSettings: () => void;
 }) {
   const supportsHooks = agent.capabilities.hooks.kind !== 'none';
-  const supportsTrust = agent.capabilities.trust.kind !== 'none';
-  const { status, isError, isLoading } = useAgentHooksStatus(agent.id, host, supportsHooks);
-  const { value: taskSettings } = useAppSettingsKey('tasks');
+  const { status, isLoading } = useAgentHooksStatus(agent.id, host, supportsHooks);
 
-  const showHooks =
-    supportsHooks && (host.type !== 'remote' || isLoading || (!isError && status !== undefined));
-  if (!showHooks && !supportsTrust) return null;
+  const showHooks = supportsHooks && (host.type !== 'remote' || isLoading || status !== undefined);
+  if (!showHooks) return null;
 
   return (
     <Field>
-      <Label>Integrations</Label>
-      <div className="space-y-2">
-        {showHooks && (
-          <IntegrationRow
-            label="Hooks"
-            tooltip="Hooks let Emdash track agent status, deliver notifications, and capture session IDs for reliable resume."
+      <div className="flex items-center gap-1.5">
+        <Label>Hooks</Label>
+        <InfoTooltip>
+          Hooks let Emdash track agent status, deliver notifications, and capture session IDs for
+          reliable resume.
+        </InfoTooltip>
+      </div>
+      <div>
+        {isLoading ? (
+          <div className="flex h-6 items-center">
+            <Loader2 className="size-3.5 animate-spin text-foreground-muted" />
+          </div>
+        ) : status?.state === 'installed' ? (
+          <span
+            className="flex items-center gap-1.5 text-xs text-foreground-muted"
+            title={status.resolvedRoot}
           >
-            {isLoading ? (
-              <Loader2 className="size-3.5 animate-spin text-foreground-muted" />
-            ) : status?.state === 'installed' ? (
-              <span
-                className="flex min-w-0 items-center gap-1.5 text-xs text-foreground-muted"
-                title={status.resolvedRoot}
-              >
-                <CheckCircle2 className="size-3.5 shrink-0 text-foreground-success" />
-                <span className="truncate">Configured · {status.resolvedRoot}</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs text-foreground-muted">
-                <Clock3 className="size-3.5 shrink-0" />
-                Will be configured when you start a session
-              </span>
-            )}
-          </IntegrationRow>
-        )}
-        {supportsTrust && (
-          <IntegrationRow
-            label="Workspace trust"
-            tooltip={
-              agent.id === 'cursor'
-                ? 'Cursor trust is applied through an internal marker format that may change in future Cursor releases.'
-                : 'When enabled, Emdash marks newly created task worktrees as trusted before the agent starts.'
-            }
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-foreground-muted">
-                {taskSettings?.autoTrustWorktrees
-                  ? 'Automatic trust enabled'
-                  : 'Automatic trust disabled'}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 gap-1 px-2 text-xs"
-                onClick={onManageSettings}
-              >
-                <ExternalLink className="size-3" aria-hidden="true" />
-                Manage in Settings
-              </Button>
-            </div>
-          </IntegrationRow>
+            <CheckCircle2 className="size-3.5 shrink-0 text-foreground-success" />
+            Configured · {tildify(status.resolvedRoot)}
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs text-foreground-muted">
+            <Clock3 className="size-3.5 shrink-0" />
+            Configured on first session
+          </span>
         )}
       </div>
+    </Field>
+  );
+}
+
+export function AgentTrustSection({ agent }: { agent: AgentPayload }) {
+  const supportsTrust = agent.capabilities.trust.kind !== 'none';
+  const { value: taskSettings } = useAppSettingsKey('tasks');
+  const { navigate } = useNavigate();
+
+  if (!supportsTrust) return null;
+
+  return (
+    <Field>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Label>Workspace Trust</Label>
+          <InfoTooltip>
+            Skip the folder trust prompt in supported CLIs for new tasks.
+          </InfoTooltip>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 gap-1 px-2 text-xs"
+          onClick={() => navigate(settingsViewDef({ tab: 'general' }))}
+        >
+          <ExternalLink className="size-3" aria-hidden="true" />
+          Manage in Settings
+        </Button>
+      </div>
+      <span className="flex items-center gap-1.5 text-xs text-foreground-muted">
+        {taskSettings?.autoTrustWorktrees ? (
+          <>
+            <CheckCircle2 className="size-3.5 shrink-0 text-foreground-success" />
+            Enabled
+          </>
+        ) : (
+          'Disabled'
+        )}
+      </span>
     </Field>
   );
 }

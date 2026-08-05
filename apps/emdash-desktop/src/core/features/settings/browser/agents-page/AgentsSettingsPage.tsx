@@ -7,7 +7,6 @@ import {
   type AgentFilter,
 } from '@core/features/settings/api/browser/agents-page/CliAgentsList';
 import { useSettingsSearch } from '@core/features/settings/browser/search/settings-search-context';
-import { useSettingsTab } from '@core/features/settings/browser/settings-tab-context';
 import { Button } from '@core/primitives/ui/browser/button';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
@@ -18,8 +17,6 @@ export function AgentsSettingsPage() {
   const [filter, setFilter] = useState<AgentFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const { probeAll } = useAgentInstallationStatuses();
-  const { onTabChange } = useSettingsTab();
-
   useEffect(() => {
     setSearchQuery(settingsSearchQuery);
   }, [settingsSearchQuery]);
@@ -75,12 +72,7 @@ export function AgentsSettingsPage() {
         }
       />
       <div className="flex flex-col gap-3">
-        <CliAgentsList
-          searchQuery={searchQuery}
-          filter={filter}
-          onFilterChange={setFilter}
-          onManageSettings={() => onTabChange('general')}
-        />
+        <CliAgentsList searchQuery={searchQuery} filter={filter} onFilterChange={setFilter} />
       </div>
     </>
   );

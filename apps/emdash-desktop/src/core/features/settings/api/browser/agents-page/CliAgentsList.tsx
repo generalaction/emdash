@@ -27,14 +27,12 @@ type CliAgentsListProps = {
   filter?: AgentFilter;
   onFilterChange?: (filter: AgentFilter) => void;
   connectionId?: string;
-  onManageSettings: () => void;
 };
 
 export const CliAgentsList: React.FC<CliAgentsListProps> = ({
   searchQuery = '',
   filter = 'all',
   connectionId,
-  onManageSettings,
 }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const host = hostRefFromConnectionId(connectionId);
@@ -96,7 +94,6 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
         <AgentDetailSheet
           agentId={selectedAgentId}
           connectionId={connectionId}
-          onManageSettings={onManageSettings}
           onClose={() => setSelectedAgentId(null)}
         />
       </div>
@@ -119,7 +116,6 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
         <AgentDetailSheet
           agentId={selectedAgentId}
           connectionId={connectionId}
-          onManageSettings={onManageSettings}
           onClose={() => setSelectedAgentId(null)}
         />
       </div>
@@ -155,7 +151,6 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
       <AgentDetailSheet
         agentId={selectedAgentId}
         connectionId={connectionId}
-        onManageSettings={onManageSettings}
         onClose={() => setSelectedAgentId(null)}
       />
     </div>

@@ -4,10 +4,8 @@ import { AgentIcon } from '@core/features/agents/api/browser/components/agent-ic
 import type { AgentPayload } from '@core/primitives/agents/api';
 
 function formatSupportsText(agent: AgentPayload): string {
-  const supportsHooks = agent.capabilities.hooks.kind !== 'none';
   const supportsSessions = agent.capabilities.sessions.kind !== 'stateless';
-  const supportsTrust = agent.capabilities.trust.kind !== 'none';
-  return `Supports: Prompts${supportsHooks ? ', Hooks' : ''}${supportsSessions ? ', Sessions' : ''}${supportsTrust ? ', Trust' : ''}`;
+  return `Supports: Prompts${supportsSessions ? ', Sessions' : ''}`;
 }
 
 export const AgentSheetHeaderSection = observer(function AgentSheetHeaderSection({

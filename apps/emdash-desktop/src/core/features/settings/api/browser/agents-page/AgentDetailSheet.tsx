@@ -5,7 +5,10 @@ import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { Field } from '@core/primitives/ui/browser/field';
 import { Label } from '@core/primitives/ui/browser/label';
 import { Sheet, SheetContent, SheetHeader } from '@core/primitives/ui/browser/sheet';
-import { AgentIntegrationSection } from '../../../browser/agents-page/AgentIntegrationSection';
+import {
+  AgentHooksSection,
+  AgentTrustSection,
+} from '../../../browser/agents-page/AgentIntegrationSection';
 import { AgentMcpSection } from '../../../browser/agents-page/AgentMcpSection';
 import { AgentSheetHeaderSection } from '../../../browser/agents-page/AgentSheetHeaderSection';
 import { InstalledAgentContent } from '../../../browser/agents-page/InstalledAgentContent';
@@ -14,18 +17,15 @@ import { InstallSection } from './InstallSection';
 interface AgentDetailSheetProps {
   agentId: string | null;
   connectionId?: string;
-  onManageSettings: () => void;
   onClose: () => void;
 }
 
 const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   agentId,
   connectionId,
-  onManageSettings,
 }: {
   agentId: string;
   connectionId?: string;
-  onManageSettings: () => void;
   onClose: () => void;
 }) {
   const host = hostRefFromConnectionId(connectionId);
@@ -54,13 +54,8 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
                 hideOverrideOptions={!isInstalled || isRemote}
               />
             </Field>
-            {isInstalled && (
-              <AgentIntegrationSection
-                agent={agentPayload}
-                host={host}
-                onManageSettings={onManageSettings}
-              />
-            )}
+            {isInstalled && <AgentHooksSection agent={agentPayload} host={host} />}
+            {isInstalled && <AgentTrustSection agent={agentPayload} />}
             {isInstalled && !isRemote && <AgentMcpSection agentId={agentId} />}
           </div>
         )}
@@ -78,12 +73,7 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   );
 });
 
-export function AgentDetailSheet({
-  agentId,
-  connectionId,
-  onManageSettings,
-  onClose,
-}: AgentDetailSheetProps) {
+export function AgentDetailSheet({ agentId, connectionId, onClose }: AgentDetailSheetProps) {
   return (
     <Sheet open={agentId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="flex flex-col gap-0 p-0">
@@ -91,7 +81,6 @@ export function AgentDetailSheet({
           <AgentDetailSheetContent
             agentId={agentId}
             connectionId={connectionId}
-            onManageSettings={onManageSettings}
             onClose={onClose}
           />
         )}
