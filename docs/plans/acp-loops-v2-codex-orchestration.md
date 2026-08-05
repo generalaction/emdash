@@ -994,16 +994,19 @@ Remove the vocabulary-suggestion entry point from summarized/approved Meetings. 
 normalization library where appropriate; do not delete backend code until references and generated
 API use are audited.
 
-Then run the terminal Review and independent E2E phases. Acceptance covers default-on, opt-out,
-loading/failure/retry, editable/removable suggestions, persistence, manual-term preservation, edit
-flow, absence from completed Meetings, and continued transcription-context use. Run `pnpm test`,
-`pnpm exec tsc --noEmit`, `pnpm lint`, and `pnpm build`. Use Emdash's native preview; use project
-Playwright only if its harness exists on the selected base rather than silently importing the dirty
-28-commit harness branch.
+Then run the terminal Review and independent E2E phases. Native-browser acceptance covers the
+observable default-on, opt-out, loading/failure/retry, editable/removable suggestions, persistence,
+manual-term preservation, edit flow, and absence from completed Meetings. Seed the guarded
+lifecycle fixture after the vocabulary flow, wait for 27 scenarios, and inspect `Fixture APPROVED
+enabled` for the completed-Meeting assertion. Required backend tests and terminal Review, rather
+than browser inference, prove continued transcription-context use. Run `pnpm test`, `pnpm exec tsc
+--noEmit`, `pnpm lint`, and `pnpm build`. Use Emdash's native preview; use project Playwright only if
+its harness exists on the selected base rather than silently importing the dirty 28-commit harness
+branch.
 
 Every recreated pilot clean room follows the fresh local-or-expiring-cloud lease contract above,
-deploys the replayed commit, seeds only the guarded vocabulary fixture, and proves cleanup. Reusing
-state from a failed attempt is not an independent rerun.
+deploys the replayed commit, seeds only the guarded vocabulary and lifecycle fixtures, and proves
+cleanup. Reusing state from a failed attempt is not an independent rerun.
 
 ## Wave 6: Summario privacy and consent acceptance Loop
 
@@ -1441,6 +1444,13 @@ fresh recreated green run becomes the final success report.
   now promotes an exhausted exploratory-stall budget into that one terminal recovery, rejects
   action requests once promoted, and covers the consecutive-stall path with a focused regression.
   Preserve the clean feature checkpoint and use attempt sixty for the unchanged replay.
+- [x] 2026-08-05: Attempt sixty passed every validation command and recorded 36 valid native
+  observations across a restarted ACP runtime. The verifier correctly returned failure because the
+  vocabulary-only fixture contained no completed Meeting and its criterion also asked a browser to
+  infer nonvisual transcription plumbing. Keep the Summario checkpoint unchanged, seed the existing
+  guarded lifecycle fixture for the completed-Meeting assertion, leave continued transcription
+  plumbing to required backend tests and terminal Review, and use attempt sixty-one for the exact
+  replay.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
