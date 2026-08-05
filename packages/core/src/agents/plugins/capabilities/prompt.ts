@@ -14,6 +14,8 @@ export type CommandContext = {
    * codex, droid). Undefined means the provider has not yet emitted a session ID. */
   providerSessionId?: string;
   isResuming?: boolean;
+  /** Whether Emdash-managed hooks may be added to provider command config. Defaults to true. */
+  injectAgentNotificationHooks?: boolean;
   model: string;
 };
 

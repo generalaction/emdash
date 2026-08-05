@@ -50,7 +50,9 @@ vi.mock('@main/core/agents/plugin-registry', () => ({
       hooks:
         id === 'opencode'
           ? { kind: 'plugin', scope: 'workspace', supportedEvents: [] }
-          : { kind: 'none' },
+          : id === 'claude'
+            ? { kind: 'config', scope: 'workspace', supportedEvents: [] }
+            : { kind: 'none' },
       prompt: { kind: 'argv', flag: '' },
     },
     behavior: {
@@ -144,6 +146,7 @@ vi.mock('@main/core/settings/settings-service', () => ({
         : {
             defaultProjectsDirectory: '',
             defaultWorktreeDirectory: '',
+            injectAgentNotificationHooks: true,
             writeAgentConfigToGitIgnore: true,
           }
     ),
@@ -232,12 +235,17 @@ function fakePty(exitHandlers: Array<(info: PtyExitInfo) => void>): Pty {
   };
 }
 
-function mockSettings(): void {
+function mockSettings({
+  injectAgentNotificationHooks = true,
+}: {
+  injectAgentNotificationHooks?: boolean;
+} = {}): void {
   vi.mocked(appSettingsService.get).mockImplementation(async (key) => {
     if (key === 'localProject') {
       return {
         defaultProjectsDirectory: '',
         defaultWorktreeDirectory: '',
+        injectAgentNotificationHooks,
         writeAgentConfigToGitIgnore: true,
       } as never;
     }
@@ -351,6 +359,84 @@ describe('conversation provider respawn state', () => {
       kind: 'workspace',
       path: '/tmp/task-1',
     });
+  });
+
+  it('installs config hooks and injects hook environment variables by default', async () => {
+    vi.mocked(agentHookService.getPort).mockReturnValue(4321);
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = { ...conversation(), providerId: 'claude' as const };
+
+    await localProvider().startSession(item);
+
+    expect(writeHooksMock).toHaveBeenCalled();
+    expect(buildCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({ injectAgentNotificationHooks: true })
+    );
+    const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
+    expect(request.env).toMatchObject({
+      EMDASH_HOOK_PORT: '4321',
+      EMDASH_HOOK_NONCE: 'token',
+      EMDASH_HOOK_TOKEN: 'token',
+      EMDASH_PTY_ID: 'claude-conv-conversation-1',
+    });
+  });
+
+  it('preserves the default hook environment when hook installation fails', async () => {
+    vi.mocked(agentHookService.getPort).mockReturnValue(4321);
+    writeHooksMock.mockRejectedValueOnce(new Error('read-only config'));
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = { ...conversation(), providerId: 'claude' as const };
+
+    await localProvider().startSession(item);
+
+    const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
+    expect(request.env).toMatchObject({
+      EMDASH_HOOK_PORT: '4321',
+      EMDASH_HOOK_NONCE: 'token',
+      EMDASH_HOOK_TOKEN: 'token',
+      EMDASH_PTY_ID: 'claude-conv-conversation-1',
+    });
+  });
+
+  it('skips hook installation and hook environment variables when hook injection is disabled', async () => {
+    mockSettings({ injectAgentNotificationHooks: false });
+    vi.mocked(agentHookService.getPort).mockReturnValue(4321);
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = { ...conversation(), providerId: 'claude' as const };
+
+    await localProvider().startSession(item);
+
+    expect(writeHooksMock).not.toHaveBeenCalled();
+    expect(installPluginMock).not.toHaveBeenCalled();
+    const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
+    expect(request.env).not.toHaveProperty('EMDASH_HOOK_PORT');
+    expect(request.env).not.toHaveProperty('EMDASH_HOOK_NONCE');
+    expect(request.env).not.toHaveProperty('EMDASH_HOOK_TOKEN');
+    expect(request.env).not.toHaveProperty('EMDASH_PTY_ID');
+    expect(buildCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({ injectAgentNotificationHooks: false })
+    );
+  });
+
+  it('skips plugin installation when hook injection is disabled', async () => {
+    mockSettings({ injectAgentNotificationHooks: false });
+    vi.mocked(agentHookService.getPort).mockReturnValue(4321);
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = { ...conversation(), providerId: 'opencode' as const };
+
+    await localProvider().startSession(item);
+
+    expect(installPluginMock).not.toHaveBeenCalled();
+    expect(writeHooksMock).not.toHaveBeenCalled();
+    const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
+    expect(request.env).not.toHaveProperty('EMDASH_HOOK_PORT');
+    expect(request.env).not.toHaveProperty('EMDASH_HOOK_NONCE');
+    expect(request.env).not.toHaveProperty('EMDASH_HOOK_TOKEN');
+    expect(request.env).not.toHaveProperty('EMDASH_PTY_ID');
   });
 
   it('starts a local conversation fresh after a resumed session exits', async () => {

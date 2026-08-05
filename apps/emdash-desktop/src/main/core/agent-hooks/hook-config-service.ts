@@ -39,8 +39,9 @@ async function ensureGitIgnoreEntries(taskPath: string, entries: string[]): Prom
  * conversation spawn. Writes are idempotent (small-file merges), so re-writing
  * before every spawn removes the "config got cleaned mid-task" failure mode.
  *
- * Returns true if hooks are available for this provider (i.e. hook env vars
- * should be injected into the PTY spawn).
+ * Keeps the user's injection preference separate from installation success.
+ * A failed refresh must not change the default-on spawn environment, while an
+ * explicit opt-out must disable config writes and runtime hook injection.
  */
 export async function ensureHooksInstalled({
   providerId,
@@ -48,9 +49,14 @@ export async function ensureHooksInstalled({
 }: {
   providerId: string;
   taskPath: string;
-}): Promise<boolean> {
+}): Promise<{ hooksAvailable: boolean; injectionEnabled: boolean }> {
+  let injectionEnabled = true;
+
   try {
     const localProjectSettings = await appSettingsService.get('localProject');
+    injectionEnabled = localProjectSettings.injectAgentNotificationHooks ?? true;
+    if (!injectionEnabled) return { hooksAvailable: false, injectionEnabled };
+
     const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
 
     const plugin = getPlugin(providerId);
@@ -82,13 +88,13 @@ export async function ensureHooksInstalled({
       await ensureGitIgnoreEntries(taskPath, writtenPaths);
     }
 
-    return hooksAvailable;
+    return { hooksAvailable, injectionEnabled };
   } catch (error) {
     log.warn('HookConfigService: failed to ensure hooks installed', {
       providerId,
       taskPath,
       error: String(error),
     });
-    return false;
+    return { hooksAvailable: false, injectionEnabled };
   }
 }

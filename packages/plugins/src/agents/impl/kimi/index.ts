@@ -23,6 +23,7 @@ function buildKimiCommand(ctx: CommandContext): AgentCommand {
     resumeWithoutSessionFlag: '-C',
     omitAutoApproveOnResume: true,
   });
+  if (ctx.injectAgentNotificationHooks === false) return cmd;
   return { ...cmd, args: injectKimiHooksIntoInlineConfig(cmd.args) };
 }
 import { icon } from './icon';
