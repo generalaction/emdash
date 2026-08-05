@@ -1,6 +1,9 @@
 import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
+import { getAcpRuntimeClient } from '@main/core/acp/controller';
+import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
+import { resolveTask } from '@main/core/projects/utils';
 import { db } from '@main/db/client';
-import { automationRuns, tasks } from '@main/db/schema';
+import { automationRuns, conversations, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
@@ -28,7 +31,7 @@ import {
   skipQueuedCronRuns,
   updateAutomationSettings as updateSettingsInRepo,
 } from './repo';
-import { markRunSkipped } from './run-transitions';
+import { markRunManuallyStopped } from './run-transitions';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
 export type AutomationsServiceHooks = {
@@ -224,21 +227,63 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const run = await getRun(runId);
     if (!run) throw new Error('run_not_found');
     let stopped: AutomationRun;
-    if (run.status === 'queued') {
-      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
-    } else if (
+    if (
+      run.status === 'queued' ||
       run.status === 'creating_task' ||
       run.status === 'launching_task' ||
       run.status === 'creating_conversation'
     ) {
-      // In-progress steps — mark as failed (PTY stop is handled by renderer via run.taskId)
-      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
+      await this.stopRunConversation(run);
+      const skipped = await markRunManuallyStopped(runId);
+      if (skipped) {
+        stopped = skipped;
+      } else {
+        const current = await getRun(runId);
+        if (current?.status !== 'done' || !current.taskId) throw new Error('run_not_stoppable');
+        stopped = current;
+      }
+    } else if (run.status === 'done' && run.taskId) {
+      await this.stopRunConversation(run);
+      stopped = run;
     } else {
       throw new Error('run_not_stoppable');
     }
+
     this._hooks.callHookBackground('run:stopped', stopped);
     this._hooks.callHookBackground('run:step-completed', stopped);
     return stopped;
+  }
+
+  private async stopRunConversation(run: AutomationRun): Promise<void> {
+    if (!run.taskId) return;
+    const [conversation] = await db
+      .select({
+        id: conversations.id,
+        projectId: conversations.projectId,
+        type: conversations.type,
+      })
+      .from(conversations)
+      .where(
+        and(eq(conversations.taskId, run.taskId), eq(conversations.isInitialConversation, true))
+      )
+      .limit(1);
+    if (!conversation) return;
+
+    if (conversation.type === 'acp') {
+      const client = await getAcpRuntimeClient();
+      const result = await client.cancelTurn({ conversationId: conversation.id });
+      if (!result.success) throw new Error('stop_conversation_failed');
+    } else {
+      const task = resolveTask(conversation.projectId, run.taskId);
+      if (!task) throw new Error('task_not_found');
+      await task.conversations.stopSession(conversation.id);
+    }
+
+    await agentHookService.resetToIdle({
+      conversationId: conversation.id,
+      taskId: run.taskId,
+      projectId: conversation.projectId,
+    });
   }
 
   async getRun(runId: string): Promise<AutomationRun | null> {

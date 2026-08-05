@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@shared/core/automations/automation';
 import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { executeTaskCreate } from './actions/taskCreate';
-import { updateRun } from './repo';
+import { getRun, updateRun, updateRunIfStatus } from './repo';
 import type { OnStepCompleted } from './run-transitions';
 import { runQueuedAutomation } from './runtime';
 
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('./actions/taskCreate', () => ({ executeTaskCreate: vi.fn() }));
-vi.mock('./repo', () => ({ updateRun: vi.fn() }));
+vi.mock('./repo', () => ({ getRun: vi.fn(), updateRun: vi.fn(), updateRunIfStatus: vi.fn() }));
 
 const automation: Automation = {
   id: 'automation-1',
@@ -46,7 +46,12 @@ describe('runQueuedAutomation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     onStepCompleted = vi.fn() as unknown as OnStepCompleted;
+    vi.mocked(getRun).mockResolvedValue(run);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
+    vi.mocked(updateRunIfStatus).mockImplementation(async (_, __, values) => ({
+      ...run,
+      ...values,
+    }));
   });
 
   it('marks a successful run as done and notifies the step callback', async () => {
@@ -56,7 +61,7 @@ describe('runQueuedAutomation', () => {
 
     expect(result.success).toBe(true);
     expect(executeTaskCreate).toHaveBeenCalledWith(automation, run, onStepCompleted);
-    expect(updateRun).toHaveBeenCalledWith(run.id, {
+    expect(updateRunIfStatus).toHaveBeenCalledWith(run.id, 'creating_conversation', {
       status: 'done',
       finishedAt: expect.any(Number),
     });
@@ -76,6 +81,27 @@ describe('runQueuedAutomation', () => {
     // updateRun should NOT be called by runtime.ts (taskCreate already handled it)
     expect(updateRun).not.toHaveBeenCalled();
     // onStepCompleted not called by runtime (executeTaskCreate is responsible for step callbacks)
+    expect(onStepCompleted).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a manually stopped run with done', async () => {
+    const stoppedRun: AutomationRun = {
+      ...run,
+      status: 'skipped',
+      finishedAt: 2,
+      error: { step: 'queue', code: 'manually_stopped' },
+    };
+    vi.mocked(executeTaskCreate).mockResolvedValue({ success: true, data: { taskId: 'task-1' } });
+    vi.mocked(getRun).mockResolvedValue(stoppedRun);
+    vi.mocked(updateRunIfStatus).mockResolvedValue(null);
+
+    const result = await runQueuedAutomation(automation, run, onStepCompleted);
+
+    expect(result).toEqual({ success: true, data: stoppedRun });
+    expect(updateRunIfStatus).toHaveBeenCalledWith(run.id, 'creating_conversation', {
+      status: 'done',
+      finishedAt: expect.any(Number),
+    });
     expect(onStepCompleted).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
 import { log } from '@main/lib/logger';
 import type { AutomationRun, RunError } from '@shared/core/automations/automation-run';
-import { updateRun } from './repo';
+import { updateRun, updateRunIfStatus } from './repo';
 
 export type OnStepCompleted = (run: AutomationRun) => void;
 
@@ -29,21 +29,37 @@ export async function markRunCreatingTask(runId: string, now: number): Promise<A
 }
 
 /** creating_task → launching_task, writes taskCreatedAt */
-export async function markRunLaunchingTask(runId: string, now: number): Promise<AutomationRun> {
-  return updateRunOrThrow(runId, { status: 'launching_task', taskCreatedAt: now });
+export async function markRunLaunchingTask(
+  runId: string,
+  now: number
+): Promise<AutomationRun | null> {
+  return updateRunIfStatus(runId, 'creating_task', {
+    status: 'launching_task',
+    taskCreatedAt: now,
+  });
 }
 
 /** launching_task → creating_conversation, writes launchedAt */
 export async function markRunCreatingConversation(
   runId: string,
   now: number
-): Promise<AutomationRun> {
-  return updateRunOrThrow(runId, { status: 'creating_conversation', launchedAt: now });
+): Promise<AutomationRun | null> {
+  return updateRunIfStatus(runId, 'launching_task', {
+    status: 'creating_conversation',
+    launchedAt: now,
+  });
 }
 
 /** creating_conversation → done, writes finishedAt */
 export async function markRunDone(runId: string, finishedAt: number): Promise<AutomationRun> {
   return updateRunOrThrow(runId, { status: 'done', finishedAt });
+}
+
+export async function markRunDoneIfCreatingConversation(
+  runId: string,
+  finishedAt: number
+): Promise<AutomationRun | null> {
+  return updateRunIfStatus(runId, 'creating_conversation', { status: 'done', finishedAt });
 }
 
 /** any step → failed, writes JSON error + finishedAt */
@@ -66,4 +82,16 @@ export async function markRunSkipped(runId: string, error: RunError): Promise<Au
     error,
     finishedAt: Date.now(),
   });
+}
+
+export async function markRunManuallyStopped(runId: string): Promise<AutomationRun | null> {
+  return updateRunIfStatus(
+    runId,
+    ['queued', 'creating_task', 'launching_task', 'creating_conversation'],
+    {
+      status: 'skipped',
+      error: { step: 'queue', code: 'manually_stopped' },
+      finishedAt: Date.now(),
+    }
+  );
 }
