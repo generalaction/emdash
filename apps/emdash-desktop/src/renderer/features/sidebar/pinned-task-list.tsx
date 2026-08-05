@@ -3,9 +3,11 @@ import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { SidebarGroup, SidebarMenu } from './sidebar-primitives';
 import { SidebarTaskItem } from './task-item';
+import { taskHintKey, useTaskNumberHints } from './use-task-number-hints';
 
 export const SidebarPinnedTaskList = observer(function SidebarPinnedTaskList() {
   const entries = sidebarStore.pinnedSidebarEntries;
+  const numberHints = useTaskNumberHints();
   if (entries.length === 0) return null;
 
   return (
@@ -20,6 +22,7 @@ export const SidebarPinnedTaskList = observer(function SidebarPinnedTaskList() {
             projectId={projectId}
             taskId={taskId}
             rowVariant="pinned"
+            numberHint={numberHints?.get(taskHintKey(projectId, taskId)) ?? null}
           />
         ))}
       </SidebarMenu>

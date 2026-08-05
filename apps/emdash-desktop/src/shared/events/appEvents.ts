@@ -37,6 +37,24 @@ export const tabNavigationShortcutChannel = defineEvent<{
   direction: TabNavigationDirection;
 }>('tab-navigation:shortcut');
 
+/** A number-family shortcut (tab/task 1-9) pressed while a browser webview has focus. */
+export const numberShortcutChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  family: 'tab' | 'task';
+  /** 0-based position (digit - 1). */
+  index: number;
+}>('number-shortcut:pressed');
+
+export type NumberShortcutModifier = 'Meta' | 'Control' | 'Alt' | 'Shift';
+
+/** Modifier state forwarded while an embedded browser webview owns keyboard focus. */
+export const numberShortcutModifierChannel = defineEvent<{
+  source: { kind: 'browser'; browserId: string };
+  /** Null clears held state when the webview loses focus. */
+  modifier: NumberShortcutModifier | null;
+  held: boolean;
+}>('number-shortcut:modifier');
+
 export const browserAppShortcutChannel = defineEvent<{
   source: { kind: 'browser'; browserId: string };
   shortcutKey: ShortcutSettingsKey;

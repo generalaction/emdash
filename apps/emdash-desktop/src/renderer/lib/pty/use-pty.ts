@@ -1,6 +1,7 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
+import { dispatchNumberHotkey } from '@renderer/lib/hooks/use-number-hotkeys';
 import { dispatchMatchingHotkeys } from '@renderer/lib/hotkeys/dispatch-matching-hotkeys';
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
@@ -388,6 +389,13 @@ export function usePty(
         // xterm handles key events before TanStack's document-level hotkey listeners.
         // Preserve terminal Ctrl sequences on non-macOS except for tab navigation.
         if (dispatchTerminalAppHotkey(event)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          return false;
+        }
+
+        if (dispatchNumberHotkey(event)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();

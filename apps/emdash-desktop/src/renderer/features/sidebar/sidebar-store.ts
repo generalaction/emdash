@@ -120,6 +120,16 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       .map(({ projectId, taskId }) => ({ projectId, taskId }));
   }
 
+  /**
+   * Tasks in visual sidebar order: pinned first, then the visible project
+   * tree top to bottom. The single source of truth for task-by-number
+   * shortcuts: digit N targets numberedTaskEntries[N - 1], and the
+   * hold-to-reveal hint badges number the same list.
+   */
+  get numberedTaskEntries(): { projectId: string; taskId: string }[] {
+    return [...this.pinnedSidebarEntries, ...this.visibleTaskEntries];
+  }
+
   /** Flat list of pinned tasks (all mounted projects), same sort rules as project tree tasks. */
   get pinnedSidebarEntries(): { projectId: string; taskId: string }[] {
     const pairs: { projectId: string; task: TaskStore }[] = [];

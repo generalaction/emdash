@@ -17,6 +17,37 @@ export interface AppShortcutDef {
   ignoreWhenBrowserFocused?: boolean;
 }
 
+export function isMacLike(): boolean {
+  const nav = (globalThis as { navigator?: { platform?: string; userAgent?: string } }).navigator;
+  if (nav) return /mac/i.test(nav.platform ?? nav.userAgent ?? '');
+  return (globalThis as { process?: { platform?: string } }).process?.platform === 'darwin';
+}
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'] as const;
+
+function taskByNumberShortcut(digit: number): AppShortcutDef {
+  return {
+    // On Windows/Linux Mod is Ctrl, so Control+digit would collide with the
+    // tab shortcuts there.
+    defaultHotkey: () => (isMacLike() ? `Control+${digit}` : `Alt+${digit}`),
+    label: `Jump to ${ORDINALS[digit - 1]} Task`,
+    description: `Switch to the ${ORDINALS[digit - 1]} task in the sidebar, top to bottom.`,
+    category: 'Task View',
+    conflictBehavior: 'allow',
+    ignoreWhenMonacoFocused: true,
+  };
+}
+
+function tabByNumberShortcut(digit: number): AppShortcutDef {
+  return {
+    defaultHotkey: `Mod+${digit}`,
+    label: `Jump to ${ORDINALS[digit - 1]} Tab`,
+    description: `Switch to the ${ORDINALS[digit - 1]} tab in the pane, left to right.`,
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  };
+}
+
 export type TabNavigationDirection = 'next' | 'previous';
 
 export const TAB_NAVIGATION_HOTKEYS = {
@@ -219,6 +250,24 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
     ignoreWhenMonacoFocused: true,
   },
+  tab1: tabByNumberShortcut(1),
+  tab2: tabByNumberShortcut(2),
+  tab3: tabByNumberShortcut(3),
+  tab4: tabByNumberShortcut(4),
+  tab5: tabByNumberShortcut(5),
+  tab6: tabByNumberShortcut(6),
+  tab7: tabByNumberShortcut(7),
+  tab8: tabByNumberShortcut(8),
+  tab9: tabByNumberShortcut(9),
+  task1: taskByNumberShortcut(1),
+  task2: taskByNumberShortcut(2),
+  task3: taskByNumberShortcut(3),
+  task4: taskByNumberShortcut(4),
+  task5: taskByNumberShortcut(5),
+  task6: taskByNumberShortcut(6),
+  task7: taskByNumberShortcut(7),
+  task8: taskByNumberShortcut(8),
+  task9: taskByNumberShortcut(9),
   tabClose: {
     defaultHotkey: 'Mod+W',
     label: 'Close Tab',
@@ -304,3 +353,29 @@ export const APP_SHORTCUTS = defineShortcuts({
 });
 
 export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
+
+/** Digit-ordered settings keys for the jump-to-tab shortcuts (index 0 = 1st tab). */
+export const TAB_BY_NUMBER_KEYS = [
+  'tab1',
+  'tab2',
+  'tab3',
+  'tab4',
+  'tab5',
+  'tab6',
+  'tab7',
+  'tab8',
+  'tab9',
+] as const satisfies readonly ShortcutSettingsKey[];
+
+/** Digit-ordered settings keys for the jump-to-task shortcuts (index 0 = 1st task). */
+export const TASK_BY_NUMBER_KEYS = [
+  'task1',
+  'task2',
+  'task3',
+  'task4',
+  'task5',
+  'task6',
+  'task7',
+  'task8',
+  'task9',
+] as const satisfies readonly ShortcutSettingsKey[];
