@@ -72,6 +72,7 @@ import {
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
 import type { SnapshotRequester } from '@core/features/workspaces/node/sync/snapshot-requester';
+import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
@@ -524,7 +525,15 @@ export async function bootServices(
     scope: appScope,
     onError: (context, error) => log.warn(context, { error }),
   });
-  void workspaceRegistrySync.attachHost(LOCAL_HOST_REF);
+  const workspaceRegistryBackfill = new WorkspaceRegistryBackfillService({
+    db,
+    runtimes,
+    onError: (context, error) => log.warn(context, { error }),
+  });
+  // Backfill precedes attach so the first missing-sweep already sees pre-upgrade rows.
+  void workspaceRegistryBackfill
+    .backfillHost(LOCAL_HOST_REF)
+    .then(() => workspaceRegistrySync.attachHost(LOCAL_HOST_REF));
   const conversationSync = new ConversationSyncService({
     db,
     runtimes,
@@ -623,7 +632,9 @@ export async function bootServices(
     if (event.type === 'connected' || event.type === 'reconnected') {
       const host = hostRef('remote', event.connectionId);
       void conversationBackfill.backfillHost(host).then(() => conversationSync.attachHost(host));
-      void workspaceRegistrySync.attachHost(host);
+      void workspaceRegistryBackfill
+        .backfillHost(host)
+        .then(() => workspaceRegistrySync.attachHost(host));
     } else if (event.type === 'disconnected' || event.type === 'reconnect-failed') {
       conversationSync.detachHost(hostRef('remote', event.connectionId));
       workspaceRegistrySync.detachHost(hostRef('remote', event.connectionId));
