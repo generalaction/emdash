@@ -110,6 +110,8 @@ export interface PromptEditorProps {
   onChange?: (text: string) => void;
   /** Called when the user submits (Enter with no open suggestion). */
   onSubmit?: (text: string) => void;
+  /** Called when the user presses Escape with no open suggestion. */
+  onCancel?: () => void;
   /** Called after a mention node is inserted. Raw insertText entries do not trigger this. */
   onMentionInsert?: (item: MentionItem) => void;
   /**

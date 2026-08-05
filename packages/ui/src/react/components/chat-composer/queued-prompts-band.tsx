@@ -1,6 +1,6 @@
 import { Button } from '@react/primitives/button';
 import { cx } from '@styles/utilities/cx';
-import { ArrowUp, Check, GripVertical, Trash2, X } from 'lucide-react';
+import { ArrowUp, GripVertical, Pencil, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './queued-prompts-band.css';
 
@@ -11,7 +11,8 @@ export type ComposerQueuedPrompt = {
 
 export interface QueuedPromptsBandProps {
   prompts: ComposerQueuedPrompt[];
-  onEdit: (id: string, text: string) => void;
+  editingPromptId?: string | null;
+  onStartEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onReorder: (ids: string[]) => void;
   onSendNow: (id: string) => void;
@@ -21,50 +22,18 @@ export interface QueuedPromptsBandProps {
 
 export function QueuedPromptsBand({
   prompts,
-  onEdit,
+  editingPromptId,
+  onStartEdit,
   onDelete,
   onReorder,
   onSendNow,
   connectToBandBelow = false,
   className,
 }: QueuedPromptsBandProps) {
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [draft, setDraft] = React.useState('');
   const [draggingId, setDraggingId] = React.useState<string | null>(null);
   const [dragOverId, setDragOverId] = React.useState<string | null>(null);
-  const editInputRef = React.useRef<HTMLTextAreaElement | null>(null);
-
-  React.useEffect(() => {
-    if (!editingId) return;
-    if (prompts.some((prompt) => prompt.id === editingId)) return;
-    setEditingId(null);
-    setDraft('');
-  }, [editingId, prompts]);
-
-  React.useEffect(() => {
-    if (!editingId) return;
-    editInputRef.current?.focus();
-    editInputRef.current?.select();
-  }, [editingId]);
 
   const ids = prompts.map((prompt) => prompt.id);
-
-  const beginEdit = (prompt: ComposerQueuedPrompt) => {
-    setEditingId(prompt.id);
-    setDraft(prompt.text);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setDraft('');
-  };
-
-  const saveEdit = (id: string) => {
-    const next = draft.trim();
-    if (!next) return;
-    onEdit(id, draft);
-    cancelEdit();
-  };
 
   const reorder = (fromId: string, toId: string) => {
     if (fromId === toId) return;
@@ -116,11 +85,12 @@ export function QueuedPromptsBand({
 
       <div className={styles.list}>
         {prompts.map((prompt, index) => {
-          const isEditing = editingId === prompt.id;
+          const isEditing = editingPromptId === prompt.id;
           return (
             <div
               key={prompt.id}
               className={styles.row}
+              data-editing={isEditing || undefined}
               data-dragging={draggingId === prompt.id || undefined}
               data-drag-over={dragOverId === prompt.id || undefined}
               onDragOver={(event) => handleDragOver(event, prompt.id)}
@@ -131,80 +101,58 @@ export function QueuedPromptsBand({
             >
               <span className={styles.indexSlot}>
                 <span className={styles.indexNumber}>{index + 1}</span>
-                {!isEditing && (
-                  <button
-                    type="button"
-                    className={styles.dragHandle}
-                    draggable
-                    aria-label={`Reorder queued prompt ${index + 1}`}
-                    title="Drag to reorder"
-                    onClick={(event) => event.stopPropagation()}
-                    onDragStart={(event) => handleDragStart(event, prompt.id)}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <GripVertical className={styles.dragHandleIcon} aria-hidden />
-                  </button>
-                )}
-              </span>
-
-              {isEditing ? (
-                <div className={styles.editArea}>
-                  <textarea
-                    ref={editInputRef}
-                    className={styles.editInput}
-                    value={draft}
-                    rows={2}
-                    aria-label={`Edit queued prompt ${index + 1}`}
-                    onChange={(event) => setDraft(event.currentTarget.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        event.preventDefault();
-                        cancelEdit();
-                      }
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        saveEdit(prompt.id);
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    icon
-                    aria-label="Save queued prompt"
-                    title="Save queued prompt"
-                    disabled={!draft.trim()}
-                    onClick={() => saveEdit(prompt.id)}
-                  >
-                    <Check />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    icon
-                    aria-label="Cancel edit"
-                    title="Cancel edit"
-                    onClick={cancelEdit}
-                  >
-                    <X />
-                  </Button>
-                </div>
-              ) : (
                 <button
                   type="button"
-                  className={cx(styles.promptText, !prompt.text.trim() && styles.emptyText)}
-                  onClick={() => beginEdit(prompt)}
-                  aria-label={`Edit queued prompt ${index + 1}`}
-                  title="Edit queued prompt"
+                  className={styles.dragHandle}
+                  draggable
+                  aria-label={`Reorder queued prompt ${index + 1}`}
+                  title="Drag to reorder"
+                  onClick={(event) => event.stopPropagation()}
+                  onDragStart={(event) => handleDragStart(event, prompt.id)}
+                  onDragEnd={handleDragEnd}
                 >
-                  {prompt.text.trim() || 'Image-only prompt'}
+                  <GripVertical className={styles.dragHandleIcon} aria-hidden />
                 </button>
-              )}
+              </span>
+
+              <button
+                type="button"
+                className={cx(styles.promptText, !prompt.text.trim() && styles.emptyText)}
+                onClick={() => onStartEdit(prompt.id)}
+                disabled={!!editingPromptId}
+                aria-label={`Edit queued prompt ${index + 1}`}
+                title={
+                  isEditing
+                    ? 'Editing in composer'
+                    : editingPromptId
+                      ? 'Finish editing the current prompt first'
+                      : 'Edit queued prompt'
+                }
+              >
+                {prompt.text.trim() || 'Image-only prompt'}
+              </button>
 
               {!isEditing && (
                 <div className={styles.actions}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon
+                    disabled={!!editingPromptId}
+                    aria-label={`Edit queued prompt ${index + 1}`}
+                    title={
+                      editingPromptId
+                        ? 'Finish editing the current prompt first'
+                        : 'Edit queued prompt'
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onStartEdit(prompt.id);
+                    }}
+                  >
+                    <Pencil />
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
