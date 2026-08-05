@@ -856,11 +856,11 @@ describe('native browser verifier', () => {
     }
   });
 
-  it('reserves enough verifier time for an honest terminal decision', async () => {
+  it('enters the terminal reserve before dispatch overhead can consume it', async () => {
     vi.useFakeTimers();
     try {
       const harness = makeHarness({
-        context: { promptTimeoutMs: 30_000 },
+        context: { promptTimeoutMs: 30 * 60 * 1_000 },
         responses: [
           actionBlock({ kind: 'accessibility-snapshot' }),
           actionBlock({ kind: 'keypress', key: 'Tab' }),
@@ -868,7 +868,7 @@ describe('native browser verifier', () => {
         ],
       });
       harness.performAction.mockImplementation(async () => {
-        vi.setSystemTime(Date.now() + 21_000);
+        vi.setSystemTime(Date.now() + 19.5 * 60 * 1_000);
         return {
           result: {
             ok: true,
@@ -892,6 +892,85 @@ describe('native browser verifier', () => {
       expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
         kind: 'protocol-repair',
         message: 'Rejected native verifier terminal-reserve action 1 without executing it',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps one terminal-only stall recovery after two exploratory turn recoveries', async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = makeHarness({
+        context: { promptTimeoutMs: 30 * 60 * 1_000 },
+      });
+      const heldPrompts = [
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>(),
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>(),
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>(),
+      ];
+      let promptIndex = 0;
+      harness.nestedDriver.sendPrompt = vi.fn(async () => {
+        promptIndex += 1;
+        if (promptIndex === 1) return await heldPrompts[0]!.promise;
+        if (promptIndex === 2) {
+          return ok({ finalText: actionBlock({ kind: 'accessibility-snapshot' }) });
+        }
+        if (promptIndex === 3) return await heldPrompts[1]!.promise;
+        if (promptIndex === 4) {
+          return ok({ finalText: actionBlock({ kind: 'accessibility-snapshot' }) });
+        }
+        if (promptIndex === 5) return await heldPrompts[2]!.promise;
+        return ok({ finalText: NATIVE_BROWSER_PASSED_SENTINEL });
+      });
+      harness.nestedDriver.cancelPrompt = vi.fn(async () => {
+        const heldIndex = promptIndex === 1 ? 0 : promptIndex === 3 ? 1 : 2;
+        heldPrompts[heldIndex]!.resolve(
+          err({ kind: 'prompt-failed', message: 'cancelled stalled turn' })
+        );
+        return ok(undefined);
+      });
+      let actionCount = 0;
+      harness.performAction.mockImplementation(async () => {
+        actionCount += 1;
+        if (actionCount === 2) vi.setSystemTime(Date.now() + 3.5 * 60 * 1_000);
+        return {
+          result: {
+            ok: true,
+            observation: {
+              kind: 'accessibility-snapshot',
+              snapshot: 'Observed bounded state',
+              truncated: false,
+            },
+          },
+        };
+      });
+
+      const runPromise = harness.verifier.run(harness.ctx);
+      for (const expectedCalls of [1, 3, 5]) {
+        for (
+          let index = 0;
+          index < 100 &&
+          vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.length < expectedCalls;
+          index += 1
+        ) {
+          await Promise.resolve();
+        }
+        expect(vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.length).toBe(expectedCalls);
+        await vi.advanceTimersByTimeAsync(NATIVE_BROWSER_TURN_TIMEOUT_MS);
+      }
+      const result = await runPromise;
+
+      expect(result.success, JSON.stringify(result)).toBe(true);
+      expect(harness.nestedDriver.restartVerificationSession).toHaveBeenCalledTimes(3);
+      const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[4]).toContain('terminal-decision reserve');
+      expect(prompts[5]).toContain('Terminal stalled-turn recovery 1 of 1');
+      expect(prompts[5]).toContain('return exactly one honest terminal outcome');
+      expect(harness.evidenceRun.appendIntermediateFailure).toHaveBeenCalledWith({
+        kind: 'prompt-timeout-repair',
+        message:
+          'Cancelled stalled native verifier terminal-decision turn 1 and restarted its exact ACP runtime without executing an action',
       });
     } finally {
       vi.useRealTimers();

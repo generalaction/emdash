@@ -43,9 +43,11 @@ export const NATIVE_BROWSER_TURN_TIMEOUT_MS = 8 * 60 * 1_000;
 export const NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS = 2 * 60 * 1_000;
 const NATIVE_BROWSER_TERMINAL_RESERVE_MS =
   NATIVE_BROWSER_TURN_TIMEOUT_MS + NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS;
+const NATIVE_BROWSER_TERMINAL_RESERVE_ENTRY_BUFFER_MS = 60 * 1_000;
 const MAX_NATIVE_BROWSER_ACTIONS = 128;
 const MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS = 2;
 const MAX_NATIVE_BROWSER_STALL_REPAIRS = 2;
+const MAX_NATIVE_BROWSER_TERMINAL_STALL_REPAIRS = 1;
 const MAX_TRUSTED_ENVIRONMENT_BYTES = 64 * 1024;
 const TRUSTED_TASK_ENVIRONMENT_KEYS = [
   'EMDASH_DEFAULT_BRANCH',
@@ -426,6 +428,7 @@ async function runNativeBrowserVerification(
     let successfulObservations = 0;
     let protocolRepairs = 0;
     let stallRepairs = 0;
+    let terminalStallRepairs = 0;
     let stalledTurnRecovery = false;
     let terminalDecisionRequired = false;
     let terminalReserveRequired = false;
@@ -446,13 +449,27 @@ async function runNativeBrowserVerification(
         );
       } catch (error) {
         if (!(error instanceof NativeBrowserPromptTimeout)) throw error;
-        if (stallRepairs >= MAX_NATIVE_BROWSER_STALL_REPAIRS) {
-          throw new NativeBrowserVerifierFailure(
-            'command-failed',
-            `Native browser ACP stalled after ${MAX_NATIVE_BROWSER_STALL_REPAIRS} bounded turn recoveries`
-          );
+        const terminalStall = terminalDecisionRequired;
+        let recoveryAttempt: number;
+        if (terminalStall) {
+          if (terminalStallRepairs >= MAX_NATIVE_BROWSER_TERMINAL_STALL_REPAIRS) {
+            throw new NativeBrowserVerifierFailure(
+              'command-failed',
+              `Native browser ACP terminal decision stalled after ${MAX_NATIVE_BROWSER_TERMINAL_STALL_REPAIRS} bounded recovery`
+            );
+          }
+          terminalStallRepairs += 1;
+          recoveryAttempt = terminalStallRepairs;
+        } else {
+          if (stallRepairs >= MAX_NATIVE_BROWSER_STALL_REPAIRS) {
+            throw new NativeBrowserVerifierFailure(
+              'command-failed',
+              `Native browser ACP stalled after ${MAX_NATIVE_BROWSER_STALL_REPAIRS} bounded turn recoveries`
+            );
+          }
+          stallRepairs += 1;
+          recoveryAttempt = stallRepairs;
         }
-        stallRepairs += 1;
         nestedSession = await restartStalledVerificationSession(
           nestedSession,
           binding,
@@ -463,7 +480,9 @@ async function runNativeBrowserVerification(
           () =>
             runEvidence.appendIntermediateFailure({
               kind: 'prompt-timeout-repair',
-              message: `Cancelled stalled native verifier turn ${stallRepairs} and restarted its exact ACP runtime without executing an action`,
+              message: terminalStall
+                ? `Cancelled stalled native verifier terminal-decision turn ${recoveryAttempt} and restarted its exact ACP runtime without executing an action`
+                : `Cancelled stalled native verifier turn ${recoveryAttempt} and restarted its exact ACP runtime without executing an action`,
             }),
           control
         );
@@ -471,8 +490,8 @@ async function runNativeBrowserVerification(
           ctx,
           binding,
           activeSession,
-          stallRepairs,
-          terminalDecisionRequired
+          recoveryAttempt,
+          terminalStall
         );
         stalledTurnRecovery = true;
         continue;
@@ -714,10 +733,7 @@ async function runNativeBrowserVerification(
         throw new NativeBrowserVerifierFailure('command-failed', safeResult.error.message);
       }
       if (safeResult.ok) successfulObservations += 1;
-      if (
-        timeoutMs - (Date.now() - startedAt) <=
-        Math.min(NATIVE_BROWSER_TERMINAL_RESERVE_MS, Math.floor(timeoutMs / 3))
-      ) {
+      if (timeoutMs - (Date.now() - startedAt) <= terminalReserveEntryThreshold(timeoutMs)) {
         terminalDecisionRequired = true;
         terminalReserveRequired = true;
       }
@@ -970,13 +986,22 @@ Terminal decision repair ${attempt} of ${MAX_NATIVE_BROWSER_PROTOCOL_REPAIRS}: r
 
 function buildStallRepairPrompt(attempt: number, terminalDecisionRequired: boolean): string {
   if (terminalDecisionRequired) {
-    return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed. Diagnostics were already captured as the final inspection step.
+    return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed. A terminal decision was already required.
 
-Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return exactly one honest terminal outcome with its sentinel on the final line. Do not request another browser action, repeat prior deliberation, or claim that a cancelled action ran.`;
+Terminal stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_TERMINAL_STALL_REPAIRS}: return exactly one honest terminal outcome with its sentinel on the final line. Do not request another browser action, repeat prior deliberation, or claim that a cancelled action ran.`;
   }
   return `The previous native browser turn did not complete before its bounded per-turn deadline and was cancelled. No action from it was executed.
 
 Stalled-turn recovery ${attempt} of ${MAX_NATIVE_BROWSER_STALL_REPAIRS}: return exactly one allowlisted action block, or exactly one terminal outcome with its sentinel on the final line. Do not repeat prior deliberation, combine actions, or claim that a cancelled action ran.`;
+}
+
+function terminalReserveEntryThreshold(timeoutMs: number): number {
+  const reserveMs = Math.min(NATIVE_BROWSER_TERMINAL_RESERVE_MS, Math.floor(timeoutMs / 3));
+  const entryBufferMs = Math.min(
+    NATIVE_BROWSER_TERMINAL_RESERVE_ENTRY_BUFFER_MS,
+    Math.max(1, Math.floor(timeoutMs / 30))
+  );
+  return Math.min(timeoutMs, reserveMs + entryBufferMs);
 }
 
 function buildRestartStallRepairPrompt(
