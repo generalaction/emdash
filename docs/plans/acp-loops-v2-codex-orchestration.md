@@ -1451,6 +1451,13 @@ fresh recreated green run becomes the final success report.
   guarded lifecycle fixture for the completed-Meeting assertion, leave continued transcription
   plumbing to required backend tests and terminal Review, and use attempt sixty-one for the exact
   replay.
+- [x] 2026-08-05: Attempt sixty-one passed every validation command and recorded 20 valid native
+  observations through the populated vocabulary edit flow. Template edit completion then exceeded
+  the local Convex one-second query limit and rendered the page error boundary; diagnostics retained
+  the timeout and uncaught console error, so the verifier correctly requested correction. The
+  unchanged feature checkpoint remains clean. Stop the aged isolated backend, restart it from
+  `7dc77816442cf9c529ce3a8f15491bb40f68ac33`, require strict Convex typecheck and successful
+  function deployment, and use attempt sixty-two for one clean replay without hiding the timeout.
 - [ ] Complete the Summario custom-vocabulary pilot Loop.
 - [ ] Complete the Summario privacy/consent acceptance Loop.
 - [ ] Record final outcome and remaining authorized follow-ups.
