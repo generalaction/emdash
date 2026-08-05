@@ -7,6 +7,7 @@ import { remote, snapshot } from '@emdash/wire';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '@runtimes/workspace-registry/api';
+import { WorkspaceRecordStore } from '@runtimes/workspace-registry/node/persistence/record-store';
 import {
   workspaceRegistryStore,
   type WorkspaceRegistryDb,
@@ -313,6 +314,209 @@ describe('workspace registry contract', () => {
     expect(refreshed).toEqual({
       success: false,
       error: { type: 'workspace-not-found', workspaceId: 'unknown' },
+    });
+  });
+
+  it('createWorktree runs the full pipeline: worktree, preserved files, pushed branch', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    // A bare origin so push-branch has somewhere to go.
+    const originPath = path.join(root, 'origin.git');
+    git(root, 'init', '--bare', originPath);
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+    git(repoPath, 'push', '-u', 'origin', 'main');
+    // A preserved file that git ignores (the classic .env case).
+    await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\n');
+    await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
+    git(repoPath, 'add', '.gitignore');
+    git(repoPath, 'commit', '-m', 'ignore env');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const worktreePath = path.join(root, 'feature-wt');
+    const created = await wire.client.createWorktree({
+      id: 'ws-new',
+      repositoryId: 'ws-repo',
+      branch: 'feature/new',
+      baseRef: 'main',
+      path: worktreePath,
+      preservePatterns: ['.env'],
+      pushBranch: true,
+    });
+    expect(created).toMatchObject({
+      success: true,
+      data: {
+        id: 'ws-new',
+        kind: 'worktree',
+        parentId: 'ws-repo',
+        origin: 'registered',
+        observedStatus: 'present',
+        creation: { branch: 'feature/new', baseRef: 'main', requestedPath: worktreePath },
+        lastCreateOutcome: { status: 'succeeded' },
+        git: { branch: 'feature/new' },
+        runtime: null,
+      },
+    });
+    if (!created.success) throw new Error('expected success');
+    expect(created.data.gitAdminName).not.toBeNull();
+
+    await fs.access(path.join(created.data.path, '.env'));
+    expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toContain(
+      'refs/heads/feature/new'
+    );
+  });
+
+  it('createWorktree failure records the stage durably and keeps the record', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const worktreePath = path.join(root, 'doomed-wt');
+    const created = await wire.client.createWorktree({
+      id: 'ws-doomed',
+      repositoryId: 'ws-repo',
+      branch: 'feature/doomed',
+      baseRef: 'refs/heads/does-not-exist',
+      path: worktreePath,
+      preservePatterns: [],
+      pushBranch: false,
+    });
+    expect(created).toMatchObject({
+      success: false,
+      error: { type: 'stage-failed', stage: 'add-worktree' },
+    });
+
+    const records = await listRecords();
+    expect(records['ws-doomed']).toMatchObject({
+      observedStatus: 'missing',
+      lastCreateOutcome: { status: 'failed', stage: 'add-worktree' },
+      runtime: null,
+    });
+  });
+
+  it('createWorktree replays: succeeded is a no-op, failed re-executes, divergent errors', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const worktreePath = path.join(root, 'retry-wt');
+    const input = {
+      id: 'ws-retry',
+      repositoryId: 'ws-repo',
+      branch: 'feature/retry',
+      baseRef: 'main',
+      path: worktreePath,
+      preservePatterns: [],
+      // No remote: push-branch fails after the worktree was created (transient failure).
+      pushBranch: true,
+    };
+
+    const first = await wire.client.createWorktree(input);
+    expect(first).toMatchObject({
+      success: false,
+      error: { type: 'stage-failed', stage: 'push-branch' },
+    });
+
+    // The transient condition clears; the identical request re-executes to success.
+    const originPath = path.join(root, 'origin.git');
+    git(root, 'init', '--bare', originPath);
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+    const retried = await wire.client.createWorktree(input);
+    expect(retried).toMatchObject({
+      success: true,
+      data: { lastCreateOutcome: { status: 'succeeded' } },
+    });
+
+    const replay = await wire.client.createWorktree(input);
+    expect(replay).toEqual(retried);
+
+    const divergent = await wire.client.createWorktree({ ...input, baseRef: 'other-base' });
+    expect(divergent).toMatchObject({
+      success: false,
+      error: { type: 'immutable-field-mismatch', workspaceId: 'ws-retry' },
+    });
+  });
+
+  it('an interrupted creation reads as started with no overlay and retries to success', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const worktreePath = path.join(root, 'interrupted-wt');
+
+    // Simulated daemon crash mid-flight: the durable registration exists ('started'),
+    // the pipeline never finished, and the rebuilt runtime has no overlay.
+    const store = new WorkspaceRecordStore(handle);
+    store.insert({
+      id: 'ws-interrupted',
+      kind: 'worktree',
+      path: worktreePath,
+      parentId: 'ws-repo',
+      origin: 'registered',
+      gitAdminName: null,
+      observedStatus: 'missing',
+      creation: { branch: 'feature/interrupted', baseRef: 'main', requestedPath: worktreePath },
+      lastCreateOutcome: { status: 'started', at: 9_000 },
+      git: null,
+      lastActivatedAt: null,
+      createdAt: 9_000,
+      updatedAt: 9_000,
+      lastObservedAt: 9_000,
+    });
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
+      validate: 'full',
+    });
+
+    let records = await listRecords();
+    expect(records['ws-interrupted']).toMatchObject({
+      lastCreateOutcome: { status: 'started' },
+      observedStatus: 'missing',
+      runtime: null,
+    });
+
+    // The host never re-converges on its own — only a client retry resolves it.
+    const retried = await wire.client.createWorktree({
+      id: 'ws-interrupted',
+      repositoryId: 'ws-repo',
+      branch: 'feature/interrupted',
+      baseRef: 'main',
+      path: worktreePath,
+      preservePatterns: [],
+      pushBranch: false,
+    });
+    expect(retried).toMatchObject({
+      success: true,
+      data: { observedStatus: 'present', lastCreateOutcome: { status: 'succeeded' } },
+    });
+  });
+
+  it('concurrent same-repository creations serialize and both succeed', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const [a, b] = await Promise.all([
+      wire.client.createWorktree({
+        id: 'ws-a',
+        repositoryId: 'ws-repo',
+        branch: 'feature/a',
+        baseRef: 'main',
+        path: path.join(root, 'wt-a'),
+        preservePatterns: [],
+        pushBranch: false,
+      }),
+      wire.client.createWorktree({
+        id: 'ws-b',
+        repositoryId: 'ws-repo',
+        branch: 'feature/b',
+        baseRef: 'main',
+        path: path.join(root, 'wt-b'),
+        preservePatterns: [],
+        pushBranch: false,
+      }),
+    ]);
+    expect(a).toMatchObject({
+      success: true,
+      data: { lastCreateOutcome: { status: 'succeeded' } },
+    });
+    expect(b).toMatchObject({
+      success: true,
+      data: { lastCreateOutcome: { status: 'succeeded' } },
     });
   });
 

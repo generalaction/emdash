@@ -143,6 +143,19 @@ export const deleteWorkspaceInputSchema = z.object({
 });
 export type DeleteWorkspaceInput = z.infer<typeof deleteWorkspaceInputSchema>;
 
+export const createWorktreeInputSchema = z.object({
+  /** Desktop-minted UUID for the new worktree record. */
+  id: z.string().min(1),
+  /** The registered repository record to create from. */
+  repositoryId: z.string().min(1),
+  branch: z.string().min(1),
+  baseRef: z.string().min(1),
+  path: z.string().min(1),
+  preservePatterns: z.array(z.string()).default([]),
+  pushBranch: z.boolean().default(false),
+});
+export type CreateWorktreeInput = z.infer<typeof createWorktreeInputSchema>;
+
 /** Explicit "refresh now": rescans one workspace, or the whole host when id is omitted. */
 export const refreshWorkspacesInputSchema = z.object({
   id: z.string().min(1).optional(),

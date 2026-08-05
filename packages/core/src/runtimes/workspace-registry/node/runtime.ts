@@ -1,24 +1,29 @@
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { cell, expose, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
+import { KeyedMutex } from '@primitives/lib/api';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
   CreateWorkspaceError,
+  CreateWorktreeError,
   DeleteWorkspaceError,
   WorkspaceNotFoundError,
 } from '../api/errors';
 import type {
   CreateWorkspaceInput,
+  CreateWorktreeInput,
   DeleteWorkspaceInput,
   RefreshWorkspacesInput,
   WorkspaceRecord,
   WorkspaceRecords,
   WorkspaceRuntimeOverlay,
 } from '../api/schemas';
+import { executeCreateWorktree } from './create-worktree';
 import {
   canonicalizeWorkspacePath,
   inspectWorkspacePath,
@@ -60,6 +65,8 @@ export class WorkspaceRegistryRuntime {
   private readonly overlays = new Map<string, WorkspaceRuntimeOverlay>();
   private readonly recordsCell: Cell<WorkspaceRecords>;
   private mutationQueue: Promise<unknown> = Promise.resolve();
+  /** Exclusive per-repository claim: concurrent same-repo creations wait, never error. */
+  private readonly repositoryClaims = new KeyedMutex();
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
 
   constructor(options: WorkspaceRegistryRuntimeOptions) {
@@ -91,6 +98,51 @@ export class WorkspaceRegistryRuntime {
 
   deleteWorkspace(input: DeleteWorkspaceInput): Promise<Result<void, DeleteWorkspaceError>> {
     return this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
+  }
+
+  /**
+   * One plain RPC end-to-end: durable registration (outcome 'started') happens under
+   * the writer queue; the long-running stage pipeline runs under the per-repository
+   * claim so unrelated registry work is never blocked; the durable outcome lands under
+   * the writer queue again. Progress is only visible through the records overlay.
+   */
+  async createWorktree(
+    input: CreateWorktreeInput
+  ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
+    const registration = await this.enqueue(() =>
+      Promise.resolve(this.registerWorktreeCreation(input))
+    );
+    if (!registration.success) return registration;
+    if (registration.data.execute === false) {
+      return ok(this.toWire(registration.data.record));
+    }
+    const repository = registration.data.repository;
+
+    return await this.repositoryClaims.runExclusive(repository.id, async () => {
+      const startedAt = this.clock.now();
+      this.updateOverlay(input.id, (overlay) => ({
+        ...overlay,
+        creation: { stage: 'inspect', startedAt },
+      }));
+
+      const result = await executeCreateWorktree({
+        repositoryPath: repository.path,
+        worktreePath: path.resolve(input.path),
+        branch: input.branch,
+        baseRef: input.baseRef,
+        preservePatterns: input.preservePatterns,
+        pushBranch: input.pushBranch,
+        onStage: (stage) =>
+          this.updateOverlay(input.id, (overlay) => ({
+            ...overlay,
+            creation: { stage, startedAt },
+          })),
+      });
+
+      return await this.enqueue(() =>
+        Promise.resolve(this.finalizeWorktreeCreation(input.id, result))
+      );
+    });
   }
 
   refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
@@ -199,6 +251,158 @@ export class WorkspaceRegistryRuntime {
   /** Late-bound because the scheduler needs the runtime before it can be pointed at. */
   setOnRecordsChanged(callback: () => void): void {
     this.onRecordsChanged = callback;
+  }
+
+  /**
+   * The fast durable half of createWorktree: the record exists with outcome 'started'
+   * before any git work begins, so a crash mid-flight leaves a visible, retryable fact.
+   */
+  private registerWorktreeCreation(
+    input: CreateWorktreeInput
+  ): Result<
+    { execute: boolean; record: DurableWorkspaceRecord; repository: DurableWorkspaceRecord },
+    CreateWorktreeError
+  > {
+    const repository = this.store.get(input.repositoryId);
+    if (!repository || repository.kind !== 'repository') {
+      return err({ type: 'repository-not-found', repositoryId: input.repositoryId });
+    }
+
+    const now = this.clock.now();
+    const existing = this.store.get(input.id);
+    if (existing) {
+      const spec = existing.creation;
+      const matches =
+        spec !== null &&
+        spec.branch === input.branch &&
+        spec.baseRef === input.baseRef &&
+        spec.requestedPath === input.path &&
+        existing.parentId === input.repositoryId;
+      if (!matches) {
+        return err({
+          type: 'immutable-field-mismatch',
+          workspaceId: input.id,
+          message: `Workspace '${input.id}' exists with a different creation spec`,
+        });
+      }
+      if (existing.lastCreateOutcome?.status === 'succeeded') {
+        // Replay of a completed creation: no-op success.
+        return ok({ execute: false, record: existing, repository });
+      }
+      // Failed or interrupted: re-execute under a fresh 'started' outcome.
+      const restarted: DurableWorkspaceRecord = {
+        ...existing,
+        lastCreateOutcome: { status: 'started', at: now },
+        updatedAt: now,
+      };
+      this.store.update(restarted);
+      this.publish(restarted);
+      return ok({ execute: true, record: restarted, repository });
+    }
+
+    const resolvedPath = path.resolve(input.path);
+    const byPath = this.store.getByPath(resolvedPath);
+    if (byPath) {
+      return err({ type: 'path-conflict', path: resolvedPath });
+    }
+
+    const record: DurableWorkspaceRecord = {
+      id: input.id,
+      kind: 'worktree',
+      path: resolvedPath,
+      parentId: repository.id,
+      origin: 'registered',
+      gitAdminName: null,
+      // Not on disk yet: 'missing' + outcome 'started' + no overlay reads as
+      // "interrupted" after a daemon crash — exactly the diagnostic the spec wants.
+      observedStatus: 'missing',
+      creation: { branch: input.branch, baseRef: input.baseRef, requestedPath: input.path },
+      lastCreateOutcome: { status: 'started', at: now },
+      git: null,
+      lastActivatedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      lastObservedAt: now,
+    };
+    this.store.insert(record);
+    this.publish(record);
+    return ok({ execute: true, record, repository });
+  }
+
+  /** The durable tail of createWorktree: outcome lands, overlay clears, record settles. */
+  private async finalizeWorktreeCreation(
+    id: string,
+    result: Awaited<ReturnType<typeof executeCreateWorktree>>
+  ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
+    this.updateOverlay(id, (overlay) => ({ ...overlay, creation: null }));
+    const record = this.store.get(id);
+    const now = this.clock.now();
+    if (!record) {
+      // Deleted while the pipeline ran; report the execution result without a record.
+      return err({
+        type: 'stage-failed',
+        stage: 'finalize',
+        message: 'Workspace record was deleted during creation',
+      });
+    }
+
+    if (result.status === 'failed') {
+      const failed: DurableWorkspaceRecord = {
+        ...record,
+        lastCreateOutcome: {
+          status: 'failed',
+          at: now,
+          stage: result.stage,
+          message: result.message,
+        },
+        updatedAt: now,
+      };
+      this.store.update(failed);
+      this.publish(failed);
+      return err({ type: 'stage-failed', stage: result.stage, message: result.message });
+    }
+
+    const parent = record.parentId === null ? null : this.store.get(record.parentId);
+    let gitAdminName = record.gitAdminName;
+    if (parent) {
+      try {
+        const listing = (await listRepositoryWorktrees(parent.path)).find(
+          (entry) => entry.path === result.finalPath
+        );
+        gitAdminName = listing?.adminName ?? gitAdminName;
+      } catch {
+        // The scan will fill the admin name on its next pass.
+      }
+    }
+    const succeeded: DurableWorkspaceRecord = {
+      ...record,
+      path: result.finalPath,
+      gitAdminName,
+      observedStatus: 'present',
+      lastCreateOutcome: { status: 'succeeded', at: now },
+      git: await observeWorkspaceGit(result.finalPath),
+      updatedAt: now,
+      lastObservedAt: now,
+    };
+    this.store.update(succeeded);
+    this.publish(succeeded);
+    return ok(this.toWire(succeeded));
+  }
+
+  /** Overlay writes republish the merged record; an all-empty overlay reads as null. */
+  private updateOverlay(
+    id: string,
+    mutate: (overlay: WorkspaceRuntimeOverlay) => WorkspaceRuntimeOverlay
+  ): void {
+    const current = this.overlays.get(id) ?? { creation: null, notices: [], activation: null };
+    const next = mutate(current);
+    if (next.creation === null && next.activation === null && next.notices.length === 0) {
+      this.overlays.delete(id);
+    } else {
+      this.overlays.set(id, next);
+    }
+    const record = this.store.get(id);
+    if (record) this.publish(record);
   }
 
   private deleteWorkspaceLocked(input: DeleteWorkspaceInput): Result<void, DeleteWorkspaceError> {

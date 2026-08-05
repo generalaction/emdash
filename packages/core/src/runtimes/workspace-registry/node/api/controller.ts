@@ -6,6 +6,7 @@ export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRunt
   return createController(workspaceRegistryContract, {
     records: runtime.recordsHost,
     createWorkspace: (input) => runtime.createWorkspace(input),
+    createWorktree: (input) => runtime.createWorktree(input),
     deleteWorkspace: (input) => runtime.deleteWorkspace(input),
     refresh: (input) => runtime.refresh(input),
   });

@@ -2,11 +2,13 @@ import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
 import {
   createWorkspaceErrorSchema,
+  createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
   workspaceNotFoundErrorSchema,
 } from './errors';
 import {
   createWorkspaceInputSchema,
+  createWorktreeInputSchema,
   deleteWorkspaceInputSchema,
   refreshWorkspacesInputSchema,
   workspaceRecordSchema,
@@ -45,6 +47,20 @@ export const workspaceRegistryContract = defineContract({
     input: createWorkspaceInputSchema,
     data: workspaceRecordSchema,
     error: createWorkspaceErrorSchema,
+  }),
+
+  /**
+   * Creates a worktree from a repository spec as one plain RPC: registers the record
+   * immediately (outcome 'started'), executes inspect → fetch → add-worktree → verify →
+   * copy-preserved-files → push-branch under an exclusive per-repository claim
+   * (concurrent same-repo calls wait, never error), and returns on completion. Progress
+   * is the records overlay — no job objects. Replay by id + identical spec: succeeded →
+   * no-op success; failed/interrupted → re-execute; divergent spec → typed mismatch.
+   */
+  createWorktree: fallible({
+    input: createWorktreeInputSchema,
+    data: workspaceRecordSchema,
+    error: createWorktreeErrorSchema,
   }),
 
   /**

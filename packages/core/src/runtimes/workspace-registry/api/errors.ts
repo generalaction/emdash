@@ -23,3 +23,16 @@ export type CreateWorkspaceError = z.infer<typeof createWorkspaceErrorSchema>;
 /** Deletes are idempotent — an absent id is success, like conversations. */
 export const deleteWorkspaceErrorSchema = z.never();
 export type DeleteWorkspaceError = z.infer<typeof deleteWorkspaceErrorSchema>;
+
+export const createWorktreeErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('repository-not-found'), repositoryId: z.string() }),
+  z.object({
+    type: z.literal('immutable-field-mismatch'),
+    workspaceId: z.string(),
+    message: z.string(),
+  }),
+  z.object({ type: z.literal('path-conflict'), path: z.string() }),
+  /** Stage-tagged execution failure; also recorded durably as lastCreateOutcome. */
+  z.object({ type: z.literal('stage-failed'), stage: z.string(), message: z.string() }),
+]);
+export type CreateWorktreeError = z.infer<typeof createWorktreeErrorSchema>;
