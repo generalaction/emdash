@@ -22,6 +22,7 @@
  */
 
 import { DEFAULT_CONFIG, toThemeVars } from '@core/config';
+import { DEFAULT_MONOSPACE_FONT_FAMILY } from '@emdash/shared';
 import { createGlobalTheme, createGlobalThemeContract } from '@vanilla-extract/css';
 
 // ── Contract (stable public names) ────────────────────────────────────────────
@@ -169,7 +170,7 @@ export const vars = createGlobalThemeContract(
 
 const NON_COLOR_VARS = {
   fontSans: ['Inter Variable', 'sans-serif'].join(', '),
-  fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace",
+  fontMono: DEFAULT_MONOSPACE_FONT_FAMILY,
   radiusSm: '0.375rem',
   radiusMd: '0.5rem',
   radiusLg: '0.625rem',

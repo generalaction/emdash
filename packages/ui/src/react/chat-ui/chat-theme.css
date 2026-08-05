@@ -7,7 +7,7 @@
  * desktop app's visual language.
  *
  * Theming model:
- *   chat-ui default (theme.css.ts :where())   — self-contained, Inter + JetBrains Mono
+ *   chat-ui default (theme.css.ts :where())   — self-contained typography defaults
  *   └── this file (.emlight / .emdark rules)  — overrides fonts/colors for desktop
  *       └── --chat-font-sans: var(--em-font-sans) — system sans (not Inter) on desktop
  *
@@ -86,7 +86,7 @@
   /* ── Non-color design tokens ─────────────────────────────────────────────── */
   /* Mirror @emdash/ui/theme/theme.base.css so chat-ui inherits the app radius scale. */
   --chat-font-sans: var(--em-font-sans);
-  --chat-font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Menlo, Monaco, monospace;
+  --chat-font-mono: var(--em-font-mono);
   --chat-radius-sm: 0.375rem;
   --chat-radius-md: 0.5rem;
   --chat-radius-lg: 0.625rem;

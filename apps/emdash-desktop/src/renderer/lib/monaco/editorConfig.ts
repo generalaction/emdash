@@ -1,8 +1,10 @@
 import type { editor } from 'monaco-editor';
+import { DEFAULT_MONOSPACE_FONT_FAMILY } from '@renderer/lib/monospace-font';
 
 /** Shared options for all DiffEditor instances in the diff viewer. */
 export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
   originalEditable: false,
+  fontFamily: DEFAULT_MONOSPACE_FONT_FAMILY,
   fontSize: 13,
   lineHeight: 20,
   minimap: { enabled: false },

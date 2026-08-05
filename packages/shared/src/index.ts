@@ -50,3 +50,4 @@ export type {
   Unsubscribe,
 } from './lifecycle';
 export { LifecycleMap, type LifecycleHooks, type LifecycleStatus } from './lifecycle-map';
+export { DEFAULT_MONOSPACE_FONT_FAMILIES, DEFAULT_MONOSPACE_FONT_FAMILY } from './monospace-font';

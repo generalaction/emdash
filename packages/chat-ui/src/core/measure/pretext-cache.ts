@@ -12,18 +12,13 @@
 export { clearCache as clearPretextInternalCaches } from '@chenglou/pretext';
 
 /**
- * Named font faces to pre-load.  These must exactly match the font-family names
- * used in metrics.ts so `document.fonts.load()` resolves them correctly.
+ * Named webfont faces to pre-load. The default monospace stack uses system
+ * fonts, which are immediately available and do not need an async load.
  */
-const FONT_LOAD_SPECS = [
-  '400 14px "Inter Variable"',
-  '600 14px "Inter Variable"',
-  '400 13px "JetBrains Mono Variable"',
-  '400 12px "JetBrains Mono Variable"',
-];
+const FONT_LOAD_SPECS = ['400 14px "Inter Variable"', '600 14px "Inter Variable"'];
 
 /**
- * Eagerly load the bundled named fonts, then call `onCleared`
+ * Eagerly load the bundled named webfonts, then call `onCleared`
  * (which should invoke `caches.clearTextMeasure()` + `virtualizer.measure()`).
  *
  * Using `document.fonts.load(spec)` instead of `document.fonts.ready` ensures
