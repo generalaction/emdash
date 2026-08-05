@@ -288,6 +288,13 @@
       "when": 1785966068641,
       "tag": "0040_workspace_registry_status_collapse",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1785972001224,
+      "tag": "0041_workspace_registry_legacy_columns",
+      "breakpoints": true
     }
   ]
 }

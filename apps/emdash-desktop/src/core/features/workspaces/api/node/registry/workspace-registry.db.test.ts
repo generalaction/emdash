@@ -57,17 +57,24 @@ describe('WorkspaceRegistry', () => {
     registry.refresh('workspace', {
       path: '/new',
       observedStatus: 'present',
-      observedGitBranch: 'main',
-      observedData: { version: '1', dirty: true },
-      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedGit: {
+        version: '1',
+        branch: 'main',
+        dirty: true,
+        diffStats: null,
+        ahead: null,
+        behind: null,
+        locked: false,
+        prunable: false,
+      },
+      observedAt: Date.parse('2026-01-01T00:00:00.000Z'),
     });
 
     expect(registry.getLive('workspace')).toMatchObject({
       path: '/new',
       observedStatus: 'present',
-      observedGitBranch: 'main',
-      observedData: { version: '1', dirty: true },
-      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedGit: { version: '1', branch: 'main', dirty: true },
+      observedAt: Date.parse('2026-01-01T00:00:00.000Z'),
       updatedAt: '2026-01-02T00:00:00.000Z',
     });
   });
@@ -86,7 +93,7 @@ describe('WorkspaceRegistry', () => {
       registry.untrack(
         ['workspace'],
         '2026-01-01T00:00:00.000Z',
-        { observedStatus: 'missing', lastObservedAt: '2026-01-01T00:00:00.000Z' },
+        { observedStatus: 'missing', observedAt: Date.parse('2026-01-01T00:00:00.000Z') },
         tx
       )
     );

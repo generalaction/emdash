@@ -232,5 +232,23 @@
     "tag": "0038_conversation_task_cascade_retirement",
     "when": 1785899023869,
     "hash": "555f8b08ed90a1572e594e34c1e21899d26c557a5d9d3a2b92f4fff67215ebfd"
+  },
+  {
+    "idx": 39,
+    "tag": "0039_workspace_registry_mirror_columns",
+    "when": 1785966057687,
+    "hash": "fa6ecbfec8ee4f540716dc02f3fbdb457fd8039e92632565b364aaa7dc893007"
+  },
+  {
+    "idx": 40,
+    "tag": "0040_workspace_registry_status_collapse",
+    "when": 1785966068641,
+    "hash": "74b9d59582bbc497100fd9b2a4ee2f4be710ccab21674a528ffa4f45ea79344b"
+  },
+  {
+    "idx": 41,
+    "tag": "0041_workspace_registry_legacy_columns",
+    "when": 1785972001224,
+    "hash": "53fd047fb2852bfecc56b8ce3f54362e25931756916d6ddf5635715765fb8a35"
   }
 ]

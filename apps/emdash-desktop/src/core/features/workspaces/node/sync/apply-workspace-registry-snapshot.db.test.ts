@@ -102,10 +102,6 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       lastCreateOutcome: { version: '1', status: 'succeeded' },
       runtimeOverlay: null,
       observedAt: Date.parse('2026-01-03T00:00:00.000Z'),
-      // Legacy read paths stay live until the read rewiring lands.
-      observedGitBranch: 'feature/x',
-      linesAdded: 12,
-      linesDeleted: 3,
       location: 'local',
       sshConnectionId: null,
     });
@@ -131,9 +127,6 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       location: 'local',
       path: '/worktrees/wt-1',
       config: { version: '2', git: { kind: 'none' }, workspace: { kind: 'new-worktree' } },
-      observedGitBranch: 'stale-branch',
-      linesAdded: 999,
-      linesDeleted: 999,
     });
 
     const withOverlay = await applyWorkspaceRegistrySnapshot({
@@ -157,9 +150,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
     });
     expect(withOverlay).toEqual({ adopted: 0, refreshed: 1, markedMissing: 0, untracked: 0 });
     expect(registry.getLive('wt-1')).toMatchObject({
-      observedGitBranch: 'feature/x',
-      linesAdded: 12,
-      linesDeleted: 3,
+      observedGit: { branch: 'feature/x', diffStats: { added: 12, deleted: 3 } },
       lastActivatedAt: Date.parse('2026-01-05T00:00:00.000Z'),
       runtimeOverlay: { version: '1', activation: { phase: 'active' } },
       // The rich-provenance annotation is client-owned; the snapshot cannot touch it.

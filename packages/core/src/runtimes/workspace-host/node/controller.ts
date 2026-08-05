@@ -20,7 +20,6 @@ export function createWorkspaceHostController(
   return withValidation(
     contract,
     createController(contract, {
-      snapshotRepository: (input) => runtime.snapshotRepository(input),
       submitOperation: (input) => runtime.submitOperation(input),
       getOperation: (input) => runtime.getOperation(input.operationId),
       initializeWorkspace: (input, meta) => runtime.initializeWorkspace(input, meta.signal),

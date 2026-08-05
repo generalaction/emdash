@@ -72,10 +72,8 @@ import {
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
-import type { SnapshotRequester } from '@core/features/workspaces/node/sync/snapshot-requester';
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
-import { WorkspaceSnapshotSyncService } from '@core/features/workspaces/node/sync/workspace-snapshot-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
@@ -155,7 +153,6 @@ export type ServicesBundle = {
   readonly taskService: TaskService;
   readonly taskSessions: TaskSessionManager;
   readonly workspacePlacement: WorkspacePlacementResolver;
-  readonly workspaceSnapshotSync: WorkspaceSnapshotSyncService;
   readonly conversationSync: ConversationSyncService;
 };
 
@@ -513,15 +510,7 @@ export async function bootServices(
       ),
   };
   const desktopClientId = await getDesktopClientId();
-  const workspaceSnapshotSync = new WorkspaceSnapshotSyncService({
-    db,
-    runtimes,
-    scope: appScope,
-    onError: (context, error) => log.warn(context, { error }),
-  });
-  const snapshotRequester: SnapshotRequester = workspaceSnapshotSync;
-  // Push-based mirror of each host's workspace registry (ADR 0005); the pull-based
-  // snapshot service above keeps running until its consumers are rewired away.
+  // Push-based mirror of each host's workspace registry (ADR 0005).
   const workspaceRegistrySync = new WorkspaceRegistrySyncService({
     db,
     runtimes,
@@ -615,15 +604,6 @@ export async function bootServices(
   void sessionHygieneSweep.runNow().catch((error) => {
     log.warn('session hygiene sweep failed', { error: String(error) });
   });
-  const handleWorkspaceSnapshotSshEvent = (event: { type: string; connectionId?: string }) => {
-    if (event.connectionId && (event.type === 'connected' || event.type === 'reconnected')) {
-      void snapshotRequester.requestHost(event.connectionId, 'presence');
-    }
-  };
-  infrastructure.ssh.manager.on('connection-event', handleWorkspaceSnapshotSshEvent);
-  appScope.add(() => {
-    infrastructure.ssh.manager.off('connection-event', handleWorkspaceSnapshotSshEvent);
-  });
   const handleConversationSyncSshEvent = (event: { type: string; connectionId?: string }) => {
     if (!event.connectionId) return;
     if (event.type === 'connected' || event.type === 'reconnected') {
@@ -641,10 +621,6 @@ export async function bootServices(
   appScope.add(() => {
     infrastructure.ssh.manager.off('connection-event', handleConversationSyncSshEvent);
   });
-  const unsubscribeWorkspaceSnapshotProjects = projectManager.on('projectOpened', (projectId) => {
-    void workspaceSnapshotSync.requestProject(projectId, 'full');
-  });
-  appScope.add(unsubscribeWorkspaceSnapshotProjects);
   registerProviderTokenHandlers();
   return {
     account: accountService,
@@ -663,7 +639,6 @@ export async function bootServices(
     taskService,
     taskSessions: taskSessionManager,
     workspacePlacement,
-    workspaceSnapshotSync,
     conversationSync,
   };
 }

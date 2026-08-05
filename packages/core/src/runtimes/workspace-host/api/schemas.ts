@@ -6,69 +6,12 @@ import {
 import { hostAbsolutePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
 
-export const workspaceHostSnapshotTierSchema = z.enum(['presence', 'full']);
-export type WorkspaceHostSnapshotTier = z.infer<typeof workspaceHostSnapshotTierSchema>;
-
-export const workspaceHostSnapshotRequestSchema = z.object({
-  repoRoot: hostAbsolutePathSchema,
-  tier: workspaceHostSnapshotTierSchema,
-});
-export type WorkspaceHostSnapshotRequest = z.infer<typeof workspaceHostSnapshotRequestSchema>;
-
-export const workspaceHostDiffStatsSchema = z.object({
-  added: z.number().int().nonnegative(),
-  deleted: z.number().int().nonnegative(),
-});
-export type WorkspaceHostDiffStats = z.infer<typeof workspaceHostDiffStatsSchema>;
-
 export const workspaceHostWorktreeHeadSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('branch'), name: z.string() }),
   z.object({ kind: z.literal('detached') }),
   z.object({ kind: z.literal('unborn'), name: z.string() }),
 ]);
 export type WorkspaceHostWorktreeHead = z.infer<typeof workspaceHostWorktreeHeadSchema>;
-
-export const workspaceHostWorktreeObservationSchema = z.object({
-  path: hostAbsolutePathSchema,
-  adminName: z.string().optional(),
-  isMain: z.boolean(),
-  head: workspaceHostWorktreeHeadSchema,
-  branch: z.string().nullable(),
-  locked: z.boolean().optional(),
-  prunable: z.boolean().optional(),
-  prunableReason: z.string().optional(),
-  status: z.enum(['present', 'corrupted']),
-  corruptionReason: z.string().optional(),
-  dirty: z.boolean().optional(),
-  diffStats: workspaceHostDiffStatsSchema.optional(),
-  ahead: z.number().int().nonnegative().optional(),
-  behind: z.number().int().nonnegative().optional(),
-});
-export type WorkspaceHostWorktreeObservation = z.infer<
-  typeof workspaceHostWorktreeObservationSchema
->;
-
-export const workspaceHostRepositoryObservationSchema = z.object({
-  path: hostAbsolutePathSchema,
-  status: z.enum(['present', 'corrupted']),
-  defaultBranch: z.string().optional(),
-  corruptionReason: z.string().optional(),
-});
-export type WorkspaceHostRepositoryObservation = z.infer<
-  typeof workspaceHostRepositoryObservationSchema
->;
-
-export const workspaceHostRepoSnapshotSchema = z
-  .object({
-    repoRoot: hostAbsolutePathSchema,
-    scannedAt: z.number().int(),
-    tier: workspaceHostSnapshotTierSchema,
-    repository: workspaceHostRepositoryObservationSchema,
-    worktrees: z.array(workspaceHostWorktreeObservationSchema),
-  })
-  .brand<'successful-repo-snapshot'>();
-export type WorkspaceHostRepoSnapshotInput = z.input<typeof workspaceHostRepoSnapshotSchema>;
-export type WorkspaceHostRepoSnapshot = z.infer<typeof workspaceHostRepoSnapshotSchema>;
 
 export const workspaceHostErrorSchema = z.object({
   type: z.enum([

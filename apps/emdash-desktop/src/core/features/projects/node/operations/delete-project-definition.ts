@@ -166,8 +166,8 @@ export function createDeleteProjectOperationDefinition(
         projectPath: project?.repositoryPath ?? undefined,
         workspacePath: workspace?.path ?? undefined,
         branchName: workspace ? (getProvisionedWorkspaceBranch(workspace) ?? undefined) : undefined,
-        // Worktree removal is queued as host-remove-worktree outbox entries at
-        // enqueue time; children only purge desktop rows.
+        // Worktree removal runs through the registry deleteWorktree verb after
+        // the tombstone; children only purge desktop rows.
         deleteWorktree: false,
         deleteBranch: false,
         workspaceShared: workspaceAlreadyClaimed,
@@ -350,7 +350,6 @@ type ProjectRegistryRow = {
   location: 'local' | 'remote' | null;
   sshConnectionId: string | null;
   observedStatus: string | null;
-  lastObservedAt: string | null;
 };
 
 /** Tracked registry rows referenced by the project: task workspaces + the repository row. */
@@ -376,7 +375,6 @@ async function loadProjectRegistryRows(
       location: workspaces.location,
       sshConnectionId: workspaces.sshConnectionId,
       observedStatus: workspaces.observedStatus,
-      lastObservedAt: workspaces.lastObservedAt,
     })
     .from(workspaces)
     .where(and(inArray(workspaces.id, [...candidateIds]), liveWorkspaces()));

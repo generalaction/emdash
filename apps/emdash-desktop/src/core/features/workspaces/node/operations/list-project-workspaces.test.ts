@@ -201,12 +201,11 @@ function observedGit(overrides: Record<string, unknown>) {
   return {
     version: '1',
     branch: null,
-    head: null,
     dirty: false,
     diffStats: null,
     ahead: null,
     behind: null,
-    upstream: null,
+    locked: false,
     prunable: false,
     ...overrides,
   };

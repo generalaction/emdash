@@ -101,8 +101,7 @@ export type TaskStatsData = {
     string,
     {
       path: string | null;
-      observedStatus: 'present' | 'missing' | 'corrupted' | null;
-      corruptionReason?: string;
+      observedStatus: 'present' | 'missing' | null;
     }
   >;
 };

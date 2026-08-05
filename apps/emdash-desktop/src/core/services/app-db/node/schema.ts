@@ -19,7 +19,6 @@ import { linkedIssue } from '@core/primitives/linked-issues/api';
 import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
-import { workspaceObservedData } from '@core/primitives/workspaces/api';
 import {
   workspaceCreateOutcome,
   workspaceObservedGit,
@@ -200,13 +199,9 @@ export const workspaces = sqliteTable(
     path: text('path'),
     /** The rich-provenance annotation (client-owned); adopted rows have none. */
     config: versionedJsonColumn(workspaceConfig)('config'),
-    linesAdded: integer('lines_added'), // @deprecated — use observedGit.diffStats
-    linesDeleted: integer('lines_deleted'), // @deprecated — use observedGit.diffStats
     /** How the row entered the host registry: explicit registration or host adoption. */
     origin: text('origin').$type<'registered' | 'adopted'>(),
     observedStatus: text('observed_status').$type<'present' | 'missing'>(),
-    observedGitBranch: text('observed_git_branch'), // @deprecated — use observedGit.branch
-    observedData: versionedJsonColumn(workspaceObservedData)('observed_data'), // @deprecated — use observedGit
     // Host registry observations (ADR 0005): refreshed wholesale on every `records`
     // delivery. Timestamps are epoch-ms as delivered.
     observedGit: versionedJsonColumn(workspaceObservedGit)('observed_git'),
@@ -216,7 +211,6 @@ export const workspaces = sqliteTable(
     lastActivatedAt: integer('last_activated_at'),
     /** Epoch-ms host observation stamp for the registry sync path. */
     observedAt: integer('observed_at'),
-    lastObservedAt: text('last_observed_at'), // @deprecated — use observedAt
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

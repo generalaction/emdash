@@ -114,8 +114,8 @@ type LifecycleSessionTargets = {
 /**
  * Desktop-plane task deletion: tombstone confirmed at enqueue, this handler
  * kills the task's agent sessions (best effort — the host session GC reaps
- * anything unreachable) and purges desktop rows. Worktree removal is a
- * separate `host-remove-worktree` outbox entry enqueued alongside it.
+ * anything unreachable) and purges desktop rows. Worktree removal runs
+ * through the registry `deleteWorktree` verb before this is enqueued.
  */
 export function createDeleteTaskOperationDefinition(
   dependencies: DeleteTaskOperationDependencies,

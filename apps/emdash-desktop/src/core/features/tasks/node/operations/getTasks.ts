@@ -50,9 +50,7 @@ export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
     ? await db
         .select({
           id: workspaces.id,
-          linesAdded: workspaces.linesAdded,
-          linesDeleted: workspaces.linesDeleted,
-          observedData: workspaces.observedData,
+          observedGit: workspaces.observedGit,
         })
         .from(workspaces)
         .where(and(inArray(workspaces.id, wsIds), liveWorkspaces()))
@@ -79,20 +77,9 @@ export async function getTasks(db: AppDb, projectId?: string): Promise<Task[]> {
 
 function workspaceGitStats(
   workspace:
-    | {
-        linesAdded: number | null;
-        linesDeleted: number | null;
-        observedData?: { diffStats?: { added?: number; deleted?: number } } | null;
-      }
+    | { observedGit: { diffStats: { added: number; deleted: number } | null } | null }
     | undefined
 ): Task['workspaceGit'] {
-  if (workspace?.observedData?.diffStats) {
-    return {
-      linesAdded: workspace.observedData.diffStats.added ?? 0,
-      linesDeleted: workspace.observedData.diffStats.deleted ?? 0,
-    };
-  }
-  return workspace?.linesAdded != null
-    ? { linesAdded: workspace.linesAdded, linesDeleted: workspace.linesDeleted ?? 0 }
-    : undefined;
+  const diffStats = workspace?.observedGit?.diffStats;
+  return diffStats ? { linesAdded: diffStats.added, linesDeleted: diffStats.deleted } : undefined;
 }

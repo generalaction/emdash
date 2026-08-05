@@ -111,15 +111,7 @@ function applyWorkspaceRegistrySnapshotTx(
     });
     if (annotated) {
       // Annotated rows stay visible as missing until the user acts.
-      registry.refresh(
-        row.id,
-        {
-          observedStatus: 'missing',
-          observedAt,
-          lastObservedAt: new Date(observedAt).toISOString(),
-        },
-        tx
-      );
+      registry.refresh(row.id, { observedStatus: 'missing', observedAt }, tx);
       counts.markedMissing += 1;
     } else {
       // Pure mirror entries follow the mirror.
@@ -204,11 +196,6 @@ export function mirrorObservationFromRecord(
     runtimeOverlay: record.runtime === null ? null : { version: '1' as const, ...record.runtime },
     lastActivatedAt: record.lastActivatedAt,
     observedAt,
-    // Legacy read paths keep working until read rewiring retires these columns.
-    observedGitBranch: record.git?.branch ?? null,
-    linesAdded: record.git?.diffStats?.added ?? null,
-    linesDeleted: record.git?.diffStats?.deleted ?? null,
-    lastObservedAt: new Date(observedAt).toISOString(),
     location: host.location,
     sshConnectionId: host.sshConnectionId,
   };

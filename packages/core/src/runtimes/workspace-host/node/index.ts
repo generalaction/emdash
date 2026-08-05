@@ -13,10 +13,6 @@ export {
   type WorkspaceHostRuntimeOptions,
 } from '@runtimes/workspace-host/node/workspace-host-runtime';
 export {
-  scanRepository,
-  type ScanRepositoryOptions,
-} from '@runtimes/workspace-host/node/scanner/scan-repository';
-export {
   killSessionsUnderPath,
   type WorkspaceHostSessionClients,
 } from '@runtimes/workspace-host/node/session/session-cleanup';

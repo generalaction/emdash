@@ -23,10 +23,8 @@ import {
   type WorkspaceHostOperationInput,
   type WorkspaceHostOperationView,
   type WorkspaceHostOperationsList,
-  type WorkspaceHostRepoSnapshot,
   type WorkspaceHostRunScriptRequest,
   type WorkspaceHostRunScriptResult,
-  type WorkspaceHostSnapshotRequest,
   type WorkspaceHostSubmitOperationResult,
   type WorkspaceHostUsage,
 } from '../api';
@@ -37,7 +35,6 @@ import {
   type GitExecFactory,
 } from './handlers';
 import { measureWorkspaceUsage } from './measure-usage';
-import { scanRepository, type ScanRepositoryOptions } from './scanner/scan-repository';
 import { WorkspaceInitManager, type WorkspaceNotice } from './session-init/workspace-init-manager';
 import type { WorkspaceHostSessionClients } from './session/session-cleanup';
 
@@ -53,7 +50,6 @@ export interface WorkspaceHostRuntimeOptions {
   sessions: WorkspaceHostSessionClients;
   scope?: Scope;
   createGitExec?: GitExecFactory;
-  scanOptions?: Omit<ScanRepositoryOptions, 'exec'>;
   now?: () => number;
 }
 
@@ -147,12 +143,6 @@ export class WorkspaceHostRuntime {
 
     void this.engine.recover().then(() => this.refreshOperations());
     options.scope?.add(() => this.dispose());
-  }
-
-  async snapshotRepository(
-    request: WorkspaceHostSnapshotRequest
-  ): Promise<Result<WorkspaceHostRepoSnapshot, WorkspaceHostError>> {
-    return scanRepository(request, this.options.scanOptions);
   }
 
   async submitOperation(

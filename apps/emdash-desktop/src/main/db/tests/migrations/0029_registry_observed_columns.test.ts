@@ -23,29 +23,21 @@ describe('0029 registry observed columns', () => {
       name: string;
     }[];
 
-    expect(columns.map((column) => column.name)).toEqual(
-      expect.arrayContaining([
-        'parent_id',
-        'observed_status',
-        'observed_git_branch',
-        'observed_data',
-        'last_observed_at',
-      ])
-    );
+    const names = columns.map((column) => column.name);
+    expect(names).toEqual(expect.arrayContaining(['parent_id', 'observed_status']));
+    // The 0029 pull-scan observation columns were dropped again at head (0041)
+    // once the push-based observed_git block replaced them.
+    expect(names).not.toContain('observed_git_branch');
+    expect(names).not.toContain('observed_data');
+    expect(names).not.toContain('last_observed_at');
 
     const row = fixture.sqlite
-      .prepare(
-        `SELECT observed_status, observed_git_branch, observed_data, last_observed_at
-         FROM workspaces
-         WHERE id = ?`
-      )
+      .prepare(`SELECT observed_status, observed_git FROM workspaces WHERE id = ?`)
       .get(PROJECT_A_REPOSITORY_WORKSPACE_ID);
 
     expect(row).toEqual({
       observed_status: null,
-      observed_git_branch: null,
-      observed_data: null,
-      last_observed_at: null,
+      observed_git: null,
     });
   });
 

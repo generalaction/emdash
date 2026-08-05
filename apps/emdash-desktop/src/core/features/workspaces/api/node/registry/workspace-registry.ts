@@ -1,5 +1,4 @@
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
-import type { WorkspaceObservedData } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import {
   workspaces,
@@ -10,9 +9,6 @@ import {
 type WorkspaceObservation = Readonly<{
   path?: string | null;
   observedStatus?: WorkspaceRow['observedStatus'];
-  observedGitBranch?: string | null;
-  observedData?: WorkspaceObservedData | null;
-  lastObservedAt: string;
   // Host registry observations (ADR 0005): pushed by the records sync, refreshed
   // wholesale. Structural facts (kind, parentId, origin, host identity) are host-owned
   // there too, so they refresh rather than annotate.
@@ -26,22 +22,12 @@ type WorkspaceObservation = Readonly<{
   runtimeOverlay?: WorkspaceRow['runtimeOverlay'];
   lastActivatedAt?: number | null;
   observedAt?: number | null;
-  linesAdded?: number | null;
-  linesDeleted?: number | null;
 }>;
 
 type WorkspaceAnnotation = Partial<
   Pick<
     WorkspaceInsert,
-    | 'type'
-    | 'kind'
-    | 'location'
-    | 'sshConnectionId'
-    | 'parentId'
-    | 'path'
-    | 'config'
-    | 'linesAdded'
-    | 'linesDeleted'
+    'type' | 'kind' | 'location' | 'sshConnectionId' | 'parentId' | 'path' | 'config'
   >
 >;
 
@@ -136,9 +122,7 @@ export class WorkspaceRegistry {
   untrack(
     ids: readonly string[],
     untrackedAt: string,
-    observation?: Partial<
-      Pick<WorkspaceObservation, 'observedStatus' | 'lastObservedAt' | 'observedData'>
-    >,
+    observation?: Partial<Pick<WorkspaceObservation, 'observedStatus' | 'observedAt'>>,
     tx?: DrizzleTx
   ): number {
     if (ids.length === 0) return 0;
