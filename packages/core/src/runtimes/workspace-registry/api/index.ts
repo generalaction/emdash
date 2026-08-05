@@ -1,0 +1,36 @@
+export { workspaceRegistryContract, type WorkspaceRegistryContract } from './contract';
+export {
+  createWorkspaceErrorSchema,
+  deleteWorkspaceErrorSchema,
+  workspaceNotFoundErrorSchema,
+  type CreateWorkspaceError,
+  type DeleteWorkspaceError,
+  type WorkspaceNotFoundError,
+} from './errors';
+export {
+  createWorkspaceInputSchema,
+  deleteWorkspaceInputSchema,
+  workspaceCreateOutcomeSchema,
+  workspaceCreationSchema,
+  workspaceGitObservationsSchema,
+  workspaceKindSchema,
+  workspaceNoticeSchema,
+  workspaceObservedStatusSchema,
+  workspaceOriginSchema,
+  workspaceRecordSchema,
+  workspaceRecordsSchema,
+  workspaceRuntimeOverlaySchema,
+  type CreateWorkspaceInput,
+  type DeleteWorkspaceInput,
+  type WorkspaceCreateOutcome,
+  type WorkspaceCreation,
+  type WorkspaceGitObservations,
+  type WorkspaceKind,
+  type WorkspaceNotice,
+  type WorkspaceObservedStatus,
+  type WorkspaceOrigin,
+  type WorkspaceRecord,
+  type WorkspaceRecords,
+  type WorkspaceRuntimeOverlay,
+} from './schemas';
+export { workspaceRegistryWorker } from './worker';

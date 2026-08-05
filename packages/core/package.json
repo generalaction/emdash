@@ -297,6 +297,14 @@
       "types": "./dist/runtimes-workspace-host-node.d.mts",
       "default": "./dist/runtimes-workspace-host-node.mjs"
     },
+    "./runtimes/workspace-registry/api": {
+      "types": "./dist/runtimes-workspace-registry-api.d.mts",
+      "default": "./dist/runtimes-workspace-registry-api.mjs"
+    },
+    "./runtimes/workspace-registry/node": {
+      "types": "./dist/runtimes-workspace-registry-node.d.mts",
+      "default": "./dist/runtimes-workspace-registry-node.mjs"
+    },
     "./runtimes/resource-usage/api": {
       "types": "./dist/runtimes-resource-usage-api.d.mts",
       "default": "./dist/runtimes-resource-usage-api.mjs"
@@ -326,7 +334,8 @@
     "db:generate:automations": "drizzle-kit generate --config drizzle-automations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/automations/node/persistence/migrations",
     "db:generate:conversations": "drizzle-kit generate --config drizzle-conversations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/conversations/node/persistence/migrations",
     "db:generate:operations": "drizzle-kit generate --config drizzle-operations.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/primitives/kernel/sqlite/migrations",
-    "db:generate:file-search": "drizzle-kit generate --config drizzle-file-search.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/file-search/node/storage/migrations"
+    "db:generate:file-search": "drizzle-kit generate --config drizzle-file-search.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/file-search/node/storage/migrations",
+    "db:generate:workspace-registry": "drizzle-kit generate --config drizzle-workspace-registry.config.ts && tsx scripts/bundle-drizzle-migrations.ts src/runtimes/workspace-registry/node/persistence/migrations"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",

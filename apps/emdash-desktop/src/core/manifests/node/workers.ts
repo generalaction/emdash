@@ -9,6 +9,7 @@ import { resourceUsageWorker } from '../../../../../../packages/core/src/runtime
 import { terminalsWorker } from '../../../../../../packages/core/src/runtimes/terminals/api/worker';
 import { tuiAgentsWorker } from '../../../../../../packages/core/src/runtimes/tui-agents/api/worker';
 import { workspaceHostWorker } from '../../../../../../packages/core/src/runtimes/workspace-host/api/worker';
+import { workspaceRegistryWorker } from '../../../../../../packages/core/src/runtimes/workspace-registry/api/worker';
 import { fsWatchWorker } from '../../../../../../packages/core/src/services/fs-watch/api/worker';
 import { mementosWorker } from '../../services/mementos/contributions/worker';
 import { pullRequestsWorker } from '../../services/pull-requests/contributions/worker';
@@ -71,6 +72,10 @@ export const desktopWorkers = {
   [workspaceHostWorker.id]: desktopRuntimeWorker(
     workspaceHostWorker,
     '../../packages/core/src/runtimes/workspace-host/node/runtime-entry.ts'
+  ),
+  [workspaceRegistryWorker.id]: desktopRuntimeWorker(
+    workspaceRegistryWorker,
+    '../../packages/core/src/runtimes/workspace-registry/node/runtime-entry.ts'
   ),
 } as const;
 

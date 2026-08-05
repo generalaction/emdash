@@ -22,6 +22,8 @@ import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
+import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
+import { workspaceRegistryComponent } from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
@@ -52,6 +54,7 @@ export type WorkspaceServerRuntimeClients = {
   terminals: ContractClient<TerminalsContract>;
   tuiAgents: ContractClient<TuiAgentsContract>;
   workspaceHost: ContractClient<WorkspaceHostContract>;
+  workspaceRegistry: ContractClient<WorkspaceRegistryContract>;
 };
 
 export type WorkspaceServerRuntimeHost = {
@@ -118,6 +121,17 @@ export async function createWorkspaceServerRuntimeHost(
     env,
     dependencies: {},
     config: { databasePath: paths.conversationsDatabase },
+    shutdownGraceMs: 3_000,
+  });
+  // The workspace registry depends on nothing and owns its database exclusively (ADR
+  // 0005). Default supervision (restart on failure) is deliberate: a durable index
+  // should come back; its runtime overlay is ephemeral by design.
+  const workspaceRegistryPromise = workerHost.spawn(workspaceRegistryComponent, {
+    name: 'workspace-registry',
+    executable: workspaceWorkerPath('workspace-registry'),
+    env,
+    dependencies: {},
+    config: { databasePath: paths.workspaceRegistryDatabase },
     shutdownGraceMs: 3_000,
   });
   const watcherPromise = workerHost.spawn(fsWatchComponent, {
@@ -192,16 +206,25 @@ export async function createWorkspaceServerRuntimeHost(
     })
   );
 
-  const [conversations, watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] =
-    await Promise.all([
-      conversationsPromise,
-      watcherPromise,
-      terminalsPromise,
-      resourceUsagePromise,
-      acpPromise,
-      agentConfigPromise,
-      tuiAgentsPromise,
-    ]);
+  const [
+    conversations,
+    workspaceRegistry,
+    watcher,
+    terminals,
+    resourceUsage,
+    acp,
+    agentConfig,
+    tuiAgents,
+  ] = await Promise.all([
+    conversationsPromise,
+    workspaceRegistryPromise,
+    watcherPromise,
+    terminalsPromise,
+    resourceUsagePromise,
+    acpPromise,
+    agentConfigPromise,
+    tuiAgentsPromise,
+  ]);
 
   const filesPromise = workerHost.spawn(filesComponent, {
     name: 'files',
@@ -272,6 +295,7 @@ export async function createWorkspaceServerRuntimeHost(
       terminals,
       tuiAgents,
       workspaceHost,
+      workspaceRegistry,
     },
     hostDependencies: hostDependencies.client,
   };

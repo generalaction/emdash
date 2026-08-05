@@ -74,6 +74,8 @@ export default defineConfig({
     'runtimes-terminals-node': 'src/runtimes/terminals/node/index.ts',
     'runtimes-workspace-host-api': 'src/runtimes/workspace-host/api/index.ts',
     'runtimes-workspace-host-node': 'src/runtimes/workspace-host/node/index.ts',
+    'runtimes-workspace-registry-api': 'src/runtimes/workspace-registry/api/index.ts',
+    'runtimes-workspace-registry-node': 'src/runtimes/workspace-registry/node/index.ts',
     'runtimes-resource-usage-api': 'src/runtimes/resource-usage/api/index.ts',
     'runtimes-resource-usage-node': 'src/runtimes/resource-usage/node/index.ts',
     'workspace-server': 'src/workspace-server/index.ts',

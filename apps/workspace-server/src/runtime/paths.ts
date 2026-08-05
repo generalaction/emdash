@@ -11,6 +11,7 @@ export type WorkspaceServerRuntimePaths = {
   automationsDatabase: string;
   conversationsDatabase: string;
   fileSearchDatabase: string;
+  workspaceRegistryDatabase: string;
   hostDependenciesStore: string;
 };
 
@@ -30,6 +31,7 @@ export function workspaceServerRuntimePaths(socketPath?: string): WorkspaceServe
     automationsDatabase: join(stateDirectory, 'automations.db'),
     conversationsDatabase: join(stateDirectory, 'conversations.db'),
     fileSearchDatabase: join(stateDirectory, 'file-search.db'),
+    workspaceRegistryDatabase: join(stateDirectory, 'workspace-registry.db'),
     hostDependenciesStore: join(stateDirectory, 'host-dependencies.json'),
   };
 }

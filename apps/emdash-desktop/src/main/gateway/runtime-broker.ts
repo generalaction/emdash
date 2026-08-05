@@ -62,6 +62,7 @@ async function resolveDesktopRuntimeClient(
     agentConfig: clients.agentConfig,
     terminals: clients.terminals,
     workspaceHost: clients.workspaceHost,
+    workspaceRegistry: clients.workspaceRegistry,
     resourceUsage: clients.resourceUsage,
     hostDependencies: clients.hostDependencies,
   });

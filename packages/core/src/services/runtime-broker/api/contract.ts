@@ -10,6 +10,7 @@ import { resourceUsageContract } from '../../../runtimes/resource-usage/api';
 import { terminalsContract } from '../../../runtimes/terminals/api';
 import { tuiAgentsContract } from '../../../runtimes/tui-agents/api';
 import { workspaceHostContract } from '../../../runtimes/workspace-host/api';
+import { workspaceRegistryContract } from '../../../runtimes/workspace-registry/api';
 import { hostDependenciesContract } from '../../host-dependencies/api';
 
 /**
@@ -32,6 +33,7 @@ export const hostRuntimesDefinitions = {
   agentConfig: agentConfigContract,
   terminals: terminalsContract,
   workspaceHost: workspaceHostContract,
+  workspaceRegistry: workspaceRegistryContract,
   resourceUsage: resourceUsageContract,
   hostDependencies: hostDependenciesContract,
 } as const;

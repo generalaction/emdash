@@ -21,6 +21,8 @@ import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
+import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
+import { workspaceRegistryComponent } from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
 import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
@@ -68,6 +70,7 @@ export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
 export type WorkspaceHostRuntimeClient = ContractClient<WorkspaceHostContract>;
+export type WorkspaceRegistryRuntimeClient = ContractClient<WorkspaceRegistryContract>;
 
 export type DesktopRuntimeClients = {
   readonly acp: AcpRuntimeClient;
@@ -84,6 +87,7 @@ export type DesktopRuntimeClients = {
   readonly terminals: TerminalsRuntimeClient;
   readonly tuiAgents: TuiAgentsRuntimeClient;
   readonly workspaceHost: WorkspaceHostRuntimeClient;
+  readonly workspaceRegistry: WorkspaceRegistryRuntimeClient;
 };
 
 export type DesktopRuntimeWorkers = {
@@ -169,6 +173,20 @@ async function startDesktopWorkersWithHost(
     shutdownGraceMs: 3_000,
   });
   const conversationsReady = conversationsWorker.ready();
+  // The workspace registry depends on nothing and owns its database exclusively (ADR
+  // 0005). Default supervision (restart on failure) is deliberate: a durable index
+  // should come back; its runtime overlay is ephemeral by design.
+  const workspaceRegistryWorker = host.create(workspaceRegistryComponent, {
+    name: 'workspace-registry',
+    executable: desktopWorkerPath('workspace-registry'),
+    env: process.env,
+    dependencies: {},
+    config: {
+      databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
+    },
+    shutdownGraceMs: 3_000,
+  });
+  const workspaceRegistryReady = workspaceRegistryWorker.ready();
   const acpStart = conversationsReady.then(async (conversations) => {
     const worker = host.create(createAcpComponent({ pluginRegistry, logger: log }), {
       name: 'acp',
@@ -364,6 +382,7 @@ async function startDesktopWorkersWithHost(
     terminals,
     tuiAgentsResult,
     workspaceHost,
+    workspaceRegistry,
   ] = await Promise.all([
     acpReady,
     agentConfigReady,
@@ -378,6 +397,7 @@ async function startDesktopWorkersWithHost(
     terminalsReady,
     tuiAgentsReady,
     workspaceHostReady,
+    workspaceRegistryReady,
   ]);
   const automations = automationsResult.client;
   const tuiAgents = tuiAgentsResult.client;
@@ -399,6 +419,7 @@ async function startDesktopWorkersWithHost(
       terminals,
       tuiAgents,
       workspaceHost,
+      workspaceRegistry,
     },
     workers: {
       acp: (await acpStart).worker,

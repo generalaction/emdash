@@ -74,6 +74,10 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
       workspaceWireContract.workspaceHost,
       deps.runtimes.workspaceHost
     ),
+    workspaceRegistry: forwardContractImpl(
+      workspaceWireContract.workspaceRegistry,
+      deps.runtimes.workspaceRegistry
+    ),
     hostDependencies: forwardContractImpl(
       workspaceWireContract.hostDependencies,
       deps.hostDependencies
