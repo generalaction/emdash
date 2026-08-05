@@ -1,13 +1,17 @@
 import { once } from '@emdash/shared';
 import type { IFilesRuntime } from '@main/core/runtime/types';
+import { log } from '@main/lib/logger';
 import type { Workspace } from './workspace';
 
 export type TeardownMode = 'detach' | 'terminate';
+export type WorkspaceTeardownMode = TeardownMode | 'archive' | 'terminate-provider';
 
 type WorkspaceHooks = {
   onCreate?: (workspace: Workspace) => Promise<void>;
   onCreateSideEffect?: (workspace: Workspace) => void;
+  onArchive?: (workspace: Workspace) => Promise<void>;
   onDestroy?: (workspace: Workspace) => Promise<void>;
+  onProviderDestroy?: (workspace: Workspace) => Promise<void>;
   onDetach?: (workspace: Workspace) => Promise<void>;
 };
 
@@ -24,11 +28,38 @@ type WorkspaceEntry = {
   sshFilesRuntime?: IFilesRuntime;
   refCount: number;
   projectId: string;
+  onArchive?: (workspace: Workspace) => Promise<void>;
   onDestroy?: (workspace: Workspace) => Promise<void>;
+  onProviderDestroy?: (workspace: Workspace) => Promise<void>;
   onDetach?: (workspace: Workspace) => Promise<void>;
   /** Single-flight release of the workspace's native leases. */
   release: () => Promise<void>;
 };
+
+async function releaseWorkspaceEntry(entry: WorkspaceEntry): Promise<void> {
+  let releaseFailed = false;
+  let releaseError: unknown;
+  try {
+    await entry.release();
+  } catch (error) {
+    releaseFailed = true;
+    releaseError = error;
+  }
+  try {
+    await entry.workspace.lifecycleService.dispose();
+  } catch (error) {
+    if (releaseFailed) {
+      log.warn('WorkspaceRegistry: lifecycle cleanup also failed after release error', {
+        workspaceId: entry.workspace.id,
+        error: String(error),
+      });
+    } else {
+      releaseFailed = true;
+      releaseError = error;
+    }
+  }
+  if (releaseFailed) throw releaseError;
+}
 
 export class WorkspaceRegistry {
   private entries = new Map<string, WorkspaceEntry>();
@@ -61,7 +92,9 @@ export class WorkspaceRegistry {
           sshFilesRuntime: result.sshFilesRuntime,
           refCount: 1,
           projectId,
+          onArchive: result.onArchive,
           onDestroy: result.onDestroy,
+          onProviderDestroy: result.onProviderDestroy,
           onDetach: result.onDetach,
           release: once(async () => {
             await workspace.dispose?.();
@@ -83,7 +116,7 @@ export class WorkspaceRegistry {
     return pending;
   }
 
-  async teardown(key: string, mode: TeardownMode = 'terminate'): Promise<void> {
+  async teardown(key: string, mode: WorkspaceTeardownMode = 'terminate'): Promise<void> {
     const entry = this.entries.get(key);
     if (!entry) {
       const inFlight = this.acquiring.get(key);
@@ -100,11 +133,41 @@ export class WorkspaceRegistry {
     }
 
     this.entries.delete(key);
-    if (mode === 'terminate') {
-      await entry.onDestroy?.(entry.workspace);
+    let hookFailed = false;
+    let hookError: unknown;
+    let releaseFailed = false;
+    let releaseError: unknown;
+    try {
+      if (mode === 'archive') {
+        await entry.onArchive?.(entry.workspace);
+      } else if (mode === 'terminate-provider') {
+        await entry.onProviderDestroy?.(entry.workspace);
+      } else if (mode === 'terminate') {
+        await entry.onDestroy?.(entry.workspace);
+      }
+    } catch (error) {
+      hookFailed = true;
+      hookError = error;
+    } finally {
+      try {
+        await releaseWorkspaceEntry(entry);
+      } catch (error) {
+        releaseFailed = true;
+        releaseError = error;
+      }
     }
-    await entry.release();
-    await entry.workspace.lifecycleService.dispose();
+
+    if (hookFailed) {
+      if (releaseFailed) {
+        log.warn('WorkspaceRegistry: workspace cleanup also failed after teardown hook error', {
+          workspaceId: entry.workspace.id,
+          error: String(releaseError),
+        });
+      }
+      throw hookError;
+    }
+    if (releaseFailed) throw releaseError;
+
     if (mode === 'detach') {
       await entry.onDetach?.(entry.workspace);
     }

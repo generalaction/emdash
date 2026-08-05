@@ -1,13 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskProvider } from '../projects/project-provider';
-import { executeTeardown } from './task-session-manager';
+import { executeTeardown, taskSessionManager } from './task-session-manager';
 
-const teardown = vi.fn();
+const mocks = vi.hoisted(() => ({
+  clearTaskResourceTeardown: vi.fn(),
+  persistTaskResourceTeardown: vi.fn(),
+  teardown: vi.fn(),
+}));
 
 vi.mock('@main/core/workspaces/workspace-registry', () => ({
   workspaceRegistry: {
-    teardown: (...args: unknown[]) => teardown(...args),
+    teardown: (...args: unknown[]) => mocks.teardown(...args),
   },
+}));
+
+vi.mock('@main/core/tasks/task-resource-teardown-state', () => ({
+  clearTaskResourceTeardown: mocks.clearTaskResourceTeardown,
+}));
+
+vi.mock('./operations/persistTaskResourceTeardown', () => ({
+  persistTaskResourceTeardown: mocks.persistTaskResourceTeardown,
 }));
 
 // session-targets pulls in the real DB client; it is only used by the fallback path,
@@ -36,7 +48,7 @@ describe('executeTeardown', () => {
     expect(terminals.detachAll).toHaveBeenCalledTimes(1);
     expect(conversations.destroyAll).not.toHaveBeenCalled();
     expect(terminals.destroyAll).not.toHaveBeenCalled();
-    expect(teardown).toHaveBeenCalledWith('workspace-1', 'detach');
+    expect(mocks.teardown).toHaveBeenCalledWith('workspace-1', 'detach');
   });
 
   it('terminate reaps tmux + agent and destroys the workspace', async () => {
@@ -47,12 +59,10 @@ describe('executeTeardown', () => {
     expect(terminals.destroyAll).toHaveBeenCalledTimes(1);
     expect(conversations.detachAll).not.toHaveBeenCalled();
     expect(terminals.detachAll).not.toHaveBeenCalled();
-    expect(teardown).toHaveBeenCalledWith('workspace-1', 'terminate');
+    expect(mocks.teardown).toHaveBeenCalledWith('workspace-1', 'terminate');
   });
 
-  // The regression for #2689: archive must reap the tmux session + agent process
-  // (destroyAll), but keep the workspace/worktree (detach-level teardown) so Restore works.
-  it('archive reaps tmux + agent but keeps the workspace', async () => {
+  it('archive reaps tmux + agent and selects the non-destructive lifecycle hook', async () => {
     const { task, conversations, terminals } = makeTask();
     await executeTeardown(task, 'workspace-1', 'archive');
 
@@ -60,7 +70,39 @@ describe('executeTeardown', () => {
     expect(terminals.destroyAll).toHaveBeenCalledTimes(1);
     expect(conversations.detachAll).not.toHaveBeenCalled();
     expect(terminals.detachAll).not.toHaveBeenCalled();
-    // crucially NOT 'terminate', which would run onDestroy and remove the worktree.
-    expect(teardown).toHaveBeenCalledWith('workspace-1', 'detach');
+    expect(mocks.teardown).toHaveBeenCalledWith('workspace-1', 'archive');
+  });
+
+  it('clears completed teardown state when a task is registered again', async () => {
+    const { task } = makeTask();
+
+    await taskSessionManager.registerTask(
+      'task-reactivated',
+      { taskProvider: task, workspaceId: 'workspace-1', path: '/tmp/worktree' },
+      'project-1',
+      {} as never
+    );
+
+    expect(mocks.clearTaskResourceTeardown).toHaveBeenCalledWith('task-reactivated');
+    await taskSessionManager.teardownTask('task-reactivated', 'detach');
+  });
+
+  it('persists lifecycle completion when project shutdown terminates retained tasks', async () => {
+    const { task } = makeTask();
+    mocks.persistTaskResourceTeardown.mockResolvedValue(undefined);
+
+    await taskSessionManager.registerTask(
+      'task-shutdown',
+      { taskProvider: task, workspaceId: 'workspace-1', path: '/tmp/worktree' },
+      'project-shutdown',
+      {} as never
+    );
+    await taskSessionManager.teardownAllForProject('project-shutdown', 'terminate');
+
+    expect(mocks.teardown).toHaveBeenCalledWith('workspace-1', 'terminate');
+    expect(mocks.persistTaskResourceTeardown).toHaveBeenCalledWith('task-shutdown');
+    expect(mocks.teardown.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.persistTaskResourceTeardown.mock.invocationCallOrder[0]
+    );
   });
 });

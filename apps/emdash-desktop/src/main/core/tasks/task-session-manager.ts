@@ -16,6 +16,7 @@ import type {
   WorkspaceProviderData,
 } from '../projects/project-provider';
 import { withTimeout } from '../projects/utils';
+import { persistTaskResourceTeardown } from './operations/persistTaskResourceTeardown';
 import {
   formatProvisionTaskError,
   formatTeardownTaskError,
@@ -24,6 +25,7 @@ import {
   type ProvisionTaskError,
   type TeardownTaskError,
 } from './provision-task-error';
+import { clearTaskResourceTeardown } from './task-resource-teardown-state';
 
 export type WorkspaceHint = {
   id: string;
@@ -49,17 +51,15 @@ export type TaskManagerHooks = {
 };
 
 /**
- * Task-level teardown intent. Wider than {@link TeardownMode} because archive needs to
- * reap the running agent like `terminate` while keeping the workspace like `detach`:
+ * Task-level teardown intent:
  *
  * - `detach`: leave tmux sessions and agent processes running so the task can be
  *   remounted later (used on app/project shutdown when tmux is enabled).
  * - `terminate`: reap tmux sessions + agent processes and destroy the workspace
  *   (worktree removal, teardown script). Used by delete.
- * - `archive`: reap tmux sessions + agent processes like `terminate`, but keep the
- *   workspace/worktree (and the persisted `conversations.session_id`) so the task stays
- *   restorable. Without this, archiving a tmux-backed task leaked its session and agent
- *   process indefinitely (#2689).
+ * - `archive`: reap tmux sessions + agent processes and run the workspace lifecycle
+ *   teardown hook, but keep the physical workspace/worktree and the persisted
+ *   `conversations.session_id` so the task stays restorable.
  */
 export type TaskTeardownMode = TeardownMode | 'archive';
 
@@ -77,12 +77,10 @@ export async function executeTeardown(
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
   }
-  // Only 'terminate' destroys the workspace (worktree + teardown script). 'archive'
-  // keeps the worktree alive, same as 'detach', so Restore can resume the task.
-  await workspaceRegistry.teardown(workspaceId, mode === 'terminate' ? 'terminate' : 'detach');
+  await workspaceRegistry.teardown(workspaceId, mode);
 }
 
-async function cleanupDetachedSessions(
+export async function cleanupDetachedTaskSessions(
   projectId: string,
   taskId: string,
   ctx: IExecutionContext
@@ -141,6 +139,7 @@ class TaskSessionManager {
 
     // Use provision() for deduplication: if already active, returns existing immediately.
     await this._lifecycle.provision(taskId, async () => ok(stored));
+    clearTaskResourceTeardown(taskId);
 
     const byProject = this._tasksByProject.get(projectId) ?? new Set<string>();
     byProject.add(taskId);
@@ -170,7 +169,7 @@ class TaskSessionManager {
           return ok();
         } catch (e) {
           log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
-          await cleanupDetachedSessions(projectId, taskId, ctx).catch((cleanupError) => {
+          await cleanupDetachedTaskSessions(projectId, taskId, ctx).catch((cleanupError) => {
             log.warn('TaskManager: fallback cleanup failed', {
               taskId,
               error: String(cleanupError),
@@ -206,7 +205,12 @@ class TaskSessionManager {
       );
     } else {
       // teardownTask handles _tasksByProject cleanup in onFinally.
-      await Promise.all(taskIds.map((id) => this.teardownTask(id, 'terminate')));
+      await Promise.all(
+        taskIds.map(async (id) => {
+          const result = await this.teardownTask(id, 'terminate');
+          if (result.success) await persistTaskResourceTeardown(id);
+        })
+      );
     }
   }
 

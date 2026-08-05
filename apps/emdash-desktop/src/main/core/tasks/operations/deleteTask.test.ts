@@ -6,6 +6,7 @@ import { deleteTask } from './deleteTask';
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
+  clearTaskResourceTeardown: vi.fn(),
   deleteIndex: vi.fn(),
   deleteWhere: vi.fn(),
   delViewState: vi.fn(),
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   getProject: vi.fn(),
   getProjectById: vi.fn(),
   selectLimit: vi.fn(),
-  teardownTask: vi.fn(),
+  teardownTaskResources: vi.fn(),
 }));
 
 vi.mock('@emdash/core/exec', () => ({
@@ -46,10 +47,12 @@ vi.mock('@main/core/projects/operations/getProjects', () => ({
   getProjectById: mocks.getProjectById,
 }));
 
-vi.mock('@main/core/tasks/task-session-manager', () => ({
-  taskSessionManager: {
-    teardownTask: mocks.teardownTask,
-  },
+vi.mock('@main/core/tasks/task-resource-teardown-state', () => ({
+  clearTaskResourceTeardown: mocks.clearTaskResourceTeardown,
+}));
+
+vi.mock('./teardownTaskResources', () => ({
+  teardownTaskResources: mocks.teardownTaskResources,
 }));
 
 vi.mock('@main/core/view-state/view-state-service', () => ({
@@ -78,6 +81,7 @@ describe('deleteTask', () => {
     mocks.createBoundExec.mockReturnValue({ exec: mocks.gitExec });
     mocks.getProject.mockReturnValue(undefined);
     mocks.getProjectById.mockResolvedValue(undefined);
+    mocks.teardownTaskResources.mockResolvedValue({ success: true });
   });
 
   it('deletes both the aggregate view-state key and the dedicated tabs key', async () => {
@@ -87,6 +91,63 @@ describe('deleteTask', () => {
 
     expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1');
     expect(mocks.delViewState).toHaveBeenCalledWith('task:task-1:tabs');
+    expect(mocks.clearTaskResourceTeardown).toHaveBeenCalledWith('task-1');
+  });
+
+  it('tears down cold task resources before deleting persisted workspace state', async () => {
+    const task = {
+      id: 'task-1',
+      name: 'Task 1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+    };
+    mocks.selectLimit
+      .mockResolvedValueOnce([task])
+      .mockResolvedValueOnce([
+        { id: 'workspace-1', kind: 'worktree', branchName: null, config: null },
+      ])
+      .mockResolvedValueOnce([{ id: 'workspace-1', kind: 'worktree' }])
+      .mockResolvedValueOnce([]);
+
+    await deleteTask('project-1', 'task-1', { deleteWorktree: false });
+
+    expect(mocks.teardownTaskResources).toHaveBeenCalledWith(task, 'terminate');
+    expect(mocks.teardownTaskResources.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteWhere.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('preserves task and worktree state when resource teardown cannot run', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'emdash-delete-task-blocked-'));
+    const worktreePath = path.join(tempDir, 'task-worktree');
+    await mkdir(worktreePath, { recursive: true });
+    await writeFile(path.join(worktreePath, 'file.txt'), 'content');
+    mocks.selectLimit.mockResolvedValueOnce([
+      {
+        id: 'task-1',
+        name: 'Task 1',
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+      },
+    ]);
+    mocks.teardownTaskResources.mockResolvedValue({
+      success: false,
+      error: { type: 'error', message: 'project is not mounted' },
+    });
+
+    try {
+      await expect(deleteTask('project-1', 'task-1')).rejects.toThrow(
+        'Failed to delete task resources'
+      );
+
+      await expect(access(worktreePath)).resolves.toBeUndefined();
+      expect(mocks.deleteWhere).not.toHaveBeenCalled();
+      expect(mocks.selectLimit).toHaveBeenCalledTimes(1);
+      expect(mocks.clearTaskResourceTeardown).not.toHaveBeenCalled();
+      expect(mocks.capture).not.toHaveBeenCalled();
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('preserves the workspace file index when an archived sibling still references the workspace', async () => {

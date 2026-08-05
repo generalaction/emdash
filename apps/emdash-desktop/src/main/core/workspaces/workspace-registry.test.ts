@@ -270,6 +270,81 @@ describe('WorkspaceRegistry', () => {
     expect(onDetach).not.toHaveBeenCalled();
   });
 
+  it('calls onArchive without invoking destructive workspace hooks', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace } = makeWorkspace('branch:main');
+    const onArchive = vi.fn(async () => {});
+    const onDestroy = vi.fn(async () => {});
+    const onDetach = vi.fn(async () => {});
+    const factory = vi.fn(async () => ({ workspace, onArchive, onDestroy, onDetach }));
+
+    await registry.acquire('branch:main', 'test-project', factory);
+    await registry.teardown('branch:main', 'archive');
+
+    expect(onArchive).toHaveBeenCalledTimes(1);
+    expect(onArchive).toHaveBeenCalledWith(workspace);
+    expect(onDestroy).not.toHaveBeenCalled();
+    expect(onDetach).not.toHaveBeenCalled();
+  });
+
+  it('calls only provider destroy after lifecycle teardown already completed', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace } = makeWorkspace('branch:main');
+    const onArchive = vi.fn(async () => {});
+    const onDestroy = vi.fn(async () => {});
+    const onProviderDestroy = vi.fn(async () => {});
+    const factory = vi.fn(async () => ({
+      workspace,
+      onArchive,
+      onDestroy,
+      onProviderDestroy,
+    }));
+
+    await registry.acquire('branch:main', 'test-project', factory);
+    await registry.teardown('branch:main', 'terminate-provider');
+
+    expect(onProviderDestroy).toHaveBeenCalledWith(workspace);
+    expect(onProviderDestroy).toHaveBeenCalledTimes(1);
+    expect(onArchive).not.toHaveBeenCalled();
+    expect(onDestroy).not.toHaveBeenCalled();
+  });
+
+  it('releases native resources while preserving an archive hook error', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace, dispose, fileTreeDispose, gitDispose } = makeWorkspace('branch:main');
+    const hookError = new Error('archive teardown failed');
+
+    await registry.acquire('branch:main', 'test-project', async () => ({
+      workspace,
+      onArchive: vi.fn(async () => {
+        throw hookError;
+      }),
+    }));
+
+    await expect(registry.teardown('branch:main', 'archive')).rejects.toBe(hookError);
+    expect(fileTreeDispose).toHaveBeenCalledTimes(1);
+    expect(gitDispose).toHaveBeenCalledTimes(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases native resources while preserving a provider destroy error', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace, dispose, fileTreeDispose, gitDispose } = makeWorkspace('branch:main');
+    const hookError = new Error('provider destroy failed');
+
+    await registry.acquire('branch:main', 'test-project', async () => ({
+      workspace,
+      onProviderDestroy: vi.fn(async () => {
+        throw hookError;
+      }),
+    }));
+
+    await expect(registry.teardown('branch:main', 'terminate-provider')).rejects.toBe(hookError);
+    expect(fileTreeDispose).toHaveBeenCalledTimes(1);
+    expect(gitDispose).toHaveBeenCalledTimes(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('does not call onDetach when ref count has not reached zero', async () => {
     const registry = new WorkspaceRegistry();
     const { workspace } = makeWorkspace('branch:main');
