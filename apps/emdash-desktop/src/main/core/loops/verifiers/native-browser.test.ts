@@ -856,6 +856,65 @@ describe('native browser verifier', () => {
     }
   });
 
+  it('promotes consecutive exploratory stalls into the reserved terminal-only recovery', async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = makeHarness({
+        context: { promptTimeoutMs: 30 * 60 * 1_000 },
+      });
+      const heldPrompts = [
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>(),
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>(),
+        deferred<Result<{ finalText: string }, { kind: 'prompt-failed'; message: string }>>(),
+      ];
+      let promptIndex = 0;
+      harness.nestedDriver.sendPrompt = vi.fn(async () => {
+        promptIndex += 1;
+        if (promptIndex === 1) {
+          return ok({ finalText: actionBlock({ kind: 'accessibility-snapshot' }) });
+        }
+        if (promptIndex <= heldPrompts.length + 1) {
+          return await heldPrompts[promptIndex - 2]!.promise;
+        }
+        return ok({ finalText: NATIVE_BROWSER_PASSED_SENTINEL });
+      });
+      harness.nestedDriver.cancelPrompt = vi.fn(async () => {
+        heldPrompts[promptIndex - 2]!.resolve(
+          err({ kind: 'prompt-failed', message: 'cancelled stalled turn' })
+        );
+        return ok(undefined);
+      });
+
+      const runPromise = harness.verifier.run(harness.ctx);
+      for (const [expectedCalls, timeout] of [
+        [2, NATIVE_BROWSER_TURN_TIMEOUT_MS],
+        [3, NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS],
+        [4, NATIVE_BROWSER_RECOVERY_TURN_TIMEOUT_MS],
+      ] as const) {
+        for (
+          let index = 0;
+          index < 100 &&
+          vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.length < expectedCalls;
+          index += 1
+        ) {
+          await Promise.resolve();
+        }
+        expect(vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.length).toBe(expectedCalls);
+        await vi.advanceTimersByTimeAsync(timeout);
+      }
+      const result = await runPromise;
+
+      expect(result.success, JSON.stringify(result)).toBe(true);
+      expect(harness.nestedDriver.restartVerificationSession).toHaveBeenCalledTimes(3);
+      const prompts = vi.mocked(harness.nestedDriver.sendPrompt).mock.calls.map((call) => call[1]);
+      expect(prompts[4]).toContain('Terminal stalled-turn recovery 1 of 1');
+      expect(prompts[4]).toContain('return exactly one honest terminal outcome');
+      expect(harness.performAction).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('enters the terminal reserve before dispatch overhead can consume it', async () => {
     vi.useFakeTimers();
     try {

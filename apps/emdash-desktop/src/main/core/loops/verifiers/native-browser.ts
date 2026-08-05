@@ -458,7 +458,12 @@ async function runNativeBrowserVerification(
         );
       } catch (error) {
         if (!(error instanceof NativeBrowserPromptTimeout)) throw error;
-        const terminalStall = terminalDecisionRequired;
+        let terminalStall = terminalDecisionRequired;
+        if (!terminalStall && stallRepairs >= MAX_NATIVE_BROWSER_STALL_REPAIRS) {
+          terminalStall = true;
+          terminalDecisionRequired = true;
+          terminalReserveRequired = true;
+        }
         let recoveryAttempt: number;
         if (terminalStall) {
           if (terminalStallRepairs >= MAX_NATIVE_BROWSER_TERMINAL_STALL_REPAIRS) {
