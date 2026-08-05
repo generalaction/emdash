@@ -1,4 +1,4 @@
-import { isNotNull, sql } from 'drizzle-orm';
+import { isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -68,7 +68,18 @@ export const projects = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    pathIdx: uniqueIndex('idx_projects_path').on(table.path),
+    // Path uniqueness is scoped per machine, not globally. Local projects (no SSH
+    // connection) stay unique by path, while SSH projects are unique by
+    // (connection, path) so the same conventional path on different remote hosts
+    // does not collide (#2731). Two partial indexes because SQLite treats NULLs as
+    // distinct, so a single (ssh_connection_id, path) index would not enforce
+    // uniqueness among local projects.
+    localPathIdx: uniqueIndex('idx_projects_local_path')
+      .on(table.path)
+      .where(isNull(table.sshConnectionId)),
+    sshConnectionPathIdx: uniqueIndex('idx_projects_ssh_connection_path')
+      .on(table.sshConnectionId, table.path)
+      .where(isNotNull(table.sshConnectionId)),
     sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
   })
 );
