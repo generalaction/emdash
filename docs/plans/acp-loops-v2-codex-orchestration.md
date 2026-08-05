@@ -1049,11 +1049,15 @@ Cal.com loading and other real optional third-party behavior. Required storage a
 behavior must not depend on consent. If no optional technology requires consent, use the requested
 banner as an accurate notice/preferences surface rather than presenting fake choices.
 
-Known truth gap: `$SUMMARIO_WORKTREE/convex/meetings.ts` removes the meeting document without deleting
-the referenced transcript-storage blob. Final acceptance normally requires deletion of
-`transcriptStorageId` plus an integration test proving both the document and blob are removed. Only
-an explicit recorded legal/product-owner decision may choose accurate disclosure instead; an agent
-may not make that tradeoff.
+The original truth gap was that `$SUMMARIO_WORKTREE/convex/meetings.ts` removed the meeting document
+without deleting the referenced transcript-storage blob. Read-only preflight of selected base
+`b9f53681364ae21a5d30838ca5c25a5fe22dda02` found that public `remove`, cron `internalDelete`, and
+generated-occurrence deletion now call `deleteMeetingWithOwnedState`, which deletes
+`transcriptStorageId` before the document. Final acceptance still requires integration tests proving
+both the document and blob are removed through the public and cron paths. Preserve the existing
+helper unless those tests expose a real gap; do not rewrite working deletion code merely because the
+older plan described the gap. Only an explicit recorded legal/product-owner decision may replace
+this proof with accurate disclosure; an agent may not make that tradeoff.
 
 Keep these Loop phases ordered; each fresh session owns only its named files:
 
@@ -1069,9 +1073,10 @@ Keep these Loop phases ordered; each fresh session owns only its named files:
    `$SUMMARIO_WORKTREE/convex/lib/transcriptStorage.ts`, and
    `$SUMMARIO_WORKTREE/convex/cronActions.ts`, `$SUMMARIO_WORKTREE/convex/crons.ts`, and
    `$SUMMARIO_WORKTREE/convex/transcriptStorage.integration.test.ts`. Write failing integration
-   cases first, extract one ownership-safe document-plus-blob cleanup path, and prove both public
-   `meetings.remove` and cron-driven `internalDelete` use it. This phase is required by default. It
-   may be replaced by exact disclosure only after an explicit legal/product-owner decision is
+   cases first, retain or minimally correct the existing ownership-safe document-plus-blob cleanup
+   path, and prove both public `meetings.remove` and cron-driven `internalDelete` use it. This phase
+   is required by default. It may be replaced by exact disclosure only after an explicit
+   legal/product-owner decision is
    recorded before the phase starts.
 3. **Preference state.** Add `$SUMMARIO_WORKTREE/lib/privacyPreferences.ts` and
    `$SUMMARIO_WORKTREE/lib/privacyPreferences.test.ts`. In consent mode, use a versioned state whose
