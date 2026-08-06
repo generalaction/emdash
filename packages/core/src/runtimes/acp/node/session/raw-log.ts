@@ -92,7 +92,8 @@ export class RawAcpLog {
   record(event: RawAcpEvent): void {
     let bytes: number;
     try {
-      bytes = JSON.stringify(event)?.length ?? 0;
+      const json = JSON.stringify(event);
+      bytes = json === undefined ? 0 : Buffer.byteLength(json, 'utf8');
     } catch {
       bytes = 0;
     }

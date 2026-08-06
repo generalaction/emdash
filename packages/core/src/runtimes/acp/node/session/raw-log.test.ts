@@ -41,6 +41,18 @@ describe('RawAcpLog', () => {
     expect(events[0]?.seq).toBe(1);
   });
 
+  it('counts UTF-8 bytes, not UTF-16 code units', () => {
+    // '€' is 1 UTF-16 code unit but 3 UTF-8 bytes; a code-unit counter would
+    // undercount these entries ~3x and evict far too late.
+    const entryBytes = Buffer.byteLength(JSON.stringify(promptEvent('€'.repeat(100))), 'utf8');
+    const log = new RawAcpLog(meta(), { maxBytes: entryBytes * 3 });
+    for (let i = 0; i < 6; i += 1) log.record(promptEvent('€'.repeat(100)));
+
+    const { events } = log.snapshot();
+    expect(events).toHaveLength(3);
+    expect(events.map((entry) => entry.seq)).toEqual([3, 4, 5]);
+  });
+
   it('still enforces the entry-count cap', () => {
     const log = new RawAcpLog(meta(), { maxEntries: 3 });
     for (let i = 0; i < 5; i += 1) log.record(promptEvent(`event-${i}`));
