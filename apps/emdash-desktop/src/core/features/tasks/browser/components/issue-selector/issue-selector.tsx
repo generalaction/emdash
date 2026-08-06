@@ -1,3 +1,4 @@
+import { InlineMarkdown } from '@emdash/ui/react/components';
 import { Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -22,7 +23,6 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from '@core/primitives/ui/browser/combobox';
-import { InlineMarkdown } from '@core/primitives/ui/browser/components/inline-markdown';
 import {
   IssueStatusIndicator,
   toIssueStatus,

@@ -1,7 +1,8 @@
+import { Markdown } from '@emdash/ui/react/components';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
+import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
@@ -26,6 +27,7 @@ function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
   const location = commentLocationLabel(comment);
   const author = commentAuthorLabel(comment);
   const avatarRadiusClass = isBotAuthor(comment) ? 'rounded' : 'rounded-full';
+  const openLink = useMarkdownLinkOpener();
 
   return (
     <div className="group relative flex w-full min-w-0 gap-2 rounded-md px-3 py-2 text-left hover:bg-background-1">
@@ -68,7 +70,7 @@ function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
             comment.isOutdated && 'text-foreground-passive'
           )}
         >
-          <MarkdownRenderer content={comment.body} variant="compact" allowHtml />
+          <Markdown content={comment.body} variant="compact" allowHtml onOpenLink={openLink} />
         </div>
       </div>
       <button

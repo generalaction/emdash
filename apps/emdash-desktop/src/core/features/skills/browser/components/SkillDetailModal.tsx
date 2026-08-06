@@ -1,7 +1,9 @@
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import { parseFrontmatter } from '@emdash/core/primitives/skills/api';
+import { Markdown } from '@emdash/ui/react/components';
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
@@ -12,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 const sourceMeta = {
@@ -64,6 +65,8 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     }
   }, [skill, onOpenTerminal]);
 
+  const openLink = useMarkdownLinkOpener();
+
   if (!skill) return null;
 
   const body = skill.skillMdContent ? parseFrontmatter(skill.skillMdContent).body.trim() : '';
@@ -103,10 +106,11 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           )}
 
           {!showLoadingContent && visibleBody && (
-            <MarkdownRenderer
+            <Markdown
               content={visibleBody}
               variant="compact"
               className="bg-muted/20 text-muted-foreground rounded-md px-3 py-2 text-xs"
+              onOpenLink={openLink}
             />
           )}
         </DialogContentArea>
