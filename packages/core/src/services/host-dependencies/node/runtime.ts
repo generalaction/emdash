@@ -24,7 +24,16 @@ import {
   type PathCandidate,
 } from '@primitives/host-dependencies/api';
 import type { KeyValueStore } from '@primitives/kv/api';
-import { hostDependenciesContract } from '@services/host-dependencies/api';
+import { KeyedMutex } from '@primitives/lib/api';
+import {
+  hostDependenciesContract,
+  type HostDependencyInstallBatchResult,
+  type HostDependencyInstallRequest,
+} from '@services/host-dependencies/api';
+import {
+  APT_UPDATE_COMMAND,
+  aptInstallPackagesCommand,
+} from '@services/host-dependencies/api/apt-commands';
 import {
   probeHostElevation,
   resolveAllCommandPaths,
@@ -32,19 +41,33 @@ import {
 } from '@services/host-dependencies/api/runtime/probe';
 import { z } from 'zod';
 import {
+  aptBatchElevation,
+  aptBatchPackages,
+  planInstallBatch,
+  type ResolvedBatchRequest,
+} from './install-batch';
+import {
   buildInstallCommandInvocation,
+  installExecutionError,
   installOptionsForPlatform,
-  isPermissionDeniedOutput,
   permissionDeniedError,
   resolveElevationDecision,
   resolveInstallerTool,
   resolveSelection,
   selectInstallOption,
+  type CommandExecutionResult,
   type InstallCommandKind,
+  type PreparedInstallCommand,
 } from './install-execution';
 
 const STORE_KEY_PREFIX = 'host-dependencies';
 const OUTPUT_TAIL_LIMIT = 20_000;
+const APT_UPDATE_TTL_MS = 10 * 60 * 1000;
+
+type InstallJobContext = {
+  signal: AbortSignal;
+  progress: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
+};
 
 type SelectionDocument = {
   version: 1;
@@ -70,9 +93,11 @@ export class HostDependenciesRuntime {
   private readonly definitions: Map<string, HostDependencyDefinition>;
   private readonly host: HostDependenciesLiveHost;
   private readonly current: Cell<HostDependencySnapshot>;
+  private readonly installMutex = new KeyedMutex();
   private selections: Record<string, HostDependencySelection> | null = null;
   private generation = 0;
   private disposed = false;
+  private lastSuccessfulAptUpdateAt: number | null = null;
   private refreshPromise: Promise<Result<HostDependencySnapshot, HostDependencyError>> | null =
     null;
 
@@ -211,16 +236,48 @@ export class HostDependenciesRuntime {
   async runInstallCommand(
     id: DependencyId,
     method: InstallMethod | undefined,
-    ctx: {
-      signal: AbortSignal;
-      progress: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
-    },
+    ctx: InstallJobContext,
     options: { elevate?: boolean; commandKind?: InstallCommandKind } = {}
   ): Promise<HostDependencyViewResult> {
+    ctx.progress({ phase: 'resolving' });
+    const prepared = await this.prepareInstallCommand(id, method, options);
+    if (!prepared.success) return prepared;
+
+    const output = captureTail();
+    ctx.progress({ phase: 'running' });
+    const execution = await this.installMutex.runExclusive(prepared.data.option.method, () =>
+      this.executePreparedInstall(prepared.data, ctx.signal, output.onChunk)
+    );
+    if (!execution.success) {
+      return err(installExecutionError(prepared.data, execution, output.read(), this.deps.logger));
+    }
+
+    return this.refreshInstalledDependency(id, ctx, output.read());
+  }
+
+  async runInstallBatch(
+    requests: HostDependencyInstallRequest[],
+    ctx: InstallJobContext
+  ): Promise<Result<HostDependencyInstallBatchResult, HostDependencyError>> {
+    ctx.progress({ phase: 'resolving' });
+    const plan = planInstallBatch(requests, (id) => this.definitions.get(id));
+    const results: HostDependencyInstallBatchResult = { ...plan.errors };
+    if (plan.aptBatch.length > 0) await this.runAptBatchGroup(plan.aptBatch, ctx, results);
+    for (const { request } of plan.sequential) {
+      results[request.id] = await this.runInstallCommand(request.id, request.method, ctx, {
+        elevate: request.elevate,
+      });
+    }
+    return ok(results);
+  }
+
+  private async prepareInstallCommand(
+    id: DependencyId,
+    method: InstallMethod | undefined,
+    options: { elevate?: boolean; commandKind?: InstallCommandKind } = {}
+  ): Promise<Result<PreparedInstallCommand, HostDependencyError>> {
     const definition = this.definitions.get(id);
     if (!definition) return err({ type: 'unknown-dependency', id });
-
-    ctx.progress({ phase: 'resolving' });
     const option = selectInstallOption(installOptionsForPlatform(definition), method);
     if (!option) return err({ type: 'no-install-command', id });
     const commandKind = options.commandKind ?? 'install';
@@ -252,65 +309,183 @@ export class HostDependenciesRuntime {
         method: option.method,
       });
     }
+    return ok({
+      id,
+      option,
+      command,
+      commandKind,
+      elevation,
+      elevated: elevationDecision.elevated,
+      hostElevation: elevationDecision.hostElevation,
+    });
+  }
 
-    const output = captureTail();
-    try {
-      ctx.progress({ phase: 'running' });
-      const shell = buildInstallCommandInvocation(
-        command,
-        elevationDecision.elevated ? 'sudo' : 'plain'
-      );
-      const result = await this.deps.exec.execStreaming(shell.command, shell.args, output.onChunk, {
-        signal: ctx.signal,
-      });
-      if (result.exitCode !== 0) {
-        if (
-          elevation === 'on-failure' &&
-          !elevationDecision.elevated &&
-          // `null` denotes Windows, where sudo classification and guidance are intentionally off.
-          elevationDecision.hostElevation !== null &&
-          isPermissionDeniedOutput(output.read())
-        ) {
-          return err(
-            permissionDeniedError({
-              id,
-              command,
-              commandKind,
-              output: output.read(),
-              exitCode: result.exitCode,
-              hostElevation: elevationDecision.hostElevation,
-            })
-          );
-        }
-        return err(
-          this.commandFailedError(id, command, commandKind, result.exitCode, output.read())
-        );
-      }
-    } catch (error) {
-      return err(
-        this.commandFailedError(
-          id,
-          command,
-          commandKind,
-          null,
-          output.read(),
-          error instanceof Error ? error.message : String(error)
-        )
+  private async executePreparedInstall(
+    prepared: PreparedInstallCommand,
+    signal: AbortSignal,
+    onChunk: (chunk: string) => boolean
+  ): Promise<CommandExecutionResult> {
+    if (
+      prepared.option.method === 'apt' &&
+      prepared.commandKind === 'install' &&
+      prepared.option.packages?.length
+    ) {
+      return this.executeAptPackageInstall(
+        prepared.option.packages,
+        prepared.elevated,
+        signal,
+        onChunk
       );
     }
+    return this.executeShellCommand(prepared.command, prepared.elevated, signal, onChunk);
+  }
+
+  private async executeAptPackageInstall(
+    packages: string[],
+    elevated: boolean,
+    signal: AbortSignal,
+    onChunk: (chunk: string) => boolean
+  ): Promise<CommandExecutionResult> {
+    if (!this.hasFreshAptUpdate()) {
+      const update = await this.executeShellCommand(APT_UPDATE_COMMAND, elevated, signal, onChunk);
+      if (!update.success) return update;
+      this.lastSuccessfulAptUpdateAt = Date.now();
+    }
+    return this.executeShellCommand(aptInstallPackagesCommand(packages), elevated, signal, onChunk);
+  }
+
+  private async executeShellCommand(
+    command: string,
+    elevated: boolean,
+    signal: AbortSignal,
+    onChunk: (chunk: string) => boolean
+  ): Promise<CommandExecutionResult> {
+    try {
+      const shell = buildInstallCommandInvocation(command, elevated ? 'sudo' : 'plain');
+      const result = await this.deps.exec.execStreaming(shell.command, shell.args, onChunk, {
+        signal,
+      });
+      return result.exitCode === 0
+        ? { success: true }
+        : { success: false, exitCode: result.exitCode };
+    } catch (error) {
+      return {
+        success: false,
+        exitCode: null,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async runAptBatchGroup(
+    requests: ResolvedBatchRequest[],
+    ctx: InstallJobContext,
+    results: HostDependencyInstallBatchResult
+  ): Promise<void> {
+    const { policy, elevate } = aptBatchElevation(requests);
+    const decision = await resolveElevationDecision(policy, elevate, this.deps.exec);
+    if (!decision.success) {
+      for (const { request, option } of requests) {
+        results[request.id] = err(
+          permissionDeniedError({
+            id: request.id,
+            command: option.command,
+            commandKind: 'install',
+            message: decision.message,
+            hostElevation: decision.hostElevation,
+          })
+        );
+      }
+      return;
+    }
+    const installerProbe = await resolveInstallerTool('apt', this.deps.exec);
+    if (installerProbe && !installerProbe.found) {
+      for (const { request } of requests) {
+        results[request.id] = err({
+          type: 'installer-missing',
+          id: request.id,
+          tool: installerProbe.label,
+          method: 'apt',
+        });
+      }
+      return;
+    }
+
+    const output = captureTail();
+    ctx.progress({ phase: 'running' });
+    const packages = aptBatchPackages(requests);
+    const execution = await this.installMutex.runExclusive('apt', () =>
+      this.executeAptPackageInstall(packages, decision.elevated, ctx.signal, output.onChunk)
+    );
+    if (!execution.success) {
+      for (const { request, option } of requests) {
+        results[request.id] = err(
+          installExecutionError(
+            {
+              id: request.id,
+              command: option.command,
+              commandKind: 'install',
+              elevation: policy,
+              elevated: decision.elevated,
+              hostElevation: decision.hostElevation,
+            },
+            execution,
+            output.read(),
+            this.deps.logger
+          )
+        );
+      }
+      return;
+    }
+
+    ctx.progress({ phase: 'refreshing' });
+    try {
+      await this.deps.exec.refreshShellEnv?.();
+    } catch (error) {
+      const failure: HostDependencyViewResult = err({
+        type: 'io',
+        message: error instanceof Error ? error.message : String(error),
+      });
+      for (const { request } of requests) results[request.id] = failure;
+      return;
+    }
+    for (const { request } of requests) {
+      results[request.id] = await this.detectInstalledDependency(request.id, output.read());
+    }
+  }
+
+  private hasFreshAptUpdate(): boolean {
+    return (
+      this.lastSuccessfulAptUpdateAt !== null &&
+      Date.now() - this.lastSuccessfulAptUpdateAt < APT_UPDATE_TTL_MS
+    );
+  }
+
+  private async refreshInstalledDependency(
+    id: DependencyId,
+    ctx: InstallJobContext,
+    output: string
+  ): Promise<HostDependencyViewResult> {
+    ctx.progress({ phase: 'refreshing' });
 
     try {
-      ctx.progress({ phase: 'refreshing' });
       await this.deps.exec.refreshShellEnv?.();
-      const view = await this.getView(id, { force: true });
-      if (!view.success) return view;
-      if (view.data.status !== 'available') {
-        return err({ type: 'not-detected-after-install', id, output: output.read() });
-      }
-      return view;
+      return await this.detectInstalledDependency(id, output);
     } catch (error) {
       return err({ type: 'io', message: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  private async detectInstalledDependency(
+    id: DependencyId,
+    output: string
+  ): Promise<HostDependencyViewResult> {
+    const view = await this.getView(id, { force: true });
+    if (!view.success) return view;
+    if (view.data.status !== 'available') {
+      return err({ type: 'not-detected-after-install', id, output });
+    }
+    return view;
   }
 
   private snapshot(): HostDependencySnapshot {
@@ -403,30 +578,6 @@ export class HostDependenciesRuntime {
 
   private storeKey(): string {
     return `${STORE_KEY_PREFIX}:${this.deps.hostId}:selections`;
-  }
-
-  private commandFailedError(
-    id: DependencyId,
-    command: string,
-    commandKind: InstallCommandKind,
-    exitCode: number | null | undefined,
-    output: string,
-    message?: string
-  ): HostDependencyError {
-    this.deps.logger?.error(`Host dependency ${commandKind} command failed`, {
-      id,
-      command,
-      exitCode: exitCode ?? null,
-      output,
-    });
-    return {
-      type: 'command-failed',
-      message:
-        message ??
-        `${commandKind === 'update' ? 'Update' : 'Install'} command exited with code ${exitCode ?? 'unknown'}`,
-      output,
-      exitCode: exitCode ?? null,
-    };
   }
 }
 

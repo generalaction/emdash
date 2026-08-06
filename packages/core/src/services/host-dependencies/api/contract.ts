@@ -5,12 +5,26 @@ import {
   hostDependencyResolveResultSchema,
   hostDependencySelectionSchema,
   hostDependencySnapshotSchema,
+  hostDependencyViewResultSchema,
   hostDependencyViewSchema,
   installMethodSchema,
 } from '@primitives/host-dependencies/api';
 import { z } from 'zod';
 
 const depInput = z.object({ id: dependencyIdSchema });
+export const hostDependencyInstallRequestSchema = depInput.extend({
+  method: installMethodSchema.optional(),
+  elevate: z.boolean().optional(),
+});
+export type HostDependencyInstallRequest = z.output<typeof hostDependencyInstallRequestSchema>;
+
+export const hostDependencyInstallBatchResultSchema = z.record(
+  dependencyIdSchema,
+  hostDependencyViewResultSchema
+);
+export type HostDependencyInstallBatchResult = z.output<
+  typeof hostDependencyInstallBatchResultSchema
+>;
 
 export const hostDependencyResolverContract = defineContract({
   resolve: procedure({
@@ -46,13 +60,17 @@ export const hostDependenciesContract = defineContract({
     error: hostDependencyErrorSchema,
   }),
   runInstallCommand: liveJob({
-    input: depInput.extend({
-      method: installMethodSchema.optional(),
-      elevate: z.boolean().optional(),
+    input: hostDependencyInstallRequestSchema.extend({
       commandKind: z.enum(['install', 'update']).optional(),
     }),
     progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
     result: hostDependencyViewSchema,
+    error: hostDependencyErrorSchema,
+  }),
+  runInstallBatch: liveJob({
+    input: z.object({ requests: z.array(hostDependencyInstallRequestSchema).min(1) }),
+    progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
+    result: hostDependencyInstallBatchResultSchema,
     error: hostDependencyErrorSchema,
   }),
 });

@@ -1,10 +1,10 @@
 import type { HostDependencyDefinition } from '@primitives/host-dependencies/api';
-
-const aptInstallCommand = (packages: string) => `apt-get update && apt-get install -y ${packages}`;
+import { aptInstallCommand } from './apt-commands';
 
 const aptInstallOption = (packages: string) => ({
   method: 'apt' as const,
-  command: aptInstallCommand(packages),
+  command: aptInstallCommand(packages.split(' ')),
+  packages: packages.split(' '),
   recommended: true,
   elevation: 'always' as const,
 });

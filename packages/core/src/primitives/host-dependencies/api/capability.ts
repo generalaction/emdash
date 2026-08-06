@@ -44,6 +44,7 @@ export type HostDependencyUpdateCommand = z.output<typeof hostDependencyUpdateCo
 export const installCommandOptionSchema = z.object({
   method: installMethodSchema,
   command: z.string().min(1),
+  packages: z.array(z.string()).optional(),
   label: z.string().optional(),
   recommended: z.boolean().optional(),
   elevation: elevationPolicySchema.default('never'),

@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import { formatCommandLine } from '@primitives/exec/api';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type {
@@ -22,6 +23,23 @@ import {
 
 export type InstallCommandKind = 'install' | 'update';
 export type InstallCommandMode = 'plain' | 'sudo' | 'sudo-interactive';
+
+export type CommandExecutionResult =
+  | { success: true }
+  | { success: false; exitCode: number | null; message?: string };
+
+export type InstallFailureContext = {
+  id: DependencyId;
+  command: string;
+  commandKind: InstallCommandKind;
+  elevation: ElevationPolicy;
+  elevated: boolean;
+  hostElevation: HostElevation | null;
+};
+
+export type PreparedInstallCommand = InstallFailureContext & {
+  option: InstallCommandOption;
+};
 
 export type InstallCommandInvocation = {
   command: string;
@@ -128,6 +146,44 @@ export function permissionDeniedError({
     elevatedCommand: buildInstallCommandInvocation(command, 'sudo').preview,
     interactiveCommand: buildInstallCommandInvocation(command, 'sudo-interactive').preview,
     command,
+  };
+}
+
+export function installExecutionError(
+  context: InstallFailureContext,
+  execution: Extract<CommandExecutionResult, { success: false }>,
+  output: string,
+  logger?: Logger
+): HostDependencyError {
+  if (
+    context.elevation === 'on-failure' &&
+    !context.elevated &&
+    // `null` denotes Windows, where sudo classification and guidance are intentionally off.
+    context.hostElevation !== null &&
+    isPermissionDeniedOutput(output)
+  ) {
+    return permissionDeniedError({
+      id: context.id,
+      command: context.command,
+      commandKind: context.commandKind,
+      output,
+      exitCode: execution.exitCode,
+      hostElevation: context.hostElevation,
+    });
+  }
+  logger?.error(`Host dependency ${context.commandKind} command failed`, {
+    id: context.id,
+    command: context.command,
+    exitCode: execution.exitCode ?? null,
+    output,
+  });
+  return {
+    type: 'command-failed',
+    message:
+      execution.message ??
+      `${context.commandKind === 'update' ? 'Update' : 'Install'} command exited with code ${execution.exitCode ?? 'unknown'}`,
+    output,
+    exitCode: execution.exitCode ?? null,
   };
 }
 

@@ -37,7 +37,10 @@ describe('CORE_DEPENDENCIES', () => {
       for (const option of linuxOptions) {
         if (option.method !== 'apt') continue;
         expect(option.elevation).toBe('always');
-        expect(option.command).toMatch(/^apt-get update && apt-get install -y /);
+        expect(option.command).toMatch(
+          /^DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60 update && DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60 install -y /
+        );
+        expect(option.packages).not.toHaveLength(0);
         expect(option.command).not.toContain('sudo');
       }
     }
@@ -47,7 +50,9 @@ describe('CORE_DEPENDENCIES', () => {
     expect(GIT_DEPENDENCY_DESCRIPTOR.installCommands?.linux).toEqual([
       {
         method: 'apt',
-        command: 'apt-get update && apt-get install -y git',
+        command:
+          'DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60 update && DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60 install -y git',
+        packages: ['git'],
         recommended: true,
         elevation: 'always',
       },

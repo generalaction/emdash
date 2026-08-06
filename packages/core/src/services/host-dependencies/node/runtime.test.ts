@@ -1,8 +1,15 @@
+import { deferred } from '@emdash/shared/testing';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type { HostDependencyDefinition, HostElevation } from '@primitives/host-dependencies/api';
 import { createMemoryKeyValueStore } from '@primitives/kv/api';
 import { describe, expect, it, vi } from 'vitest';
 import { HostDependenciesRuntime } from './runtime';
+
+const aptCommandPrefix = 'DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60';
+const aptUpdateCommand = `${aptCommandPrefix} update`;
+const aptInstallCommand = (packages: string) => `${aptCommandPrefix} install -y ${packages}`;
+const aptPreviewCommand = (packages: string) =>
+  `${aptUpdateCommand} && ${aptInstallCommand(packages)}`;
 
 const definition: HostDependencyDefinition = {
   id: 'fake-agent',
@@ -22,8 +29,8 @@ const elevatedDefinition: HostDependencyDefinition = {
   category: 'core',
   binaryNames: ['git'],
   installCommands: {
-    linux: [aptOption()],
-    macos: [aptOption()],
+    linux: [aptOption('git')],
+    macos: [aptOption('git')],
   },
   status: 'active',
 };
@@ -35,6 +42,14 @@ const neverElevateDefinition: HostDependencyDefinition = {
   binaryNames: ['brew-tool'],
   installCommands: {
     macos: [
+      {
+        method: 'homebrew',
+        command: 'brew install brew-tool',
+        recommended: true,
+        elevation: 'never',
+      },
+    ],
+    linux: [
       {
         method: 'homebrew',
         command: 'brew install brew-tool',
@@ -132,7 +147,7 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
       type: 'permission-denied',
       id: 'git',
       canRetryWithSudo: false,
-      command: 'apt-get update && apt-get install -y git',
+      command: aptPreviewCommand('git'),
     });
     expect(exec.execStreaming).not.toHaveBeenCalled();
   });
@@ -147,9 +162,17 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
 
     await runtime.runInstallCommand('git', 'apt', jobContext());
 
-    expect(exec.execStreaming).toHaveBeenCalledWith(
+    expect(exec.execStreaming).toHaveBeenNthCalledWith(
+      1,
       '/bin/sh',
-      ['-c', 'apt-get update && apt-get install -y git'],
+      ['-c', aptUpdateCommand],
+      expect.any(Function),
+      expect.any(Object)
+    );
+    expect(exec.execStreaming).toHaveBeenNthCalledWith(
+      2,
+      '/bin/sh',
+      ['-c', aptInstallCommand('git')],
       expect.any(Function),
       expect.any(Object)
     );
@@ -165,12 +188,58 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
 
     await runtime.runInstallCommand('git', 'apt', jobContext());
 
-    expect(exec.execStreaming).toHaveBeenCalledWith(
+    expect(exec.execStreaming).toHaveBeenNthCalledWith(
+      1,
       'sudo',
-      ['-n', '-H', '/bin/sh', '-c', 'apt-get update && apt-get install -y git'],
+      ['-n', '-H', '/bin/sh', '-c', aptUpdateCommand],
       expect.any(Function),
       expect.any(Object)
     );
+    expect(exec.execStreaming).toHaveBeenNthCalledWith(
+      2,
+      'sudo',
+      ['-n', '-H', '/bin/sh', '-c', aptInstallCommand('git')],
+      expect.any(Function),
+      expect.any(Object)
+    );
+  });
+
+  it('serializes concurrent install commands in the same method domain', async () => {
+    const firstExecution = deferred<void>();
+    const { exec } = createFakeExec({ initiallyInstalled: true });
+    exec.execStreaming = vi.fn(async () => {
+      if (vi.mocked(exec.execStreaming).mock.calls.length === 1) await firstExecution.promise;
+      return { exitCode: 0 };
+    });
+    const runtime = createRuntime(exec);
+
+    const first = runtime.runInstallCommand('fake-agent', 'npm', jobContext());
+    await vi.waitFor(() => expect(exec.execStreaming).toHaveBeenCalledTimes(1));
+    const secondProgress = vi.fn();
+    const second = runtime.runInstallCommand('fake-agent', 'npm', jobContext(secondProgress));
+    await vi.waitFor(() => expect(secondProgress).toHaveBeenCalledWith({ phase: 'running' }));
+
+    expect(exec.execStreaming).toHaveBeenCalledTimes(1);
+    firstExecution.resolve();
+    await Promise.all([first, second]);
+    expect(exec.execStreaming).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows concurrent install commands in different method domains', async () => {
+    const releaseExecutions = deferred<void>();
+    const { exec } = createFakeExec({ initiallyInstalled: true });
+    exec.execStreaming = vi.fn(async () => {
+      await releaseExecutions.promise;
+      return { exitCode: 0 };
+    });
+    const runtime = createRuntime(exec, [definition, neverElevateDefinition]);
+
+    const npmInstall = runtime.runInstallCommand('fake-agent', 'npm', jobContext());
+    const brewInstall = runtime.runInstallCommand('brew-tool', 'homebrew', jobContext());
+    await vi.waitFor(() => expect(exec.execStreaming).toHaveBeenCalledTimes(2));
+
+    releaseExecutions.resolve();
+    await Promise.all([npmInstall, brewInstall]);
   });
 
   it('wraps an explicit on-failure retry with passwordless sudo', async () => {
@@ -248,6 +317,66 @@ describe('HostDependenciesRuntime.runInstallCommand', () => {
   });
 });
 
+describe('HostDependenciesRuntime.runInstallBatch', () => {
+  it('merges apt packages into one install command', async () => {
+    const curlDefinition: HostDependencyDefinition = {
+      ...elevatedDefinition,
+      id: 'curl',
+      name: 'curl',
+      installCommands: {
+        linux: [aptOption('curl')],
+        macos: [aptOption('curl')],
+      },
+    };
+    const { exec } = createFakeExec({
+      hostElevation: 'root',
+      installedAfterStreaming: true,
+      binaryName: 'git',
+    });
+    const runtime = createRuntime(exec, [elevatedDefinition, curlDefinition]);
+
+    const result = await runtime.runInstallBatch([{ id: 'git' }, { id: 'curl' }], jobContext());
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.git?.success).toBe(true);
+    expect(result.success && result.data.curl?.success).toBe(true);
+    expect(exec.execStreaming).toHaveBeenCalledTimes(2);
+    expect(exec.execStreaming).toHaveBeenNthCalledWith(
+      1,
+      '/bin/sh',
+      ['-c', aptUpdateCommand],
+      expect.any(Function),
+      expect.any(Object)
+    );
+    expect(exec.execStreaming).toHaveBeenNthCalledWith(
+      2,
+      '/bin/sh',
+      ['-c', aptInstallCommand('git curl')],
+      expect.any(Function),
+      expect.any(Object)
+    );
+  });
+
+  it('skips apt-get update while the previous update is fresh', async () => {
+    const { exec } = createFakeExec({
+      hostElevation: 'root',
+      initiallyInstalled: true,
+      binaryName: 'git',
+    });
+    const runtime = createRuntime(exec, [elevatedDefinition]);
+
+    await runtime.runInstallCommand('git', 'apt', jobContext());
+    await runtime.runInstallCommand('git', 'apt', jobContext());
+
+    expect(exec.execStreaming).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(exec.execStreaming).mock.calls.map(([, args]) => args)).toEqual([
+      ['-c', aptUpdateCommand],
+      ['-c', aptInstallCommand('git')],
+      ['-c', aptInstallCommand('git')],
+    ]);
+  });
+});
+
 describe('HostDependenciesRuntime.refresh', () => {
   it.each([
     ['root', 'root'],
@@ -272,10 +401,11 @@ function npmOption() {
   };
 }
 
-function aptOption() {
+function aptOption(packages: string) {
   return {
     method: 'apt' as const,
-    command: 'apt-get update && apt-get install -y git',
+    command: aptPreviewCommand(packages),
+    packages: packages.split(' '),
     recommended: true,
     elevation: 'always' as const,
   };

@@ -73,5 +73,9 @@ export function createHostDependenciesController(runtime: HostDependenciesRuntim
         runtime.runInstallCommand(id, method, ctx, { elevate, commandKind }),
       toError: toCommandFailedError,
     },
+    runInstallBatch: {
+      run: ({ requests }, ctx) => runtime.runInstallBatch(requests, ctx),
+      toError: toCommandFailedError,
+    },
   });
 }
