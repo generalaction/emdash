@@ -79,6 +79,47 @@ export const LeftSide: Story = {
   ),
 };
 
+export const TopSide: Story = {
+  render: () => (
+    <Sheet.Root>
+      <Sheet.Trigger render={<Button variant="ghost">Open top sheet</Button>} />
+      <Sheet.Content side="top">
+        <Sheet.Header>
+          <Sheet.Title>Announcement</Sheet.Title>
+        </Sheet.Header>
+        <Sheet.Body>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            This sheet slides in from the top and spans the full width. It sizes to its content up
+            to 75% of the viewport height.
+          </p>
+        </Sheet.Body>
+      </Sheet.Content>
+    </Sheet.Root>
+  ),
+};
+
+export const BottomSide: Story = {
+  render: () => (
+    <Sheet.Root>
+      <Sheet.Trigger render={<Button variant="ghost">Open bottom sheet</Button>} />
+      <Sheet.Content side="bottom">
+        <Sheet.Header>
+          <Sheet.Title>Quick actions</Sheet.Title>
+        </Sheet.Header>
+        <Sheet.Body>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            This sheet slides in from the bottom and spans the full width. Use it for action trays
+            or transient panels anchored to the bottom edge.
+          </p>
+        </Sheet.Body>
+        <Sheet.Footer>
+          <Sheet.Close render={<Button variant="ghost">Dismiss</Button>} />
+        </Sheet.Footer>
+      </Sheet.Content>
+    </Sheet.Root>
+  ),
+};
+
 export const ScrollableBody: Story = {
   render: () => (
     <Sheet.Root>

@@ -738,6 +738,9 @@ importers:
       '@tiptap/suggestion':
         specifier: ^3.26.1
         version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.4.0
       lucide-react:
         specifier: ^0.564.0
         version: 0.564.0(react@19.2.7)

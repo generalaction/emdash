@@ -5,8 +5,12 @@ import {
   kfFadeOut,
   kfSlideInFromRight,
   kfSlideInFromLeft,
+  kfSlideInFromTop,
+  kfSlideInFromBottom,
   kfSlideOutToRight,
   kfSlideOutToLeft,
+  kfSlideOutToTop,
+  kfSlideOutToBottom,
 } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
@@ -25,12 +29,8 @@ export const backdrop = style({
 export const sheetContent = recipe({
   base: {
     position: 'fixed',
-    top: 0,
-    bottom: 0,
     zIndex: 50,
     display: 'flex',
-    height: '100%',
-    width: '75%',
     flexDirection: 'column',
     overflow: 'hidden',
     fontSize: tokenVars.textSm,
@@ -42,7 +42,11 @@ export const sheetContent = recipe({
   variants: {
     side: {
       right: {
+        top: 0,
+        bottom: 0,
         right: 0,
+        height: '100%',
+        width: '75%',
         '@media': {
           '(min-width: 640px)': { maxWidth: '36rem' },
         },
@@ -52,13 +56,39 @@ export const sheetContent = recipe({
         },
       },
       left: {
+        top: 0,
+        bottom: 0,
         left: 0,
+        height: '100%',
+        width: '75%',
         '@media': {
           '(min-width: 640px)': { maxWidth: '28rem' },
         },
         selectors: {
           '&[data-open]': { animation: `${kfSlideInFromLeft} 200ms both` },
           '&[data-closed]': { animation: `${kfSlideOutToLeft} 200ms both` },
+        },
+      },
+      top: {
+        top: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        maxHeight: '75%',
+        selectors: {
+          '&[data-open]': { animation: `${kfSlideInFromTop} 200ms both` },
+          '&[data-closed]': { animation: `${kfSlideOutToTop} 200ms both` },
+        },
+      },
+      bottom: {
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        maxHeight: '75%',
+        selectors: {
+          '&[data-open]': { animation: `${kfSlideInFromBottom} 200ms both` },
+          '&[data-closed]': { animation: `${kfSlideOutToBottom} 200ms both` },
         },
       },
     },
