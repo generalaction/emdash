@@ -1,13 +1,8 @@
 import { resultSchema } from '@emdash/shared';
-import type { Middleware } from '@emdash/shared/requests';
 import { z } from 'zod';
 import { liveCursorEntrySchema } from '../live/protocol';
-import {
-  isDownloadFileOpenResult,
-  markDownloadFileOpen,
-  type CallMeta,
-  type Controller,
-} from './controller';
+import { isDownloadFileOpenResult, markDownloadFileOpen } from './blob-channel';
+import type { CallMeta, Controller } from './controller';
 import type {
   Contract,
   ContractDefinitions,
@@ -22,6 +17,16 @@ import { encodeTopic, splitTopic } from './topics';
 
 export type ValidatePolicy = 'none' | 'inputs' | 'full';
 
+/**
+ * The one environment-sensitive validation default: full validation (inputs +
+ * outputs) everywhere except production, inputs-only in production. Applies
+ * identically to bare controllers, component instances, component workers, and
+ * tests.
+ */
+export function defaultValidatePolicy(env: NodeJS.ProcessEnv = process.env): ValidatePolicy {
+  return env.NODE_ENV === 'production' ? 'inputs' : 'full';
+}
+
 type ProcedureValidator = {
   parseInput(input: unknown): unknown;
   parseOutput?(output: unknown): unknown;
@@ -30,7 +35,7 @@ type ProcedureValidator = {
 const jobKeySchema = z.object({ jobId: z.string() });
 const jobStartOutputSchema = z.object({ jobId: z.string() });
 
-export function withValidation<Defs extends ContractDefinitions>(
+export function applyValidation<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   controller: Controller,
   policy: ValidatePolicy
@@ -137,13 +142,6 @@ export function withValidation<Defs extends ContractDefinitions>(
       });
     }
   }
-}
-
-export function validation<Defs extends ContractDefinitions>(
-  contract: Contract<Defs>,
-  policy: ValidatePolicy
-): Middleware<Controller> {
-  return (controller) => withValidation(contract, controller, policy);
 }
 
 function parseDownloadFileOutput(def: DownloadFileEndpointDef, output: unknown): unknown {

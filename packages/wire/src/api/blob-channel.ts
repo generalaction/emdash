@@ -18,6 +18,31 @@ export type ReadableStreamLike = {
 
 export type BlobSource = AsyncIterable<Uint8Array> | ReadableStreamLike;
 
+const downloadFileOpenSymbol: unique symbol = Symbol('wire.downloadFileOpen');
+
+export type DownloadFileOpen = {
+  readonly [downloadFileOpenSymbol]: true;
+  readonly meta: WireFileMeta;
+  readonly source: BlobSource;
+};
+
+export function markDownloadFileOpen(meta: WireFileMeta, source: BlobSource): DownloadFileOpen {
+  return { [downloadFileOpenSymbol]: true, meta, source };
+}
+
+export function isDownloadFileOpenResult(
+  value: unknown
+): value is { success: true; data: DownloadFileOpen } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { success?: unknown }).success === true &&
+    typeof (value as { data?: unknown }).data === 'object' &&
+    (value as { data?: { [downloadFileOpenSymbol]?: unknown } }).data?.[downloadFileOpenSymbol] ===
+      true
+  );
+}
+
 export type FileLike = WireFileMeta & {
   stream(): BlobSource;
   arrayBuffer?(): Promise<ArrayBuffer>;

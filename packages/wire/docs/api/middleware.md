@@ -4,9 +4,9 @@ Wire uses explicit composition for execution policy. Contracts describe protocol
 shape; middleware wraps handlers or controllers at the composition site.
 
 ```ts
-import { compose, deduplicate, withRetry } from '@emdash/shared/requests';
+import { compose, deduplicate, withRetry, withTimeout } from '@emdash/shared/requests';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { createController, withTimeout } from '@emdash/wire/api';
+import { createController } from '@emdash/wire/api';
 
 const loadStats = compose(
   async (input: { repo: string }, meta: { signal?: AbortSignal }) => {
@@ -85,26 +85,21 @@ where they are served.
 
 ## Controller Middleware
 
-Controller middleware wraps a complete `Controller` after `createController()`:
+Controller middleware wraps a complete `Controller` and satisfies
+`Middleware<Controller>` from `@emdash/shared/requests`. The seam exists as the
+sanctioned extension point for future cross-cutting concerns (for example
+observability), even though Wire ships no controller middleware today.
+
+Contract validation is not middleware: it is a `createController()` option.
+Every controller validates by default — `'full'` (inputs + outputs) outside
+production, `'inputs'` in production — with an explicit `validate` override:
 
 ```ts
-import { withValidation, validation } from '@emdash/wire/api';
-import { logging, withLogging } from '@emdash/wire/observability';
-import { compose } from '@emdash/shared/requests';
-
-const base = createController(api, impl);
-
-const served = compose(base, [
-  logging(logger),
-  validation(api, 'inputs'),
-]);
-
-const equivalent = withValidation(api, withLogging(base, logger), 'inputs');
+const controller = createController(api, impl, { validate: 'inputs' });
 ```
 
 Use controller middleware for boundary-wide behavior:
 
-- Validation at a process or trust boundary.
 - Logging and request instrumentation.
 - Session or authorization checks that apply to every procedure on the served
   controller.
@@ -114,10 +109,10 @@ controller middleware when the policy belongs to the served boundary.
 
 ## Timeout
 
-`withTimeout({ timeoutMs, clock? })` is handler middleware backed by Shared
-`runWithTimeout()` from `@emdash/shared/scheduling`. It derives a child
-`AbortSignal`, passes that signal to the wrapped handler, and converts an expired
-deadline to `WireError` code `TIMEOUT`.
+`withTimeout({ timeoutMs, clock? })` from `@emdash/shared/requests` is handler
+middleware backed by Shared `runWithTimeout()` from `@emdash/shared/scheduling`.
+It derives a child `AbortSignal`, passes that signal to the wrapped handler, and
+converts an expired deadline to a timeout error.
 
 ```ts
 const startSession = compose(rawStartSession, [
@@ -127,7 +122,7 @@ const startSession = compose(rawStartSession, [
 
 Timeout is infrastructure failure, not a domain result. If callers should handle
 a timeout as expected data, model it in the endpoint's `Result` error schema
-instead of relying on `TIMEOUT`.
+instead.
 
 Caller cancellation still wins over timeout. If the caller aborts the request,
 the wire call rejects with `CANCELLED`.

@@ -50,7 +50,7 @@ export const fileSearchComponent = defineWireComponent({
 
     return instance({
       scope,
-      controller: createFileSearchController(runtime, { validate: 'none' }),
+      controller: createFileSearchController(runtime),
     });
   },
 });

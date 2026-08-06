@@ -34,7 +34,6 @@ describe('pullRequestsComponent', () => {
         },
       },
       config: { databasePath: ':memory:' },
-      validate: 'full',
     });
     const repositoryUrl = 'https://github.com/emdash/emdash';
 

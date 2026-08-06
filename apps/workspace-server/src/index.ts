@@ -1,9 +1,7 @@
 import { createShellEnvManager } from '@emdash/core/services/shell-env/node';
-import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { initProcessLogging } from '@emdash/shared/logger/node';
-import { withValidation, type ValidatePolicy } from '@emdash/wire';
 import { createWorkspaceWireController } from './api/controller';
 import {
   formatWorkspaceServerConfigError,
@@ -60,18 +58,13 @@ async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Dis
       socketPath: config.serve.kind === 'socket' ? config.serve.path : undefined,
       env: shellEnv.env,
       refreshShellEnv: () => shellEnv.refresh(),
-      validate: workspaceServerWireValidationPolicy(),
       logger,
     });
-    const controller = withValidation(
-      workspaceWireContract,
-      createWorkspaceWireController({
-        appVersion: config.appVersion,
-        runtimes: runtimeHost.runtimes,
-        hostDependencies: runtimeHost.hostDependencies,
-      }),
-      workspaceServerWireValidationPolicy()
-    );
+    const controller = createWorkspaceWireController({
+      appVersion: config.appVersion,
+      runtimes: runtimeHost.runtimes,
+      hostDependencies: runtimeHost.hostDependencies,
+    });
 
     if (config.serve.kind !== 'socket') {
       const dispose = serveStdio(controller);
@@ -100,10 +93,6 @@ async function serve(config: WorkspaceServerConfig, logger: Logger): Promise<Dis
     await scope.dispose();
     throw error;
   }
-}
-
-function workspaceServerWireValidationPolicy(): ValidatePolicy {
-  return process.env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 
 async function runStart(config: WorkspaceServerConfig): Promise<void> {

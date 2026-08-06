@@ -9,7 +9,8 @@ import {
   type BlobConsumer,
   type BlobProducer,
 } from './blob-channel';
-import { isDownloadFileOpenResult, type Controller } from './controller';
+import { isDownloadFileOpenResult } from './blob-channel';
+import type { Controller } from './controller';
 import { serializeWireError, WireError, type WireMessage, type WireTransport } from './protocol';
 
 export type ServeOptions = {

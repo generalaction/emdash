@@ -65,17 +65,14 @@ the transport disconnects or when the serve loop is disposed.
 
 ## Validation
 
-Controller validation is applied explicitly at the serving boundary with
-`withValidation(contract, controller, policy)`:
+Contract validation is built into `createController()`. Every controller
+validates by default, and the default is environment-sensitive: `'full'`
+(inputs + outputs) everywhere except production, `'inputs'` in production
+(`NODE_ENV === 'production'`). Pass `validate` to override:
 
 ```ts
-const controller = createController(notesApi, impl);
-const servedController = withValidation(
-  notesApi,
-  controller,
-  process.env.NODE_ENV === 'production' ? 'inputs' : 'full'
-);
-const stop = serve(pair.right, servedController);
+const controller = createController(notesApi, impl, { validate: 'inputs' });
+const stop = serve(pair.right, controller);
 ```
 
 Policies:
@@ -86,15 +83,16 @@ Policies:
 - `full`: includes `inputs`, then also parses procedure outputs, upload/download
   results, mutation results, and live job start results.
 
-Use `inputs` for production boundaries that receive values from another process
-or client. Inputs cross a trust boundary and should stay parsed even when output
-validation is too expensive. Use `full` in development and tests to catch handler
-contract drift quickly.
+The default rule applies identically to bare controllers, component instances,
+component workers, and tests (`createTestWire`), so a contract violation in a
+test fails the same way it would in dev. Production boundaries stay on
+`inputs`: values crossing a trust boundary are always parsed, while output
+validation is skipped where it is too expensive.
 
-`withValidation()` validates request/response values that pass through
+Validation covers request/response values that pass through
 `Controller.call()` and live topic keys passed to `Controller.resolveLive()`.
 Live job progress, result, error values, and event stream payloads are emitted
-later as live updates and are not intercepted by the middleware.
+later as live updates and are not intercepted.
 
 ## Connecting
 
@@ -168,12 +166,15 @@ type ContractMutationInvocation<D, E> = {
 };
 ```
 
-`MutationCallOptions` lets callers provide a `mutationId` and retry policy:
+`MutationCallOptions` lets callers provide a `mutationId`, a per-call
+`timeoutMs` deadline override, and an explicit opt-in retry policy. There is no
+automatic retry; retries reuse the mutation id, so opted-in retries stay
+idempotent:
 
 ```ts
 await session.mutations.addNote({ text: 'Optimistic title' }, {
   mutationId: 'custom-mutation',
-  retry: { maxRetries: 1 },
+  retry: { schedule: backoffSchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
 });
 ```
 

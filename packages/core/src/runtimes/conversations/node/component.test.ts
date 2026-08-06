@@ -38,7 +38,6 @@ describe('conversationsComponent', () => {
       scope,
       dependencies: {},
       config: { databasePath: ':memory:' },
-      validate: 'full',
     });
 
     const created = await component.client.create(createInput);

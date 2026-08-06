@@ -1,6 +1,6 @@
 import type { Scope } from '@emdash/shared/concurrency';
 import type { ContractClient } from '../api/client';
-import type { Controller } from '../api/controller';
+import { isController, type Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
 import { forwardController } from '../api/forward';
 import { serve } from '../api/serve';
@@ -96,14 +96,4 @@ function asController<Defs extends ContractDefinitions>(
 ): Controller {
   if (isController(supplied)) return supplied;
   return forwardController(contract, supplied as ContractClient<Defs>);
-}
-
-function isController(value: unknown): value is Controller {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as Controller).call === 'function' &&
-    typeof (value as Controller).resolveLive === 'function' &&
-    typeof (value as Controller).acquireLive === 'function'
-  );
 }

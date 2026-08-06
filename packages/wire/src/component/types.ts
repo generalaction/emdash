@@ -4,7 +4,6 @@ import type { z } from 'zod';
 import type { ContractClient } from '../api/client';
 import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
-import type { ValidatePolicy } from '../api/with-validation';
 
 export type WireComponentContractRequirement<Defs extends ContractDefinitions> = {
   readonly kind: 'contract';
@@ -41,7 +40,6 @@ export type WireComponentCreateOptions<Requirements extends WireComponentRequire
   dependencies: ResolvedWireComponentRequirements<Requirements>;
   config: Config;
   logger?: Logger;
-  validate?: ValidatePolicy;
 };
 
 export type WireComponentCreateContext<

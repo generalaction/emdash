@@ -167,11 +167,12 @@ foundation subpaths without pulling in MobX.
 2. Create server-side `cell`, `query`, `LiveLog`, `EventStreamSource`, or `LiveJob`
    instances and publish live models with `expose()`.
 3. Use `family()` or explicit domain indexes for keyed live model resources.
-4. Create a controller with `createController(contract, impl)`.
-5. Optionally wrap the controller with `withValidation(contract, controller, policy)`.
-6. Serve the controller over a `WireTransport`.
-7. Connect from the client and create a typed `client()`.
-8. Use client handles directly for streaming, or use `remote()` for local state,
+4. Create a controller with `createController(contract, impl)`. Validation is
+   applied by default (`'full'` outside production, `'inputs'` in production);
+   pass `{ validate }` to override.
+5. Serve the controller over a `WireTransport`.
+6. Connect from the client and create a typed `client()`.
+7. Use client handles directly for streaming, or use `remote()` for local state,
    ref counting, and downstream observation.
 
 For a complete state bridge example, see the tests under `src/state/bridge/`.

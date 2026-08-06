@@ -463,7 +463,7 @@ async function* chunks(bytes: Uint8Array): AsyncIterable<Uint8Array> {
 
 function makeClient(runtime: FilesRuntime) {
   const pair = memoryTransportPair();
-  const controller = createFilesController(runtime, { validate: 'full' });
+  const controller = createFilesController(runtime);
   const stop = serve(pair.right, controller);
   return {
     api: client(filesContract, connect(pair.left)),
@@ -479,7 +479,7 @@ function makeStreamClient(runtime: FilesRuntime) {
   const serverToClient = new PassThrough();
   const clientTransport = streamTransport(serverToClient, clientToServer);
   const serverTransport = streamTransport(clientToServer, serverToClient);
-  const controller = createFilesController(runtime, { validate: 'full' });
+  const controller = createFilesController(runtime);
   const stop = serve(serverTransport, controller);
   return {
     api: client(filesContract, connect(clientTransport)),

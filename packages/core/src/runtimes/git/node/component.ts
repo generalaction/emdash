@@ -44,7 +44,7 @@ export const gitComponent = defineWireComponent({
 
     return instance({
       scope,
-      controller: createGitController(runtime, { validate: 'none' }),
+      controller: createGitController(runtime),
     });
   },
 });

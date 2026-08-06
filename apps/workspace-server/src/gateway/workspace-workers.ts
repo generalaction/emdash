@@ -37,7 +37,6 @@ import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { ok } from '@emdash/shared/result';
-import type { ValidatePolicy } from '@emdash/wire';
 import { createController, type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
@@ -69,7 +68,6 @@ export type CreateWorkspaceServerRuntimeHostOptions = {
   socketPath?: string;
   env?: NodeJS.ProcessEnv;
   refreshShellEnv?: () => Promise<void>;
-  validate?: ValidatePolicy;
   logger?: Logger;
 };
 
@@ -103,7 +101,6 @@ export async function createWorkspaceServerRuntimeHost(
         ...pluginRegistry.getAll().map(buildDescriptorFromProvider),
       ],
     },
-    validate: options.validate,
   });
 
   const conversationsPromise = workerHost.spawn(

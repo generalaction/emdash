@@ -24,12 +24,14 @@ caller intent.
 
 ### `DISCONNECTED`
 
-The transport disconnected while a request was pending, or posting a request
-failed because the peer was already gone.
+The transport disconnected while a request was in flight, posting a request
+failed because the peer was already gone, the held-call buffer overflowed while
+disconnected, or the transport failed permanently (the terminal cause is
+attached as `cause`).
 
-This is the only code the contract mutation retry loop retries by default. That
-retry is safe because mutations carry a stable `mutationId` and the server
-deduplicates repeated ids.
+Mutations are never retried automatically. Callers can opt in per call with
+`retry: { schedule }`; that retry is safe because mutations carry a stable
+`mutationId` and the server deduplicates repeated ids.
 
 ### `UNKNOWN_PROCEDURE`
 
@@ -79,15 +81,18 @@ creating another one for the same key.
 
 ### `TIMEOUT`
 
-A Wire procedure exceeded an infrastructure deadline, usually from
-`withTimeout()` middleware. Timeout is distinct from `CANCELLED`: cancellation is
-caller intent, while timeout means the server-side policy stopped waiting for the
-operation.
+A Wire call or snapshot exceeded an infrastructure deadline. The connection
+applies a default 30s call deadline (`callTimeoutMs`, per-call `timeoutMs`
+override) spanning call-issued to result-received, including time spent held
+while disconnected; live attach traffic and blob streaming are exempt. Timeout
+is distinct from `CANCELLED`: cancellation is caller intent, while timeout means
+policy stopped waiting for the operation.
 
-Timeouts are not retried automatically. Contract mutations still retry only
-`DISCONNECTED` by default because mutation retry depends on stable `mutationId`
-deduplication. If a domain treats a timeout as an expected outcome, model it as a
-`Result` payload instead of relying on the infrastructure error plane.
+Timeouts are not retried automatically. Mutation calls that opt in to
+`retry: { schedule }` retry both `DISCONNECTED` and `TIMEOUT`, relying on
+stable `mutationId` deduplication. If a domain treats a timeout as an expected
+outcome, model it as a `Result` payload instead of relying on the
+infrastructure error plane.
 
 ### `HANDLER_ERROR`
 

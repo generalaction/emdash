@@ -14,7 +14,7 @@ import {
   type LiveLogReplica,
   type LiveModelProvider,
 } from '../live/replica';
-import type { BlobSource, WireFile } from './blob-channel';
+import { markDownloadFileOpen, type BlobSource, type WireFile } from './blob-channel';
 import {
   isEventStreamClientHandle,
   isLiveModelClientHandle,
@@ -55,36 +55,12 @@ import { isEndpointDef } from './define';
 import type { WireFileMeta } from './protocol';
 import { WireError } from './protocol';
 import { splitTopic } from './topics';
+import { applyValidation, defaultValidatePolicy, type ValidatePolicy } from './validation';
 
 export type CallMeta = {
   signal?: AbortSignal;
   uploadFile?: WireFile;
 };
-
-const downloadFileOpenSymbol: unique symbol = Symbol('wire.downloadFileOpen');
-
-export type DownloadFileOpen = {
-  readonly [downloadFileOpenSymbol]: true;
-  readonly meta: WireFileMeta;
-  readonly source: BlobSource;
-};
-
-export function markDownloadFileOpen(meta: WireFileMeta, source: BlobSource): DownloadFileOpen {
-  return { [downloadFileOpenSymbol]: true, meta, source };
-}
-
-export function isDownloadFileOpenResult(
-  value: unknown
-): value is { success: true; data: DownloadFileOpen } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { success?: unknown }).success === true &&
-    typeof (value as { data?: unknown }).data === 'object' &&
-    (value as { data?: { [downloadFileOpenSymbol]?: unknown } }).data?.[downloadFileOpenSymbol] ===
-      true
-  );
-}
 
 export type Controller = {
   call(path: string, input: unknown, meta?: CallMeta): Promise<unknown>;
@@ -92,6 +68,16 @@ export type Controller = {
   acquireLive(topic: string): PendingLease<LiveSource> | null;
   dispose?(): Promise<void>;
 };
+
+export function isController(value: unknown): value is Controller {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Controller).call === 'function' &&
+    typeof (value as Controller).resolveLive === 'function' &&
+    typeof (value as Controller).acquireLive === 'function'
+  );
+}
 
 export type ProcedureHandler<Def extends ProcedureDef = ProcedureDef> = (
   input: EndpointInput<Def>,
@@ -175,7 +161,27 @@ type LiveEntry = {
 
 const jobKeySchema = z.object({ jobId: z.string() });
 
+export type CreateControllerOptions = {
+  /**
+   * Contract validation policy. Defaults to the environment rule: `'full'`
+   * (inputs + outputs) outside production, `'inputs'` in production.
+   */
+  validate?: ValidatePolicy;
+};
+
 export function createController<Defs extends ContractDefinitions>(
+  contract: Contract<Defs>,
+  impl: ContractImpl<Defs>,
+  options: CreateControllerOptions = {}
+): Controller {
+  return applyValidation(
+    contract,
+    buildController(contract, impl),
+    options.validate ?? defaultValidatePolicy()
+  );
+}
+
+function buildController<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
   impl: ContractImpl<Defs>
 ): Controller {

@@ -109,7 +109,7 @@ attachment.
 
 - Events are at-most-once and only delivered to currently attached clients.
 - No historical events are retained for late subscribers.
-- Event stream keys are validated by `withValidation()`.
+- Event stream keys are validated by controller validation.
 - Event payloads are not validated on the push path, matching other live updates.
 - Forwarding preserves upstream gaps and reattach errors even when the downstream
   transport remains connected.

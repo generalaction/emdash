@@ -5,7 +5,6 @@ import { createController } from './controller';
 import { defineContract, eventStream, liveModel, liveState, liveLog, procedure } from './define';
 import { WireError } from './protocol';
 import { encodeTopic, splitTopic } from './topics';
-import { withValidation } from './with-validation';
 
 const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ count: z.number() });
@@ -43,14 +42,14 @@ function stateProvider(
 describe('createController', () => {
   it('validates inputs and outputs according to policy', async () => {
     const contract = makeContract();
-    const controller = withValidation(
+    const controller = createController(
       contract,
-      createController(contract, {
+      {
         echo: (input) => ({ value: input.value.toUpperCase() }),
         state: stateProvider(contract.state, {}),
         output: () => null,
-      }),
-      'full'
+      },
+      { validate: 'full' }
     );
 
     await expect(controller.call('echo', { value: 'ok' })).resolves.toEqual({ value: 'OK' });

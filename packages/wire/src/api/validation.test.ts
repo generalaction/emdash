@@ -17,14 +17,34 @@ import {
 } from './define';
 import { WireError } from './protocol';
 import { encodeTopic } from './topics';
-import { withValidation } from './with-validation';
+import { applyValidation, defaultValidatePolicy } from './validation';
 
 const source: LiveSource = {
   snapshot: () => ({ generation: 1, sequence: 0, timestamp: 0, data: undefined }),
   subscribe: () => () => {},
 };
 
-describe('withValidation', () => {
+describe('defaultValidatePolicy', () => {
+  it('is full outside production and inputs-only in production', () => {
+    expect(defaultValidatePolicy({ NODE_ENV: 'production' })).toBe('inputs');
+    expect(defaultValidatePolicy({ NODE_ENV: 'development' })).toBe('full');
+    expect(defaultValidatePolicy({ NODE_ENV: 'test' })).toBe('full');
+    expect(defaultValidatePolicy({})).toBe('full');
+  });
+});
+
+describe('controller validation', () => {
+  it('applies full validation by default in tests, same as dev', async () => {
+    const contract = defineContract({
+      invalid: procedure({ input: z.void().optional(), output: z.object({ value: z.string() }) }),
+    });
+    const controller = createController(contract, {
+      invalid: () => ({ value: 1 }) as never,
+    });
+
+    await expect(controller.call('invalid', undefined)).rejects.toThrow();
+  });
+
   it('validates procedure inputs and full-mode outputs', async () => {
     const contract = defineContract({
       echo: procedure({
@@ -32,12 +52,12 @@ describe('withValidation', () => {
         output: z.object({ value: z.string() }),
       }),
     });
-    const controller = withValidation(
+    const controller = createController(
       contract,
-      createController(contract, {
+      {
         echo: (input) => ({ value: input.value.toUpperCase() }),
-      }),
-      'full'
+      },
+      { validate: 'full' }
     );
 
     await expect(controller.call('echo', { value: 'ok' })).resolves.toEqual({ value: 'OK' });
@@ -48,15 +68,15 @@ describe('withValidation', () => {
     const contract = defineContract({
       invalid: procedure({ input: z.void().optional(), output: z.object({ value: z.string() }) }),
     });
-    const controller = createController(contract, {
+    const impl = {
       invalid: () => ({ value: 1 }) as never,
-    });
+    };
 
     await expect(
-      withValidation(contract, controller, 'inputs').call('invalid', undefined)
+      createController(contract, impl, { validate: 'inputs' }).call('invalid', undefined)
     ).resolves.toEqual({ value: 1 });
     await expect(
-      withValidation(contract, controller, 'full').call('invalid', undefined)
+      createController(contract, impl, { validate: 'full' }).call('invalid', undefined)
     ).rejects.toThrow();
   });
 
@@ -65,15 +85,15 @@ describe('withValidation', () => {
       output: liveLog({ key: z.object({ id: z.string().trim() }) }),
     });
     const seen: unknown[] = [];
-    const controller = withValidation(
+    const controller = createController(
       contract,
-      createController(contract, {
+      {
         output: (key) => {
           seen.push(key);
           return source;
         },
-      }),
-      'inputs'
+      },
+      { validate: 'inputs' }
     );
 
     expect(controller.resolveLive(encodeTopic(contract.output.id, { id: ' known ' }))).toBe(source);
@@ -111,11 +131,7 @@ describe('withValidation', () => {
         },
       }
     );
-    const controller = withValidation(
-      contract,
-      createController(contract, { group: provider }),
-      'full'
-    );
+    const controller = createController(contract, { group: provider }, { validate: 'full' });
 
     await expect(
       controller.call('group.set', { key: { id: ' known ' }, input: { value: ' next ' } })
@@ -156,9 +172,9 @@ describe('withValidation', () => {
         },
       }
     );
-    const controller = withValidation(
+    const controller = applyValidation(
       contract,
-      withValidation(contract, createController(contract, { group: provider }), 'full'),
+      createController(contract, { group: provider }, { validate: 'full' }),
       'inputs'
     );
 
@@ -190,7 +206,7 @@ describe('withValidation', () => {
     const jsonRoundTrippedVoidResult = JSON.parse(
       JSON.stringify(ok({ data: undefined, cursors: [] }))
     ) as unknown;
-    const controller = withValidation(
+    const controller = applyValidation(
       contract,
       {
         call: async () => jsonRoundTrippedVoidResult,
@@ -254,7 +270,7 @@ describe('withValidation', () => {
     const contract = defineContract({
       known: procedure({ input: z.void().optional(), output: z.void() }),
     });
-    const controller = withValidation(
+    const controller = applyValidation(
       contract,
       {
         call(path) {

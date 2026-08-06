@@ -36,7 +36,7 @@ export const filesComponent = defineWireComponent({
 
     return instance({
       scope,
-      controller: createFilesController(runtime, { validate: 'none' }),
+      controller: createFilesController(runtime),
     });
   },
 });

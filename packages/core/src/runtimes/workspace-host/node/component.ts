@@ -40,7 +40,7 @@ export const workspaceHostComponent = defineWireComponent({
 
     return instance({
       scope,
-      controller: createWorkspaceHostController(runtime, { validate: 'none' }),
+      controller: createWorkspaceHostController(runtime),
     });
   },
 });

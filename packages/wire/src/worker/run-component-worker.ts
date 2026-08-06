@@ -22,7 +22,6 @@ import {
 } from './component-protocol';
 import { WORKER_READY_SIGNAL, isWorkerSignal } from './protocol';
 import type { WorkerParentPort } from './types';
-import { workerValidatePolicy } from './validation';
 
 const BOOTSTRAP_RETRY_MS = 50;
 
@@ -65,7 +64,6 @@ export async function runWireComponentWorker<
       dependencies,
       config: bootstrap.config as Config,
       logger: options.logger,
-      validate: workerValidatePolicy(options.env),
     }) as InternalWireComponentInstance<Defs>;
     const stopServing = serve(
       parentPortChannelTransport(port, RUNTIME_CHANNEL),

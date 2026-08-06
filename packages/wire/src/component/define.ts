@@ -41,7 +41,6 @@ export function defineWireComponent<
             const instance = createInstance({
               contract: definition.contract,
               controller,
-              validate: options.validate ?? 'inputs',
               scope,
             });
             return instance;

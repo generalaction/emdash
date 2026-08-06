@@ -1,7 +1,5 @@
-import { compose } from '@emdash/shared/requests';
-import { exposeWireToWindows, validation, type Controller } from '@emdash/wire/api';
+import { exposeWireToWindows, type Controller } from '@emdash/wire/api';
 import { ipcMain, MessageChannelMain } from 'electron';
-import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 import type { ControllersBundle } from '@main/bootstrap/boot/phases/controllers';
 import { appScope } from '@main/bootstrap/core/app-scope';
@@ -13,12 +11,12 @@ export function installDesktopWire(bundle: ControllersBundle): void {
   if (installed || typeof ipcMain?.handle !== 'function') return;
   installed = true;
 
+  // Validation happens inside each routed controller: `createController`
+  // applies the environment default at every controller site.
   scope.add(
     exposeWireToWindows(
       { ipcMain, createMessageChannel },
-      compose(createRoutingController(bundle.controllers), [
-        validation(desktopWireContract, runtimeWireValidationPolicy()),
-      ]),
+      createRoutingController(bundle.controllers),
       { channel: DESKTOP_WIRE_CHANNEL }
     )
   );
@@ -54,8 +52,4 @@ function route(path: string, controllers: Record<string, Controller>) {
     throw new Error(`Unknown desktop wire path '${path}'`);
   }
   return { controller, path: rest.join('.') };
-}
-
-function runtimeWireValidationPolicy() {
-  return import.meta.env.DEV ? 'full' : 'inputs';
 }

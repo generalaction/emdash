@@ -123,7 +123,6 @@ describe('PullRequestsStore', () => {
       scope,
       dependencies: {},
       config: {},
-      validate: 'full',
     });
     const store = new PullRequestsStore(component.client, [repositoryUrl]);
     await store.ready;
@@ -212,7 +211,6 @@ describe('PullRequestsStore', () => {
       scope,
       dependencies: {},
       config: {},
-      validate: 'full',
     });
     const store = new PullRequestsStore(component.client, [repositoryUrl]);
     await vi.waitFor(() => expect(pending.has(repositoryUrl)).toBe(true));
