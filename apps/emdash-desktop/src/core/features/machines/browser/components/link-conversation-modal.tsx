@@ -1,3 +1,4 @@
+import { ModalLayout } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +21,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 
 export interface LinkConversationModalProps {
   /** SSH connection id of the conversation's host; null for the local machine. */

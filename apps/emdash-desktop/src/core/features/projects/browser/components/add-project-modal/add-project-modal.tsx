@@ -1,4 +1,4 @@
-import { SelectableCard } from '@emdash/ui/react/primitives';
+import { ModalLayout, SelectableCard } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { DownloadIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -28,7 +28,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';

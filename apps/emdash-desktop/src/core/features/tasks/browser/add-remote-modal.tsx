@@ -1,3 +1,4 @@
+import { ModalLayout } from '@emdash/ui/react/primitives';
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -17,7 +18,6 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Label } from '@core/primitives/ui/browser/label';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';

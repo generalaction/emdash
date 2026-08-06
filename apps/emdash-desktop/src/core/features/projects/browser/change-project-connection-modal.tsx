@@ -3,7 +3,7 @@ import {
   MachineStatus,
   type MachineStatusKind,
 } from '@emdash/ui/react/components';
-import { Button as UiButton } from '@emdash/ui/react/primitives';
+import { ModalLayout, Button as UiButton } from '@emdash/ui/react/primitives';
 import { PencilIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -21,7 +21,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export interface ChangeProjectConnectionModalProps {

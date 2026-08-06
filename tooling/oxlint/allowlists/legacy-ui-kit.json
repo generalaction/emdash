@@ -186,7 +186,6 @@
     "apps/emdash-desktop/src/core/features/tasks/browser/task-scope.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/task-titlebar.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/view/task-main-column.tsx",
-    "apps/emdash-desktop/src/core/features/tasks/browser/view/task-sidebar.tsx",
     "apps/emdash-desktop/src/core/features/terminals/api/browser/pty/terminal-search-overlay.tsx",
     "apps/emdash-desktop/src/core/features/terminals/api/browser/task-terminal/terminal-panel.tsx",
     "apps/emdash-desktop/src/core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar.tsx",
