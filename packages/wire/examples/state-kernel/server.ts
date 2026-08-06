@@ -27,7 +27,7 @@ export const api = defineContract({
 });
 
 // The authoritative state lives in kernel cells: one per counter id.
-const counters = family((id: string) => cell({ count: 0 }));
+const counters = family((_id: string) => cell({ count: 0 }));
 
 // `expose` bridges kernel state onto the live model endpoint: each contract
 // state resolves to a readable, and each mutation updates the cells and awaits
