@@ -7,9 +7,9 @@ import {
 } from './capture-trace';
 import { configureDevPerfClient, type DevPerfRpcClient } from './client';
 
-function configureCaptureTrace(
-  impl: DevPerfRpcClient['captureTrace']
-): { calls: Array<{ durationMs?: number }> } {
+function configureCaptureTrace(impl: DevPerfRpcClient['captureTrace']): {
+  calls: Array<{ durationMs?: number }>;
+} {
   const calls: Array<{ durationMs?: number }> = [];
   configureDevPerfClient(async () => {
     return {

@@ -50,7 +50,9 @@ export function DevProcessPanelModal() {
     setTrace({ kind: 'recording' });
     const outcome = await captureDevPerfTrace();
     setTrace(
-      outcome.ok ? { kind: 'done', path: outcome.path } : { kind: 'error', message: outcome.message }
+      outcome.ok
+        ? { kind: 'done', path: outcome.path }
+        : { kind: 'error', message: outcome.message }
     );
   };
 
