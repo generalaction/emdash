@@ -74,12 +74,24 @@ export class ManagedAgentTerminal {
     this.onOutput(text, this._truncated);
   }
 
+  /** Lifecycle metadata only — no output text (see terminalStateSchema). */
   snapshot(): TerminalState {
     return {
       terminalId: this.terminalId,
       command: this.command,
       args: this.args,
       cwd: this.cwd,
+      truncated: this._truncated,
+      exitStatus: this._exitStatus,
+    };
+  }
+
+  /**
+   * The agent-facing ACP `terminal/output` surface: joins the ring buffer on
+   * demand. Not used on the client publish path.
+   */
+  outputSnapshot(): { output: string; truncated: boolean; exitStatus: AcpTerminalExit | null } {
+    return {
       output: this.chunks.join(''),
       truncated: this._truncated,
       exitStatus: this._exitStatus,

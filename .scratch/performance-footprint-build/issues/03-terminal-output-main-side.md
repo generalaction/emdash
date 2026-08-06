@@ -11,11 +11,21 @@ Spec: [terminal output decision, parts 1–2](../../performance-footprint/issues
 
 **Blocked by:** 02 — Before/after instruments.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The registry's per-terminal `output` accumulation and its dead snapshot reader are gone
-- [ ] Published terminal state contains no output text; `truncated` metadata is preserved
-- [ ] Conversation republish happens only on terminal create/exit/release, not per chunk
-- [ ] Existing registry hook tests updated; a test asserts memory-relevant state stays
+- [x] The registry's per-terminal `output` accumulation and its dead snapshot reader are gone
+- [x] Published terminal state contains no output text; `truncated` metadata is preserved
+- [x] Conversation republish happens only on terminal create/exit/release, not per chunk
+      (plus a single republish on the first truncation transition, per the decision)
+- [x] Existing registry hook tests updated; a test asserts memory-relevant state stays
       constant-size as chunks stream
-- [ ] Manual check: agent-run command output still streams live into the chat execute row
+- [ ] Manual check: agent-run command output still streams live into the chat execute row —
+      not run in this environment (no attached GUI session); the log-subscription path is
+      unchanged and covered by the session-manager live-primitives test
+      (`publishes terminal state and output through live primitives`)
+
+Implementation notes: `terminalStateSchema` drops `output`;
+`ManagedAgentTerminal.snapshot()` is metadata-only and the agent-facing ACP
+`terminal/output` request now uses the new `outputSnapshot()` (4 MB ring buffer
+unchanged). `TerminalLiveRegistry` retains only conversation membership, the
+last truncation flag, and the capped `LiveLogSource` per terminal.

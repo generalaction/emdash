@@ -36,7 +36,7 @@ export class TerminalPort {
   async terminalOutput(params: TerminalOutputRequest): Promise<TerminalOutputResponse> {
     const terminal = this.terminals.get(params.terminalId);
     if (!terminal) throw new Error(`AcpRuntime: terminal not found: ${params.terminalId}`);
-    const snap = terminal.snapshot();
+    const snap = terminal.outputSnapshot();
     return {
       output: snap.output,
       truncated: snap.truncated,
