@@ -37,6 +37,7 @@ interface AgentSelectorProps {
   getDisabledReason?: AgentDisableReason;
   installable?: boolean;
   autoFocus?: boolean;
+  placeholder?: string;
 }
 
 export const AgentSelector: React.FC<AgentSelectorProps> = observer(
@@ -50,6 +51,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     getDisabledReason,
     installable = true,
     autoFocus = false,
+    placeholder = 'No agent installed',
   }) => {
     const [open, setOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -110,7 +112,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
               <span className="flex-1 truncate text-left">{selectedOption?.label ?? value}</span>
             </>
           ) : (
-            <span className="flex-1 truncate text-foreground-muted">No agent installed</span>
+            <span className="flex-1 truncate text-foreground-muted">{placeholder}</span>
           )}
           <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
         </ComboboxTrigger>
