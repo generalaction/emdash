@@ -32,11 +32,12 @@ export function CLISpinner({ variant = '1' }: { variant?: '1' | '2' }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    const frameCount = variant === '1' ? FRAMES_1.length : FRAMES_2.length;
     const interval = setInterval(() => {
-      setIndex((index + 1) % (variant === '1' ? FRAMES_1.length : FRAMES_2.length));
+      setIndex((current) => (current + 1) % frameCount);
     }, 80);
     return () => clearInterval(interval);
-  }, [index, variant]);
+  }, [variant]);
 
   return (
     <span className="text-foreground/60">

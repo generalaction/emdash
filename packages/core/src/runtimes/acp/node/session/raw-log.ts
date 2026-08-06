@@ -56,6 +56,14 @@ export interface RawAcpLogEntry {
 }
 
 const DEFAULT_MAX_ENTRIES = 50_000;
+// Retention is capped by bytes as well as entries so a chatty session (large tool
+// results, big prompts) cannot grow the in-memory log without bound.
+const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
+
+export interface RawAcpLogOptions {
+  maxEntries?: number;
+  maxBytes?: number;
+}
 
 /**
  * Append-only, fixture-compatible log of raw ACP traffic observed by a session.
@@ -64,19 +72,44 @@ const DEFAULT_MAX_ENTRIES = 50_000;
 export class RawAcpLog {
   private seq = 0;
   private readonly entries: RawAcpLogEntry[] = [];
+  private readonly entryBytes: number[] = [];
+  private totalBytes = 0;
+  private readonly maxEntries: number;
+  private readonly maxBytes: number;
 
   constructor(
     private readonly meta: RawAcpLogMeta,
-    private readonly maxEntries = DEFAULT_MAX_ENTRIES
-  ) {}
+    options: RawAcpLogOptions = {}
+  ) {
+    this.maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+    this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+  }
 
   setAcpSessionId(acpSessionId: string): void {
     this.meta.acpSessionId = acpSessionId;
   }
 
   record(event: RawAcpEvent): void {
+    let bytes: number;
+    try {
+      bytes = JSON.stringify(event)?.length ?? 0;
+    } catch {
+      bytes = 0;
+    }
     this.entries.push({ seq: this.seq++, ts: Date.now(), event });
-    if (this.entries.length > this.maxEntries) this.entries.shift();
+    this.entryBytes.push(bytes);
+    this.totalBytes += bytes;
+    this.evict();
+  }
+
+  private evict(): void {
+    while (
+      this.entries.length > 1 &&
+      (this.entries.length > this.maxEntries || this.totalBytes > this.maxBytes)
+    ) {
+      this.entries.shift();
+      this.totalBytes -= this.entryBytes.shift() ?? 0;
+    }
   }
 
   snapshot(): { meta: RawAcpLogExportMeta; events: RawAcpLogEntry[] } {

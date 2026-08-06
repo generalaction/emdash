@@ -141,6 +141,12 @@ export class TuiAgentsRuntime {
       ...(deps.clock ? { clock: deps.clock } : {}),
       intervalMs: deps.lifecycle?.sweepIntervalMs ?? 60_000,
       beforeSweep: async () => {
+        // Skip the tmux subprocess entirely when nothing is tracked; the sweep
+        // below iterates the same (empty) config set.
+        if (this.configs.size === 0) {
+          this.tmuxActivity = new Map();
+          return;
+        }
         this.tmuxActivity = await listTmuxSessionActivity(this.deps.exec);
       },
       entries: () => Array.from(this.configs.keys()),

@@ -166,19 +166,21 @@ views, tabs, modals, command providers, project state, terminal state, and task
 workflows.
 
 Task execution has two runtime paths. Legacy/TUI conversations run through PTY
-services under `src/main/core/pty/` and `src/main/core/terminals/`. Structured chat
-conversations use ACP: provider plugins in `packages/plugins/` expose ACP behavior,
-`packages/core/src/acp/` owns protocol/session state and terminal management,
+services under `packages/core/src/services/pty/` and the terminal/TUI runtimes under
+`packages/core/src/runtimes/terminals/` and `packages/core/src/runtimes/tui-agents/`.
+Structured chat conversations use ACP: provider plugins in `packages/plugins/` expose
+ACP behavior, `packages/core/src/runtimes/acp/` owns protocol/session state and
+terminal management,
 `src/main/core/acp/` adapts that runtime to Electron Wire and local/SSH process
 hosts, and `src/core/features/conversations/browser/acp/` maps updates into `@emdash/chat-ui`.
 
-Major main-process domains live under `src/main/core/`: account, ACP, agents,
-agent hooks, app, automations, browser, conversations, dependencies, editor,
-filesystem, Git, GitHub, GitLab, integrations, MCP, preview servers, projects,
-project setup, prompt library, PTY, pull requests, resource monitor, runtime, search,
-secrets, settings, skills, SSH, tasks, telemetry, terminal shell, terminals, updates,
-view state, and workspaces. Expected failures should use the `Result<T, E>` pattern
-from `@emdash/shared` or the app-local result helpers.
+Main-process adapter domains live under `src/main/core/`: ACP, agent status, app,
+dependencies, file search, files, Git, preview servers, provider accounts, runtime,
+shared, terminal shell, and utils. Portable domain logic lives in vertical slices
+under `src/core/` and in `packages/core/` (for example PTY services under
+`packages/core/src/services/pty/` and resource monitoring under
+`packages/core/src/runtimes/resource-usage/`). Expected failures should use the
+`Result<T, E>` pattern from `@emdash/shared` or the app-local result helpers.
 
 ## Testing Strategy
 
@@ -219,7 +221,7 @@ pnpm run test
 - Telemetry must remain optional; users can disable it with `TELEMETRY_ENABLED=false`
   or in app settings.
 - File logging must preserve redaction of common secret patterns.
-- PTY environment passthrough must use the allowlist in `src/main/core/pty/pty-env.ts`.
+- PTY environment construction must go through `packages/core/src/services/pty/api/terminal-env.ts`.
 - Treat ACP process spawning, SSH command construction, shell escaping, PTY spawning,
   and worktree paths as security-sensitive.
 - Do not bypass path-safety, shell escaping, or validation helpers.
@@ -250,8 +252,9 @@ pnpm run test
   unless the task is explicitly about packaging, signing, or release behavior.
 - Do not dispatch release workflows, publish packages, upload artifacts, or trigger
   external deployments unless the user explicitly asks for release work.
-- Treat `src/main/core/acp/`, `src/main/core/pty/`, `src/main/core/ssh/`,
-  `src/main/db/`, updater code, and provider process spawning as high risk.
+- Treat `src/main/core/acp/`, `packages/core/src/services/pty/`,
+  `src/core/services/ssh/`, `src/main/db/`, updater code, and provider process
+  spawning as high risk.
 - Read the matching `agents/risky-areas/` page before touching database, PTY, SSH, or
   updater code.
 - Do not weaken shell quoting, spawn behavior, env allowlists, path validation, or
@@ -277,7 +280,7 @@ pnpm run test
 - For provider changes, update plugin metadata, shared provider metadata, ACP support
   flags, PTY env passthrough if needed, hook integrations, renderer assumptions, and
   tests for non-standard behavior.
-- For ACP changes, preserve protocol state-machine behavior in `packages/core/src/acp/`,
+- For ACP changes, preserve protocol state-machine behavior in `packages/core/src/runtimes/acp/`,
   keep provider-specific transforms in `packages/plugins/`, and adapt UI payloads at
   app or chat-UI edges.
 - For MCP changes, keep canonical data in shared types and adapt provider formats at edges.
@@ -306,7 +309,7 @@ pnpm run test
   `src/main/core/agents/agent-payload-builder.ts`.
 - ACP support is exposed through plugin ACP capabilities and portable Core ACP APIs.
 - Provider detection lives in `src/main/core/dependencies/`.
-- Provider PTY behavior and env passthrough live under `src/main/core/pty/`.
+- Provider PTY behavior and env construction live under `packages/core/src/services/pty/`.
 - Provider event hooks and plugins are installed and hosted by
  `packages/core/src/runtimes/tui-agents/`; desktop projection lives under
  `src/main/core/agent-status/`.

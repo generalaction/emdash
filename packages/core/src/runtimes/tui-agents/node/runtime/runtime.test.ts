@@ -274,6 +274,20 @@ describe('TuiAgentsRuntime', () => {
     expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toEqual({});
   });
 
+  it('idle sweep skips the tmux spawn when no sessions are tracked', async () => {
+    const clock = createManualClock(0);
+    const exec = vi.fn(() => Promise.resolve({ stdout: '', stderr: '' }));
+    createRuntime({
+      clock,
+      lifecycle: { session: { kind: 'idle-after', outputMs: 1_000 }, sweepIntervalMs: 1_100 },
+      exec: { exec },
+    });
+
+    await clock.advanceBy(1_200);
+
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('uses batched tmux activity to keep detached tmux sessions active', async () => {
     const clock = createManualClock(1_000_000);
     const exec = vi.fn(() =>
