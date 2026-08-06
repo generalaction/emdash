@@ -20,12 +20,9 @@ export function createWorkspaceHostController(
   return withValidation(
     contract,
     createController(contract, {
-      submitOperation: (input) => runtime.submitOperation(input),
-      getOperation: (input) => runtime.getOperation(input.operationId),
       initializeWorkspace: (input, meta) => runtime.initializeWorkspace(input, meta.signal),
       runWorkspaceScript: (input, meta) => runtime.runWorkspaceScript(input, meta.signal),
       measureUsage: (input, meta) => runtime.measureUsage(input, meta.signal),
-      operations: runtime.operationsHost,
       notices: runtime.noticesHost,
     }),
     options.validate ?? 'inputs'

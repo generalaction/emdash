@@ -27,10 +27,9 @@ describe('workspaceWireContract', () => {
     expect(workspaceWireContract.tuiAgents.agentStates.id).toBe('tuiAgents.agentStates');
   });
 
-  it('mounts workspace-host operations, initialization, and notices', () => {
-    expect(workspaceWireContract.workspaceHost.submitOperation.kind).toBe('procedure');
-    expect(workspaceWireContract.workspaceHost.operations.kind).toBe('liveModel');
-    expect(workspaceWireContract.workspaceHost.operations.id).toBe('workspaceHost.operations');
+  it('mounts workspace-host initialization, scripts, usage, and notices', () => {
+    expect('submitOperation' in workspaceWireContract.workspaceHost).toBe(false);
+    expect('operations' in workspaceWireContract.workspaceHost).toBe(false);
     expect(workspaceWireContract.workspaceHost.initializeWorkspace.kind).toBe('procedure');
     expect(workspaceWireContract.workspaceHost.runWorkspaceScript.kind).toBe('procedure');
     expect(workspaceWireContract.workspaceHost.measureUsage.kind).toBe('procedure');

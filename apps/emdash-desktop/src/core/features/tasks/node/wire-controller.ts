@@ -16,7 +16,6 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes, matchProject } from '@core/services/app-db/node/pokes';
 import { tasks } from '@core/services/app-db/node/schema';
-import type { OperationsEngine } from '@core/services/operations/node';
 import { createTaskOperations } from './controller';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
@@ -29,7 +28,6 @@ export type TasksWireController = {
 
 export function createTasksWireController(options: {
   db: AppDb;
-  operations: OperationsEngine;
   runtimes: WorkspaceRemovalBroker;
   service: TaskService;
   taskSessions: Pick<TaskSessionManager, 'getTask'>;

@@ -1,7 +1,3 @@
-import {
-  operationMutationErrorSchema,
-  operationMutationResultSchema,
-} from '@emdash/core/primitives/operations/api';
 import type { Result } from '@emdash/shared';
 import { defineContract, fallible, liveModel, liveState, mutation, procedure } from '@emdash/wire';
 import z from 'zod';
@@ -19,6 +15,7 @@ import {
   type TaskListData,
   type TaskStatsData,
 } from '@core/primitives/tasks/api';
+import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 
 export const deleteTaskInputSchema = z.object({
@@ -120,8 +117,8 @@ export const tasksWireContract = defineContract({
   }),
   delete: fallible({
     input: deleteTaskInputSchema,
-    data: operationMutationResultSchema,
-    error: operationMutationErrorSchema,
+    data: mutationAckSchema,
+    error: mutationErrorSchema,
   }),
 });
 

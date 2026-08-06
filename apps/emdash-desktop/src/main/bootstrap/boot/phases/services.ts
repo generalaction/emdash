@@ -80,12 +80,15 @@ import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/syn
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
-import { createOperationsEngine } from '@core/services/operations/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
+import {
+  createHostReachabilityProbe,
+  type HostReachabilityProbe,
+} from '@core/services/ssh/node/host-reachability';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { appService } from '@main/core/app/service';
 import {
@@ -95,7 +98,6 @@ import {
 import { GitRepositoryFetchService } from '@main/core/git/repository/fetch-service';
 import { GitRepositoryService } from '@main/core/git/repository/service';
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
-import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
 import { ensureAbsoluteDir } from '@main/core/runtime/files-helpers';
 import {
   killLifecycleAcpSessions,
@@ -109,7 +111,7 @@ import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getTerminalColorEnv } from '@main/core/terminal-shell/color-env';
 import { runLocalCommand } from '@main/core/utils/exec';
 import { KV } from '@main/db/kv';
-import { resolveOperationsDatabasePath } from '@main/db/operations-path';
+import { cleanupLegacyOperationsDatabases } from '@main/db/legacy-operations-cleanup';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
@@ -145,9 +147,8 @@ export type ServicesBundle = {
     repositories: ReturnType<typeof createGitHubRepositoryService>;
   };
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
+  readonly hostIsReachable: HostReachabilityProbe;
   readonly notifications: ReturnType<typeof createNotificationService>;
-  readonly operations: Awaited<ReturnType<typeof createOperationsEngine>>['engine'];
-  readonly disposeOperations: () => Promise<void>;
   readonly promptLibrary: ReturnType<typeof createPromptLibraryService>;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly projects: ProjectSessionManager;
@@ -287,6 +288,9 @@ export async function bootServices(
     killTerminals: (database, scope, context, targets) =>
       killLifecycleTerminalSessions(sessionCleanupDependencies, database, scope, context, targets),
   };
+  // Host reachability (ADR 0005): creation-side flows fail fast against offline
+  // hosts; the probe is a plain read of the SSH connection state.
+  const hostIsReachable = createHostReachabilityProbe(infrastructure.ssh.manager);
   const taskService = new TaskService({
     db,
     projects: projectManager,
@@ -297,6 +301,7 @@ export async function bootServices(
     createConversationProvider,
     workspaceIdentity,
     creations: workspaceCreations,
+    hostIsReachable,
     // Plain task deletion (spec §3): no kernel submit; the host-artifact half rides
     // the workspace removal verbs and the reconcile-sweep tombstones.
     deletion: {
@@ -529,7 +534,6 @@ export async function bootServices(
     sessionCleanup: lifecycleSessions,
     telemetry: telemetryService,
   };
-  const desktopClientId = await getDesktopClientId();
   // Push-based mirror of each host's workspace registry (ADR 0005).
   const workspaceRegistrySync = new WorkspaceRegistrySyncService({
     db,
@@ -561,35 +565,9 @@ export async function bootServices(
   void conversationBackfill
     .backfillHost(LOCAL_HOST_REF)
     .then(() => conversationSync.attachHost(LOCAL_HOST_REF));
-  const operations = await createOperationsEngine({
-    scope: appScope,
-    db,
-    databasePath: resolveOperationsDatabasePath(),
-    sshManager: infrastructure.ssh.manager,
-    initiatedBy: desktopClientId,
-    logger: log,
-    notifications: {
-      publishPendingCleanup({ operationId, payload, hostRef, reason }) {
-        notificationService.publish({
-          kind: 'pending-cleanup',
-          groupKey: `pending-cleanup:${hostRef}`,
-          dedupeKey: `pending-cleanup:${operationId}:${reason}`,
-          title: 'Pending cleanup needs review',
-          body: `${payload.entityName ?? 'A workspace'} is waiting for cleanup review.`,
-          sound: 'needs_attention',
-          target: { kind: 'none' },
-          source: { kind: 'app' },
-        });
-      },
-    },
-    // Deletion flows are plain functions now (spec §3); no desktop-authored kernel
-    // definitions remain. The engine survives for host reachability + wire plumbing
-    // until ticket 08 retires it.
-    definitions: [],
-    conflictPolicies: [],
-  });
-  appScope.add(() => operations.dispose());
-  infrastructure.ssh.machines.setOperations(operations.engine);
+  // The operations kernel is gone (ADR 0006 demolition): best-effort cleanup of the
+  // orphaned SQLite store older builds left next to the app database.
+  cleanupLegacyOperationsDatabases(log);
   // The reconcile sweep (ADR 0006): tombstoned mirror rows are the durable deletion
   // queue; they converge whenever their host is reachable. Boot trigger: the local
   // host attaches once its registry sync is up; the service's internal 10-minute
@@ -598,9 +576,7 @@ export async function bootServices(
     scope: appScope,
     onError: (context, error) => log.warn(context, { error: String(error) }),
   });
-  reconcileSweep.registerKind(
-    createWorkspaceDeletionSweepKind({ operations: operations.engine, runtimes })
-  );
+  reconcileSweep.registerKind(createWorkspaceDeletionSweepKind({ db, runtimes }));
   // Conversations sweep after workspaces: the same-host ordering heuristic lets a
   // workspace cascade's freshly written conversation tombstones converge in the same
   // pass; correctness never depends on the order (ADR 0006).
@@ -654,10 +630,9 @@ export async function bootServices(
     account: accountService,
     automations: automationsService,
     github: githubServices,
+    hostIsReachable,
     issueProviders,
     notifications: notificationService,
-    operations: operations.engine,
-    disposeOperations: () => operations.dispose(),
     promptLibrary: promptLibraryService,
     projectDeletion,
     projects: projectManager,

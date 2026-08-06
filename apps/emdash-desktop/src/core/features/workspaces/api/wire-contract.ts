@@ -1,10 +1,7 @@
-import {
-  operationMutationErrorSchema,
-  operationMutationResultSchema,
-} from '@emdash/core/primitives/operations/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import { defineContract, fallible, liveJob } from '@emdash/wire';
 import z from 'zod';
+import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 
 /** Wire shape for workspace activation failures surfaced by the provision job. */
 export const workspaceErrorSchema = z.object({
@@ -55,23 +52,23 @@ export const workspacesWireContract = defineContract({
   }),
   reprovision: fallible({
     input: workspaceIdInputSchema,
-    data: operationMutationResultSchema,
-    error: operationMutationErrorSchema,
+    data: mutationAckSchema,
+    error: mutationErrorSchema,
   }),
   removeAndReprovision: fallible({
     input: workspaceIdInputSchema,
-    data: operationMutationResultSchema,
-    error: operationMutationErrorSchema,
+    data: mutationAckSchema,
+    error: mutationErrorSchema,
   }),
   delete: fallible({
     input: workspaceIdInputSchema,
-    data: operationMutationResultSchema,
-    error: operationMutationErrorSchema,
+    data: mutationAckSchema,
+    error: mutationErrorSchema,
   }),
   archive: fallible({
     input: archiveWorkspaceInputSchema,
-    data: operationMutationResultSchema,
-    error: operationMutationErrorSchema,
+    data: mutationAckSchema,
+    error: mutationErrorSchema,
   }),
 });
 

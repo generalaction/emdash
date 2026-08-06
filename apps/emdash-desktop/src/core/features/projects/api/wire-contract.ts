@@ -1,8 +1,4 @@
 import {
-  operationMutationErrorSchema,
-  operationMutationResultSchema,
-} from '@emdash/core/primitives/operations/api';
-import {
   hostAbsolutePathSchema,
   portableRelativePathSchema,
 } from '@emdash/core/primitives/path/api';
@@ -41,6 +37,7 @@ import {
   type ResolveRepositoryDestinationParams,
   type UpdateProjectSettingsError,
 } from '@core/primitives/projects/api';
+import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 
 export const projectCreationErrorSchema = z.object({
   type: z.string(),
@@ -252,8 +249,8 @@ export const projectsWireContract = defineContract({
   }),
   delete: fallible({
     input: projectIdInputSchema,
-    data: operationMutationResultSchema,
-    error: operationMutationErrorSchema,
+    data: mutationAckSchema,
+    error: mutationErrorSchema,
   }),
 });
 

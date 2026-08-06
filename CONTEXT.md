@@ -56,8 +56,12 @@ The desktop's mirror of each Host registry plus desktop annotations (task links,
 _Avoid_: Spec, expected state, source of truth (for host state)
 
 **Mirror kernel**:
-The desktop module that maintains the Registry across entity kinds: the shared snapshot-convergence transaction, the per-host sync attachment, and the Claim/Observe verb builders that per-kind registries delegate to — parameterized by a per-kind policy (column families, host-record projection, annotated predicate). It converges the mirror toward host Observations and is never an authority.
-_Avoid_: Sync kernel (that is the client↔client CRDT plane), Registry kernel (invites confusion with the Host registry, which is the authority the kernel is not)
+The lean shared machinery behind the per-kind Registries: the per-host sync attachment service, the `sweepUnseen` helper (grace window + the missing/untrack split), guard fragments, and the contract test suite every kind's registry must pass. Claim/Observe upserts and snapshot-apply functions stay hand-written per kind — the suite, not shared code, is what keeps the two stacks from drifting. It converges the mirror toward host Observations and is never an authority.
+_Avoid_: Sync kernel (that is the client↔client CRDT plane), Registry kernel (invites confusion with the Host registry, which is the authority the kernel is not), verb-building framework (deliberately rejected for exactly two kinds)
+
+**Host records kit**:
+The lean helper set in `packages/core` that sole-writer host runtimes compose in — the records publication helper (cell + expose + publish, guaranteeing the snapshot-on-subscribe `records` semantics the Mirror kernel's sync attachment assumes) and the idempotent-delete helper. Deliberately not a framework: runtimes stay hand-written, and the idempotent-create replay rule is a stated contract with per-kind implementations.
+_Avoid_: Host kernel (there is no host-side counterpart to the Mirror kernel), runtime scaffold/base class
 
 ### State vocabulary
 
@@ -116,8 +120,8 @@ The desktop policy that picks the intended path for a new Workspace — computed
 _Avoid_: Probing, path reservation (nothing holds a path on the host)
 
 **Claim**:
-Registration atomically taking ownership of an already-mirrored live row in one statement: origin becomes registered, the caller's annotations are written, observations refresh. Colliding with an untracked row refuses — a Claim never revives a Tombstone.
-_Avoid_: Upsert (the mechanism, not the meaning), creation reviving tombstones
+Registration atomically taking ownership of an already-mirrored live row in one statement: origin becomes registered, the caller's annotations are written, observations refresh. A Claim is never optimistic — a mirror row exists only for a host-acknowledged record, so pre-ack "creating" state is ephemeral memory, never a row. Colliding with an untracked row refuses — a Claim never revives a Tombstone.
+_Avoid_: Upsert (the mechanism, not the meaning), creation reviving tombstones, mirror-first creation (the Registry mirrors acked records; it never front-runs the Host registry)
 
 **Observe**:
 A snapshot delivery's sole write verb: insert-as-adopted for an unknown id, or refresh observation columns only — never annotations, never origin, never an untracked row. The never-resurrect guard is structural, not a separate check.
@@ -130,3 +134,33 @@ _Avoid_: Provisioning (that creates the artifact; activation starts using it), d
 **Workspace notice**:
 A surfaced, non-fatal event about a Workspace's session plane (a failed prepare or setup script). Informational with a re-run affordance, carried on the workspace's Runtime overlay — ephemeral like the activation it belongs to. The durable trace is the per-script last-outcome on the workspace record, which survives daemon restarts and syncs to the mirror.
 _Avoid_: Operation, error state (the workspace keeps working)
+
+### Wire vocabulary
+
+Roles in `packages/wire`, settled by the wire-architecture map's naming pass.
+
+**Source**:
+The server-side owner of one endpoint instance's data — the thing followers sync from. Named with a `Source` suffix (`LiveLogSource`, `LiveJobSource`, `EventStreamSource`); these implement the protocol `LiveSource` seam.
+_Avoid_: Server (a file-name word, not a role), host (that is the keyed registry)
+
+**Host (wire)**:
+A keyed server-side registry of Sources serving one endpoint (the event-stream host), or the worker process registry (`WireWorkerHost`). Never a single instance's owner.
+_Avoid_: Using host for a single Source
+
+**Follower**:
+The client-side sync state machine (`LiveFollower`): generation/sequence tracking, gap detection, resync. Internal machinery under every replica.
+
+**Replica**:
+One client-side, follower-backed copy of a Source's data: `ReplicaState`, `ReplicaLog`, `ReplicaJob`.
+_Avoid_: Client (that is the RPC-side word)
+
+**Replica cache**:
+The keyed, refcounted, lingering cache of Replicas (`*ReplicaCache`), built on the kernel's keyed-retention primitive. Acquire/release leases; linger starts at last release.
+_Avoid_: Word-order distinctions (the old `LiveJobReplica`-vs-`ReplicaJob` convention)
+
+**State kernel**:
+Wire's reactive state primitives (`cell`, `derived`, `family`, `query`, `optimistic`) — the only public surface for state-shaped data. Retention is observation-driven: observed ⇒ retained; `retain()` is the keep-warm exception.
+_Avoid_: Authoring state models with hand-written providers (use `cell` + `expose`), consuming them with anything but `remote()`
+
+**Bridge**:
+The adapter pair carrying kernel state over the live-model wire protocol: `expose` (server) and `remote` (client). An adapter over the live layer, not a parallel transport.

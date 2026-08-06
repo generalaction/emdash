@@ -79,8 +79,6 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
-import type { OperationsEngine } from '@core/services/operations/node';
-import { createOperationsWireController } from '@core/services/operations/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { ReconcileSweepHandle } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
@@ -93,6 +91,7 @@ import {
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/controller';
+import type { HostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;
@@ -107,12 +106,12 @@ export type DesktopControllerContext = {
   readonly db: AppDb;
   readonly editorBuffer: EditorBufferService;
   readonly github: Omit<Parameters<typeof createGithubWireController>[0], 'logger' | 'telemetry'>;
+  readonly hostIsReachable: HostReachabilityProbe;
   readonly hostOperations: DesktopHostControllerOperations;
   readonly issueProviders: IssueProviderRegistry;
   readonly legacyPortOperations: LegacyPortControllerOperations;
   readonly logger: Logger;
   readonly notifications: NotificationService;
-  readonly operations: OperationsEngine;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly promptLibrary: PromptLibraryService;
   readonly projects: ProjectSessionManager;
@@ -138,7 +137,7 @@ export type DesktopControllerContext = {
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly workspaces: Omit<
     CreateWorkspacesWireControllerOptions,
-    'db' | 'operations' | 'runtimes' | 'workspaceIdentity'
+    'db' | 'runtimes' | 'workspaceIdentity'
   >;
 };
 
@@ -253,9 +252,6 @@ export const desktopNodeControllers = {
         await runtimeClients.getMementosRuntimeClient()
       ),
   },
-  operations: {
-    create: ({ operations }) => createOperationsWireController(operations),
-  },
   notifications: {
     create: ({ notifications }) => createNotificationsWireController(notifications),
   },
@@ -271,13 +267,12 @@ export const desktopNodeControllers = {
       controllerFromImpl(desktopDomainContracts.catalog, createCatalogWireController(), scope),
   },
   workspaces: {
-    create: ({ db, operations, runtimes, scope, workspaces }) =>
+    create: ({ db, runtimes, scope, workspaces }) =>
       controllerFromImpl(
         desktopDomainContracts.workspaces,
         createWorkspacesWireController({
           ...workspaces,
           db,
-          operations,
           runtimes,
         }),
         scope
@@ -290,7 +285,6 @@ export const desktopNodeControllers = {
   projects: {
     create: ({
       db,
-      operations,
       projectDeletion,
       projects,
       projectSettings,
@@ -302,7 +296,6 @@ export const desktopNodeControllers = {
         desktopDomainContracts.projects,
         createProjectsWireController({
           db,
-          operations,
           placement: workspacePlacement,
           projectDeletion,
           projects,
@@ -333,8 +326,8 @@ export const desktopNodeControllers = {
     create: ({
       compensation,
       db,
+      hostIsReachable,
       logger,
-      operations,
       projects,
       providerSettings,
       runtimes,
@@ -352,7 +345,7 @@ export const desktopNodeControllers = {
         telemetry,
         workspaceIdentity,
         withCompensation: compensation,
-        hostIsReachable: (hostRef) => operations.hostIsReachable(hostRef),
+        hostIsReachable,
       }),
   },
   previewServers: {
@@ -376,12 +369,11 @@ export const desktopNodeControllers = {
     create: ({ remoteMachine }) => createRemoteMachineWireController(remoteMachine),
   },
   tasks: {
-    create: ({ db, operations, runtimes, scope, taskService, taskSessions, telemetry }) =>
+    create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) =>
       controllerFromImpl(
         desktopDomainContracts.tasks,
         createTasksWireController({
           db,
-          operations,
           runtimes,
           service: taskService,
           taskSessions,

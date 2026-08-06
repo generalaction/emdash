@@ -46,7 +46,7 @@ export function installGateway(
           {
             db: database.db,
             runtimes: runtimes.broker,
-            hostIsReachable: (hostRef) => services.operations.hostIsReachable(hostRef),
+            hostIsReachable: services.hostIsReachable,
           },
           conversationId,
           name

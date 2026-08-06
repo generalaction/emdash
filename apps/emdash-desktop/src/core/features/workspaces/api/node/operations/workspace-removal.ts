@@ -34,7 +34,7 @@ import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reco
  */
 
 export type WorkspaceRemovalError = { type: string; message: string };
-export type WorkspaceRemovalResult = Result<{ operationId?: string }, WorkspaceRemovalError>;
+export type WorkspaceRemovalResult = Result<Record<string, never>, WorkspaceRemovalError>;
 
 type DeleteVerbError = { type: string; message?: string };
 

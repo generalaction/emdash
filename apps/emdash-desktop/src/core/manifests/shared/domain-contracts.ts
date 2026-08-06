@@ -34,7 +34,6 @@ import { remoteMachineContract } from '@core/services/remote-machine/api';
 import { appSettingsContract } from '@core/services/settings/api';
 import { sshContract } from '@core/services/ssh/api';
 import { notificationsContract } from '@root/src/core/services/notifications/api';
-import { operationsContract } from '@root/src/core/services/operations/api';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 
 export const desktopDomainContracts = {
@@ -56,7 +55,6 @@ export const desktopDomainContracts = {
   terminals: terminalsContract,
   mementos: mementosWireContract,
   notifications: notificationsContract,
-  operations: operationsContract,
   pullRequests: pullRequestsContract,
   catalog: catalogWireContract,
   workspaces: workspacesWireContract,

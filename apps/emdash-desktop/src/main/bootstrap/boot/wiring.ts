@@ -101,11 +101,11 @@ export function createDesktopWireOptions(
       getPlatformDisplayName: () => appOperations.getPlatformDisplayName(),
       getDiagnosticLogAttachment: () => appOperations.getDiagnosticLogAttachment(),
     },
+    hostIsReachable: services.hostIsReachable,
     issueProviders: services.issueProviders,
     legacyPortOperations,
     logger: log,
     notifications: services.notifications,
-    operations: services.operations,
     projectDeletion: services.projectDeletion,
     promptLibrary: services.promptLibrary,
     projects: services.projects,
@@ -133,7 +133,7 @@ export function createDesktopWireOptions(
     workspacePlacement: services.workspacePlacement,
     workspaces: {
       async provisionTask(taskId, signal) {
-        const result = await taskService.provisionWorkspace(services.operations, taskId, signal);
+        const result = await taskService.provisionWorkspace(taskId, signal);
         return result.success
           ? result
           : { success: false, error: provisionWorkspaceErrorToWorkspaceError(result.error) };

@@ -5,7 +5,6 @@ import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import { createWorkspaceRegistryWireController } from '../registry-wire-controller';
 import { applyWorkspaceRegistrySnapshot } from '../sync/apply-workspace-registry-snapshot';
@@ -28,7 +27,6 @@ describe('workspace deletion sweep (integration)', () => {
     deleteWorkspace: ReturnType<typeof vi.fn>;
   };
   let reachable: boolean;
-  let submit: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
@@ -39,17 +37,12 @@ describe('workspace deletion sweep (integration)', () => {
       deleteWorktree: vi.fn(async () => ok(undefined)),
       deleteWorkspace: vi.fn(async () => ok(undefined)),
     };
-    submit = vi.fn(async () => ok({ operationId: 'op-1' }));
   });
 
   afterEach(async () => {
     await scope.dispose();
     fixture.close();
   });
-
-  function operations(): OperationSubmitter {
-    return { db: fixture.db, submit } as OperationSubmitter;
-  }
 
   function broker() {
     return {
@@ -70,7 +63,7 @@ describe('workspace deletion sweep (integration)', () => {
     });
     service.registerKind(
       createWorkspaceDeletionSweepKind({
-        operations: operations(),
+        db: fixture.db,
         runtimes: broker() as never,
       })
     );
@@ -170,7 +163,6 @@ describe('workspace deletion sweep (integration)', () => {
 
     // Nothing queues anywhere (ADR 0006): the cascade writes durable conversation
     // tombstones and the conversations kind converges them on sweeps of this host.
-    expect(submit).not.toHaveBeenCalled();
     expect(conversations.getLive('conv-here')?.deletionTombstone).toMatchObject({
       targetRecordId: 'conv-here',
     });

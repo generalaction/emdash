@@ -48,7 +48,7 @@ import type {
   TaskRow,
   WorkspaceInsert,
 } from '@core/services/app-db/node/schema';
-import type { OperationsEngine } from '@core/services/operations/node';
+import type { HostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 
 type ConvInsert = ConversationInsert;
 
@@ -71,7 +71,7 @@ export interface PreparedCreateTask {
 export async function prepareCreateTask(
   db: AppDb,
   projectSessions: Pick<ProjectSessionManager, 'getProject'>,
-  operations: OperationsEngine,
+  hostIsReachable: HostReachabilityProbe,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   params: CreateTaskParams
 ): Promise<Result<PreparedCreateTask, CreateTaskError>> {
@@ -119,7 +119,7 @@ export async function prepareCreateTask(
   // Creation is UX-gated on host availability (spec §6.3, one rule for every target
   // kind): verbs are plain fail-fast RPCs (ADR 0005), so starting new work against an
   // offline host is refused outright. Deletions never hit this gate.
-  if (project.host.type === 'remote' && !operations.hostIsReachable(formatHostRef(project.host))) {
+  if (project.host.type === 'remote' && !hostIsReachable(formatHostRef(project.host))) {
     return err({
       type: 'provision-failed',
       message: 'The workspace host is offline. Reconnect the machine to create new tasks.',
@@ -355,13 +355,13 @@ export function finalizeCreateTask(
 export async function createTask(
   db: AppDb,
   projects: Pick<ProjectSessionManager, 'getProject'>,
-  operations: OperationsEngine,
+  hostIsReachable: HostReachabilityProbe,
   placement: Pick<WorkspacePlacementResolver, 'resolveWorktreeRoot'>,
   runtimes: ConversationsRuntimeBroker,
   creations: WorkspaceCreations,
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
-  const prepared = await prepareCreateTask(db, projects, operations, placement, params);
+  const prepared = await prepareCreateTask(db, projects, hostIsReachable, placement, params);
   if (!prepared.success) return prepared;
 
   // Host-first ordering (spec §6.2): the index is authoritative for conversation

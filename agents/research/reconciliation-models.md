@@ -7,6 +7,11 @@ are one-shot durable commands in an outbox — deliberately *not* Kubernetes-sty
 spec/status convergence. All claims below are from primary sources (official docs, specs,
 man pages), linked inline. Researched 2026-08-03.
 
+> **Update 2026-08-05:** the durable-command outbox described here was itself retired.
+> Host mutations are now plain fail-fast RPC verbs (ADR 0005) and offline deletion is a
+> client-side tombstone converged by an entity-generic reconcile sweep (ADR 0006). The
+> registry/snapshot half of this note stands; read the outbox references as historical.
+
 ## 1. Kubernetes spec/status
 
 Source: [API conventions, "Spec and Status"](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status)

@@ -17,7 +17,6 @@ const GRACE_WINDOW_MS = 400;
 
 type QuitCleanupServices = {
   automations: Pick<AutomationsService, 'stop'>;
-  operations: { dispose(): Promise<void> };
   projects: Pick<ProjectSessionManager, 'dispose' | 'release'>;
   pullRequests: Pick<PullRequestsRegistration, 'dispose'>;
   runtimes: { dispose(): Promise<void> };
@@ -42,10 +41,6 @@ function criticalPhases(services: QuitCleanupServices): Phase<void>[] {
     {
       name: 'agent-status-service',
       run: async () => agentStatusService.dispose(),
-    },
-    {
-      name: 'operations-engine',
-      run: () => services.operations.dispose(),
     },
     {
       name: 'project-manager-release',

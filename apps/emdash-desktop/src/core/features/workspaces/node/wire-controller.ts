@@ -15,7 +15,6 @@ import {
 import { isWorkspacesRuntimeResolveError } from '@core/features/workspaces/api/runtime-adapter';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
-import type { OperationsEngine } from '@core/services/operations/node';
 
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
 type WorkspacesWireImpl = ContractImpl<ContractDefinitionsOf<typeof workspacesWireContract>>;
@@ -27,13 +26,12 @@ export type WorkspacesWireTaskProvisioner = (
 
 export type CreateWorkspacesWireControllerOptions = {
   db: AppDb;
-  operations: OperationsEngine;
   runtimes: WorkspaceRemovalBroker;
   provisionTask: WorkspacesWireTaskProvisioner;
   reprovisionWorkspace(
     workspaceId: string,
     options?: { removeFirst?: boolean }
-  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>>;
+  ): Promise<Result<Record<string, never>, { type: string; message: string }>>;
 };
 
 export type WorkspacesWireController = {

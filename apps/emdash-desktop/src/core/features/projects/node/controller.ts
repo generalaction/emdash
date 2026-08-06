@@ -8,7 +8,6 @@ import type {
   ProjectSettingsPatch,
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
-import type { OperationsEngine } from '@core/services/operations/node';
 import type { CreateProjectDependencies } from './operations/create-project';
 import { createProject, inspectProjectPath } from './operations/create-project';
 import { deleteProject, type ProjectDeletionDependencies } from './operations/deleteProject';
@@ -21,7 +20,6 @@ import { updateProjectConnection } from './operations/updateProjectConnection';
 import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
 
 export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'projects'> & {
-  operations: OperationsEngine;
   placement: WorkspacePlacementResolver;
   projectDeletion: ProjectDeletionDependencies;
   projectSettings: ProjectSettingsService;

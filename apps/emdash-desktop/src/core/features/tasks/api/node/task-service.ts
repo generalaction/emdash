@@ -46,7 +46,7 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
-import type { OperationsEngine } from '@core/services/operations/node';
+import type { HostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 import { archiveTask } from '../../node/operations/archiveTask';
 import { createTask } from '../../node/operations/createTask';
 import {
@@ -95,6 +95,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       workspaceIdentity: WorkspaceIdentityService;
       creations: WorkspaceCreations;
       deletion: TaskDeletionDependencies;
+      hostIsReachable: HostReachabilityProbe;
     }
   ) {}
 
@@ -102,14 +103,11 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return this._hooks.on(name, handler);
   }
 
-  async createTask(
-    operations: OperationsEngine,
-    params: CreateTaskParams
-  ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
+  async createTask(params: CreateTaskParams): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
     const result = await createTask(
       this.dependencies.db,
       this.dependencies.projects,
-      operations,
+      this.dependencies.hostIsReachable,
       this.dependencies.workspacePlacement,
       this.dependencies.runtimes,
       this.dependencies.creations,
@@ -135,7 +133,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
    * can publish durable status to renderer replicas.
    */
   async provisionWorkspace(
-    operations: OperationsEngine,
     taskId: string,
     signal?: AbortSignal
   ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
@@ -160,7 +157,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
-    const result = await this._activateWorkspace(operations, row, signal);
+    const result = await this._activateWorkspace(row, signal);
     if (!result.success) return err(result.error);
 
     await this._registerAndPersist(taskId, result.data);
@@ -175,19 +172,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return ok(provisionResult);
   }
 
-  /**
-   * Phases 1+2 combined: provisions workspace then session.
-   * Used by the automation path which runs entirely in the main process.
-   */
-  async launch(
-    operations: OperationsEngine,
-    taskId: string
-  ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
-    return this.provisionWorkspace(operations, taskId);
-  }
-
   private async _activateWorkspace(
-    operations: OperationsEngine,
     taskRow: typeof tasks.$inferSelect,
     signal?: AbortSignal
   ): Promise<Result<ActivatedTask, ProvisionWorkspaceError>> {
@@ -401,7 +386,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async reprovisionWorkspace(
     workspaceId: string,
     options: { removeFirst?: boolean } = {}
-  ): Promise<Result<{ operationId?: string }, { type: string; message: string }>> {
+  ): Promise<Result<Record<string, never>, { type: string; message: string }>> {
     const workspaceRow = createWorkspaceRegistry(this.dependencies.db).getLive(workspaceId);
     if (!workspaceRow?.path || workspaceRow.kind !== 'worktree' || !workspaceRow.config) {
       return err({
@@ -459,15 +444,8 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return this.dependencies.sessions.teardownTask(taskId, mode);
   }
 
-  async getDeletePreflight(
-    operations: Pick<OperationsEngine, 'hostIsReachable'>,
-    taskIds: string[]
-  ) {
-    return getDeletePreflight(
-      this.dependencies.db,
-      (hostRef) => operations.hostIsReachable(hostRef),
-      taskIds
-    );
+  async getDeletePreflight(taskIds: string[]) {
+    return getDeletePreflight(this.dependencies.db, this.dependencies.hostIsReachable, taskIds);
   }
 
   /**

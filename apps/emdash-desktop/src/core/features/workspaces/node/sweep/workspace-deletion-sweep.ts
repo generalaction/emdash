@@ -9,7 +9,7 @@ import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
+import type { AppDb } from '@core/services/app-db/node/db';
 import type {
   ReconcileSweepKind,
   ReconcileTombstone,
@@ -24,15 +24,15 @@ import type {
  * once a delivery no longer carries the record).
  */
 export function createWorkspaceDeletionSweepKind(options: {
-  operations: OperationSubmitter;
+  db: AppDb;
   runtimes: WorkspaceRemovalBroker;
 }): ReconcileSweepKind {
-  const { operations, runtimes } = options;
+  const { db, runtimes } = options;
   return {
     kind: 'workspaces',
 
     async readTombstones(host: HostRef): Promise<readonly ReconcileTombstone[]> {
-      const rows = operations.db
+      const rows = db
         .select()
         .from(workspaces)
         .where(
@@ -54,7 +54,7 @@ export function createWorkspaceDeletionSweepKind(options: {
     },
 
     async executeRemoval(host, id) {
-      const row = createWorkspaceRegistry(operations.db).getLive(id);
+      const row = createWorkspaceRegistry(db).getLive(id);
       const tombstone = row?.deletionTombstone ?? null;
       // The row vanished under the sweep (forget-host, sync purge): nothing to issue,
       // nothing to assert.
@@ -81,7 +81,7 @@ export function createWorkspaceDeletionSweepKind(options: {
       // guarantee). The workspace tombstone itself still waits for mirror
       // confirmation; only the RPC's positive success runs the cascade.
       if (tombstone.options.deleteConversations) {
-        tombstoneWorkspaceConversationDeletions(operations.db, {
+        tombstoneWorkspaceConversationDeletions(db, {
           workspacePath: row.path ?? undefined,
           host,
           createdAt: Date.now(),
@@ -93,7 +93,7 @@ export function createWorkspaceDeletionSweepKind(options: {
     async confirmGone(_host, id) {
       // The sync snapshot application untracks tombstoned rows once a delivery
       // confirms the record absent — a row no longer live is a purged tombstone.
-      return createWorkspaceRegistry(operations.db).getLive(id) === undefined;
+      return createWorkspaceRegistry(db).getLive(id) === undefined;
     },
   };
 }

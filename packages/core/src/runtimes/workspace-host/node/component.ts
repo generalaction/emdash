@@ -28,7 +28,6 @@ export const workspaceHostComponent = defineWireComponent({
     };
     const runtime = new WorkspaceHostRuntime({
       stateDirectory: config.stateDirectory,
-      sessions,
       scope,
     });
     const gc = new WorkspaceHostSessionGc({

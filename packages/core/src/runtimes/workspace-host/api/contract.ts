@@ -6,27 +6,12 @@ import {
   workspaceHostInitializeResultSchema,
   workspaceHostMeasureUsageRequestSchema,
   workspaceHostNoticesListSchema,
-  workspaceHostOperationInputSchema,
-  workspaceHostOperationQuerySchema,
-  workspaceHostOperationViewSchema,
-  workspaceHostOperationsListSchema,
   workspaceHostRunScriptRequestSchema,
   workspaceHostRunScriptResultSchema,
-  workspaceHostSubmitOperationResultSchema,
   workspaceHostUsageSchema,
 } from './schemas';
 
 export const workspaceHostContract = defineContract({
-  submitOperation: fallible({
-    input: workspaceHostOperationInputSchema,
-    data: workspaceHostSubmitOperationResultSchema,
-    error: workspaceHostErrorSchema,
-  }),
-  getOperation: fallible({
-    input: workspaceHostOperationQuerySchema,
-    data: workspaceHostOperationViewSchema.nullable(),
-    error: workspaceHostErrorSchema,
-  }),
   initializeWorkspace: fallible({
     input: workspaceHostInitializeRequestSchema,
     data: workspaceHostInitializeResultSchema,
@@ -41,12 +26,6 @@ export const workspaceHostContract = defineContract({
     input: workspaceHostMeasureUsageRequestSchema,
     data: workspaceHostUsageSchema,
     error: workspaceHostErrorSchema,
-  }),
-  operations: liveModel({
-    key: z.void().optional(),
-    states: {
-      list: liveState({ data: workspaceHostOperationsListSchema }),
-    },
   }),
   notices: liveModel({
     key: z.void().optional(),

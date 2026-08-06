@@ -16,9 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@core/features/workspaces/api/node/registry/workspace-tombstones', () => ({
   findWorkspaceTombstoneConflict: mocks.findWorkspaceTombstoneConflict,
 }));
-const operations = {
-  hostIsReachable: mocks.hostIsReachable,
-} as never;
+const hostIsReachable = mocks.hostIsReachable;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
 const projects = { getProject: mocks.getProject };
 const placement = { resolveWorktreeRoot: mocks.resolveWorktreeRoot };
@@ -47,10 +45,10 @@ let creations: WorkspaceCreations;
 function createTask(
   _db: typeof db,
   _projects: typeof projects,
-  _operations: typeof operations,
+  _hostIsReachable: typeof hostIsReachable,
   params: Parameters<typeof createTaskOperation>[6]
 ) {
-  return createTaskOperation(db, projects, operations, placement, runtimes, creations, params);
+  return createTaskOperation(db, projects, hostIsReachable, placement, runtimes, creations, params);
 }
 
 /** Awaits the background worktree creation kicked off for the inserted workspace row. */
@@ -185,7 +183,7 @@ describe('createTask', () => {
 
   it('returns project-not-found when project does not exist', async () => {
     mocks.getProject.mockReturnValue(undefined);
-    const result = await createTask(db, projects, operations, {
+    const result = await createTask(db, projects, hostIsReachable, {
       id: 'task-1',
       projectId: 'project-1',
       taskConfig: { version: '1', name: 'Test Task' },
@@ -207,7 +205,7 @@ describe('createTask', () => {
         message: 'This workspace is pending deletion on its host.',
       });
 
-      const result = await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -241,7 +239,7 @@ describe('createTask', () => {
         message: 'A deletion is still pending for branch "feature/x".',
       });
 
-      const result = await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -270,7 +268,7 @@ describe('createTask', () => {
   });
 
   it('executes all writes inside a single db.transaction call', async () => {
-    await createTask(db, projects, operations, {
+    await createTask(db, projects, hostIsReachable, {
       id: 'task-1',
       projectId: 'project-1',
       taskConfig: { version: '1', name: 'Test Task' },
@@ -286,7 +284,7 @@ describe('createTask', () => {
   it('does not write taskBranch or sourceBranch to the tasks row', async () => {
     const { captured } = setupTransactionMock();
 
-    await createTask(db, projects, operations, {
+    await createTask(db, projects, hostIsReachable, {
       id: 'task-1',
       projectId: 'project-1',
       taskConfig: { version: '1', name: 'Test Task' },
@@ -310,7 +308,7 @@ describe('createTask', () => {
   it('includes workspaceId in the task row insert', async () => {
     const { captured } = setupTransactionMock();
 
-    await createTask(db, projects, operations, {
+    await createTask(db, projects, hostIsReachable, {
       id: 'task-1',
       projectId: 'project-1',
       taskConfig: { version: '1', name: 'Test Task' },
@@ -329,7 +327,7 @@ describe('createTask', () => {
   describe('repository-instance workspace target', () => {
     it('reuses the existing workspace ID from config', async () => {
       const { captured } = setupTransactionMock();
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -346,7 +344,7 @@ describe('createTask', () => {
     });
 
     it('does not call the registry verbs', async () => {
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -376,7 +374,7 @@ describe('createTask', () => {
         workspace: { kind: 'new-worktree' as const },
       };
 
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -414,7 +412,7 @@ describe('createTask', () => {
     it('does not request a push when pushBranch is not set', async () => {
       const { captured } = setupTransactionMock();
 
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -438,7 +436,7 @@ describe('createTask', () => {
     it('compiles a remote fromBranch into a remote-qualified baseRef', async () => {
       const { captured } = setupTransactionMock();
 
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -467,7 +465,7 @@ describe('createTask', () => {
       makeProjectRemote();
       const { captured } = setupTransactionMock();
 
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -495,7 +493,7 @@ describe('createTask', () => {
       mocks.hostIsReachable.mockReturnValue(false);
       const { captured } = setupTransactionMock();
 
-      const result = await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -524,7 +522,7 @@ describe('createTask', () => {
       mocks.registryRows.push({ id: 'existing' });
       const { captured } = setupTransactionMock();
 
-      await createTask(db, projects, operations, {
+      await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -552,7 +550,7 @@ describe('createTask', () => {
       mocks.hostIsReachable.mockReturnValue(false);
       const { captured } = setupTransactionMock();
 
-      const result = await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -577,7 +575,7 @@ describe('createTask', () => {
         error: { type: 'stage-failed', stage: 'add-worktree', message: 'branch exists' },
       } as never);
 
-      const result = await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, hostIsReachable, {
         id: 'task-1',
         projectId: 'project-1',
         taskConfig: { version: '1', name: 'Test Task' },
@@ -633,7 +631,7 @@ describe('createTask', () => {
     it('registers the record on the host before the desktop commit, path frozen and prompt in config', async () => {
       const { captured } = setupTransactionMock();
 
-      const result = await createTask(db, projects, operations, worktreeParams);
+      const result = await createTask(db, projects, hostIsReachable, worktreeParams);
       expect(result.success).toBe(true);
 
       expect(hostConversations.create).toHaveBeenCalledTimes(1);
@@ -667,7 +665,7 @@ describe('createTask', () => {
         error: { type: 'immutable-field-mismatch', message: 'id reuse' },
       } as never);
 
-      const result = await createTask(db, projects, operations, worktreeParams);
+      const result = await createTask(db, projects, hostIsReachable, worktreeParams);
 
       expect(result).toEqual({
         success: false,
@@ -683,7 +681,7 @@ describe('createTask', () => {
         throw new Error('constraint violated');
       });
 
-      await expect(createTask(db, projects, operations, worktreeParams)).rejects.toThrow(
+      await expect(createTask(db, projects, hostIsReachable, worktreeParams)).rejects.toThrow(
         'constraint violated'
       );
       expect(hostConversations.delete).toHaveBeenCalledWith({ id: 'conv-1' });
@@ -694,7 +692,7 @@ describe('createTask', () => {
       const { captured } = setupTransactionMock();
       mocks.registryRows.push({ id: 'ws-repo-1', path: '/repo' });
 
-      const result = await createTask(db, projects, operations, {
+      const result = await createTask(db, projects, hostIsReachable, {
         ...worktreeParams,
         taskConfig: {
           ...worktreeParams.taskConfig,

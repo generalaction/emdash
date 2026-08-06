@@ -18,7 +18,6 @@ describe('createWorkspacesWireController', () => {
     );
     const controller = createWorkspacesWireController({
       db: {} as never,
-      operations: {} as never,
       runtimes: {} as never,
       provisionTask,
       reprovisionWorkspace: vi.fn(),
@@ -48,10 +47,9 @@ describe('createWorkspacesWireController', () => {
   });
 
   it('routes reprovision variants through the reprovision dependency', async () => {
-    const reprovisionWorkspace = vi.fn(async () => ok({ operationId: 'op-1' }));
+    const reprovisionWorkspace = vi.fn(async () => ok({}));
     const controller = createWorkspacesWireController({
       db: {} as never,
-      operations: {} as never,
       runtimes: {} as never,
       provisionTask: vi.fn(),
       reprovisionWorkspace: reprovisionWorkspace as never,

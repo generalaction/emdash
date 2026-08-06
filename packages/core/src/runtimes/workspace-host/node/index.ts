@@ -9,7 +9,6 @@ export {
 export {
   WorkspaceHostRuntime,
   type WorkspaceHostNoticesLiveHost,
-  type WorkspaceHostOperationsLiveHost,
   type WorkspaceHostRuntimeOptions,
 } from '@runtimes/workspace-host/node/workspace-host-runtime';
 export {
@@ -35,8 +34,3 @@ export {
   type WorkspaceInitManagerOptions,
   type WorkspaceNotice,
 } from '@runtimes/workspace-host/node/session-init/workspace-init-manager';
-export {
-  validateWorktreePath,
-  type ValidateWorktreePathOptions,
-  type WorktreePathMutation,
-} from '@runtimes/workspace-host/node/worktree-path-safety';

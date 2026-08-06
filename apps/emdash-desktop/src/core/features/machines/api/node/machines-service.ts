@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { formatHostRef, hostRef, type SerializedHostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import {
   createConversationRegistry,
@@ -39,16 +38,11 @@ type MachinesLog = {
   warn(message: string, metadata?: Record<string, unknown>): void;
 };
 
-type MachinesOperations = {
-  cancelPendingForHost(hostRef: SerializedHostRef): Promise<number>;
-};
-
 export interface MachinesServiceDeps {
   db: AppDb;
   credentials: MachinesCredentials;
   ssh: MachinesSshRuntime;
   log: MachinesLog;
-  operations?: MachinesOperations;
   createId?: () => string;
   now?: () => number;
 }
@@ -66,12 +60,10 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
   private readonly createId: () => string;
   private readonly now: () => number;
   private readonly hooks: HookCore<MachinesServiceHooks>;
-  private operations: MachinesOperations | undefined;
 
   constructor(private readonly deps: MachinesServiceDeps) {
     this.createId = deps.createId ?? randomUUID;
     this.now = deps.now ?? Date.now;
-    this.operations = deps.operations;
     this.hooks = new HookCore<MachinesServiceHooks>((name, error) => {
       deps.log.warn(`MachinesService: ${String(name)} hook failed`, { error });
     });
@@ -79,11 +71,6 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
 
   on<K extends keyof MachinesServiceHooks>(name: K, handler: MachinesServiceHooks[K]): () => void {
     return this.hooks.on(name, handler);
-  }
-
-  setOperations(operations: MachinesOperations): void {
-    if (this.operations) throw new Error('Machines operations dependency is already configured');
-    this.operations = operations;
   }
 
   async getMachines(): Promise<SshConfig[]> {
@@ -221,18 +208,9 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       throw new Error(`SSH connection is used by ${projectNames}`);
     }
 
-    // Forget-host cascade: cancel every queued outbox entry targeting this host and
-    // purge its workspace mirror rows — pending deletion tombstones included
-    // (ADR 0006: forget means forget). Nothing host-side is touched; re-adding the
-    // host reconverges from its own registry.
-    await this.operations
-      ?.cancelPendingForHost(formatHostRef(hostRef('remote', id)))
-      .catch((error: unknown) => {
-        this.deps.log.warn('MachinesService.deleteMachine: error cancelling pending operations', {
-          connectionId: id,
-          error: String(error),
-        });
-      });
+    // Forget-host cascade: purge the host's workspace mirror rows — pending deletion
+    // tombstones included (ADR 0006: forget means forget). Nothing host-side is
+    // touched; re-adding the host reconverges from its own registry.
     const registryIds = this.deps.db
       .select({ id: workspaces.id })
       .from(workspaces)
