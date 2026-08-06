@@ -1,3 +1,4 @@
+import { resultSchema } from '@emdash/shared';
 import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
@@ -12,6 +13,13 @@ export const devPerfProcessSchema = z.object({
 });
 
 export type DevPerfProcess = z.infer<typeof devPerfProcessSchema>;
+
+/** Only one whole-app trace can record at a time; a second request is an expected failure. */
+export const devPerfTraceErrorSchema = z.object({
+  type: z.literal('trace_in_progress'),
+});
+
+export type DevPerfTraceError = z.infer<typeof devPerfTraceErrorSchema>;
 
 export const devPerfContract = defineContract({
   /**
@@ -30,7 +38,7 @@ export const devPerfContract = defineContract({
   /** Capture a contentTracing trace and return the file it was written to. */
   captureTrace: procedure({
     input: z.object({ durationMs: z.number().optional() }),
-    output: z.object({ path: z.string() }),
+    output: resultSchema(z.object({ path: z.string() }), devPerfTraceErrorSchema),
   }),
   /** Toggle verbose per-spawn logging (main process + all workers). */
   setVerboseSpawnLogging: procedure({

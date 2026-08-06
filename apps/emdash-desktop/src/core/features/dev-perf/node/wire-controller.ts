@@ -1,12 +1,13 @@
+import { map, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { setSpawnObserver } from '@emdash/shared/perf';
 import { createController, type Controller } from '@emdash/wire/rpc';
-import { devPerfContract } from '../api';
+import { devPerfContract, type DevPerfTraceError } from '../api';
 import { PROCESS_SNAPSHOT_SUPPORTED, snapshotProcessTree } from './process-snapshot';
 
 export type DevPerfOperations = {
   /** Record a contentTracing trace and return the file path it was written to. */
-  captureTrace(durationMs: number): Promise<string>;
+  captureTrace(durationMs: number): Promise<Result<string, DevPerfTraceError>>;
   /** Toggle verbose per-spawn logging in every worker process. */
   setWorkerSpawnLogging(enabled: boolean): void;
 };
@@ -30,7 +31,7 @@ export function createDevPerfWireController(
         MAX_TRACE_DURATION_MS,
         Math.max(1_000, durationMs ?? DEFAULT_TRACE_DURATION_MS)
       );
-      return { path: await operations.captureTrace(clamped) };
+      return map(await operations.captureTrace(clamped), (path) => ({ path }));
     },
     setVerboseSpawnLogging: ({ enabled }) => {
       verboseSpawnLogging = enabled;

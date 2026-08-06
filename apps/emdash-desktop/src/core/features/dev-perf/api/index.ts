@@ -1,1 +1,7 @@
-export { devPerfContract, devPerfProcessSchema, type DevPerfProcess } from './contract';
+export {
+  devPerfContract,
+  devPerfProcessSchema,
+  devPerfTraceErrorSchema,
+  type DevPerfProcess,
+  type DevPerfTraceError,
+} from './contract';

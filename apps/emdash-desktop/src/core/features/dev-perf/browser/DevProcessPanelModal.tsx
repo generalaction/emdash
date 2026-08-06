@@ -1,11 +1,10 @@
 import { Button, Switch } from '@emdash/ui/react/primitives';
 import React, { useEffect, useState } from 'react';
 import { defineModal } from '@core/primitives/modals/react';
+import { captureDevPerfTrace } from '../api/browser/capture-trace';
 import { getDevPerfClient } from '../api/browser/client';
 import type { DevPerfProcess } from '../api/contract';
 import { createProcessPoller } from './process-poller';
-
-const TRACE_DURATION_MS = 10_000;
 
 function formatMemory(bytes: number): string {
   const mb = bytes / (1024 * 1024);
@@ -49,13 +48,10 @@ export function DevProcessPanelModal() {
 
   const handleCaptureTrace = async () => {
     setTrace({ kind: 'recording' });
-    try {
-      const client = await getDevPerfClient();
-      const { path } = await client.captureTrace({ durationMs: TRACE_DURATION_MS });
-      setTrace({ kind: 'done', path });
-    } catch (error) {
-      setTrace({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
-    }
+    const outcome = await captureDevPerfTrace();
+    setTrace(
+      outcome.ok ? { kind: 'done', path: outcome.path } : { kind: 'error', message: outcome.message }
+    );
   };
 
   const handleSpawnLoggingChange = async (enabled: boolean) => {
