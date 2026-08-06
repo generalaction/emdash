@@ -141,7 +141,6 @@
     "apps/emdash-desktop/src/core/features/tasks/browser/create-task-modal/linked-entity-section.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/create-task-modal/task-name-field.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/delete-task-modal.tsx",
-    "apps/emdash-desktop/src/core/features/tasks/browser/main-panel.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/pane-empty-state.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/rename-task-modal.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/tab-bar-actions.tsx",
