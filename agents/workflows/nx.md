@@ -5,7 +5,7 @@ sits on top of the existing tooling — `tsdown`, `electron-vite`, `vitest`, `ox
 `oxfmt` — and adds dependency-ordered execution, input hashing, and output caching
 without requiring any structural changes to packages.
 
-No `project.json` files exist. Nx infers all five projects from `package.json`
+No `project.json` files exist. Nx infers every workspace project from `package.json`
 `workspace:*` dependencies and runs each project's existing `package.json` scripts
 as Nx targets.
 
@@ -19,10 +19,14 @@ Nx derives this graph from `workspace:*` dependency references:
 
 ```
 @emdash/shared    (leaf)
-@emdash/core      -> shared
-@emdash/plugins   -> core -> shared
-@emdash/ui        (leaf)
-@emdash/emdash-desktop -> shared, core, plugins, ui
+@emdash/theme     (leaf)
+@emdash/wire      -> shared
+@emdash/core      -> shared, wire
+@emdash/plugins   -> core, shared
+@emdash/chat-ui   -> core, shared
+@emdash/ui        -> chat-ui, shared, theme
+@emdash/workspace-server -> core, plugins, shared, wire
+@emdash/emdash-desktop   -> chat-ui, core, plugins, shared, ui, wire
 ```
 
 The `dependsOn: ["^build"]` default in `nx.json` means "build all upstream packages
@@ -75,7 +79,7 @@ nx typecheck @emdash/emdash-desktop
 nx package:mac @emdash/emdash-desktop
 nx db:reset @emdash/emdash-desktop
 nx storybook @emdash/ui
-nx theme:build @emdash/ui
+nx build:theme @emdash/ui
 ```
 
 **Run affected with a custom base:**

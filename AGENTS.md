@@ -19,11 +19,14 @@ Repo root:
 - `.github/` - GitHub issue templates, reusable actions, CI, and release workflows.
 - `agents/` - Agent-facing architecture, workflow, convention, integration, and risk docs.
 - `apps/emdash-desktop/` - The Electron desktop app.
+- `apps/workspace-server/` - Remote workspace server and its Docker-based dev stack.
 - `packages/chat-ui/` - Shared transcript and ACP chat renderer with Storybook coverage.
 - `packages/core/` - Transport-agnostic runtime primitives, including ACP session logic.
 - `packages/plugins/` - Agent provider plugin definitions, hooks, and ACP adapters.
 - `packages/shared/` - Shared primitives such as result types, logging, and markdown helpers.
+- `packages/theme/` - Theme token codegen that emits the generated theme CSS.
 - `packages/ui/` - Shared React UI components, theme tokens, recipes, and primitives.
+- `packages/wire/` - Typed wire protocol contracts shared by app and workspace server.
 - `pnpm-workspace.yaml` - Workspace package globs for `apps/*` and `packages/**`.
 - Root config files - `package.json`, `nx.json`, `.nvmrc`, `.oxfmtrc.json`,
   `.oxlintrc.json`, and lockfile/configuration owned at the workspace root.
@@ -62,7 +65,6 @@ Start only the Electron app from `apps/emdash-desktop/`:
 ```bash
 cd apps/emdash-desktop
 pnpm run dev
-pnpm run d
 ```
 
 Run main-process or renderer-only dev watches from `apps/emdash-desktop/`:
@@ -128,7 +130,6 @@ pnpm run test
 Run focused database validation from `apps/emdash-desktop/`:
 
 ```bash
-pnpm run db:setup
 pnpm run db:fixtures
 pnpm run test:migrations
 ```

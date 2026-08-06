@@ -68,14 +68,6 @@ cd apps/emdash-desktop
 pnpm run dev
 ```
 
-From `apps/emdash-desktop/`, `pnpm run d` is a convenience command that runs
-`pnpm install` and then starts `pnpm run dev` for the desktop app:
-
-```bash
-cd apps/emdash-desktop
-pnpm run d
-```
-
 Important distinction:
 
 - `pnpm run dev` from the repo root starts the workspace package watchers and the
@@ -135,7 +127,7 @@ Individual project targets are addressable from the root without `cd`:
 nx package:mac @emdash/emdash-desktop
 nx db:reset @emdash/emdash-desktop
 nx storybook @emdash/ui
-nx theme:build @emdash/ui
+nx build:theme @emdash/ui
 ```
 
 See `agents/workflows/nx.md` for a full explanation of the Nx setup.
@@ -143,7 +135,6 @@ See `agents/workflows/nx.md` for a full explanation of the Nx setup.
 Useful app-local commands from `apps/emdash-desktop/`:
 
 ```bash
-pnpm run d              # install dependencies, then start the desktop app
 pnpm run dev            # start electron-vite dev for the desktop app only
 pnpm run dev:debug      # start with debug logging
 pnpm run dev:main       # watch the Electron main process
@@ -307,7 +298,6 @@ Database rules:
 - Run focused database validation from `apps/emdash-desktop/` when relevant:
 
 ```bash
-pnpm run db:setup
 pnpm run db:fixtures
 pnpm run test:migrations
 ```

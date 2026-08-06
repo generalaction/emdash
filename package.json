@@ -12,8 +12,7 @@
     "typecheck": "nx run-many -t typecheck --all",
     "affected": "nx affected -t lint typecheck test",
     "generate:boundary-allowlists": "node tooling/scripts/generate-boundary-allowlists.mjs",
-    "graph": "nx graph",
-    "rewrite:shared-imports": "tsx tooling/scripts/rewrite-shared-imports.ts"
+    "graph": "nx graph"
   },
   "devDependencies": {
     "nx": "^23.0.0",

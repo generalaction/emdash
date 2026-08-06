@@ -9,10 +9,9 @@
 ## Core Commands
 
 Run from `apps/emdash-desktop/` (the root `package.json` also provides `dev` and `build`
-aggregates that delegate via `pnpm --filter`):
+aggregates that run through Nx in dependency order):
 
 ```bash
-pnpm run d
 pnpm run dev
 pnpm run dev:main
 pnpm run dev:renderer

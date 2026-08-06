@@ -14,8 +14,6 @@
 - `scripts/release/finalize-release.ts`
 - `.github/workflows/release-prod.yml`
 - `.github/workflows/release-canary.yml`
-- `.github/workflows/windows-beta-build.yml`
-- `.github/workflows/nix-build.yml`
 
 ## Rules
 
@@ -69,6 +67,5 @@ R2 uploads continue until telemetry confirms all clients have migrated to the Gi
 ## Current Notes
 
 - macOS and Linux release jobs rebuild native modules for the target Electron version
-- Windows beta builds intentionally use Node 20 in CI for native module stability
 - changelog and auto-update behavior are separate but related surfaces in the app
 - the `finalize-release` CI job requires `contents: write` permission and the default `GITHUB_TOKEN`
