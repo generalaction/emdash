@@ -1,6 +1,6 @@
 import { map, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { setSpawnObserver } from '@emdash/shared/perf';
+import { setVerboseSpawnLogging } from '@emdash/shared/perf';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { devPerfContract, type DevPerfTraceError } from '../api';
 import { PROCESS_SNAPSHOT_SUPPORTED, snapshotProcessTree } from './process-snapshot';
@@ -35,9 +35,7 @@ export function createDevPerfWireController(
     },
     setVerboseSpawnLogging: ({ enabled }) => {
       verboseSpawnLogging = enabled;
-      setSpawnObserver(
-        enabled ? (purpose, command) => logger.info('perf.spawn', { purpose, command }) : null
-      );
+      setVerboseSpawnLogging(logger, enabled);
       operations.setWorkerSpawnLogging(enabled);
       return { enabled };
     },

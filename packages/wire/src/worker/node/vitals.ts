@@ -1,5 +1,5 @@
 import type { Logger } from '@emdash/shared/logger';
-import { setSpawnObserver } from '@emdash/shared/perf';
+import { setVerboseSpawnLogging } from '@emdash/shared/perf';
 import {
   startVitalsReporting,
   type StartVitalsReportingOptions,
@@ -51,11 +51,7 @@ export function installWorkerVitals(options: InstallWorkerVitalsOptions = {}): v
     if (isWorkerSpawnLogToggle(message)) {
       const logger = options.logger;
       if (!logger) return;
-      setSpawnObserver(
-        message.enabled
-          ? (purpose, command) => logger.info('perf.spawn', { purpose, command })
-          : null
-      );
+      setVerboseSpawnLogging(logger, message.enabled);
     }
   });
 }

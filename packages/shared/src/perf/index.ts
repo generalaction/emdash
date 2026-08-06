@@ -8,6 +8,7 @@ export {
   recordSpawn,
   resetSpawnCounts,
   setSpawnObserver,
+  setVerboseSpawnLogging,
   snapshotSpawnCounts,
   SPAWN_PURPOSES,
   type SpawnObserver,
