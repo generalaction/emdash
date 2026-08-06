@@ -3,7 +3,7 @@ import {
   MachineStatus,
   type MachineStatusKind,
 } from '@emdash/ui/react/components';
-import { Button as UiButton } from '@emdash/ui/react/primitives';
+import { Button, Button as UiButton } from '@emdash/ui/react/primitives';
 import { PencilIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -12,7 +12,6 @@ import { getProjectManagerStore } from '@core/features/projects/api/browser/stor
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -80,10 +79,11 @@ export function ChangeProjectConnectionModal({
       }
       footer={
         <DialogFooter>
-          <Button variant="outline" onClick={modal.dismiss} disabled={isSaving}>
+          <Button variant="secondary" onClick={modal.dismiss} disabled={isSaving}>
             Cancel
           </Button>
           <ConfirmButton
+            variant="primary"
             onClick={() => void handleSave()}
             disabled={isSaving || !selectedConnectionId}
           >

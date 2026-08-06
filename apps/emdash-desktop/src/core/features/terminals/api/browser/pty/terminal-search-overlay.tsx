@@ -1,8 +1,8 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import React, { type RefObject } from 'react';
 import type { TerminalSearchStatus } from '@core/features/terminals/api/browser/pty/use-terminal-search';
 import { terminalSearchScope } from '@core/features/workbench/contributions/scopes';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { Input } from '@core/primitives/ui/browser/input';
 import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
@@ -74,7 +74,8 @@ export function TerminalSearchOverlay({
         <Button
           type="button"
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={() => onStep('prev')}
           disabled={!searchQuery || searchStatus.total === 0}
           className="shrink-0 text-foreground-muted"
@@ -85,7 +86,8 @@ export function TerminalSearchOverlay({
         <Button
           type="button"
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={() => onStep('next')}
           disabled={!searchQuery || searchStatus.total === 0}
           className="shrink-0 text-foreground-muted"
@@ -96,7 +98,8 @@ export function TerminalSearchOverlay({
         <Button
           type="button"
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={onClose}
           className="shrink-0 text-foreground-muted"
           aria-label="Close terminal search"

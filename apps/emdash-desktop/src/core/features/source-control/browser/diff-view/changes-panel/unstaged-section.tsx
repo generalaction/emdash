@@ -1,4 +1,5 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
+import { Button } from '@emdash/ui/react/primitives';
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
@@ -13,7 +14,6 @@ import {
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { activeDiffEntry } from '../pane-selectors';
 import { ActionCard } from './components/action-card';
@@ -166,7 +166,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
                   Discard
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="xs"
                   onClick={handleStageSelection}
                   title="Stage selected files"
@@ -190,7 +190,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
                   Discard all
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="xs"
                   disabled={!hasChanges}
                   onClick={handleStageAll}

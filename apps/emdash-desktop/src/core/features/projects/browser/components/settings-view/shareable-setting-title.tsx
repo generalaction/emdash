@@ -1,11 +1,10 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw } from 'lucide-react';
 import type {
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
 import { Badge } from '@core/primitives/ui/browser/badge';
-import { Button } from '@core/primitives/ui/browser/button';
 import { FieldTitle } from '@core/primitives/ui/browser/field';
 
 type Props = {
@@ -45,7 +44,8 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-xs"
+                  size="xs"
+                  icon
                   className="text-muted-foreground size-4.5 rounded-full p-0 hover:text-foreground"
                   aria-label={`Use team settings for ${leafLabel}`}
                   onClick={onRestore}

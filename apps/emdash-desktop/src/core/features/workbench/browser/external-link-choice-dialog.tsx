@@ -1,9 +1,8 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
@@ -63,7 +62,8 @@ export function ExternalLinkChoiceDialog({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
+                    size="sm"
+                    icon
                     className="absolute top-1.5 right-1.5"
                     aria-label={copied ? 'Link copied' : 'Copy link'}
                     onClick={() => void handleCopy()}
@@ -82,12 +82,12 @@ export function ExternalLinkChoiceDialog({
         </div>
       </DialogContentArea>
       <DialogFooter className="flex-col-reverse sm:flex-col-reverse">
-        <Button className="w-full" variant="outline" onClick={controller.dismiss}>
+        <Button className="w-full" variant="secondary" onClick={controller.dismiss}>
           Cancel
         </Button>
         <Button
           className="w-full"
-          variant="outline"
+          variant="secondary"
           disabled={!canOpenInEmdashBrowser}
           onClick={() => controller.complete('emdash-browser')}
         >
@@ -96,7 +96,7 @@ export function ExternalLinkChoiceDialog({
         </Button>
         <Button
           className="w-full"
-          variant="default"
+          variant="primary"
           onClick={() => controller.complete('external-browser')}
         >
           <ExternalLink className="size-4" />

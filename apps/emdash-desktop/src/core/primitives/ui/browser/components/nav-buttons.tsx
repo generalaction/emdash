@@ -1,7 +1,6 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Button } from '@core/primitives/ui/browser/button';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { HistoryEntry } from '@renderer/lib/stores/navigation-history-store';

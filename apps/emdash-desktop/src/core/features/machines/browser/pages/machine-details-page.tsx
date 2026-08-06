@@ -262,7 +262,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
+                size="xs"
                 icon
                 aria-label="Machine actions"
                 className="ml-auto"

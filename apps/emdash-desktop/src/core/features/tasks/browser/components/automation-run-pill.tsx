@@ -1,10 +1,10 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Clock } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
-import { registeredTaskData } from '@core/primitives/task-state/browser/task-state';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { registeredTaskData } from '@core/primitives/task-state/browser/task-state';
 import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
@@ -75,7 +75,7 @@ export const AutomationRunPill = observer(function AutomationRunPill({
                 Convert to a regular task to manage it independently.
               </p>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="w-full"
                 disabled={isConverting}

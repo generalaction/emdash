@@ -175,7 +175,11 @@ export const AddRemoteModal = observer(function AddRemoteModal({
       }
       footer={
         <DialogFooter>
-          <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
+          <ConfirmButton
+            variant="primary"
+            onClick={() => void handleSubmit()}
+            disabled={!isValid || isSubmitting}
+          >
             {isSubmitting ? 'Adding...' : tab === 'create' ? 'Create & Publish' : 'Link & Publish'}
           </ConfirmButton>
         </DialogFooter>

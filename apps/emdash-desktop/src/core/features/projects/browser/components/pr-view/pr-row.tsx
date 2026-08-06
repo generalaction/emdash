@@ -1,8 +1,7 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
@@ -36,7 +35,8 @@ export const PrRow = memo(function PrRow({
               <Tooltip.Trigger>
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="xs"
+                  icon
                   className="opacity-0 transition-opacity group-hover:opacity-100"
                   onClick={() => rpc.app.openExternal(pr.url)}
                 >
@@ -55,7 +55,7 @@ export const PrRow = memo(function PrRow({
       </div>
       <div className="absolute top-0 right-3 flex h-full shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() =>
             void openCreateTaskModal({ projectId, strategy: 'from-pull-request', initialPR: pr })

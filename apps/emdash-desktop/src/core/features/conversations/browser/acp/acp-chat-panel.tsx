@@ -9,6 +9,7 @@ import type {
   MentionItem,
   PromptEditorRef,
 } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -42,7 +43,6 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import {
@@ -868,11 +868,11 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
                   </span>
                   <div className="mt-1 flex gap-2">
                     {cliAuthMethod && (
-                      <Button variant="default" size="sm" onClick={openSignInModal}>
+                      <Button variant="primary" size="sm" onClick={openSignInModal}>
                         Sign in
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => store.retry()}>
+                    <Button variant="secondary" size="sm" onClick={() => store.retry()}>
                       Retry
                     </Button>
                   </div>
@@ -882,7 +882,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
                   <span className="text-foreground">Failed to load chat.</span>
                   <span className="text-xs text-foreground-muted">{store.loadError.message}</span>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     className="mt-1"
                     onClick={() => store.retry()}
@@ -923,7 +923,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
           <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
             <Button
               variant="secondary"
-              size="icon-md"
+              icon
               aria-label="Scroll to bottom"
               onClick={() => viewRef.current?.scrollToBottom({ behavior: 'smooth' })}
               className="pointer-events-auto rounded-full shadow-md"

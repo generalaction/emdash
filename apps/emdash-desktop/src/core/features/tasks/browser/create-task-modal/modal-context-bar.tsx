@@ -1,11 +1,10 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowUp, LoaderCircle } from 'lucide-react';
 import {
   type ContextAction,
   type PromptContextAction,
 } from '@core/features/tasks/browser/context-bar/context-actions';
 import { PromptActionsMenu } from '@core/features/tasks/browser/context-bar/prompt-actions-menu';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 
 interface ModalContextBarProps {
@@ -38,7 +37,7 @@ export function ModalContextBar({
           <Tooltip.Root>
             <Tooltip.Trigger>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={issueActionPending}
                 onClick={() => onActionClick(issueAction)}

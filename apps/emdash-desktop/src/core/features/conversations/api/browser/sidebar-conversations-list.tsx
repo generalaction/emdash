@@ -1,4 +1,5 @@
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
+import { Button } from '@emdash/ui/react/primitives';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -25,9 +26,8 @@ import {
 import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-registry';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import {
@@ -372,7 +372,8 @@ const ConversationSelectionBar = observer(function ConversationSelectionBar({
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           disabled={deleting}
           onClick={selection.clear}
           aria-label="Clear conversation selection"
@@ -506,7 +507,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
     <div ref={listRootRef} className="relative flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel className="font-medium">Conversations</MicroLabel>
-        <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
+        <Button size="sm" icon variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />
         </Button>
       </div>

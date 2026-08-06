@@ -1,6 +1,5 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Loader2, Undo2 } from 'lucide-react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 
 export type ProjectSettingsSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -35,7 +34,7 @@ export function ProjectSettingsFooter({
           <Tooltip.Trigger>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               className="shrink-0 gap-1.5"
               disabled={shareDisabled}
               hidden={!canShareConfig}
@@ -53,15 +52,15 @@ export function ProjectSettingsFooter({
 
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
-          size="icon-md"
+          variant="secondary"
+          icon
           aria-label="Reset changes"
           onClick={onUndo}
           disabled={!dirty || saving}
         >
           <Undo2 />
         </Button>
-        <ConfirmButton onClick={onSave} disabled={saveDisabled}>
+        <ConfirmButton variant="primary" onClick={onSave} disabled={saveDisabled}>
           <span className="inline-flex min-w-22 items-center justify-center gap-1.5">
             {saving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {!saving && saved && <Check className="size-4" aria-hidden="true" />}

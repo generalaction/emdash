@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
@@ -28,10 +28,12 @@ export function UnsavedChangesDialog({ fileName }: UnsavedChangesDialogArgs) {
         </p>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={() => controller.complete('discard')}>
+        <Button variant="secondary" onClick={() => controller.complete('discard')}>
           Discard
         </Button>
-        <Button onClick={() => controller.complete('save')}>Save</Button>
+        <Button variant="primary" onClick={() => controller.complete('save')}>
+          Save
+        </Button>
       </DialogFooter>
     </>
   );

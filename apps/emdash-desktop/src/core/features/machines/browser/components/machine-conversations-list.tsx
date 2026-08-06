@@ -1,9 +1,9 @@
 import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   DropdownMenu,
@@ -262,7 +262,8 @@ function ConversationActionsCell({ row }: { row: ConversationListRow }) {
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="xs"
+            icon
             aria-label={`Actions for ${item.conversation.title || 'conversation'}`}
             disabled={busy || item.pendingRemoval}
           />

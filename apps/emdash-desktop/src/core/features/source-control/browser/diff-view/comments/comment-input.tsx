@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Check, X } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Comment, useTextareaAutoFocus } from './comment-card';
 
 interface CommentInputProps {
@@ -47,7 +47,8 @@ export const CommentInput: React.FC<CommentInputProps> = ({
         <Comment.Actions>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="xs"
+            icon
             className="h-8 w-8"
             onClick={onCancel}
             title="Cancel (Esc)"
@@ -57,7 +58,8 @@ export const CommentInput: React.FC<CommentInputProps> = ({
           </Button>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="xs"
+            icon
             className="h-8 w-8"
             onClick={handleSubmit}
             disabled={!content.trim()}

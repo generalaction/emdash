@@ -70,7 +70,7 @@ export function RepositoryHeader({
         </div>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
-            <Button type="button" variant="ghost" size="sm" icon aria-label="Workspace actions">
+            <Button type="button" variant="ghost" size="xs" icon aria-label="Workspace actions">
               <EllipsisIcon aria-hidden />
             </Button>
           </DropdownMenu.Trigger>

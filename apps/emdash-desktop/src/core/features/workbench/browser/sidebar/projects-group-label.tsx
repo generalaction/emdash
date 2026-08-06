@@ -1,8 +1,7 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { buttonVariants } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,18 +28,9 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
               render={
                 <Tooltip.Trigger
                   render={
-                    <button
-                      type="button"
-                      aria-label="Sort projects"
-                      className={buttonVariants({
-                        size: 'icon-xs',
-                        variant: 'ghost',
-                        className:
-                          'hover:bg-transparent text-foreground-muted hover:text-foreground',
-                      })}
-                    >
+                    <Button type="button" variant="ghost" size="xs" icon aria-label="Sort projects">
                       <ListFilter />
-                    </button>
+                    </Button>
                   }
                 />
               }
@@ -70,18 +60,16 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
         <Tooltip.Root>
           <Tooltip.Trigger
             render={
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
+                icon
                 onClick={() => void openAddProjectModal({})}
                 aria-label="Add Project"
-                className={buttonVariants({
-                  size: 'icon-xs',
-                  variant: 'ghost',
-                  className: 'hover:bg-transparent text-foreground-muted hover:text-foreground',
-                })}
               >
                 <FolderPlus />
-              </button>
+              </Button>
             }
           />
           <Tooltip.Content>

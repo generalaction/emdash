@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
@@ -120,7 +120,7 @@ function RemovalActionButton({
   onClick: () => void;
 }) {
   return (
-    <Button variant="outline" size="sm" disabled={disabled} onClick={onClick}>
+    <Button variant="secondary" size="sm" disabled={disabled} onClick={onClick}>
       {pending && <Spinner className="size-3.5" />}
       {label}
     </Button>

@@ -1,11 +1,10 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -135,7 +134,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
               variant="ghost"
               size="sm"
               className="h-6 gap-1.5 px-2 text-xs"
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation();
                 handleResetToDefaults();
               }}
@@ -215,7 +214,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
+                        icon
                         className="h-8 w-8 shrink-0"
                         aria-label="Remove"
                         onClick={() => {
@@ -229,7 +228,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   ))}
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     className="gap-1.5"
                     onClick={() =>

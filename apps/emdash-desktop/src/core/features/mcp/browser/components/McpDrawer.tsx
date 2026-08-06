@@ -3,10 +3,10 @@ import type {
   McpProvidersResponse,
   McpServer,
 } from '@emdash/core/primitives/mcp/api';
+import { Button } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
@@ -328,6 +328,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
               !!(values.transport === 'http' ? values.url.trim() : values.command.trim());
             return (
               <ConfirmButton
+                variant="primary"
                 type="button"
                 onClick={() => void handleSave()}
                 disabled={!canSave}

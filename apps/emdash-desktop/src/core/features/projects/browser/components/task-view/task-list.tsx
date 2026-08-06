@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -10,7 +11,6 @@ import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-sel
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
@@ -157,13 +157,13 @@ function SelectionBar({
       <span className="whitespace-nowrap text-foreground-muted">{count} selected</span>
       <div className="flex items-center gap-2">
         {tab === 'active' && (
-          <Button variant="outline" size="sm" onClick={onArchive}>
+          <Button variant="secondary" size="sm" onClick={onArchive}>
             <Archive className="size-3.5" />
             Archive
           </Button>
         )}
         {tab === 'archived' && (
-          <Button variant="outline" size="sm" onClick={onRestore}>
+          <Button variant="secondary" size="sm" onClick={onRestore}>
             <RotateCcw className="size-3.5" />
             Restore
           </Button>
@@ -172,7 +172,7 @@ function SelectionBar({
           <Trash2 className="size-3.5" />
           Delete <BoundShortcut command="task.deleteSelected" variant="keycaps" />
         </Button>
-        <Button variant="ghost" size="icon-xs" onClick={onClear} aria-label="Clear selection">
+        <Button variant="ghost" size="xs" icon onClick={onClear} aria-label="Clear selection">
           <X className="size-3.5" />
         </Button>
       </div>
@@ -268,7 +268,7 @@ export const TaskList = observer(function TaskList() {
                 onChange={(e) => taskView.setSearchQuery(e.target.value)}
                 className="flex-1"
               />
-              <Button onClick={() => void openCreateTaskModal({ projectId })}>
+              <Button variant="primary" onClick={() => void openCreateTaskModal({ projectId })}>
                 Create Task <BoundShortcut command="app.newTask" variant="keycaps" />
               </Button>
             </div>

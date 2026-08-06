@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -6,7 +7,6 @@ import {
 } from '@core/features/integrations/api/browser/integrations-provider';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { DialogHeader, DialogTitle } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
 import { SetupFormShell } from './SetupFormShell';
@@ -108,7 +108,8 @@ function IntegrationSetupForm({
             {method.helpUrl ? (
               <Button
                 variant="link"
-                size="icon-xs"
+                size="xs"
+                icon
                 className="mt-0.5 size-4 shrink-0 p-0"
                 aria-label={`Open ${metadata.name} setup guide`}
                 onClick={() => window.open(method.helpUrl, '_blank', 'noopener,noreferrer')}

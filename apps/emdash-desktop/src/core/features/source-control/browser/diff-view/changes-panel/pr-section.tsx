@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -13,7 +13,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
@@ -171,8 +170,9 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             <Tooltip.Root>
               <Tooltip.Trigger>
                 <Button
-                  variant="outline"
-                  size="icon-xs"
+                  variant="secondary"
+                  size="xs"
+                  icon
                   onClick={() => void handleRefresh()}
                   disabled={isRefreshing}
                 >

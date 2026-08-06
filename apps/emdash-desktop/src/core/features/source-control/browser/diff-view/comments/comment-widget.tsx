@@ -1,7 +1,7 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { DraftComment } from '@core/features/source-control/api/browser/diff-view/stores/draft-comments-store';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Comment, useTextareaAutoFocus } from './comment-card';
 
 interface CommentWidgetProps {
@@ -62,7 +62,8 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
             <>
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="xs"
+                icon
                 className="h-8 w-8"
                 onClick={handleCancel}
                 title="Cancel (Esc)"
@@ -72,7 +73,8 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               </Button>
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="xs"
+                icon
                 className="h-8 w-8"
                 onClick={handleSave}
                 disabled={!editContent.trim()}
@@ -86,7 +88,8 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
             <>
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="xs"
+                icon
                 className="h-8 w-8"
                 onClick={handleStartEditing}
                 title="Edit"
@@ -96,7 +99,8 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               </Button>
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="xs"
+                icon
                 className="text-destructive hover:text-destructive h-8 w-8"
                 onClick={() => void onDelete()}
                 title="Delete"

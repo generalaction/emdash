@@ -1,8 +1,7 @@
-import type { VariantProps } from 'class-variance-authority';
+import { Button, type ButtonProps } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button, type buttonVariants } from './button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +19,20 @@ export interface SplitButtonAction {
 
 type SplitButtonSize = 'xs' | 'sm' | 'default';
 
+/** Legacy variant vocabulary kept for existing callers until the W11 port. */
+type SplitButtonVariant = 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+
+function mapVariant(variant: SplitButtonVariant): ButtonProps['variant'] {
+  switch (variant) {
+    case 'default':
+      return 'primary';
+    case 'outline':
+      return 'secondary';
+    default:
+      return variant;
+  }
+}
+
 interface SplitButtonProps {
   actions: SplitButtonAction[];
   defaultValue?: string;
@@ -27,7 +40,7 @@ interface SplitButtonProps {
   loading?: boolean;
   loadingLabel?: string;
   icon?: ReactNode;
-  variant?: VariantProps<typeof buttonVariants>['variant'];
+  variant?: SplitButtonVariant;
   size?: SplitButtonSize;
   className?: string;
   dropdownContentClassName?: string;
@@ -61,12 +74,14 @@ export function SplitButton({
 
   const { px, iconSize } = chevronConfig[size];
   const isDisabled = disabled || loading;
+  const mappedVariant = mapVariant(variant);
+  const mappedSize: ButtonProps['size'] = size === 'default' ? 'base' : size;
 
   return (
     <div className={cn('flex items-center', className)}>
       <Button
-        variant={variant}
-        size={size}
+        variant={mappedVariant}
+        size={mappedSize}
         className="min-w-0 flex-1 shrink rounded-r-none"
         onClick={selectedAction.action}
         disabled={isDisabled}
@@ -78,8 +93,8 @@ export function SplitButton({
         <DropdownMenuTrigger
           render={
             <Button
-              variant={variant}
-              size={size}
+              variant={mappedVariant}
+              size={mappedSize}
               className={cn('rounded-l-none border-l', px)}
               disabled={isDisabled}
             />

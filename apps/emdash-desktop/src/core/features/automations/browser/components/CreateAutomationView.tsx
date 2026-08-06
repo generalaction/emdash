@@ -1,10 +1,10 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { CheckCircle2, ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -151,7 +151,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
 
           <CollapsibleTrigger
             render={
-              <Button variant="ghost" size="icon-xs">
+              <Button variant="ghost" size="xs" icon>
                 <ChevronDown className="size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-180" />
               </Button>
             }
@@ -166,10 +166,11 @@ export const CreateAutomationView = observer(function CreateAutomationView({
         </CollapsibleContent>
       </Collapsible>
       <SheetFooter className="flex flex-row items-center justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           Cancel
         </Button>
         <ConfirmButton
+          variant="primary"
           size="sm"
           onClick={() => {
             void handleSave();

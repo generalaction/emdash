@@ -1,4 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
+import { Button } from '@emdash/ui/react/primitives';
 import { ScrollText, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
@@ -12,7 +13,6 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
-import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
@@ -188,7 +188,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         activeTerminalIsOpenInMain ? undefined : (
           <Button
             size="sm"
-            variant="outline"
+            variant="secondary"
             onClick={() => void handleCreate()}
             className="flex items-center gap-2"
           >

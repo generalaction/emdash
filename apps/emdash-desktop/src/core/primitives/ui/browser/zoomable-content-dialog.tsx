@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Minus, Plus, RotateCcw, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import {
@@ -6,7 +6,6 @@ import {
   TransformWrapper,
   type ReactZoomPanPinchContentRef,
 } from 'react-zoom-pan-pinch';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Dialog, DialogContent } from '@core/primitives/ui/browser/dialog';
 
 interface ZoomableContentDialogProps {
@@ -57,7 +56,8 @@ function ToolbarButton({ label, onClick, children }: ToolbarButtonProps) {
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="sm"
+            icon
             aria-label={label}
             className={toolbarButtonClassName}
             onClick={onClick}

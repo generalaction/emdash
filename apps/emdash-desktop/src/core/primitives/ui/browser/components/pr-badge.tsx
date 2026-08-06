@@ -1,7 +1,6 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrUrlCopyButton } from '@core/primitives/ui/browser/components/pr-url-copy-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
@@ -63,7 +62,8 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                 <Tooltip.Trigger>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="xs"
+                    icon
                     className="cursor-pointer"
                     onClick={() => rpc.app.openExternal(pr.url)}
                   >

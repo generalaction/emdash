@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import {
   AlertCircle,
   ArrowRight,
@@ -10,7 +11,6 @@ import {
 import { useState } from 'react';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   DialogContentArea,
@@ -177,7 +177,7 @@ export function GithubConnectModal() {
         )}
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={modal.dismiss} disabled={anyLoading}>
+        <Button variant="secondary" onClick={modal.dismiss} disabled={anyLoading}>
           Cancel
         </Button>
       </DialogFooter>

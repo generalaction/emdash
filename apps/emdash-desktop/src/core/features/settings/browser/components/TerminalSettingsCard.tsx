@@ -1,4 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
+import { Button } from '@emdash/ui/react/primitives';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -9,7 +10,6 @@ import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
 } from '@core/primitives/terminals/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxCollection,
@@ -319,7 +319,8 @@ const TerminalSettingsCard: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="xs"
+              icon
               disabled={loading || saving || fontSize <= TERMINAL_FONT_SIZE_MIN}
               onClick={() => applyFontSize(fontSize - 1)}
               aria-label="Decrease terminal font size"
@@ -333,7 +334,8 @@ const TerminalSettingsCard: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="xs"
+              icon
               disabled={loading || saving || fontSize >= TERMINAL_FONT_SIZE_MAX}
               onClick={() => applyFontSize(fontSize + 1)}
               aria-label="Increase terminal font size"

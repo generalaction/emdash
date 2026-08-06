@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
@@ -10,7 +11,6 @@ import {
 } from '@core/features/projects/browser/components/pr-view/usePrViewState';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -295,7 +295,7 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
             />
             <ContextMenu>
               <ContextMenuTrigger>
-                <Button variant="outline" size="icon-md" onClick={handleRefresh} disabled={syncing}>
+                <Button variant="secondary" icon onClick={handleRefresh} disabled={syncing}>
                   <motion.div
                     animate={syncing ? { rotate: 360 } : {}}
                     transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}

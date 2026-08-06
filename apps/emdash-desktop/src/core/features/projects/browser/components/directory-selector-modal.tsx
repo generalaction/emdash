@@ -1,8 +1,8 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -67,10 +67,11 @@ export function DirectorySelectorModal({
       }
       footer={
         <DialogFooter>
-          <Button variant="outline" onClick={modal.dismiss}>
+          <Button variant="secondary" onClick={modal.dismiss}>
             Cancel
           </Button>
           <ConfirmButton
+            variant="primary"
             type="button"
             disabled={!canSelect}
             onClick={() => modal.complete({ path: selectedPath })}

@@ -1,4 +1,5 @@
 import { err, type Result } from '@emdash/shared';
+import { Button } from '@emdash/ui/react/primitives';
 import { Check, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -11,7 +12,6 @@ import type {
   ProjectConfigMigrationProvider,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -174,10 +174,10 @@ export function ProjectConfigImportModal({
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={modal.dismiss} disabled={status === 'importing'}>
+        <Button variant="secondary" onClick={modal.dismiss} disabled={status === 'importing'}>
           {status === 'imported' ? 'Close' : 'Cancel'}
         </Button>
-        <ConfirmButton onClick={() => void handleImport()} disabled={disabled}>
+        <ConfirmButton variant="primary" onClick={() => void handleImport()} disabled={disabled}>
           <span className="inline-flex items-center justify-center gap-1.5">
             {status === 'importing' && <Loader2 className="size-4 animate-spin" aria-hidden />}
             {status === 'imported' && <Check className="size-4" aria-hidden />}

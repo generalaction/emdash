@@ -1,10 +1,10 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Fragment } from 'react';
 import type {
   ProjectConfigMigration,
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Separator } from '@core/primitives/ui/browser/separator';

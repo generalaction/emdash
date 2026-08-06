@@ -1,9 +1,9 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
@@ -324,23 +324,27 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
       </DialogContentArea>
       <DialogFooter>
         {error || success ? (
-          <Button variant="outline" onClick={modal.dismiss}>
+          <Button variant="secondary" onClick={modal.dismiss}>
             Close
           </Button>
         ) : (
           <>
-            <Button variant="outline" onClick={modal.dismiss}>
+            <Button variant="secondary" onClick={modal.dismiss}>
               Cancel
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => copyToClipboard(userCode)}
               disabled={!userCode || copied}
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? 'Copied' : 'Copy code'}
             </Button>
-            <Button onClick={openGitHub} disabled={!verificationUri || browserOpening}>
+            <Button
+              variant="primary"
+              onClick={openGitHub}
+              disabled={!verificationUri || browserOpening}
+            >
               <ExternalLink className="h-4 w-4" />
               Open GitHub
             </Button>

@@ -61,7 +61,7 @@ export const WorkspacesListView = observer(function WorkspacesListView({
         <Button
           type="button"
           variant="primary"
-          size="sm"
+          size="xs"
           onClick={() =>
             void openAddProject(
               scope.kind === 'machine'

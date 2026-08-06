@@ -1,10 +1,10 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { getMachinesPageWireClient } from '@core/features/machines/api/browser/client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxContent,
@@ -147,10 +147,11 @@ export function LinkConversationModal({
       }
       footer={
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={modal.dismiss}>
+          <Button type="button" variant="secondary" onClick={modal.dismiss}>
             Cancel
           </Button>
           <Button
+            variant="primary"
             type="button"
             disabled={!project || !task}
             onClick={() => {

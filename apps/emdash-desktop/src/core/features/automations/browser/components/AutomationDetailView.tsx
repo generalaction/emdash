@@ -1,9 +1,8 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Ellipsis, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -122,7 +121,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                   render={
                     <Button
                       variant="ghost"
-                      size="icon-md"
+                      icon
                       disabled={!canRunNow}
                       onClick={() =>
                         void runNow.mutateAsync({

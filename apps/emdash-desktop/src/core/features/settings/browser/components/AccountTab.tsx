@@ -109,7 +109,7 @@ export function AccountTab() {
         </div>
         <Button
           variant="secondary"
-          size="sm"
+          size="xs"
           onClick={handleSignOut}
           disabled={signOutMutation.isPending}
         >

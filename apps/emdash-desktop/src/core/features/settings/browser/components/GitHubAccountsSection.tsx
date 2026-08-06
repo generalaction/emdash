@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
 import {
   GitHubCredentialSourceBadge,
@@ -7,7 +7,6 @@ import {
 import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useGitHubAccounts,
@@ -33,7 +32,8 @@ export function GitHubAccountsSection() {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="sm"
+                icon
                 onClick={() => void openConnectGitHub({})}
                 aria-label="Add GitHub account"
               >
@@ -181,7 +181,8 @@ function GitHubAccountRow({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="sm"
+            icon
             disabled={setDefaultPending}
             onClick={account.isDefault ? undefined : onSetDefault}
             aria-label={
@@ -206,7 +207,8 @@ function GitHubAccountRow({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="sm"
+            icon
             disabled={removePending}
             onClick={onRemove}
             aria-label={`Remove @${account.login}`}

@@ -1,5 +1,5 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Github } from 'lucide-react';
-import { Button } from '@core/primitives/ui/browser/button';
 
 export function GithubAuthDisclaimer({
   onOpenAccountSettings,
@@ -14,7 +14,7 @@ export function GithubAuthDisclaimer({
       <p className="text-center text-sm font-normal text-foreground-muted">
         GitHub is not connected. Connect your account to create a repository.
       </p>
-      <Button type="button" variant="outline" size="xs" onClick={onOpenAccountSettings}>
+      <Button type="button" variant="secondary" size="xs" onClick={onOpenAccountSettings}>
         Open Account Settings
       </Button>
     </div>

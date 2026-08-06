@@ -42,23 +42,23 @@ export function MachineConnectionRow({
             <Button
               type="button"
               variant="destructive"
-              size="sm"
+              size="xs"
               disabled={transitioning}
               onClick={onDisconnect}
             >
               Disconnect
             </Button>
-            <Button type="button" variant="secondary" size="sm" icon onClick={onEdit}>
+            <Button type="button" variant="secondary" size="xs" icon onClick={onEdit}>
               <Cog />
             </Button>
           </span>
         ) : (
           <span className="flex items-center gap-2">
-            <Button type="button" variant="primary" size="sm" onClick={onConnect}>
+            <Button type="button" variant="primary" size="xs" onClick={onConnect}>
               <PlugIcon />
               Connect
             </Button>
-            <Button type="button" variant="secondary" size="sm" icon onClick={onEdit}>
+            <Button type="button" variant="secondary" size="xs" icon onClick={onEdit}>
               <Cog />
             </Button>
           </span>

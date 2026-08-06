@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
@@ -13,7 +14,6 @@ import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -136,7 +136,7 @@ function MissingWorkspaceState({
       </p>
       {reprovision && removeAndReprovision && (
         <div className="mt-2 flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => void reprovision()}>
+          <Button size="sm" variant="secondary" onClick={() => void reprovision()}>
             Re-provision
           </Button>
           <Button size="sm" variant="ghost" onClick={() => void removeAndReprovision()}>

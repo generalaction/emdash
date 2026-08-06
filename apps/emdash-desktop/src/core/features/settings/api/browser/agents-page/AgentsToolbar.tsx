@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { RefreshCw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import type { AgentFilter } from './CliAgentsList';
@@ -44,8 +44,8 @@ export function AgentsToolbar({
           focusHotkey={false}
         />
         <Button
-          variant="outline"
-          size="icon"
+          variant="secondary"
+          icon
           onClick={onRefresh}
           disabled={isRefreshing}
           aria-label="Refresh agent detection"

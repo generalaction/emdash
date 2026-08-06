@@ -4,7 +4,7 @@ import type {
   TerminalShellId,
 } from '@emdash/core/primitives/terminal-shell/api';
 import { ScriptStatus, type ScriptStatusKind } from '@emdash/ui/react/components';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,7 +18,6 @@ import {
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
 import {
   DropdownMenu,
@@ -220,7 +219,8 @@ export function NewTerminalButton({
           render={
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="xs"
+              icon
               className="size-6 rounded-r-none px-0"
               aria-label="New terminal"
               onClick={() => onAddTerminal()}
@@ -238,7 +238,8 @@ export function NewTerminalButton({
           render={
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="xs"
+              icon
               className="size-6 rounded-l-none px-0"
               aria-label="New terminal with shell"
             />

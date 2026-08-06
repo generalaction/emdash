@@ -1,4 +1,5 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { Button } from '@emdash/ui/react/primitives';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { Loader2 } from 'lucide-react';
@@ -20,7 +21,6 @@ import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pt
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
@@ -149,7 +149,7 @@ export function AgentSignInModal({ providerId, methodId, providerName }: AgentSi
         </div>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={modal.dismiss}>
+        <Button variant="secondary" onClick={modal.dismiss}>
           Close
         </Button>
       </DialogFooter>

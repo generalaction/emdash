@@ -1,8 +1,8 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
@@ -138,7 +138,7 @@ export function PrSelector({
   const connectGitHubButton = (
     <Button
       type="button"
-      variant="outline"
+      variant="secondary"
       size="xs"
       onClick={() => void openGithubConnectModal({})}
     >

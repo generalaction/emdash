@@ -132,7 +132,7 @@ function WorkspaceServerAction({
       <Button
         type="button"
         variant="primary"
-        size="sm"
+        size="xs"
         disabled={transitioning}
         onClick={() => void actions.install()}
       >
@@ -147,7 +147,7 @@ function WorkspaceServerAction({
       <Button
         type="button"
         variant="primary"
-        size="sm"
+        size="xs"
         disabled={transitioning}
         onClick={() => void actions.start()}
       >

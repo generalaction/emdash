@@ -287,7 +287,12 @@ export const AddProjectModal = observer(function AddProjectModal({
       }
       footer={
         <DialogFooter>
-          <ConfirmButton type="button" onClick={() => void handleSubmit()} disabled={!canSubmit}>
+          <ConfirmButton
+            variant="primary"
+            type="button"
+            onClick={() => void handleSubmit()}
+            disabled={!canSubmit}
+          >
             {submitState === 'creating' ? 'Creating...' : 'Create'}
           </ConfirmButton>
         </DialogFooter>

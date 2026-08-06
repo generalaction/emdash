@@ -1,11 +1,10 @@
 import type { McpCatalogEntry, McpServer } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
-import { Button } from '@core/primitives/ui/browser/button';
 import { CardGridItem } from '@core/primitives/ui/browser/components/card-grid';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
 
@@ -89,9 +88,10 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
           <Tooltip.Root>
             <Tooltip.Trigger>
               <Button
-                size="icon-sm"
+                size="sm"
+                icon
                 variant="ghost"
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
                   window.open(docsUrl, '_blank', 'noopener,noreferrer');
                 }}
@@ -106,9 +106,10 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
         <Tooltip.Root>
           <Tooltip.Trigger>
             <Button
-              size="icon-sm"
+              size="sm"
+              icon
               variant="ghost"
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation();
                 if (isInstalled && server && onEdit) {
                   onEdit(server);

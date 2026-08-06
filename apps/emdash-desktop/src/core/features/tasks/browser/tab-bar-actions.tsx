@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
@@ -7,7 +7,6 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
@@ -38,7 +37,7 @@ export const TabBarActions = observer(function TabBarActions() {
     <div className="flex h-full shrink-0 items-center px-2">
       <Tooltip.Root>
         <Tooltip.Trigger>
-          <Button size="icon-sm" variant="ghost" onClick={handleCreateConversation}>
+          <Button size="sm" icon variant="ghost" onClick={handleCreateConversation}>
             <MessageSquarePlus className="size-3.5" />
           </Button>
         </Tooltip.Trigger>
@@ -49,7 +48,8 @@ export const TabBarActions = observer(function TabBarActions() {
       <Tooltip.Root>
         <Tooltip.Trigger>
           <Button
-            size="icon-sm"
+            size="sm"
+            icon
             variant="ghost"
             onClick={() =>
               void openCommandPalette({
@@ -69,7 +69,8 @@ export const TabBarActions = observer(function TabBarActions() {
           <Tooltip.Trigger>
             <span>
               <Button
-                size="icon-sm"
+                size="sm"
+                icon
                 variant="ghost"
                 disabled={!canSplit}
                 onClick={() => paneLayout.splitRight()}

@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -7,9 +8,8 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
 
@@ -57,7 +57,7 @@ export function MergeFooter({
         <div className="flex items-center gap-1.5">
           {isDraft ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="xs"
               onClick={onMarkReady}
               disabled={isMarkingReady}

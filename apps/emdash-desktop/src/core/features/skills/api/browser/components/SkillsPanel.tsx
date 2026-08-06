@@ -1,7 +1,7 @@
 import { LOCAL_HOST_REF, sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
+import { PageLayout } from '@emdash/ui/react/patterns';
 import { useCallback, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { useSkills } from '../../../browser/components/useSkills';
 import { SkillsList } from './SkillsList';
@@ -43,9 +43,12 @@ export function SkillsPanel({ host = LOCAL_HOST_REF, header }: SkillsPanelProps)
   return (
     <div className="flex flex-col text-foreground">
       {header ? (
-        <PageHeader sticky title={header.title} description={header.description}>
-          {toolbar}
-        </PageHeader>
+        <PageLayout.Header
+          sticky
+          title={header.title}
+          description={header.description}
+          actions={toolbar}
+        />
       ) : (
         toolbar
       )}

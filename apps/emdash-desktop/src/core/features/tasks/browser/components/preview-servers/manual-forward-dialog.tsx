@@ -1,7 +1,7 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useState, type FormEvent } from 'react';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContent,
   DialogContentArea,
@@ -120,10 +120,10 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
           {error ? <p className="text-xs text-foreground-destructive">{error}</p> : null}
         </DialogContentArea>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button variant="primary" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Forwarding...' : 'Forward'}
           </Button>
         </DialogFooter>

@@ -1,8 +1,7 @@
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Plus, Trash2 } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { CardGridItem } from '@core/primitives/ui/browser/components/card-grid';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
@@ -32,9 +31,10 @@ export const SkillCard: React.FC<SkillCardProps> = ({
         <Tooltip.Root>
           <Tooltip.Trigger>
             <Button
-              size="icon-sm"
+              size="sm"
+              icon
               variant="ghost"
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation();
                 if (isInstalled) {
                   onUninstall(skill.id);

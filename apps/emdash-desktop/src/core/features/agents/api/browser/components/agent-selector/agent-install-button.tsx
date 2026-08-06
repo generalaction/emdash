@@ -1,9 +1,8 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Download, Loader2 } from 'lucide-react';
 import type React from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { getAgentInstallActionState } from './agent-install';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
@@ -50,7 +49,8 @@ export function AgentInstallButton({
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="xs"
+            icon
             disabled={disabled || state.disabled}
             aria-label={state.label}
             onClick={onInstall}

@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -14,7 +15,6 @@ import {
   type BrowserProfile,
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   DropdownMenu,
@@ -219,7 +219,7 @@ export function BrowserSettingsCard() {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    icon
                     className="size-7 shrink-0 text-foreground-muted"
                     disabled={disabled}
                     aria-label={`Save ${profile.name} browser profile name`}
@@ -230,7 +230,7 @@ export function BrowserSettingsCard() {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    icon
                     className="size-7 shrink-0 text-foreground-muted"
                     disabled={disabled}
                     aria-label={`Cancel renaming ${profile.name} browser profile`}
@@ -250,7 +250,7 @@ export function BrowserSettingsCard() {
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon"
+                          icon
                           className="size-7 shrink-0 text-foreground-muted"
                           disabled={disabled}
                           aria-label={`${profile.name} browser profile actions`}
@@ -307,7 +307,7 @@ export function BrowserSettingsCard() {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                icon
                 className="size-7 shrink-0 text-foreground-muted"
                 disabled={disabled}
                 aria-label="Save new browser profile"
@@ -318,7 +318,7 @@ export function BrowserSettingsCard() {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                icon
                 className="size-7 shrink-0 text-foreground-muted"
                 disabled={disabled}
                 aria-label="Cancel adding profile"
@@ -365,7 +365,8 @@ export function BrowserSettingsCard() {
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
+              icon
               className="shrink-0 text-foreground-muted"
               aria-expanded={isBrowsingDataExpanded}
               aria-label={

@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import React from 'react';
 import { getMementoClient } from '@core/primitives/mementos/browser';
-import { Button } from '@core/primitives/ui/browser/button';
 
 type ErrorBoundaryState = {
   hasError: boolean;
@@ -17,7 +17,7 @@ function ErrorFallback({ message, onReload }: { message: string; onReload: () =>
       <div className="bg-card text-card-foreground max-w-xl rounded-md border border-border p-6 shadow-sm">
         <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
         <p className="text-muted-foreground mb-4 text-sm break-all">{message}</p>
-        <Button variant="default" onClick={onReload}>
+        <Button variant="primary" onClick={onReload}>
           Reload
         </Button>
       </div>

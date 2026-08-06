@@ -1,9 +1,8 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Expand } from 'lucide-react';
 import type React from 'react';
 import { useRef, useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ContainedImage } from './contained-image';
 import { ZoomableContentDialog } from './zoomable-content-dialog';
 
@@ -45,7 +44,8 @@ export function ExpandableImage({
             <Button
               type="button"
               variant="secondary"
-              size="icon-xs"
+              size="xs"
+              icon
               aria-label="Expand image"
               className="absolute top-1 right-1 z-10 opacity-0 shadow-sm ring-1 ring-border/80 transition-opacity group-hover/image:opacity-100 focus-visible:opacity-100"
               onClick={openImage}

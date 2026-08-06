@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,7 +32,6 @@ import {
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -243,7 +242,7 @@ export function BrowserToolbar({
             <Button
               type="button"
               variant="ghost"
-              size="icon"
+              icon
               className="size-7 shrink-0"
               aria-label="Browser actions"
             />
@@ -299,7 +298,7 @@ export function BrowserToolbar({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  icon
                   className="size-6"
                   aria-label="Zoom out"
                   disabled={!canZoomOut(zoomFactor)}
@@ -313,7 +312,7 @@ export function BrowserToolbar({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  icon
                   className="size-6"
                   aria-label="Zoom in"
                   disabled={!canZoomIn(zoomFactor)}
@@ -325,7 +324,7 @@ export function BrowserToolbar({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                icon
                 className="size-6"
                 aria-label="Reset zoom"
                 disabled={isDefaultBrowserZoomFactor(zoomFactor)}
@@ -393,7 +392,7 @@ function ToolbarIconButton({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            icon
             className="size-7 shrink-0"
             disabled={disabled}
             aria-label={label}

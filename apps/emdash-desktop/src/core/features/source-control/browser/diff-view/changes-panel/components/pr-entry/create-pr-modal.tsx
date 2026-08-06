@@ -267,6 +267,7 @@ export const CreatePrModal = observer(function CreatePrModal({
           />
         ) : (
           <ConfirmButton
+            variant="primary"
             size="sm"
             onClick={() => void doCreate(false)}
             disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}

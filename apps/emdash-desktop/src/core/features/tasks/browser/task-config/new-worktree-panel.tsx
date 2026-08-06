@@ -1,7 +1,7 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { ChevronDown, GitBranch, Layers } from 'lucide-react';
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
 import { BranchNameField } from './branch-name-field';
 
@@ -70,7 +70,7 @@ export function NewWorktreePanel({
             . A new isolated worktree cannot be created for a branch that is already in use.
           </p>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={handleReuseExisting}
             className="gap-1.5 self-start border-border-warning bg-transparent text-foreground-warning hover:bg-background-warning-hover hover:text-foreground-warning"

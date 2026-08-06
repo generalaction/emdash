@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
@@ -11,7 +11,6 @@ import { useIntegrationsContext } from '@core/features/integrations/api/browser/
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxContent,

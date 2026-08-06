@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -11,7 +11,6 @@ import { useGitActions } from '@core/features/source-control/api/browser/use-git
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {
@@ -73,8 +72,9 @@ export const GitStatusSection = observer(function GitStatusSection() {
                 <Tooltip.Root>
                   <Tooltip.Trigger>
                     <Button
-                      variant="outline"
-                      size="icon-xs"
+                      variant="secondary"
+                      size="xs"
+                      icon
                       disabled={isFetching}
                       onClick={() => fetch()}
                     >
@@ -86,8 +86,9 @@ export const GitStatusSection = observer(function GitStatusSection() {
                 <Tooltip.Root>
                   <Tooltip.Trigger>
                     <Button
-                      variant="outline"
-                      size="icon-xs"
+                      variant="secondary"
+                      size="xs"
+                      icon
                       disabled={isPulling || behindCount === 0}
                       onClick={() => pull()}
                     >
@@ -105,8 +106,9 @@ export const GitStatusSection = observer(function GitStatusSection() {
                 <Tooltip.Root>
                   <Tooltip.Trigger>
                     <Button
-                      variant="outline"
-                      size="icon-xs"
+                      variant="secondary"
+                      size="xs"
+                      icon
                       disabled={isPushing || aheadCount === 0}
                       onClick={() => push()}
                     >
@@ -127,7 +129,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
                 <Tooltip.Root>
                   <Tooltip.Trigger>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="xs"
                       disabled={isPublishing || !headDisplay}
                       onClick={handlePublishClick}

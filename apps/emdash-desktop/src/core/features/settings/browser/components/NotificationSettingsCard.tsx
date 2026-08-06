@@ -1,11 +1,10 @@
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { SeparatedList, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, SeparatedList, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   Select,
   SelectContent,
@@ -41,7 +40,8 @@ function PreviewSoundButton({
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
+              icon
               className="text-muted-foreground hover:text-foreground"
               disabled={disabled}
               onClick={() => soundPlayer.preview(path)}
@@ -166,7 +166,7 @@ const NotificationSettingsCard: React.FC = () => {
                         render={
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="secondary"
                             className="text-muted-foreground max-w-56 bg-transparent font-normal"
                             disabled={loading}
                             onClick={chooseCustomSound}

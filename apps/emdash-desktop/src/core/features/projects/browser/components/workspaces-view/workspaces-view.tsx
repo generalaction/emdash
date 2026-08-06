@@ -9,8 +9,9 @@ import {
   defineSelection,
   defineSort,
   ListView,
+  PageLayout,
 } from '@emdash/ui/react/patterns';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -22,10 +23,8 @@ import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/br
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
-import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
@@ -282,40 +281,41 @@ const WorkspacesHeader = observer(function WorkspacesHeader({
   const loading = store.status === 'loading' || store.measuring;
 
   return (
-    <PageHeader
+    <PageLayout.Header
       title="Workspaces"
       description="Review repository workspaces, linked tasks, and reclaimable artifacts."
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SearchInput
-          containerClassName="min-w-64 flex-1"
-          className="h-8"
-          placeholder="Search workspaces, branches, tasks..."
-          value={search.query}
-          onChange={(event) => search.setQuery(event.target.value)}
-        />
-        <div className="flex items-center gap-3">
-          {(['all', 'used', 'unused'] as const).map((usage) => (
-            <ListView.FilterButton
-              key={usage}
-              active={filter.model.usage === usage}
-              onClick={() => filter.set({ usage })}
+      actions={
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SearchInput
+            containerClassName="min-w-64 flex-1"
+            className="h-8"
+            placeholder="Search workspaces, branches, tasks..."
+            value={search.query}
+            onChange={(event) => search.setQuery(event.target.value)}
+          />
+          <div className="flex items-center gap-3">
+            {(['all', 'used', 'unused'] as const).map((usage) => (
+              <ListView.FilterButton
+                key={usage}
+                active={filter.model.usage === usage}
+                onClick={() => filter.set({ usage })}
+              >
+                {usage[0]!.toUpperCase() + usage.slice(1)}
+              </ListView.FilterButton>
+            ))}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={loading}
+              onClick={() => void store.refresh()}
             >
-              {usage[0]!.toUpperCase() + usage.slice(1)}
-            </ListView.FilterButton>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => void store.refresh()}
-          >
-            <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
-            Refresh
-          </Button>
+              <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
         </div>
-      </div>
-    </PageHeader>
+      }
+    />
   );
 });
 
@@ -557,7 +557,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
       </div>
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={archivableRows.length === 0 || pendingAction !== null}
           onClick={confirmArchive}
@@ -584,7 +584,8 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={() => selection.clear()}
           aria-label="Clear selection"
         >
@@ -608,7 +609,8 @@ function WorkspaceWarnings({ warnings }: { warnings: string[] }) {
       </div>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="xs"
+        icon
         onClick={() => setDismissed(true)}
         aria-label="Dismiss warning"
       >

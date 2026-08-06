@@ -1,7 +1,7 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { DialogContentArea, DialogFooter } from '@core/primitives/ui/browser/dialog';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
@@ -65,10 +65,14 @@ export function SetupFormShell({
         ) : null}
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <ConfirmButton onClick={() => void handleSubmit()} disabled={!canSubmit || isMutating}>
+        <ConfirmButton
+          variant="primary"
+          onClick={() => void handleSubmit()}
+          disabled={!canSubmit || isMutating}
+        >
           {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Connect
         </ConfirmButton>

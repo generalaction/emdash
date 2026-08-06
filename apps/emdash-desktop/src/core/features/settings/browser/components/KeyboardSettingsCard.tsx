@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
@@ -18,7 +18,6 @@ import {
   keybindingService,
   useChordRecorder,
 } from '@core/primitives/keybindings/browser';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 
@@ -144,7 +143,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                         <>
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             className="min-w-[80px] animate-pulse"
                             onClick={recorder.cancelRecording}
@@ -173,7 +172,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
+                                        icon
                                         className="text-muted-foreground hover:text-foreground"
                                         onClick={() => {
                                           resetField(key);
@@ -197,7 +196,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
+                                        icon
                                         className="text-muted-foreground hover:text-foreground"
                                         onClick={() => {
                                           update({ [key]: null });

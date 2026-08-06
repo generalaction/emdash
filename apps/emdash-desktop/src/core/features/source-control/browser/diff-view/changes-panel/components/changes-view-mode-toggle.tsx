@@ -1,8 +1,7 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { AlignJustify, ListTree } from 'lucide-react';
 import { useState } from 'react';
 import type { ChangesListViewMode } from '@core/primitives/app-settings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 
 interface ChangesViewModeToggleProps {
   value: ChangesListViewMode;
@@ -29,7 +28,8 @@ export function ChangesViewModeToggle({ value, onChange, label }: ChangesViewMod
       <Tooltip.Trigger>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={() => onChange(nextMode)}
           aria-label={`${tooltip} (${label})`}
         >

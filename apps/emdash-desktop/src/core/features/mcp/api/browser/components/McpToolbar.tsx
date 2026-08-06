@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 
 type McpToolbarProps = {
@@ -27,8 +27,8 @@ export function McpToolbar({
       />
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
-          size="icon"
+          variant="secondary"
+          icon
           onClick={onRefresh}
           disabled={isRefreshing}
           aria-label="Refresh providers"
@@ -37,7 +37,7 @@ export function McpToolbar({
             className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
           />
         </Button>
-        <Button onClick={onAddCustom}>
+        <Button variant="primary" onClick={onAddCustom}>
           <Plus className="size-4" />
           Custom MCP
         </Button>

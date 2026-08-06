@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowDown,
   ArrowUp,
@@ -37,7 +37,6 @@ import {
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { Badge } from '@core/primitives/ui/browser/badge';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
 import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
 import { MicroLabel } from '@core/primitives/ui/browser/label';
@@ -182,7 +181,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                         <Tooltip.Trigger className="flex-1">
                           <Button
                             className="w-full"
-                            variant="outline"
+                            variant="secondary"
                             size="xs"
                             disabled={isFetching}
                             onClick={() => fetch()}
@@ -199,7 +198,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                         <Tooltip.Trigger className="flex-1">
                           <Button
                             className="w-full"
-                            variant="outline"
+                            variant="secondary"
                             disabled={isPulling || behindCount === 0}
                             size="xs"
                             onClick={() => pull()}
@@ -229,7 +228,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                         <Tooltip.Trigger className="flex-1">
                           <Button
                             className="w-full"
-                            variant="outline"
+                            variant="secondary"
                             disabled={isPushing || aheadCount === 0}
                             size="xs"
                             onClick={() => push()}
@@ -261,7 +260,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                       <Tooltip.Trigger className="flex-1">
                         <Button
                           className="w-full"
-                          variant="outline"
+                          variant="secondary"
                           disabled={isPublishing}
                           size="xs"
                           onClick={() => publish()}

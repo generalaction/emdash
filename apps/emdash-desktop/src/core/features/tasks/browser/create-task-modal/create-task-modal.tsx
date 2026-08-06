@@ -161,6 +161,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton
+          variant="primary"
           size="sm"
           onClick={handleCreateTask}
           disabled={!canCreate || initialConversation.issueContextEditorOpen}

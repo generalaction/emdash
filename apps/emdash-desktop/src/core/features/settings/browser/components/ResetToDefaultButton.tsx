@@ -1,7 +1,6 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 
 interface ResetToDefaultButtonProps {
   /** Optional label shown in the tooltip: "Reset to default: <label>" */
@@ -28,7 +27,7 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            icon
             className="text-muted-foreground h-7 w-7 shrink-0 hover:text-foreground"
             onClick={onReset}
             disabled={disabled}
