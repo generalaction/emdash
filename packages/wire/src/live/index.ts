@@ -24,7 +24,12 @@ export {
   type LiveJobListEntry,
   type LiveJobSourceOptions,
 } from './job/source';
-export { LiveLogSource, type LiveLogSourceOptions } from './log/source';
+export { createLineLogStore, type LineLogStore, type LineLogStoreOptions } from './log/line-store';
+export {
+  LIVE_LOG_DEFAULT_MAX_BUFFER_BYTES,
+  LiveLogSource,
+  type LiveLogSourceOptions,
+} from './log/source';
 export {
   createLiveJobReplicaCache,
   createPlainJobStore,

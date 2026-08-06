@@ -2,7 +2,11 @@ import { Emitter, type Unsubscribe } from '@emdash/shared';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { LiveLogDelta } from '../protocol';
 
-const DEFAULT_MAX_BUFFER_BYTES = 1024 * 1024;
+/**
+ * Shared retention cap for log sources and their client-side stores: keeping
+ * one constant means source and client cannot drift apart.
+ */
+export const LIVE_LOG_DEFAULT_MAX_BUFFER_BYTES = 1024 * 1024;
 const encoder = new TextEncoder();
 
 type RetainedChunk = {
@@ -33,7 +37,7 @@ export class LiveLogSource {
   private chunks: RetainedChunk[] = [];
 
   constructor(options: LiveLogSourceOptions = {}) {
-    this.maxBufferBytes = Math.max(0, options.maxBufferBytes ?? DEFAULT_MAX_BUFFER_BYTES);
+    this.maxBufferBytes = Math.max(0, options.maxBufferBytes ?? LIVE_LOG_DEFAULT_MAX_BUFFER_BYTES);
     this.generation = options.generation ?? Date.now();
   }
 
