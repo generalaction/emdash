@@ -1,6 +1,12 @@
 import { MachineStatus, McpIcon } from '@emdash/ui/react/components';
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { Button, DropdownMenu, Heading, SelectableCard, SeparatedList } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  DropdownMenu,
+  Heading,
+  SelectableCard,
+  SeparatedList,
+} from '@emdash/ui/react/primitives';
 import {
   Activity,
   Brain,

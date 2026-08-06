@@ -1,7 +1,6 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
-import { Button } from '@emdash/ui/react/primitives';
-import { ScrollText, Terminal } from 'lucide-react';
 import { EmptyState } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';

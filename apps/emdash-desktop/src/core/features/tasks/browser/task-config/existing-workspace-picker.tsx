@@ -1,5 +1,5 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
 import { EmptyState } from '@emdash/ui/react/components';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';

@@ -1,5 +1,5 @@
-import { Button } from '@emdash/ui/react/primitives';
 import { EmptyState } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';

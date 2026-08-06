@@ -1,6 +1,6 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
-import { Button } from '@emdash/ui/react/primitives';
 import { EmptyState } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';

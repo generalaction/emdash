@@ -1,6 +1,6 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import { Button } from '@emdash/ui/react/primitives';
-import { EmptyState } from '@emdash/ui/react/components';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';

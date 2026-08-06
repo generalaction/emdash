@@ -1,5 +1,5 @@
-import { Button } from '@emdash/ui/react/primitives';
 import { EmptyState } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
