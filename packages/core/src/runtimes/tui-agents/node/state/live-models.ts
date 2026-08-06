@@ -8,18 +8,18 @@ import {
 
 export type TuiSessionsListModel = { states: { list: Cell<TuiSessionList> } };
 export type TuiAgentStatesListModel = { states: { list: Cell<TuiAgentStateList> } };
-export type TuiSessionsLiveHost = LeasedLiveModelProvider<typeof tuiAgentsContract.sessions> & {
+export type TuiSessionsLiveModel = LeasedLiveModelProvider<typeof tuiAgentsContract.sessions> & {
   model: TuiSessionsListModel;
   get(key: unknown): TuiSessionsListModel | undefined;
 };
-export type TuiAgentStatesLiveHost = LeasedLiveModelProvider<
+export type TuiAgentStatesLiveModel = LeasedLiveModelProvider<
   typeof tuiAgentsContract.agentStates
 > & {
   model: TuiAgentStatesListModel;
   get(key: unknown): TuiAgentStatesListModel | undefined;
 };
 
-export function createTuiSessionsLiveHost(): TuiSessionsLiveHost {
+export function createTuiSessionsLiveModel(): TuiSessionsLiveModel {
   const model = { states: { list: cell({} satisfies TuiSessionList) } };
   return Object.assign(
     expose(tuiAgentsContract.sessions, { list: model.states.list }, { publish: { list: 'diff' } }),
@@ -27,7 +27,7 @@ export function createTuiSessionsLiveHost(): TuiSessionsLiveHost {
   );
 }
 
-export function createTuiAgentStatesLiveHost(): TuiAgentStatesLiveHost {
+export function createTuiAgentStatesLiveModel(): TuiAgentStatesLiveModel {
   const model = { states: { list: cell({} satisfies TuiAgentStateList) } };
   return Object.assign(
     expose(
@@ -39,14 +39,14 @@ export function createTuiAgentStatesLiveHost(): TuiAgentStatesLiveHost {
   );
 }
 
-export function createTuiSessionsListModel(host: TuiSessionsLiveHost): TuiSessionsListModel {
-  return host.model;
+export function createTuiSessionsListModel(liveModel: TuiSessionsLiveModel): TuiSessionsListModel {
+  return liveModel.model;
 }
 
 export function createTuiAgentStatesListModel(
-  host: TuiAgentStatesLiveHost
+  liveModel: TuiAgentStatesLiveModel
 ): TuiAgentStatesListModel {
-  return host.model;
+  return liveModel.model;
 }
 
 export function produceCell<T>(target: Cell<T>, mutator: (draft: T) => void): void {

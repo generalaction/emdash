@@ -8,7 +8,7 @@ export function createTuiAgentsController(runtime: TuiAgentsRuntime) {
   return createController(tuiAgentsContract, {
     ...procedures,
     output: (key) => runtime.outputLog(key),
-    sessions: runtime.sessionsLiveHost(),
-    agentStates: runtime.agentStatesLiveHost(),
+    sessions: runtime.sessionsLiveModel,
+    agentStates: runtime.agentStatesLiveModel,
   });
 }

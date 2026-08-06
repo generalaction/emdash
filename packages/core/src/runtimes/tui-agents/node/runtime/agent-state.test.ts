@@ -1,8 +1,8 @@
 import { peek } from '@emdash/wire/state';
 import {
-  createTuiAgentStatesLiveHost,
+  createTuiAgentStatesLiveModel,
   createTuiAgentStatesListModel,
-  createTuiSessionsLiveHost,
+  createTuiSessionsLiveModel,
   createTuiSessionsListModel,
   produceCell,
 } from '@runtimes/tui-agents/node/state/live-models';
@@ -10,10 +10,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { TuiAgentStates } from './agent-state';
 
 function createTracker() {
-  const sessionsHost = createTuiSessionsLiveHost();
-  const agentStatesHost = createTuiAgentStatesLiveHost();
-  const sessions = createTuiSessionsListModel(sessionsHost);
-  const agentStates = createTuiAgentStatesListModel(agentStatesHost);
+  const sessionsLiveModel = createTuiSessionsLiveModel();
+  const agentStatesLiveModel = createTuiAgentStatesLiveModel();
+  const sessions = createTuiSessionsListModel(sessionsLiveModel);
+  const agentStates = createTuiAgentStatesListModel(agentStatesLiveModel);
   const onSessionIdChanged = vi.fn();
   const onAgentStateChanged = vi.fn();
   const tracker = new TuiAgentStates(

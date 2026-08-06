@@ -213,7 +213,7 @@ describe('TuiAgentsRuntime', () => {
         message: 'Error: spawn failed',
       });
     }
-    expect(peek(runtime.sessionsLiveHost().get(undefined)!.states.list)).toMatchObject({
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toMatchObject({
       'conversation-1': { status: 'exited' },
     });
   });
@@ -271,7 +271,7 @@ describe('TuiAgentsRuntime', () => {
 
     await clock.advanceBy(1_200);
 
-    expect(peek(runtime.sessionsLiveHost().get(undefined)!.states.list)).toEqual({});
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toEqual({});
   });
 
   it('uses batched tmux activity to keep detached tmux sessions active', async () => {
@@ -298,7 +298,7 @@ describe('TuiAgentsRuntime', () => {
       '#{session_name}\t#{session_activity}',
     ]);
     expect(spawner.processes[0]!.kill).not.toHaveBeenCalled();
-    expect(peek(runtime.sessionsLiveHost().get(undefined)!.states.list)).toHaveProperty(
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
       'conversation-1'
     );
   });
@@ -327,7 +327,7 @@ describe('TuiAgentsRuntime', () => {
     await runtime.reconcile();
 
     expect(spawner.specs).toHaveLength(1);
-    expect(peek(runtime.sessionsLiveHost().get(undefined)!.states.list)).toHaveProperty(
+    expect(peek(runtime.sessionsLiveModel.get(undefined)!.states.list)).toHaveProperty(
       'conversation-1'
     );
   });

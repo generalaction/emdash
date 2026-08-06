@@ -27,14 +27,14 @@ import { persistedTuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
 import { TuiHookPipeline } from '@runtimes/tui-agents/node/hooks/hook-pipeline';
 import { TuiHookServer } from '@runtimes/tui-agents/node/hooks/hook-server';
 import {
-  createTuiAgentStatesLiveHost,
+  createTuiAgentStatesLiveModel,
   createTuiAgentStatesListModel,
-  createTuiSessionsLiveHost,
+  createTuiSessionsLiveModel,
   createTuiSessionsListModel,
   produceCell,
-  type TuiAgentStatesLiveHost,
+  type TuiAgentStatesLiveModel,
   type TuiAgentStatesListModel,
-  type TuiSessionsLiveHost,
+  type TuiSessionsLiveModel,
   type TuiSessionsListModel,
 } from '@runtimes/tui-agents/node/state/live-models';
 import { TuiWorkspaceTrust } from '@runtimes/tui-agents/node/trust/workspace-trust';
@@ -77,8 +77,8 @@ export class TuiAgentsRuntime {
   private readonly logs = new Map<string, LiveLogSource>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly generations = new Map<string, number>();
-  private readonly sessionsHost: TuiSessionsLiveHost;
-  private readonly agentStatesHost: TuiAgentStatesLiveHost;
+  readonly sessionsLiveModel: TuiSessionsLiveModel;
+  readonly agentStatesLiveModel: TuiAgentStatesLiveModel;
   private readonly sessionsList: TuiSessionsListModel;
   private readonly agentStatesList: TuiAgentStatesListModel;
   private readonly agentStates: TuiAgentStates;
@@ -96,10 +96,10 @@ export class TuiAgentsRuntime {
   constructor(private readonly deps: TuiAgentsRuntimeDeps) {
     this.reports = deps.conversationReports ?? noopConversationLifecycleReporter;
     this.registry = new PtyRegistry(deps.spawner);
-    this.sessionsHost = createTuiSessionsLiveHost();
-    this.agentStatesHost = createTuiAgentStatesLiveHost();
-    this.sessionsList = createTuiSessionsListModel(this.sessionsHost);
-    this.agentStatesList = createTuiAgentStatesListModel(this.agentStatesHost);
+    this.sessionsLiveModel = createTuiSessionsLiveModel();
+    this.agentStatesLiveModel = createTuiAgentStatesLiveModel();
+    this.sessionsList = createTuiSessionsListModel(this.sessionsLiveModel);
+    this.agentStatesList = createTuiAgentStatesListModel(this.agentStatesLiveModel);
     this.agentStates = new TuiAgentStates(
       this.sessionsList,
       this.agentStatesList,
@@ -319,14 +319,6 @@ export class TuiAgentsRuntime {
         };
       },
     };
-  }
-
-  sessionsLiveHost(): TuiSessionsLiveHost {
-    return this.sessionsHost;
-  }
-
-  agentStatesLiveHost(): TuiAgentStatesLiveHost {
-    return this.agentStatesHost;
   }
 
   async reconcile(): Promise<void> {
