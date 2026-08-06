@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
-import { cell, derived, read, snapshot, type Readable } from './core';
+import { cell, derived, snapshot, type Readable } from './core';
 import { produce } from './live-immer';
 
 export type PendingHandle = {
@@ -52,11 +52,11 @@ export function optimistic<T>(
 
   const view = derived(() => {
     const baseSnapshot = snapshot(base);
-    const value = read(base);
+    const value = baseSnapshot.value;
     if (value === undefined) return undefined;
     const acknowledged = new Set(baseSnapshot.mutationIds ?? []);
     const generation = baseSnapshot.generation;
-    const patches = read(pending);
+    const patches = snapshot(pending).value;
     const current = patches.filter((patch) => {
       if (acknowledged.has(patch.mutationId)) return false;
       return patch.generation === generation;

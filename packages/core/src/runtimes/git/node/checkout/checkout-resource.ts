@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { Result, Unsubscribe } from '@emdash/shared';
-import type { Scope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire';
 import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
 import {
@@ -57,6 +57,7 @@ export class CheckoutResource {
   readonly repository: RepositoryResource;
 
   private readonly commands: GitCheckout;
+  private readonly statesScope = createScope({ label: 'git-checkout-states' });
   private readonly states: {
     status: Query<CheckoutStatusState>;
     head: Query<CheckoutHeadState>;
@@ -395,7 +396,7 @@ export class CheckoutResource {
     this.disposed = true;
     this.unregister();
     await this.worktreeWatch.release();
-    for (const state of Object.values(this.states)) state.dispose();
+    await this.statesScope.dispose();
     this.fileDiffs.dispose();
     this.fileContents.dispose();
   }
@@ -465,6 +466,7 @@ export class CheckoutResource {
       fetch: async () => this.repository.execute(compute),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateEveryMs: REVALIDATE_INTERVAL_MS,
+      scope: this.statesScope,
       onError: (error) => this.onError(`${name} ${this.identity.checkoutRoot}`, error),
     });
   }

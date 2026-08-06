@@ -3,6 +3,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import {
   StateNode,
+  mergeMutationIds,
   type CommitOptions,
   type Readable,
   type Revision,
@@ -26,7 +27,8 @@ export type QueryOptions<T> = {
   name?: string;
   onError?: (error: unknown) => void;
   clock?: Clock;
-  scope?: Scope;
+  /** Owns the query's poke subscriptions and timers; disposal ends the query. */
+  scope: Scope;
   instrumentation?: StateInstrumentation;
   onObservedChange?: (observed: boolean) => void;
 };
@@ -52,6 +54,8 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
   private controller: AbortController | undefined;
   private inFlight: Promise<Revision> | undefined;
   private queued: Promise<Revision> | undefined;
+  /** Mutation ids that have not yet reached a committed snapshot. */
+  private readonly pendingAckIds = new Set<string>();
 
   constructor(private readonly queryOptions: QueryOptions<T>) {
     super(queryOptions.initial, {
@@ -69,7 +73,7 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
     for (const poke of queryOptions.pokes ?? []) {
       this.unsubscribePokes.push(poke.subscribe(() => this.invalidate()));
     }
-    queryOptions.scope?.add(() => this.dispose());
+    queryOptions.scope.add(() => this.dispose());
   }
 
   invalidate(): void {
@@ -81,16 +85,19 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
 
   refresh(options: { mutationIds?: readonly string[] } = {}): Promise<Revision> {
     this.assertActive();
+    for (const id of options.mutationIds ?? []) this.pendingAckIds.add(id);
     this.clearDebounce();
     if (this.inFlight) {
       this.dirty = true;
+      // Coalesced callers share one queued run; their ids accumulate in
+      // pendingAckIds and ride the queued run's commit.
       this.queued ??= this.inFlight.then(
-        () => this.runNow(options.mutationIds),
-        () => this.runNow(options.mutationIds)
+        () => this.runNow(),
+        () => this.runNow()
       );
       return this.queued;
     }
-    return this.runNow(options.mutationIds);
+    return this.runNow();
   }
 
   settle(
@@ -104,9 +111,12 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
       typeof update === 'function' ? (update as (previous: T | undefined) => T)(previous) : update;
     this.initialized = true;
     this.dirty = false;
+    // The settled value is authoritative write-through: it reflects every
+    // mutation whose refresh was requested before now, so drain pending acks.
+    const drained = this.takePendingAcks([...this.pendingAckIds]);
     return this.commit(next, {
       status: 'live',
-      mutationIds: options.mutationIds,
+      mutationIds: mergeMutationIds(options.mutationIds, drained),
       observedAt: this.clock.now(),
     });
   }
@@ -129,10 +139,13 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
     this.clearTimers();
   }
 
-  private runNow(mutationIds?: readonly string[]): Promise<Revision> {
+  private runNow(): Promise<Revision> {
     this.queued = undefined;
     this.clearDebounce();
     const startedAtRevision = this.currentSnapshot().revision;
+    // Every pending id was requested before this fetch starts, so the fetched
+    // value reflects those mutations and may acknowledge them.
+    const captured = [...this.pendingAckIds];
     const run = (async () => {
       this.dirty = false;
       const controller = new AbortController();
@@ -143,15 +156,18 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
         );
         this.assertActive();
         if (this.currentSnapshot().revision > startedAtRevision) {
-          return this.currentRevision();
+          // Superseded: the fetched value is discarded, but its mutation ids
+          // must still reach a committed snapshot.
+          return this.publishPendingAcks(captured);
         }
         this.initialized = true;
         return this.commit(fresh, {
           status: 'live',
-          mutationIds,
+          mutationIds: this.takePendingAcks(captured),
           observedAt: this.clock.now(),
         });
       } catch (error) {
+        // Captured ids stay pending and attach to the next settling commit.
         this.dirty = false;
         this.publishStatus('error', { error });
         this.queryOptions.onError?.(error);
@@ -165,6 +181,21 @@ class QueryNode<T> extends StateNode<T | undefined> implements Query<T> {
     })();
     this.inFlight = run;
     return run;
+  }
+
+  private takePendingAcks(captured: readonly string[]): readonly string[] | undefined {
+    const deliver = captured.filter((id) => this.pendingAckIds.has(id));
+    for (const id of deliver) this.pendingAckIds.delete(id);
+    return deliver.length > 0 ? deliver : undefined;
+  }
+
+  private publishPendingAcks(captured: readonly string[]): Revision {
+    const deliver = this.takePendingAcks(captured);
+    if (!deliver) return this.currentRevision();
+    const current = this.currentSnapshot();
+    return this.commit(current.value, {
+      mutationIds: mergeMutationIds(current.mutationIds, deliver),
+    });
   }
 
   private publishStatus(status: StateStatus, options: Pick<CommitOptions, 'error'> = {}): void {

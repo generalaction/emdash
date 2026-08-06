@@ -1,4 +1,4 @@
-import type { Scope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { query, type Query } from '@emdash/wire';
 import type { PortableRelativePath } from '@primitives/path/api';
 import type { BoundGitFileContentKey, GitFileContentState, GitFileSource } from '@runtimes/git/api';
@@ -15,6 +15,7 @@ export type GitFileContentRegistryOptions = Readonly<{
 
 type Entry = {
   readonly key: BoundGitFileContentKey;
+  readonly scope: Scope;
   readonly state: Query<GitFileContentState>;
   leases: number;
   lastUsed: number;
@@ -63,17 +64,20 @@ export class GitFileContentRegistry {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const entry of this.entries.values()) entry.state.dispose();
+    for (const entry of this.entries.values()) void entry.scope.dispose();
     this.entries.clear();
   }
 
   private createEntry(key: BoundGitFileContentKey): Entry {
+    const scope = createScope({ label: 'git-file-content-state' });
     return {
       key,
+      scope,
       state: query({
         fetch: async () => this.options.execute(() => this.options.commands.getFileContent(key)),
         debounceMs: CONTENT_DEBOUNCE_MS,
         revalidateEveryMs: isImmutableSource(key.source) ? undefined : CONTENT_REVALIDATE_MS,
+        scope,
         onError: (error) =>
           this.options.onError?.(`git content ${key.path} ${key.source.kind}`, error),
       }),
@@ -90,7 +94,7 @@ export class GitFileContentRegistry {
     for (const [id, entry] of idle) {
       if (this.entries.size <= this.maxEntries) break;
       this.entries.delete(id);
-      entry.state.dispose();
+      void entry.scope.dispose();
     }
   }
 

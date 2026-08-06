@@ -1,24 +1,14 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it } from 'vitest';
 import { recordSnapshots } from '../testing';
-import {
-  batch,
-  cell,
-  derived,
-  flushStateTurn,
-  observe,
-  peek,
-  read,
-  revisionOf,
-  snapshot,
-} from './index';
+import { batch, cell, derived, flushStateTurn, observe, peek, revisionOf, snapshot } from './index';
 
 describe('state kernel', () => {
   it('publishes a diamond derived graph once per turn without glitches', async () => {
     const source = cell(1);
-    const left = derived(() => read(source) + 1);
-    const right = derived(() => read(source) * 2);
-    const total = derived(() => (read(left) ?? 0) + (read(right) ?? 0));
+    const left = derived(() => snapshot(source).value + 1);
+    const right = derived(() => snapshot(source).value * 2);
+    const total = derived(() => (snapshot(left).value ?? 0) + (snapshot(right).value ?? 0));
     const recorded = recordSnapshots(total);
 
     source.set(2);
@@ -32,7 +22,9 @@ describe('state kernel', () => {
     const useLeft = cell(true);
     const left = cell('left');
     const right = cell('right');
-    const selected = derived(() => (read(useLeft) ? read(left) : read(right)));
+    const selected = derived(() =>
+      snapshot(useLeft).value ? snapshot(left).value : snapshot(right).value
+    );
     const recorded = recordSnapshots(selected);
 
     useLeft.set(false);
@@ -54,7 +46,7 @@ describe('state kernel', () => {
     const input = cell(1);
     let shouldThrow = true;
     const computed = derived(() => {
-      const value = read(input);
+      const value = snapshot(input).value;
       if (shouldThrow) throw new Error('boom');
       return value * 2;
     });
@@ -104,7 +96,7 @@ describe('state kernel', () => {
   it('folds mutation ids through derived state only for dependencies that advanced', async () => {
     const source = cell(1);
     const unrelated = cell(1);
-    const view = derived(() => read(source) + read(unrelated));
+    const view = derived(() => snapshot(source).value + snapshot(unrelated).value);
     const recorded = recordSnapshots(view);
 
     source.set(2, { mutationIds: ['m1'] });
@@ -123,7 +115,7 @@ describe('state kernel', () => {
   it('merges batch metadata and keeps peek untracked', async () => {
     const tracked = cell(1);
     const untracked = cell(10);
-    const view = derived(() => read(tracked) + peek(untracked));
+    const view = derived(() => snapshot(tracked).value + peek(untracked));
     const recorded = recordSnapshots(view);
 
     batch(
@@ -152,5 +144,56 @@ describe('state kernel', () => {
     expect(initial.revision).toBe(0);
     expect(current).toEqual(committed);
     expect(snapshot(source).revision).toBe(committed.revision);
+  });
+
+  it('detaches an unobserved dependent-less derived and re-attaches lazily on read', async () => {
+    const recomputes: Array<string | undefined> = [];
+    const source = cell(1);
+    const view = derived(() => snapshot(source).value * 2, {
+      name: 'detachable',
+      instrumentation: { nodeRecomputed: (name) => recomputes.push(name) },
+    });
+    const scope = createScope();
+    observe(view, () => {}, { scope });
+    flushStateTurn();
+    expect(snapshot(view).value).toBe(2);
+
+    await scope.dispose();
+    const recomputesAfterDetach = recomputes.length;
+
+    // Detached: dependency writes no longer reach the derived.
+    source.set(2);
+    flushStateTurn();
+    expect(recomputes.length).toBe(recomputesAfterDetach);
+
+    // Lazy re-attach: the next read recomputes with the fresh dependency value.
+    expect(snapshot(view).value).toBe(4);
+    expect(recomputes.length).toBe(recomputesAfterDetach + 1);
+
+    // Re-attached: observing again tracks further writes.
+    const seen: Array<number | undefined> = [];
+    const reobserved = createScope();
+    observe(view, (current) => seen.push(current.value), { scope: reobserved });
+    source.set(5);
+    flushStateTurn();
+    expect(seen.at(-1)).toBe(10);
+    await reobserved.dispose();
+  });
+
+  it('cascades detach through a chain of unobserved deriveds and stays correct', async () => {
+    const source = cell(1);
+    const middle = derived(() => snapshot(source).value + 1);
+    const top = derived(() => (snapshot(middle).value ?? 0) * 10);
+    const scope = createScope();
+    observe(top, () => {}, { scope });
+    flushStateTurn();
+    expect(snapshot(top).value).toBe(20);
+
+    await scope.dispose();
+    source.set(5);
+    flushStateTurn();
+
+    expect(snapshot(top).value).toBe(60);
+    expect(snapshot(middle).value).toBe(6);
   });
 });

@@ -1,12 +1,21 @@
-import { createScope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { snapshot } from './core';
 import { pokeChannel } from './poke';
 import { query } from './query';
 import { createRecordingLane, recordSnapshots, settleAsync } from './testing';
 
 describe('state query', () => {
+  let scope: Scope;
+
+  beforeEach(() => {
+    scope = createScope();
+  });
+
+  afterEach(async () => {
+    await scope.dispose();
+  });
   it('coalesces multiple pokes inside the debounce window into one fetch', async () => {
     const clock = createManualClock();
     const channel = pokeChannel('query-debounce');
@@ -20,6 +29,7 @@ describe('state query', () => {
       pokes: [channel.subscription()],
       debounceMs: 5,
       clock,
+      scope,
     });
     const recorded = recordSnapshots(model);
 
@@ -53,6 +63,7 @@ describe('state query', () => {
     const model = query({
       fetch: async () => ({ count: 1 }),
       debounceMs: 0,
+      scope,
     });
     const recorded = recordSnapshots(model);
 
@@ -73,6 +84,7 @@ describe('state query', () => {
     const model = query({
       fetch: async () => source,
       debounceMs: 0,
+      scope,
     });
     const recorded = recordSnapshots(model);
 
@@ -97,6 +109,7 @@ describe('state query', () => {
       fetch: () => pending.promise,
       debounceMs: 0,
       clock,
+      scope,
     });
     const recorded = recordSnapshots(model);
 
@@ -125,6 +138,7 @@ describe('state query', () => {
       pokes: [channel.subscription()],
       debounceMs: 0,
       clock,
+      scope,
     });
     const recorded = recordSnapshots(model);
 
@@ -155,6 +169,7 @@ describe('state query', () => {
       pokes: [channel.subscription()],
       debounceMs: 0,
       clock,
+      scope,
       onError: (error) => errors.push(error),
     });
     const recorded = recordSnapshots(model);
@@ -208,11 +223,109 @@ describe('state query', () => {
     const model = query({
       fetch: async () => 1,
       lane,
+      scope,
     });
 
     await model.refresh();
 
     expect(lane.runs).toEqual([1]);
+  });
+
+  it('delivers mutation ids from a refresh superseded by a settle', async () => {
+    const clock = createManualClock();
+    const pending = deferred<number>();
+    let fetchIndex = 0;
+    const model = query({
+      fetch: () => (fetchIndex++ === 0 ? Promise.resolve(1) : pending.promise),
+      debounceMs: 0,
+      clock,
+      scope,
+    });
+
+    await model.refresh();
+    const superseded = model.refresh({ mutationIds: ['m1'] });
+    model.settle(5, { mutationIds: ['s1'] });
+    pending.resolve(2);
+    await superseded;
+    await settleAsync();
+
+    const current = snapshot(model);
+    expect(current.value).toBe(5);
+    expect(current.mutationIds).toContain('m1');
+    expect(current.mutationIds).toContain('s1');
+  });
+
+  it('delivers mutation ids from a refresh superseded by an invalidation', async () => {
+    const clock = createManualClock();
+    const pending = deferred<number>();
+    let fetchIndex = 0;
+    const model = query({
+      fetch: () => (fetchIndex++ === 0 ? Promise.resolve(1) : pending.promise),
+      debounceMs: 0,
+      clock,
+      scope,
+    });
+
+    await model.refresh();
+    const superseded = model.refresh({ mutationIds: ['m1'] });
+    model.invalidate();
+    pending.resolve(2);
+    await superseded;
+    await settleAsync();
+
+    expect(snapshot(model).mutationIds).toContain('m1');
+  });
+
+  it('delivers every callers mutation ids across coalesced refreshes', async () => {
+    const clock = createManualClock();
+    const first = deferred<number>();
+    const second = deferred<number>();
+    const fetches = [first.promise, second.promise];
+    const model = query({
+      fetch: () => fetches.shift() ?? Promise.resolve(99),
+      debounceMs: 0,
+      clock,
+      scope,
+    });
+    const recorded = recordSnapshots(model);
+
+    const initial = model.refresh({ mutationIds: ['m1'] });
+    const queuedOnce = model.refresh({ mutationIds: ['m2'] });
+    const queuedTwice = model.refresh({ mutationIds: ['m3'] });
+    expect(queuedTwice).toBe(queuedOnce);
+
+    first.resolve(1);
+    await initial;
+    second.resolve(2);
+    await queuedOnce;
+    await settleAsync();
+
+    const committedIds = recorded.snapshots.map((current) => current.mutationIds);
+    expect(committedIds).toContainEqual(['m1']);
+    expect([...(snapshot(model).mutationIds ?? [])].sort()).toEqual(['m2', 'm3']);
+    await recorded.dispose();
+  });
+
+  it('carries mutation ids across a failed fetch to the next committed snapshot', async () => {
+    const clock = createManualClock();
+    let attempt = 0;
+    const model = query({
+      fetch: async () => {
+        attempt += 1;
+        if (attempt === 1) throw new Error('boom');
+        return attempt;
+      },
+      debounceMs: 0,
+      clock,
+      scope,
+    });
+
+    await expect(model.refresh({ mutationIds: ['m1'] })).rejects.toThrow('boom');
+    await model.refresh();
+    await settleAsync();
+
+    expect(snapshot(model)).toMatchObject({ value: 2, status: 'live' });
+    expect(snapshot(model).mutationIds).toContain('m1');
   });
 });
 

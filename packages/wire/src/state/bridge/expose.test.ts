@@ -1,9 +1,10 @@
 import { ok } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 import { liveModel, liveState, mutation, type LiveModelDef } from '../../api';
-import { cell, derived, family, flushStateTurn, read, snapshot } from '../core';
+import { cell, derived, family, flushStateTurn, snapshot } from '../core';
 import { query } from '../query';
 import { settleAsync } from '../testing';
 import { expose } from './expose';
@@ -43,10 +44,12 @@ describe('state expose bridge', () => {
 
   it('waits for a cold query before resolving an acquired live source', async () => {
     const clock = createManualClock();
+    const scope = createScope();
     const model = query({
       fetch: async () => ({ count: 1 }),
       debounceMs: 0,
       clock,
+      scope,
     });
     const provider = expose(contract, { value: model });
     const lease = provider.acquireState({ id: 'one' }, 'value');
@@ -65,6 +68,7 @@ describe('state expose bridge', () => {
 
     await lease.release();
     await provider.dispose();
+    await scope.dispose();
   });
 
   it('waits for an async state resolver before resolving an acquired live source', async () => {
@@ -126,7 +130,7 @@ describe('state expose bridge', () => {
 
   it('observes mutation revisions through a derived exposed state', async () => {
     const base = cell({ count: 0 });
-    const value = derived(() => ({ count: read(base).count }));
+    const value = derived(() => ({ count: snapshot(base).value.count }));
     const provider = expose(
       contract,
       { value },

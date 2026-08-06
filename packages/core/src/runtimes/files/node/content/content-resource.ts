@@ -1,4 +1,5 @@
 import { type Result } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire';
 import { type FileContentModel, type FsError, type filesContract } from '@runtimes/files/api';
 import type { ContentIdentity } from '@runtimes/files/node/allocation/identity';
@@ -20,6 +21,7 @@ export class ContentResource {
   readonly identity: ContentIdentity;
 
   private readonly computed: Query<FileContentModel>;
+  private readonly stateScope = createScope({ label: 'files-content-state' });
   private readonly root: RootResource;
   private readonly unsubscribeRoot: () => void;
   private disposed = false;
@@ -32,6 +34,7 @@ export class ContentResource {
       fetch: async () => reader.read(options.identity.path),
       debounceMs: CONTENT_DEBOUNCE_MS,
       revalidateEveryMs: CONTENT_REVALIDATE_MS,
+      scope: this.stateScope,
       onError: (error) => options.onError?.(`files content ${options.identity.contentId}`, error),
     });
     this.unsubscribeRoot = options.root.subscribe((changes) => this.onRootChanges(changes));
@@ -71,7 +74,7 @@ export class ContentResource {
     if (this.disposed) return;
     this.disposed = true;
     this.unsubscribeRoot();
-    this.computed.dispose();
+    void this.stateScope.dispose();
   }
 
   private onRootChanges(changes: RootChange[]): void {

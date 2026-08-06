@@ -2,6 +2,7 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import type {
   Contract,
   ContractImpl,
@@ -106,12 +107,18 @@ export function createProjectsWireController(
 }
 
 function createProjectListProvider(projectOperations: ReturnType<typeof createProjectOperations>) {
-  return expose(projectsWireContract.projectList, {
-    list: query<ProjectListData>({
-      fetch: async () => ({ projects: await projectOperations.getProjects() }),
-      pokes: [appDbPokes.projects.subscription()],
-    }),
-  });
+  const scope = createScope({ label: 'project-list-provider' });
+  return expose(
+    projectsWireContract.projectList,
+    {
+      list: query<ProjectListData>({
+        fetch: async () => ({ projects: await projectOperations.getProjects() }),
+        pokes: [appDbPokes.projects.subscription()],
+        scope,
+      }),
+    },
+    { scope }
+  );
 }
 
 function createDirectoryTreeModelProvider(

@@ -19,7 +19,6 @@ import {
   pokeChannel,
   query,
   remote,
-  read,
   snapshot,
 } from './index';
 
@@ -28,7 +27,7 @@ describe('wire state primitives', () => {
     const scope = createScope();
     const left = cell(1);
     const right = cell(2);
-    const total = derived(() => read(left) + read(right));
+    const total = derived(() => snapshot(left).value + snapshot(right).value);
     const seen: number[] = [];
 
     observe(total, (current) => seen.push(current.value ?? -1), { scope });
@@ -57,6 +56,7 @@ describe('wire state primitives', () => {
       pokes: [channel.subscription()],
       debounceMs: 5,
       clock,
+      scope,
     });
     const seen: Array<number | undefined> = [];
 
@@ -104,6 +104,7 @@ describe('wire state primitives', () => {
       fetch: async () => 'ready',
       debounceMs: 10,
       clock,
+      scope,
     });
 
     const pins = pin(scope, [model]);

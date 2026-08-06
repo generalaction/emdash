@@ -1,4 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { createScope } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query } from '@emdash/wire';
 import type { KeyedMutex } from '@primitives/lib/api';
 import type { PortableRelativePath } from '@primitives/path/api';
@@ -42,6 +43,7 @@ export class RepositoryResource {
 
   private readonly commands: GitRepository;
   private readonly lane = new RepositoryFamilyLane();
+  private readonly statesScope = createScope({ label: 'git-repository-states' });
   private readonly states: {
     refs: Query<GitRefsState>;
     remotes: Query<GitRemotesState>;
@@ -291,7 +293,7 @@ export class RepositoryResource {
     this.disposed = true;
     await this.commonDirWatch.release();
     await this.lane.drain();
-    for (const state of Object.values(this.states)) state.dispose();
+    await this.statesScope.dispose();
     this.checkouts.clear();
     this.commands.dispose();
   }
@@ -343,6 +345,7 @@ export class RepositoryResource {
       fetch: async () => this.lane.run(compute),
       debounceMs: WATCH_DEBOUNCE_MS,
       revalidateEveryMs: REVALIDATE_INTERVAL_MS,
+      scope: this.statesScope,
       onError: (error) => this.onError(`${name} ${this.identity.gitCommonDir}`, error),
     });
   }

@@ -81,11 +81,6 @@ export abstract class StateNode<T> {
     nodeConstructed(this as unknown as StateNode<unknown>);
   }
 
-  read(): T {
-    trackDependency(this as unknown as StateNode<unknown>);
-    return this.currentSnapshot().value;
-  }
-
   get __stateInstrumentation(): StateInstrumentation | undefined {
     return this.options.instrumentation;
   }
@@ -221,15 +216,16 @@ export abstract class StateNode<T> {
   }
 }
 
-export function read<T>(node: Readable<T>): T {
-  return node.__stateNode.read() as T;
-}
-
 export function peek<T>(node: Readable<T>): T {
   return node.__stateNode.peek() as T;
 }
 
+/**
+ * Full snapshot read — value + status + revision + metadata. Tracked when
+ * read inside a `derived` computation; `peek` is the untracked read.
+ */
 export function snapshot<T>(node: Readable<T>): Snapshot<T> {
+  trackDependency(node.__stateNode);
   return node.__stateNode.currentSnapshot() as Snapshot<T>;
 }
 

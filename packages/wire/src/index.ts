@@ -81,7 +81,6 @@ export {
   flushStateTurn,
   observe,
   peek,
-  read,
   revisionOf,
   snapshot,
   whenReady,
@@ -93,7 +92,6 @@ export {
   type Snapshot,
   type StateStatus,
 } from './state/core';
-export { fromMachine, type MachineStateBinding } from './state/from-machine';
 export { produce } from './state/live-immer';
 export {
   optimistic,

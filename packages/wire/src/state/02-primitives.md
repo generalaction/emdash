@@ -10,12 +10,12 @@ Common to everything below:
 
 ```ts
 interface Readable<T> {
-  /** Kernel-internal: tracked read, status/mutationId folding. Use read()/peek(). */
+  /** Kernel-internal: tracked read, status/mutationId folding. Use snapshot()/peek(). */
 }
 
-declare function read<T>(node: Readable<T>): T;      // tracked inside derived; plain read outside
 declare function peek<T>(node: Readable<T>): T;      // never tracks
-declare function snapshot<T>(node: Readable<T>): Snapshot<T>; // value + status + revision + metadata
+declare function snapshot<T>(node: Readable<T>): Snapshot<T>; // value + status + revision + metadata;
+                                                              // tracked inside derived
 ```
 
 `Snapshot<T>` is defined in [01-concepts.md §2](./01-concepts.md#2-snapshots-value--status--metadata).

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { defineContract, liveModel, liveState, mutation } from '../../api';
 import { LiveState } from '../../live/state/server';
 import { createTestWire } from '../../testing';
-import { cell, derived, flushStateTurn, read, snapshot } from '../core';
+import { cell, derived, flushStateTurn, snapshot } from '../core';
 import { optimistic } from '../optimistic';
 import { recordSnapshots, settleAsync } from '../testing';
 import { expose } from './expose';
@@ -33,7 +33,7 @@ describe('state bridge round trip', () => {
     const key = { id: 'one' };
     const clock = createManualClock();
     const base = cell({ count: 0 });
-    const exposedValue = derived(() => ({ count: read(base).count }));
+    const exposedValue = derived(() => ({ count: snapshot(base).value.count }));
     const provider = expose(
       api.counter,
       { value: exposedValue },

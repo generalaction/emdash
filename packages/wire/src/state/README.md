@@ -32,10 +32,11 @@ code with declarations:
 
 ```ts
 // A keyed, DB-backed live query — the whole provider.
-const taskList = family((key: { projectId: string }) =>
+const taskList = family((key: { projectId: string }, scope) =>
   query({
     fetch: () => selectTaskListView(db, key),
     pokes: [tasksChannel.match(key), conversationsChannel.match(key)],
+    scope,
   }));
 
 expose(tasksContract.taskList, taskList);

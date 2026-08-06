@@ -28,11 +28,6 @@ class DerivedNode<T> extends StateNode<T | undefined> implements Readable<T | un
     super(undefined, options as DerivedOptions<T | undefined>);
   }
 
-  override read(): T | undefined {
-    this.ensureComputed();
-    return super.read();
-  }
-
   override currentSnapshot() {
     this.ensureComputed();
     return super.currentSnapshot();
@@ -43,6 +38,11 @@ class DerivedNode<T> extends StateNode<T | undefined> implements Readable<T | un
     this.dirty = true;
     for (const dependent of [...this.dependents]) dependent.markDirty();
     if (this.observed) enqueueDirty(this);
+  }
+
+  override removeDependent(dependent: { markDirty(): void }): void {
+    super.removeDependent(dependent);
+    this.detachIfUnused();
   }
 
   __flush(): void {
@@ -62,6 +62,19 @@ class DerivedNode<T> extends StateNode<T | undefined> implements Readable<T | un
 
   protected override onUnobserved(): void {
     for (const dependency of this.dependencies) dependency.release();
+    this.detachIfUnused();
+  }
+
+  /**
+   * With no observers and no dependents nothing can consume a dirty
+   * notification, so leave the dependencies' dependent sets and become
+   * collectable. The next read or observe recomputes and re-attaches lazily.
+   */
+  private detachIfUnused(): void {
+    if (this.observed || this.dependents.size > 0 || this.dependencies.size === 0) return;
+    for (const dependency of this.dependencies) dependency.removeDependent(this);
+    this.dependencies = new Set();
+    this.dirty = true;
   }
 
   private ensureComputed(): void {
