@@ -112,7 +112,18 @@ export {
   type MachineStatusKind,
   type MachineStatusProps,
 } from './machine-status/machine-status';
+export {
+  CardGrid,
+  CardGridItem,
+  CardGridSection,
+  type CardGridSectionProps,
+} from './card-grid/card-grid';
 export { EmptyState, type EmptyStateProps } from './empty-state/empty-state';
+export {
+  ListPopoverCard,
+  type ListPopoverCardProps,
+  type ListPopoverCardStatus,
+} from './list-popover-card/list-popover-card';
 export { Pill, type PillProps, type PillVariant } from './pill/pill';
 export {
   ScriptStatus,
