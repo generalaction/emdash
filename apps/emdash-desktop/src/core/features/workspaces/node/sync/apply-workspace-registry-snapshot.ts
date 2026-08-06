@@ -166,6 +166,12 @@ export function mirrorObservationFromRecord(
       record.lastCreateOutcome === null
         ? null
         : { version: '1' as const, ...record.lastCreateOutcome },
+    lastRemovalAttempt:
+      record.lastRemovalAttempt === null
+        ? null
+        : { version: '1' as const, ...record.lastRemovalAttempt },
+    scriptOutcomes:
+      record.scriptOutcomes === null ? null : { version: '1' as const, ...record.scriptOutcomes },
     // Wholesale-refreshed: a daemon restart delivers runtime null, clearing the column.
     runtimeOverlay: record.runtime === null ? null : { version: '1' as const, ...record.runtime },
     lastActivatedAt: record.lastActivatedAt,

@@ -16,6 +16,8 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     observedStatus: 'present',
     creation: null,
     lastCreateOutcome: null,
+    lastRemovalAttempt: null,
+    scriptOutcomes: null,
     git: {
       branch: 'feature/x',
       dirty: true,
@@ -164,6 +166,67 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       records: { 'wt-1': hostRecord({ id: 'wt-1', runtime: null }) },
     });
     expect(registry.getLive('wt-1')).toMatchObject({ runtimeOverlay: null });
+  });
+
+  it('carries removal attempts and script outcomes into the mirror observation columns', async () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.register({
+      id: 'wt-1',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/worktrees/wt-1',
+    });
+
+    await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: {
+        'wt-1': hostRecord({
+          id: 'wt-1',
+          lastRemovalAttempt: {
+            stage: 'remove',
+            class: 'terminal',
+            message: 'worktree is locked',
+            at: Date.parse('2026-01-06T00:00:00.000Z'),
+          },
+          scriptOutcomes: {
+            prepare: { outcome: 'succeeded', at: Date.parse('2026-01-05T00:00:00.000Z') },
+            setup: {
+              outcome: 'failed',
+              at: Date.parse('2026-01-05T00:00:01.000Z'),
+              message: 'exit 3',
+            },
+            run: null,
+          },
+        }),
+      },
+    });
+    expect(registry.getLive('wt-1')).toMatchObject({
+      lastRemovalAttempt: {
+        version: '1',
+        stage: 'remove',
+        class: 'terminal',
+        message: 'worktree is locked',
+      },
+      scriptOutcomes: {
+        version: '1',
+        prepare: { outcome: 'succeeded' },
+        setup: { outcome: 'failed', message: 'exit 3' },
+        run: null,
+      },
+    });
+
+    // Wholesale refresh: a delivery without the blocks clears the columns.
+    await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: { 'wt-1': hostRecord({ id: 'wt-1' }) },
+    });
+    expect(registry.getLive('wt-1')).toMatchObject({
+      lastRemovalAttempt: null,
+      scriptOutcomes: null,
+    });
   });
 
   it('sweeps unmatched rows: annotated go visible-missing, pure mirror rows untrack', async () => {

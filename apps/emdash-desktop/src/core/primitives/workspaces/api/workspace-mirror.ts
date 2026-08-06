@@ -3,7 +3,9 @@ import type { WorkspaceConfig } from './workspace-config';
 import type {
   WorkspaceCreateOutcome,
   WorkspaceObservedGit,
+  WorkspaceRemovalAttempt,
   WorkspaceRuntimeOverlay,
+  WorkspaceScriptOutcomes,
 } from './workspace-registry-observations';
 
 /**
@@ -24,6 +26,10 @@ export type WorkspaceMirrorRow = {
   observedStatus: 'present' | 'missing' | null;
   observedGit: WorkspaceObservedGit | null;
   lastCreateOutcome: WorkspaceCreateOutcome | null;
+  /** Last failed removal attempt (ADR 0006); host-written, null while none failed. */
+  lastRemovalAttempt: WorkspaceRemovalAttempt | null;
+  /** Durable per-script (prepare/setup/run) last outcomes; survive daemon restarts. */
+  scriptOutcomes: WorkspaceScriptOutcomes | null;
   runtimeOverlay: WorkspaceRuntimeOverlay | null;
   /** Epoch-ms; observation only, never a durable "active" flag. */
   lastActivatedAt: number | null;

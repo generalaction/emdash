@@ -3,6 +3,7 @@ import {
   activateWorkspaceErrorSchema,
   createWorkspaceErrorSchema,
   createWorktreeErrorSchema,
+  deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
   workspaceRecordSchema,
@@ -82,7 +83,7 @@ export const workspaceRegistryWireContract = defineContract({
   deleteWorkspace: fallible({
     input: workspaceKeyInput,
     data: z.void(),
-    error: runtimeResolveErrorSchema,
+    error: z.union([deleteWorkspaceErrorSchema, runtimeResolveErrorSchema]),
   }),
 
   deleteWorktree: fallible({

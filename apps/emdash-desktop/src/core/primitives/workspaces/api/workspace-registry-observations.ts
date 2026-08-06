@@ -33,6 +33,40 @@ const createOutcomeV1 = z.object({
 export const workspaceCreateOutcome = defineVersionedSchema().initial('1', createOutcomeV1).build();
 export type WorkspaceCreateOutcome = typeof workspaceCreateOutcome.Type;
 
+const removalAttemptV1 = z.object({
+  version: z.literal('1'),
+  /** Removal step that failed: 'teardown' | 'remove' | 'unregister'. */
+  stage: z.string(),
+  /** Host-decided (ADR 0006): 'transient' retries silently, 'terminal' needs the user. */
+  class: z.enum(['transient', 'terminal']),
+  message: z.string(),
+  at: z.number(),
+});
+
+export const workspaceRemovalAttempt = defineVersionedSchema()
+  .initial('1', removalAttemptV1)
+  .build();
+export type WorkspaceRemovalAttempt = typeof workspaceRemovalAttempt.Type;
+
+const scriptOutcomeV1 = z.object({
+  outcome: z.enum(['succeeded', 'failed', 'timed-out']),
+  at: z.number(),
+  /** Present for non-success outcomes. */
+  message: z.string().optional(),
+});
+
+const scriptOutcomesV1 = z.object({
+  version: z.literal('1'),
+  prepare: scriptOutcomeV1.nullable(),
+  setup: scriptOutcomeV1.nullable(),
+  run: scriptOutcomeV1.nullable(),
+});
+
+export const workspaceScriptOutcomes = defineVersionedSchema()
+  .initial('1', scriptOutcomesV1)
+  .build();
+export type WorkspaceScriptOutcomes = typeof workspaceScriptOutcomes.Type;
+
 const runtimeOverlayV1 = z.object({
   version: z.literal('1'),
   creation: z.object({ stage: z.string(), startedAt: z.number() }).nullable(),

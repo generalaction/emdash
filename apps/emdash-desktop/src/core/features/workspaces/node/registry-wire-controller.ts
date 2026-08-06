@@ -167,6 +167,8 @@ function toMirrorRow(row: WorkspaceRow): WorkspaceMirrorRow {
     observedStatus: row.observedStatus,
     observedGit: row.observedGit,
     lastCreateOutcome: row.lastCreateOutcome,
+    lastRemovalAttempt: row.lastRemovalAttempt,
+    scriptOutcomes: row.scriptOutcomes,
     runtimeOverlay: row.runtimeOverlay,
     lastActivatedAt: row.lastActivatedAt,
     observedAt: row.observedAt,

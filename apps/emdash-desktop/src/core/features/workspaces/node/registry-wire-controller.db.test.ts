@@ -28,6 +28,8 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     observedStatus: 'present',
     creation: null,
     lastCreateOutcome: null,
+    lastRemovalAttempt: null,
+    scriptOutcomes: null,
     git: null,
     lastActivatedAt: null,
     createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
