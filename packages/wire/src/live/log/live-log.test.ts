@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { resyncRetry } from '../follower';
 import { LiveLogClient } from './client';
 import { LiveLog } from './server';
 
@@ -10,7 +11,12 @@ function setup(options: { maxBufferBytes?: number; generation?: number } = {}) {
   const onReset = vi.fn<(data: { baseOffset: number; text: string; truncated: boolean }) => void>();
   const onAppend = vi.fn<(chunk: string) => void>();
   const refetchSnapshot = vi.fn(async () => server.snapshot());
-  const client = new LiveLogClient({ refetchSnapshot, onReset, onAppend });
+  const client = new LiveLogClient({
+    refetchSnapshot,
+    onReset,
+    onAppend,
+    onResyncFailed: resyncRetry(),
+  });
 
   client.seed(server.snapshot());
   server.subscribe((update) => client.applyUpdate(update));
@@ -89,7 +95,12 @@ describe('LiveLogClient', () => {
       vi.fn<(data: { baseOffset: number; text: string; truncated: boolean }) => void>();
     const onAppend = vi.fn<(chunk: string) => void>();
     const refetchSnapshot = vi.fn(async () => server.snapshot());
-    const client = new LiveLogClient({ refetchSnapshot, onReset, onAppend });
+    const client = new LiveLogClient({
+      refetchSnapshot,
+      onReset,
+      onAppend,
+      onResyncFailed: resyncRetry(),
+    });
     client.seed(server.snapshot());
 
     server.append('offline output');

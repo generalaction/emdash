@@ -81,6 +81,18 @@ The reported resync reasons are `generation`, `sequence-gap`, `patch-failed`,
 and `validation`. Schema validation is skipped when `NODE_ENV === 'production'`;
 the generation and sequence checks are the primary correctness mechanism.
 
+Every follower is constructed with a required resync failure policy that
+decides what happens when the snapshot refetch itself fails. Wire ships two
+canned policies: `resyncRetry({ schedule? })` retries on a bounded backoff
+until success or dispose, and `resyncMarkStale()` gives up while keeping
+staleness observable (`stale` on the client) until the next update or reattach
+triggers a fresh attempt. Production replicas use `resyncRetry`. Every failure
+fires the `resyncFailed` instrumentation event. `refresh()` resolves only when
+the follower is fresh: concurrent calls coalesce onto the in-flight resync and
+a trigger arriving mid-reseed re-runs the loop before resolution. Disposing a
+follower-based client rejects all of its pending waiters — including
+wait-forever waiters (`timeoutMs <= 0`) — with a disposed error.
+
 ## Cursor and Mutation Waiters
 
 `waitForCursor(cursor, timeoutMs?)` resolves when the client has reached a

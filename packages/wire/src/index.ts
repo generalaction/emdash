@@ -10,6 +10,13 @@ export {
   type EventStreamSourceOptions,
 } from './live/event-stream';
 export {
+  resyncMarkStale,
+  resyncRetry,
+  type LiveResyncFailureContext,
+  type LiveResyncFailureDecision,
+  type LiveResyncFailurePolicy,
+} from './live/follower';
+export {
   LIVE_JOB_TERMINAL_RETAIN_MS,
   LiveJob,
   LiveJobCancelledError,

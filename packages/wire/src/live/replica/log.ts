@@ -4,6 +4,7 @@ import { stableStringify } from '@emdash/shared/util';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
+import { resyncRetry, type LiveResyncFailurePolicy } from '../follower';
 import { LiveLog, LiveLogClient, type LiveLogOptions } from '../log';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { resourceCachedLiveSource } from './source';
@@ -19,6 +20,8 @@ export interface LogStore extends LogSink {
 
 export type ReplicaLogOptions = LiveLogOptions & {
   instrumentation?: WireInstrumentation;
+  /** Resync failure policy; production replicas retry until success or dispose. */
+  onResyncFailed?: LiveResyncFailurePolicy;
   store?: LogSink;
 };
 
@@ -41,12 +44,13 @@ export class ReplicaLog implements LiveSource {
       refetchSnapshot: () => handle.snapshot(),
       onReset: (data) => this.reset(data),
       onAppend: (chunk) => this.append(chunk),
+      onResyncFailed: options.onResyncFailed ?? resyncRetry(),
       instrumentation: options.instrumentation,
       topic: handle.topic,
     });
     this.ready = handle.snapshot().then((snapshot) => this.client.seed(snapshot));
     this.detachPromise = handle.attach((update) => this.client.applyUpdate(update), {
-      onReattach: () => void this.client.refresh(),
+      onReattach: () => this.client.invalidate(),
     });
   }
 
@@ -73,6 +77,7 @@ export class ReplicaLog implements LiveSource {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.client.dispose();
     this.appendEmitter.clear();
     (await this.detachPromise)();
   }

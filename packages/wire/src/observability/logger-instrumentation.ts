@@ -71,6 +71,14 @@ export function loggerInstrumentation(
         ...event.details,
       });
     },
+    resyncFailed(event) {
+      logger.warn('wire live source resync failed', {
+        topic: event.topic,
+        attempt: event.attempt,
+        willRetry: event.willRetry,
+        error: event.error,
+      });
+    },
     mutationDeduped(event) {
       logger.debug('wire mutation deduped', {
         mutationId: event.mutationId,

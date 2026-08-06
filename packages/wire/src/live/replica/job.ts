@@ -11,6 +11,7 @@ import type {
   JobResult,
 } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
+import { resyncRetry } from '../follower';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
 import { liveJobStateSchema } from '../protocol';
 import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
@@ -61,11 +62,15 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
       this.job.def.result,
       this.job.def.error
     ) as z.ZodType<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>;
+    const retryPolicy = resyncRetry();
     this.client = new LiveJobClient<JobProgress<Def>, JobResult<Def>, JobError<Def>>(stateSchema, {
       refetchSnapshot: () =>
         handle.snapshot() as Promise<
           LiveSnapshot<LiveJobState<JobProgress<Def>, JobResult<Def>, JobError<Def>>>
         >,
+      // Retry like every production replica, but stop once the job reached a
+      // terminal state — the replica detaches from upstream then anyway.
+      onResyncFailed: (context) => (this.detached ? { kind: 'give-up' } : retryPolicy(context)),
       onState: (state) => this.handleState(state),
       instrumentation: options.instrumentation,
       topic: handle.topic,
@@ -84,10 +89,7 @@ export class ReplicaJob<Def extends LiveJobEndpointDef = LiveJobEndpointDef> imp
       }
     });
     this.detachPromise = handle.attach((update) => this.client.applyUpdate(update), {
-      onReattach: () => {
-        // A disconnect can race this resync during teardown. The next reattach retries it.
-        void this.client.refresh().catch(() => {});
-      },
+      onReattach: () => this.client.invalidate(),
     });
     void this.result.catch(() => undefined);
   }

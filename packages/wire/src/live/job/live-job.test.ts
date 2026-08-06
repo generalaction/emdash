@@ -2,6 +2,7 @@ import { ok, type Unsubscribe } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { resyncRetry } from '../follower';
 import { liveJobStateSchema, type LiveSnapshot } from '../protocol';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from './client';
 import { LIVE_JOB_TERMINAL_RETAIN_MS, LiveJob, type LiveJobContext } from './server';
@@ -32,6 +33,7 @@ async function attach(server: LiveJob<Input, Progress, Result, ErrorState>, jobI
   const onProgress = vi.fn<(progress: Progress) => void>();
   const client = new LiveJobClient<Progress, Result, ErrorState>(stateSchema, {
     refetchSnapshot,
+    onResyncFailed: resyncRetry(),
     onState,
   });
 

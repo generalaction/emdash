@@ -1,7 +1,8 @@
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import type z from 'zod';
 import type { WireInstrumentation } from '../../observability';
-import { LiveFollower } from '../follower';
+import { LiveFollower, type LiveResyncFailurePolicy } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { createPlainStore, createStateMaterializer, type StateStore } from '../replica/store';
 import { LiveStateWaiters } from './waiters';
@@ -9,27 +10,32 @@ import { LiveStateWaiters } from './waiters';
 export type LiveChangeMeta = { kind: 'seed' } | { kind: 'update'; mutationIds: string[] };
 
 export type LiveStateClientOptions<T = unknown> = {
+  /** Required policy deciding what happens when a resync refetch fails. */
+  onResyncFailed: LiveResyncFailurePolicy;
   instrumentation?: WireInstrumentation;
   logger?: Logger;
+  clock?: Clock;
   topic?: string;
   store?: StateStore<T>;
 };
 
 export class LiveStateClient<T> {
   private readonly follower: LiveFollower<T>;
-  private readonly waiters = new LiveStateWaiters(() => this.cursor);
+  private readonly waiters: LiveStateWaiters;
   private readonly store: StateStore<T>;
   private readonly onChange: (value: T, meta: LiveChangeMeta) => void;
+  private disposed = false;
 
   constructor(
     schema: z.ZodType<T>,
     refetchSnapshot: () => Promise<LiveSnapshot<T>>,
     onChange: (value: T, meta: LiveChangeMeta) => void,
-    options: LiveStateClientOptions<T> = {}
+    options: LiveStateClientOptions<T>
   ) {
     const { store, ...followerOptions } = options;
     this.store = store ?? createPlainStore<T>();
     this.onChange = onChange;
+    this.waiters = new LiveStateWaiters(() => this.cursor, { clock: options.clock });
     this.follower = new LiveFollower(refetchSnapshot, createStateMaterializer(this.store, schema), {
       ...followerOptions,
       label: 'live model',
@@ -46,6 +52,11 @@ export class LiveStateClient<T> {
     return this.follower.isReady();
   }
 
+  /** True while a resync is needed or in flight, including after a give-up. */
+  get stale(): boolean {
+    return this.follower.stale;
+  }
+
   getSnapshot(): T | undefined {
     if (!this.follower.isReady()) return undefined;
     return this.store.current();
@@ -59,12 +70,19 @@ export class LiveStateClient<T> {
     this.follower.applyUpdate(update);
   }
 
+  /** Resolves only once the follower is fresh; see `LiveFollower.refresh`. */
   refresh(): Promise<void> {
     return this.follower.refresh();
   }
 
+  /** Triggers a resync without exposing a promise; failures follow the policy. */
+  invalidate(): void {
+    this.follower.invalidate();
+  }
+
   /** Resolves when local state provably includes the given cursor. */
   waitForCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(this.disposedError());
     return this.waiters.waitForCursor(target, timeoutMs);
   }
 
@@ -73,7 +91,16 @@ export class LiveStateClient<T> {
    * Any seed/resync also resolves because a fresh snapshot is authoritative.
    */
   waitForMutation(mutationId: string, timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(this.disposedError());
     return this.waiters.waitForMutation(mutationId, timeoutMs);
+  }
+
+  /** Rejects all pending waiters with a disposed error and stops resyncing. */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.waiters.rejectAll(this.disposedError());
+    this.follower.dispose();
   }
 
   private handleSeeded(): void {
@@ -86,5 +113,9 @@ export class LiveStateClient<T> {
     this.onChange(this.store.current(), { kind: 'update', mutationIds: update.mutationIds ?? [] });
     this.waiters.flushCursorWaiters();
     this.waiters.flushMutationWaiters(update.mutationIds ?? []);
+  }
+
+  private disposedError(): Error {
+    return new Error('LiveStateClient disposed');
   }
 }

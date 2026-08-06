@@ -1,3 +1,4 @@
+import { resyncRetry } from '../../src/live/follower';
 import { LiveStateClient } from '../../src/live/state/index';
 import {
   addTask,
@@ -9,9 +10,14 @@ import {
 } from './server';
 
 async function main(): Promise<void> {
-  const client = new LiveStateClient(taskListSchema, fetchSnapshot, (value) => {
-    console.log('client state:', value);
-  });
+  const client = new LiveStateClient(
+    taskListSchema,
+    fetchSnapshot,
+    (value) => {
+      console.log('client state:', value);
+    },
+    { onResyncFailed: resyncRetry() }
+  );
 
   client.seed(await fetchSnapshot());
   const detach = attach((update) => client.applyUpdate(update));

@@ -1,3 +1,4 @@
+import { resyncRetry } from '../../src/live/follower';
 import { LiveJobCancelledError, LiveJobClient } from '../../src/live/job/index';
 import {
   attachCancellable,
@@ -24,6 +25,7 @@ async function runSuccessfulJob(): Promise<void> {
   const jobId = startSuccessfulJob();
   const client = new LiveJobClient(jobStateSchema, {
     refetchSnapshot: () => fetchSuccessfulSnapshot(jobId),
+    onResyncFailed: resyncRetry(),
     onState: (state) => console.log('job state:', state.status),
   });
   client.onProgress((progress) => console.log('job progress:', progress.step));
@@ -38,6 +40,7 @@ async function runCancelledJob(): Promise<void> {
   const jobId = startCancellableJob();
   const client = new LiveJobClient(jobStateSchema, {
     refetchSnapshot: () => fetchCancellableSnapshot(jobId),
+    onResyncFailed: resyncRetry(),
   });
   client.seed(await fetchCancellableSnapshot(jobId));
   const detach = await attachCancellable(jobId, (update) => client.applyUpdate(update));

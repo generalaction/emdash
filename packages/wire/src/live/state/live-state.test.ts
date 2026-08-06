@@ -1,6 +1,7 @@
 import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { resyncRetry } from '../follower';
 import { LiveStateClient, type LiveChangeMeta } from './client';
 import { LiveState } from './server';
 
@@ -19,7 +20,9 @@ function setup(initial: State = makeState(), generation = 1000) {
   const server = new LiveState<State>(initial, generation);
   const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
   const refetchSnapshot = vi.fn(async () => server.snapshot());
-  const client = new LiveStateClient<State>(stateSchema, refetchSnapshot, onChange);
+  const client = new LiveStateClient<State>(stateSchema, refetchSnapshot, onChange, {
+    onResyncFailed: resyncRetry(),
+  });
   client.seed(server.snapshot());
   server.subscribe((update) => client.applyUpdate(update));
   return { server, client, onChange, refetchSnapshot };
@@ -109,6 +112,7 @@ describe('LiveState and LiveStateClient', () => {
     const resyncs: unknown[] = [];
     const client = new LiveStateClient<State>(stateSchema, async () => server.snapshot(), vi.fn(), {
       topic: 'state|demo',
+      onResyncFailed: resyncRetry(),
       instrumentation: {
         resync: (event) => resyncs.push(event),
       },
@@ -134,7 +138,9 @@ describe('LiveState and LiveStateClient', () => {
     const server = new LiveState<State>(makeState(), 1000);
     const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
     const refetchSnapshot = vi.fn(async () => server.snapshot());
-    const client = new LiveStateClient<State>(stateSchema, refetchSnapshot, onChange);
+    const client = new LiveStateClient<State>(stateSchema, refetchSnapshot, onChange, {
+      onResyncFailed: resyncRetry(),
+    });
     client.seed(server.snapshot());
 
     server.produce((draft) => {

@@ -1,3 +1,4 @@
+import { resyncRetry } from '../../src/live/follower';
 import { LiveLogClient } from '../../src/live/log/index';
 import { appendLine, attach, fetchSnapshot } from './server';
 
@@ -6,6 +7,7 @@ async function main(): Promise<void> {
     refetchSnapshot: fetchSnapshot,
     onReset: (data) => console.log('log reset:', data),
     onAppend: (chunk) => console.log('log append:', JSON.stringify(chunk)),
+    onResyncFailed: resyncRetry(),
   });
 
   client.seed(await fetchSnapshot());

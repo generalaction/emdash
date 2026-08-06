@@ -1,9 +1,10 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
+import type { Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { LiveClientHandle } from '../../api/client';
 import type { WireInstrumentation } from '../../observability';
-import { LiveFollower } from '../follower';
+import { LiveFollower, resyncRetry, type LiveResyncFailurePolicy } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import type { LiveChangeMeta } from '../state';
 import { LiveStateWaiters } from '../state/waiters';
@@ -13,8 +14,11 @@ export type ReplicaStateOptions<T> = {
   store?: StateStore<T>;
   schema?: z.ZodType<T>;
   onChange?: (value: T, meta: LiveChangeMeta) => void;
+  /** Resync failure policy; production replicas retry until success or dispose. */
+  onResyncFailed?: LiveResyncFailurePolicy;
   instrumentation?: WireInstrumentation;
   logger?: Logger;
+  clock?: Clock;
 };
 
 type ReplicaStateChange<T> = {
@@ -29,8 +33,8 @@ export class ReplicaState<T> implements LiveSource {
   private readonly changeEmitter = new Emitter<ReplicaStateChange<T>>();
   private readonly follower: LiveFollower<T>;
   private readonly store: StateStore<T>;
-  private readonly waiters = new LiveStateWaiters(() => this.cursor);
-  private readonly localWaiters = new LiveStateWaiters(() => this.localCursor());
+  private readonly waiters: LiveStateWaiters;
+  private readonly localWaiters: LiveStateWaiters;
   private readonly detachPromise: Promise<Unsubscribe>;
   private localGeneration = nextGeneration();
   private localSequence = 0;
@@ -42,20 +46,24 @@ export class ReplicaState<T> implements LiveSource {
     private readonly deps: ReplicaStateOptions<T> = {}
   ) {
     this.store = deps.store ?? createPlainStore<T>();
+    this.waiters = new LiveStateWaiters(() => this.cursor, { clock: deps.clock });
+    this.localWaiters = new LiveStateWaiters(() => this.localCursor(), { clock: deps.clock });
     this.follower = new LiveFollower(
       () => handle.snapshot(),
       createStateMaterializer(this.store, deps.schema),
       {
         instrumentation: deps.instrumentation,
         logger: deps.logger,
+        clock: deps.clock,
         topic: handle.topic,
         label: 'replica model',
+        onResyncFailed: deps.onResyncFailed ?? resyncRetry(),
         onSeeded: () => this.handleSeeded(),
         onApplied: (update) => this.handleApplied(update),
       }
     );
     this.detachPromise = handle.attach((update) => this.applyUpdate(update), {
-      onReattach: () => void this.refresh(),
+      onReattach: () => this.follower.invalidate(),
     });
     this.ready = Promise.all([handle.snapshot(), this.detachPromise]).then(([snapshot]) =>
       this.seed(snapshot)
@@ -68,6 +76,11 @@ export class ReplicaState<T> implements LiveSource {
 
   get cursor(): LiveCursor | undefined {
     return this.follower.cursor;
+  }
+
+  /** True while a resync is needed or in flight, including after a give-up. */
+  get stale(): boolean {
+    return this.follower.stale;
   }
 
   seed(snapshot: LiveSnapshot<T>): void {
@@ -105,14 +118,17 @@ export class ReplicaState<T> implements LiveSource {
   }
 
   waitForCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(new Error('ReplicaState disposed'));
     return this.waiters.waitForCursor(target, timeoutMs);
   }
 
   waitForLocalCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(new Error('ReplicaState disposed'));
     return this.localWaiters.waitForCursor(target, timeoutMs);
   }
 
   waitForMutation(mutationId: string, timeoutMs = 15_000): Promise<void> {
+    if (this.disposed) return Promise.reject(new Error('ReplicaState disposed'));
     return this.waiters.waitForMutation(mutationId, timeoutMs);
   }
 
@@ -138,6 +154,7 @@ export class ReplicaState<T> implements LiveSource {
     this.disposed = true;
     this.waiters.rejectAll(new Error('ReplicaState disposed'));
     this.localWaiters.rejectAll(new Error('ReplicaState disposed'));
+    this.follower.dispose();
     this.emitter.clear();
     this.changeEmitter.clear();
     (await this.detachPromise)();

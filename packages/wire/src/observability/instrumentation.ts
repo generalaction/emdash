@@ -47,6 +47,15 @@ export type WireResyncEvent = {
   details?: Record<string, unknown>;
 };
 
+export type WireResyncFailedEvent = {
+  topic?: string;
+  error: unknown;
+  /** Consecutive failed resync attempts in the current stale episode, 1-based. */
+  attempt: number;
+  /** Whether the follower's resync failure policy decided to retry. */
+  willRetry: boolean;
+};
+
 export type WireMutationDedupedEvent = {
   mutationId: string;
   path: string;
@@ -73,6 +82,7 @@ export type WireInstrumentation = {
   topicDetach?(event: WireTopicDetachEvent): void;
   cancel?(event: WireCancelEvent): void;
   resync?(event: WireResyncEvent): void;
+  resyncFailed?(event: WireResyncFailedEvent): void;
   mutationDeduped?(event: WireMutationDedupedEvent): void;
   batchDropped?(event: WireBatchDroppedEvent): void;
   scopeCleanupError?(event: WireScopeCleanupErrorEvent): void;
@@ -96,6 +106,7 @@ export function mergeInstrumentation(
     topicDetach: (event) => emit(active, 'topicDetach', event),
     cancel: (event) => emit(active, 'cancel', event),
     resync: (event) => emit(active, 'resync', event),
+    resyncFailed: (event) => emit(active, 'resyncFailed', event),
     mutationDeduped: (event) => emit(active, 'mutationDeduped', event),
     batchDropped: (event) => emit(active, 'batchDropped', event),
     scopeCleanupError: (event) => emit(active, 'scopeCleanupError', event),
