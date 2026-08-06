@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
+import type { Clock } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import type { Contract, ContractDefinitions } from '../api/define';
 import type {
@@ -10,6 +10,7 @@ import type {
   WireComponentRequirements,
 } from '../component';
 import type { WireInstrumentation } from '../observability';
+import type { BackoffSchedule } from '../util/backoff';
 
 export const WORKER_NAME_ENV_VAR = 'EMDASH_WORKER_NAME';
 
@@ -46,7 +47,7 @@ export type WorkerSupervision =
     }
   | {
       restart: 'on-failure';
-      schedule: RetrySchedule;
+      schedule: BackoffSchedule;
     };
 
 export type WireWorkerState =

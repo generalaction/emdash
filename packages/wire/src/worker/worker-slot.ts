@@ -1,10 +1,11 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import { type Run, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { retrySchedules, runWithTimeout, systemClock, type Clock } from '@emdash/shared/scheduling';
+import { runWithTimeout, systemClock, type Clock } from '@emdash/shared/scheduling';
 import { client as createClient, type ContractClient } from '../api/client';
 import { connect, type Connection } from '../api/connect';
 import type { Contract, ContractDefinitions } from '../api/define';
+import { backoffSchedule } from '../util/backoff';
 import { WorkerLink } from './link';
 import { forwardWorkerLogs } from './logging';
 import { WORKER_SHUTDOWN_SIGNAL } from './protocol';
@@ -23,10 +24,7 @@ const DEFAULT_SHUTDOWN_GRACE_MS = 1_000;
 
 export const DEFAULT_WORKER_SUPERVISION: WorkerSupervision = {
   restart: 'on-failure',
-  schedule: retrySchedules.limit(
-    5,
-    retrySchedules.sequence([250, 1_000, 2_500], { repeatLast: true })
-  ),
+  schedule: backoffSchedule({ delaysMs: [250, 1_000, 2_500], repeatLast: true, maxRetries: 5 }),
 };
 
 export type WorkerSlotOptions<Defs extends ContractDefinitions> = {

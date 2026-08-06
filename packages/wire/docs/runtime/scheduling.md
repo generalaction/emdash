@@ -94,6 +94,25 @@ random function into jittered schedules in tests.
 remain `Result<T, E>` values; use `shouldRetry` to classify thrown transport or
 runtime failures.
 
+## Wire Backoff Vocabulary
+
+Wire expresses all retry timing through one schedule vocabulary:
+`BackoffSchedule` and the `backoffSchedule()` helper in `src/util/backoff.ts`
+(exported from `@emdash/wire/util`), built on the shared retry schedules. The
+reconnecting transport's reconnect delays, worker-slot supervision, the
+follower's `resyncRetry` policy, and per-call opt-in retries all consume it.
+Shared vocabulary, not shared state — each site keeps its own independently
+tunable schedule:
+
+```ts
+import { backoffSchedule } from '@emdash/wire/util';
+
+const supervision = {
+  restart: 'on-failure',
+  schedule: backoffSchedule({ delaysMs: [250, 1_000, 2_500], repeatLast: true, maxRetries: 5 }),
+};
+```
+
 ## Periodic Work
 
 Prefer abortable loops or chained one-shot timers over overlapping intervals.

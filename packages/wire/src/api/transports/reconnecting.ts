@@ -1,17 +1,13 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { createBoundedBuffer, createScope, type Scope } from '@emdash/shared/concurrency';
-import {
-  retrySchedules,
-  systemClock,
-  type Clock,
-  type RetrySchedule,
-} from '@emdash/shared/scheduling';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import { backoffSchedule, type BackoffSchedule } from '../../util/backoff';
 import type { WireMessage, WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {
   backoffMs?: number[];
   clock?: Clock;
-  retrySchedule?: RetrySchedule;
+  retrySchedule?: BackoffSchedule;
   maxQueuedMessages?: number;
   /** Return false for failures, such as a protocol mismatch, that retries cannot repair. */
   shouldRetry?: (error: unknown, context: ReconnectFailureContext) => boolean;
@@ -49,7 +45,7 @@ export function reconnectingTransport(
   const reconnectListeners = new Set<() => void>();
   const backoffMs = options.backoffMs ?? [100, 250, 500, 1000, 2000];
   const retrySchedule =
-    options.retrySchedule ?? retrySchedules.sequence(backoffMs, { repeatLast: true });
+    options.retrySchedule ?? backoffSchedule({ delaysMs: backoffMs, repeatLast: true });
   const maxQueuedMessages = Math.max(0, options.maxQueuedMessages ?? 1000);
   const queue = createBoundedBuffer<WireMessage>({
     capacity: maxQueuedMessages,

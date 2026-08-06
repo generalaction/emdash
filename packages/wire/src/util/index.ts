@@ -1,3 +1,4 @@
+export { backoffSchedule, type BackoffSchedule, type BackoffScheduleOptions } from './backoff';
 export {
   findStructuredCloneFailure,
   formatStructuredCloneFailure,
