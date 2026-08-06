@@ -1,5 +1,5 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, ModalLayout } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 
 export interface LinkConversationModalProps {
   /** SSH connection id of the conversation's host; null for the local machine. */

@@ -1,4 +1,5 @@
 // ── Single-component primitives (named exports) ───────────────────────────────
+export { AnimatedHeight, type AnimatedHeightProps } from './animated-height';
 export { Box } from './box';
 export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from './badge';
 export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs';
@@ -11,6 +12,8 @@ export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from './kbd';
 export { Label, MicroLabel, type LabelProps } from './label';
 export { Separator, type SeparatorProps } from './separator';
 export { Spinner, type SpinnerProps, type SpinnerSize } from './spinner';
+export { ModalLayout, type ModalLayoutProps } from './modal-layout';
+export { ShowHide, type ShowHideProps } from './show-hide';
 export { Textarea, type TextareaProps } from './textarea';
 export { Switch, type SwitchProps } from './switch';
 export { SearchInput, type SearchInputProps } from './search-input';

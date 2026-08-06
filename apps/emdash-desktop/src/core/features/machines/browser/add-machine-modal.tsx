@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, ModalLayout } from '@emdash/ui/react/primitives';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { MachineFormActions, MachineFormFields, useMachineForm } from './machine-form';
 
 export interface AddMachineModalProps {
