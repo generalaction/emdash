@@ -55,23 +55,13 @@ export function remote<Group extends LiveModelDef>(
       const stateCells: Record<string, Cell<unknown>> = {};
       const remoteStates: Record<string, RemoteState<unknown>> = {};
       const mutations: Record<string, unknown> = {};
-      let observedStates = 0;
-      let releaseMember: (() => void) | undefined;
-      const handleObservedChange = (observed: boolean): void => {
-        observedStates += observed ? 1 : -1;
-        if (observedStates === 1 && observed) {
-          releaseMember = members.retain(key);
-        } else if (observedStates === 0 && !observed) {
-          releaseMember?.();
-          releaseMember = undefined;
-        }
-      };
       const lease = replica.acquire(key);
       const readyInstance = lease.ready();
       for (const name of Object.keys(contract.states)) {
+        // Member retention while any state cell is observed is provided by the
+        // family's observation-based retention; no hand-wiring needed here.
         const state = cell<unknown>(undefined, {
           name: `${contract.id}.${name}`,
-          onObservedChange: handleObservedChange,
         });
         state.set(undefined, { status: 'loading', notify: false });
         stateCells[name] = state;

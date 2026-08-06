@@ -1,5 +1,4 @@
 import type { PendingLease } from '@emdash/shared';
-import { createResourceCache } from '@emdash/shared/concurrency';
 import { stableStringify } from '@emdash/shared/util';
 import type {
   MutationCallOptions,
@@ -17,6 +16,7 @@ import {
   type ReplicaInstanceOptions,
 } from './instance';
 import type { LiveModelProvider } from './provider';
+import { createReplicaResourceCache } from './retention';
 import { resourceCachedLiveSource } from './source';
 import { ReplicaState } from './state';
 import type { StateStore } from './store';
@@ -39,9 +39,9 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
   group: LiveModelClientHandle<Group>,
   options: LiveModelReplicaOptions<Group> = {}
 ): LiveModelReplica<Group> {
-  const source = createResourceCache<LiveModelKey<Group>, ReplicaInstance<Group>>({
+  const source = createReplicaResourceCache<LiveModelKey<Group>, ReplicaInstance<Group>>({
     key: stableStringify,
-    idleTtlMs: options.retentionMs,
+    lingerMs: options.retentionMs,
     async create(key, scope) {
       const instance = buildReplicaInstance(contract, key, {
         createState(name, model) {

@@ -1,6 +1,8 @@
-import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
-import { stableStringify } from '@emdash/shared/util';
+import type { Scope } from '@emdash/shared/concurrency';
+import type { Clock } from '@emdash/shared/scheduling';
+import { keyedRetention, type RetainedEntry } from './keyed-retention';
+import type { StateNode } from './node';
+import { addObservedChangeListener, withObservationRegistrar } from './observed-registry';
 
 export type FamilyOptions<K> = {
   key?: (key: K) => string;
@@ -17,107 +19,57 @@ export type Family<K, R> = {
   dispose(): Promise<void>;
 };
 
-type Entry<K, R> = {
-  key: K;
-  keyId: string;
-  scope: Scope;
-  value: R;
-  retainCount: number;
-  timer: TimerHandle | undefined;
-};
-
 export function family<K, R>(
   factory: (key: K, scope: Scope) => R,
   options: FamilyOptions<K> = {}
 ): Family<K, R> {
-  const keyFor = options.key ?? stableStringify;
-  const clock = options.clock ?? systemClock;
-  const rootScope = options.scope ?? createScope({ label: options.name ?? 'state-family', clock });
-  const entries = new Map<string, Entry<K, R>>();
-  const lingerMs = options.lingerMs ?? 15_000;
-  let disposed = false;
-
-  const get = ((key: K): R => entryFor(key).value) as Family<K, R>;
-
-  get.peekMember = (key) => entries.get(keyFor(key))?.value;
-  get.retain = (key) => {
-    const entry = entryFor(key);
-    clearTimer(entry);
-    entry.retainCount += 1;
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      entry.retainCount = Math.max(0, entry.retainCount - 1);
-      if (entry.retainCount === 0) scheduleDispose(entry);
-    };
-  };
-  get.dispose = async () => {
-    if (disposed) return;
-    disposed = true;
-    await rootScope.dispose();
-    entries.clear();
-  };
-
-  rootScope.add(async () => {
-    for (const entry of [...entries.values()]) {
-      clearTimer(entry);
-      await entry.scope.dispose();
-    }
-    entries.clear();
+  const members = keyedRetention<K, R>({
+    key: options.key,
+    lingerMs: options.lingerMs ?? 15_000,
+    name: options.name ?? 'state-family',
+    scope: options.scope,
+    clock: options.clock,
+    create: (key, scope, entry) => {
+      // Observation ⇒ retention: every state node created by the factory keeps
+      // the member retained while it has at least one observer. The linger
+      // window starts when the last observer detaches.
+      const nodes: StateNode<unknown>[] = [];
+      const value = withObservationRegistrar(
+        (node) => nodes.push(node),
+        () => factory(key, scope)
+      );
+      for (const node of nodes) attachObservedRetention(node, entry);
+      return value;
+    },
   });
+
+  const get = ((key: K): R => {
+    assertActive();
+    return members.ensure(key).value;
+  }) as Family<K, R>;
+
+  get.peekMember = (key) => members.peek(key)?.value;
+  get.retain = (key) => {
+    assertActive();
+    return members.retain(key);
+  };
+  get.dispose = () => members.dispose();
 
   return get;
 
-  function entryFor(key: K): Entry<K, R> {
-    if (disposed || rootScope.disposed) throw new Error('State family is disposed');
-    const keyId = keyFor(key);
-    const existing = entries.get(keyId);
-    if (existing) {
-      if (existing.retainCount > 0) clearTimer(existing);
-      else scheduleDispose(existing);
-      return existing;
-    }
-    const scope = rootScope.child(keyId);
-    const entry: Entry<K, R> = {
-      key,
-      keyId,
-      scope,
-      value: factory(key, scope),
-      retainCount: 0,
-      timer: undefined,
-    };
-    entries.set(keyId, entry);
-    scheduleDispose(entry);
-    return entry;
+  function attachObservedRetention(node: StateNode<unknown>, entry: RetainedEntry<K, R>): void {
+    let release: (() => void) | undefined;
+    addObservedChangeListener(node, (observed) => {
+      if (observed) {
+        release ??= members.retainEntry(entry);
+      } else {
+        release?.();
+        release = undefined;
+      }
+    });
   }
 
-  function scheduleDispose(entry: Entry<K, R>): void {
-    if (entries.get(entry.keyId) !== entry || entry.retainCount > 0) return;
-    clearTimer(entry);
-    if (lingerMs <= 0) {
-      void disposeEntry(entry);
-      return;
-    }
-    entry.timer = clock.schedule(
-      lingerMs,
-      () => {
-        entry.timer = undefined;
-        void disposeEntry(entry);
-      },
-      { unref: true }
-    );
-  }
-
-  async function disposeEntry(entry: Entry<K, R>): Promise<void> {
-    if (entries.get(entry.keyId) !== entry) return;
-    clearTimer(entry);
-    entries.delete(entry.keyId);
-    await entry.scope.dispose();
-  }
-
-  function clearTimer(entry: Entry<K, R>): void {
-    entry.timer?.dispose();
-    entry.timer = undefined;
+  function assertActive(): void {
+    if (members.disposed) throw new Error('State family is disposed');
   }
 }

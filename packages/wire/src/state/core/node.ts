@@ -1,4 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
+import { nodeConstructed, notifyObservedChange } from './observed-registry';
 import { activeBatchMeta, enqueueNotification } from './scheduler';
 
 export type StateStatus = 'live' | 'stale' | 'loading' | 'error';
@@ -77,6 +78,7 @@ export abstract class StateNode<T> {
       status: 'live',
       revision: 0,
     };
+    nodeConstructed(this as unknown as StateNode<unknown>);
   }
 
   read(): T {
@@ -122,6 +124,7 @@ export abstract class StateNode<T> {
     if (this.retainCount === 1) {
       this.onObserved();
       this.options.onObservedChange?.(true);
+      notifyObservedChange(this as unknown as StateNode<unknown>, true);
     }
   }
 
@@ -131,6 +134,7 @@ export abstract class StateNode<T> {
     if (this.retainCount === 0) {
       this.onUnobserved();
       this.options.onObservedChange?.(false);
+      notifyObservedChange(this as unknown as StateNode<unknown>, false);
     }
   }
 
