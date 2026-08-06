@@ -267,6 +267,7 @@ export async function createWorkspaceServerRuntimeHost(
     env,
     dependencies: {
       workspaceHost,
+      workspaceRegistry,
       acpSessions: acp,
       tuiSessions: tuiAgents,
       conversationIndex: conversations,

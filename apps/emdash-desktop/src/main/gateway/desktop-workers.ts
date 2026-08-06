@@ -355,10 +355,11 @@ async function startDesktopWorkersWithHost(
   );
   const automationsReady = Promise.all([
     workspaceHostReady,
+    workspaceRegistryReady,
     acpReady,
     tuiAgentsReady,
     conversationsReady,
-  ]).then(async ([workspaceHost, acp, tuiAgents, conversationsClient]) => {
+  ]).then(async ([workspaceHost, workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
     const paths = automationRuntimePaths(resolveDatabasePath());
     const worker = host.create(createAutomationsComponent(), {
       name: 'automations',
@@ -366,6 +367,7 @@ async function startDesktopWorkersWithHost(
       env: process.env,
       dependencies: {
         workspaceHost,
+        workspaceRegistry,
         acpSessions: acp,
         tuiSessions: tuiAgents.client,
         conversationIndex: conversationsClient,

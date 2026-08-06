@@ -1,4 +1,6 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/component';
+// oxlint-disable-next-line emdash/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
+import { workspaceRegistryContract } from '@runtimes/workspace-registry/api';
 import { conversationIndexContract } from '@services/conversation-index/api';
 import { acpSessionStartContract, tuiSessionStartContract } from '@services/session-start/api';
 import { workspaceHostActionsContract } from '@services/workspace-host-actions/api';
@@ -22,6 +24,7 @@ export function createAutomationsComponent() {
     contract: automationsContract,
     requirements: {
       workspaceHost: requireContract(workspaceHostActionsContract),
+      workspaceRegistry: requireContract(workspaceRegistryContract),
       acpSessions: requireContract(acpSessionStartContract),
       tuiSessions: requireContract(tuiSessionStartContract),
       conversationIndex: requireContract(conversationIndexContract),
@@ -33,7 +36,7 @@ export function createAutomationsComponent() {
 
       const runtime = new AutomationsRuntime({
         handle,
-        workspacePort: createWorkspacePortFromDependency(dependencies.workspaceHost),
+        workspacePort: createWorkspacePortFromDependency(dependencies.workspaceRegistry),
         sessionPort: createSessionPortFromDependencies({
           workspaceHost: dependencies.workspaceHost,
           acp: dependencies.acpSessions,

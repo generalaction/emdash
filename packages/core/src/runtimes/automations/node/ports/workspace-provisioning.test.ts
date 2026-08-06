@@ -1,13 +1,19 @@
 import { createHash } from 'node:crypto';
-import { ok } from '@emdash/shared';
+import { err, ok, type Result } from '@emdash/shared';
+import { cell, expose } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port against the registry verb contract it provisions through (operation-log retirement §5)
 import {
-  workspaceHostActionsContract,
-  type CreateWorktreeAction,
-  type WorkspaceHostActionView,
-} from '@services/workspace-host-actions/api';
+  workspaceRegistryContract,
+  type CreateWorkspaceError,
+  type CreateWorkspaceInput,
+  type CreateWorktreeError,
+  type CreateWorktreeInput,
+  type WorkspaceRecord,
+  type WorkspaceRecords,
+} from '@runtimes/workspace-registry/api';
 import { describe, expect, it } from 'vitest';
 import { createWorkspacePortFromDependency } from './workspace-provisioning';
 
@@ -26,10 +32,12 @@ const worktreeConfig = {
   },
 };
 
+const repoHash = createHash('sha256').update('/Users/jona/repo').digest('hex').slice(0, 8);
+const expectedWorktreePath = `/Users/jona/worktrees/repo-${repoHash}/emdash-abc`;
+
 describe('createWorkspacePortFromDependency', () => {
-  it('returns a directory workspace without submitting a host operation', async () => {
-    const submitted: CreateWorktreeAction[] = [];
-    const wire = hostWire({ submitted });
+  it('returns a directory workspace without calling the registry', async () => {
+    const wire = registryWire();
     const port = createWorkspacePortFromDependency(wire.client);
 
     try {
@@ -41,16 +49,16 @@ describe('createWorkspacePortFromDependency', () => {
           signal: new AbortController().signal,
         })
       ).resolves.toEqual(ok({ workspace: directory, branchName: null }));
-      expect(submitted).toHaveLength(0);
+      expect(wire.calls.createWorkspace).toHaveLength(0);
+      expect(wire.calls.createWorktree).toHaveLength(0);
     } finally {
       await wire.dispose();
     }
   });
 
-  it('submits host.createWorktree with the compiled payload and returns the worktree', async () => {
-    const submitted: CreateWorktreeAction[] = [];
-    const wire = hostWire({ submitted });
-    const port = createWorkspacePortFromDependency(wire.client, { pollIntervalMs: 1 });
+  it('registers the repository and awaits createWorktree with the compiled payload', async () => {
+    const wire = registryWire();
+    const port = createWorkspacePortFromDependency(wire.client);
 
     try {
       const result = await port.provision({
@@ -60,28 +68,22 @@ describe('createWorkspacePortFromDependency', () => {
         signal: new AbortController().signal,
       });
 
-      expect(submitted).toHaveLength(1);
-      const request = submitted[0]!;
-      expect(request.verb).toBe('host.createWorktree');
-      expect(request.input.operationId).toBe('automation-run:run-1');
-      expect(request.input.hostId).toBe('local:local');
-      expect(request.input.branchName).toBe('emdash abc');
-      expect(request.input.startPoint).toBe('origin/main');
-      expect(request.input.fetch).toBe(true);
-      expect(request.input.pushRemote).toBeUndefined();
-      expect(request.input.preservePatterns).toEqual(['.env*']);
-      const repoHash = createHash('sha256').update('/Users/jona/repo').digest('hex').slice(0, 8);
-      expect(request.input.worktreePath.segments).toEqual([
-        'Users',
-        'jona',
-        'worktrees',
-        `repo-${repoHash}`,
-        'emdash-abc',
-      ]);
+      expect(wire.calls.createWorkspace).toHaveLength(1);
+      expect(wire.calls.createWorkspace[0]!.path).toBe('/Users/jona/repo');
+
+      expect(wire.calls.createWorktree).toHaveLength(1);
+      const request = wire.calls.createWorktree[0]!;
+      expect(request.id).toBe('run-1');
+      expect(request.repositoryId).toBe(wire.calls.createWorkspace[0]!.id);
+      expect(request.branch).toBe('emdash abc');
+      expect(request.baseRef).toBe('origin/main');
+      expect(request.pushBranch).toBe(false);
+      expect(request.preservePatterns).toEqual(['.env*']);
+      expect(request.path).toBe(`/Users/jona/worktrees/repo-${repoHash}/emdash-abc`);
 
       expect(result).toEqual(
         ok({
-          workspace: hostFileRef(LOCAL_HOST_REF, request.input.worktreePath),
+          workspace: hostFileRef(LOCAL_HOST_REF, parsed(request.path)),
           branchName: 'emdash abc',
         })
       );
@@ -90,10 +92,34 @@ describe('createWorkspacePortFromDependency', () => {
     }
   });
 
-  it('forwards the configured push remote for create-branch workspaces', async () => {
-    const submitted: CreateWorktreeAction[] = [];
-    const wire = hostWire({ submitted });
-    const port = createWorkspacePortFromDependency(wire.client, { pollIntervalMs: 1 });
+  it('adopts a repository record that is already registered under another id', async () => {
+    const wire = registryWire({
+      createWorkspace: (input) =>
+        err({
+          type: 'already-registered' as const,
+          record: stubRecord('repo-existing', input.path, 'repository'),
+        }),
+    });
+    const port = createWorkspacePortFromDependency(wire.client);
+
+    try {
+      const result = await port.provision({
+        workspace: worktreeConfig,
+        generatedName: 'emdash-abc',
+        runId: 'run-adopt',
+        signal: new AbortController().signal,
+      });
+
+      expect(wire.calls.createWorktree[0]!.repositoryId).toBe('repo-existing');
+      expect(result.success).toBe(true);
+    } finally {
+      await wire.dispose();
+    }
+  });
+
+  it('requests a branch push when the workspace configures a push remote', async () => {
+    const wire = registryWire();
+    const port = createWorkspacePortFromDependency(wire.client);
 
     try {
       const result = await port.provision({
@@ -106,17 +132,16 @@ describe('createWorkspacePortFromDependency', () => {
         signal: new AbortController().signal,
       });
 
-      expect(submitted[0]!.input.pushRemote).toBe('origin');
+      expect(wire.calls.createWorktree[0]!.pushBranch).toBe(true);
       expect(result.success).toBe(true);
     } finally {
       await wire.dispose();
     }
   });
 
-  it('uses the configured branch and no start point for use-branch workspaces', async () => {
-    const submitted: CreateWorktreeAction[] = [];
-    const wire = hostWire({ submitted });
-    const port = createWorkspacePortFromDependency(wire.client, { pollIntervalMs: 1 });
+  it('uses the configured branch as its own base ref for use-branch workspaces', async () => {
+    const wire = registryWire();
+    const port = createWorkspacePortFromDependency(wire.client);
 
     try {
       const result = await port.provision({
@@ -129,26 +154,26 @@ describe('createWorkspacePortFromDependency', () => {
         signal: new AbortController().signal,
       });
 
-      const request = submitted[0]!;
-      expect(request.input.branchName).toBe('feature/x');
-      expect(request.input.startPoint).toBeUndefined();
-      expect(request.input.fetch).toBeUndefined();
+      const request = wire.calls.createWorktree[0]!;
+      expect(request.branch).toBe('feature/x');
+      expect(request.baseRef).toBe('feature/x');
+      expect(request.pushBranch).toBe(false);
       expect(result.success).toBe(true);
     } finally {
       await wire.dispose();
     }
   });
 
-  it('maps a failed host operation to an automation port error', async () => {
-    const wire = hostWire({
-      terminal: (operationId) => ({
-        operationId,
-        status: 'failed',
-        updatedAt: 1,
-        error: { type: 'git-command-failed', message: 'fatal: branch exists' },
-      }),
+  it('lands the failed stage and message on the port error', async () => {
+    const wire = registryWire({
+      createWorktree: () =>
+        err({
+          type: 'stage-failed' as const,
+          stage: 'add-worktree',
+          message: 'fatal: branch exists',
+        }),
     });
-    const port = createWorkspacePortFromDependency(wire.client, { pollIntervalMs: 1 });
+    const port = createWorkspacePortFromDependency(wire.client);
 
     try {
       await expect(
@@ -160,16 +185,39 @@ describe('createWorkspacePortFromDependency', () => {
         })
       ).resolves.toEqual({
         success: false,
-        error: { code: 'git-command-failed', message: 'fatal: branch exists' },
+        error: { code: 'add-worktree', message: 'fatal: branch exists' },
       });
     } finally {
       await wire.dispose();
     }
   });
 
-  it('does not submit an operation for an already-aborted run', async () => {
-    const submitted: CreateWorktreeAction[] = [];
-    const wire = hostWire({ submitted });
+  it('maps a repository registration failure to a port error', async () => {
+    const wire = registryWire({
+      createWorkspace: (input) => err({ type: 'path-not-found' as const, path: input.path }),
+    });
+    const port = createWorkspacePortFromDependency(wire.client);
+
+    try {
+      await expect(
+        port.provision({
+          workspace: worktreeConfig,
+          generatedName: 'emdash-abc',
+          runId: 'run-repo-missing',
+          signal: new AbortController().signal,
+        })
+      ).resolves.toEqual({
+        success: false,
+        error: { code: 'path-not-found', message: 'Repository path not found: /Users/jona/repo' },
+      });
+      expect(wire.calls.createWorktree).toHaveLength(0);
+    } finally {
+      await wire.dispose();
+    }
+  });
+
+  it('does not call the registry for an already-aborted run', async () => {
+    const wire = registryWire();
     const port = createWorkspacePortFromDependency(wire.client);
     const controller = new AbortController();
     controller.abort();
@@ -186,25 +234,34 @@ describe('createWorkspacePortFromDependency', () => {
         success: false,
         error: { code: 'cancelled', message: 'Workspace provisioning was cancelled' },
       });
-      expect(submitted).toHaveLength(0);
+      expect(wire.calls.createWorkspace).toHaveLength(0);
+      expect(wire.calls.createWorktree).toHaveLength(0);
     } finally {
       await wire.dispose();
     }
   });
 
-  it('returns cancelled when the run aborts while the host operation is in flight', async () => {
+  it('cancels an in-flight createWorktree when the run aborts', async () => {
     const controller = new AbortController();
-    const wire = hostWire({
-      terminal: (operationId) => {
-        controller.abort();
-        return {
-          operationId,
-          status: 'running',
-          updatedAt: 1,
-        };
-      },
+    let resolveHandlerAborted: () => void;
+    const handlerAborted = new Promise<void>((resolve) => {
+      resolveHandlerAborted = resolve;
     });
-    const port = createWorkspacePortFromDependency(wire.client, { pollIntervalMs: 1 });
+    const wire = registryWire({
+      createWorktree: (_input, meta) =>
+        new Promise((resolve) => {
+          meta.signal?.addEventListener(
+            'abort',
+            () => {
+              resolveHandlerAborted();
+              resolve(err({ type: 'stage-failed' as const, stage: 'inspect', message: 'aborted' }));
+            },
+            { once: true }
+          );
+          controller.abort();
+        }),
+    });
+    const port = createWorkspacePortFromDependency(wire.client);
 
     try {
       await expect(
@@ -218,6 +275,50 @@ describe('createWorkspacePortFromDependency', () => {
         success: false,
         error: { code: 'cancelled', message: 'Workspace provisioning was cancelled' },
       });
+      // The cancellation must reach the RPC handler over the wire, not just stop waiting.
+      await handlerAborted;
+    } finally {
+      await wire.dispose();
+    }
+  });
+
+  it('replays a failed run with the identical create id and spec', async () => {
+    let attempt = 0;
+    const wire = registryWire({
+      createWorktree: (input) => {
+        attempt += 1;
+        if (attempt === 1) {
+          return err({ type: 'stage-failed' as const, stage: 'fetch', message: 'network down' });
+        }
+        return ok(stubRecord(input.id, input.path, 'worktree'));
+      },
+    });
+    const port = createWorkspacePortFromDependency(wire.client);
+    const provision = () =>
+      port.provision({
+        workspace: worktreeConfig,
+        generatedName: 'emdash-abc',
+        runId: 'run-replay',
+        signal: new AbortController().signal,
+      });
+
+    try {
+      const first = await provision();
+      expect(first).toEqual({
+        success: false,
+        error: { code: 'fetch', message: 'network down' },
+      });
+
+      const second = await provision();
+      expect(second.success).toBe(true);
+
+      // Replay safety: the same run id resubmits the same record id with an identical
+      // spec, so the verb's replay semantics (no-op or re-execute) apply instead of a
+      // duplicate creation.
+      expect(wire.calls.createWorktree).toHaveLength(2);
+      expect(wire.calls.createWorktree[1]).toEqual(wire.calls.createWorktree[0]);
+      expect(wire.calls.createWorktree[0]!.id).toBe('run-replay');
+      expect(wire.calls.createWorktree[0]!.path).toBe(expectedWorktreePath);
     } finally {
       await wire.dispose();
     }
@@ -234,30 +335,85 @@ function parsed(input: string) {
   return result.data;
 }
 
-function hostWire(
+function stubRecord(id: string, path: string, kind: 'repository' | 'worktree'): WorkspaceRecord {
+  return {
+    id,
+    kind,
+    path,
+    parentId: null,
+    origin: 'registered',
+    gitAdminName: null,
+    observedStatus: 'present',
+    creation: null,
+    lastCreateOutcome: null,
+    lastRemovalAttempt: null,
+    scriptOutcomes: null,
+    git: null,
+    lastActivatedAt: null,
+    createdAt: 0,
+    updatedAt: 0,
+    lastObservedAt: 0,
+    runtime: null,
+  };
+}
+
+function registryWire(
   options: {
-    submitted?: CreateWorktreeAction[];
-    terminal?: (operationId: string) => WorkspaceHostActionView;
+    createWorkspace?: (
+      input: CreateWorkspaceInput
+    ) => Result<WorkspaceRecord, CreateWorkspaceError>;
+    createWorktree?: (
+      input: CreateWorktreeInput,
+      meta: { signal?: AbortSignal }
+    ) =>
+      | Result<WorkspaceRecord, CreateWorktreeError>
+      | Promise<Result<WorkspaceRecord, CreateWorktreeError>>;
   } = {}
 ) {
-  const views = new Map<string, WorkspaceHostActionView>();
-  return createTestWire(workspaceHostActionsContract, {
-    submitOperation: async (request) => {
-      options.submitted?.push(request);
-      const operationId = request.input.operationId;
-      views.set(
-        operationId,
-        options.terminal?.(operationId) ?? {
-          operationId,
-          status: 'succeeded',
-          updatedAt: 1,
-        }
-      );
-      return ok({ operationId, kernelOperationId: 'kernel-1' });
+  const calls: {
+    createWorkspace: CreateWorkspaceInput[];
+    createWorktree: CreateWorktreeInput[];
+  } = { createWorkspace: [], createWorktree: [] };
+  // Mirrors the registry's registration semantics: the first id owns the path; a later
+  // registration of the same path under a different id gets already-registered back.
+  const byPath = new Map<string, WorkspaceRecord>();
+
+  const wire = createTestWire(workspaceRegistryContract, {
+    records: expose(workspaceRegistryContract.records, {
+      list: () => cell<WorkspaceRecords>({}, { name: 'test-records' }),
+    }),
+    createWorkspace: async (input) => {
+      calls.createWorkspace.push(input);
+      if (options.createWorkspace) return options.createWorkspace(input);
+      const existing = byPath.get(input.path);
+      if (existing && existing.id !== input.id) {
+        return err({ type: 'already-registered' as const, record: existing });
+      }
+      const record = existing ?? stubRecord(input.id, input.path, 'repository');
+      byPath.set(input.path, record);
+      return ok(record);
     },
-    getOperation: async ({ operationId }) => ok(views.get(operationId) ?? null),
-    initializeWorkspace: async () => {
+    createWorktree: async (input, meta) => {
+      calls.createWorktree.push(input);
+      if (options.createWorktree) return await options.createWorktree(input, meta);
+      return ok(stubRecord(input.id, input.path, 'worktree'));
+    },
+    activateWorkspace: async () => {
+      throw new Error('unused');
+    },
+    deactivateWorkspace: async () => {
+      throw new Error('unused');
+    },
+    deleteWorkspace: async () => {
+      throw new Error('unused');
+    },
+    deleteWorktree: async () => {
+      throw new Error('unused');
+    },
+    refresh: async () => {
       throw new Error('unused');
     },
   });
+
+  return { ...wire, calls };
 }
