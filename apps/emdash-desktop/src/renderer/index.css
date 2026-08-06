@@ -1,19 +1,18 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@xterm/xterm/css/xterm.css';
-@import 'allotment/dist/style.css';
 
 @source '../core';
 
-@custom-variant dark (&:is(.dark *));
-@custom-variant dark-black (&:is(.dark-black *));
 @custom-variant emlight (&:is(.emlight *));
 @custom-variant emdark (&:is(.emdark *));
 
 @theme inline {
+  /* Inter Variable is loaded in main.tsx (@fontsource-variable/inter) and
+     matches @emdash/ui's --em-font-sans so both kits share one typeface. */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
-    'Droid Sans', 'Helvetica Neue', sans-serif;
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+    Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
   --text-code: 13px;
@@ -71,7 +70,7 @@
   --color-foreground-diff-deleted: var(--foreground-diff-deleted);
 
   --color-selection-foreground: var(--selection-foreground);
-  --color-selection-background: var(--selection-background);
+  --color-selection-background: var(--selection);
 
   --color-border: var(--border);
   --color-border-1: var(--border-1);
@@ -336,10 +335,13 @@
     --jade-12: color(display-p3 0.142 0.229 0.194);
 
     /* ── Semantic tokens ─────────────────────────────────────── */
-    --background: white;
-    --background-1: var(--neutral-2);
-    --background-2: var(--neutral-3);
-    --background-3: var(--neutral-4);
+    /* Background/selection/status/success values mirror the generated
+       @emdash/theme palette (packages/theme/src/__generated__/semantic.css)
+       so app chrome and @emdash/ui components render identically. */
+    --background: color(display-p3 0.9884 0.988 0.9881);
+    --background-1: color(display-p3 0.9437 0.9432 0.9433);
+    --background-2: color(display-p3 0.8995 0.8987 0.8989);
+    --background-3: color(display-p3 0.8559 0.8545 0.8549);
 
     --foreground: var(--neutral-12);
     --foreground-inverse: white;
@@ -349,16 +351,16 @@
     --background-secondary: var(--background-1);
     --background-secondary-1: var(--background);
     --background-secondary-2: var(--background-3);
-    --background-secondary-3: var(--neutral-6);
+    --background-secondary-3: color(display-p3 0.7703 0.7673 0.7681);
 
     --foreground-secondary: var(--neutral-12);
     --foreground-secondary-muted: var(--neutral-11);
     --foreground-secondary-passive: var(--neutral-8);
 
-    --background-tertiary: var(--neutral-3);
-    --background-tertiary-1: var(--neutral-4);
-    --background-tertiary-2: var(--neutral-5);
-    --background-tertiary-3: var(--neutral-6);
+    --background-tertiary: var(--background-2);
+    --background-tertiary-1: var(--background-3);
+    --background-tertiary-2: color(display-p3 0.8128 0.8107 0.8113);
+    --background-tertiary-3: color(display-p3 0.7703 0.7673 0.7681);
 
     --foreground-tertiary: var(--neutral-12);
     --foreground-tertiary-muted: var(--neutral-11);
@@ -369,7 +371,9 @@
     --background-quaternary-2: var(--background-2);
 
     --background-destructive: var(--red-2);
+    --background-destructive-1: color(display-p3 0.9756 0.931 0.926);
     --foreground-destructive: var(--red-11);
+    --foreground-destructive-muted: color(display-p3 0.8746 0.3651 0.3565);
 
     --background-neutral: var(--neutral-12);
     --foreground-neutral: var(--neutral-1);
@@ -388,14 +392,14 @@
     --ring: hsl(0 0% 3.9%);
     --radius: 0.5rem;
 
-    --selection: var(--blue-6);
-    --selection-foreground: var(--blue-12);
+    --selection: color(display-p3 0.6279 0.7807 0.9926);
+    --selection-foreground: color(display-p3 0 0.0948 0.2443);
 
-    --status-in-progress: var(--amber-11);
-    --status-in-review: var(--green-10);
-    --status-done: var(--neutral-9);
-    --status-todo: var(--neutral-9);
-    --status-cancelled: var(--neutral-9);
+    --status-in-progress: color(display-p3 0.4753 0.3235 0);
+    --status-in-review: color(display-p3 0.2304 0.5845 0.236);
+    --status-done: color(display-p3 0.5582 0.5525 0.554);
+    --status-todo: color(display-p3 0.5582 0.5525 0.554);
+    --status-cancelled: color(display-p3 0.5582 0.5525 0.554);
 
     /* Monaco editor */
     --monaco-bg: var(--background);
@@ -428,10 +432,10 @@
     --foreground-diff-deleted: var(--red-9);
 
     /* State / indicator tokens */
-    --foreground-success: var(--green-9);
-    --background-success: var(--green-3);
-    --background-success-hover: var(--green-4);
-    --border-success: var(--green-7);
+    --foreground-success: color(display-p3 0.2542 0.6265 0.2594);
+    --background-success: color(display-p3 0.8675 0.9185 0.8638);
+    --background-success-hover: color(display-p3 0.8054 0.885 0.7999);
+    --border-success: color(display-p3 0.6251 0.8728 0.6141);
 
     --foreground-error: var(--red-9);
     --background-error: var(--red-3);
@@ -644,37 +648,40 @@
     --jade-12: color(display-p3 0.734 0.934 0.838);
 
     /* ── Semantic tokens ─────────────────────────────────────── */
-    --background: var(--neutral-1);
-    --background-1: var(--neutral-2);
-    --background-2: var(--neutral-3);
-    --background-3: var(--neutral-4);
+    /* Background/selection/status/success values mirror the generated
+       @emdash/theme palette (packages/theme/src/__generated__/semantic.css)
+       so app chrome and @emdash/ui components render identically. */
+    --background: color(display-p3 0.0671 0.0669 0.067);
+    --background-1: color(display-p3 0.0956 0.0952 0.0953);
+    --background-2: color(display-p3 0.1252 0.1246 0.1248);
+    --background-3: color(display-p3 0.156 0.155 0.1552);
 
     --foreground: var(--neutral-12);
     --foreground-inverse: var(--neutral-1);
     --foreground-muted: var(--neutral-11);
     --foreground-passive: var(--neutral-9);
 
-    --background-secondary: var(--background);
-    --background-secondary-1: var(--background-1);
-    --background-secondary-2: var(--background-2);
-    --background-secondary-3: var(--background-3);
+    --background-secondary: var(--background-1);
+    --background-secondary-1: var(--background);
+    --background-secondary-2: var(--background-3);
+    --background-secondary-3: color(display-p3 0.2206 0.2181 0.2188);
 
     --foreground-secondary: var(--foreground);
     --foreground-secondary-muted: var(--foreground-muted);
     --foreground-secondary-passive: var(--foreground-passive);
 
-    --background-tertiary: var(--background);
-    --background-tertiary-1: var(--background-1);
-    --background-tertiary-2: var(--background-2);
-    --background-tertiary-3: var(--background-3);
+    --background-tertiary: var(--background-2);
+    --background-tertiary-1: var(--background-3);
+    --background-tertiary-2: color(display-p3 0.1878 0.1862 0.1866);
+    --background-tertiary-3: color(display-p3 0.2206 0.2181 0.2188);
 
     --foreground-tertiary: var(--foreground);
     --foreground-tertiary-muted: var(--foreground-muted);
     --foreground-tertiary-passive: var(--foreground-passive);
 
-    --background-quaternary: var(--background-1);
-    --background-quaternary-1: var(--background-2);
-    --background-quaternary-2: var(--background-3);
+    --background-quaternary: var(--background);
+    --background-quaternary-1: var(--background-1);
+    --background-quaternary-2: var(--background-2);
 
     --background-destructive: var(--red-3);
     --background-destructive-1: color(display-p3 0.25 0.102 0.122);
@@ -698,14 +705,14 @@
     --ring: hsl(0 0% 3.9%);
     --radius: 0.5rem;
 
-    --selection: var(--blue-9);
-    --selection-foreground: var(--blue-12);
+    --selection: color(display-p3 0.087 0.2177 0.3954);
+    --selection-foreground: color(display-p3 0.8222 0.9187 1);
 
-    --status-in-progress: var(--amber-11);
-    --status-in-review: var(--green-10);
-    --status-done: var(--neutral-10);
-    --status-todo: var(--neutral-10);
-    --status-cancelled: var(--neutral-10);
+    --status-in-progress: color(display-p3 0.8581 0.6803 0.314);
+    --status-in-review: color(display-p3 0.3486 0.7012 0.3465);
+    --status-done: color(display-p3 0.5721 0.5663 0.5679);
+    --status-todo: color(display-p3 0.5721 0.5663 0.5679);
+    --status-cancelled: color(display-p3 0.5721 0.5663 0.5679);
 
     /* Monaco editor */
     --monaco-bg: var(--background-1);
@@ -742,10 +749,10 @@
     --foreground-diff-deleted: var(--red-9);
 
     /* State / indicator tokens */
-    --foreground-success: var(--green-9);
-    --background-success: var(--green-3);
-    --background-success-hover: var(--green-4);
-    --border-success: var(--green-7);
+    --foreground-success: color(display-p3 0.2745 0.6459 0.278);
+    --background-success: color(display-p3 0.101 0.138 0.099);
+    --background-success-hover: color(display-p3 0.1154 0.176 0.1127);
+    --border-success: color(display-p3 0.1928 0.4218 0.1922);
 
     --foreground-error: var(--red-9);
     --background-error: var(--red-3);

@@ -21,7 +21,7 @@ import type { ComposerPermissionRequest } from './permission-band';
 import { QueuedPromptsBand } from './queued-prompts-band';
 import type { ComposerQueuedPrompt } from './queued-prompts-band';
 import * as styles from './chat-composer.css';
-import './composer-contract.css';
+import { composerThemeScope } from './composer-contract.css';
 
 export type { MentionItem, CommandItem };
 export type {
@@ -476,7 +476,8 @@ function ComposerAgentSelector({
       >
         {selected?.icon ?? <span className={styles.agentIconPlaceholder} />}
       </Combobox.Trigger>
-      <Combobox.Content style={{ minWidth: '11.25rem' }}>
+      {/* Portaled out of the composer root — must carry the theme-bridge scope. */}
+      <Combobox.Content className={composerThemeScope} style={{ minWidth: '11.25rem' }}>
         <Combobox.Input showTrigger={false} placeholder="Search agents…" />
         <Combobox.List>
           {groups.map((group) =>
@@ -741,7 +742,7 @@ export function ChatComposer({
       : (placeholder ?? 'Send a message, tag @files or use /commands');
 
   return (
-    <div className={cx(styles.composerRoot, className)}>
+    <div className={cx(styles.composerRoot, composerThemeScope, className)}>
       {canShowQueuedPrompts && (
         <QueuedPromptsBand
           prompts={queuedPrompts}
@@ -835,6 +836,7 @@ export function ChatComposer({
             queryMentions={queryMentions}
             queryCommands={queryCommands}
             onCommand={onCommand}
+            popupClassName={composerThemeScope}
           />
         </div>
 
@@ -860,6 +862,7 @@ export function ChatComposer({
                 itemToLabel={(item) => item.name}
                 disabled={disabled}
                 searchPlaceholder="Search models…"
+                contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '12.5rem' }}
                 triggerTitle={() => selectedAgentTitle}
                 renderTrigger={(selected) => (
@@ -921,7 +924,12 @@ export function ChatComposer({
                               />
                             </span>
                           </DropdownMenu.Trigger>
-                          <DropdownMenu.Content side="right" align="start" sideOffset={4}>
+                          <DropdownMenu.Content
+                            className={composerThemeScope}
+                            side="right"
+                            align="start"
+                            sideOffset={4}
+                          >
                             <DropdownMenu.RadioGroup
                               value={selectedEffort}
                               onValueChange={(v) => onEffortChange?.(String(v))}
@@ -949,6 +957,7 @@ export function ChatComposer({
                 disabled={disabled}
                 searchPlaceholder="Search"
                 className={permissionModeIsFirst ? styles.permissionModeTrigger : undefined}
+                contentClassName={composerThemeScope}
                 contentStyle={{ minWidth: '18rem' }}
                 renderTrigger={(selected) => (
                   <span
@@ -1002,7 +1011,7 @@ export function ChatComposer({
                 </Popover.Trigger>
                 <Popover.Content
                   align="start"
-                  className={styles.mcpPopoverContent}
+                  className={cx(styles.mcpPopoverContent, composerThemeScope)}
                   aria-label="Session MCP servers"
                 >
                   <div className={styles.mcpList}>

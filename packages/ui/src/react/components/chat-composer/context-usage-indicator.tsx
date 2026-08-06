@@ -2,6 +2,7 @@ import { Button } from '@react/primitives/button';
 import { Popover } from '@react/primitives/popover';
 import { cx } from '@styles/utilities/cx';
 import * as styles from './chat-composer.css';
+import { composerThemeScope } from './composer-contract.css';
 
 // ── Data type ─────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,8 @@ export function ContextUsageIndicator({
           </Button>
         }
       />
-      <Popover.Content align="end" side="top">
+      {/* Portaled out of the composer root — must carry the theme-bridge scope. */}
+      <Popover.Content className={composerThemeScope} align="end" side="top">
         <Popover.Header>
           <Popover.Title>Context usage</Popover.Title>
         </Popover.Header>

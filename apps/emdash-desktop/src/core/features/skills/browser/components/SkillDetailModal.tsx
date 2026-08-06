@@ -148,7 +148,7 @@ function isSkillShPathBody(body: string): boolean {
 }
 
 function SkillDetailShimmer() {
-  const lineClass = 'h-3 animate-pulse rounded-full bg-foreground/10 dark:bg-white/15';
+  const lineClass = 'h-3 animate-pulse rounded-full bg-foreground/10';
 
   return (
     <div

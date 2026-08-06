@@ -52,6 +52,12 @@ export interface SplitButtonProps {
   variant?: ButtonVariant;
   tone?: ControlVariantProps['tone'];
   className?: string;
+  /**
+   * Extra class for the portaled option menu. The menu mounts under <body>,
+   * so hosts that scope theming to a subtree (e.g. the ChatComposer contract
+   * bridge) must carry the scope class onto it.
+   */
+  menuClassName?: string;
 }
 
 // ── SplitButton ───────────────────────────────────────────────────────────────
@@ -66,6 +72,7 @@ export function SplitButton({
   variant = 'primary',
   tone = 'neutral',
   className,
+  menuClassName,
 }: SplitButtonProps) {
   const selectedOption =
     (selectedId ? options.find((o) => o.id === selectedId) : undefined) ?? options[0];
@@ -108,7 +115,7 @@ export function SplitButton({
         >
           <ChevronDownIcon />
         </DropdownMenu.Trigger>
-        <DropdownMenu.Content align="end" sideOffset={4}>
+        <DropdownMenu.Content className={menuClassName} align="end" sideOffset={4}>
           {options.map((option) => (
             <DropdownMenu.Item
               key={option.id}
