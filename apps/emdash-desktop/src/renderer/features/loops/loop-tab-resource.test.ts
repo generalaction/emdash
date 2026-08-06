@@ -37,6 +37,7 @@ function fakePort(initial = snapshot()): {
           unsubscribe();
         };
       }),
+      startLoop: vi.fn(async () => snapshot({ status: 'running' })),
       pauseLoop: vi.fn(async () => snapshot({ status: 'paused' })),
       resumeLoop: vi.fn(async () => snapshot({ status: 'running' })),
       retryPhase: vi.fn(async () => snapshot({ status: 'running' })),
@@ -114,7 +115,7 @@ describe('LoopTabResource', () => {
     expect(resource.state).toEqual({ kind: 'ready', snapshot: updated });
   });
 
-  it('delegates pause, resume, and phase retry while exposing pending state', async () => {
+  it('delegates start, pause, resume, and phase retry while exposing pending state', async () => {
     let finishPause: ((value: LoopTabSnapshot) => void) | undefined;
     const fake = fakePort();
     vi.mocked(fake.port.pauseLoop).mockReturnValue(
@@ -124,6 +125,9 @@ describe('LoopTabResource', () => {
     );
     const resource = new LoopTabResource('loop-1', fake.port);
     await resource.load();
+
+    await resource.start();
+    expect(fake.port.startLoop).toHaveBeenCalledWith('loop-1');
 
     const pausing = resource.pause();
     expect(resource.action).toEqual({ kind: 'pending', action: 'pause' });

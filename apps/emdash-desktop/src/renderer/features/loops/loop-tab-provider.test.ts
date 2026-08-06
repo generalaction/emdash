@@ -93,6 +93,7 @@ function port(snapshot = readySnapshot()): LoopAuthoringPort {
   return {
     loadLoop: vi.fn(async () => snapshot),
     subscribeToLoop: vi.fn(() => () => {}),
+    startLoop: vi.fn(async () => readySnapshot('running')),
     pauseLoop: vi.fn(async () => readySnapshot('paused')),
     resumeLoop: vi.fn(async () => readySnapshot('running')),
     retryPhase: vi.fn(async () => readySnapshot('running')),
@@ -200,6 +201,33 @@ describe('native Loop tab', () => {
     expect(fake.retryPhase).toHaveBeenCalledWith('loop-1', 'review-1');
 
     expect(container.querySelector('button[aria-label="Pause Loop"]')).not.toBeNull();
+  });
+
+  it('starts a draft Loop through the resource', async () => {
+    const fake = port(readySnapshot('draft'));
+    const resource = new LoopTabResource('loop-1', fake);
+    await resource.load();
+    act(() => root.render(React.createElement(LoopTabPanel, { resource })));
+
+    const start = container.querySelector('button[aria-label="Start Loop"]');
+    expect(start).not.toBeNull();
+    await act(async () => start?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    expect(fake.startLoop).toHaveBeenCalledWith('loop-1');
+    expect(container.querySelector('button[aria-label="Pause Loop"]')).not.toBeNull();
+  });
+
+  it('restarts a failed Loop through the resource', async () => {
+    const fake = port(readySnapshot('failed'));
+    const resource = new LoopTabResource('loop-1', fake);
+    await resource.load();
+    act(() => root.render(React.createElement(LoopTabPanel, { resource })));
+
+    const restart = container.querySelector('button[aria-label="Restart Loop"]');
+    expect(restart).not.toBeNull();
+    await act(async () => restart?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    expect(fake.startLoop).toHaveBeenCalledWith('loop-1');
   });
 
   it('renders accessible loading and load-failure states with retry', async () => {

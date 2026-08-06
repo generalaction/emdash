@@ -1,49 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { getConversationsForTask } from '@main/core/conversations/getConversationsForTask';
+import { setSessionId } from '@main/core/conversations/set-session-id';
 import type { Loop, LoopPhase } from '@shared/core/loops/loops';
 import { acpLoopSessionDriver } from './acp-driver';
+import { getLoopAcpRuntime } from './acp-loop-runtime';
 
-const acpSessionManagerMock = vi.hoisted(() => ({
-  registerPermissionAutoApproval: vi.fn(),
-  start: vi.fn(),
-  prompt: vi.fn(),
-  cancel: vi.fn(),
-  stop: vi.fn(),
+const runtimeMock = vi.hoisted(() => ({
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+  sendPrompt: vi.fn(),
+  cancelTurn: vi.fn(),
+  resolvePermission: vi.fn(),
+  getSessionState: vi.fn(),
   getChatHistory: vi.fn(),
 }));
-vi.mock('@main/core/acp/production-acp-session-manager', () => ({
-  acpSessionManager: acpSessionManagerMock,
-}));
 
-vi.mock('@main/core/conversations/createConversation', () => ({
-  createConversation: vi.fn(),
-}));
-
+vi.mock('./acp-loop-runtime', () => ({ getLoopAcpRuntime: vi.fn() }));
+vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
 vi.mock('@main/core/conversations/getConversationsForTask', () => ({
   getConversationsForTask: vi.fn(),
 }));
+vi.mock('@main/core/conversations/set-session-id', () => ({ setSessionId: vi.fn() }));
 
 describe('acpLoopSessionDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    acpSessionManagerMock.getChatHistory.mockReturnValue({ turns: [], complete: true });
-    acpSessionManagerMock.start.mockResolvedValue({ success: true, data: undefined });
-    acpSessionManagerMock.stop.mockReturnValue({ success: true, data: undefined });
+    vi.mocked(getLoopAcpRuntime).mockResolvedValue(runtimeMock as never);
+    vi.mocked(setSessionId).mockResolvedValue({ success: true, data: undefined });
     vi.mocked(getConversationsForTask).mockResolvedValue([]);
+    runtimeMock.startSession.mockResolvedValue({ success: true, data: { sessionId: 'agent-1' } });
+    runtimeMock.stopSession.mockReturnValue({ success: true, data: undefined });
+    runtimeMock.cancelTurn.mockResolvedValue({ success: true, data: undefined });
+    runtimeMock.getSessionState.mockReturnValue({ pendingPermissions: [] });
+    runtimeMock.getChatHistory.mockReturnValue({ committed: [], active: null });
   });
 
-  function makeLoopContext(patch: Partial<Loop> = {}): {
-    loop: Loop;
-    phase: LoopPhase;
-    purpose: 'work';
-    target: {
-      workspaceId: string;
-      path: string;
-      machine: { kind: 'local' };
-    };
-    taskEnvironment: Readonly<Record<string, string>>;
-  } {
+  function makeLoopContext(patch: Partial<Loop> = {}) {
     const loop: Loop = {
       id: 'loop-1',
       projectId: 'project-1',
@@ -74,229 +67,165 @@ describe('acpLoopSessionDriver', () => {
     return {
       loop,
       phase,
-      purpose: 'work',
-      target: { workspaceId: 'workspace-1', path: '/worktree', machine: { kind: 'local' } },
+      purpose: 'work' as const,
+      target: {
+        workspaceId: 'workspace-1',
+        path: '/worktree',
+        machine: { kind: 'local' as const },
+      },
       taskEnvironment: { EMDASH_TASK_ID: 'task-1', EMDASH_TASK_PATH: '/worktree' },
     };
   }
 
-  it('registers newly created loop ACP conversations for permission auto-approval', async () => {
-    vi.mocked(createConversation).mockResolvedValueOnce({
-      id: 'conv-loop',
+  function conversation(id = 'conv-loop') {
+    return {
+      id,
       projectId: 'project-1',
       taskId: 'task-1',
-      providerId: 'claude',
+      providerId: 'claude' as const,
       title: 'loop-1',
-      type: 'acp',
-      isInitialConversation: false,
-      lastInteractedAt: null,
-    });
-    const context = makeLoopContext();
-    const result = await acpLoopSessionDriver.startPhaseSession(context);
-
-    expect(result.success).toBe(true);
-    expect(createConversation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: 'claude',
-        type: 'acp',
-      })
-    );
-    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-loop');
-    expect(acpSessionManagerMock.start).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'conv-loop' }),
-      context.target.workspaceId,
-      context.target.path,
-      context.target.machine,
-      undefined,
-      context.taskEnvironment
-    );
-  });
-
-  it('uses the loop config provider when creating ACP conversations', async () => {
-    vi.mocked(createConversation).mockResolvedValueOnce({
-      id: 'conv-codex',
-      projectId: 'project-1',
-      taskId: 'task-1',
-      providerId: 'codex' as const,
-      title: 'loop-1',
-      type: 'acp',
-      isInitialConversation: false,
-      lastInteractedAt: null,
-    });
-    const result = await acpLoopSessionDriver.startPhaseSession(
-      makeLoopContext({
-        config: {
-          version: '1',
-          provider: 'codex',
-          verifiers: ['gh'],
-          reviewEnabled: false,
-          validationCommands: ['pnpm run test'],
-          planSource: 'manual',
-        },
-      })
-    );
-
-    expect(result.success).toBe(true);
-    expect(createConversation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: 'codex',
-        type: 'acp',
-      })
-    );
-    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-codex');
-  });
-
-  it('starts verification conversations with auto-approval and a verify title', async () => {
-    vi.mocked(createConversation).mockResolvedValueOnce({
-      id: 'conv-verify',
-      projectId: 'project-1',
-      taskId: 'task-1',
-      providerId: 'claude',
-      title: 'loop-1-verify',
-      type: 'acp',
-      isInitialConversation: false,
-      lastInteractedAt: null,
-    });
-    const context = makeLoopContext();
-    const result = await acpLoopSessionDriver.startVerificationSession({
-      loop: context.loop,
-      phase: context.phase,
-      purpose: 'browser-verification',
-      target: context.target,
-      taskEnvironment: context.taskEnvironment,
-    });
-
-    expect(result.success).toBe(true);
-    expect(createConversation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'loop-1-verify',
-        type: 'acp',
-        isInitialConversation: false,
-      })
-    );
-    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith(
-      'conv-verify'
-    );
-    expect(acpSessionManagerMock.start).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'conv-verify' }),
-      context.target.workspaceId,
-      context.target.path,
-      context.target.machine,
-      undefined,
-      context.taskEnvironment
-    );
-  });
-
-  it('uses strict ACP prompt routing and never returns literal undefined as the error message', async () => {
-    acpSessionManagerMock.prompt.mockResolvedValueOnce({
-      success: false,
-      error: undefined,
-    });
-
-    const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
-
-    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-1');
-    expect(acpSessionManagerMock.prompt).toHaveBeenCalledWith('conv-1', 'hello', undefined, {
-      requireRuntime: true,
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.message).toBe('ACP prompt failed');
-      expect(result.error.message).not.toBe('undefined');
-    }
-  });
-
-  it('restarts the same persisted verification conversation with exact target authority', async () => {
-    const context = makeLoopContext();
-    const conversation = {
-      id: 'conv-verify',
-      projectId: 'project-1',
-      taskId: 'task-1',
-      providerId: 'codex' as const,
-      title: 'loop-1-verify',
       type: 'acp' as const,
       isInitialConversation: false,
       lastInteractedAt: null,
     };
-    vi.mocked(getConversationsForTask).mockResolvedValueOnce([conversation]);
+  }
+
+  it('starts a targeted ACP session and preserves the trusted task environment', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce(conversation());
+    const context = makeLoopContext();
+
+    const result = await acpLoopSessionDriver.startPhaseSession(context);
+
+    expect(result.success).toBe(true);
+    expect(getLoopAcpRuntime).toHaveBeenCalledWith(context.target.machine);
+    expect(runtimeMock.startSession).toHaveBeenCalledWith({
+      conversationId: 'conv-loop',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'claude',
+      workspaceId: 'workspace-1',
+      cwd: '/worktree',
+      sessionId: null,
+      model: null,
+      env: context.taskEnvironment,
+    });
+    expect(setSessionId).toHaveBeenCalledWith('conv-loop', 'agent-1');
+  });
+
+  it('uses the configured provider and model', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce({
+      ...conversation('conv-codex'),
+      providerId: 'codex',
+      model: 'gpt-5.6-sol',
+    });
+    const context = makeLoopContext({
+      config: {
+        version: '2',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        verifiers: ['gh'],
+        reviewEnabled: false,
+        validationCommands: ['pnpm run test'],
+        planSource: 'manual',
+        terminalGates: { review: false, e2e: false },
+        browserPreview: { enabled: false },
+      },
+    });
+
+    await acpLoopSessionDriver.startPhaseSession(context);
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'codex', model: 'gpt-5.6-sol', type: 'acp' })
+    );
+    expect(runtimeMock.startSession).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'codex', model: 'gpt-5.6-sol' })
+    );
+  });
+
+  it('auto-approves Loop permissions and returns the final assistant text', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce(conversation('conv-prompt'));
+    await acpLoopSessionDriver.startPhaseSession(makeLoopContext());
+    runtimeMock.getSessionState.mockReturnValue({
+      pendingPermissions: [
+        {
+          requestId: 'permission-1',
+          options: [
+            { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+            { optionId: 'always', name: 'Allow always', kind: 'allow_always' },
+          ],
+        },
+      ],
+    });
+    runtimeMock.sendPrompt.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve({ success: true, data: {} }), 5))
+    );
+    runtimeMock.getChatHistory.mockReturnValue({
+      committed: [
+        {
+          id: 'turn-1',
+          seq: 1,
+          initiator: 'user',
+          items: [
+            { kind: 'message', id: 'm1', seq: 1, role: 'assistant', text: 'Finished safely.' },
+          ],
+        },
+      ],
+      active: null,
+    });
+
+    const result = await acpLoopSessionDriver.sendPrompt('conv-prompt', 'Build it');
+
+    expect(result).toEqual({ success: true, data: { finalText: 'Finished safely.' } });
+    expect(runtimeMock.resolvePermission).toHaveBeenCalledWith(
+      'conv-prompt',
+      'permission-1',
+      'always'
+    );
+  });
+
+  it('restarts the same persisted verification conversation on its exact target', async () => {
+    const context = makeLoopContext();
+    const saved = { ...conversation('conv-verify'), sessionId: 'agent-existing' };
+    vi.mocked(getConversationsForTask).mockResolvedValueOnce([saved]);
 
     const result = await acpLoopSessionDriver.restartVerificationSession!({
       loop: context.loop,
       phase: context.phase,
       purpose: 'browser-verification',
-      conversationId: conversation.id,
+      conversationId: saved.id,
       target: context.target,
       taskEnvironment: context.taskEnvironment,
     });
 
-    expect(result).toEqual({
-      success: true,
-      data: { conversationId: conversation.id, title: 'loop-1-verify' },
-    });
-    expect(acpSessionManagerMock.stop).toHaveBeenCalledWith(conversation.id);
-    expect(acpSessionManagerMock.start).toHaveBeenCalledWith(
-      conversation,
-      context.target.workspaceId,
-      context.target.path,
-      context.target.machine,
-      undefined,
-      context.taskEnvironment
+    expect(result.success).toBe(true);
+    expect(runtimeMock.startSession).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: saved.id, sessionId: 'agent-existing' })
     );
   });
 
-  it('ignores literal undefined ACP error messages', async () => {
-    acpSessionManagerMock.prompt.mockResolvedValueOnce({
-      success: false,
-      error: { type: 'prompt_failed', message: 'undefined' },
-    });
+  it('fails closed when prompt routing has no targeted runtime', async () => {
+    const result = await acpLoopSessionDriver.sendPrompt('missing-conversation', 'hello');
 
-    const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.message).toBe('ACP error: prompt_failed');
-      expect(result.error.message).not.toBe('undefined');
-    }
-  });
-
-  it('prefers structured ACP cause messages for prompt failures', async () => {
-    acpSessionManagerMock.prompt.mockResolvedValueOnce({
+    expect(result).toEqual({
       success: false,
       error: {
-        type: 'prompt_failed',
-        cause: { name: 'AcpProcessClosed', message: 'ACP agent process exited with code 1' },
+        kind: 'prompt-failed',
+        message: 'ACP conversation is not running in its targeted Loop runtime',
       },
     });
-
-    const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.message).toBe('ACP agent process exited with code 1');
-    }
+    expect(runtimeMock.sendPrompt).not.toHaveBeenCalled();
   });
 
-  it('does not fall back to normal task hydration when the explicit runtime is missing', async () => {
-    acpSessionManagerMock.prompt.mockResolvedValueOnce({
+  it('stops a new runtime if its ACP session id cannot be persisted', async () => {
+    vi.mocked(createConversation).mockResolvedValueOnce(conversation('conv-unpersisted'));
+    vi.mocked(setSessionId).mockResolvedValueOnce({
       success: false,
-      error: { type: 'conversation_not_found', message: 'ACP conversation is not running' },
+      error: { type: 'conversation-not-found', message: 'conv-unpersisted' },
     });
 
-    const result = await acpLoopSessionDriver.sendPrompt('conv-1', 'hello');
+    const result = await acpLoopSessionDriver.startPhaseSession(makeLoopContext());
 
     expect(result.success).toBe(false);
-    expect(acpSessionManagerMock.registerPermissionAutoApproval).toHaveBeenCalledWith('conv-1');
-    expect(acpSessionManagerMock.prompt).toHaveBeenCalledOnce();
-  });
-
-  it('uses strict ACP cancel routing', async () => {
-    acpSessionManagerMock.cancel.mockResolvedValueOnce({ success: true, data: undefined });
-
-    const result = await acpLoopSessionDriver.cancelPrompt('conv-1');
-
-    expect(result.success).toBe(true);
-    expect(acpSessionManagerMock.cancel).toHaveBeenCalledWith('conv-1', {
-      requireRuntime: true,
-    });
+    expect(runtimeMock.stopSession).toHaveBeenCalledWith('conv-unpersisted');
   });
 });

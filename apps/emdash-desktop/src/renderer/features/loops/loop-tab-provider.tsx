@@ -271,6 +271,19 @@ export const LoopTabPanel = observer(function LoopTabPanel({
               {phases.length}
             </p>
           </div>
+          {snapshot.status === 'draft' || snapshot.status === 'failed' ? (
+            <Button
+              type="button"
+              size="sm"
+              aria-label={snapshot.status === 'failed' ? 'Restart Loop' : 'Start Loop'}
+              aria-busy={pending}
+              disabled={pending}
+              onClick={() => void resource.start()}
+            >
+              <Play className="size-3.5" />
+              {snapshot.status === 'failed' ? 'Restart Loop' : 'Start Loop'}
+            </Button>
+          ) : null}
           {snapshot.status === 'running' ? (
             <Button
               type="button"

@@ -2631,6 +2631,7 @@ export class CleanRoomE2EGate {
     const intermediateFailures = result.success
       ? result.data.intermediateFailures
       : result.error.intermediateFailures;
+    const terminalHandoff = result.success ? null : (intermediateFailures.at(-1)?.handoff ?? null);
     const stageResult = monotonicTerminalStageResult(
       result.success ? result.data.stageResult : result.error.stageResult,
       attempts,
@@ -2645,7 +2646,7 @@ export class CleanRoomE2EGate {
       {
         kind: 'terminal',
         checkpointCommit: featureHead,
-        handoff: intermediateFailures.at(-1)?.handoff ?? null,
+        handoff: terminalHandoff,
         result: stageResult,
       },
       featureHead,

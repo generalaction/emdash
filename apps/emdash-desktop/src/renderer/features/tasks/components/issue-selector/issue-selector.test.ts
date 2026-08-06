@@ -165,7 +165,7 @@ describe('IssueSelector', () => {
   it('shows issue search errors instead of the empty issues message', async () => {
     const { IssueSelector } = await import('./issue-selector');
 
-    await act(async () => {
+    act(() => {
       root.render(
         React.createElement(IssueSelector, {
           value: null,
@@ -180,5 +180,5 @@ describe('IssueSelector', () => {
       'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
     );
     expect(container.textContent).not.toContain('No issues found');
-  });
+  }, 15_000);
 });

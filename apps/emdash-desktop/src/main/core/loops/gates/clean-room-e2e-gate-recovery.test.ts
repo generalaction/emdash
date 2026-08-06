@@ -1843,6 +1843,16 @@ describe('CleanRoomE2EGate recovery and authority', () => {
       retryHandoffs: [{ source: 'Prior E2E failure' }, { source: 'Clean-room E2E correction' }],
       result: null,
     });
+    const terminalCall = progress.mock.calls.find(
+      ([input]) => input.transition.kind === 'terminal'
+    )?.[0];
+    expect(terminalCall).toMatchObject({
+      transition: {
+        kind: 'terminal',
+        handoff: null,
+        result: { status: 'passed' },
+      },
+    });
   });
 
   it('keeps a correction handoff after its source session and all prior evidence on rollback', async () => {

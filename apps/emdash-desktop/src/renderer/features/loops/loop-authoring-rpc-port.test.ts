@@ -5,6 +5,7 @@ import { mapLoopTabSnapshot, RpcLoopAuthoringPort } from './loop-authoring-rpc-p
 
 const mocks = vi.hoisted(() => ({
   getLoop: vi.fn(),
+  startLoop: vi.fn(),
   pauseLoop: vi.fn(),
   resumeLoop: vi.fn(),
   retryPhase: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     loops: {
       getLoop: mocks.getLoop,
+      startLoop: mocks.startLoop,
       pauseLoop: mocks.pauseLoop,
       resumeLoop: mocks.resumeLoop,
       retryPhase: mocks.retryPhase,
@@ -131,6 +133,7 @@ describe('RpcLoopAuthoringPort', () => {
     vi.clearAllMocks();
     mocks.listeners.clear();
     mocks.getLoop.mockResolvedValue({ success: true, data: makeLoop() });
+    mocks.startLoop.mockResolvedValue({ success: true, data: makeLoop() });
   });
 
   it('maps only bounded handoff and evidence metadata into the task tab', () => {
@@ -165,5 +168,15 @@ describe('RpcLoopAuthoringPort', () => {
 
     dispose();
     expect(mocks.listeners.size).toBe(0);
+  });
+
+  it('starts a draft Loop through the production RPC', async () => {
+    const port = new RpcLoopAuthoringPort();
+
+    await expect(port.startLoop('loop-1')).resolves.toMatchObject({
+      loopId: 'loop-1',
+      status: 'running',
+    });
+    expect(mocks.startLoop).toHaveBeenCalledWith('loop-1');
   });
 });

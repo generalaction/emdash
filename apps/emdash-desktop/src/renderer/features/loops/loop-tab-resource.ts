@@ -11,8 +11,8 @@ export type LoopTabResourceState =
 
 export type LoopTabActionState =
   | { kind: 'idle' }
-  | { kind: 'pending'; action: 'pause' | 'resume' | 'retry' }
-  | { kind: 'error'; action: 'pause' | 'resume' | 'retry'; message: string };
+  | { kind: 'pending'; action: 'start' | 'pause' | 'resume' | 'retry' }
+  | { kind: 'error'; action: 'start' | 'pause' | 'resume' | 'retry'; message: string };
 
 function messageFromUnknown(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -108,6 +108,10 @@ export class LoopTabResource implements TabResource {
     return this.runAction('pause', () => this.port.pauseLoop(this.loopId));
   }
 
+  start(): Promise<void> {
+    return this.runAction('start', () => this.port.startLoop(this.loopId));
+  }
+
   resume(): Promise<void> {
     return this.runAction('resume', () => this.port.resumeLoop(this.loopId));
   }
@@ -143,7 +147,7 @@ export class LoopTabResource implements TabResource {
   }
 
   private async runAction(
-    action: 'pause' | 'resume' | 'retry',
+    action: 'start' | 'pause' | 'resume' | 'retry',
     request: () => Promise<LoopTabSnapshot>
   ): Promise<void> {
     if (this.disposed || this.action.kind === 'pending') return;

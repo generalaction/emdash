@@ -165,6 +165,11 @@ export class RpcLoopAuthoringPort implements LoopAuthoringPort {
     };
   }
 
+  async startLoop(loopId: string): Promise<LoopTabSnapshot> {
+    const { rpc } = await import('@renderer/lib/ipc');
+    return unwrapLoop(rpc.loops.startLoop(loopId));
+  }
+
   async pauseLoop(loopId: string): Promise<LoopTabSnapshot> {
     const { rpc } = await import('@renderer/lib/ipc');
     return unwrapLoop(rpc.loops.pauseLoop(loopId));

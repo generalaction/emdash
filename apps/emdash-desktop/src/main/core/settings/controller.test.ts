@@ -7,6 +7,10 @@ vi.mock('@main/core/loops/loop-service', () => ({
   loopService: { reconcileEnabledState: vi.fn() },
 }));
 
+vi.mock('@main/app/window', () => ({
+  applyNativeTheme: vi.fn(),
+}));
+
 vi.mock('./settings-service', () => ({
   appSettingsService: {
     get: vi.fn(),

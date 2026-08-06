@@ -61,6 +61,7 @@ export type LoopTabEvent =
 export interface LoopAuthoringPort {
   loadLoop(loopId: string): Promise<LoopTabSnapshot>;
   subscribeToLoop(loopId: string, listener: (event: LoopTabEvent) => void): () => void;
+  startLoop(loopId: string): Promise<LoopTabSnapshot>;
   pauseLoop(loopId: string): Promise<LoopTabSnapshot>;
   resumeLoop(loopId: string): Promise<LoopTabSnapshot>;
   retryPhase(loopId: string, phaseId: string): Promise<LoopTabSnapshot>;

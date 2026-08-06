@@ -431,7 +431,7 @@ export function makeStartInput(
     cwd: '/tmp/workspace',
     sessionId: null,
     model: null,
-    taskEnvironment: {},
+    env: {},
     ...overrides,
   };
 }

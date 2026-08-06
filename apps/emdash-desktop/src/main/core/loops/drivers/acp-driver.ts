@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import type { AcpTurn } from '@emdash/core/acp';
-import { acpSessionManager } from '@main/core/acp/production-acp-session-manager';
+import type { TranscriptTurn } from '@emdash/core/acp';
+import type { AcpRuntime } from '@emdash/runtime/acp-agents';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { getConversationsForTask } from '@main/core/conversations/getConversationsForTask';
+import { setSessionId } from '@main/core/conversations/set-session-id';
 import { err, ok, type Result } from '@main/lib/result';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { resolveLoopModel, resolveLoopProvider } from '@shared/core/loops/loops';
+import { getLoopAcpRuntime } from './acp-loop-runtime';
 import {
   phaseConversationTitle,
   verificationConversationTitle,
@@ -17,6 +19,10 @@ import {
   type StartPhaseSessionContext,
   type StartVerificationSessionContext,
 } from './session-driver';
+
+type ActiveLoopSession = { runtime: AcpRuntime };
+
+const activeSessions = new Map<string, ActiveLoopSession>();
 
 function isMeaningfulMessage(message: string): boolean {
   const normalized = message.trim().toLowerCase();
@@ -45,30 +51,72 @@ function errorMessage(error: unknown, fallback = 'ACP loop request failed'): str
   return fallback;
 }
 
-function assistantTextFromTurn(turn: AcpTurn): string {
-  return turn.updates
-    .map(({ update }) =>
-      update.kind === 'message' && update.role === 'assistant' ? update.text : ''
-    )
+function assistantTextFromTurn(turn: TranscriptTurn): string {
+  return turn.items
+    .map((item) => (item.kind === 'message' && item.role === 'assistant' ? item.text : ''))
     .filter(Boolean)
     .join('');
 }
 
-function finalAssistantText(conversationId: string): string {
-  const history = acpSessionManager.getChatHistory(conversationId);
-  for (let index = history.turns.length - 1; index >= 0; index -= 1) {
-    const text = assistantTextFromTurn(history.turns[index]!);
+function finalAssistantText(runtime: AcpRuntime, conversationId: string): string {
+  const history = runtime.getChatHistory(conversationId).committed;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const text = assistantTextFromTurn(history[index]!);
     if (text.trim()) return text;
   }
   return '';
+}
+
+async function startRuntime(
+  conversation: Conversation,
+  ctx: StartPhaseSessionContext | StartVerificationSessionContext
+): Promise<Result<void, LoopSessionDriverError>> {
+  let runtime: AcpRuntime;
+  try {
+    runtime = await getLoopAcpRuntime(ctx.target.machine);
+  } catch (error) {
+    return err({
+      kind: 'hydrate-failed',
+      message: errorMessage(error, 'Failed to initialize targeted ACP runtime'),
+    });
+  }
+
+  const started = await runtime.startSession({
+    conversationId: conversation.id,
+    projectId: conversation.projectId,
+    taskId: conversation.taskId,
+    providerId: conversation.providerId,
+    workspaceId: ctx.target.workspaceId,
+    cwd: ctx.target.path,
+    sessionId: conversation.sessionId ?? null,
+    model: conversation.model ?? null,
+    env: { ...ctx.taskEnvironment },
+  });
+  if (!started.success) {
+    return err({
+      kind: 'hydrate-failed',
+      message: errorMessage(started.error, 'Failed to start targeted ACP conversation'),
+    });
+  }
+
+  const persisted = await setSessionId(conversation.id, started.data.sessionId);
+  if (!persisted.success) {
+    runtime.stopSession(conversation.id);
+    return err({
+      kind: 'hydrate-failed',
+      message: errorMessage(persisted.error, 'Failed to persist targeted ACP session'),
+    });
+  }
+
+  activeSessions.set(conversation.id, { runtime });
+  return ok();
 }
 
 async function startConversation(
   ctx: StartPhaseSessionContext | StartVerificationSessionContext,
   title: string
 ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
-  let conversationId = '';
-  let conversation: Conversation | null = null;
+  let conversation: Conversation;
   const provider = resolveLoopProvider(ctx.loop.config);
   const model = resolveLoopModel(ctx.loop.config) ?? undefined;
 
@@ -83,8 +131,6 @@ async function startConversation(
       type: 'acp',
       model,
     });
-    conversationId = conversation.id;
-    acpSessionManager.registerPermissionAutoApproval(conversationId);
   } catch (error) {
     return err({
       kind: 'create-failed',
@@ -92,37 +138,24 @@ async function startConversation(
     });
   }
 
-  if (!conversation) {
-    return err({ kind: 'create-failed', message: 'Conversation was not created' });
-  }
-
-  const started = await acpSessionManager.start(
-    conversation,
-    ctx.target.workspaceId,
-    ctx.target.path,
-    ctx.target.machine,
-    undefined,
-    ctx.taskEnvironment
-  );
-  if (!started.success) {
-    return err({
-      kind: 'hydrate-failed',
-      message: errorMessage(started.error, 'Failed to start targeted ACP conversation'),
-    });
-  }
-
-  return ok({ conversationId, title });
+  const started = await startRuntime(conversation, ctx);
+  if (!started.success) return started;
+  return ok({ conversationId: conversation.id, title });
 }
 
 async function restartVerificationConversation(
   ctx: RestartVerificationSessionContext
 ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
-  const stopped = acpSessionManager.stop(ctx.conversationId);
-  if (!stopped.success) {
-    return err({
-      kind: 'cancel-failed',
-      message: errorMessage(stopped.error, 'Failed to stop stalled ACP verification runtime'),
-    });
+  const active = activeSessions.get(ctx.conversationId);
+  if (active) {
+    const stopped = active.runtime.stopSession(ctx.conversationId);
+    if (!stopped.success) {
+      return err({
+        kind: 'cancel-failed',
+        message: errorMessage(stopped.error, 'Failed to stop stalled ACP verification runtime'),
+      });
+    }
+    activeSessions.delete(ctx.conversationId);
   }
 
   let conversation: Conversation | undefined;
@@ -142,26 +175,38 @@ async function restartVerificationConversation(
     });
   }
 
-  acpSessionManager.registerPermissionAutoApproval(ctx.conversationId);
-  const started = await acpSessionManager.start(
-    conversation,
-    ctx.target.workspaceId,
-    ctx.target.path,
-    ctx.target.machine,
-    undefined,
-    ctx.taskEnvironment
-  );
-  if (!started.success) {
-    return err({
-      kind: 'hydrate-failed',
-      message: errorMessage(started.error, 'Failed to restart stalled ACP verification runtime'),
-    });
-  }
-
+  const started = await startRuntime(conversation, ctx);
+  if (!started.success) return started;
   return ok({
     conversationId: ctx.conversationId,
     title: verificationConversationTitle(ctx.loop, ctx.phase, ctx.purpose),
   });
+}
+
+function autoApprovePendingPermissions(runtime: AcpRuntime, conversationId: string): void {
+  for (const request of runtime.getSessionState(conversationId).pendingPermissions) {
+    const option =
+      request.options.find((candidate) => candidate.kind === 'allow_always') ??
+      request.options.find((candidate) => candidate.kind === 'allow_once') ??
+      request.options.find((candidate) =>
+        /allow/i.test(`${candidate.optionId} ${candidate.name}`)
+      ) ??
+      request.options[0];
+    if (option) runtime.resolvePermission(conversationId, request.requestId, option.optionId);
+  }
+}
+
+async function promptWithAutoApproval(runtime: AcpRuntime, conversationId: string, text: string) {
+  let settled = false;
+  const prompt = runtime.sendPrompt(conversationId, { text }).finally(() => {
+    settled = true;
+  });
+
+  while (!settled) {
+    autoApprovePendingPermissions(runtime, conversationId);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return prompt;
 }
 
 export const acpLoopSessionDriver: LoopSessionDriver = {
@@ -170,8 +215,7 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
   async startPhaseSession(
     ctx: StartPhaseSessionContext
   ): Promise<Result<LoopSessionInfo, LoopSessionDriverError>> {
-    const title = phaseConversationTitle(ctx.loop, ctx.phase, ctx.purpose);
-    return startConversation(ctx, title);
+    return startConversation(ctx, phaseConversationTitle(ctx.loop, ctx.phase, ctx.purpose));
   },
 
   async startVerificationSession(
@@ -186,23 +230,28 @@ export const acpLoopSessionDriver: LoopSessionDriver = {
     conversationId: string,
     text: string
   ): Promise<Result<PromptResult, LoopSessionDriverError>> {
-    acpSessionManager.registerPermissionAutoApproval(conversationId);
+    const active = activeSessions.get(conversationId);
+    if (!active) {
+      return err({
+        kind: 'prompt-failed',
+        message: 'ACP conversation is not running in its targeted Loop runtime',
+      });
+    }
 
-    const result = await acpSessionManager.prompt(conversationId, text, undefined, {
-      requireRuntime: true,
-    });
+    const result = await promptWithAutoApproval(active.runtime, conversationId, text);
     if (!result.success) {
       return err({
         kind: 'prompt-failed',
         message: errorMessage(result.error, 'ACP prompt failed'),
       });
     }
-
-    return ok({ finalText: finalAssistantText(conversationId) });
+    return ok({ finalText: finalAssistantText(active.runtime, conversationId) });
   },
 
   async cancelPrompt(conversationId: string): Promise<Result<void, LoopSessionDriverError>> {
-    const result = await acpSessionManager.cancel(conversationId, { requireRuntime: true });
+    const active = activeSessions.get(conversationId);
+    if (!active) return ok();
+    const result = await active.runtime.cancelTurn(conversationId);
     if (!result.success) {
       return err({
         kind: 'cancel-failed',

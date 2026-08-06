@@ -284,6 +284,14 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Show or hide detected "Open in" apps in menus.',
     keywords: ['open in', 'editor', 'hidden tools'],
   },
+  // Experimental
+  {
+    id: 'loops',
+    label: 'Loops',
+    tab: 'experimental',
+    description: 'Run implementation plans as resumable, verified agent phases.',
+    keywords: ['agent', 'plan', 'phases', 'automation', 'acp'],
+  },
   // Browser
   {
     id: 'default-browser-profile',

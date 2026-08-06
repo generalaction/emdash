@@ -3,7 +3,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultLoopPlanDraft } from '@renderer/features/loops/loop-plan-model';
-import type { InitialConversationState } from '../conversations/initial-conversation-section';
+import type { InitialConversationState } from '../task-config/initial-conversation-section';
 import { useCreateTaskCallback } from './use-create-task-callback';
 import type { CreateTaskState } from './use-create-task-state';
 
@@ -31,6 +31,8 @@ function initialConversation(): InitialConversationState {
     setPrompt: () => {},
     issueContext: null,
     setIssueContext: () => {},
+    issueMentionContexts: {},
+    setIssueMentionContext: () => {},
     autoApprove: true,
     setAutoApprove: () => {},
     issueContextEditorOpen: false,
