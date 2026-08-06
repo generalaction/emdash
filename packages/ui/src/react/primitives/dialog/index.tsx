@@ -6,7 +6,7 @@ import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './dialog.css';
 
-export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 // ── Root parts ────────────────────────────────────────────────────────────────
 
