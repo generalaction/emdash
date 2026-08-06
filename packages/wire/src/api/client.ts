@@ -1,5 +1,5 @@
 import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import { retry as retryOperation, retrySchedules } from '@emdash/shared/scheduling';
+import { retry as retryOperation } from '@emdash/shared/scheduling';
 import { eventFromUpdate } from '../live/event-stream';
 import { createMutationId, type LiveMutationResult } from '../live/mutations';
 import type {
@@ -9,6 +9,7 @@ import type {
   LiveSource,
   LiveUpdate,
 } from '../live/protocol';
+import type { BackoffSchedule } from '../util/backoff';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,
@@ -55,16 +56,18 @@ import { encodeTopic } from './topics';
 
 export type MutationCallOptions = {
   signal?: AbortSignal;
+  timeoutMs?: number;
   mutationId?: string;
-  retry?:
-    | false
-    | {
-        maxRetries?: number;
-        delayMs?: number;
-      };
+  /**
+   * Explicit opt-in retry on `DISCONNECTED`/`TIMEOUT` rejections. There is no
+   * automatic retry; mutation ids keep opted-in retries idempotent.
+   */
+  retry?: {
+    schedule: BackoffSchedule;
+  };
 };
 
-export type ProcedureCallOptions = Pick<CallOptions, 'signal'>;
+export type ProcedureCallOptions = Pick<CallOptions, 'signal' | 'timeoutMs'>;
 export type FileUploadCallOptions = ProcedureCallOptions & {
   onProgress?: (progress: { sent: number; total?: number }) => void;
 };
@@ -391,30 +394,22 @@ async function callMutationWithRetry(
   mutationId: string,
   options: MutationCallOptions
 ): Promise<unknown> {
-  const retryOptions = normalizeRetry(options.retry);
-  return await retryOperation(
-    () => connection.call(path, addMutationId(input, mutationId), { signal: options.signal }),
-    {
+  const call = (): Promise<unknown> =>
+    connection.call(path, addMutationId(input, mutationId), {
       signal: options.signal,
-      schedule: retrySchedules.fixed(retryOptions.delayMs, retryOptions.maxRetries),
-      shouldRetry: shouldRetryMutation,
-    }
-  );
-}
-
-function normalizeRetry(retry: MutationCallOptions['retry']): {
-  maxRetries: number;
-  delayMs: number;
-} {
-  if (retry === false) return { maxRetries: 0, delayMs: 0 };
-  return {
-    maxRetries: retry?.maxRetries ?? 2,
-    delayMs: retry?.delayMs ?? 0,
-  };
+      timeoutMs: options.timeoutMs,
+    });
+  const retry = options.retry;
+  if (!retry) return call();
+  return await retryOperation(call, {
+    signal: options.signal,
+    schedule: retry.schedule,
+    shouldRetry: shouldRetryMutation,
+  });
 }
 
 function shouldRetryMutation(error: unknown): boolean {
-  return error instanceof WireError && error.code === 'DISCONNECTED';
+  return error instanceof WireError && (error.code === 'DISCONNECTED' || error.code === 'TIMEOUT');
 }
 
 function createRequestId(): string {

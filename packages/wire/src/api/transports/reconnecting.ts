@@ -1,14 +1,13 @@
 import type { Unsubscribe } from '@emdash/shared';
-import { createBoundedBuffer, createScope, type Scope } from '@emdash/shared/concurrency';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { backoffSchedule, type BackoffSchedule } from '../../util/backoff';
-import type { WireMessage, WireTransport } from '../protocol';
+import { WireError, type WireMessage, type WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {
   backoffMs?: number[];
   clock?: Clock;
   retrySchedule?: BackoffSchedule;
-  maxQueuedMessages?: number;
   /** Return false for failures, such as a protocol mismatch, that retries cannot repair. */
   shouldRetry?: (error: unknown, context: ReconnectFailureContext) => boolean;
 };
@@ -24,6 +23,7 @@ export type ReconnectingTransport = WireTransport & {
   /** Resolves when the current physical connection has passed connectOnce readiness. */
   ready(): Promise<void>;
   onReconnect(cb: () => void): Unsubscribe;
+  onTerminalFailure(cb: (error: unknown) => void): Unsubscribe;
   close(): void;
 };
 
@@ -34,6 +34,13 @@ type Readiness = {
   reject(error: unknown): void;
 };
 
+/**
+ * Restores connectivity with backoff and reports it — nothing more. Robustness
+ * for calls issued while disconnected (holding, deadlines, overflow) is owned
+ * by the Connection; this transport throws on `post` while down and signals
+ * `onReconnect` on every established connection and `onTerminalFailure` when
+ * reconnecting is permanently abandoned.
+ */
 export function reconnectingTransport(
   connectOnce: () => Promise<WireTransport>,
   options: ReconnectingTransportOptions = {}
@@ -43,14 +50,10 @@ export function reconnectingTransport(
   const messageListeners = new Set<(message: WireMessage) => void>();
   const disconnectListeners = new Set<() => void>();
   const reconnectListeners = new Set<() => void>();
+  const terminalFailureListeners = new Set<(error: unknown) => void>();
   const backoffMs = options.backoffMs ?? [100, 250, 500, 1000, 2000];
   const retrySchedule =
     options.retrySchedule ?? backoffSchedule({ delaysMs: backoffMs, repeatLast: true });
-  const maxQueuedMessages = Math.max(0, options.maxQueuedMessages ?? 1000);
-  const queue = createBoundedBuffer<WireMessage>({
-    capacity: maxQueuedMessages,
-    overflow: 'drop-oldest',
-  });
   let inner: WireTransport | null = null;
   let reconnecting = false;
   let closed = false;
@@ -87,14 +90,12 @@ export function reconnectingTransport(
             break;
           }
           setInner(next);
-          const isReconnect = hasConnected;
           reconnecting = false;
           activeReconnect = undefined;
-          flushQueue();
           if (inner !== next || closed) return;
           hasConnected = true;
           readiness.resolve();
-          if (isReconnect) notifyReconnect();
+          notifyReconnect();
           return;
         } catch (error) {
           if (closed || signal.aborted) break;
@@ -154,28 +155,6 @@ export function reconnectingTransport(
     );
   }
 
-  function flushQueue(): void {
-    const current = inner;
-    if (!current) return;
-    while (queue.size > 0) {
-      const message = queue.take();
-      if (!message) return;
-      try {
-        current.post(message);
-      } catch {
-        queue.requeueFront(message);
-        inner = null;
-        void reconnect();
-        return;
-      }
-    }
-  }
-
-  function enqueue(message: WireMessage): void {
-    if (isBlobChannelMessage(message)) return;
-    queue.offer(message);
-  }
-
   function notifyReconnect(): void {
     for (const listener of reconnectListeners) listener();
   }
@@ -183,8 +162,8 @@ export function reconnectingTransport(
   function failPermanently(error: unknown): void {
     terminal = true;
     terminalError = error;
-    queue.clear();
     readiness.reject(error);
+    for (const listener of terminalFailureListeners) listener(error);
   }
 
   function resetReadiness(): void {
@@ -194,15 +173,28 @@ export function reconnectingTransport(
 
   return {
     post(message) {
-      if (closed) throw new Error('Wire transport closed');
-      if (terminal) throw terminalError;
+      if (closed) throw new WireError('DISCONNECTED', 'Reconnecting transport closed');
+      if (terminal) {
+        throw new WireError('DISCONNECTED', 'Reconnecting transport failed permanently', {
+          cause: terminalError,
+        });
+      }
       const current = inner;
       if (!current) {
-        enqueue(message);
         void reconnect();
-        return;
+        throw new WireError('DISCONNECTED', 'Reconnecting transport is not connected');
       }
-      current.post(message);
+      try {
+        current.post(message);
+      } catch (error) {
+        if (inner === current) {
+          inner = null;
+          resetReadiness();
+          for (const listener of disconnectListeners) listener();
+          if (!closed) void reconnect();
+        }
+        throw error;
+      }
     },
     onMessage(cb): Unsubscribe {
       messageListeners.add(cb);
@@ -216,6 +208,11 @@ export function reconnectingTransport(
       reconnectListeners.add(cb);
       return () => reconnectListeners.delete(cb);
     },
+    onTerminalFailure(cb): Unsubscribe {
+      if (terminal) cb(terminalError);
+      terminalFailureListeners.add(cb);
+      return () => terminalFailureListeners.delete(cb);
+    },
     ready() {
       if (closed) return Promise.reject(new Error('Wire transport closed'));
       return readiness.promise;
@@ -223,15 +220,17 @@ export function reconnectingTransport(
     close() {
       if (closed) return;
       closed = true;
-      void scope.dispose(new Error('Reconnecting transport closed'));
+      const closeError = new Error('Reconnecting transport closed');
+      void scope.dispose(closeError);
       for (const cleanup of cleanupInner.splice(0)) cleanup();
       inner?.close?.();
       inner = null;
-      queue.clear();
-      readiness.reject(new Error('Reconnecting transport closed'));
+      readiness.reject(closeError);
+      for (const listener of terminalFailureListeners) listener(closeError);
       messageListeners.clear();
       disconnectListeners.clear();
       reconnectListeners.clear();
+      terminalFailureListeners.clear();
     },
   };
 }
@@ -259,8 +258,4 @@ function createReadiness(): Readiness {
   });
   void readiness.promise.catch(() => {});
   return readiness;
-}
-
-function isBlobChannelMessage(message: WireMessage): boolean {
-  return message.kind.startsWith('blob-');
 }

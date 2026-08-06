@@ -14,10 +14,10 @@ type ActiveGeneration = {
 export class WorkerLink implements WireTransport {
   private active: ActiveGeneration | undefined;
   private closed = false;
-  private hasConnected = false;
   private readonly messageEmitter = new Emitter<WireMessage>();
   private readonly disconnectEmitter = new Emitter<void>();
   private readonly reconnectEmitter = new Emitter<void>();
+  private readonly terminalFailureEmitter = new Emitter<unknown>();
   private readonly readyEmitter = new Emitter<number>();
 
   post(message: WireMessage): void {
@@ -42,6 +42,11 @@ export class WorkerLink implements WireTransport {
 
   onReconnect(cb: () => void): Unsubscribe {
     return this.reconnectEmitter.subscribe(cb);
+  }
+
+  onTerminalFailure(cb: (error: unknown) => void): Unsubscribe {
+    if (this.closed) cb(new Error('Wire worker link closed'));
+    return this.terminalFailureEmitter.subscribe(cb);
   }
 
   onReady(cb: (generation: number) => void): Unsubscribe {
@@ -77,11 +82,9 @@ export class WorkerLink implements WireTransport {
     const active = this.active;
     if (!active || active.generation !== generation || this.closed) return;
     active.ready = true;
-    if (this.hasConnected) {
-      this.reconnectEmitter.emit();
-    } else {
-      this.hasConnected = true;
-    }
+    // Every readiness — first start and restarts alike — reports connectivity,
+    // so the connection can flush calls held while the worker was down.
+    this.reconnectEmitter.emit();
   }
 
   detach(generation: number, _exit?: ProcessExit): void {
@@ -96,9 +99,11 @@ export class WorkerLink implements WireTransport {
     this.closed = true;
     this.active = undefined;
     this.disconnectEmitter.emit();
+    this.terminalFailureEmitter.emit(new Error('Wire worker link closed'));
     this.messageEmitter.clear();
     this.disconnectEmitter.clear();
     this.reconnectEmitter.clear();
+    this.terminalFailureEmitter.clear();
     this.readyEmitter.clear();
   }
 }

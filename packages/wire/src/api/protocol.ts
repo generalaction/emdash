@@ -138,7 +138,20 @@ export type WireTransport = {
   post(message: WireMessage): void;
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
+  /**
+   * Fires whenever the transport establishes connectivity, including the first
+   * time. Presence of this hook marks the transport as reconnect-capable and
+   * opts connections into holding calls issued while disconnected until the
+   * next reconnect or their deadline; transports without it fail such calls
+   * immediately.
+   */
   onReconnect?(cb: () => void): Unsubscribe;
+  /**
+   * Fires once when the transport gives up permanently (reconnect abandoned or
+   * the transport closed), carrying the cause. Connections reject all held and
+   * future calls with a `WireError('DISCONNECTED')` wrapping it.
+   */
+  onTerminalFailure?(cb: (error: unknown) => void): Unsubscribe;
   close?(): void;
 };
 

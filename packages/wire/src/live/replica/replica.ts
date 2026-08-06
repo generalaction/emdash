@@ -61,8 +61,8 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
           scope.add(() => replica.dispose());
           return replica;
         },
-        mutate(name, envelope) {
-          return runReplicaMutation(name, envelope);
+        mutate(name, envelope, callOptions) {
+          return runReplicaMutation(name, envelope, callOptions);
         },
       });
       await instance.ready;
@@ -97,7 +97,8 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
       key: LiveModelKey<Group>;
       input: unknown;
       mutationId: string;
-    }
+    },
+    callOptions?: MutationCallOptions
   ): Promise<
     LiveMutationResult<
       MutationData<Group['mutations'][Name]>,
@@ -114,7 +115,7 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
           input: envelope.input as never,
           mutationId: envelope.mutationId,
         },
-        { mutationId: envelope.mutationId } satisfies MutationCallOptions
+        { ...callOptions, mutationId: envelope.mutationId } satisfies MutationCallOptions
       )) as LiveMutationResult<
         MutationData<Group['mutations'][Name]>,
         MutationError<Group['mutations'][Name]>

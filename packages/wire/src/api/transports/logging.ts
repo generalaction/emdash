@@ -11,7 +11,7 @@ export function loggingTransport(
   logger: Logger,
   options: LoggingTransportOptions = {}
 ): WireTransport {
-  return {
+  const wrapped: WireTransport = {
     post(message) {
       logger.debug('wire protocol send', describeMessage(message, options));
       transport.post(message);
@@ -28,19 +28,30 @@ export function loggingTransport(
         cb();
       });
     },
-    onReconnect(cb) {
-      return (
-        transport.onReconnect?.(() => {
-          logger.debug('wire protocol reconnected');
-          cb();
-        }) ?? (() => {})
-      );
-    },
     close() {
       logger.debug('wire protocol closing');
       transport.close?.();
     },
   };
+  // Only mirror the optional capabilities the inner transport actually has;
+  // connections sniff `onReconnect` to decide hold-until-deadline behavior.
+  const innerOnReconnect = transport.onReconnect?.bind(transport);
+  if (innerOnReconnect) {
+    wrapped.onReconnect = (cb) =>
+      innerOnReconnect(() => {
+        logger.debug('wire protocol reconnected');
+        cb();
+      });
+  }
+  const innerOnTerminalFailure = transport.onTerminalFailure?.bind(transport);
+  if (innerOnTerminalFailure) {
+    wrapped.onTerminalFailure = (cb) =>
+      innerOnTerminalFailure((error) => {
+        logger.debug('wire protocol failed permanently');
+        cb(error);
+      });
+  }
+  return wrapped;
 }
 
 function describeMessage(

@@ -72,6 +72,7 @@ export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<
       options.definition.supervision ?? options.defaultSupervision ?? DEFAULT_WORKER_SUPERVISION;
     this.connection = connect(this.link, {
       instrumentation: options.definition.instrumentation,
+      clock: this.clock,
     });
     this.stableClient = createClient(options.definition.contract, this.connection);
     options.scope.add(() => this.dispose());

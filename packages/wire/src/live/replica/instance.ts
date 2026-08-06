@@ -76,7 +76,8 @@ export function buildReplicaInstance<Group extends LiveModelDef>(
         key: LiveModelKey<Group>;
         input: unknown;
         mutationId: string;
-      }
+      },
+      options?: MutationCallOptions
     ): Promise<
       LiveMutationResult<
         MutationData<LiveModelMutations<Group>[Name]>,
@@ -98,7 +99,7 @@ export function buildReplicaInstance<Group extends LiveModelDef>(
       callOptions: MutationCallOptions = {}
     ): Promise<ContractMutationInvocation<unknown, unknown>> => {
       const mutationId = callOptions.mutationId ?? createMutationId();
-      const result = await opts.mutate(name as never, { key, input, mutationId });
+      const result = await opts.mutate(name as never, { key, input, mutationId }, callOptions);
       return {
         result,
         settled: result.success

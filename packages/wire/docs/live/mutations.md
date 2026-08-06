@@ -126,18 +126,19 @@ const sessionsHost = createLiveModelHost(api.session, {
 const withoutDedupe = createLiveModelHost(api.session, { idempotency: false });
 ```
 
-The client retries `DISCONNECTED` mutation calls with the same `mutationId` by
-default:
+The client never retries mutations automatically. Callers opt in per call with
+an explicit backoff schedule; retries reuse the same `mutationId`, so the
+server-side cache deduplicates them:
 
 ```ts
 await session.addNote(input, {
   mutationId: 'add-note-1',
-  retry: { maxRetries: 1 },
+  retry: { schedule: backoffSchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
 });
 ```
 
-Set `retry: false` to disable retries for a specific call. Retries never happen
-for `CANCELLED` errors.
+Opted-in retries fire only for `DISCONNECTED` and `TIMEOUT` errors; they never
+happen for `CANCELLED` errors.
 
 The cache is process-local and temporary. It provides at-most-once behavior
 within one server process lifetime, not durable exactly-once semantics. If a

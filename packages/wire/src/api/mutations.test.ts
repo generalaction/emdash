@@ -7,6 +7,7 @@ import type { WireInstrumentation } from '../observability';
 import { expose } from '../state/bridge/expose';
 import { cell, snapshot } from '../state/core';
 import { createTestWire } from '../testing';
+import { backoffSchedule } from '../util/backoff';
 import type { LiveModelClientHandle } from './client';
 import { client } from './client';
 import { connect } from './connect';
@@ -153,7 +154,10 @@ describe('live model group mutations', () => {
 
     const invocation = counter.mutations.bump(
       { touchRight: false },
-      { mutationId: 'retry-mutation', retry: { maxRetries: 1 } }
+      {
+        mutationId: 'retry-mutation',
+        retry: { schedule: backoffSchedule({ delaysMs: [0], maxRetries: 1 }) },
+      }
     );
     await waitFor(() => handlerCalls === 1 && currentPair !== undefined);
     currentPair?.disconnect();

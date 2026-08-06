@@ -8,6 +8,7 @@ type WireTransport = {
   onMessage(cb: (message: WireMessage) => void): Unsubscribe;
   onDisconnect(cb: () => void): Unsubscribe;
   onReconnect?(cb: () => void): Unsubscribe;
+  onTerminalFailure?(cb: (error: unknown) => void): Unsubscribe;
   close?(): void;
 };
 ```
@@ -15,11 +16,16 @@ type WireTransport = {
 The same `serve()`, `connect()`, and `client()` code works across every
 transport. Only construction changes.
 
-`onReconnect` is optional and should fire only after a replacement link is live.
-`connect()` uses it to re-attach live topics; replicas then force a fresh
-snapshot. `close()` releases listeners registered by the adapter. It closes the
-underlying channel only when the adapter owns a closeable channel, such as a
-`MessagePort`.
+`onReconnect` is optional and fires whenever the transport establishes
+connectivity, including the first time. Its presence marks the transport as
+reconnect-capable: `connect()` then holds calls issued while disconnected until
+the next reconnect or the call deadline, and re-attaches live topics after each
+reconnect; replicas then force a fresh snapshot. Transports without it fail
+calls immediately while disconnected. `onTerminalFailure` fires once when the
+transport gives up permanently; `connect()` rejects all held and future calls
+with a `WireError('DISCONNECTED')` carrying the cause. `close()` releases
+listeners registered by the adapter. It closes the underlying channel only when
+the adapter owns a closeable channel, such as a `MessagePort`.
 
 ## Memory
 
@@ -123,7 +129,7 @@ const transport = reconnectingTransport(
     const pair = await openRemoteWirePair();
     return pair.left;
   },
-  { backoffMs: [100, 250, 500, 1000], maxQueuedMessages: 1000 }
+  { backoffMs: [100, 250, 500, 1000] }
 );
 
 await transport.ready();
@@ -160,36 +166,34 @@ await transport.ready();
 const stableClient = client(api, connect(transport));
 ```
 
-This ordering guarantees that queued calls and live-topic reattachments cannot
+This ordering guarantees that held calls and live-topic reattachments cannot
 overtake an application handshake. Wire itself remains version-agnostic; the
 application owns the handshake contract and permanent-error classification.
 
-Messages posted while no ready inner transport exists are queued. When an inner
-transport disconnects, listeners are notified, readiness resets, and reconnection
-starts. The queue uses the shared bounded-buffer core with drop-oldest semantics;
-`maxQueuedMessages` defaults to `1000`. Blob-channel frames are never queued across
-reconnects because stale credit, chunks, or close frames cannot be safely replayed.
-Applications must account for the fact that a dropped queued request cannot produce
-a result; use cancellation/deadlines and avoid issuing unbounded calls while the
-transport is not ready.
+The reconnecting transport does not queue messages. `post()` while no ready
+inner transport exists throws a `WireError('DISCONNECTED')`; robustness is
+owned entirely by `connect()`, which holds calls issued while disconnected
+until the next reconnect or the call deadline. When an inner transport
+disconnects, listeners are notified, readiness resets, and reconnection starts.
 
-`ready()` resolves after the current `connectOnce` succeeds, its candidate is
-installed, and queued messages are flushed. After a disconnect, a new call to
-`ready()` waits for the replacement generation. A previously resolved readiness
-promise does not become pending again, so disconnect observers should call
-`ready()` after receiving the disconnect event.
+`ready()` resolves after the current `connectOnce` succeeds and its candidate is
+installed. After a disconnect, a new call to `ready()` waits for the replacement
+generation. A previously resolved readiness promise does not become pending
+again, so disconnect observers should call `ready()` after receiving the
+disconnect event.
 
 `shouldRetry(error, { attempt, isReconnect })` classifies factory or handshake
 failures. Returning `false`, or exhausting a finite `retrySchedule`, permanently
-stops that transport and rejects its current readiness promise. Future `post()`
-calls fail with the terminal error. By default, failures remain retryable under the
-configured schedule.
+stops that transport, rejects its current readiness promise, and fires
+`onTerminalFailure` with the terminal error. Future `post()` calls fail with the
+terminal error. By default, failures remain retryable under the configured
+schedule.
 
-`onReconnect` fires only after a replacement inner transport reaches readiness and
-queued messages are flushed. `Connection` listens for that signal and re-issues
-active `attach` requests; replicas refresh their snapshots after reattach.
-`close()` stops the retry loop, closes the current inner
-transport if present, and clears queued messages and listeners.
+`onReconnect` fires whenever an inner transport reaches readiness, including
+the first one. `Connection` listens for that signal to flush held calls and
+re-issue active `attach` requests; replicas refresh their snapshots after
+reattach. `close()` stops the retry loop, closes the current inner transport if
+present, fires `onTerminalFailure`, and clears listeners.
 
 ## Logging Transport
 
@@ -217,12 +221,13 @@ down a runtime host so session hubs and controllers finish disposal before the
 worker or window bridge is replaced.
 
 `loggingTransport.close()` delegates to the wrapped transport, and
-`onReconnect()` is forwarded when the wrapped transport supports it.
+`onReconnect()`/`onTerminalFailure()` are forwarded when the wrapped transport
+supports them.
 
 Transport composition is ordinary function wrapping, so order matters:
 
 ```ts
-// Logs the stable outer endpoint, including queued frames and reconnect events.
+// Logs the stable outer endpoint, including reconnect events.
 const outerLogged = loggingTransport(reconnectingTransport(openTransport), logger);
 
 // Logs each concrete inner connection separately.

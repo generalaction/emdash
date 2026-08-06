@@ -208,14 +208,14 @@ describe('WireWorkerHost and WorkerSlot', () => {
     await worker.stop();
     expect(worker.state.kind).toBe('idle');
     const firstClient = await firstReady;
-    await expect(firstClient.ping('stopped')).rejects.toMatchObject({
-      code: 'DISCONNECTED',
-    });
+    // A call issued while stopped is held until the worker comes back.
+    const heldPing = firstClient.ping('stopped');
 
     const secondReady = worker.ready();
     await waitFor(() => spawner.processes.length === 2);
     void startChild(spawner.latest());
     const secondClient = await secondReady;
+    await expect(heldPing).resolves.toBe('pong:stopped');
     await expect(secondClient.ping('again')).resolves.toBe('pong:again');
 
     await host.dispose();
