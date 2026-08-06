@@ -2,6 +2,7 @@ import type { Logger } from '@emdash/shared/logger';
 import { initProcessLogging } from '@emdash/shared/logger/node';
 import { startDevPerfInstruments } from '@emdash/shared/perf';
 import { WORKER_NAME_ENV_VAR } from '../types';
+import { installWorkerVitals } from './vitals';
 
 export function initWorkerProcessLogging(fallbackName: string): Logger {
   const logger = initProcessLogging({
@@ -9,5 +10,8 @@ export function initWorkerProcessLogging(fallbackName: string): Logger {
   });
   // Dev-only spawn/RSS reporting; a no-op unless debug logging is enabled.
   startDevPerfInstruments({ logger });
+  // Telemetry vitals: inert until the host sends a start message (sampled
+  // sessions only); no timers or instruments are created before then.
+  installWorkerVitals();
   return logger;
 }

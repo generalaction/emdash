@@ -22,6 +22,17 @@ export {
 } from './protocol';
 export { runWireComponentWorker, type RunWireComponentWorkerOptions } from './run-component-worker';
 export { WORKER_NAME_ENV_VAR } from './types';
+export {
+  createVitalsCollectingSpawner,
+  isWorkerVitalsReport,
+  isWorkerVitalsStart,
+  workerVitalsReport,
+  workerVitalsStart,
+  type CreateVitalsCollectingSpawnerOptions,
+  type VitalsCollectingSpawner,
+  type WorkerVitalsReport,
+  type WorkerVitalsStart,
+} from './vitals';
 export { DEFAULT_WORKER_SUPERVISION } from './worker-slot';
 export type {
   ProcessExit,

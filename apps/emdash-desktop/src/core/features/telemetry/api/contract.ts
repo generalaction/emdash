@@ -17,6 +17,7 @@ export const telemetryContract = defineContract({
         envDisabled: z.boolean(),
         userOptOut: z.boolean(),
         hasKeyAndHost: z.boolean(),
+        perf_sampled: z.boolean(),
         session_id: z.string().nullable(),
         instance_id: z.string().nullable(),
       }),

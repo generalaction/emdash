@@ -29,6 +29,8 @@ const isViteDevBuild = import.meta.env.DEV;
 const MAX_EVENT_TS_MS = 9_999_999_999_999;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_GENERIC_NUMBER = 1_000_000;
+/** Fraction of telemetry-enabled sessions that report performance vitals. */
+const PERF_SESSION_SAMPLE_RATE = 0.05;
 
 class DesktopTelemetryService implements Disposable, TelemetryServicePort {
   private enabled = true;
@@ -44,6 +46,7 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
   private cachedEmail: string | null = null;
   private cachedFeatureFlags: Record<string, boolean> = {};
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  private perfSampled = false;
   private appVersion = 'unknown';
   private isPackaged = false;
   private readonly kv = new KV<TelemetryKVSchema>('telemetry');
@@ -153,6 +156,34 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
       'duration_ms',
       'error_step',
       'error_code',
+      // Performance vitals (sampled sessions): numbers only, fixed key set.
+      'process_name',
+      'rss_mb',
+      'heap_used_mb',
+      'heap_total_mb',
+      'detached_contexts',
+      'cpu_percent',
+      'elu_percent',
+      'loop_delay_p95_ms',
+      'loop_delay_max_ms',
+      'interval_ms',
+      'spawns_git',
+      'spawns_fetch',
+      'spawns_tmux',
+      'spawns_probe',
+      'spawns_pty',
+      'spawns_agent',
+      'spawns_worker',
+      'spawns_shell',
+      'spawns_ssh',
+      'spawns_other',
+      'app_process_count',
+      'app_total_rss_mb',
+      'renderer_rss_mb',
+      'gpu_rss_mb',
+      'long_tasks',
+      'long_task_total_ms',
+      'inp_ms',
     ]);
     const passthroughProps = new Set([
       '$exception_message',
@@ -375,6 +406,12 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
     // sessionId is guaranteed non-undefined at this point (set to randomUUID() above).
     void this.kv.set('lastSessionId', this.sessionId!);
 
+    // Session-level perf-vitals sampling roll: decided once per session, only
+    // ever true when telemetry is fully enabled. Consumers (main vitals
+    // reporter, worker sampling activation, renderer observers) must create
+    // zero timers/observers when this is false.
+    this.perfSampled = this.isEnabled() && Math.random() < PERF_SESSION_SAMPLE_RATE;
+
     void this.posthogCapture('app_started');
     void this.checkDailyActiveUser();
 
@@ -460,9 +497,15 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
       envDisabled: isViteDevBuild || !this.enabled,
       userOptOut: this.userOptOut === true,
       hasKeyAndHost: !!this.apiKey && !!this.host,
+      perf_sampled: this.isPerfSampledSession(),
       session_id: this.sessionId ?? null,
       instance_id: this.instanceId ?? null,
     };
+  }
+
+  /** Whether this session reports performance vitals (implies telemetry is enabled). */
+  isPerfSampledSession(): boolean {
+    return this.perfSampled && this.isEnabled();
   }
 
   getInstanceId(): string | undefined {

@@ -34,7 +34,11 @@ import {
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { ContractClient } from '@emdash/wire/rpc';
-import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
+import {
+  createVitalsCollectingSpawner,
+  createWireWorkerHost,
+  type WireWorker,
+} from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app } from 'electron';
 import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
@@ -55,6 +59,7 @@ import { getAppDb } from '@main/db/instance';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import { refreshUserEnv } from '@main/lib/userEnv';
 import { desktopWorkerPath } from './worker-paths';
 
@@ -100,6 +105,11 @@ export type DesktopRuntimeWorkers = {
 export type DesktopWorkersHandle = {
   readonly clients: DesktopRuntimeClients;
   readonly workers: DesktopRuntimeWorkers;
+  /**
+   * Activate per-worker vitals self-sampling (telemetry-sampled sessions
+   * only). Reaches every live worker and any worker spawned later.
+   */
+  startVitalsSampling(intervalMs: number): void;
   dispose(): Promise<void>;
 };
 
@@ -112,13 +122,22 @@ export async function startDesktopWorkers(
   deps: StartDesktopWorkersDeps
 ): Promise<DesktopWorkersHandle> {
   const workerScope = deps.scope.child('wire-workers');
+  const vitalsSpawner = createVitalsCollectingSpawner(childProcessSpawner(), {
+    onReport: (workerName, vitals) => {
+      telemetryService.capture('perf_vitals', { process_name: `worker_${workerName}`, ...vitals });
+    },
+  });
   const host = createWireWorkerHost({
     scope: workerScope,
-    processSpawner: childProcessSpawner(),
+    processSpawner: vitalsSpawner,
     logger: log,
   });
   try {
-    return await startDesktopWorkersWithHost(deps, workerScope, host);
+    const handle = await startDesktopWorkersWithHost(deps, workerScope, host);
+    return {
+      ...handle,
+      startVitalsSampling: (intervalMs) => vitalsSpawner.startSampling(intervalMs),
+    };
   } catch (error) {
     await workerScope.dispose(error);
     throw error;
@@ -129,7 +148,7 @@ async function startDesktopWorkersWithHost(
   deps: StartDesktopWorkersDeps,
   workerScope: Scope,
   host: ReturnType<typeof createWireWorkerHost>
-): Promise<DesktopWorkersHandle> {
+): Promise<Omit<DesktopWorkersHandle, 'startVitalsSampling'>> {
   const hostDependencies = createHostDependenciesComponent({
     store: desktopKeyValueStore,
     exec: new NodeExecutionContext({ env: process.env, refreshShellEnv: refreshUserEnv }),

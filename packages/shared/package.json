@@ -77,6 +77,10 @@
       "types": "./dist/perf.d.mts",
       "default": "./dist/perf.mjs"
     },
+    "./perf/node": {
+      "types": "./dist/perf-node.d.mts",
+      "default": "./dist/perf-node.mjs"
+    },
     "./plugins": {
       "types": "./dist/plugins.d.mts",
       "default": "./dist/plugins.mjs"

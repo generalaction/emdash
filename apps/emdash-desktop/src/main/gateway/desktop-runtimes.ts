@@ -10,6 +10,8 @@ export type DesktopRuntimes = {
   readonly broker: RuntimeBroker;
   readonly clients: DesktopRuntimeClients;
   readonly workers: DesktopRuntimeWorkers;
+  /** Activate per-worker vitals self-sampling (telemetry-sampled sessions only). */
+  startWorkerVitalsSampling(intervalMs: number): void;
   dispose(): Promise<void>;
 };
 
@@ -23,6 +25,7 @@ export function desktopRuntimes(
     broker,
     clients: workers.clients,
     workers: workers.workers,
+    startWorkerVitalsSampling: (intervalMs) => workers.startVitalsSampling(intervalMs),
     dispose() {
       disposePromise ??= (async () => {
         try {

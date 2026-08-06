@@ -148,6 +148,45 @@ export type TelemetryEventProperties = {
   setting_changed: { setting: SettingName };
   sidebar_toggled: { side: 'left' | 'right'; state: 'open' | 'closed' };
 
+  /**
+   * Sampled-session performance vitals from the main process and workers.
+   * Numbers-only payload; `process_name` is a fixed process identifier
+   * (`main` or `worker_<name>`), never a path or command line.
+   */
+  perf_vitals: {
+    process_name: string;
+    rss_mb?: number;
+    heap_used_mb?: number;
+    heap_total_mb?: number;
+    detached_contexts?: number;
+    cpu_percent?: number;
+    elu_percent?: number;
+    loop_delay_p95_ms?: number;
+    loop_delay_max_ms?: number;
+    interval_ms?: number;
+    spawns_git?: number;
+    spawns_fetch?: number;
+    spawns_tmux?: number;
+    spawns_probe?: number;
+    spawns_pty?: number;
+    spawns_agent?: number;
+    spawns_worker?: number;
+    spawns_shell?: number;
+    spawns_ssh?: number;
+    spawns_other?: number;
+    app_process_count?: number;
+    app_total_rss_mb?: number;
+    renderer_rss_mb?: number;
+    gpu_rss_mb?: number;
+  };
+  /** Sampled-session renderer responsiveness vitals (long tasks + INP). */
+  perf_renderer_vitals: {
+    long_tasks: number;
+    long_task_total_ms: number;
+    inp_ms: number;
+    interval_ms: number;
+  };
+
   $exception: {
     $exception_message: string;
     $exception_type: string;
@@ -175,6 +214,8 @@ export type TelemetryStatus = {
   envDisabled: boolean;
   userOptOut: boolean;
   hasKeyAndHost: boolean;
+  /** True only when telemetry is enabled and this session won the perf-vitals sampling roll. */
+  perf_sampled: boolean;
   session_id: string | null;
   instance_id: string | null;
 };

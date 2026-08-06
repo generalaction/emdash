@@ -31,6 +31,7 @@ import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { getMementosWireClient } from '@renderer/lib/runtime/mementos-wire-client';
 import { log } from '@renderer/utils/logger';
+import { initRendererPerfVitals } from '@renderer/utils/perf-vitals';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';
 import { App } from './App';
@@ -51,6 +52,7 @@ async function bootstrap() {
   void appState.machines.start();
   initSoundPlayer();
   initNotificationDeliveryListener();
+  initRendererPerfVitals();
 
   // Stores may acquire memento spaces while project data loads, so initialize
   // the singleton before starting any store construction.
