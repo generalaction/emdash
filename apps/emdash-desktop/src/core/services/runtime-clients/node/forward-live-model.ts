@@ -1,5 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
-import type { LiveModelMutationEnvelope, LiveModelProvider } from '@emdash/wire';
+import type { LiveModelMutationEnvelope, LiveModelProvider } from '@emdash/wire/rpc';
 import type {
   LiveModelClientHandle,
   LiveModelDef,
@@ -9,7 +9,7 @@ import type {
   MutationData,
   MutationError,
   MutationInput,
-} from '@emdash/wire/api';
+} from '@emdash/wire/rpc';
 
 /**
  * Forwards a live-model contract to an upstream runtime's model, resolving the upstream

@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { gitContract } from '@runtimes/git/api';
 import { createGitController } from '@runtimes/git/node/api/controller';
 import { GitRuntime } from '@runtimes/git/node/git-runtime';

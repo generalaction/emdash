@@ -1,4 +1,4 @@
-import { defineContract, eventStream } from '@emdash/wire/api';
+import { defineContract, eventStream } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const watchKeySchema = z.object({

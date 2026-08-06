@@ -3,7 +3,7 @@ import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
-import type { WireInstrumentation } from '../../observability';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import type { LiveResyncFailurePolicy } from '../follower';
 import type { LiveJobState } from '../protocol';
 import { LiveStateClient, type LiveChangeMeta } from '../state';

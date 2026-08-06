@@ -1,4 +1,4 @@
-import { requestWirePort } from '@emdash/wire/api';
+import { requestWirePort } from '@emdash/wire/rpc';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 // Expose protected methods that allow the renderer process to use

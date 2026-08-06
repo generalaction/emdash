@@ -1,4 +1,4 @@
-import { peek } from '@emdash/wire';
+import { peek } from '@emdash/wire/state';
 import type { TuiAgentState } from '@runtimes/tui-agents/api';
 import {
   produceCell,

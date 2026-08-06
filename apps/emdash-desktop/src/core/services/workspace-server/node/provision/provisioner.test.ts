@@ -1,6 +1,6 @@
 import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
-import { snapshot } from '@emdash/wire';
+import { snapshot } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
 import { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';

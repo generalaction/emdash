@@ -8,7 +8,7 @@ import {
   type ContractDefinitions,
   type ContractImpl,
   type Controller,
-} from '@emdash/wire/api';
+} from '@emdash/wire/rpc';
 import type { EmdashAccountService } from '@core/features/account/node/services/emdash-account-service';
 import { createAccountWireController } from '@core/features/account/node/wire-controller';
 import { createAgentOperations } from '@core/features/agents/node/controller';

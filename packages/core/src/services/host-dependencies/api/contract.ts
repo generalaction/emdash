@@ -1,4 +1,11 @@
-import { defineContract, liveJob, liveModel, liveState, mutation, procedure } from '@emdash/wire';
+import {
+  defineContract,
+  liveJob,
+  liveModel,
+  liveState,
+  mutation,
+  procedure,
+} from '@emdash/wire/rpc';
 import {
   dependencyIdSchema,
   hostDependencyErrorSchema,

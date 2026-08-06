@@ -1,4 +1,4 @@
-import { defineContract, eventStream, fallible, procedure } from '@emdash/wire';
+import { defineContract, eventStream, fallible, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   ManualPreviewServerError,

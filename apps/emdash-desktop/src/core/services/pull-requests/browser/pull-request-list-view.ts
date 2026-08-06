@@ -1,5 +1,5 @@
 import { createListView } from '@emdash/ui/react/patterns';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { toJS } from 'mobx';
 import { pullRequestErrorMessage } from '../api';
 import type {

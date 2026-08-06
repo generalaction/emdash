@@ -10,7 +10,7 @@ import type {
   JobProgress,
   JobResult,
 } from '../../api/define';
-import type { WireInstrumentation } from '../../observability';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import { resyncRetry } from '../follower';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
 import { liveJobStateSchema } from '../protocol';

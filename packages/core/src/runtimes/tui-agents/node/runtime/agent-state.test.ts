@@ -1,4 +1,4 @@
-import { peek } from '@emdash/wire';
+import { peek } from '@emdash/wire/state';
 import {
   createTuiAgentStatesLiveHost,
   createTuiAgentStatesListModel,

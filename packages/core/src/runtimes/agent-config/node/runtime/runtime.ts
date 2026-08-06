@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import type { LiveLogSource } from '@emdash/wire';
+import type { LiveLogSource } from '@emdash/wire/live';
 import type { McpServer } from '@primitives/mcp/api';
 import type { CatalogSkill } from '@primitives/skills/api';
 import type {

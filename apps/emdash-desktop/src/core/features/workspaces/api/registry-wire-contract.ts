@@ -9,7 +9,7 @@ import {
   workspaceRecordSchema,
 } from '@emdash/core/runtimes/workspace-registry/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, procedure } from '@emdash/wire';
+import { defineContract, fallible, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { WorkspaceConfig, WorkspaceMirrorRow } from '@core/primitives/workspaces/api';
 

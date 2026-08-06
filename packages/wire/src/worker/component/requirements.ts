@@ -1,4 +1,4 @@
-import type { Contract, ContractDefinitions } from '../api/define';
+import type { Contract, ContractDefinitions } from '../../api/define';
 import type { WireComponentContractRequirement, WireComponentRequirements } from './types';
 
 export function requireContract<Defs extends ContractDefinitions>(

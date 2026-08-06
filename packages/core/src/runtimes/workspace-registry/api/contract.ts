@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   activateWorkspaceErrorSchema,

@@ -2,17 +2,9 @@ import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import {
-  cell,
-  expose,
-  family,
-  LiveLogSource,
-  peek,
-  type LiveJobContext,
-  type LeasedLiveModelProvider,
-  type LiveSource,
-  type Cell,
-} from '@emdash/wire';
+import { LiveLogSource, type LiveJobContext } from '@emdash/wire/live';
+import { type LeasedLiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
+import { cell, expose, family, peek, type Cell } from '@emdash/wire/state';
 import type { IExecutionContext } from '@primitives/exec/api';
 import {
   compileIdlePolicy,

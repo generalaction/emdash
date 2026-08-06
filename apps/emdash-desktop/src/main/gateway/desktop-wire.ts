@@ -1,4 +1,4 @@
-import { exposeWireToWindows, type Controller } from '@emdash/wire/api';
+import { exposeWireToWindows, type Controller } from '@emdash/wire/rpc';
 import { ipcMain, MessageChannelMain } from 'electron';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 import type { ControllersBundle } from '@main/bootstrap/boot/phases/controllers';

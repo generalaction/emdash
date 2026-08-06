@@ -1,7 +1,7 @@
 import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock, type ManualClock } from '@emdash/shared/testing';
-import { peek } from '@emdash/wire';
+import { peek } from '@emdash/wire/state';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type {
   AgentPluginHost,

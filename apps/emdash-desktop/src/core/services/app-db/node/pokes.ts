@@ -1,4 +1,4 @@
-import { pokeChannel } from '@emdash/wire';
+import { pokeChannel } from '@emdash/wire/state';
 
 type Match<T> = (payload: T) => boolean;
 

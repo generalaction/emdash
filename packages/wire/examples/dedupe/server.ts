@@ -8,7 +8,7 @@ import {
   memoryTransportPair,
   procedure,
   serve,
-} from '../../src/index';
+} from '../../src/rpc';
 
 const api = defineContract({
   expensiveStats: procedure({

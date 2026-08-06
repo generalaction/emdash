@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import {
   formatAbsolute,
   hostFileRef,

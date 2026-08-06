@@ -3,7 +3,7 @@ import { stableStringify } from '@emdash/shared/util';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
-import type { WireInstrumentation } from '../../observability';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import { resyncRetry, type LiveResyncFailurePolicy } from '../follower';
 import { LiveLogSource, LiveLogClient, type LiveLogSourceOptions } from '../log';
 import { createReplicaResourceCache } from './retention';

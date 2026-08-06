@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import type { BrowserDataClearKind, BrowsingDataKind } from '@core/primitives/browser/api';
 import { browserContract } from '../api';
 import { browserEvents } from './event-host';

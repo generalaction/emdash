@@ -1,7 +1,7 @@
 import type { TerminalDevServer, TerminalDevServerList } from '@emdash/core/runtimes/terminals/api';
 import { terminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { createScope } from '@emdash/shared/concurrency';
-import { observe, remote, whenReady } from '@emdash/wire';
+import { observe, remote, whenReady } from '@emdash/wire/state';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type {
   DirectPreviewServer,

@@ -16,7 +16,7 @@ import {
   type ContractClient,
   type ReconnectingTransport,
   type WireTransport,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import type { WorkspaceServerSshPort } from '../ports';
 import { workspaceServerTargetKey, type WorkspaceServerTarget } from '../targets';
 import { openLocalWorkspaceServerTransport } from './local-socket-transport';

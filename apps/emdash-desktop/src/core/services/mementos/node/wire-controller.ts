@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { mementosWireContract } from '@core/primitives/mementos/api';
 import type { MementoService } from './memento-service';
 

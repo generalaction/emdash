@@ -5,7 +5,7 @@ import { gitContract, type GitTransferProgress } from '@emdash/core/runtimes/git
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
-import { LiveJobCancelledError, type LiveJobContext } from '@emdash/wire';
+import { LiveJobCancelledError, type LiveJobContext } from '@emdash/wire/live';
 import type {
   CreateProjectFromRemoteInput,
   ProjectCreationJobError,

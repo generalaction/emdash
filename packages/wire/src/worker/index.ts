@@ -1,3 +1,17 @@
+export { defineWireComponent } from './component/define';
+export { requireContract } from './component/requirements';
+export type {
+  DefineWireComponentOptions,
+  ProvidedWireComponentRequirements,
+  ResolvedWireComponentRequirements,
+  WireComponentContractRequirement,
+  WireComponentCreateContext,
+  WireComponentCreateOptions,
+  WireComponentDefinition,
+  WireComponentInstance,
+  WireComponentRequirement,
+  WireComponentRequirements,
+} from './component/types';
 export { createWireWorkerHost } from './host';
 export { forwardWorkerLogs, type ForwardWorkerLogsOptions } from './logging';
 export {

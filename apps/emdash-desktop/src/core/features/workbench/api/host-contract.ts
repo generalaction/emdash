@@ -1,4 +1,4 @@
-import { defineContract, eventStream, procedure } from '@emdash/wire';
+import { defineContract, eventStream, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { TabNavigationDirection } from '@core/primitives/keybindings/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';

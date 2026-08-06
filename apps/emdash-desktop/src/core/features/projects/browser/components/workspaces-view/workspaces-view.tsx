@@ -10,7 +10,7 @@ import {
   defineSort,
   ListView,
 } from '@emdash/ui/react/patterns';
-import { observe, remote } from '@emdash/wire';
+import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';

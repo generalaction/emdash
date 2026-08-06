@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { workspaceHostContract, type WorkspaceHostContract } from '../api';
 import type { WorkspaceHostRuntime } from './workspace-host-runtime';
 

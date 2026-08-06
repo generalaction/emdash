@@ -16,7 +16,7 @@ import {
   startRunInputSchema,
   startRunResultSchema,
 } from '@emdash/core/runtimes/automations/api';
-import { defineContract, eventStream, fallible, procedure } from '@emdash/wire';
+import { defineContract, eventStream, fallible, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   automationAdoptionErrorSchema,

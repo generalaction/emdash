@@ -1,7 +1,7 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LiveSource } from '@emdash/wire';
-import { encodeTopic, isDownloadFileOpenResult } from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { encodeTopic, isDownloadFileOpenResult } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import { editorContract } from '../api';

@@ -1,5 +1,5 @@
 import { ok } from '@emdash/shared/result';
-import { defineContract, eventStream, liveModel, liveState, mutation } from '@emdash/wire/api';
+import { defineContract, eventStream, liveModel, liveState, mutation } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { reduceDismiss, reduceMarkAllRead, reduceMarkRead } from './optimistic';
 import {

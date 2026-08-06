@@ -1,4 +1,4 @@
-import type { ContractImpl } from '@emdash/wire';
+import type { ContractImpl } from '@emdash/wire/rpc';
 import { gitContract, type GitContract } from '@runtimes/git/api';
 import type { GitRuntime } from '@runtimes/git/node/git-runtime';
 import { createCheckoutProcedures } from './checkout-procedures';

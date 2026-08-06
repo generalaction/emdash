@@ -2,15 +2,15 @@ import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
+import type { BackoffSchedule } from '../api/backoff';
 import type { ContractClient } from '../api/client';
 import type { Contract, ContractDefinitions } from '../api/define';
+import type { WireInstrumentation } from '../api/instrumentation';
 import type {
   ProvidedWireComponentRequirements,
   WireComponentDefinition,
   WireComponentRequirements,
-} from '../component';
-import type { WireInstrumentation } from '../observability';
-import type { BackoffSchedule } from '../util/backoff';
+} from './component';
 
 export const WORKER_NAME_ENV_VAR = 'EMDASH_WORKER_NAME';
 

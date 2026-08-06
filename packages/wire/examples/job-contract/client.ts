@@ -1,16 +1,15 @@
 import { ok } from '@emdash/shared';
 import { z } from 'zod';
+import { createLiveJobReplicaCache, LiveJobCancelledError } from '../../src/live';
 import {
-  LiveJobCancelledError,
   createController,
   client,
   connect,
-  createLiveJobReplicaCache,
   defineContract,
   liveJob,
   memoryTransportPair,
   serve,
-} from '../../src/index';
+} from '../../src/rpc';
 
 const api = defineContract({
   build: liveJob({

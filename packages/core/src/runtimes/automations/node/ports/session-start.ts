@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { formatAbsolute, type HostFileRef } from '@primitives/path/api';
 import type {
   ConversationIndexContract,

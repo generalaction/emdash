@@ -1,7 +1,7 @@
 import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { tuiAgentsContract } from '@runtimes/tui-agents/api';
 import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/controller';

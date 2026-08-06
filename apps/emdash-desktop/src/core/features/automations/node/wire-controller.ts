@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { createController, type Controller } from '@emdash/wire';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { deleteAutomation } from '@core/features/automations/node/operations/deleteAutomation';
 import { adoptRun } from '@core/features/automations/node/run-adoption';

@@ -1,11 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
-import type { WireInstrumentation } from '../observability';
-import {
-  findStructuredCloneFailure,
-  formatStructuredCloneFailure,
-  isStructuredCloneError,
-} from '../util/structured-clone';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -14,6 +8,7 @@ import {
   type BlobSource,
 } from './blob-channel';
 import type { LiveSnapshot, LiveUpdate } from './channel';
+import type { WireInstrumentation } from './instrumentation';
 import {
   WireError,
   type SerializedWireError,
@@ -21,6 +16,11 @@ import {
   type WireMessage,
   type WireTransport,
 } from './protocol';
+import {
+  findStructuredCloneFailure,
+  formatStructuredCloneFailure,
+  isStructuredCloneError,
+} from './structured-clone';
 
 export type CallOptions = {
   signal?: AbortSignal;

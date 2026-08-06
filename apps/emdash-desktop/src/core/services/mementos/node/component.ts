@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent } from '@emdash/wire/component';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { mementosWireContract } from '@core/primitives/mementos/api';
 import { MementoService } from './memento-service';

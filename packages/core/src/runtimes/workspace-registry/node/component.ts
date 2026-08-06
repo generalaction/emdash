@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { fsWatchContract } from '@services/fs-watch/api';
 import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
 import { hostRuntimesDefinitions } from '@services/runtime-broker/api';

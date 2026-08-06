@@ -1,5 +1,5 @@
 import { gitContract } from '@emdash/core/runtimes/git/api';
-import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire';
+import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   runtimeFallibleMutations,

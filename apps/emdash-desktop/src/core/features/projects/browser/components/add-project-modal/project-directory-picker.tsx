@@ -19,15 +19,14 @@ import {
   type DirectoryEntry,
   type DirectoryListing,
 } from '@emdash/ui/react/components';
+import { type Contract, type ContractClient } from '@emdash/wire/rpc';
 import {
   observe,
   remote,
   whenReady,
-  type Contract,
-  type ContractClient,
   type RemoteModel,
   type RemoteMember,
-} from '@emdash/wire';
+} from '@emdash/wire/state';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   projectsWireContract,

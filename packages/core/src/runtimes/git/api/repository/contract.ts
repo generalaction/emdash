@@ -1,4 +1,11 @@
-import { defineContract, fallible, liveJob, liveModel, liveState, mutation } from '@emdash/wire';
+import {
+  defineContract,
+  fallible,
+  liveJob,
+  liveModel,
+  liveState,
+  mutation,
+} from '@emdash/wire/rpc';
 import { hostAbsolutePathSchema } from '@primitives/path/api';
 import {
   createBranchErrorSchema,

@@ -1,5 +1,5 @@
 import type { Logger } from '@emdash/shared/logger';
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import { accountContract } from '../api';
 import type { EmdashAccountService } from './services/emdash-account-service';

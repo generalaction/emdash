@@ -3,7 +3,7 @@ import {
   type WorkspaceCreationRefusal,
 } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { findWorkspaceTombstoneConflict } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { AppDb } from '@core/services/app-db/node/db';
 

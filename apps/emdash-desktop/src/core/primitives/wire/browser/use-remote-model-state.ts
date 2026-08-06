@@ -1,15 +1,12 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { stableStringify } from '@emdash/shared/util';
 import {
-  observe,
   type LiveModelDef,
   type LiveModelKey,
   type LiveModelStates,
   type LiveStateData,
-  type RemoteModel,
-  type Snapshot,
-  type StateStatus,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
+import { observe, type RemoteModel, type Snapshot, type StateStatus } from '@emdash/wire/state';
 import { useEffect, useRef, useState } from 'react';
 
 type StateName<Group extends LiveModelDef> = Extract<keyof LiveModelStates<Group>, string>;

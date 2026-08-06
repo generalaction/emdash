@@ -5,7 +5,8 @@ import {
   type ConversationRecords,
 } from '@emdash/core/runtimes/conversations/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import { cell, createController, expose, type Cell } from '@emdash/wire';
+import { createController } from '@emdash/wire/rpc';
+import { cell, expose, type Cell } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

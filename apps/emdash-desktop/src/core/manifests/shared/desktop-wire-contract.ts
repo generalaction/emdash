@@ -1,4 +1,4 @@
-import { defineContract } from '@emdash/wire';
+import { defineContract } from '@emdash/wire/rpc';
 import { desktopDomainContracts } from './domain-contracts';
 
 export const desktopWireContract = defineContract(desktopDomainContracts);

@@ -1,11 +1,8 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
-import {
-  expose,
-  type LeasedLiveModelProvider,
-  type LiveJobContext,
-  type Query,
-} from '@emdash/wire';
+import { type LiveJobContext } from '@emdash/wire/live';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { expose, type Query } from '@emdash/wire/state';
 import type { PortableRelativePath } from '@primitives/path/api';
 import {
   denormalizeDiffTarget,

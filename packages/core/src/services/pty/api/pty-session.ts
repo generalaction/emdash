@@ -1,5 +1,5 @@
-import type { LiveLogSourceOptions } from '@emdash/wire';
-import { LiveLogSource } from '@emdash/wire';
+import type { LiveLogSourceOptions } from '@emdash/wire/live';
+import { LiveLogSource } from '@emdash/wire/live';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec } from './types';
 
 export interface PtySessionOptions {

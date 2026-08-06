@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { createGithubOperations } from '@core/features/github/node/controller';
 import { githubContract } from '../api';
 import { githubEvents } from './event-host';

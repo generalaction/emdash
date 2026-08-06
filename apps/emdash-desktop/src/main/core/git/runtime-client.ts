@@ -11,7 +11,7 @@ import type {
   JobResult,
   LiveJobClientHandle,
   LiveJobEndpointDef,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import { hostPathFromNative, portablePath } from '@core/primitives/desktop-runtime/api';
 import { runRuntimeLiveJob } from '@main/core/runtime/live-job';
 

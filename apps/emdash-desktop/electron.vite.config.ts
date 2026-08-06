@@ -69,14 +69,13 @@ const workspaceAliases = {
   '@emdash/shared/util': resolve('../../packages/shared/src/util/index.ts'),
   '@emdash/shared/testing': resolve('../../packages/shared/src/testing/index.ts'),
   '@emdash/shared': resolve('../../packages/shared/src/index.ts'),
-  '@emdash/wire/api': resolve('../../packages/wire/src/rpc/index.ts'),
+  '@emdash/wire/rpc': resolve('../../packages/wire/src/rpc/index.ts'),
+  '@emdash/wire/live': resolve('../../packages/wire/src/live/index.ts'),
   '@emdash/wire/state': resolve('../../packages/wire/src/state/index.ts'),
+  '@emdash/wire/mobx': resolve('../../packages/wire/src/live/mobx/index.ts'),
   '@emdash/wire/testing': resolve('../../packages/wire/src/testing/index.ts'),
-  '@emdash/wire/util/mobx': resolve('../../packages/wire/src/util/mobx/index.ts'),
-  '@emdash/wire/util': resolve('../../packages/wire/src/util/index.ts'),
   '@emdash/wire/worker/node': resolve('../../packages/wire/src/worker/node/index.ts'),
   '@emdash/wire/worker': resolve('../../packages/wire/src/worker/index.ts'),
-  '@emdash/wire': resolve('../../packages/wire/src/index.ts'),
 };
 
 export default defineConfig({

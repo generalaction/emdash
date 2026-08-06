@@ -1,4 +1,4 @@
-import { defineContract, eventStream, procedure } from '@emdash/wire';
+import { defineContract, eventStream, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   BrowserDataClearKind,

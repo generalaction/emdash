@@ -1,12 +1,5 @@
-import {
-  cell,
-  expose,
-  peek,
-  type Cell,
-  type LeasedLiveModelProvider,
-  produce,
-  publishStructural,
-} from '@emdash/wire';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose, peek, type Cell, produce, publishStructural } from '@emdash/wire/state';
 import {
   acpApiContract,
   initialSessionConfigState,

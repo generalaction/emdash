@@ -2,17 +2,19 @@ import { err, ok, type Result } from '@emdash/shared';
 import {
   createLiveJobReplicaCache,
   LiveJobFailedError,
+  type LiveJobContext,
+} from '@emdash/wire/live';
+import {
   type JobError,
   type JobInput,
   type JobProgress,
   type JobResult,
   type LiveModelProvider,
   type LiveJobClientHandle,
-  type LiveJobContext,
   type LiveJobEndpointDef,
   type LiveSource,
-} from '@emdash/wire';
-import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+} from '@emdash/wire/rpc';
+import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import {
   forwardLiveModel,

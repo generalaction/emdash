@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire';
+import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire/state';
 import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
 import {
   type gitCheckoutContract,

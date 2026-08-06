@@ -8,7 +8,7 @@ import type { HostDependenciesContract } from '@emdash/core/services/host-depend
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { Result } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import type { AgentInstallError, InstallMethod } from '@core/primitives/agents/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';

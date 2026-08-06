@@ -1,5 +1,5 @@
 import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import type { BackoffSchedule } from '../util/backoff';
+import type { BackoffSchedule } from './backoff';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,

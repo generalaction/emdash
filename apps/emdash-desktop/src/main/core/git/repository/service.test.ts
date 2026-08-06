@@ -1,4 +1,4 @@
-import type * as Wire from '@emdash/wire';
+import type * as WireState from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitRepositoryService } from './service';
 
@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => ({
   remote: vi.fn(),
 }));
 
-vi.mock('@emdash/wire', async (importOriginal) => ({
-  ...(await importOriginal<typeof Wire>()),
+vi.mock('@emdash/wire/state', async (importOriginal) => ({
+  ...(await importOriginal<typeof WireState>()),
   remote: mocks.remote,
 }));
 

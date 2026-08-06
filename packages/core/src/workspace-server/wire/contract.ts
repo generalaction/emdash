@@ -1,4 +1,4 @@
-import { defineContract, fallible, procedure } from '@emdash/wire';
+import { defineContract, fallible, procedure } from '@emdash/wire/rpc';
 import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
 import { portForwardsContract } from '../port-forwards/contract';

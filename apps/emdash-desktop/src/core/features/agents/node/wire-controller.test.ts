@@ -1,7 +1,7 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LiveSource } from '@emdash/wire';
-import { encodeTopic } from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { encodeTopic } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { agentsContract } from '../api';
 import { createAgentsWireController } from './wire-controller';

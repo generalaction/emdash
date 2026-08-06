@@ -4,7 +4,7 @@ import {
   catalogSkillSchema,
   skillInstallPayloadSchema,
 } from '@emdash/core/primitives/skills/api';
-import { defineContract, fallible } from '@emdash/wire';
+import { defineContract, fallible } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const catalogErrorSchema = z.object({

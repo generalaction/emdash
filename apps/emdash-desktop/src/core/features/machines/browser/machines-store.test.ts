@@ -1,5 +1,5 @@
 import { deferred, type Deferred } from '@emdash/shared/testing';
-import { cell, expose, peek, produce } from '@emdash/wire';
+import { cell, expose, peek, produce } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { machinesContract, type SaveMachineInput } from '@core/features/machines/api';

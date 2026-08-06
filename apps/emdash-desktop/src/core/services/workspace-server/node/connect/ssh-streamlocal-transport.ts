@@ -1,4 +1,4 @@
-import type { WireTransport } from '@emdash/wire';
+import type { WireTransport } from '@emdash/wire/rpc';
 import type { WorkspaceServerSshPort } from '../ports';
 import type { SshWorkspaceServerTarget } from '../targets';
 import { ownedStreamTransport } from './owned-stream-transport';

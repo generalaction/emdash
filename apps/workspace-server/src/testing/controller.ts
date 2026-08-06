@@ -11,8 +11,8 @@ import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { workspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
 import { workspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
 import { hostDependenciesContract } from '@emdash/core/services/host-dependencies/api';
-import { client } from '@emdash/wire';
-import type { Connection, Contract, ContractClient, ContractDefinitions } from '@emdash/wire/api';
+import { client } from '@emdash/wire/rpc';
+import type { Connection, Contract, ContractClient, ContractDefinitions } from '@emdash/wire/rpc';
 import { createWorkspaceWireController, type WorkspaceWireControllerDeps } from '../api/controller';
 import type { WorkspaceServerRuntimeClients } from '../gateway/workspace-workers';
 

@@ -8,7 +8,7 @@ import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import type { MementosWireContract } from '@core/primitives/mementos/api';
 
 export type AcpRuntimeClient = ContractClient<AcpApiContract>;

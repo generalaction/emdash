@@ -13,7 +13,7 @@ import {
   liveState,
   mutation,
   procedure,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import z from 'zod';
 import type {
   MigrateProjectConfigRequest,

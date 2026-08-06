@@ -1,5 +1,5 @@
 import { ok, type Result } from '@emdash/shared';
-import { blobSourceFromBytes, type WireFile } from '@emdash/wire';
+import { blobSourceFromBytes, type WireFile } from '@emdash/wire/rpc';
 import type {
   AcpAttachmentError,
   AcpCancelTurnError,

@@ -1,7 +1,7 @@
 import { systemClock } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import type { ContractDefinitions } from '../api/define';
-import type { WireComponentDefinition, WireComponentRequirements } from '../component';
+import type { WireComponentDefinition, WireComponentRequirements } from './component';
 import { setupComponentWorkerGeneration } from './component-bridge';
 import type {
   WireWorker,

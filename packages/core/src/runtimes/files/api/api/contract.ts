@@ -8,7 +8,7 @@ import {
   mutation,
   procedure,
   uploadFile,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { fileContentModelSchema } from '@runtimes/files/api/content/state';
 import { fileTreeModelSchema } from '@runtimes/files/api/tree/state';

@@ -7,8 +7,8 @@ import {
   workspaceWireContract,
 } from '@emdash/core/workspace-server';
 import { err, ok } from '@emdash/shared';
-import { createController, forwardContractImpl, type ContractImpl } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
+import { createController, forwardContractImpl, type ContractImpl } from '@emdash/wire/rpc';
+import type { ContractClient } from '@emdash/wire/rpc';
 import type { WorkspaceServerRuntimeClients } from '../gateway/workspace-workers';
 
 export type WorkspaceWireControllerDeps = {

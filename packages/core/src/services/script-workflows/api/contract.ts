@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveJob } from '@emdash/wire';
+import { defineContract, fallible, liveJob } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   runScriptWorkflowInputSchema,

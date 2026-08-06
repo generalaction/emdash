@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';
 import type { ConversationIndexContract } from '@services/conversation-index/api';

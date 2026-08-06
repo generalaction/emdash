@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
-import { client as createClient, connect, streamTransport } from '@emdash/wire';
+import { client as createClient, connect, streamTransport } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestWorkspaceWireController } from '../testing/controller';
 import { serveSocket, type SocketServeHandle } from './serve-socket';

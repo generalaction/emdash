@@ -9,11 +9,10 @@ import type { Logger } from '@emdash/shared/logger';
 import {
   createLiveJobReplicaCache,
   LiveJobFailedError,
-  type LiveModelProvider,
   type LiveJobContext,
-  type LiveSource,
-} from '@emdash/wire';
-import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+} from '@emdash/wire/live';
+import { type LiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
+import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';

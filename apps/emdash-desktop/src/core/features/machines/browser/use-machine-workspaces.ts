@@ -1,4 +1,4 @@
-import { remote, type RemoteModel } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { projectWorkspacesContract } from '@core/features/workspaces/api';

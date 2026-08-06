@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { acpApiContract } from '@runtimes/acp/api';
 import { createAcpController } from '@runtimes/acp/node/api/controller';

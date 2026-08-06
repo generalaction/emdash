@@ -7,7 +7,7 @@ import {
   type ResourceCache,
   type Scope,
 } from '@emdash/shared/concurrency';
-import type { LiveLogSource } from '@emdash/wire';
+import type { LiveLogSource } from '@emdash/wire/live';
 import type { AgentConfigAuthError, AuthStatusModelState } from '@runtimes/agent-config/api';
 import type { AgentAuthStatus, AgentHostError } from '@services/agent-plugins/api/plugins';
 import { PtyRegistry, type PtyExitInfo, type PtySession } from '@services/pty/api';

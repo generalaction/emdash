@@ -1,7 +1,7 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
-import type { LiveModelProvider, LiveSource } from '@emdash/wire';
-import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire/rpc';
+import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { mcpContract } from '../api';
 import {

@@ -1,4 +1,4 @@
-import { defineContract, procedure } from '@emdash/wire';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { AppSettings, AppSettingsKey, SettingsMeta } from './types';
 

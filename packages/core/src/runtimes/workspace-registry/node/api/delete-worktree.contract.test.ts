@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ManualClock } from '@emdash/shared/testing';
-import { remote, snapshot } from '@emdash/wire';
+import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
 import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '@runtimes/workspace-registry/api';

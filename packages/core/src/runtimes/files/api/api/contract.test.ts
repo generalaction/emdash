@@ -1,4 +1,4 @@
-import { defineContract } from '@emdash/wire';
+import { defineContract } from '@emdash/wire/rpc';
 import { describe, expect, it } from 'vitest';
 import { filesContract } from './contract';
 

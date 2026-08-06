@@ -1,5 +1,5 @@
 import type { Duplex } from 'node:stream';
-import { streamTransport, type WireTransport } from '@emdash/wire';
+import { streamTransport, type WireTransport } from '@emdash/wire/rpc';
 
 export function ownedStreamTransport(stream: Duplex): WireTransport {
   const transport = streamTransport(stream, stream);

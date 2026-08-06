@@ -1,4 +1,4 @@
-import { defineContract, fallible } from '@emdash/wire';
+import { defineContract, fallible } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const portForwardFamilySchema = z.enum(['ipv4', 'ipv6']);

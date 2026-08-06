@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { integrationOperations } from '@core/features/integrations/node/controller';
 import { integrationsContract } from '../api';
 

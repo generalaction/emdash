@@ -2,16 +2,15 @@ import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { CheckoutHeadState } from '@emdash/core/runtimes/git/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
+import { createLiveJobReplicaCache, LiveJobFailedError } from '@emdash/wire/live';
 import {
-  createLiveJobReplicaCache,
-  LiveJobFailedError,
   type JobError,
   type JobInput,
   type JobProgress,
   type JobResult,
   type LiveJobClientHandle,
   type LiveJobEndpointDef,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import { observe, pin, remote } from '@emdash/wire/state';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import type {

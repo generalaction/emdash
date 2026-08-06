@@ -1,5 +1,6 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import type * as WireModule from '@emdash/wire';
+import type * as WireLiveModule from '@emdash/wire/live';
+import type * as WireStateModule from '@emdash/wire/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AcpAuthLoginBinding } from '@core/features/agents/api/browser/auth-login-binding';
 
@@ -11,8 +12,8 @@ vi.mock('@core/features/agents/api/browser/client', () => ({
   getAgentsClient: () => Promise.resolve(runtimeClient.current),
 }));
 
-vi.mock('@emdash/wire', async (importOriginal) => {
-  const actual = await importOriginal<typeof WireModule>();
+vi.mock('@emdash/wire/state', async (importOriginal) => {
+  const actual = await importOriginal<typeof WireStateModule>();
   return {
     ...actual,
     remote: vi.fn(() => {
@@ -34,6 +35,13 @@ vi.mock('@emdash/wire', async (importOriginal) => {
       };
       return Object.assign(() => ({ states: { list } }), { dispose: vi.fn(async () => {}) });
     }),
+  };
+});
+
+vi.mock('@emdash/wire/live', async (importOriginal) => {
+  const actual = await importOriginal<typeof WireLiveModule>();
+  return {
+    ...actual,
     ReplicaLog: class {
       readonly ready = Promise.resolve();
       readonly dispose = vi.fn(async () => {});

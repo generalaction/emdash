@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { previewServersContract } from '../api';
 import { previewServerEvents } from './event-host';

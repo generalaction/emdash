@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import type { LiveLogSourceOptions } from '@emdash/wire';
+import type { LiveLogSourceOptions } from '@emdash/wire/live';
 import type { IdlePolicyConfig } from '@primitives/io-activity/api';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { AgentPluginHost } from '@services/agent-plugins/api/plugins';

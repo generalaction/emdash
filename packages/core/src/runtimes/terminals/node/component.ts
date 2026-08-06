@@ -1,4 +1,4 @@
-import { defineWireComponent } from '@emdash/wire/component';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
 import { terminalsContract } from '@runtimes/terminals/api';
 import { NodeExecutionContext } from '@services/exec/api';

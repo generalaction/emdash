@@ -1,4 +1,4 @@
-import { createController } from '@emdash/wire';
+import { createController } from '@emdash/wire/rpc';
 import { acpApiContract } from '@runtimes/acp/api';
 import type { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
 import { createAcpProcedures } from './procedures';

@@ -5,7 +5,7 @@ import {
   type WireInitializeResult,
   type WireProtocolIncompatible,
 } from '@emdash/core/workspace-server';
-import { client as createClient, connect, type WireTransport } from '@emdash/wire';
+import { client as createClient, connect, type WireTransport } from '@emdash/wire/rpc';
 
 export class WorkspaceServerProtocolError extends Error {
   readonly name = 'WorkspaceServerProtocolError';

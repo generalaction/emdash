@@ -2,6 +2,7 @@ import { ok } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { backoffSchedule } from '../api/backoff';
 import type { LiveModelClientHandle } from '../api/client';
 import { connect } from '../api/connect';
 import {
@@ -12,6 +13,7 @@ import {
   type LiveModelKey,
   type LiveModelDef,
 } from '../api/define';
+import type { WireInstrumentation } from '../api/instrumentation';
 import { serve } from '../api/serve';
 import {
   memoryTransportPair,
@@ -19,11 +21,9 @@ import {
   type MemoryTransportPair,
 } from '../api/transports';
 import { createLiveModelReplicaCache } from '../live/replica';
-import type { WireInstrumentation } from '../observability';
 import { expose } from '../state/bridge/expose';
 import { cell, snapshot } from '../state/core';
 import { createTestWire } from '../testing';
-import { backoffSchedule } from '../util/backoff';
 import { client } from './client';
 import { createController } from './controller';
 

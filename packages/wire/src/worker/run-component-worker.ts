@@ -3,16 +3,12 @@ import type { Logger } from '@emdash/shared/logger';
 import { connect } from '../api/connect';
 import type { ContractDefinitions } from '../api/define';
 import { serve } from '../api/serve';
+import { client } from '../rpc/client';
 import {
   type ResolvedWireComponentRequirements,
   type WireComponentDefinition,
   type WireComponentRequirements,
-} from '../component';
-import {
-  componentControllerSymbol,
-  type InternalWireComponentInstance,
-} from '../component/internal';
-import { client } from '../rpc/client';
+} from './component';
 import {
   isWireComponentBootstrapResponse,
   parentPortChannelTransport,
@@ -20,6 +16,10 @@ import {
   type WireComponentBootstrapResponse,
   type WireComponentBootstrapRequest,
 } from './component-protocol';
+import {
+  componentControllerSymbol,
+  type InternalWireComponentInstance,
+} from './component/internal';
 import { WORKER_READY_SIGNAL, isWorkerSignal } from './protocol';
 import type { WorkerParentPort } from './types';
 

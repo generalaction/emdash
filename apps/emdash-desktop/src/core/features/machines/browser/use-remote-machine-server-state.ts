@@ -1,4 +1,4 @@
-import { remote, type RemoteModel } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useEffect } from 'react';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';

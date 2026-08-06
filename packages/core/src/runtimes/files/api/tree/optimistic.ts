@@ -1,5 +1,5 @@
 import { ok } from '@emdash/shared';
-import type { LiveModelMutationCtx } from '@emdash/wire';
+import type { LiveModelMutationCtx } from '@emdash/wire/rpc';
 import type { PortableRelativePath } from '@primitives/path/api';
 import type { FileEntry, FileTreeModel } from './state';
 

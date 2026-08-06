@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { updatesContract, type DesktopUpdateState } from '../api';
 import { updateEvents } from './event-host';
 

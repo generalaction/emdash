@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { appSettingsContract, type AppSettings, type AppSettingsKey } from '../api';
 import type { AppSettingsService } from './app-settings-service';
 

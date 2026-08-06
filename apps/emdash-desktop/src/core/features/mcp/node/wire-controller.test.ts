@@ -1,7 +1,7 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
 import { ok } from '@emdash/shared';
-import type { LiveSource } from '@emdash/wire';
-import { encodeTopic } from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { encodeTopic } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { mcpContract } from '../api';
 import { createMcpWireController } from './wire-controller';

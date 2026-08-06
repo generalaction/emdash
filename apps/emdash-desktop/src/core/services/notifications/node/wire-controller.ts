@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { notificationsContract } from '../api';
 import type { NotificationService } from './notification-service';
 

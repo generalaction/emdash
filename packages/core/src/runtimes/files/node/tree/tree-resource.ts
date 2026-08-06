@@ -7,7 +7,7 @@ import {
   type Cell,
   type ExposedMutationContext,
   type Revision,
-} from '@emdash/wire';
+} from '@emdash/wire/state';
 import { DEFAULT_TREE_EXCLUDE, ExclusionPolicy } from '@primitives/lib/api';
 import {
   parsePortableRelativePath,

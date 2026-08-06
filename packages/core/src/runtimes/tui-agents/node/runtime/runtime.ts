@@ -1,5 +1,7 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
-import { LiveLogSource, peek, type LiveSource } from '@emdash/wire';
+import { LiveLogSource } from '@emdash/wire/live';
+import { type LiveSource } from '@emdash/wire/rpc';
+import { peek } from '@emdash/wire/state';
 import { formatCommandLine } from '@primitives/exec/api';
 import {
   compileIdlePolicy,

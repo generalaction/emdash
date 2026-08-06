@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent } from '@emdash/wire/component';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { conversationsContract } from '../api';
 import { createConversationsController } from './api/controller';

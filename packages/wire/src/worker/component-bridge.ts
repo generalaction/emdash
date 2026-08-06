@@ -3,18 +3,18 @@ import type { ContractClient } from '../api/client';
 import { isController, type Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
 import { serve } from '../api/serve';
-import { assertExactRequirementKeys } from '../component/requirements';
-import type {
-  ProvidedWireComponentRequirements,
-  WireComponentDefinition,
-  WireComponentRequirements,
-} from '../component/types';
 import { forwardController } from '../rpc/forward';
 import {
   isWireComponentBootstrapRequest,
   workerProcessChannelTransport,
   type WireComponentBootstrapResponse,
 } from './component-protocol';
+import { assertExactRequirementKeys } from './component/requirements';
+import type {
+  ProvidedWireComponentRequirements,
+  WireComponentDefinition,
+  WireComponentRequirements,
+} from './component/types';
 import type { WorkerProcess } from './types';
 
 export function setupComponentWorkerGeneration<

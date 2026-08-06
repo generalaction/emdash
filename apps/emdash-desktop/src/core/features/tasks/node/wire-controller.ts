@@ -1,6 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
-import type { Contract, ContractImpl } from '@emdash/wire';
+import type { Contract, ContractImpl } from '@emdash/wire/rpc';
 import { expose, family, query } from '@emdash/wire/state';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { tasksWireContract } from '@core/features/tasks/api';

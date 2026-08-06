@@ -3,7 +3,7 @@ import type {
   IntegrationCredentials,
   IntegrationPluginDefinition,
 } from '@emdash/plugins/integrations';
-import { defineContract, procedure } from '@emdash/wire';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { IssueProviderCapabilities } from '@core/primitives/issue-providers/api';
 

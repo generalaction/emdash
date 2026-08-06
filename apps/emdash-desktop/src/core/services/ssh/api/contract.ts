@@ -1,4 +1,4 @@
-import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/api';
+import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
 

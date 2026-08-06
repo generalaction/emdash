@@ -16,7 +16,7 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { WireInstrumentation } from '../../observability';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import type { LiveChangeMeta } from '../state';
 import type { ReplicaState, ReplicaStateOptions } from './state';
 import type { StateStore } from './store';

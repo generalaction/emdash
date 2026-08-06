@@ -1,5 +1,12 @@
 import type { Result } from '@emdash/shared';
-import { defineContract, fallible, liveModel, liveState, mutation, procedure } from '@emdash/wire';
+import {
+  defineContract,
+  fallible,
+  liveModel,
+  liveState,
+  mutation,
+  procedure,
+} from '@emdash/wire/rpc';
 import z from 'zod';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import {

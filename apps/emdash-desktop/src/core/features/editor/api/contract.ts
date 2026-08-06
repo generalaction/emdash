@@ -10,7 +10,7 @@ import {
   liveState,
   procedure,
   uploadFile,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   runtimeFallibleMutations,

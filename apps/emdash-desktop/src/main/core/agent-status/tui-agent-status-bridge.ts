@@ -10,7 +10,7 @@ import {
 } from '@emdash/core/runtimes/tui-agents/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote, whenReady } from '@emdash/wire';
+import { observe, remote, whenReady } from '@emdash/wire/state';
 import type { WireWorker } from '@emdash/wire/worker';
 import type { ConversationEvent } from '@core/primitives/conversations/api';
 import type { TuiAgentsRuntimeClient } from '@main/gateway/desktop-workers';

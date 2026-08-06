@@ -1,5 +1,5 @@
 import { ok } from '@emdash/shared/result';
-import { defineContract, fallible, liveModel, liveState, mutation } from '@emdash/wire/api';
+import { defineContract, fallible, liveModel, liveState, mutation } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { subjectSchema } from '@core/primitives/subjects/api';
 import {

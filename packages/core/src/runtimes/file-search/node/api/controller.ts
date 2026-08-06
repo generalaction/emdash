@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { fileSearchContract, type FileSearchContract } from '@runtimes/file-search/api';
 import { createFileSearchProcedures, type FileSearchRuntimeApi } from './procedures';
 

@@ -6,7 +6,7 @@ import {
   whenReady,
   type OptimisticView,
   type RemoteModel,
-} from '@emdash/wire';
+} from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import type { DesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';

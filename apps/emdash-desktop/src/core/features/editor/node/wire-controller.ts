@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { LiveModelProvider, LiveSource } from '@emdash/wire';
-import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire/rpc';
+import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { editorContract } from '../api';

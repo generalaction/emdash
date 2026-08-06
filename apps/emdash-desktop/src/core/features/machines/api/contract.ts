@@ -11,7 +11,7 @@ import {
 } from '@emdash/core/services/host-dependencies/api';
 import type { Result } from '@emdash/shared';
 import { resultSchema } from '@emdash/shared';
-import { defineContract, procedure } from '@emdash/wire/api';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 

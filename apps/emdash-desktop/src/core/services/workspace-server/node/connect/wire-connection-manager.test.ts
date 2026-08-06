@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { PROTOCOL_VERSION } from '@emdash/core/workspace-server';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { createManualClock, deferred, waitFor } from '@emdash/shared/testing';
-import type { WireTransport } from '@emdash/wire';
+import type { WireTransport } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestWorkspaceWireController } from '../../../../../../../workspace-server/src/testing/controller';
 import { serveSocket } from '../../../../../../../workspace-server/src/wire/serve-socket';

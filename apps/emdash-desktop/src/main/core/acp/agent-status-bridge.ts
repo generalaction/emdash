@@ -6,7 +6,7 @@ import {
 } from '@emdash/core/runtimes/acp/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote, whenReady } from '@emdash/wire';
+import { observe, remote, whenReady } from '@emdash/wire/state';
 import type { WireWorker } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';

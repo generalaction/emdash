@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { githubAuthContract, pullRequestsContract } from '../api';
 import { PullRequestService } from './pull-request-service';

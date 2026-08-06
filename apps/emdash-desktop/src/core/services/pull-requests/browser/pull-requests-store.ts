@@ -1,6 +1,6 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote, whenReady, type RemoteModel } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { observe, remote, whenReady, type RemoteModel } from '@emdash/wire/state';
 import { action, makeObservable, observable, runInAction } from 'mobx';
 import {
   normalizeRepositoryUrl,

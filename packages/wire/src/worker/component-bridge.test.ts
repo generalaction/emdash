@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { connect } from '../api/connect';
 import { defineContract, procedure } from '../api/define';
-import { defineWireComponent, requireContract } from '../component';
 import { client } from '../rpc/client';
 import { createController } from '../rpc/controller';
 import { FakeWorkerProcess } from '../testing';
+import { defineWireComponent, requireContract } from './component';
 import { setupComponentWorkerGeneration } from './component-bridge';
 import { parentPortChannelTransport } from './component-protocol';
 

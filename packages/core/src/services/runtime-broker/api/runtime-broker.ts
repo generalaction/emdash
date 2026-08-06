@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import type { Contract, ContractClient } from '@emdash/wire';
+import type { Contract, ContractClient } from '@emdash/wire/rpc';
 import type { HostRef } from '../../../primitives/host/api';
 import type { hostRuntimesContract } from './contract';
 import type { RuntimeResolveError } from './errors';

@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import type { ProvidedWireComponentRequirements } from '@emdash/wire/component';
+import type { ProvidedWireComponentRequirements } from '@emdash/wire/worker';
 import type { WireComponentWorkerCreateOptions } from '@emdash/wire/worker';
 import type { CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import type { z } from 'zod';

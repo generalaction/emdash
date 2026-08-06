@@ -1,5 +1,5 @@
 import { ok, type Result } from '@emdash/shared/result';
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import {
   githubAuthContract,

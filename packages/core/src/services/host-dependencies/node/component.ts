@@ -1,16 +1,8 @@
 import { ok, err, type Result, type Serializable } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import {
-  cell,
-  createController,
-  expose,
-  peek,
-  publishStructural,
-  revisionOf,
-  type Cell,
-  type LeasedLiveModelProvider,
-} from '@emdash/wire';
-import { defineWireComponent } from '@emdash/wire/component';
+import { createController, type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose, peek, publishStructural, revisionOf, type Cell } from '@emdash/wire/state';
+import { defineWireComponent } from '@emdash/wire/worker';
 import type { IExecutionContext } from '@primitives/exec/api';
 import {
   hostDependencyDefinitionSchema,

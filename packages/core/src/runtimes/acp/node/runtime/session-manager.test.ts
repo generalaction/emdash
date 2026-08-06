@@ -2,7 +2,7 @@ import type { SessionUpdate } from '@agentclientprotocol/sdk';
 import { isOk, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
-import { observe, peek } from '@emdash/wire';
+import { observe, peek } from '@emdash/wire/state';
 import {
   FakeAcpTerminalProcess,
   makeAcpHarness,

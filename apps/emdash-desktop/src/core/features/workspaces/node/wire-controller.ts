@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import { type Contract, type ContractImpl } from '@emdash/wire';
+import { type Contract, type ContractImpl } from '@emdash/wire/rpc';
 import { and, eq, isNull } from 'drizzle-orm';
 import type {
   workspacesWireContract,

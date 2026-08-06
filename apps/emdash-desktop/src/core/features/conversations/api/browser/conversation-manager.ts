@@ -1,7 +1,8 @@
 import type { SessionSummary } from '@emdash/core/runtimes/acp/api/client';
 import type { TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
 import { createScope, type Disposable } from '@emdash/shared/concurrency';
-import { observe, remote, ReplicaLog } from '@emdash/wire';
+import { ReplicaLog } from '@emdash/wire/live';
+import { observe, remote } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { conversationsContract } from '@core/features/conversations/api';

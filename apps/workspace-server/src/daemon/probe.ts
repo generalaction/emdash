@@ -2,7 +2,7 @@ import { createConnection, type Socket } from 'node:net';
 import { workspaceWireContract } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { runWithTimeout } from '@emdash/shared/scheduling';
-import { client as createClient, connect, streamTransport } from '@emdash/wire';
+import { client as createClient, connect, streamTransport } from '@emdash/wire/rpc';
 
 export type DaemonHealth = Awaited<
   ReturnType<ReturnType<typeof createClient<typeof workspaceWireContract>>['health']>

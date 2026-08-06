@@ -1,4 +1,4 @@
-import { defineWireComponent } from '@emdash/wire/component';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { fsWatchContract } from '@services/fs-watch/api';
 import { createFsWatchController } from '@services/fs-watch/impl/controller';
 import { z } from 'zod';

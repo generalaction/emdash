@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { backoffSchedule, type BackoffSchedule } from '../../util/backoff';
+import { backoffSchedule, type BackoffSchedule } from '../backoff';
 import { WireError, type WireMessage, type WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {

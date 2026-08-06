@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { Contract, ContractImpl } from '@emdash/wire';
+import type { Contract, ContractImpl } from '@emdash/wire/rpc';
 import type { catalogWireContract } from '@core/features/catalog/api';
 import {
   catalogService,

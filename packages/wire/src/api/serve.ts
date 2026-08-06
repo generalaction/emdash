@@ -1,7 +1,5 @@
 import { toSerializedError, type Unsubscribe } from '@emdash/shared';
 import { getCurrentLogger, runWithLogger, type Logger } from '@emdash/shared/logger';
-import type { WireInstrumentation } from '../observability';
-import { formatStructuredCloneFailure, isStructuredCloneError } from '../util/structured-clone';
 import {
   createBlobConsumer,
   createBlobProducer,
@@ -11,7 +9,9 @@ import {
 } from './blob-channel';
 import { isDownloadFileOpenResult } from './blob-channel';
 import type { Controller } from './controller';
+import type { WireInstrumentation } from './instrumentation';
 import { serializeWireError, WireError, type WireMessage, type WireTransport } from './protocol';
+import { formatStructuredCloneFailure, isStructuredCloneError } from './structured-clone';
 
 export type ServeOptions = {
   instrumentation?: WireInstrumentation;

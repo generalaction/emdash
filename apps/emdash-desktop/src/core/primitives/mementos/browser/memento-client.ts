@@ -1,4 +1,5 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { ContractClient } from '@emdash/wire/rpc';
 import {
   observe,
   optimistic,
@@ -7,8 +8,7 @@ import {
   type OptimisticView,
   type RemoteModel,
   type RemoteMember,
-} from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
+} from '@emdash/wire/state';
 import {
   comparer,
   computed,

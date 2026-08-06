@@ -1,5 +1,5 @@
 import type { Scope } from '@emdash/shared/concurrency';
-import type { Controller } from '@emdash/wire/api';
+import type { Controller } from '@emdash/wire/rpc';
 import {
   desktopNodeControllers,
   type DesktopControllerContext,

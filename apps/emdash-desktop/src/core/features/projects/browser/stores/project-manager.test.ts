@@ -1,5 +1,5 @@
-import { LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
-import type * as Wire from '@emdash/wire';
+import { LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire/live';
+import type * as WireLive from '@emdash/wire/live';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectCreationProgress } from '@core/features/projects/api';
 import {
@@ -52,8 +52,8 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   }),
 }));
 
-vi.mock('@emdash/wire', async (importOriginal) => {
-  const actual = await importOriginal<typeof Wire>();
+vi.mock('@emdash/wire/live', async (importOriginal) => {
+  const actual = await importOriginal<typeof WireLive>();
   return {
     ...actual,
     createLiveJobReplicaCache: mocks.createLiveJobReplicaCache,

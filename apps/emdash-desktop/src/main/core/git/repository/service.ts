@@ -2,7 +2,7 @@ import type { GitRemotesState, RepositorySelector } from '@emdash/core/runtimes/
 import { gitContract } from '@emdash/core/runtimes/git/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { observe, remote } from '@emdash/wire';
+import { observe, remote } from '@emdash/wire/state';
 import { resolveConfiguredRemotes } from '@core/primitives/git/api';
 import type { ProjectSettings } from '@core/primitives/project-settings/api';
 import type { ProjectRemoteState } from '@core/primitives/projects/api';

@@ -1,7 +1,8 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { err, ok } from '@emdash/shared/result';
-import { cell, createController, expose, type Cell, type ContractClient } from '@emdash/wire';
-import { defineWireComponent } from '@emdash/wire/component';
+import { createController, type ContractClient } from '@emdash/wire/rpc';
+import { cell, expose, type Cell } from '@emdash/wire/state';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {

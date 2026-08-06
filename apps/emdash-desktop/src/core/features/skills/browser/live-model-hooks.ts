@@ -1,6 +1,6 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
-import { remote, type RemoteModel } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useMemo } from 'react';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import { skillsContract } from '../api';

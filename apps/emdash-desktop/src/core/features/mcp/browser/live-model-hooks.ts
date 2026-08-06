@@ -1,6 +1,6 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
-import { remote, type RemoteModel } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useMemo } from 'react';
 import { getMcpClient } from '@core/features/mcp/api/browser/client';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';

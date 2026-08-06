@@ -1,4 +1,5 @@
-import type { LiveLogSnapshotData, LogSink } from '@emdash/wire';
+import type { LogSink } from '@emdash/wire/live';
+import type { LiveLogSnapshotData } from '@emdash/wire/rpc';
 import type { Terminal } from '@xterm/xterm';
 
 type XtermLogTerminal = Pick<Terminal, 'reset' | 'write'>;

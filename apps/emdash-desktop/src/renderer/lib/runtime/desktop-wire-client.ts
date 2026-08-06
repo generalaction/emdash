@@ -1,4 +1,10 @@
-import { awaitWirePort, client, connect, domPortTransport, type DomPortLike } from '@emdash/wire';
+import {
+  awaitWirePort,
+  client,
+  connect,
+  domPortTransport,
+  type DomPortLike,
+} from '@emdash/wire/rpc';
 import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
 import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
 

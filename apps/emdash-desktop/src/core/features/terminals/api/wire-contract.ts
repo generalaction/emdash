@@ -11,7 +11,7 @@ import {
   terminalErrorSchema,
   terminalSizeSchema,
 } from '@emdash/core/services/script-workflows/api';
-import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 export const terminalRecordSchema = z.object({

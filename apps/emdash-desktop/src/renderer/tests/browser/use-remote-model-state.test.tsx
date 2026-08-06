@@ -1,4 +1,5 @@
-import { cell, defineContract, liveModel, liveState, type RemoteModel } from '@emdash/wire';
+import { defineContract, liveModel, liveState } from '@emdash/wire/rpc';
+import { cell, type RemoteModel } from '@emdash/wire/state';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

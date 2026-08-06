@@ -1,6 +1,7 @@
 import { err, ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
-import { cell, defineContract, expose, type LiveStateData } from '@emdash/wire';
+import { defineContract, type LiveStateData } from '@emdash/wire/rpc';
+import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MonacoModelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';

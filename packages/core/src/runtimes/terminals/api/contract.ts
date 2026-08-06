@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { terminalShellAvailabilityListSchema } from '@primitives/terminal-shell/api';
 import {
   scriptWorkflowsDefinitions,

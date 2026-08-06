@@ -18,9 +18,9 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import type { LeasedLiveModelProvider } from '../../live/replica/leased-provider';
 import { LiveStateSource } from '../../live/state/source';
-import type { WireInstrumentation } from '../../observability';
 import {
   StateNode,
   observe,

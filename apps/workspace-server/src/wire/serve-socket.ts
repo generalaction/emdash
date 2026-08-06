@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, unlink } from 'node:fs/promises';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { dirname } from 'node:path';
-import type { Controller, WireTransport } from '@emdash/wire';
-import { createWireSessionHub, streamTransport } from '@emdash/wire';
+import type { Controller, WireTransport } from '@emdash/wire/rpc';
+import { createWireSessionHub, streamTransport } from '@emdash/wire/rpc';
 import { DEFAULT_WORKSPACE_SERVER_SOCKET_PATH } from '../daemon/paths';
 
 export type SocketServeOptions = {

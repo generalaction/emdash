@@ -1,5 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
-import { snapshot } from '@emdash/wire';
+import { snapshot } from '@emdash/wire/state';
 import { gitPath } from '@runtimes/git/node/testing/paths';
 import { describe, expect, it } from 'vitest';
 import { FileDiffRegistry } from './file-diff-registry';

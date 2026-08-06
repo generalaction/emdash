@@ -1,5 +1,5 @@
 import { ok } from '@emdash/shared';
-import { createLiveJobReplicaCache } from '@emdash/wire';
+import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import { createTestWire } from '@emdash/wire/testing';
 import { fileSearchContract } from '@runtimes/file-search/api';
 import { describe, expect, it } from 'vitest';

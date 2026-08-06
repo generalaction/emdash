@@ -3,15 +3,15 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { waitFor } from '@emdash/shared/testing';
+import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import {
   client,
   connect,
-  createLiveJobReplicaCache,
   memoryTransportPair,
   serve,
   streamTransport,
   type LiveUpdate,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import type { PortableRelativePath } from '@primitives/path/api';
 import { filesContract } from '@runtimes/files/api';
 import { FilesRuntime } from '@runtimes/files/node/files-runtime';

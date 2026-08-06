@@ -16,37 +16,25 @@
     "./src/state/live-immer.ts"
   ],
   "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
+    "./rpc": {
+      "types": "./dist/rpc.d.mts",
+      "default": "./dist/rpc.mjs"
+    },
+    "./live": {
+      "types": "./dist/live.d.mts",
+      "default": "./dist/live.mjs"
     },
     "./state": {
       "types": "./dist/state.d.mts",
       "default": "./dist/state.mjs"
     },
-    "./api": {
-      "types": "./dist/api.d.mts",
-      "default": "./dist/api.mjs"
-    },
-    "./component": {
-      "types": "./dist/component.d.mts",
-      "default": "./dist/component.mjs"
-    },
-    "./observability": {
-      "types": "./dist/observability.d.mts",
-      "default": "./dist/observability.mjs"
+    "./mobx": {
+      "types": "./dist/mobx.d.mts",
+      "default": "./dist/mobx.mjs"
     },
     "./testing": {
       "types": "./dist/testing.d.mts",
       "default": "./dist/testing.mjs"
-    },
-    "./util": {
-      "types": "./dist/util.d.mts",
-      "default": "./dist/util.mjs"
-    },
-    "./util/mobx": {
-      "types": "./dist/mobx.d.mts",
-      "default": "./dist/mobx.mjs"
     },
     "./worker": {
       "types": "./dist/worker.d.mts",
@@ -55,10 +43,6 @@
     "./worker/node": {
       "types": "./dist/worker-node.d.mts",
       "default": "./dist/worker-node.mjs"
-    },
-    "./worker/electron": {
-      "types": "./dist/worker-electron.d.mts",
-      "default": "./dist/worker-electron.mjs"
     },
     "./package.json": "./package.json"
   },

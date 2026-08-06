@@ -9,7 +9,7 @@ import {
 import { ok } from '@emdash/shared/result';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { createStubLogger } from '@emdash/shared/testing';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import type { Octokit } from '@octokit/rest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GitHubAuthContract, PullRequest, PullRequestComment, SyncState } from '../../api';

@@ -1,4 +1,4 @@
-import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/api';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { pullRequestErrorSchema } from './errors';
 import {

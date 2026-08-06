@@ -1,6 +1,6 @@
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Scope } from '@emdash/shared/concurrency';
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { expose, family, query } from '@emdash/wire/state';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';

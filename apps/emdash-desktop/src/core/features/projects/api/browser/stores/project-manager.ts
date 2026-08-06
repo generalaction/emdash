@@ -2,7 +2,11 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplicaCache, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
+import {
+  createLiveJobReplicaCache,
+  LiveJobCancelledError,
+  LiveJobFailedError,
+} from '@emdash/wire/live';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';

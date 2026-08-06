@@ -1,7 +1,7 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
-import type { WireInstrumentation } from '../../observability';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import {
   LiveFollower,
   type LiveFollowerApplyResult,

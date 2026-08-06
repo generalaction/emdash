@@ -1,5 +1,5 @@
 import { isOk } from '@emdash/shared';
-import { peek, remote, snapshot } from '@emdash/wire';
+import { peek, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import {
   acpApiContract,

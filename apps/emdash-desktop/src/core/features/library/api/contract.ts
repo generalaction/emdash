@@ -1,4 +1,4 @@
-import { defineContract, procedure } from '@emdash/wire';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 

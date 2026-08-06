@@ -1,7 +1,7 @@
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { remoteRuntimeUnavailable } from '@core/primitives/desktop-runtime/api/runtime-errors';
 
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;

@@ -1,6 +1,6 @@
 import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, liveJob, procedure } from '@emdash/wire';
+import { defineContract, liveJob, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   CommandPaletteQuery,

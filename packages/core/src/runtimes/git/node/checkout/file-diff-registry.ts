@@ -1,5 +1,5 @@
 import type { Scope } from '@emdash/shared/concurrency';
-import { cell, type Cell } from '@emdash/wire';
+import { cell, type Cell } from '@emdash/wire/state';
 import type { PortableRelativePath } from '@primitives/path/api';
 import type {
   BoundFileDiffKey,

@@ -8,8 +8,8 @@ import type {
   LeasedLiveModelProvider,
   LiveModelProvider,
   LiveSource,
-} from '@emdash/wire';
-import { cell, expose, family, query, type Cell, type Family } from '@emdash/wire';
+} from '@emdash/wire/rpc';
+import { cell, expose, family, query, type Cell, type Family } from '@emdash/wire/state';
 import {
   projectsWireContract,
   type ProjectListData,

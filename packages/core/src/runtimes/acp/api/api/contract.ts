@@ -6,7 +6,7 @@ import {
   liveModel,
   liveState,
   uploadFile,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import { terminalStateSchema } from '@runtimes/acp/api/models';
 import { agentStateSchema } from '@runtimes/acp/api/models/agents';
 import {

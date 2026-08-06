@@ -1,4 +1,4 @@
-import { pokeChannel } from '@emdash/wire';
+import { pokeChannel } from '@emdash/wire/state';
 import type { MementoModelKey } from '@core/primitives/mementos/api';
 
 type Match<T> = (payload: T) => boolean;

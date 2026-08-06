@@ -11,7 +11,11 @@ import {
   type SearchResultFile,
   type SearchResultMatch,
 } from '@emdash/ui/react/components';
-import { createLiveJobReplicaCache, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
+import {
+  createLiveJobReplicaCache,
+  LiveJobCancelledError,
+  LiveJobFailedError,
+} from '@emdash/wire/live';
 import { Loader2 } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';

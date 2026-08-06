@@ -1,5 +1,5 @@
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, liveJob } from '@emdash/wire';
+import { defineContract, fallible, liveJob } from '@emdash/wire/rpc';
 import z from 'zod';
 import { mutationAckSchema, mutationErrorSchema } from '@core/primitives/wire/api/mutations';
 

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { deferred } from '@emdash/shared/testing';
-import { snapshot } from '@emdash/wire';
+import { snapshot } from '@emdash/wire/state';
 import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '@primitives/path/api';
 import type { FileTreeModel } from '@runtimes/files/api';
 import { resolveRootIdentity, treeIdentity } from '@runtimes/files/node/allocation/identity';

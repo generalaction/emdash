@@ -63,15 +63,13 @@ const alias = {
   '@emdash/shared/util': resolve(__dirname, '../../packages/shared/src/util/index.ts'),
   '@emdash/shared/testing': resolve(__dirname, '../../packages/shared/src/testing/index.ts'),
   '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
-  '@emdash/wire/api': resolve(__dirname, '../../packages/wire/src/rpc/index.ts'),
-  '@emdash/wire/component': resolve(__dirname, '../../packages/wire/src/component/index.ts'),
+  '@emdash/wire/rpc': resolve(__dirname, '../../packages/wire/src/rpc/index.ts'),
+  '@emdash/wire/live': resolve(__dirname, '../../packages/wire/src/live/index.ts'),
   '@emdash/wire/state': resolve(__dirname, '../../packages/wire/src/state/index.ts'),
+  '@emdash/wire/mobx': resolve(__dirname, '../../packages/wire/src/live/mobx/index.ts'),
   '@emdash/wire/testing': resolve(__dirname, '../../packages/wire/src/testing/index.ts'),
-  '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),
-  '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
   '@emdash/wire/worker/node': resolve(__dirname, '../../packages/wire/src/worker/node/index.ts'),
   '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
-  '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),
 };
 
 // For fixture and migration Vitest projects, redirect better-sqlite3 to an

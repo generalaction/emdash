@@ -4,7 +4,7 @@ import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives
 import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
-import { createLiveJobReplicaCache } from '@emdash/wire';
+import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import { createRemoteMachineService } from '@core/services/remote-machine/node';

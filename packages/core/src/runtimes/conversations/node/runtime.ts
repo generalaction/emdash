@@ -1,7 +1,8 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { cell, expose, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose, type Cell } from '@emdash/wire/state';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { conversationsContract } from '../api/contract';
 import type {

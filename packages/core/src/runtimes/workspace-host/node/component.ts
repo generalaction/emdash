@@ -1,4 +1,4 @@
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { workspaceHostContract } from '@runtimes/workspace-host/api';
 import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';

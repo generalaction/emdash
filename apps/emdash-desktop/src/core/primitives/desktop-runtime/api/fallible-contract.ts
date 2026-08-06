@@ -3,7 +3,7 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/primitives/runtime-resolution/api';
 import type { Result } from '@emdash/shared';
-import { procedure, type MutationDef } from '@emdash/wire';
+import { procedure, type MutationDef } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 const runtimeResolveFailureSchema = z.object({

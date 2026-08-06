@@ -2,15 +2,8 @@ import type { Run, Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { requestPriorities } from '@emdash/shared/requests';
 import { err, ok, type Result } from '@emdash/shared/result';
-import {
-  cell,
-  expose,
-  family,
-  type ContractClient,
-  type Cell,
-  type Family,
-  type LeasedLiveModelProvider,
-} from '@emdash/wire';
+import { type ContractClient, type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose, family, type Cell, type Family } from '@emdash/wire/state';
 import {
   normalizeRepositoryUrl,
   pullRequestsContract,

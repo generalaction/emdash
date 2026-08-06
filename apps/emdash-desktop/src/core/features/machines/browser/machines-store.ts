@@ -1,5 +1,6 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote, whenReady, type ContractClient } from '@emdash/wire';
+import { type ContractClient } from '@emdash/wire/rpc';
+import { observe, remote, whenReady } from '@emdash/wire/state';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import type {

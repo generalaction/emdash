@@ -1,5 +1,5 @@
-import type { LiveSource } from '@emdash/wire';
-import { defineContract, liveModel, liveState } from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { defineContract, liveModel, liveState } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { forwardLiveModel } from './forward-live-model';

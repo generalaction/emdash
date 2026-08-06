@@ -1,7 +1,7 @@
 import { EMDASH_CONFIG_FILE } from '@emdash/core/primitives/emdash-config/api';
 import type { ScriptWorkflowState } from '@emdash/core/runtimes/terminals/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplicaCache, ReplicaLog } from '@emdash/wire';
+import { createLiveJobReplicaCache, ReplicaLog } from '@emdash/wire/live';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';

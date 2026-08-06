@@ -1,4 +1,4 @@
-import { defineContract } from '@emdash/wire';
+import { defineContract } from '@emdash/wire/rpc';
 import { acpApiContract } from '../../../runtimes/acp/api';
 import { agentConfigContract } from '../../../runtimes/agent-config/api';
 import { automationsContract } from '../../../runtimes/automations/api';

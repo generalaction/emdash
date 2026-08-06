@@ -1,5 +1,5 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote, type RemoteModel } from '@emdash/wire';
+import { observe, remote, type RemoteModel } from '@emdash/wire/state';
 import { reaction, runInAction } from 'mobx';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';

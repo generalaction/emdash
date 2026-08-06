@@ -1,6 +1,6 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
 import type { Disposable } from '@emdash/shared/concurrency';
-import { ReplicaLog } from '@emdash/wire';
+import { ReplicaLog } from '@emdash/wire/live';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { makeFileLinkHandlers } from '@core/features/editor/api/browser/open-file-in-file-editor';

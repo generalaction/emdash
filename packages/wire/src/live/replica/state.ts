@@ -4,7 +4,7 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { LiveCursor, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveClientHandle } from '../../api/client';
-import type { WireInstrumentation } from '../../observability';
+import type { WireInstrumentation } from '../../api/instrumentation';
 import { resyncRetry, type LiveResyncFailurePolicy } from '../follower';
 import { LiveStateClient, type LiveChangeMeta } from '../state';
 import { LiveStateWaiters } from '../state/waiters';

@@ -5,7 +5,7 @@ import {
   mcpServerListSchema,
 } from '@emdash/core/runtimes/agent-config/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
 const hostInputSchema = z.object({ host: hostRefSchema });

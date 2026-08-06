@@ -20,15 +20,10 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
-import {
-  observe,
-  remote,
-  ReplicaLog,
-  whenReady,
-  type BlobSource,
-  type Readable,
-} from '@emdash/wire';
-import { createMobxLogStore } from '@emdash/wire/util/mobx';
+import { ReplicaLog } from '@emdash/wire/live';
+import { createMobxLogStore } from '@emdash/wire/mobx';
+import { type BlobSource } from '@emdash/wire/rpc';
+import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { z } from 'zod';
 import { conversationsContract } from '../../api';
 import { getConversationsClient, type ConversationsClient } from '../client';

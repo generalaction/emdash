@@ -5,8 +5,8 @@ import {
 } from '@emdash/core/primitives/host/api';
 import { err, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import type { LiveSource } from '@emdash/wire';
-import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { createConversationOperations } from '@core/features/conversations/node/controller';

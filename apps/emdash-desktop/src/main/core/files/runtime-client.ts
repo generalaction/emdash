@@ -9,7 +9,7 @@ import type {
   JobResult,
   LiveJobClientHandle,
   LiveJobEndpointDef,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import {
   hostPathFromNative,
   nativePathFromHost,

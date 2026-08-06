@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
-import type { LiveLogSource } from '@emdash/wire';
+import type { LiveLogSource } from '@emdash/wire/live';
 import type {
   AcpAttachmentError,
   AcpCancelTurnError,

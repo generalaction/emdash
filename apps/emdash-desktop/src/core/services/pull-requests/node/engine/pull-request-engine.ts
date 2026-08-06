@@ -11,7 +11,7 @@ import {
 } from '@emdash/shared/requests';
 import { err, ok, type Result } from '@emdash/shared/result';
 import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { Octokit } from '@octokit/rest';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import type {

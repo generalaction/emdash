@@ -4,16 +4,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { Result } from '@emdash/shared';
+import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import {
   client,
   connect,
   createController,
-  createLiveJobReplicaCache,
   defineContract,
   memoryTransportPair,
   serve,
   type LiveUpdate,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 import { gitContract } from '@runtimes/git/api';
 import { GitRuntime } from '@runtimes/git/node/git-runtime';
 import { gitPath, hostPath } from '@runtimes/git/node/testing/paths';

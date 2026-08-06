@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
-import { cell, expose } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';

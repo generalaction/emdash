@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { sshContract } from '../api';
 import type { SshConnectionsModel } from './connections-model';
 import type { SshService } from './ssh-service';

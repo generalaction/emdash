@@ -1,4 +1,4 @@
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { repositoryContract } from '../api';
 import { ProviderRepositoryService } from './provider-repository-service';

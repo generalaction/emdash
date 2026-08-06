@@ -1,5 +1,5 @@
 import { createConnection, type Socket } from 'node:net';
-import type { WireTransport } from '@emdash/wire';
+import type { WireTransport } from '@emdash/wire/rpc';
 import type { LocalWorkspaceServerTarget } from '../targets';
 import { ownedStreamTransport } from './owned-stream-transport';
 

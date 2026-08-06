@@ -8,7 +8,7 @@ import {
 } from '@emdash/core/runtimes/agent-config/api';
 import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
+import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   AgentInstallationStatus,

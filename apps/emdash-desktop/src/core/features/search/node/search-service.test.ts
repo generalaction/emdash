@@ -1,6 +1,6 @@
 import { ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
-import { createController } from '@emdash/wire';
+import { createController } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';

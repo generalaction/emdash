@@ -3,7 +3,7 @@ import {
   type Contract,
   type ContractImpl,
   type Controller,
-} from '@emdash/wire/api';
+} from '@emdash/wire/rpc';
 import { desktopHostContract } from '../api';
 import { desktopHostEvents } from './event-host';
 

@@ -1,5 +1,6 @@
 import { isDeepEqual } from '@emdash/shared';
-import { cell, expose, peek, produce, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { cell, expose, peek, produce, type Cell } from '@emdash/wire/state';
 import {
   remoteMachineContract,
   type RemoteMachineServerRuntime,

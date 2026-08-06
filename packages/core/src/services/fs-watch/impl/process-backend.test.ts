@@ -1,7 +1,7 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { defineWireComponent } from '@emdash/wire/component';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
+import { defineWireComponent } from '@emdash/wire/worker';
 import {
   createWireWorkerHost,
   isWorkerSignal,

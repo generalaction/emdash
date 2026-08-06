@@ -8,12 +8,9 @@ import { log } from '@emdash/shared/logger';
 import {
   createLiveJobReplicaCache,
   LiveJobFailedError,
-  type JobError,
-  type JobInput,
-  type JobProgress,
-  type JobResult,
   type LiveJobContext,
-} from '@emdash/wire';
+} from '@emdash/wire/live';
+import { type JobError, type JobInput, type JobProgress, type JobResult } from '@emdash/wire/rpc';
 import type Database from 'better-sqlite3';
 import { and, eq, isNull } from 'drizzle-orm';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';

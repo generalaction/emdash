@@ -1,14 +1,13 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { createLiveJobReplicaCache, LiveJobFailedError } from '@emdash/wire/live';
 import {
-  createLiveJobReplicaCache,
-  LiveJobFailedError,
   type JobError,
   type JobInput,
   type JobProgress,
   type JobResult,
   type LiveJobClientHandle,
   type LiveJobEndpointDef,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 
 export async function runRuntimeLiveJob<Def extends LiveJobEndpointDef>(
   definition: Def,

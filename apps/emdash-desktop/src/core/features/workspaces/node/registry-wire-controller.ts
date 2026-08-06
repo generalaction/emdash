@@ -3,7 +3,7 @@ import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, type Result } from '@emdash/shared';
-import { createController, type Controller } from '@emdash/wire/api';
+import { createController, type Controller } from '@emdash/wire/rpc';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import {
   createWorkspaceRegistry,

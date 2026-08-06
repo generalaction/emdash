@@ -1,4 +1,4 @@
-import type { ContractDefinitions } from '../api/define';
+import type { ContractDefinitions } from '../../api/define';
 import { createWireComponentInstance, type CreateWireComponentInstanceOptions } from './instance';
 import type { InternalWireComponentInstance } from './internal';
 import { assertExactRequirementKeys } from './requirements';

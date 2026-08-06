@@ -1,4 +1,4 @@
-import { defineContract, liveModel, liveState, procedure } from '@emdash/wire';
+import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { ProjectSettingsLoadResult } from '@core/primitives/project-settings/api';
 import type {

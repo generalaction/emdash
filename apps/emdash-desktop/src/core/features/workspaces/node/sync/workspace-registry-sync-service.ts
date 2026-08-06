@@ -5,7 +5,7 @@ import {
 } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote } from '@emdash/wire';
+import { observe, remote } from '@emdash/wire/state';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   applyWorkspaceRegistrySnapshot,

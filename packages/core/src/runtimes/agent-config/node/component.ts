@@ -1,7 +1,7 @@
 import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { agentConfigContract } from '@runtimes/agent-config/api';
 import { createAgentConfigController } from '@runtimes/agent-config/node/api/controller';
 import { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';

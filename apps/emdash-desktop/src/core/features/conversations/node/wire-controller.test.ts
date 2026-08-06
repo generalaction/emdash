@@ -1,7 +1,7 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LiveSource } from '@emdash/wire';
-import { encodeTopic, isDownloadFileOpenResult, type WireFile } from '@emdash/wire/api';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { encodeTopic, isDownloadFileOpenResult, type WireFile } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
 import { conversationsContract } from '../api';
 import type { ConversationsRuntimeResolveError as RuntimeResolveError } from '../api/runtime-adapter';
