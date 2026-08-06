@@ -1,3 +1,4 @@
+import { AgentStatus } from '@emdash/ui/react/components';
 import cronstrue from 'cronstrue';
 import {
   CheckCircle2,
@@ -27,7 +28,6 @@ import type { Automation } from '@core/primitives/automations/api';
 import type { AutomationRunStatus } from '@core/primitives/automations/api';
 import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 
@@ -120,7 +120,7 @@ export const AutomationRow = observer(function AutomationRow({
             >
               {automation.name}
             </span>
-            <AgentStatusIndicator status={agentStatus} />
+            <AgentStatus status={agentStatus} tooltip />
           </div>
           <div className="flex shrink-0 flex-row items-center gap-1 text-xs text-foreground-muted">
             {cronLabel && (

@@ -1,3 +1,4 @@
+import { AgentStatus } from '@emdash/ui/react/components';
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -28,7 +29,6 @@ import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/ap
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import {
   ContextMenu,
@@ -248,7 +248,7 @@ const ConversationRow = observer(function ConversationRow({
             selectionId={conversationId}
           >
             {conversation.indicatorStatus ? (
-              <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+              <AgentStatus status={conversation.indicatorStatus} />
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
