@@ -1,8 +1,8 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import { ok } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { openFixture } from '@tooling/utils/db';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
@@ -19,12 +19,19 @@ import { createWorkspaceDeletionSweepKind } from './workspace-deletion-sweep';
  * until the wire affordances (Retry / Untrack-anyway) act.
  */
 describe('workspace deletion sweep (integration)', () => {
+  type DeleteVerbMock = Mock<
+    (input: {
+      id: string;
+      deleteBranch?: boolean;
+    }) => Promise<Result<void, { type: string; message?: string }>>
+  >;
+
   let fixture: Awaited<ReturnType<typeof openFixture>>;
   let scope: Scope;
   let now: number;
   let hostVerbs: {
-    deleteWorktree: ReturnType<typeof vi.fn>;
-    deleteWorkspace: ReturnType<typeof vi.fn>;
+    deleteWorktree: DeleteVerbMock;
+    deleteWorkspace: DeleteVerbMock;
   };
   let reachable: boolean;
 
@@ -169,35 +176,41 @@ describe('workspace deletion sweep (integration)', () => {
     expect(conversations.getLive('conv-elsewhere')?.deletionTombstone).toBeNull();
   });
 
-  it('a terminal removal failure stops auto-retry, derivable purely from mirror metadata', async () => {
+  it('a terminal RPC failure records the durable stop on the tombstone and halts auto-retry', async () => {
     seedTombstonedWorktree('wt-stuck');
-    // The host wrote a terminal outcome after the tombstone; sync mirrored it.
-    createWorkspaceRegistry(fixture.db).refresh('wt-stuck', {
-      lastRemovalAttempt: {
-        version: '1',
+    // The host classifies the failure: the delete verb's error detail is terminal.
+    hostVerbs.deleteWorktree.mockImplementation(async () => ({
+      success: false as const,
+      error: {
+        type: 'remove-failed',
         stage: 'remove',
         class: 'terminal',
         message: 'worktree is locked',
-        at: now - 1_000,
       },
-    });
+    }));
     const service = createService();
 
     await service.sweepHost(LOCAL_HOST_REF);
+    expect(hostVerbs.deleteWorktree).toHaveBeenCalledTimes(1);
+    expect(
+      createWorkspaceRegistry(fixture.db).getLive('wt-stuck')?.deletionTombstone
+    ).toMatchObject({ terminalStop: { epoch: 0, stage: 'remove', message: 'worktree is locked' } });
 
-    expect(hostVerbs.deleteWorktree).not.toHaveBeenCalled();
+    // Stopped durably — even a fresh service (app restart) never re-issues.
+    now += 60 * 60_000;
+    await service.sweepHost(LOCAL_HOST_REF);
+    await createService().sweepHost(LOCAL_HOST_REF);
+    expect(hostVerbs.deleteWorktree).toHaveBeenCalledTimes(1);
   });
 
-  it('the Retry wire verb clears the mark and the next sweep retries', async () => {
+  it('the Retry wire verb durably advances the epoch: sync and restarts never resurrect the stop', async () => {
     seedTombstonedWorktree('wt-stuck');
-    createWorkspaceRegistry(fixture.db).refresh('wt-stuck', {
-      lastRemovalAttempt: {
-        version: '1',
-        stage: 'remove',
-        class: 'terminal',
-        message: 'worktree is locked',
-        at: now - 1_000,
-      },
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.recordTombstoneTerminalStop('wt-stuck', {
+      epoch: 0,
+      stage: 'remove',
+      message: 'worktree is locked',
+      at: now - 1_000,
     });
     const service = createService();
     const wire = createWorkspaceRegistryWireController({
@@ -209,7 +222,25 @@ describe('workspace deletion sweep (integration)', () => {
     await wire.call('retryWorkspaceRemoval', { workspaceId: 'wt-stuck' });
 
     await vi.waitFor(() => expect(hostVerbs.deleteWorktree).toHaveBeenCalledTimes(1));
-    expect(createWorkspaceRegistry(fixture.db).getLive('wt-stuck')?.lastRemovalAttempt).toBeNull();
+    // The durable half: the epoch advanced on the row; the stale stop stays but is inert.
+    expect(registry.getLive('wt-stuck')?.deletionTombstone).toMatchObject({
+      attemptEpoch: 1,
+      terminalStop: { epoch: 0 },
+    });
+
+    // A registry sync restoring the host-written mark changes nothing, and a fresh
+    // service (app restart) still attempts: the stop state is desktop-owned.
+    registry.refresh('wt-stuck', {
+      lastRemovalAttempt: {
+        version: '1',
+        stage: 'remove',
+        class: 'terminal',
+        message: 'worktree is locked',
+        at: now,
+      },
+    });
+    await createService().sweepHost(LOCAL_HOST_REF);
+    expect(hostVerbs.deleteWorktree).toHaveBeenCalledTimes(2);
   });
 
   it('the Untrack-anyway wire verb purges the tombstone without touching the host', async () => {

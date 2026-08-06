@@ -366,7 +366,7 @@ export class WorkspaceRegistryRuntime {
    */
   private async deactivateForRemoval(
     record: DurableWorkspaceRecord
-  ): Promise<{ type: 'remove-failed'; message: string } | null> {
+  ): Promise<DeleteWorkspaceError | null> {
     const { teardownFailure } = await this.deactivateLocked(record);
     if (!teardownFailure) return null;
     return await this.recordRemovalFailure(record.id, {
@@ -379,12 +379,13 @@ export class WorkspaceRegistryRuntime {
   /**
    * Durable half of a failed removal: the annotation lands on the record (and the
    * records live model) before the verb returns; the returned error is loop control
-   * carrying nothing the record does not (ADR 0006).
+   * carrying the same host-decided stage/class facts as the record — nothing the
+   * record does not (ADR 0006).
    */
   private async recordRemovalFailure(
     id: string,
     failure: Omit<WorkspaceRemovalAttempt, 'at'>
-  ): Promise<{ type: 'remove-failed'; message: string }> {
+  ): Promise<DeleteWorkspaceError> {
     await this.enqueue(async () => {
       const record = this.store.get(id);
       if (!record) return;
@@ -397,7 +398,12 @@ export class WorkspaceRegistryRuntime {
       this.store.update(updated);
       this.publish(updated);
     });
-    return { type: 'remove-failed', message: failure.message };
+    return {
+      type: 'remove-failed',
+      stage: failure.stage,
+      class: failure.class,
+      message: failure.message,
+    };
   }
 
   /** The parent record's path when it is usable, else what the disk says. */

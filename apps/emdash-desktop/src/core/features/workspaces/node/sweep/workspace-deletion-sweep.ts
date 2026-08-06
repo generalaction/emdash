@@ -1,5 +1,5 @@
-import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import { and, isNotNull } from 'drizzle-orm';
 import {
   tombstoneWorkspaceConversationDeletions,
   type WorkspaceRemovalBroker,
@@ -9,10 +9,14 @@ import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
+import { tombstoneAttemptEpoch } from '@core/primitives/reconcile/api/tombstone-attempts';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
+import { hostIdentityFilter } from '@core/services/reconcile-sweep/node/host-identity-filter';
 import type {
   ReconcileSweepKind,
   ReconcileTombstone,
+  RemovalFailure,
 } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 
 /**
@@ -21,7 +25,9 @@ import type {
  * the registry's idempotent `deleteWorktree`/`deleteWorkspace` verb called with the
  * tombstone's frozen options and target record UUID, and gone-confirmation is the
  * sync path having untracked the row (the snapshot application purges tombstoned rows
- * once a delivery no longer carries the record).
+ * once a delivery no longer carries the record). Failure classes are host-decided and
+ * arrive on the RPC error detail; a terminal one is recorded durably on the tombstone
+ * row itself, epoch-tagged, so the stop survives restarts and registry syncs.
  */
 export function createWorkspaceDeletionSweepKind(options: {
   db: AppDb;
@@ -36,18 +42,21 @@ export function createWorkspaceDeletionSweepKind(options: {
         .select()
         .from(workspaces)
         .where(
-          and(liveWorkspaces(), hostIdentityFilter(host), isNotNull(workspaces.deletionTombstone))
+          and(
+            liveWorkspaces(),
+            hostIdentityFilter(host, workspaces),
+            isNotNull(workspaces.deletionTombstone)
+          )
         )
         .all();
       return rows.flatMap((row) => {
-        if (row.deletionTombstone === null) return [];
+        const tombstone = row.deletionTombstone;
+        if (tombstone === null) return [];
         return [
           {
             id: row.id,
-            tombstonedAt: row.deletionTombstone.tombstonedAt,
-            lastRemovalAttempt: row.lastRemovalAttempt
-              ? { class: row.lastRemovalAttempt.class, at: row.lastRemovalAttempt.at }
-              : null,
+            attemptEpoch: tombstoneAttemptEpoch(tombstone),
+            terminalStopEpoch: tombstone.terminalStop?.epoch ?? null,
           },
         ];
       });
@@ -72,7 +81,8 @@ export function createWorkspaceDeletionSweepKind(options: {
             })
           : await verbs.deleteWorkspace({ id: tombstone.targetRecordId });
       if (!removed.success) {
-        return removed.error.type === 'host-unreachable' ? 'unreachable' : 'failed';
+        if (removed.error.type === 'host-unreachable') return 'unreachable';
+        return { failed: deleteVerbFailure(removed.error) };
       }
       // The frozen opt-in cascade, compiled at sweep time (spec §7.1) — same shape as
       // the reachable-host delete path: conversation deletion tombstones, converged by
@@ -95,11 +105,39 @@ export function createWorkspaceDeletionSweepKind(options: {
       // confirms the record absent — a row no longer live is a purged tombstone.
       return createWorkspaceRegistry(db).getLive(id) === undefined;
     },
+
+    async recordTerminalStop(_host, id, stop) {
+      // Epoch-guarded durable write on the tombstone row (ADR 0006): a Retry that
+      // already advanced the epoch discards the stale stop inside the registry.
+      const written = createWorkspaceRegistry(db).recordTombstoneTerminalStop(id, stop);
+      if (written > 0) appDbPokes.workspaces.poke({ workspaceId: id });
+    },
   };
 }
 
-function hostIdentityFilter(host: HostRef) {
-  return isLocalHostRef(host)
-    ? and(eq(workspaces.location, 'local'), isNull(workspaces.sshConnectionId))
-    : and(eq(workspaces.location, 'remote'), eq(workspaces.sshConnectionId, host.id));
+/**
+ * Maps the delete verb's RPC error detail to the sweep's loop-control failure. The
+ * host stays the classifier: `remove-failed` carries the host-decided stage/class
+ * (the same facts as the record's `lastRemovalAttempt`); `not-a-worktree` is a
+ * structural refusal an identical retry cannot fix — terminal.
+ */
+function deleteVerbFailure(error: { type: string; message?: string }): RemovalFailure {
+  // Structural read: the broker slice types the error minimally, but the registry
+  // contract's remove-failed errors carry the host-decided stage and class.
+  const detail = error as { type: string; message?: string; stage?: unknown; class?: unknown };
+  if (detail.type === 'not-a-worktree') {
+    return {
+      class: 'terminal',
+      stage: 'remove',
+      message: 'The record is not a worktree.',
+    };
+  }
+  return {
+    class: detail.class === 'terminal' ? 'terminal' : 'transient',
+    stage: typeof detail.stage === 'string' ? detail.stage : 'remove',
+    message:
+      typeof detail.message === 'string'
+        ? detail.message
+        : `Workspace deletion failed (${detail.type}).`,
+  };
 }

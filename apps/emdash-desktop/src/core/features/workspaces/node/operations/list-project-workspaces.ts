@@ -8,6 +8,7 @@ import {
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
+import { activeTombstoneTerminalStop } from '@core/primitives/reconcile/api/tombstone-attempts';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
   ProjectWorkspaceGitStats,
@@ -20,7 +21,6 @@ import type {
   WorkspaceCreateOutcome,
   WorkspaceDeletionTombstone,
   WorkspaceObservedGit,
-  WorkspaceRemovalAttempt,
   WorkspaceRuntimeOverlay,
   WorkspaceScriptOutcomes,
 } from '@core/primitives/workspaces/api';
@@ -54,7 +54,6 @@ type WorkspaceRow = {
   observedGit: WorkspaceObservedGit | null;
   observedAt: number | null;
   deletionTombstone: WorkspaceDeletionTombstone | null;
-  lastRemovalAttempt: WorkspaceRemovalAttempt | null;
   lastCreateOutcome: WorkspaceCreateOutcome | null;
   scriptOutcomes: WorkspaceScriptOutcomes | null;
   runtimeOverlay: WorkspaceRuntimeOverlay | null;
@@ -199,7 +198,8 @@ function buildCandidateRow(
 
   const observedAt = candidate.workspace?.observedAt;
   // A tombstoned row is already a pending deletion (ADR 0006): no second delete.
-  const pendingRemoval = (candidate.workspace?.deletionTombstone ?? null) !== null;
+  const tombstone = candidate.workspace?.deletionTombstone ?? null;
+  const pendingRemoval = tombstone !== null;
   const base: ProjectWorkspaceRow = {
     kind: candidate.kind,
     projectId: project.id,
@@ -217,7 +217,10 @@ function buildCandidateRow(
     observedStatus: candidate.workspace?.observedStatus ?? undefined,
     lastObservedAt: observedAt ? new Date(observedAt).toISOString() : undefined,
     pendingRemoval,
-    lastRemovalAttempt: candidate.workspace?.lastRemovalAttempt ?? undefined,
+    // Durable, epoch-guarded (ADR 0006): a Retry advanced past the stop's epoch hides
+    // it here, so sync and restarts can never resurrect a cleared needs-attention.
+    removalStop:
+      tombstone !== null ? (activeTombstoneTerminalStop(tombstone) ?? undefined) : undefined,
     lastCreateOutcome: candidate.workspace?.lastCreateOutcome ?? undefined,
     scriptOutcomes: candidate.workspace?.scriptOutcomes ?? undefined,
     runtimeOverlay: candidate.workspace?.runtimeOverlay ?? undefined,
@@ -313,7 +316,6 @@ async function getWorkspaceRows(
       observedGit: workspaces.observedGit,
       observedAt: workspaces.observedAt,
       deletionTombstone: workspaces.deletionTombstone,
-      lastRemovalAttempt: workspaces.lastRemovalAttempt,
       lastCreateOutcome: workspaces.lastCreateOutcome,
       scriptOutcomes: workspaces.scriptOutcomes,
       runtimeOverlay: workspaces.runtimeOverlay,

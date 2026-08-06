@@ -13,13 +13,20 @@ import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
  * unreachability through the tombstone + sweep, not an outbox entry.
  */
 
+export type ConversationRemovalFailure = {
+  /** Host-decided (ADR 0006): read from the RPC error detail; the client never classifies. */
+  class: 'transient' | 'terminal';
+  stage: string;
+  message: string;
+};
+
 export type ConversationRemovalOutcome =
   /** The RPC finished; it asserts nothing — the purge waits on mirror confirmation. */
   | 'ok'
-  /** The verb failed on a reachable host: the sweep schedules per-item backoff. */
-  | 'failed'
   /** The host could not be reached: not an attempt; the reconnect sweep retries. */
-  | 'unreachable';
+  | 'unreachable'
+  /** The verb failed on a reachable host: the sweep schedules per-item backoff; a terminal class stops it. */
+  | { failed: ConversationRemovalFailure };
 
 /**
  * Structural slice of the runtime broker: the session-kill and index-delete verbs
@@ -103,7 +110,29 @@ export async function executeConversationRemoval(
 
   const deleted = await client.data.conversations.delete({ id: conversationId });
   if (!deleted.success) {
-    return deleted.error.type === 'host-unreachable' ? 'unreachable' : 'failed';
+    if (deleted.error.type === 'host-unreachable') return 'unreachable';
+    return { failed: deleteVerbFailure(deleted.error) };
   }
   return 'ok';
+}
+
+/**
+ * Maps the delete verb's RPC error detail to the sweep's loop-control failure. The
+ * host stays the classifier: the index delete declares no domain errors today, so
+ * failures are transport-shaped and default to transient — but a host-written
+ * `class: 'terminal'` on the error detail stops the item durably, the same contract
+ * the workspace verbs carry.
+ */
+function deleteVerbFailure(error: { type: string; message?: string }): ConversationRemovalFailure {
+  // Structural read: the broker slice types the error minimally; hosts that classify
+  // put stage/class on the error detail (ADR 0006).
+  const detail = error as { type: string; message?: string; stage?: unknown; class?: unknown };
+  return {
+    class: detail.class === 'terminal' ? 'terminal' : 'transient',
+    stage: typeof detail.stage === 'string' ? detail.stage : 'remove',
+    message:
+      typeof detail.message === 'string'
+        ? detail.message
+        : `Conversation deletion failed (${detail.type}).`,
+  };
 }

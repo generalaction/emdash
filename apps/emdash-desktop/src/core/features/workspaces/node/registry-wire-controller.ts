@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  hostRef,
-  isLocalHostRef,
-  LOCAL_HOST_REF,
-  type HostRef,
-} from '@emdash/core/primitives/host/api';
+import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import type { HostRuntimesClient, RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, type Result } from '@emdash/shared';
@@ -19,6 +14,11 @@ import {
   workspaceRegistryWireContract,
   type ListWorkspacesInput,
 } from '@core/features/workspaces/api/registry-wire-contract';
+import {
+  abandonWorkspaceRemoval,
+  decodeWorkspaceHost,
+  retryWorkspaceRemoval,
+} from '@core/features/workspaces/node/operations/removal-affordances';
 import { mirrorObservationFromRecord } from '@core/features/workspaces/node/sync/apply-workspace-registry-snapshot';
 import type { WorkspaceConfig, WorkspaceMirrorRow } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -104,29 +104,11 @@ export function createWorkspaceRegistryWireController(
       appDbPokes.workspaces.poke({});
     },
 
-    retryWorkspaceRemoval: async ({ workspaceId }) => {
-      const registry = createWorkspaceRegistry(options.db);
-      const row = registry.getLive(workspaceId);
-      if (!row?.deletionTombstone) return;
-      // Clear the terminal mark client-side so the pending row stops reading as
-      // needs-attention; the next delivery may restore it, but the sweep's cleared
-      // stamp keeps the retry live until a fresh attempt writes a newer outcome.
-      registry.refresh(workspaceId, { lastRemovalAttempt: null });
-      appDbPokes.workspaces.poke({ workspaceId });
-      const host = decodeHost(row);
-      if (host !== null) options.sweep.retry('workspaces', host, workspaceId);
-    },
+    retryWorkspaceRemoval: async ({ workspaceId }) =>
+      retryWorkspaceRemoval(options.db, options.sweep, workspaceId),
 
-    abandonWorkspaceRemoval: async ({ workspaceId }) => {
-      const registry = createWorkspaceRegistry(options.db);
-      const row = registry.getLive(workspaceId);
-      if (!row?.deletionTombstone) return;
-      // Untrack-anyway: the durable untrack purges the tombstoned row client-side
-      // and keeps sync from resurrecting it while the host artifacts live on.
-      registry.untrack([workspaceId], new Date().toISOString());
-      options.sweep.drop('workspaces', workspaceId);
-      appDbPokes.workspaces.poke({ workspaceId });
-    },
+    abandonWorkspaceRemoval: async ({ workspaceId }) =>
+      abandonWorkspaceRemoval(options.db, options.sweep, workspaceId),
   });
 }
 
@@ -185,7 +167,7 @@ function listProjectRows(
 function toMirrorRow(row: WorkspaceRow): WorkspaceMirrorRow {
   return {
     id: row.id,
-    host: decodeHost(row),
+    host: decodeWorkspaceHost(row),
     kind: row.kind,
     path: row.path,
     parentId: row.parentId,
@@ -203,15 +185,6 @@ function toMirrorRow(row: WorkspaceRow): WorkspaceMirrorRow {
     updatedAt: row.updatedAt,
     untrackedAt: row.untrackedAt,
   };
-}
-
-/** Identity-lost rows (deleted SSH connection, no location) decode to null, never local. */
-function decodeHost(row: WorkspaceRow): HostRef | null {
-  if (row.location === 'local' && row.sshConnectionId === null) return LOCAL_HOST_REF;
-  if (row.location === 'remote' && row.sshConnectionId !== null) {
-    return hostRef('remote', row.sshConnectionId);
-  }
-  return null;
 }
 
 /**

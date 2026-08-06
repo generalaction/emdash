@@ -1,5 +1,5 @@
-import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import { and, isNotNull } from 'drizzle-orm';
 import {
   executeConversationRemoval,
   type ConversationRemovalBroker,
@@ -9,7 +9,10 @@ import {
   createConversationRegistry,
   liveConversations,
 } from '@core/features/conversations/api/node/registry';
+import { tombstoneAttemptEpoch } from '@core/primitives/reconcile/api/tombstone-attempts';
 import type { AppDb } from '@core/services/app-db/node/db';
+import { appDbPokes } from '@core/services/app-db/node/pokes';
+import { hostIdentityFilter } from '@core/services/reconcile-sweep/node/host-identity-filter';
 import type {
   ReconcileSweepKind,
   ReconcileTombstone,
@@ -23,6 +26,9 @@ import type {
  * the row (the snapshot application purges tombstoned rows once a delivery no longer
  * carries the record). Dangling-tolerant by construction: the verb needs no workspace
  * row, so conversations of an already-removed workspace converge the same way.
+ * Failure classes come from the RPC error detail (host-decided); a terminal one is
+ * recorded durably on the tombstone row, epoch-tagged, so a persistently failing
+ * removal stops retrying and surfaces why instead of spinning silently forever.
  */
 export function createConversationDeletionSweepKind(options: {
   db: AppDb;
@@ -39,21 +45,19 @@ export function createConversationDeletionSweepKind(options: {
         .where(
           and(
             liveConversations(),
-            hostIdentityFilter(host),
+            hostIdentityFilter(host, conversations),
             isNotNull(conversations.deletionTombstone)
           )
         )
         .all();
       return rows.flatMap((row) => {
-        if (row.deletionTombstone === null) return [];
+        const tombstone = row.deletionTombstone;
+        if (tombstone === null) return [];
         return [
           {
             id: row.id,
-            tombstonedAt: row.deletionTombstone.tombstonedAt,
-            // The host index delete has no domain errors (idempotent, error: never), so
-            // conversations carry no host-written removal mark: every failure is
-            // transport-shaped and rides the transient backoff — no terminal stop.
-            lastRemovalAttempt: null,
+            attemptEpoch: tombstoneAttemptEpoch(tombstone),
+            terminalStopEpoch: tombstone.terminalStop?.epoch ?? null,
           },
         ];
       });
@@ -75,11 +79,12 @@ export function createConversationDeletionSweepKind(options: {
       // confirms the record absent — a row no longer live is a purged tombstone.
       return createConversationRegistry(db).getLive(id) === undefined;
     },
-  };
-}
 
-function hostIdentityFilter(host: HostRef) {
-  return isLocalHostRef(host)
-    ? and(eq(conversations.location, 'local'), isNull(conversations.sshConnectionId))
-    : and(eq(conversations.location, 'remote'), eq(conversations.sshConnectionId, host.id));
+    async recordTerminalStop(_host, id, stop) {
+      // Epoch-guarded durable write on the tombstone row (ADR 0006): a Retry that
+      // already advanced the epoch discards the stale stop inside the registry.
+      const written = createConversationRegistry(db).recordTombstoneTerminalStop(id, stop);
+      if (written > 0) appDbPokes.conversations.poke({});
+    },
+  };
 }

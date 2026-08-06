@@ -190,6 +190,32 @@ describe('conversation deletion sweep (integration)', () => {
     expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(2);
   });
 
+  it('a terminal failure records the durable stop on the tombstone and halts auto-retry', async () => {
+    seedTombstonedConversation('conv-stuck');
+    // Host-decided classification on the RPC error detail (ADR 0006).
+    hostVerbs.deleteRecord.mockImplementation(async () =>
+      err({ type: 'index-corrupt', class: 'terminal', message: 'index is corrupt' } as never)
+    );
+    const service = createService();
+
+    await service.sweepHost(LOCAL_HOST_REF);
+    expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(1);
+    expect(
+      createConversationRegistry(fixture.db).getLive('conv-stuck')?.deletionTombstone
+    ).toMatchObject({ terminalStop: { epoch: 0, message: 'index is corrupt' } });
+
+    // Stopped durably — even a fresh service (app restart) never re-issues.
+    now += 60 * 60 * 1000;
+    await service.sweepHost(LOCAL_HOST_REF);
+    await createService().sweepHost(LOCAL_HOST_REF);
+    expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(1);
+
+    // The durable Retry: the registry epoch bump re-arms exactly this item.
+    createConversationRegistry(fixture.db).retryTombstone('conv-stuck');
+    await createService().sweepHost(LOCAL_HOST_REF);
+    expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(2);
+  });
+
   it('scopes tombstone reads to the swept host', async () => {
     const registry = createConversationRegistry(fixture.db);
     fixture.sqlite

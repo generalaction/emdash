@@ -24,8 +24,10 @@ export async function removeConversationOrTombstone(
 ): Promise<'removed' | 'tombstoned'> {
   const host = hostRefFromParts(row.location, row.sshConnectionId);
   const outcome = await executeConversationRemoval(runtimes, host, row.id);
-  if (outcome === 'failed') {
-    throw new Error(`Failed to delete conversation ${row.id} on its host`);
+  if (typeof outcome !== 'string') {
+    throw new Error(
+      `Failed to delete conversation ${row.id} on its host: ${outcome.failed.message}`
+    );
   }
   const createdAt = Date.now();
   if (outcome === 'unreachable') {

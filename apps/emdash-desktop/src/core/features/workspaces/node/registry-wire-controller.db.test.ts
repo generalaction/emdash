@@ -269,33 +269,37 @@ describe('createWorkspaceRegistryWireController', () => {
 
   describe('needs-attention affordances (ADR 0006)', () => {
     function seedTombstonedRow(id: string): void {
-      seedRow(id, {
-        lastRemovalAttempt: {
-          version: '1',
-          stage: 'remove',
-          class: 'terminal',
-          message: 'worktree is locked',
-          at: Date.parse('2026-01-03T00:00:00.000Z'),
-        },
-      });
-      createWorkspaceRegistry(fixture.db).tombstone(id, {
+      seedRow(id);
+      const registry = createWorkspaceRegistry(fixture.db);
+      registry.tombstone(id, {
         version: '1',
         targetRecordId: id,
         tombstonedAt: Date.parse('2026-01-02T00:00:00.000Z'),
         options: { deleteBranch: true, deleteConversations: false },
       });
+      // The sweep recorded a durable terminal stop at the current epoch (0).
+      registry.recordTombstoneTerminalStop(id, {
+        epoch: 0,
+        stage: 'remove',
+        message: 'worktree is locked',
+        at: Date.parse('2026-01-03T00:00:00.000Z'),
+      });
     }
 
-    it('retryWorkspaceRemoval clears the terminal mark and pokes the sweep', async () => {
+    it('retryWorkspaceRemoval durably advances the attempt epoch and pokes the sweep', async () => {
       seedTombstonedRow('wt-stuck');
       const wire = controller();
 
       await wire.call('retryWorkspaceRemoval', { workspaceId: 'wt-stuck' });
 
       const row = createWorkspaceRegistry(fixture.db).getLive('wt-stuck');
-      expect(row?.lastRemovalAttempt).toBeNull();
       // The tombstone survives: retry re-arms the pending deletion, never cancels it.
-      expect(row?.deletionTombstone).toMatchObject({ targetRecordId: 'wt-stuck' });
+      // The stale stop stays on the row but is inert behind the advanced epoch.
+      expect(row?.deletionTombstone).toMatchObject({
+        targetRecordId: 'wt-stuck',
+        attemptEpoch: 1,
+        terminalStop: { epoch: 0 },
+      });
       expect(sweep.retry).toHaveBeenCalledWith('workspaces', LOCAL_HOST_REF, 'wt-stuck');
     });
 

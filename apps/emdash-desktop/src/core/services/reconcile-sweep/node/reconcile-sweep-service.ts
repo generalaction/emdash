@@ -8,36 +8,49 @@ import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodi
  * reachable by calling each registered kind's idempotent removal function. The RPC
  * return is loop control only — it schedules per-item backoff or not; the tombstone
  * purges when the sync-delivered mirror confirms the host record gone (the snapshot
- * application untracks it), never on the RPC return. Failure classes are host-written
- * on the record: transient failures ride the 10-minute backstop with exponential
- * per-item backoff; terminal ones stop auto-retry until the user chooses Retry or
- * Untrack-anyway. The only client-side coordination is the per-tombstone in-memory
- * single-flight marker — no admission guard, no claims.
+ * application untracks it), never on the RPC return. Failure classes are host-decided
+ * and arrive on the RPC error detail: transient failures ride the 10-minute backstop
+ * with exponential per-item backoff; terminal ones are recorded durably on the desktop
+ * tombstone row, tagged with the attempt epoch, and stop auto-retry until the user
+ * chooses Retry (a durable epoch bump) or Untrack-anyway. The stop lives desktop-side,
+ * so a registry sync restoring the host-written mark can never resurrect a cleared
+ * stop, and no wall-clock comparison decides stop/retry. The only client-side
+ * coordination is the per-tombstone in-memory single-flight marker — no admission
+ * guard, no claims.
  */
 
 /** One tombstoned mirror row, as the sweep needs to see it — kind-agnostic. */
 export type ReconcileTombstone = {
   /** The tombstoned record's UUID: the per-tombstone single-flight and backoff key. */
   id: string;
-  /** Epoch-ms tombstone write stamp; marks older than this never block the intent. */
-  tombstonedAt: number;
-  /** Host-written outcome mark mirrored from the record; 'terminal' needs the user. */
-  lastRemovalAttempt: { class: 'transient' | 'terminal'; at: number } | null;
+  /** Durable attempt epoch owned by the desktop tombstone row; Retry increments it. */
+  attemptEpoch: number;
+  /** Epoch of the durable desktop-recorded terminal stop; null while none exists. */
+  terminalStopEpoch: number | null;
+};
+
+/** Host-decided failure detail carried on the RPC error return (the client never classifies). */
+export type RemovalFailure = {
+  class: 'transient' | 'terminal';
+  /** Removal step that failed: e.g. 'teardown' | 'remove' | 'unregister'. */
+  stage: string;
+  message: string;
 };
 
 export type RemovalAttemptOutcome =
   /** The RPC finished; it asserts nothing — the purge waits on mirror confirmation. */
   | 'ok'
-  /** The verb failed on a reachable host: schedule per-item backoff. */
-  | 'failed'
   /** The host could not be reached: not an attempt, no backoff; reconnect retries. */
-  | 'unreachable';
+  | 'unreachable'
+  /** The verb failed on a reachable host: schedule per-item backoff; a terminal class stops the item. */
+  | { failed: RemovalFailure };
 
 /**
  * One entity kind's contribution: a small object, not inheritance. Each registry
- * (workspaces now, conversations in a later slice) supplies how to read its pending
- * tombstones for a host, how to execute its idempotent removal verb with the frozen
- * options, and how to tell that the mirror has confirmed the host record gone.
+ * (workspaces and conversations today) supplies how to read its pending tombstones
+ * for a host, how to execute its idempotent removal verb with the frozen options,
+ * how to tell that the mirror has confirmed the host record gone, and how to record
+ * the durable terminal stop on its tombstone row.
  */
 export type ReconcileSweepKind = {
   /** Unique registry name; kinds sweep in registration order (churn heuristic only). */
@@ -52,6 +65,16 @@ export type ReconcileSweepKind = {
   executeRemoval(host: HostRef, id: string): Promise<RemovalAttemptOutcome>;
   /** Sync-plane confirmation: the mirror no longer serves a live row for the id. */
   confirmGone(host: HostRef, id: string): Promise<boolean>;
+  /**
+   * Durable desktop-side terminal stop write on the tombstone row, guarded on the
+   * epoch: a Retry that already advanced the epoch discards the stale stop. Must be
+   * benign against rows vanishing underneath.
+   */
+  recordTerminalStop(
+    host: HostRef,
+    id: string,
+    stop: { epoch: number; stage: string; message: string; at: number }
+  ): Promise<void>;
 };
 
 /** The slice the wire controller needs for the Retry / Untrack-anyway affordances. */
@@ -78,8 +101,6 @@ type ItemState = {
   failures: number;
   /** Epoch-ms; attempts inside the window are skipped (the backstop retries later). */
   nextAttemptAt: number;
-  /** Set by Retry: terminal marks at or before this stamp no longer stop the item. */
-  retryClearedAt?: number;
 };
 
 export class ReconcileSweepService {
@@ -150,13 +171,13 @@ export class ReconcileSweepService {
   }
 
   /**
-   * Retry affordance (ADR 0006): clears the terminal stop and the backoff window so
-   * the next sweep retries, and sweeps the host immediately.
+   * Retry affordance (ADR 0006): the durable half — the tombstone's attempt epoch —
+   * is bumped by the owning operation before this call; here the in-memory backoff
+   * window resets so exactly one fresh attempt runs on the immediate sweep.
    */
   retry(kind: string, host: HostRef, id: string): void {
     if (this.disposed) return;
     const state = this.stateFor(kind, id, hostRefKey(host));
-    state.retryClearedAt = this.now();
     state.failures = 0;
     state.nextAttemptAt = 0;
     void this.sweepHost(host);
@@ -175,8 +196,8 @@ export class ReconcileSweepService {
   ): Promise<void> {
     const key = stateKey(kind.kind, item.id);
     if (this.inFlight.has(key)) return;
+    if (isTerminallyStopped(item)) return;
     const state = this.states.get(key);
-    if (isTerminallyStopped(item, state)) return;
     if (state !== undefined && this.now() < state.nextAttemptAt) return;
 
     this.inFlight.add(key);
@@ -188,16 +209,26 @@ export class ReconcileSweepService {
         return;
       }
       const outcome = await kind.executeRemoval(host, item.id);
-      if (outcome === 'failed') {
-        const failed = this.stateFor(kind.kind, item.id, hostKey);
-        failed.failures += 1;
-        failed.nextAttemptAt = this.now() + backoffWindowMs(failed.failures);
-      } else if (outcome === 'ok') {
+      if (outcome === 'ok') {
         const succeeded = this.stateFor(kind.kind, item.id, hostKey);
         succeeded.failures = 0;
         succeeded.nextAttemptAt = 0;
+      } else if (outcome !== 'unreachable') {
+        // 'unreachable' is not an attempt: no backoff; the reconnect trigger retries.
+        const failed = this.stateFor(kind.kind, item.id, hostKey);
+        failed.failures += 1;
+        failed.nextAttemptAt = this.now() + backoffWindowMs(failed.failures);
+        if (outcome.failed.class === 'terminal') {
+          // The durable stop, tagged with the epoch this attempt ran in: survives
+          // restarts and registry syncs; a Retry's epoch bump makes it inert.
+          await kind.recordTerminalStop(host, item.id, {
+            epoch: item.attemptEpoch,
+            stage: outcome.failed.stage,
+            message: outcome.failed.message,
+            at: this.now(),
+          });
+        }
       }
-      // 'unreachable' is not an attempt: no backoff; the reconnect trigger retries.
     } catch (error) {
       const failed = this.stateFor(kind.kind, item.id, hostKey);
       failed.failures += 1;
@@ -232,16 +263,12 @@ function stateKey(kind: string, id: string): string {
 }
 
 /**
- * The terminal-failure stop (spec §2): host-written 'terminal' marks halt auto-retry.
- * A mark older than the tombstone belongs to a previous intent and never blocks the
- * fresh one; a mark at or before the user's Retry click is considered cleared.
+ * The terminal-failure stop (spec §2), purely epoch-based: a durable stop halts
+ * auto-retry only while its epoch is current. Retry durably advances the attempt
+ * epoch, so an older stop never blocks the fresh attempt — no clock is consulted.
  */
-function isTerminallyStopped(item: ReconcileTombstone, state: ItemState | undefined): boolean {
-  const mark = item.lastRemovalAttempt;
-  if (mark === null || mark.class !== 'terminal') return false;
-  if (mark.at < item.tombstonedAt) return false;
-  if (state?.retryClearedAt !== undefined && mark.at <= state.retryClearedAt) return false;
-  return true;
+function isTerminallyStopped(item: ReconcileTombstone): boolean {
+  return item.terminalStopEpoch !== null && item.terminalStopEpoch >= item.attemptEpoch;
 }
 
 function backoffWindowMs(failures: number): number {

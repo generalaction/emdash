@@ -176,8 +176,10 @@ describe('executeConversationRemoval', () => {
     const failed = fakeBroker({
       deleteRecord: vi.fn(async () => err({ type: 'index-io-error', message: 'disk' })),
     });
-    await expect(executeConversationRemoval(failed.broker, LOCAL_HOST_REF, 'conv-1')).resolves.toBe(
-      'failed'
-    );
+    await expect(
+      executeConversationRemoval(failed.broker, LOCAL_HOST_REF, 'conv-1')
+    ).resolves.toEqual({
+      failed: { class: 'transient', stage: 'remove', message: 'disk' },
+    });
   });
 });

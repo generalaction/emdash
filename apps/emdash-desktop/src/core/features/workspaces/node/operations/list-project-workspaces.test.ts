@@ -28,7 +28,6 @@ vi.mock('@core/features/workspaces/api/node/registry', () => ({
     observedGit: 'workspaces.observedGit',
     observedAt: 'workspaces.observedAt',
     deletionTombstone: 'workspaces.deletionTombstone',
-    lastRemovalAttempt: 'workspaces.lastRemovalAttempt',
     lastCreateOutcome: 'workspaces.lastCreateOutcome',
     scriptOutcomes: 'workspaces.scriptOutcomes',
     runtimeOverlay: 'workspaces.runtimeOverlay',
@@ -172,7 +171,7 @@ describe('listProjectWorkspaces', () => {
     });
   });
 
-  it('serves tombstoned rows as pending removals with the last failed attempt', async () => {
+  it('serves tombstoned rows as pending removals with the active terminal stop', async () => {
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
       .mockReturnValueOnce(taskRows([]))
@@ -188,13 +187,13 @@ describe('listProjectWorkspaces', () => {
               targetRecordId: 'doomed',
               tombstonedAt: OBSERVED_AT,
               options: { deleteBranch: false, deleteConversations: false },
-            },
-            lastRemovalAttempt: {
-              version: '1',
-              stage: 'remove',
-              class: 'terminal',
-              message: 'worktree is locked',
-              at: OBSERVED_AT,
+              attemptEpoch: 0,
+              terminalStop: {
+                epoch: 0,
+                stage: 'remove',
+                message: 'worktree is locked',
+                at: OBSERVED_AT,
+              },
             },
           }),
         ])
@@ -205,11 +204,47 @@ describe('listProjectWorkspaces', () => {
     expect(result.rows.find((row) => row.workspaceId === 'doomed')).toMatchObject({
       pendingRemoval: true,
       canDelete: false,
-      lastRemovalAttempt: { class: 'terminal', message: 'worktree is locked' },
+      removalStop: { stage: 'remove', message: 'worktree is locked' },
     });
     expect(result.rows.find((row) => row.kind === 'root')).toMatchObject({
       pendingRemoval: false,
-      lastRemovalAttempt: undefined,
+      removalStop: undefined,
+    });
+  });
+
+  it('hides a terminal stop from an older epoch after a durable retry', async () => {
+    select
+      .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
+      .mockReturnValueOnce(taskRows([]))
+      .mockReturnValueOnce(
+        workspaceRows([
+          mirrorRow({ id: 'project-1-repository-workspace', kind: 'repository', path: '/repo' }),
+          mirrorRow({
+            id: 'retried',
+            path: '/repo/retried',
+            config: { version: '2' },
+            deletionTombstone: {
+              version: '1',
+              targetRecordId: 'retried',
+              tombstonedAt: OBSERVED_AT,
+              options: { deleteBranch: false, deleteConversations: false },
+              attemptEpoch: 1,
+              terminalStop: {
+                epoch: 0,
+                stage: 'remove',
+                message: 'worktree is locked',
+                at: OBSERVED_AT,
+              },
+            },
+          }),
+        ])
+      );
+
+    const result = await list({ client: vi.fn() });
+
+    expect(result.rows.find((row) => row.workspaceId === 'retried')).toMatchObject({
+      pendingRemoval: true,
+      removalStop: undefined,
     });
   });
 
@@ -307,7 +342,6 @@ function mirrorRow(overrides: Record<string, unknown>) {
     observedGit: null,
     observedAt: OBSERVED_AT,
     deletionTombstone: null,
-    lastRemovalAttempt: null,
     lastCreateOutcome: null,
     scriptOutcomes: null,
     runtimeOverlay: null,

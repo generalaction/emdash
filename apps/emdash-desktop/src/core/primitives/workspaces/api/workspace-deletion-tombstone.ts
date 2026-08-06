@@ -1,5 +1,6 @@
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import z from 'zod';
+import { tombstoneTerminalStopSchema } from '@core/primitives/reconcile/api/tombstone-attempts';
 
 // Durable deletion intent on the workspaces mirror (ADR 0006): written atomically at
 // delete time when the host is unreachable. The tombstoned row *is* the durable intent
@@ -22,6 +23,13 @@ const deletionTombstoneV1 = z.object({
     /** Opt-in cascade to the workspace's conversation records (spec §7.1). */
     deleteConversations: z.boolean(),
   }),
+  /**
+   * Durable attempt epoch: incremented by the Retry affordance; absent reads as 0.
+   * See `@core/primitives/reconcile/api/tombstone-attempts` for the stop semantics.
+   */
+  attemptEpoch: z.number().int().optional(),
+  /** Durable desktop-recorded terminal stop, inert once Retry advances the epoch. */
+  terminalStop: tombstoneTerminalStopSchema.nullable().optional(),
 });
 
 export const workspaceDeletionTombstone = defineVersionedSchema()

@@ -15,8 +15,9 @@ const REMOTE_HOST = hostRef('remote', 'ssh-1');
  * fake kind — an in-memory tombstone store plus a scripted removal function. The
  * tests pin the lifecycle the spec decided: per-tombstone single-flight, per-item
  * exponential backoff riding the backstop, purge gated on the store confirming the
- * record gone (never on the RPC return), the terminal-failure stop with its Retry
- * and Untrack-anyway affordances, and rows vanishing mid-sweep staying benign.
+ * record gone (never on the RPC return), the durable epoch-based terminal-failure
+ * stop with its Retry and Untrack-anyway affordances, and rows vanishing mid-sweep
+ * staying benign. No wall clock decides stop/retry.
  */
 describe('ReconcileSweepService', () => {
   let scope: Scope;
@@ -39,6 +40,10 @@ describe('ReconcileSweepService', () => {
     });
   }
 
+  function failure(kind: 'transient' | 'terminal'): RemovalAttemptOutcome {
+    return { failed: { class: kind, stage: 'remove', message: `${kind} failure` } };
+  }
+
   type FakeItem = ReconcileTombstone & { gone?: boolean };
 
   /** In-memory stand-in for the mirror: live tombstoned rows plus a gone flag. */
@@ -54,6 +59,16 @@ describe('ReconcileSweepService', () => {
       await options.onRemoval?.(host, id);
       return typeof options.outcome === 'function' ? options.outcome() : (options.outcome ?? 'ok');
     });
+    const recordTerminalStop = vi.fn(
+      async (_host: HostRef, id: string, stop: { epoch: number }) => {
+        const item = items.get(id);
+        if (!item) return;
+        // The epoch guard mirrored from the durable registry write: a Retry that
+        // already advanced the epoch discards the stale stop.
+        if (stop.epoch !== item.attemptEpoch) return;
+        item.terminalStopEpoch = stop.epoch;
+      }
+    );
     const kind: ReconcileSweepKind = {
       kind: options.kind ?? 'widgets',
       readTombstones: async () =>
@@ -62,15 +77,17 @@ describe('ReconcileSweepService', () => {
           .map(({ gone: _gone, ...item }) => item),
       executeRemoval,
       confirmGone: async (_host, id) => items.get(id)?.gone !== false,
+      recordTerminalStop,
     };
     return {
       kind,
       executeRemoval,
+      recordTerminalStop,
       seed(id: string, overrides: Partial<FakeItem> = {}) {
         items.set(id, {
           id,
-          tombstonedAt: now,
-          lastRemovalAttempt: null,
+          attemptEpoch: 0,
+          terminalStopEpoch: null,
           gone: false,
           ...overrides,
         });
@@ -79,9 +96,13 @@ describe('ReconcileSweepService', () => {
         const item = items.get(id);
         if (item) item.gone = true;
       },
-      annotate(id: string, lastRemovalAttempt: ReconcileTombstone['lastRemovalAttempt']) {
+      /** The durable half of Retry: the owning operation bumps the attempt epoch. */
+      bumpEpoch(id: string) {
         const item = items.get(id);
-        if (item) item.lastRemovalAttempt = lastRemovalAttempt;
+        if (item) item.attemptEpoch += 1;
+      },
+      get(id: string) {
+        return items.get(id);
       },
       forgetAll() {
         items.clear();
@@ -133,7 +154,7 @@ describe('ReconcileSweepService', () => {
   });
 
   it('failed attempts back off exponentially, capped at one hour', async () => {
-    const fake = createFakeKind({ outcome: 'failed' });
+    const fake = createFakeKind({ outcome: failure('transient') });
     fake.seed('a');
     const service = createService();
     service.registerKind(fake.kind);
@@ -217,12 +238,9 @@ describe('ReconcileSweepService', () => {
     expect(fake.executeRemoval).not.toHaveBeenCalled();
   });
 
-  it('terminal failures stop auto-retry for that item only', async () => {
+  it('a durable terminal stop in the current epoch halts auto-retry for that item only', async () => {
     const fake = createFakeKind();
-    fake.seed('stuck', {
-      tombstonedAt: now - 60_000,
-      lastRemovalAttempt: { class: 'terminal', at: now - 1_000 },
-    });
+    fake.seed('stuck', { terminalStopEpoch: 0 });
     fake.seed('fine');
     const service = createService();
     service.registerKind(fake.kind);
@@ -233,12 +251,45 @@ describe('ReconcileSweepService', () => {
     expect(fake.executeRemoval).toHaveBeenCalledWith(LOCAL_HOST_REF, 'fine');
   });
 
-  it('a transient failure mark never stops the sweep', async () => {
-    const fake = createFakeKind();
-    fake.seed('a', {
-      tombstonedAt: now - 60_000,
-      lastRemovalAttempt: { class: 'transient', at: now - 1_000 },
+  it('a terminal failure records the durable stop, tagged with the attempt epoch', async () => {
+    const fake = createFakeKind({ outcome: failure('terminal') });
+    fake.seed('a');
+    const service = createService();
+    service.registerKind(fake.kind);
+
+    await service.sweepHost(LOCAL_HOST_REF);
+
+    expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
+    expect(fake.recordTerminalStop).toHaveBeenCalledWith(LOCAL_HOST_REF, 'a', {
+      epoch: 0,
+      stage: 'remove',
+      message: 'terminal failure',
+      at: now,
     });
+    // Stopped durably: later sweeps (past any backoff) never re-issue.
+    now += 60 * 60_000;
+    await service.sweepHost(LOCAL_HOST_REF);
+    expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
+  });
+
+  it('a transient failure never records a stop and keeps riding the backstop', async () => {
+    const fake = createFakeKind({ outcome: failure('transient') });
+    fake.seed('a');
+    const service = createService();
+    service.registerKind(fake.kind);
+
+    await service.sweepHost(LOCAL_HOST_REF);
+    now += 61_000;
+    await service.sweepHost(LOCAL_HOST_REF);
+
+    expect(fake.executeRemoval).toHaveBeenCalledTimes(2);
+    expect(fake.recordTerminalStop).not.toHaveBeenCalled();
+  });
+
+  it('a stop from an older epoch never halts the sweep: retry is durable across restarts', async () => {
+    // Retry bumped the epoch durably; then the app restarted (fresh in-memory state).
+    const fake = createFakeKind();
+    fake.seed('a', { attemptEpoch: 1, terminalStopEpoch: 0 });
     const service = createService();
     service.registerKind(fake.kind);
 
@@ -247,58 +298,70 @@ describe('ReconcileSweepService', () => {
     expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
   });
 
-  it('a terminal mark that predates the tombstone does not block the fresh intent', async () => {
-    const fake = createFakeKind();
-    fake.seed('a', {
-      tombstonedAt: now,
-      lastRemovalAttempt: { class: 'terminal', at: now - 10_000 },
-    });
-    const service = createService();
-    service.registerKind(fake.kind);
-
-    await service.sweepHost(LOCAL_HOST_REF);
-
-    expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
-  });
-
-  it('retry clears the terminal stop and backoff, and sweeps immediately', async () => {
-    const fake = createFakeKind({ outcome: 'failed' });
-    fake.seed('a', {
-      tombstonedAt: now - 60_000,
-      lastRemovalAttempt: { class: 'terminal', at: now - 1_000 },
-    });
+  it('retry (durable epoch bump + backoff reset) runs exactly one fresh attempt', async () => {
+    const fake = createFakeKind({ outcome: failure('transient') });
+    fake.seed('a', { terminalStopEpoch: 0 });
     const service = createService();
     service.registerKind(fake.kind);
 
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).not.toHaveBeenCalled();
 
-    service.retry('widgets', LOCAL_HOST_REF, 'a');
-    await vi.waitFor(() => expect(fake.executeRemoval).toHaveBeenCalledTimes(1));
-  });
-
-  it('a new terminal failure after a retry stops the item again', async () => {
-    const fake = createFakeKind({ outcome: 'failed' });
-    fake.seed('a', {
-      tombstonedAt: now - 60_000,
-      lastRemovalAttempt: { class: 'terminal', at: now - 1_000 },
-    });
-    const service = createService();
-    service.registerKind(fake.kind);
-
+    // The owning operation bumps the epoch durably, then pokes the service.
+    fake.bumpEpoch('a');
     service.retry('widgets', LOCAL_HOST_REF, 'a');
     await vi.waitFor(() => expect(fake.executeRemoval).toHaveBeenCalledTimes(1));
 
-    // The retried attempt failed terminally again — the host stamps a newer mark.
-    now += 5_000;
-    fake.annotate('a', { class: 'terminal', at: now });
-    now += 120_000;
+    // The fresh attempt failed transiently: the next sweep sits inside the backoff.
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
   });
 
+  it('a new terminal failure after a retry stops the item again, at the new epoch', async () => {
+    const fake = createFakeKind({ outcome: failure('terminal') });
+    fake.seed('a', { terminalStopEpoch: 0 });
+    const service = createService();
+    service.registerKind(fake.kind);
+
+    fake.bumpEpoch('a');
+    service.retry('widgets', LOCAL_HOST_REF, 'a');
+    await vi.waitFor(() => expect(fake.executeRemoval).toHaveBeenCalledTimes(1));
+    expect(fake.recordTerminalStop).toHaveBeenCalledWith(
+      LOCAL_HOST_REF,
+      'a',
+      expect.objectContaining({ epoch: 1 })
+    );
+
+    now += 60 * 60_000;
+    await service.sweepHost(LOCAL_HOST_REF);
+    expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
+  });
+
+  it('a retry landing mid-attempt invalidates the stale stop: the item stays live', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fake = createFakeKind({ outcome: failure('terminal'), onRemoval: () => gate });
+    fake.seed('a');
+    const service = createService();
+    service.registerKind(fake.kind);
+
+    const sweep = service.sweepHost(LOCAL_HOST_REF);
+    // Retry lands while the attempt is in flight: the durable epoch moves ahead.
+    fake.bumpEpoch('a');
+    release?.();
+    await sweep;
+
+    // The stop was tagged with the stale epoch 0 and discarded by the epoch guard.
+    expect(fake.get('a')?.terminalStopEpoch).toBeNull();
+    now += 60 * 60_000;
+    await service.sweepHost(LOCAL_HOST_REF);
+    expect(fake.executeRemoval).toHaveBeenCalledTimes(2);
+  });
+
   it('drop forgets the in-memory state for an untracked-anyway item', async () => {
-    const fake = createFakeKind({ outcome: 'failed' });
+    const fake = createFakeKind({ outcome: failure('transient') });
     fake.seed('a');
     const service = createService();
     service.registerKind(fake.kind);
@@ -317,7 +380,7 @@ describe('ReconcileSweepService', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const fake = createFakeKind({ onRemoval: () => gate, outcome: 'failed' });
+    const fake = createFakeKind({ onRemoval: () => gate, outcome: failure('transient') });
     fake.seed('a');
     fake.seed('b');
     const onError = vi.fn();
@@ -344,6 +407,7 @@ describe('ReconcileSweepService', () => {
       },
       executeRemoval: async () => 'ok',
       confirmGone: async () => false,
+      recordTerminalStop: async () => {},
     };
     const fake = createFakeKind();
     fake.seed('a');

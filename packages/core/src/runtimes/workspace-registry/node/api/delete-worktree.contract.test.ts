@@ -215,9 +215,12 @@ describe('workspace registry deleteWorktree', () => {
       message: expect.stringContaining('Cannot resolve the owning repository'),
       at: 12_000,
     });
-    // The RPC return is loop control only: it carries nothing the record does not.
+    // The RPC return is loop control only: it carries the record's own host-decided
+    // stage/class facts (the sweep's classifier input) and nothing the record does not.
     expect(deleted.error).toEqual({
       type: 'remove-failed',
+      stage: 'remove',
+      class: 'terminal',
       message: record?.lastRemovalAttempt?.message,
     });
 

@@ -82,7 +82,10 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
-import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
+import {
+  createReconcileSweepTriggers,
+  installReconcileSweepTriggers,
+} from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import {
@@ -582,7 +585,10 @@ export async function bootServices(
   // pass; correctness never depends on the order (ADR 0006).
   reconcileSweep.registerKind(createConversationDeletionSweepKind({ db, runtimes }));
   void localWorkspaceRegistryReady.then(() => reconcileSweep.attachHost(LOCAL_HOST_REF));
-  // Tombstoned-while-reachable trigger: the tombstone write path pokes this channel.
+  // Tombstoned-while-reachable trigger: constructed here (composition root) and
+  // installed on the module bridge the tombstone write paths poke.
+  const reconcileSweepTriggers = createReconcileSweepTriggers();
+  installReconcileSweepTriggers(reconcileSweepTriggers);
   appScope.add(
     reconcileSweepTriggers.subscribe((host) => {
       void reconcileSweep.sweepHost(host);

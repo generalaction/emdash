@@ -44,12 +44,8 @@ describe('joinWorkspaceRows', () => {
     });
   });
 
-  it('keeps a transient removal failure pending, not needs-attention', () => {
-    const row = {
-      ...workspaceRow(),
-      pendingRemoval: true,
-      lastRemovalAttempt: removalAttempt('transient'),
-    };
+  it('keeps a still-converging removal pending, not needs-attention', () => {
+    const row = { ...workspaceRow(), pendingRemoval: true };
     const [joined] = joinWorkspaceRows({ rows: [row] });
 
     expect(joined).toMatchObject({
@@ -59,11 +55,11 @@ describe('joinWorkspaceRows', () => {
     });
   });
 
-  it('derives needs-attention from tombstone presence plus a terminal attempt', () => {
+  it('derives needs-attention from tombstone presence plus an active terminal stop', () => {
     const row = {
       ...workspaceRow(),
       pendingRemoval: true,
-      lastRemovalAttempt: removalAttempt('terminal'),
+      removalStop: removalStop(),
     };
     const [joined] = joinWorkspaceRows({ rows: [row] });
 
@@ -75,8 +71,8 @@ describe('joinWorkspaceRows', () => {
     });
   });
 
-  it('ignores a stale removal attempt without a tombstone', () => {
-    const row = { ...workspaceRow(), lastRemovalAttempt: removalAttempt('terminal') };
+  it('ignores a stale removal stop without a tombstone', () => {
+    const row = { ...workspaceRow(), removalStop: removalStop() };
     const [joined] = joinWorkspaceRows({ rows: [row] });
 
     expect(joined).toMatchObject({
@@ -137,11 +133,10 @@ function workspaceRow(): ProjectWorkspaceRow {
   };
 }
 
-function removalAttempt(failureClass: 'transient' | 'terminal') {
+function removalStop() {
   return {
-    version: '1' as const,
+    epoch: 0,
     stage: 'remove',
-    class: failureClass,
     message: 'worktree is locked',
     at: 1,
   };

@@ -1,4 +1,8 @@
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import {
+  tombstoneAttemptEpoch,
+  type TombstoneTerminalStop,
+} from '@core/primitives/reconcile/api/tombstone-attempts';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import {
   conversations,
@@ -188,6 +192,46 @@ export class ConversationRegistry {
       .where(
         and(eq(conversations.id, id), liveConversations(), isNull(conversations.deletionTombstone))
       )
+      .run().changes;
+  }
+
+  /**
+   * The durable half of the Retry affordance (ADR 0006): advances the tombstone's
+   * attempt epoch on the row itself, so the recorded terminal stop from the previous
+   * epoch goes inert — durably. A sync delivery or an app restart can never resurrect
+   * the cleared stop. Zero rows updated means no live tombstoned row — a no-op.
+   */
+  retryTombstone(id: string, tx?: DrizzleTx): number {
+    const row = this.getLive(id, tx);
+    const tombstone = row?.deletionTombstone;
+    if (!row || !tombstone) return 0;
+    return this.source(tx)
+      .update(conversations)
+      .set({
+        deletionTombstone: { ...tombstone, attemptEpoch: tombstoneAttemptEpoch(tombstone) + 1 },
+        updatedAt: this.now(),
+      })
+      .where(and(eq(conversations.id, id), liveConversations()))
+      .run().changes;
+  }
+
+  /**
+   * Records the durable terminal stop for one sweep attempt, tagged with the epoch
+   * the attempt ran in. Epoch-guarded: a Retry that already advanced the epoch
+   * invalidates the stale stop, so it is discarded rather than written.
+   */
+  recordTombstoneTerminalStop(id: string, stop: TombstoneTerminalStop, tx?: DrizzleTx): number {
+    const row = this.getLive(id, tx);
+    const tombstone = row?.deletionTombstone;
+    if (!row || !tombstone) return 0;
+    if (stop.epoch !== tombstoneAttemptEpoch(tombstone)) return 0;
+    return this.source(tx)
+      .update(conversations)
+      .set({
+        deletionTombstone: { ...tombstone, terminalStop: stop },
+        updatedAt: this.now(),
+      })
+      .where(and(eq(conversations.id, id), liveConversations()))
       .run().changes;
   }
 

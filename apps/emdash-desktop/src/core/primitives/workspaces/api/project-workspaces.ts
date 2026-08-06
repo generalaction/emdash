@@ -1,7 +1,7 @@
+import type { TombstoneTerminalStop } from '@core/primitives/reconcile/api/tombstone-attempts';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
   WorkspaceCreateOutcome,
-  WorkspaceRemovalAttempt,
   WorkspaceRuntimeOverlay,
   WorkspaceScriptOutcomes,
 } from './workspace-registry-observations';
@@ -55,8 +55,8 @@ export type ProjectWorkspaceRow = {
   lastObservedAt?: string;
   /** Deletion tombstone presence (ADR 0006): a visible pending deletion until the sweep converges. */
   pendingRemoval: boolean;
-  /** Host-written last failed removal attempt; a `terminal` class stops auto-retry. */
-  lastRemovalAttempt?: WorkspaceRemovalAttempt;
+  /** The tombstone's active terminal removal stop (ADR 0006): auto-retry has stopped. */
+  removalStop?: TombstoneTerminalStop;
   /** Durable outcome of the last create run on the workspace record. */
   lastCreateOutcome?: WorkspaceCreateOutcome;
   /** Durable per-script (prepare/setup/run) last outcomes; survive daemon restarts. */
@@ -67,14 +67,15 @@ export type ProjectWorkspaceRow = {
 };
 
 /**
- * Needs-attention derives purely from tombstone presence plus a terminal-class last
- * removal attempt (ADR 0006): auto-retry has stopped and the user decides between
- * Retry and Untrack-anyway.
+ * Needs-attention derives purely from tombstone presence plus the tombstone's active
+ * (current-epoch) terminal stop (ADR 0006): auto-retry has stopped durably and the
+ * user decides between Retry and Untrack-anyway. Retry advances the attempt epoch,
+ * so the stale stop — and this state — clears durably, surviving sync and restarts.
  */
 export function workspaceRemovalNeedsAttention(
-  row: Pick<ProjectWorkspaceRow, 'pendingRemoval' | 'lastRemovalAttempt'>
+  row: Pick<ProjectWorkspaceRow, 'pendingRemoval' | 'removalStop'>
 ): boolean {
-  return row.pendingRemoval && row.lastRemovalAttempt?.class === 'terminal';
+  return row.pendingRemoval && row.removalStop !== undefined;
 }
 
 export type ProjectWorkspacesResult = {

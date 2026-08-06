@@ -64,7 +64,7 @@ function rowStatusMessage(
   row: ProjectWorkspaceRow,
   removalNeedsAttention: boolean
 ): string | undefined {
-  if (removalNeedsAttention) return row.lastRemovalAttempt?.message;
+  if (removalNeedsAttention) return row.removalStop?.message;
   if (row.pendingRemoval) return undefined;
   if (row.lastCreateOutcome?.status === 'failed') return row.lastCreateOutcome.message;
   return undefined;

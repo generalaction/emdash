@@ -21,8 +21,8 @@ function needsRemovalAttention(row: ProjectWorkspaceRow): row is AttentionRow {
 
 /**
  * Needs-attention cards for pending deletions stopped by a terminal removal failure
- * (ADR 0006): one card per tombstoned row whose `lastRemovalAttempt` is terminal, with
- * the Retry and Untrack-anyway affordances wired to the workspace registry verbs.
+ * (ADR 0006): one card per tombstoned row carrying an active durable `removalStop`,
+ * with the Retry and Untrack-anyway affordances wired to the workspace registry verbs.
  * Renders nothing while every removal is converging on its own.
  */
 export function WorkspaceRemovalAttentionPanel({
@@ -78,11 +78,11 @@ export function WorkspaceRemovalAttentionPanel({
                 Couldn't remove {removalRowLabel(row)}
               </div>
               <div className="truncate text-foreground-muted">
-                {row.lastRemovalAttempt && (
+                {row.removalStop && (
                   <>
-                    {row.lastRemovalAttempt.message}
+                    {row.removalStop.message}
                     {' · '}
-                    <RelativeTime value={row.lastRemovalAttempt.at} />
+                    <RelativeTime value={row.removalStop.at} />
                   </>
                 )}
               </div>

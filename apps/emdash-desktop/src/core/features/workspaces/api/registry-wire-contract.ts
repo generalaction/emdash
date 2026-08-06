@@ -109,8 +109,9 @@ export const workspaceRegistryWireContract = defineContract({
 
   /**
    * Retry affordance for a pending deletion stopped by a terminal removal failure
-   * (ADR 0006): clears the host-written mark client-side and resets the reconcile
-   * sweep's backoff so the next sweep retries immediately. No-op without a tombstone.
+   * (ADR 0006): durably advances the tombstone's attempt epoch — the recorded stop
+   * goes inert on the row itself, surviving sync and restarts — and resets the
+   * reconcile sweep's backoff so one fresh attempt runs now. No-op without a tombstone.
    */
   retryWorkspaceRemoval: procedure({
     input: z.object({ workspaceId: z.string().min(1) }),

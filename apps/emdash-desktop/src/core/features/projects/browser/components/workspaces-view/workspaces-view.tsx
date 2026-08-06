@@ -678,7 +678,7 @@ function removalBadgeFor(row: ProjectWorkspaceRow): ReactNode {
           </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-70 text-xs">
-          {row.lastRemovalAttempt?.message ?? 'The removal stopped after a failure.'}
+          {row.removalStop?.message ?? 'The removal stopped after a failure.'}
         </TooltipContent>
       </Tooltip>
     );

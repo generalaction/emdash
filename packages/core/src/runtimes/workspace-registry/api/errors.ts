@@ -21,21 +21,34 @@ export const createWorkspaceErrorSchema = z.discriminatedUnion('type', [
 export type CreateWorkspaceError = z.infer<typeof createWorkspaceErrorSchema>;
 
 /**
+ * A failed removal's error detail carries the same host-decided facts the record's
+ * `lastRemovalAttempt` annotation does — stage and failure class (ADR 0006). The
+ * return stays loop control: the reconcile sweep reads the class to decide backoff
+ * vs a durable terminal stop without waiting on mirror sync; it carries nothing the
+ * record does not.
+ */
+const removeFailedErrorSchema = z.object({
+  type: z.literal('remove-failed'),
+  /** Removal step that failed: 'teardown' | 'remove' | 'unregister'. */
+  stage: z.string(),
+  /** Host-decided: 'transient' rides silent sweep retries, 'terminal' needs the user. */
+  class: z.enum(['transient', 'terminal']),
+  message: z.string(),
+});
+
+/**
  * Deletes are idempotent — an absent id is success, like conversations. The one
  * failure mode is a failing teardown (a removal stage, ADR 0006): the record stays
  * registered, annotated with lastRemovalAttempt, so the delete is retryable.
  */
-export const deleteWorkspaceErrorSchema = z.object({
-  type: z.literal('remove-failed'),
-  message: z.string(),
-});
+export const deleteWorkspaceErrorSchema = removeFailedErrorSchema;
 export type DeleteWorkspaceError = z.infer<typeof deleteWorkspaceErrorSchema>;
 
 export const deleteWorktreeErrorSchema = z.discriminatedUnion('type', [
   /** Worktree records only; unregistering other kinds is deleteWorkspace's job. */
   z.object({ type: z.literal('not-a-worktree'), workspaceId: z.string() }),
   /** Artifact removal failed; the record stays registered so the delete is retryable. */
-  z.object({ type: z.literal('remove-failed'), message: z.string() }),
+  removeFailedErrorSchema,
 ]);
 export type DeleteWorktreeError = z.infer<typeof deleteWorktreeErrorSchema>;
 
