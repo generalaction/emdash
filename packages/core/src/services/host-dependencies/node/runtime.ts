@@ -1,13 +1,13 @@
-import { err, ok, type Result, type Serializable } from '@emdash/shared';
+import { err, isDeepEqual, ok, type Result, type Serializable } from '@emdash/shared';
+import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import {
-  cell,
   expose,
   peek,
-  publishStructural,
+  query,
   revisionOf,
-  type Cell,
   type LeasedLiveModelProvider,
+  type Query,
 } from '@emdash/wire';
 import type { IExecutionContext } from '@primitives/exec/api';
 import {
@@ -64,6 +64,8 @@ import {
 const STORE_KEY_PREFIX = 'host-dependencies';
 const OUTPUT_TAIL_LIMIT = 20_000;
 const APT_UPDATE_TTL_MS = 10 * 60 * 1000;
+/** Safety-net re-probe cadence while the snapshot is observed (no PATH change detector exists). */
+const SNAPSHOT_REVALIDATE_MS = 60_000;
 
 type InstallJobContext = {
   signal: AbortSignal;
@@ -93,22 +95,26 @@ export type HostDependenciesRuntimeDeps = {
 export class HostDependenciesRuntime {
   private readonly definitions: Map<string, HostDependencyDefinition>;
   private readonly host: HostDependenciesLiveHost;
-  private readonly current: Cell<HostDependencySnapshot>;
+  private readonly current: Query<HostDependencySnapshot>;
+  private readonly stateScope: Scope;
   private readonly installMutex = new KeyedMutex();
   private selections: Record<string, HostDependencySelection> | null = null;
-  private generation = 0;
   private disposed = false;
   private lastSuccessfulAptUpdateAt: number | null = null;
-  private refreshPromise: Promise<Result<HostDependencySnapshot, HostDependencyError>> | null =
-    null;
 
   constructor(private readonly deps: HostDependenciesRuntimeDeps) {
     this.definitions = new Map(deps.definitions.map((definition) => [definition.id, definition]));
-    this.current = cell<HostDependencySnapshot>({
-      hostId: deps.hostId,
-      generation: 0,
-      hostElevation: null,
-      dependencies: {},
+    this.stateScope = createScope({ label: `host-dependencies:${deps.hostId}` });
+    this.current = query<HostDependencySnapshot>({
+      fetch: () => this.computeSnapshot(),
+      equals: snapshotEquals,
+      revalidateEveryMs: SNAPSHOT_REVALIDATE_MS,
+      name: `host-dependencies:${deps.hostId}`,
+      onError: (error) => deps.logger?.warn('Host dependency snapshot probe failed', { error }),
+      onObservedChange: (observed) => {
+        if (!observed && !this.disposed) this.current.invalidate();
+      },
+      scope: this.stateScope,
     });
     this.host = expose(
       hostDependenciesContract.snapshot,
@@ -116,12 +122,16 @@ export class HostDependenciesRuntime {
       {
         mutations: {
           setSelection: async (context) => {
-            const result = await this.setSelection(context.input.id, context.input.selection);
+            const result = await this.setSelection(context.input.id, context.input.selection, {
+              mutationIds: [context.mutationId],
+            });
             if (result.success) await context.observed('current', revisionOf(this.current));
             return result;
           },
           refresh: async (context) => {
-            const refreshed = await this.refresh(context.input?.id);
+            const refreshed = await this.refresh(context.input?.id, {
+              mutationIds: [context.mutationId],
+            });
             if (refreshed.success) await context.observed('current', revisionOf(this.current));
             return refreshed;
           },
@@ -133,6 +143,7 @@ export class HostDependenciesRuntime {
   dispose(): void {
     this.disposed = true;
     void this.host.dispose();
+    void this.stateScope.dispose();
   }
 
   liveHost(): HostDependenciesLiveHost {
@@ -140,7 +151,7 @@ export class HostDependenciesRuntime {
   }
 
   async resolve(id: DependencyId): Promise<HostDependencyResolveResult> {
-    const view = await this.getView(id);
+    const view = await this.settleView(id);
     if (!view.success) return view;
     if (!view.data.resolved) return err({ type: 'missing', id });
     return ok(view.data.resolved);
@@ -148,7 +159,8 @@ export class HostDependenciesRuntime {
 
   async setSelection(
     id: DependencyId,
-    selection: HostDependencySelection
+    selection: HostDependencySelection,
+    options: { mutationIds?: readonly string[] } = {}
   ): Promise<HostDependencyViewResult> {
     if (!this.definitions.has(id)) return err({ type: 'unknown-dependency', id });
     const selections = await this.loadSelections();
@@ -158,46 +170,33 @@ export class HostDependenciesRuntime {
     const saved = await this.saveSelections(selections.data);
     if (!saved.success) return err(saved.error);
     this.selections = selections.data;
-    return this.getView(id, { force: true });
+    return this.settleView(id, options.mutationIds);
   }
 
-  async refresh(id?: DependencyId): Promise<Result<HostDependencySnapshot, HostDependencyError>> {
+  async refresh(
+    id?: DependencyId,
+    options: { mutationIds?: readonly string[] } = {}
+  ): Promise<Result<HostDependencySnapshot, HostDependencyError>> {
     if (id && !this.definitions.has(id)) return err({ type: 'unknown-dependency', id });
-    if (this.refreshPromise && !id) return this.refreshPromise;
 
-    const run = async (): Promise<Result<HostDependencySnapshot, HostDependencyError>> => {
-      try {
-        const snapshot = { ...this.snapshot(), generation: this.generation + 1 };
-        if (id) {
-          const view = await this.getView(id, { force: true });
-          if (!view.success) return view;
-          snapshot.dependencies[id] = view.data;
-        } else {
-          snapshot.hostElevation = await probeHostElevation(this.deps.exec);
-          const dependencies: Record<string, HostDependencyView> = {};
-          for (const depId of this.definitions.keys()) {
-            const view = await this.getView(depId, { force: true });
-            if (view.success) dependencies[depId] = view.data;
-          }
-          snapshot.dependencies = dependencies;
-        }
-        this.generation = snapshot.generation;
-        this.publish(snapshot);
-        return ok(snapshot);
-      } catch (error) {
-        return err({
-          type: 'io',
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    };
+    if (id && peek(this.current) !== undefined) {
+      const view = await this.settleView(id, options.mutationIds);
+      if (!view.success) return view;
+      const settled = peek(this.current);
+      if (settled) return ok(settled);
+    }
 
-    const promise = run();
-    if (!id) this.refreshPromise = promise;
     try {
-      return await promise;
-    } finally {
-      if (!id) this.refreshPromise = null;
+      await this.current.refresh({ mutationIds: options.mutationIds });
+      const snapshot = peek(this.current);
+      if (!snapshot)
+        return err({ type: 'io', message: 'Dependency snapshot refresh did not settle' });
+      return ok(snapshot);
+    } catch (error) {
+      return err({
+        type: 'io',
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -221,7 +220,7 @@ export class HostDependenciesRuntime {
         { signal: ctx.signal }
       );
       ctx.progress({ phase: 'refreshing' });
-      return this.getView(id, { force: true });
+      return this.settleView(id);
     } catch (error) {
       return err({
         type: 'command-failed',
@@ -478,7 +477,7 @@ export class HostDependenciesRuntime {
     id: DependencyId,
     output: string
   ): Promise<HostDependencyViewResult> {
-    const view = await this.getView(id, { force: true });
+    const view = await this.settleView(id);
     if (!view.success) return view;
     if (view.data.status !== 'available') {
       return err({ type: 'not-detected-after-install', id, output });
@@ -486,19 +485,42 @@ export class HostDependenciesRuntime {
     return view;
   }
 
-  private snapshot(): HostDependencySnapshot {
-    return peek(this.current);
+  private async computeSnapshot(): Promise<HostDependencySnapshot> {
+    const hostElevation = await probeHostElevation(this.deps.exec);
+    const dependencies: Record<string, HostDependencyView> = {};
+    for (const id of this.definitions.keys()) {
+      const view = await this.buildView(id);
+      if (view.success) dependencies[id] = view.data;
+    }
+    return {
+      hostId: this.deps.hostId,
+      generation: (peek(this.current)?.generation ?? 0) + 1,
+      hostElevation,
+      dependencies,
+    };
   }
 
-  private publish(snapshot: HostDependencySnapshot): void {
-    if (this.disposed) return;
-    publishStructural(this.current, snapshot);
-  }
-
-  private async getView(
+  private async settleView(
     id: DependencyId,
-    _options: { force?: boolean } = {}
+    mutationIds?: readonly string[]
   ): Promise<HostDependencyViewResult> {
+    const view = await this.buildView(id);
+    if (!view.success) return view;
+    if (!this.disposed) {
+      this.current.settle(
+        (previous) => ({
+          hostId: this.deps.hostId,
+          generation: (previous?.generation ?? 0) + 1,
+          hostElevation: previous?.hostElevation ?? null,
+          dependencies: { ...previous?.dependencies, [id]: view.data },
+        }),
+        { mutationIds }
+      );
+    }
+    return view;
+  }
+
+  private async buildView(id: DependencyId): Promise<HostDependencyViewResult> {
     const definition = this.definitions.get(id);
     if (!definition) return err({ type: 'unknown-dependency', id });
     const selections = await this.loadSelections();
@@ -521,11 +543,6 @@ export class HostDependenciesRuntime {
       checkedAt: Date.now(),
       ...(resolved.success ? {} : { error: resolved.error }),
     };
-    const snapshot = this.snapshot();
-    this.publish({
-      ...snapshot,
-      dependencies: { ...snapshot.dependencies, [id]: view },
-    });
     return ok(view);
   }
 
@@ -577,6 +594,21 @@ export class HostDependenciesRuntime {
   private storeKey(): string {
     return `${STORE_KEY_PREFIX}:${this.deps.hostId}:selections`;
   }
+}
+
+function snapshotEquals(left: HostDependencySnapshot, right: HostDependencySnapshot): boolean {
+  if (!left || !right) return Object.is(left, right);
+  return isDeepEqual(normalizeSnapshot(left), normalizeSnapshot(right));
+}
+
+function normalizeSnapshot(snapshot: HostDependencySnapshot) {
+  return {
+    hostId: snapshot.hostId,
+    hostElevation: snapshot.hostElevation,
+    dependencies: Object.fromEntries(
+      Object.entries(snapshot.dependencies).map(([id, view]) => [id, { ...view, checkedAt: 0 }])
+    ),
+  };
 }
 
 function captureTail(limit = OUTPUT_TAIL_LIMIT) {

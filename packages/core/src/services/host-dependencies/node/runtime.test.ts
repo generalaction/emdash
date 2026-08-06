@@ -1,6 +1,11 @@
 import { deferred } from '@emdash/shared/testing';
+import { flushStateTurn, type LiveSource } from '@emdash/wire';
 import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostDependencyDefinition, HostElevation } from '@primitives/host-dependencies/api';
+import type {
+  HostDependencyDefinition,
+  HostDependencySnapshot,
+  HostElevation,
+} from '@primitives/host-dependencies/api';
 import { createMemoryKeyValueStore } from '@primitives/kv/api';
 import { describe, expect, it, vi } from 'vitest';
 import { HostDependenciesRuntime } from './runtime';
@@ -377,6 +382,151 @@ describe('HostDependenciesRuntime.runInstallBatch', () => {
   });
 });
 
+describe('HostDependenciesRuntime snapshot query', () => {
+  it('probes on first observation, not on construction', async () => {
+    const { exec } = createFakeExec({ initiallyInstalled: true });
+    const runtime = createRuntime(exec);
+
+    expect(exec.exec).not.toHaveBeenCalled();
+
+    const lease = runtime.liveHost().acquireState(undefined, 'current');
+    const source = await lease.ready();
+    const snapshot = await snapshotOf(source);
+    expect(snapshot.generation).toBe(1);
+    expect(snapshot.dependencies['fake-agent']?.status).toBe('available');
+
+    await lease.release();
+    runtime.dispose();
+  });
+
+  it('suppresses publishes when a re-probe returns unchanged content', async () => {
+    const { exec } = createFakeExec({ initiallyInstalled: true });
+    const runtime = createRuntime(exec);
+    const lease = runtime.liveHost().acquireState(undefined, 'current');
+    const source = await lease.ready();
+
+    const result = await runtime.refresh();
+    expect(result.success).toBe(true);
+    flushStateTurn();
+
+    const after = await snapshotOf(source);
+    expect(after.generation).toBe(1);
+
+    await lease.release();
+    runtime.dispose();
+  });
+
+  it('writes install results through the observed snapshot', async () => {
+    const { exec } = createFakeExec({ installedAfterStreaming: true });
+    const runtime = createRuntime(exec);
+    const lease = runtime.liveHost().acquireState(undefined, 'current');
+    const source = await lease.ready();
+    const before = await snapshotOf(source);
+    expect(before.dependencies['fake-agent']?.status).toBe('missing');
+
+    const installed = await runtime.runInstallCommand('fake-agent', 'npm', jobContext());
+    expect(installed.success).toBe(true);
+    flushStateTurn();
+
+    const after = await snapshotOf(source);
+    expect(after.dependencies['fake-agent']?.status).toBe('available');
+    expect(after.generation).toBeGreaterThan(before.generation);
+
+    await lease.release();
+    runtime.dispose();
+  });
+
+  it('writes selection changes through the observed snapshot', async () => {
+    const { exec } = createFakeExec({ initiallyInstalled: true });
+    const runtime = createRuntime(exec);
+    const lease = runtime.liveHost().acquireState(undefined, 'current');
+    const source = await lease.ready();
+
+    const result = await runtime.setSelection('fake-agent', {
+      kind: 'path',
+      path: '/usr/local/bin/fake-agent',
+    });
+    expect(result.success).toBe(true);
+    flushStateTurn();
+
+    const after = await snapshotOf(source);
+    expect(after.dependencies['fake-agent']?.selection).toEqual({
+      kind: 'path',
+      path: '/usr/local/bin/fake-agent',
+    });
+
+    await lease.release();
+    runtime.dispose();
+  });
+
+  it('does not let an older full probe overwrite a newer dependency write-through', async () => {
+    const staleProbe = deferred<string | null>();
+    const fullProbeStarted = deferred<void>();
+    const { exec } = createFakeExec({
+      dependencyProbe: ({ call }) => {
+        if (call === 1) return null;
+        if (call === 2) {
+          fullProbeStarted.resolve();
+          return staleProbe.promise;
+        }
+        return '/usr/local/bin/fake-agent';
+      },
+    });
+    const runtime = createRuntime(exec);
+    const lease = runtime.liveHost().acquireState(undefined, 'current');
+    const source = await lease.ready();
+    expect((await snapshotOf(source)).dependencies['fake-agent']?.status).toBe('missing');
+
+    const fullRefresh = runtime.refresh();
+    await fullProbeStarted.promise;
+
+    const partialRefresh = await runtime.refresh('fake-agent');
+    expect(partialRefresh.success && partialRefresh.data.dependencies['fake-agent']?.status).toBe(
+      'available'
+    );
+
+    staleProbe.resolve(null);
+    await fullRefresh;
+    flushStateTurn();
+
+    expect((await snapshotOf(source)).dependencies['fake-agent']?.status).toBe('available');
+
+    await lease.release();
+    runtime.dispose();
+  });
+
+  it('re-probes when demand returns after the exposed snapshot linger expires', async () => {
+    vi.useFakeTimers();
+    const { exec, setInstalled } = createFakeExec({ initiallyInstalled: false });
+    const runtime = createRuntime(exec);
+    const host = runtime.liveHost();
+
+    try {
+      const warmed = await host.runMutation('refresh', {
+        key: undefined,
+        input: {},
+        mutationId: 'background-refresh',
+      });
+      expect(warmed.success && warmed.data.data.dependencies['fake-agent']?.status).toBe('missing');
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      setInstalled(true);
+
+      const lease = host.acquireState(undefined, 'current');
+      const sourcePromise = lease.ready();
+      await vi.advanceTimersByTimeAsync(0);
+      const source = await sourcePromise;
+
+      expect((await snapshotOf(source)).dependencies['fake-agent']?.status).toBe('available');
+
+      await lease.release();
+    } finally {
+      runtime.dispose();
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('HostDependenciesRuntime.refresh', () => {
   it.each([
     ['root', 'root'],
@@ -415,6 +565,10 @@ function jobContext(progress = vi.fn()) {
   return { signal: new AbortController().signal, progress };
 }
 
+async function snapshotOf(source: LiveSource): Promise<HostDependencySnapshot> {
+  return (await source.snapshot()).data as HostDependencySnapshot;
+}
+
 function createRuntime(
   exec: IExecutionContext,
   definitions: HostDependencyDefinition[] = [definition]
@@ -435,8 +589,13 @@ function createFakeExec(options: {
   hostElevation?: HostElevation;
   binaryName?: string;
   streamOutput?: string;
-}): { exec: IExecutionContext } {
+  dependencyProbe?: (context: {
+    call: number;
+    installed: boolean;
+  }) => string | null | Promise<string | null>;
+}): { exec: IExecutionContext; setInstalled(installed: boolean): void } {
   let installed = options.initiallyInstalled ?? false;
+  let dependencyProbeCall = 0;
   const binaryName = options.binaryName ?? 'fake-agent';
   const hostElevation = options.hostElevation ?? 'unavailable';
   const exec: IExecutionContext = {
@@ -459,6 +618,14 @@ function createFakeExec(options: {
         return { stdout: `/usr/bin/${args[0]}\n`, stderr: '' };
       }
       if (command === 'which' && args[0] === '-a' && args[1] === binaryName) {
+        if (options.dependencyProbe) {
+          const path = await options.dependencyProbe({
+            call: ++dependencyProbeCall,
+            installed,
+          });
+          if (!path) throw new Error('not found');
+          return { stdout: `${path}\n`, stderr: '' };
+        }
         if (!installed) throw new Error('not found');
         return { stdout: `/usr/local/bin/${binaryName}\n`, stderr: '' };
       }
@@ -476,5 +643,10 @@ function createFakeExec(options: {
     refreshShellEnv: vi.fn(async () => {}),
     dispose: vi.fn(),
   };
-  return { exec };
+  return {
+    exec,
+    setInstalled(value) {
+      installed = value;
+    },
+  };
 }
