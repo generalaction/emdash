@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { resyncRetry } from '../follower';
 import { LiveStateClient, type LiveChangeMeta } from './client';
-import { LiveState } from './server';
+import { LiveStateSource } from './source';
 
 const stateSchema = z.object({
   count: z.number(),
@@ -17,7 +17,7 @@ function makeState(overrides: Partial<State> = {}): State {
 }
 
 function setup(initial: State = makeState(), generation = 1000) {
-  const server = new LiveState<State>(initial, generation);
+  const server = new LiveStateSource<State>(initial, generation);
   const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
   const refetchSnapshot = vi.fn(async () => server.snapshot());
   const client = new LiveStateClient<State>(stateSchema, refetchSnapshot, onChange, {
@@ -28,7 +28,7 @@ function setup(initial: State = makeState(), generation = 1000) {
   return { server, client, onChange, refetchSnapshot };
 }
 
-describe('LiveState and LiveStateClient', () => {
+describe('LiveStateSource and LiveStateClient', () => {
   it('applies server mutations to the client', () => {
     const { server, client } = setup();
     server.produce((draft) => {
@@ -52,7 +52,7 @@ describe('LiveState and LiveStateClient', () => {
   });
 
   it('emits mutation IDs on tagged produce calls', () => {
-    const server = new LiveState<State>(makeState(), 1000);
+    const server = new LiveStateSource<State>(makeState(), 1000);
     const updates: unknown[] = [];
     server.subscribe((update) => updates.push(update));
 
@@ -108,7 +108,7 @@ describe('LiveState and LiveStateClient', () => {
   });
 
   it('emits instrumentation when a generation mismatch causes resync', async () => {
-    const server = new LiveState<State>(makeState(), 1000);
+    const server = new LiveStateSource<State>(makeState(), 1000);
     const resyncs: unknown[] = [];
     const client = new LiveStateClient<State>(stateSchema, async () => server.snapshot(), vi.fn(), {
       topic: 'state|demo',
@@ -135,7 +135,7 @@ describe('LiveState and LiveStateClient', () => {
   });
 
   it('refreshes from a fresh snapshot on demand', async () => {
-    const server = new LiveState<State>(makeState(), 1000);
+    const server = new LiveStateSource<State>(makeState(), 1000);
     const onChange = vi.fn<(value: State, meta: LiveChangeMeta) => void>();
     const refetchSnapshot = vi.fn(async () => server.snapshot());
     const client = new LiveStateClient<State>(stateSchema, refetchSnapshot, onChange, {

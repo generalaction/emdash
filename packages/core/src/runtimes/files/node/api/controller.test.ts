@@ -6,7 +6,7 @@ import { waitFor } from '@emdash/shared/testing';
 import {
   client,
   connect,
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   memoryTransportPair,
   serve,
   streamTransport,
@@ -364,8 +364,8 @@ describe('createFilesController', () => {
     await writeFile(path.join(root, 'src/nested/c.txt'), 'c');
     const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
     const connection = makeClient(runtime);
-    const globJobs = createLiveJobReplica(filesContract.fs.glob, connection.api.fs.glob);
-    const enumerateJobs = createLiveJobReplica(
+    const globJobs = createLiveJobReplicaCache(filesContract.fs.glob, connection.api.fs.glob);
+    const enumerateJobs = createLiveJobReplicaCache(
       filesContract.fs.enumerate,
       connection.api.fs.enumerate
     );

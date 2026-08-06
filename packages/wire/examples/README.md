@@ -24,9 +24,9 @@ pnpm --filter @emdash/wire run example:job-contract
 
 Examples:
 
-- `live-state/` demonstrates `LiveState`, the package-local protocol follower,
+- `live-state/` demonstrates `LiveStateSource`, the package-local protocol follower,
   cursors, mutation IDs, and resync after a generation change.
-- `live-log/` demonstrates `LiveLog` and the package-local protocol follower
+- `live-log/` demonstrates `LiveLogSource` and the package-local protocol follower
   with retained tail snapshots.
 - `live-job/` demonstrates progress, terminal state, result promises, and
   cancellation errors.

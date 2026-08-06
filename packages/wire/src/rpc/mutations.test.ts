@@ -18,7 +18,7 @@ import {
   reconnectingTransport,
   type MemoryTransportPair,
 } from '../api/transports';
-import { createLiveModelReplica } from '../live/replica';
+import { createLiveModelReplicaCache } from '../live/replica';
 import type { WireInstrumentation } from '../observability';
 import { expose } from '../state/bridge/expose';
 import { cell, snapshot } from '../state/core';
@@ -181,7 +181,7 @@ async function acquireCounter<Group extends LiveModelDef>(
   group: LiveModelClientHandle<Group>,
   key: LiveModelKey<Group>
 ) {
-  const replica = createLiveModelReplica(group.def, group);
+  const replica = createLiveModelReplicaCache(group.def, group);
   const lease = replica.acquire(key);
   const instance = await lease.ready();
   return {

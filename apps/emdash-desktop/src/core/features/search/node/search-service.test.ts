@@ -156,8 +156,7 @@ describe('SearchService runtime file search', () => {
             return ok({ files, complete: true });
           },
         },
-      }),
-      { validate: 'full' }
+      })
     );
     mocks.workspaceGet.mockResolvedValue({
       client: { fileSearch: upstream.client },

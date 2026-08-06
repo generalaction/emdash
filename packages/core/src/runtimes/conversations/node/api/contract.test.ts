@@ -47,9 +47,7 @@ describe('conversations contract', () => {
     handle = await conversationsStore.openTemp();
     clock = new ManualClock(10_000);
     runtime = new ConversationsRuntime({ handle, clock });
-    wire = createTestWire(conversationsContract, createConversationsController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(conversationsContract, createConversationsController(runtime));
   });
 
   afterEach(() => {
@@ -245,9 +243,7 @@ describe('conversations lifecycle reports', () => {
     handle = await conversationsStore.openTemp();
     clock = new ManualClock(10_000);
     runtime = new ConversationsRuntime({ handle, clock });
-    wire = createTestWire(conversationsContract, createConversationsController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(conversationsContract, createConversationsController(runtime));
     await wire.client.create(baseCreate);
   });
 
@@ -377,8 +373,7 @@ describe('conversations durability', () => {
       const secondRuntime = new ConversationsRuntime({ handle: secondHandle, clock });
       const wire = createTestWire(
         conversationsContract,
-        createConversationsController(secondRuntime),
-        { validate: 'full' }
+        createConversationsController(secondRuntime)
       );
       const records = remote(conversationsContract.records, wire.client.records);
       const model = records(undefined);

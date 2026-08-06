@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveJob } from '../api/define';
 import { LiveJobCancelledError, type LiveJobContext } from '../live/job';
-import { createLiveJobReplica } from '../live/replica';
+import { createLiveJobReplicaCache } from '../live/replica';
 import { createTestWire } from '../testing';
 
 const jobContract = defineContract({
@@ -29,7 +29,7 @@ describe('contract jobs', () => {
       return { artifact: `${input.name}.zip` };
     });
 
-    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const jobs = createLiveJobReplicaCache(jobContract.build, client.build);
     const lease = await jobs.start({ name: 'demo' });
     const handle = await lease.ready();
     const progress: Array<{ step: string }> = [];
@@ -45,7 +45,7 @@ describe('contract jobs', () => {
   it('passes the server job id through controller job context', async () => {
     const { client } = setup(async (_input, ctx) => ({ artifact: ctx.jobId }));
 
-    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const jobs = createLiveJobReplicaCache(jobContract.build, client.build);
     const lease = await jobs.start({ name: 'context' });
     const handle = await lease.ready();
 
@@ -62,7 +62,7 @@ describe('contract jobs', () => {
         })
     );
 
-    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const jobs = createLiveJobReplicaCache(jobContract.build, client.build);
     const lease = await jobs.start({ name: 'cancel' });
     const handle = await lease.ready();
     await handle.cancel();
@@ -79,7 +79,7 @@ describe('contract jobs', () => {
       return { artifact: `${input.name}.zip` };
     });
 
-    const jobs = createLiveJobReplica(jobContract.build, client.build, { retentionMs: 100 });
+    const jobs = createLiveJobReplicaCache(jobContract.build, client.build, { lingerMs: 100 });
     const lease = await jobs.start({ name: 'reattach' });
     const handle = await lease.ready();
     gate.resolve();
@@ -102,7 +102,7 @@ describe('contract jobs', () => {
         })
     );
 
-    const jobs = createLiveJobReplica(jobContract.build, client.build);
+    const jobs = createLiveJobReplicaCache(jobContract.build, client.build);
     const lease = await jobs.start({ name: 'dispose' });
     const handle = await lease.ready();
     await controller.dispose?.();

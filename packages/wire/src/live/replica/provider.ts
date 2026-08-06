@@ -8,7 +8,7 @@ import type {
   MutationInput,
 } from '../../api/define';
 
-export type GroupMutationEnvelope<
+export type LiveModelMutationEnvelope<
   Group extends LiveModelDef,
   Name extends keyof LiveModelMutations<Group>,
 > = {
@@ -26,7 +26,7 @@ export type LiveModelProvider<Group extends LiveModelDef = LiveModelDef> = {
   ): LiveSource | Promise<LiveSource | null | undefined> | null | undefined;
   runMutation<Name extends Extract<keyof LiveModelMutations<Group>, string>>(
     name: Name,
-    envelope: GroupMutationEnvelope<Group, Name>
+    envelope: LiveModelMutationEnvelope<Group, Name>
   ): Promise<
     LiveMutationResult<
       MutationData<LiveModelMutations<Group>[Name]>,

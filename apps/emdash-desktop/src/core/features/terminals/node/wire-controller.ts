@@ -7,7 +7,7 @@ import type {
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import {
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   LiveJobFailedError,
   type LiveModelProvider,
   type LiveJobContext,
@@ -436,7 +436,7 @@ async function runUpstreamWorkflow(
   input: RunScriptWorkflowInput,
   context: LiveJobContext<ScriptWorkflowProgress>
 ): Promise<Result<ScriptWorkflowResult, TerminalControllerError>> {
-  const jobs = createLiveJobReplica(
+  const jobs = createLiveJobReplicaCache(
     terminalsRuntimeContract.runWorkflow,
     client.terminals.runWorkflow
   );

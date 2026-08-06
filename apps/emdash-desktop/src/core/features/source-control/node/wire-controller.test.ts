@@ -91,7 +91,8 @@ describe('createSourceControlWireController', () => {
     );
     const controller = createSourceControlWireController({
       runtimes: {
-        client: async () => ok({ git: { repository: { model: { mutate } } } }),
+        client: async () =>
+          ok({ git: { repository: { model: { def: gitContract.repository.model, mutate } } } }),
       } as never,
       workspaceIdentity: {
         resolve: vi.fn(async () => checkoutIdentity),

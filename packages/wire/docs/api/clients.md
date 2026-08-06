@@ -118,10 +118,10 @@ const controller = createController(workspaceApi, {
   git: upstream.git,
 
   // Cached group; see Replicas.
-  conversation: createLiveModelReplica(
+  conversation: createLiveModelReplicaCache(
     workspaceApi.conversation,
     upstream.conversation,
-    { retentionMs: 10 * 60_000 }
+    { lingerMs: 10 * 60_000 }
   ),
 });
 ```

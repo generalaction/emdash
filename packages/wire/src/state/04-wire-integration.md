@@ -38,17 +38,17 @@ What the generated provider does, per `(key, stateName)`:
    upstream queries fetch, timers arm. The returned `PendingLease<LiveSource>`
    resolves only after the state has a first non-`loading` snapshot, so cold
    `query` values are not published as schema-invalid `undefined`.
-2. **Publish** — internally wraps the node in a `LiveState<T>` (the existing
+2. **Publish** — internally wraps the node in a `LiveStateSource<T>` (the existing
    class, reused as the wire-edge patch publisher) and `observe`s the node:
    each turn's snapshot becomes `liveState.replace(value, { mutationIds })`.
-   `LiveState` then does what it already does well: Immer structural diff,
+   `LiveStateSource` then does what it already does well: Immer structural diff,
    no-op suppression, generation/sequence cursors, fan-out.
 3. **Release** — lease release starts the record's linger window. When the
    final lease lingers out, the record scope is disposed, dropping the
    observation and releasing upstream demand. Provider `dispose()` disposes the
    root scope and rejects pending waiters.
 
-For same-node writes, node revision and the `LiveState` sequence advance
+For same-node writes, node revision and the `LiveStateSource` sequence advance
 together (one publish per turn per exposed node). For derived-hop writes,
 `ctx.observed` waits for the exposed snapshot that carries the mutation id;
 that is what makes cursor-based read-your-writes work end to end.
@@ -109,7 +109,7 @@ ride every subsequent publish.
 ## `remote`
 
 Consumes a wire live model as a reactive family — the client-side mirror of
-`expose`, wrapping `createLiveModelReplica` (which keeps owning transport
+`expose`, wrapping `createLiveModelReplicaCache` (which keeps owning transport
 concerns: snapshot+delta application, gap resync, schema validation,
 persistent `StateStore` seeding).
 
@@ -120,7 +120,7 @@ function remote<Def extends LiveModelDef>(
   options?: {
     scope: Scope;
     stores?: ReplicaStateStores<Def>;    // persistent seed → status 'stale' until live
-    lingerMs?: number;                    // maps to replica retentionMs
+    lingerMs?: number;                    // maps to replica lingerMs
     clock?: Clock;                        // deterministic family linger in tests
   }
 ): RemoteModel<Def>;
@@ -181,7 +181,7 @@ needing bespoke code.
 |---|---|
 | `live/protocol/` | Wire format: cursors, snapshots, updates, `LiveSource`. The bridges' vocabulary. |
 | `live/replica/` transport (`ReplicaState`, gap handling, stores) | Network realities: reconnects, resync, validation, persistence. `remote` wraps it. |
-| `live/state/server.ts` (`LiveState`) | Reused *inside* `expose` as the patch publisher. Direct feature use is what migrates. |
+| `live/state/server.ts` (`LiveStateSource`) | Reused *inside* `expose` as the patch publisher. Direct feature use is what migrates. |
 | `live/log/`, `live/event-stream/`, `live/job/` | Append-only / job-shaped data; value semantics would lose functionality. |
 | `live/mutations/` envelope types + settled-cursor client machinery | Idempotency envelope and read-your-writes transport; reused by `expose`/`remote`. The mutation result cache lives beside `expose` in `state/bridge/result-cache.ts`. |
 

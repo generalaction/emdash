@@ -51,7 +51,7 @@ Semantics:
   diffs consecutive values structurally; in-place mutation breaks both
   equality gating and diffing.)
 
-Replaces: direct feature use of `LiveState` for in-memory state. The deleted
+Replaces: direct feature use of `LiveStateSource` for in-memory state. The deleted
 `BatchedLiveState` microtask scheduler is covered by turn coalescing; use
 `query.debounceMs` or an edge debounce where timer windows were previously
 needed.
@@ -87,7 +87,7 @@ Semantics:
   last good value; it retries on the next turn in which an input publishes.
 
 Replaces: `deriveLiveModel`-style glue, projection code that manually
-subscribes to multiple `LiveState`s, and `bindMachineToLiveState`'s `project`
+subscribes to multiple `LiveStateSource`s, and `bindMachineToLiveState`'s `project`
 step.
 
 ## `query`
@@ -220,7 +220,7 @@ Semantics:
 - No return value on purpose: lifetime is the scope's. (Tests can pass a
   locally created scope and dispose it.)
 
-Replaces: manual `LiveState.subscribe` + lifecycle pairs scattered through
+Replaces: manual `LiveStateSource.subscribe` + lifecycle pairs scattered through
 providers and stores.
 
 ## `peek` and untracked reads

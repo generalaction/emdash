@@ -2,7 +2,7 @@ import { err, type Result } from '@emdash/shared';
 
 export type MutationErrorMapper<E> = (error: unknown) => E | undefined;
 
-export async function withMappedMutationErrors<T, E>(
+export async function mapMutationErrors<T, E>(
   work: () => Result<T, E> | Promise<Result<T, E>>,
   mapError: MutationErrorMapper<E>
 ): Promise<Result<T, E>> {

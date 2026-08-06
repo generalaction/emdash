@@ -1,12 +1,10 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
-import { filesContract } from '@emdash/core/runtimes/files/api';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import type {
   Contract,
   ContractImpl,
-  GroupMutationEnvelope,
   LeasedLiveModelProvider,
   LiveModelProvider,
   LiveSource,
@@ -21,6 +19,7 @@ import {
 import { projectEvents } from '@core/features/projects/node';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
+import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
 import {
   createProjectFromRemote,
@@ -147,19 +146,16 @@ function createDirectoryTreeModelProvider(
           ReturnType<LiveModelProvider<typeof contract>['runMutation']>
         >;
       }
-      const result = await runtimeResult.data.files.tree.model.mutate(name, {
-        ...envelope,
-        key: {
+      return forwardModelMutation(
+        runtimeResult.data.files.tree.model,
+        projectsWireContract.directoryTree,
+        name,
+        envelope,
+        {
           root: envelope.key.root,
           sessionId: envelope.key.sessionId,
-        },
-      } as unknown as GroupMutationEnvelope<typeof filesContract.tree.model, typeof name>);
-      return rebindMutationCursors(
-        result,
-        filesContract.tree.model,
-        projectsWireContract.directoryTree,
-        envelope.key
-      ) as unknown as Awaited<ReturnType<LiveModelProvider<typeof contract>['runMutation']>>;
+        }
+      );
     },
   };
 }
@@ -231,29 +227,4 @@ async function resolveHostRuntimeSource(
 
 function hostRefForProjectHost(host: ProjectHostParams) {
   return host.type === 'ssh' ? hostRef('remote', host.connectionId) : LOCAL_HOST_REF;
-}
-
-function rebindMutationCursors<
-  ResultType extends Result<{ data: unknown; cursors: readonly { model: string }[] }, unknown>,
->(
-  result: ResultType,
-  source: { states: Record<string, { id: string }> },
-  target: { states: Record<string, { id: string }> },
-  key: unknown
-): ResultType {
-  if (!result.success) return result;
-  const ids = new Map(
-    Object.entries(source.states).flatMap(([name, state]) => {
-      const targetState = target.states[name];
-      return targetState ? [[state.id, targetState.id] as const] : [];
-    })
-  );
-  return ok({
-    ...result.data,
-    cursors: result.data.cursors.map((cursor) => ({
-      ...cursor,
-      model: ids.get(cursor.model) ?? cursor.model,
-      key,
-    })),
-  }) as unknown as ResultType;
 }

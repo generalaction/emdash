@@ -1,10 +1,10 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
-import { withMappedMutationErrors } from './mutation-error';
+import { mapMutationErrors } from './mutation-error';
 
-describe('withMappedMutationErrors', () => {
+describe('mapMutationErrors', () => {
   it('maps expected thrown errors to mutation results', async () => {
-    const result = await withMappedMutationErrors(
+    const result = await mapMutationErrors(
       () => {
         throw new ExpectedError('typed');
       },
@@ -16,7 +16,7 @@ describe('withMappedMutationErrors', () => {
 
   it('passes successful results through', async () => {
     await expect(
-      withMappedMutationErrors(
+      mapMutationErrors(
         () => ok('done'),
         () => undefined
       )
@@ -27,7 +27,7 @@ describe('withMappedMutationErrors', () => {
     const unexpected = new Error('unexpected');
 
     await expect(
-      withMappedMutationErrors(
+      mapMutationErrors(
         () => {
           throw unexpected;
         },

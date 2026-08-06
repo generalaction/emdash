@@ -11,7 +11,7 @@ import {
   type SearchResultFile,
   type SearchResultMatch,
 } from '@emdash/ui/react/components';
-import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
+import { createLiveJobReplicaCache, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { Loader2 } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
@@ -66,7 +66,7 @@ export function FileContentSearchResults({
       try {
         const client = await getDesktopWireClient();
         if (disposed) return;
-        const jobs = createLiveJobReplica(
+        const jobs = createLiveJobReplicaCache(
           searchContract.searchWorkspaceContent,
           client.search.searchWorkspaceContent
         );

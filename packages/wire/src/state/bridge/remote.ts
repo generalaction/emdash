@@ -3,8 +3,8 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type { LiveModelClientHandle, MutationCallOptions } from '../../api/client';
 import type { LiveModelDef, LiveModelKey, LiveModelStates, LiveStateData } from '../../api/define';
 import {
-  createLiveModelReplica,
-  type LiveModelReplicaOptions,
+  createLiveModelReplicaCache,
+  type LiveModelReplicaCacheOptions,
   type ReplicaInstance,
   type ReplicaMutations,
 } from '../../live/replica';
@@ -30,9 +30,8 @@ export type RemoteModel<Group extends LiveModelDef> = Family<
   RemoteMember<Group>
 >;
 
-export type RemoteOptions<Group extends LiveModelDef> = LiveModelReplicaOptions<Group> & {
+export type RemoteOptions<Group extends LiveModelDef> = LiveModelReplicaCacheOptions<Group> & {
   scope?: Scope;
-  lingerMs?: number;
   clock?: Clock;
 };
 
@@ -44,10 +43,7 @@ export function remote<Group extends LiveModelDef>(
   const scope = options.scope
     ? options.scope.child(`remote:${contract.id}`)
     : createScope({ label: `remote:${contract.id}` });
-  const replica = createLiveModelReplica(contract, client, {
-    ...options,
-    retentionMs: options.lingerMs ?? options.retentionMs,
-  });
+  const replica = createLiveModelReplicaCache(contract, client, options);
   scope.add(() => replica.dispose());
 
   const members: RemoteModel<Group> = family(

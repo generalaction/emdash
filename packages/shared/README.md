@@ -30,7 +30,7 @@ protocol primitive.
 
 Use `Machine` when a feature owns a local command/event/effect protocol: commands
 decide domain events, events evolve state, and effects are interpreted at the
-host boundary. Machines are protocol-free; bind them to Wire `LiveState` only at
+host boundary. Machines are protocol-free; bind them to Wire `LiveStateSource` only at
 the Wire layer.
 
 Use `ResourceCache` when resource lifetime is demand-driven: consumers call
@@ -40,7 +40,7 @@ Use `SharedResource` for the same lease behavior around one unkeyed resource, an
 
 Use Wire-owned primitives when the lifecycle is protocol-specific. Wire workers
 belong to `@emdash/wire/worker` because they supervise process generations and
-keep a stable typed Wire client. `LiveJob` belongs to `@emdash/wire/live`
+keep a stable typed Wire client. `LiveJobSource` belongs to `@emdash/wire/live`
 because it publishes cancellable job state, progress, retention, and remote
 client handles.
 

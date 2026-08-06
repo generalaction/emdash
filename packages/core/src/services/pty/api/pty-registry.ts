@@ -1,4 +1,4 @@
-import type { LiveLog } from '@emdash/wire';
+import type { LiveLogSource } from '@emdash/wire';
 import { PtySession, type PtySessionOptions } from './pty-session';
 import type { PtySpawnSpec, PtySpawner } from './types';
 
@@ -47,7 +47,7 @@ export class PtyRegistry {
     return this.sessions.get(key);
   }
 
-  getLog(key: string): LiveLog | null {
+  getLog(key: string): LiveLogSource | null {
     return this.sessions.get(key)?.output ?? null;
   }
 

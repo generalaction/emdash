@@ -38,16 +38,18 @@ import type {
 import { WireError } from '../api/protocol';
 import { encodeTopic } from '../api/topics';
 import { isEventStreamHost, eventFromUpdate, type EventStreamHost } from './event-stream';
-import { LiveJob, type LiveJobContext } from './job';
+import { LiveJobSource, type LiveJobContext } from './job';
 import {
   isLeasedLiveModelProvider,
-  isLiveJobReplica,
-  isLiveLogReplica,
+  isLiveJobReplicaCache,
+  isLiveLogReplicaCache,
   isLiveModelProvider,
+  isLiveModelReplicaCache,
   type LeasedLiveModelProvider,
-  type LiveJobReplica,
-  type LiveLogReplica,
+  type LiveJobReplicaCache,
+  type LiveLogReplicaCache,
   type LiveModelProvider,
+  type LiveModelReplicaCache,
 } from './replica';
 
 /**
@@ -66,7 +68,7 @@ export type LiveLogImpl<Def extends LiveLogEndpointDef> = (
 export type LiveLogEntryImpl<Def extends LiveLogEndpointDef> =
   | LiveLogImpl<Def>
   | LiveLogClientHandle
-  | LiveLogReplica;
+  | LiveLogReplicaCache;
 
 export type EventStreamImpl<Def extends EventStreamEndpointDef> = (
   key: EventStreamKey<Def>
@@ -80,7 +82,8 @@ export type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
 export type LiveModelEntryImpl<Def extends LiveModelDef> =
   | LiveModelClientHandle<Def>
   | LiveModelProvider<Def>
-  | LeasedLiveModelProvider<Def>;
+  | LeasedLiveModelProvider<Def>
+  | LiveModelReplicaCache<Def>;
 
 export type JobImpl<Def extends LiveJobEndpointDef> = {
   run(
@@ -93,7 +96,7 @@ export type JobImpl<Def extends LiveJobEndpointDef> = {
 export type LiveJobEntryImpl<Def extends LiveJobEndpointDef> =
   | JobImpl<Def>
   | LiveJobClientHandle<Def>
-  | LiveJobReplica<Def>;
+  | LiveJobReplicaCache<Def>;
 
 const jobKeySchema = z.object({ jobId: z.string() });
 
@@ -133,7 +136,7 @@ function bindLiveLog(
   if (!impl) {
     throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
   }
-  if (isLiveLogReplica(impl) && impl.def.id !== def.id) {
+  if (isLiveLogReplicaCache(impl) && impl.def.id !== def.id) {
     throw new WireError(
       'CONTRACT_MISMATCH',
       `Live log replica for '${fullPath}' was created for '${impl.def.id}'`
@@ -188,7 +191,7 @@ function bindLiveJob(
       ],
     };
   }
-  if (isLiveJobReplica(impl)) {
+  if (isLiveJobReplicaCache(impl)) {
     if (impl.def.id !== def.id) {
       throw new WireError(
         'CONTRACT_MISMATCH',
@@ -292,6 +295,21 @@ function resolveLiveModelProvider(
     return entryImpl;
   }
 
+  if (isLiveModelReplicaCache(entryImpl)) {
+    if (entryImpl.contract.id !== def.id) {
+      throw new WireError(
+        'CONTRACT_MISMATCH',
+        `Live model replica cache for '${fullPath}' was created for '${entryImpl.contract.id}'`
+      );
+    }
+    return {
+      kind: 'liveModelProvider',
+      contract: entryImpl.contract,
+      resolveState: (key, name) => entryImpl.resolveState(key, name),
+      runMutation: (name, envelope) => entryImpl.runMutation(name, envelope),
+    };
+  }
+
   if (isLiveModelClientHandle(entryImpl)) {
     if (entryImpl.def.id !== def.id) {
       throw new WireError(
@@ -316,7 +334,7 @@ function resolveLiveModelProvider(
 function createLiveLogResolver(
   impl: LiveLogEntryImpl<LiveLogEndpointDef>
 ): (key: unknown) => MaybeAsyncLiveSource {
-  if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
+  if (isLiveLogReplicaCache(impl)) return (key) => impl.resolve(key as never);
   if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
   return impl as (key: unknown) => MaybeAsyncLiveSource;
 }
@@ -348,8 +366,8 @@ function createEventStreamResolver(
 
 function createLiveJob(
   impl: JobImpl<LiveJobEndpointDef>
-): LiveJob<unknown, unknown, unknown, unknown> {
-  return new LiveJob<unknown, unknown, unknown, unknown>(
+): LiveJobSource<unknown, unknown, unknown, unknown> {
+  return new LiveJobSource<unknown, unknown, unknown, unknown>(
     async (input, ctx) => {
       return await impl.run(input, {
         jobId: ctx.jobId,

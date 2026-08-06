@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { eventStream } from '../../api';
 import { eventFromUpdate } from './client';
-import { createEventStreamHost, EventStreamSource } from './server';
+import { createEventStreamHost, EventStreamSource } from './source';
 
 describe('EventStreamSource', () => {
   it('emits envelope-correct event updates while attached', () => {

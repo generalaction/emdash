@@ -1,5 +1,5 @@
 import { ok } from '@emdash/shared';
-import { createLiveJobReplica } from '@emdash/wire';
+import { createLiveJobReplicaCache } from '@emdash/wire';
 import { createTestWire } from '@emdash/wire/testing';
 import { fileSearchContract } from '@runtimes/file-search/api';
 import { describe, expect, it } from 'vitest';
@@ -36,9 +36,7 @@ describe('createFileSearchController', () => {
         return ok({ files, complete: true });
       },
     };
-    const wire = createTestWire(fileSearchContract, createFileSearchController(runtime), {
-      validate: 'full',
-    });
+    const wire = createTestWire(fileSearchContract, createFileSearchController(runtime));
     const root = absolute('/workspace');
 
     try {
@@ -53,7 +51,7 @@ describe('createFileSearchController', () => {
         data: { hits: [{ path: 'index.ts', kind: 'file' }] },
       });
 
-      const jobs = createLiveJobReplica(
+      const jobs = createLiveJobReplicaCache(
         fileSearchContract.searchContent,
         wire.client.searchContent
       );

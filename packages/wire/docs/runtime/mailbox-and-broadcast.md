@@ -133,7 +133,7 @@ failures.
 
 ## Where Not To Use These
 
-Do not replace `LiveState`, `LiveLog`, `EventStreamSource`, replicas, live
+Do not replace `LiveStateSource`, `LiveLogSource`, `EventStreamSource`, replicas, live
 followers, or reconnect attachment logic with Mailbox or Broadcast. Those
 primitives carry generation, sequence, snapshot, resync, reconnect, retention, or
 gap semantics that Mailbox deliberately does not provide.

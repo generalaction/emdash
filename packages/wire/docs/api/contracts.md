@@ -78,8 +78,8 @@ long-running work.
 ### `liveLog`
 
 `liveLog({ key })` declares a keyed text log endpoint. It is served by a
-`LiveLog` resolver and consumed through a `LiveLogClientHandle` or a
-`LiveLogReplica`.
+`LiveLogSource` resolver and consumed through a `LiveLogClientHandle` or a
+`LiveLogReplicaCache`.
 
 ### `eventStream`
 
@@ -235,6 +235,6 @@ const controller = createController(api, { conversation: conversations });
 ```
 
 The live model client handle exposes `state(key, name)` for member handles and
-`mutate(name, envelope)` for mutation calls. Wrap it in `createLiveModelReplica()`
+`mutate(name, envelope)` for mutation calls. Wrap it in `createLiveModelReplicaCache()`
 when a process wants local state, ref counting, and mutation settling. See
 [serving](./serving.md#typed-clients).

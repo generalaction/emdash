@@ -1,7 +1,7 @@
 import { EMDASH_CONFIG_FILE } from '@emdash/core/primitives/emdash-config/api';
 import type { ScriptWorkflowState } from '@emdash/core/runtimes/terminals/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplica, ReplicaLog } from '@emdash/wire';
+import { createLiveJobReplicaCache, ReplicaLog } from '@emdash/wire';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
@@ -76,7 +76,7 @@ export class LifecycleScriptStore {
   async run(projectId: string, taskId: string, workspaceId: string): Promise<void> {
     if (this.activeRun || this.isRunning) return;
     const client = await getTerminalsClient();
-    const jobs = createLiveJobReplica(
+    const jobs = createLiveJobReplicaCache(
       terminalsContract.runScriptWorkflow,
       client.runScriptWorkflow
     );

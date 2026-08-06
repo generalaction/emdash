@@ -12,7 +12,7 @@ derived, and published over the wire — and how replicas of it are consumed on
 the other side.
 
 It replaces the *value-reactivity* portion of `wire/src/live/` (the four ad-hoc
-"a value that changes" flavors: `LiveState` used directly by features,
+"a value that changes" flavors: `LiveStateSource` used directly by features,
 `ComputedLiveState`, deleted `BatchedLiveState`, `bindMachineToLiveState`) and the
 hand-written provider/lease boilerplate around them. It does **not** replace
 the wire protocol (`live/protocol/`), the replica transport, live logs, event

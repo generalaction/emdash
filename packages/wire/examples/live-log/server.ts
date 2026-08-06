@@ -1,8 +1,8 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../src/api/channel';
-import { LiveLog } from '../../src/live/log/index';
+import { LiveLogSource } from '../../src/live/log/index';
 
-const server = new LiveLog({ generation: 3000, maxBufferBytes: 12 });
+const server = new LiveLogSource({ generation: 3000, maxBufferBytes: 12 });
 
 export async function fetchSnapshot(): Promise<LiveSnapshot<LiveLogSnapshotData>> {
   return server.snapshot();

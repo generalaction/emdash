@@ -7,7 +7,7 @@ import { defineContract, liveModel, liveState, mutation } from '../../api/define
 import { expose } from '../../state/bridge/expose';
 import { cell, snapshot } from '../../state/core';
 import { createTestWire } from '../../testing';
-import { createLiveModelReplica } from './replica';
+import { createLiveModelReplicaCache } from './replica';
 
 const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ count: z.number() });
@@ -53,7 +53,7 @@ function counterSource(initial: { count: number }) {
   return { state, provider };
 }
 
-describe('createLiveModelReplica', () => {
+describe('createLiveModelReplicaCache', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -62,7 +62,7 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'local' };
     const { provider } = counterSource({ count: 0 });
     const upstream = createTestWire(api, { counter: provider }).client;
-    const replica = createLiveModelReplica(api.counter, upstream.counter);
+    const replica = createLiveModelReplicaCache(api.counter, upstream.counter);
 
     expect(replica.peek(key)).toBeUndefined();
     const lease = replica.acquire(key);
@@ -80,9 +80,9 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'demo' };
     const { state, provider } = counterSource({ count: 0 });
     const upstream = createTestWire(api, { counter: provider }).client;
-    const replica = createLiveModelReplica(api.counter, upstream.counter, { retentionMs: 100 });
+    const replica = createLiveModelReplicaCache(api.counter, upstream.counter, { lingerMs: 100 });
     const downstream = createTestWire(api, { counter: replica }).client;
-    const downstreamReplica = createLiveModelReplica(api.counter, downstream.counter);
+    const downstreamReplica = createLiveModelReplicaCache(api.counter, downstream.counter);
     const downstreamLease = downstreamReplica.acquire(key);
     const counter = await downstreamLease.ready();
 
@@ -101,7 +101,7 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'settled' };
     const { provider } = counterSource({ count: 0 });
     const upstream = createTestWire(api, { counter: provider }).client;
-    const replica = createLiveModelReplica(api.counter, upstream.counter);
+    const replica = createLiveModelReplicaCache(api.counter, upstream.counter);
     const lease = replica.acquire(key);
     const counter = await lease.ready();
 
@@ -144,7 +144,7 @@ describe('createLiveModelReplica', () => {
         }),
     } as unknown as LiveModelClientHandle<typeof api.counter>;
 
-    const replica = createLiveModelReplica(api.counter, group, {
+    const replica = createLiveModelReplicaCache(api.counter, group, {
       clock,
       instrumentation: { cursorTranslationTimeout },
     });
@@ -180,7 +180,7 @@ describe('createLiveModelReplica', () => {
     const key = { id: 'retained' };
     const { provider } = counterSource({ count: 0 });
     const upstream = createTestWire(api, { counter: provider }).client;
-    const replica = createLiveModelReplica(api.counter, upstream.counter, { retentionMs: 50 });
+    const replica = createLiveModelReplicaCache(api.counter, upstream.counter, { lingerMs: 50 });
     const lease = replica.acquire(key);
     const instance = await lease.ready();
 

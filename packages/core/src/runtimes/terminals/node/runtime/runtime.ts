@@ -6,7 +6,7 @@ import {
   cell,
   expose,
   family,
-  LiveLog,
+  LiveLogSource,
   peek,
   type LiveJobContext,
   type LeasedLiveModelProvider,
@@ -170,7 +170,7 @@ export class TerminalsRuntime {
   private readonly backgroundScriptIdlePolicy: IdlePolicy;
   private readonly completableScriptIdlePolicy: IdlePolicy;
   private readonly idleSweeper: IdleSweeper;
-  private readonly logs = new Map<string, LiveLog>();
+  private readonly logs = new Map<string, LiveLogSource>();
   private readonly activity = new Map<string, IoActivityTracker>();
   private readonly activeWorkflows = new Map<string, ActiveWorkflow>();
   private readonly workflowBindings = new Map<string, { sync(): void; dispose(): void }>();
@@ -676,11 +676,11 @@ export class TerminalsRuntime {
     });
   }
 
-  private logFor(key: TerminalKey): LiveLog {
+  private logFor(key: TerminalKey): LiveLogSource {
     const id = sessionKeyFor(key);
     let log = this.logs.get(id);
     if (!log) {
-      log = new LiveLog();
+      log = new LiveLogSource();
       this.logs.set(id, log);
     }
     return log;

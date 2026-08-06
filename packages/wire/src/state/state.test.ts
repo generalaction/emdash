@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { liveModel, liveState, mutation } from '../api';
 import type { LiveUpdate } from '../api/channel';
 import type { LiveModelClientHandle } from '../api/client';
-import { LiveState } from '../live/state/server';
+import { LiveStateSource } from '../live/state/source';
 import {
   batch,
   cell,
@@ -177,7 +177,7 @@ describe('wire state primitives', () => {
       },
       mutations: {},
     });
-    const upstream = new LiveState({ count: 1 });
+    const upstream = new LiveStateSource({ count: 1 });
     const scope = createScope();
     const client = {
       kind: 'liveModelClientHandle',

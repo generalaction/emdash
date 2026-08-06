@@ -26,7 +26,7 @@ The update carries `mutationIds: ['example-add-task']`. A replica can resolve
 ## Hosts and Context
 
 Live model contract mutations run against a keyed `LiveModelHost` instance. The
-host owns each instance's member `LiveState`s and resolves schema-only mutation
+host owns each instance's member `LiveStateSource`s and resolves schema-only mutation
 handlers supplied at host creation:
 
 ```ts
@@ -63,14 +63,14 @@ live model bindings need to catch up.
 
 ## Client Settling
 
-`LiveModelReplica.acquire(key)` returns a `ReplicaInstance` for one group key. Its
+`LiveModelReplicaCache.acquire(key)` returns a `ReplicaInstance` for one group key. Its
 mutation methods call the live model client handle and then settle against the local
 `ReplicaState`s.
 
 Group mutation methods return `{ result, settled }`:
 
 ```ts
-const sessions = createLiveModelReplica(api.session, contractClient.session);
+const sessions = createLiveModelReplicaCache(api.session, contractClient.session);
 const lease = sessions.acquire({ sessionId: 'demo' });
 const session = await lease.ready();
 

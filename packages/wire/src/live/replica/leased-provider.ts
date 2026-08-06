@@ -8,7 +8,7 @@ import type {
   MutationData,
   MutationError,
 } from '../../api/define';
-import type { GroupMutationEnvelope } from './provider';
+import type { LiveModelMutationEnvelope } from './provider';
 
 export type LeasedLiveModelProvider<Group extends LiveModelDef = LiveModelDef> = {
   readonly kind: 'leasedLiveModelProvider';
@@ -19,7 +19,7 @@ export type LeasedLiveModelProvider<Group extends LiveModelDef = LiveModelDef> =
   ): PendingLease<LiveSource>;
   runMutation<Name extends Extract<keyof LiveModelMutations<Group>, string>>(
     name: Name,
-    envelope: GroupMutationEnvelope<Group, Name>
+    envelope: LiveModelMutationEnvelope<Group, Name>
   ): Promise<
     LiveMutationResult<
       MutationData<LiveModelMutations<Group>[Name]>,

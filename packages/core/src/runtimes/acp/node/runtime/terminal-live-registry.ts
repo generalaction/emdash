@@ -1,18 +1,18 @@
-import { LiveLog } from '@emdash/wire';
+import { LiveLogSource } from '@emdash/wire';
 import type { TerminalState } from '@runtimes/acp/api';
 import type { AgentTerminalHooks } from '@runtimes/acp/node/agent-ports/terminal-manager';
 
 type TerminalRecord = {
   conversationId: string;
   state: TerminalState;
-  log: LiveLog;
+  log: LiveLogSource;
 };
 
 /**
  * Mirrors terminal hook callbacks into live primitives.
  *
  * Terminal metadata/status is exposed as one LiveModel per conversation.
- * Terminal output is exposed as one LiveLog per terminal and should be treated
+ * Terminal output is exposed as one LiveLogSource per terminal and should be treated
  * as the authoritative output stream by clients.
  */
 export class TerminalLiveRegistry {
@@ -34,7 +34,7 @@ export class TerminalLiveRegistry {
           truncated: false,
           exitStatus: null,
         },
-        log: new LiveLog(),
+        log: new LiveLogSource(),
       };
       this.byTerminal.set(terminalId, record);
       this.addToConversation(conversationId, terminalId);
@@ -68,7 +68,7 @@ export class TerminalLiveRegistry {
     },
   };
 
-  getTerminalLog(terminalId: string): LiveLog | null {
+  getTerminalLog(terminalId: string): LiveLogSource | null {
     return this.byTerminal.get(terminalId)?.log ?? null;
   }
 

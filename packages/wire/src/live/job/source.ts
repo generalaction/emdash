@@ -3,7 +3,7 @@ import { createScope, type Run, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import type { LiveSnapshot, LiveSource } from '../../api/channel';
 import type { LiveJobState } from '../protocol';
-import { LiveState } from '../state';
+import { LiveStateSource } from '../state';
 
 const LIVE_JOB_MAX_PROGRESS_ENTRIES = 100;
 export const LIVE_JOB_TERMINAL_RETAIN_MS = 5 * 60 * 1000;
@@ -26,7 +26,7 @@ export type LiveJobListEntry = {
   finishedAt?: number;
 };
 
-export type LiveJobOptions<E = unknown> = {
+export type LiveJobSourceOptions<E = unknown> = {
   scope?: Scope;
   generation?: number;
   terminalRetainMs?: number;
@@ -41,22 +41,22 @@ export type LiveJobOptions<E = unknown> = {
 type LiveJobRun<P, R, E> = {
   scope: Scope;
   execution: Run<void>;
-  model: LiveState<LiveJobState<P, R, E>>;
+  model: LiveStateSource<LiveJobState<P, R, E>>;
   evictionTimer: TimerHandle | undefined;
 };
 
 /**
  * Transport-agnostic cancellable job source.
  *
- * Each run is represented by a LiveState-backed state resource, so jobs inherit
- * the snapshot/update protocol used by LiveState while keeping execution,
+ * Each run is represented by a LiveStateSource-backed state resource, so jobs inherit
+ * the snapshot/update protocol used by LiveStateSource while keeping execution,
  * cancellation, and terminal retention scoped to this primitive.
  *
- * A LiveJob survives transport disconnects, but it is process-local and not
+ * A LiveJobSource survives transport disconnects, but it is process-local and not
  * durable across host process restarts. Terminal runs are retained only until
  * the configured eviction delay expires.
  */
-export class LiveJob<I, P, R, E> {
+export class LiveJobSource<I, P, R, E> {
   private readonly scope: Scope;
   private readonly runs = new Map<string, LiveJobRun<P, R, E>>();
   private readonly generation: number | undefined;
@@ -67,7 +67,7 @@ export class LiveJob<I, P, R, E> {
 
   constructor(
     private readonly handler: LiveJobHandler<I, P, R, E>,
-    private readonly options: LiveJobOptions<E> = {}
+    private readonly options: LiveJobSourceOptions<E> = {}
   ) {
     this.scope = options.scope
       ? options.scope.child('live-job')
@@ -82,11 +82,11 @@ export class LiveJob<I, P, R, E> {
   }
 
   start(input: I): { jobId: string } {
-    if (this.scope.disposed) throw new Error('LiveJob is disposed');
+    if (this.scope.disposed) throw new Error('LiveJobSource is disposed');
     const jobId = this.idFactory();
     const jobScope = this.scope.child(`job:${jobId}`);
     const now = this.clock.now();
-    const model = new LiveState<LiveJobState<P, R, E>>(
+    const model = new LiveStateSource<LiveJobState<P, R, E>>(
       {
         status: 'running',
         startedAt: now,
@@ -127,13 +127,13 @@ export class LiveJob<I, P, R, E> {
     return this.snapshot(jobId)?.data;
   }
 
-  private liveJob(jobId: string): LiveState<LiveJobState<P, R, E>> | undefined {
+  private liveJob(jobId: string): LiveStateSource<LiveJobState<P, R, E>> | undefined {
     return this.runs.get(jobId)?.model;
   }
 
   dispose(): Promise<void> {
     if (this.disposePromise) return this.disposePromise;
-    this.disposePromise = this.scope.dispose(new Error('LiveJob disposed'));
+    this.disposePromise = this.scope.dispose(new Error('LiveJobSource disposed'));
     return this.disposePromise;
   }
 

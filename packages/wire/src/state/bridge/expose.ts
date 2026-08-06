@@ -1,6 +1,6 @@
 import { ok, toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { stableStringify } from '@emdash/shared/util';
 import type {
   LiveCursor,
@@ -19,7 +19,7 @@ import type {
   MutationInput,
 } from '../../api/define';
 import type { LeasedLiveModelProvider } from '../../live/replica/leased-provider';
-import { LiveState } from '../../live/state/server';
+import { LiveStateSource } from '../../live/state/source';
 import type { WireInstrumentation } from '../../observability';
 import {
   StateNode,
@@ -30,6 +30,7 @@ import {
   type StateInstrumentation,
   type Snapshot,
 } from '../core';
+import { keyedRetention } from '../core/keyed-retention';
 import { assignDraft } from './assign-draft';
 import { MutationResultCache, type MutationResultCacheOptions } from './result-cache';
 
@@ -98,18 +99,14 @@ export type ExposeOptions<Group extends LiveModelDef> = {
 type StateRecord = {
   key: unknown;
   name: string;
-  stateId: string;
-  scope: Scope;
   node: Readable<unknown>;
-  liveState: LiveState<unknown> | undefined;
-  retainCount: number;
-  disposeTimer: TimerHandle | undefined;
+  liveState: LiveStateSource<unknown> | undefined;
   readyWaiters: ReadyWaiter[];
   waiters: RevisionWaiter[];
 };
 
 type ReadyWaiter = {
-  resolve(liveState: LiveState<unknown>): void;
+  resolve(liveState: LiveStateSource<unknown>): void;
   reject(error: unknown): void;
 };
 
@@ -126,12 +123,47 @@ export function expose<Group extends LiveModelDef>(
   options: ExposeOptions<NoInfer<Group>> = {}
 ): LeasedLiveModelProvider<Group> {
   const scope = options.scope ?? createScope({ label: `state-expose:${contract.id}` });
-  const records = new Map<string, StateRecord>();
   const clock = options.clock ?? systemClock;
   const lingerMs = options.lingerMs ?? 15_000;
   const mutationCache =
     options.idempotency === false ? undefined : new MutationResultCache(options.idempotency);
   let disposed = false;
+
+  type RecordKey = { key: LiveModelKey<Group>; name: StateName<Group> };
+  const records = keyedRetention<RecordKey, StateRecord>({
+    key: ({ key, name }) => `${contract.states[name].id}:${stableStringify(key)}`,
+    lingerMs,
+    name: `state-expose:${contract.id}`,
+    scope,
+    clock,
+    create: ({ key, name }, stateScope) => {
+      const resolver = states[name];
+      const resolved = (typeof resolver === 'function'
+        ? resolver(key, stateScope)
+        : resolver) as unknown as Readable<unknown> | Promise<Readable<unknown>>;
+      const node = isPromiseLike(resolved)
+        ? asyncReadable(resolved, stateScope, undefined)
+        : resolved;
+      const record: StateRecord = {
+        key,
+        name,
+        node,
+        liveState: undefined,
+        readyWaiters: [],
+        waiters: [],
+      };
+      stateScope.add(() => rejectRecord(record, new Error('Exposed state disposed')));
+      observe(
+        node,
+        (current) => {
+          publishSnapshot(record, current);
+        },
+        { scope: stateScope, immediate: false }
+      );
+      publishSnapshot(record, snapshot(node));
+      return record;
+    },
+  });
 
   return {
     kind: 'leasedLiveModelProvider',
@@ -156,9 +188,7 @@ export function expose<Group extends LiveModelDef>(
       if (disposed) return;
       disposed = true;
       mutationCache?.clear();
-      for (const record of records.values())
-        rejectRecord(record, new Error('Exposed state disposed'));
-      records.clear();
+      await records.dispose();
       await scope.dispose();
     },
   };
@@ -167,17 +197,29 @@ export function expose<Group extends LiveModelDef>(
     key: LiveModelKey<Group>,
     name: Name
   ): PendingLease<LiveSource> {
-    const record = recordFor(key, name);
-    retainRecord(record);
+    const recordKey: RecordKey = { key, name };
+    const releaseEntry = records.retain(recordKey);
+    const record = records.ensure(recordKey).value;
+    const release = () => {
+      releaseEntry();
+      // An errored record that never produced a source is not worth lingering.
+      if (
+        !record.liveState &&
+        snapshot(record.node).status === 'error' &&
+        records.peek(recordKey)?.value === record
+      ) {
+        void records.evict(recordKey);
+      }
+    };
     return toPendingLease(
       readyRecord(record).then(
         (liveState) =>
           ({
             value: liveState,
-            release: async () => releaseRecord(record),
+            release: async () => release(),
           }) satisfies Lease<LiveSource>,
         (error) => {
-          releaseRecord(record);
+          release();
           throw error;
         }
       )
@@ -231,7 +273,7 @@ export function expose<Group extends LiveModelDef>(
     revision: Revision,
     mutationId: string
   ): Promise<LiveCursor> {
-    const record = recordFor(key, name);
+    const record = records.ensure({ key, name }).value;
     const current = snapshot(record.node);
     if (record.liveState && matchesWaiter(record, current, revision, mutationId))
       return Promise.resolve(record.liveState.cursor);
@@ -240,48 +282,7 @@ export function expose<Group extends LiveModelDef>(
     });
   }
 
-  function recordFor<Name extends StateName<Group>>(
-    key: LiveModelKey<Group>,
-    name: Name
-  ): StateRecord {
-    const stateId = `${contract.states[name].id}:${stableStringify(key)}`;
-    const existing = records.get(stateId);
-    if (existing) return existing;
-
-    const stateScope = scope.child(stateId);
-    const resolver = states[name];
-    const resolved = (typeof resolver === 'function'
-      ? resolver(key, stateScope)
-      : resolver) as unknown as Readable<unknown> | Promise<Readable<unknown>>;
-    const node = isPromiseLike(resolved)
-      ? asyncReadable(resolved, stateScope, undefined)
-      : resolved;
-    const record: StateRecord = {
-      key,
-      name,
-      stateId,
-      scope: stateScope,
-      node,
-      liveState: undefined,
-      retainCount: 0,
-      disposeTimer: undefined,
-      readyWaiters: [],
-      waiters: [],
-    };
-    records.set(stateId, record);
-    scheduleDisposeRecord(record);
-    observe(
-      node,
-      (current) => {
-        publishSnapshot(record, current);
-      },
-      { scope: stateScope, immediate: false }
-    );
-    publishSnapshot(record, snapshot(node));
-    return record;
-  }
-
-  function readyRecord(record: StateRecord): Promise<LiveState<unknown>> {
+  function readyRecord(record: StateRecord): Promise<LiveStateSource<unknown>> {
     const current = snapshot(record.node);
     if (record.liveState && current.status === 'live') return Promise.resolve(record.liveState);
     if (current.status === 'error') return Promise.reject(current.error);
@@ -300,7 +301,7 @@ export function expose<Group extends LiveModelDef>(
     const liveState = record.liveState;
     const cursor = liveState
       ? publishLiveState(record, liveState, current)
-      : (record.liveState = new LiveState(current.value)).cursor;
+      : (record.liveState = new LiveStateSource(current.value)).cursor;
     if (!record.liveState) throw new Error('Exposed state failed to initialize');
     const readyLiveState = record.liveState;
 
@@ -319,7 +320,7 @@ export function expose<Group extends LiveModelDef>(
 
   function publishLiveState(
     record: StateRecord,
-    liveState: LiveState<unknown>,
+    liveState: LiveStateSource<unknown>,
     current: Snapshot<unknown>
   ): LiveCursor {
     const mutationIds = current.mutationIds ? [...current.mutationIds] : undefined;
@@ -339,42 +340,6 @@ export function expose<Group extends LiveModelDef>(
     if (!publish) return 'replace';
     if (typeof publish === 'string') return publish;
     return publish[record.name as StateName<Group>] ?? 'replace';
-  }
-
-  function retainRecord(record: StateRecord): void {
-    record.disposeTimer?.dispose();
-    record.disposeTimer = undefined;
-    record.retainCount += 1;
-  }
-
-  function releaseRecord(record: StateRecord): void {
-    record.retainCount = Math.max(0, record.retainCount - 1);
-    if (record.retainCount === 0 && !record.liveState && snapshot(record.node).status === 'error') {
-      void disposeRecord(record);
-      return;
-    }
-    scheduleDisposeRecord(record);
-  }
-
-  function scheduleDisposeRecord(record: StateRecord): void {
-    if (record.retainCount > 0) return;
-    record.disposeTimer?.dispose();
-    record.disposeTimer = clock.schedule(
-      lingerMs,
-      () => {
-        record.disposeTimer = undefined;
-        void disposeRecord(record);
-      },
-      { unref: true }
-    );
-  }
-
-  async function disposeRecord(record: StateRecord): Promise<void> {
-    if (records.get(record.stateId) !== record) return;
-    records.delete(record.stateId);
-    record.disposeTimer?.dispose();
-    rejectRecord(record, new Error('Exposed state disposed'));
-    await record.scope.dispose();
   }
 
   function rejectRecord(record: StateRecord, error: unknown): void {

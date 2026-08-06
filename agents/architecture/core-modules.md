@@ -128,13 +128,13 @@ Choose lifecycle primitives by ownership shape:
 - Use `WireWorkerHost.create(component, ...)` or `spawn(component, ...)` when supervising a
   process-hosted Wire component with a stable client, readiness, restart backoff, and process
   generations. The lower-level worker slot is internal to `@emdash/wire`.
-- Use Wire `LiveJob` when work must be visible over the Wire protocol as a cancellable job with
+- Use Wire `LiveJobSource` when work must be visible over the Wire protocol as a cancellable job with
   progress, terminal state, retention, and remote client handles.
 
 `LifecycleRegistry` is not a replacement for `Scope`: it uses scopes internally for each entry,
 but its public job is lifecycle state and explicit transitions. It is also not a `ResourceCache`
 because it does not ref-count demand or create resources through leases. It remains local and
-protocol-free, unlike Wire workers and `LiveJob`.
+protocol-free, unlike Wire workers and `LiveJobSource`.
 
 ## Standard Module Shape
 

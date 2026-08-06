@@ -25,11 +25,11 @@ current sequence; otherwise the client has missed an update and resyncs from
 
 ## Server
 
-`LiveState<T>` owns one authoritative state object. Mutate it with
+`LiveStateSource<T>` owns one authoritative state object. Mutate it with
 `produce()`, not by mutating the original object:
 
 ```ts
-const server = new LiveState<TaskListState>(
+const server = new LiveStateSource<TaskListState>(
   {
     tasks: [{ id: 'task-1', title: 'Read the plan', done: false }],
     filter: 'all',
@@ -64,7 +64,7 @@ const detach = await model.attach((update) => {
 });
 ```
 
-Wrap that live state client handle in `createLiveModelReplica()` when a process wants local
+Wrap that live state client handle in `createLiveModelReplicaCache()` when a process wants local
 state, mutation settling, ref counting, or a downstream `LiveSource`; see
 [replicas](./replicas.md#model-replicas).
 

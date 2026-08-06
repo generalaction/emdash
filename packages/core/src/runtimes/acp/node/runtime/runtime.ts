@@ -1,6 +1,6 @@
 import type { Result } from '@emdash/shared';
 import { ok } from '@emdash/shared';
-import type { LiveLog } from '@emdash/wire';
+import type { LiveLogSource } from '@emdash/wire';
 import type {
   AcpAttachmentError,
   AcpCancelTurnError,
@@ -247,7 +247,7 @@ export class AcpRuntime {
     return this.manager.sessionsHost;
   }
 
-  terminalOutputLog(terminalId: string): LiveLog | null {
+  terminalOutputLog(terminalId: string): LiveLogSource | null {
     return this.terminalLiveRegistry.getTerminalLog(terminalId);
   }
 

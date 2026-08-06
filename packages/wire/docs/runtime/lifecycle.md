@@ -180,13 +180,13 @@ Selection guidance:
 - Use `WireWorkerHost.create(component, ...)` when the resource is a Wire worker process with
   readiness, a stable typed client returned by `ready()`, supervision, restart backoff, and child
   process generations.
-- Use `LiveJob` when callers need a Wire-visible cancellable job with progress,
+- Use `LiveJobSource` when callers need a Wire-visible cancellable job with progress,
   terminal state, retention, and remote client handles.
 
 `LifecycleRegistry` differs from `Scope` by modeling resource state rather than
 general cleanup. It differs from `ResourceCache` by not ref-counting leases or
 creating resources on demand from `acquire()`. It differs from Wire workers and
-`LiveJob` by staying local and protocol-free: it does not supervise processes,
+`LiveJobSource` by staying local and protocol-free: it does not supervise processes,
 serve clients, publish progress, or retain terminal job state.
 
 ## Mailbox Ownership

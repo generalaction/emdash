@@ -1,12 +1,11 @@
 import { err, ok, type Result } from '@emdash/shared';
 import {
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   LiveJobFailedError,
   type JobError,
   type JobInput,
   type JobProgress,
   type JobResult,
-  type GroupMutationEnvelope,
   type LiveModelProvider,
   type LiveJobClientHandle,
   type LiveJobContext,
@@ -15,7 +14,10 @@ import {
 } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
+import {
+  forwardLiveModel,
+  forwardModelMutation,
+} from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
 import {
   sourceControlGitRuntimeContract as gitContract,
@@ -194,18 +196,14 @@ function createRepositoryModelProvider({
       return withIdentityRuntime(
         runtimes,
         workspaceIdentity.resolveProject(envelope.key.projectId),
-        async (client, identity) => {
-          const result = await client.git.repository.model.mutate(name, {
-            ...envelope,
-            key: { repository: hostPathFromNative(identity.path) },
-          } as unknown as GroupMutationEnvelope<typeof gitContract.repository.model, typeof name>);
-          return rebindMutationCursors(
-            result,
-            gitContract.repository.model,
+        (client, identity) =>
+          forwardModelMutation(
+            client.git.repository.model,
             sourceControlContract.repository.model,
-            envelope.key
-          );
-        }
+            name,
+            envelope,
+            { repository: hostPathFromNative(identity.path) }
+          )
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
@@ -234,18 +232,14 @@ function createCheckoutModelProvider({
       return withIdentityRuntime(
         runtimes,
         workspaceIdentity.resolve(envelope.key.workspaceId),
-        async (client, identity) => {
-          const result = await client.git.checkout.model.mutate(name, {
-            ...envelope,
-            key: { checkout: hostPathFromNative(identity.path) },
-          } as unknown as GroupMutationEnvelope<typeof gitContract.checkout.model, typeof name>);
-          return rebindMutationCursors(
-            result,
-            gitContract.checkout.model,
+        (client, identity) =>
+          forwardModelMutation(
+            client.git.checkout.model,
             sourceControlContract.checkout.model,
-            envelope.key
-          );
-        }
+            name,
+            envelope,
+            { checkout: hostPathFromNative(identity.path) }
+          )
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
@@ -441,7 +435,7 @@ async function runUpstreamJob<Def extends LiveJobEndpointDef>(
   input: JobInput<Def>,
   context: LiveJobContext<JobProgress<Def>>
 ): Promise<Result<JobResult<Def>, JobError<Def>>> {
-  const jobs = createLiveJobReplica(definition, handle);
+  const jobs = createLiveJobReplicaCache(definition, handle);
   const lease = await jobs.start(input);
   try {
     const running = await lease.ready();
@@ -462,29 +456,4 @@ async function runUpstreamJob<Def extends LiveJobEndpointDef>(
     await lease.release();
     await jobs.dispose();
   }
-}
-
-function rebindMutationCursors<
-  ResultType extends Result<{ data: unknown; cursors: readonly { model: string }[] }, unknown>,
->(
-  result: ResultType,
-  source: { states: Record<string, { id: string }> },
-  target: { states: Record<string, { id: string }> },
-  key: unknown
-): ResultType {
-  if (!result.success) return result;
-  const ids = new Map(
-    Object.entries(source.states).flatMap(([name, state]) => {
-      const targetState = target.states[name];
-      return targetState ? [[state.id, targetState.id] as const] : [];
-    })
-  );
-  return ok({
-    ...result.data,
-    cursors: result.data.cursors.map((cursor) => ({
-      ...cursor,
-      model: ids.get(cursor.model) ?? cursor.model,
-      key,
-    })),
-  }) as unknown as ResultType;
 }

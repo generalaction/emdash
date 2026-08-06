@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import {
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   LiveJobFailedError,
   type JobError,
   type JobInput,
@@ -16,7 +16,7 @@ export async function runRuntimeLiveJob<Def extends LiveJobEndpointDef>(
   input: JobInput<Def>,
   onProgress?: (progress: JobProgress<Def>) => void
 ): Promise<Result<JobResult<Def>, JobError<Def>>> {
-  const jobs = createLiveJobReplica(definition, handle);
+  const jobs = createLiveJobReplicaCache(definition, handle);
   const lease = await jobs.start(input);
   try {
     const job = await lease.ready();

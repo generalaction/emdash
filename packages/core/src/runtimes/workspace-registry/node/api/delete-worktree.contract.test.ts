@@ -64,9 +64,7 @@ describe('workspace registry deleteWorktree', () => {
         killedPaths.push(workspacePath);
       },
     });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
   afterEach(async () => {
@@ -190,9 +188,7 @@ describe('workspace registry deleteWorktree', () => {
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   }
 
   it('a failed removal records stage, class, and message durably; the trace survives a restart', async () => {

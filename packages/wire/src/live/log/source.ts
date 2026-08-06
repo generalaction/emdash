@@ -10,7 +10,7 @@ type RetainedChunk = {
   bytes: number;
 };
 
-export type LiveLogOptions = {
+export type LiveLogSourceOptions = {
   maxBufferBytes?: number;
   generation?: number;
 };
@@ -18,11 +18,11 @@ export type LiveLogOptions = {
 /**
  * Transport-agnostic append-only log source.
  *
- * The update envelope matches LiveState, but the delta is log-specific:
+ * The update envelope matches LiveStateSource, but the delta is log-specific:
  * `{ chunk: string }`. Snapshots return the retained tail plus the byte offset
  * of the first retained byte so clients can reset cheaply after gaps.
  */
-export class LiveLog {
+export class LiveLogSource {
   private readonly emitter = new Emitter<LiveUpdate>();
   private readonly maxBufferBytes: number;
   private generation: number;
@@ -32,7 +32,7 @@ export class LiveLog {
   private truncated = false;
   private chunks: RetainedChunk[] = [];
 
-  constructor(options: LiveLogOptions = {}) {
+  constructor(options: LiveLogSourceOptions = {}) {
     this.maxBufferBytes = Math.max(0, options.maxBufferBytes ?? DEFAULT_MAX_BUFFER_BYTES);
     this.generation = options.generation ?? Date.now();
   }

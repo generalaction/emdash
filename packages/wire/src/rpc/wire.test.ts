@@ -10,7 +10,7 @@ import { serve } from '../api/serve';
 import { encodeTopic } from '../api/topics';
 import { memoryTransportPair, reconnectingTransport } from '../api/transports';
 import { ReplicaState } from '../live/replica';
-import { LiveState } from '../live/state/server';
+import { LiveStateSource } from '../live/state/source';
 import { createTestWire } from '../testing';
 import { client } from './client';
 import { createController } from './controller';
@@ -24,7 +24,7 @@ const contract = defineContract({
   }),
 });
 
-function knownStateProvider(model: LiveState<{ count: number }>) {
+function knownStateProvider(model: LiveStateSource<{ count: number }>) {
   return {
     kind: 'liveModelProvider' as const,
     contract: contract.state,
@@ -36,7 +36,7 @@ function knownStateProvider(model: LiveState<{ count: number }>) {
 }
 
 function setup() {
-  const model = new LiveState({ count: 0 });
+  const model = new LiveStateSource({ count: 0 });
   const wire = createTestWire(contract, {
     greet: ({ name }) => `hello ${name}`,
     fail: () => {
@@ -421,7 +421,7 @@ describe('wire serve/connect', () => {
   });
 
   it('reattaches and refreshes bound live models after reconnect', async () => {
-    const model = new LiveState({ count: 0 });
+    const model = new LiveStateSource({ count: 0 });
     const controller = createController(contract, {
       greet: ({ name }) => `hello ${name}`,
       fail: () => {

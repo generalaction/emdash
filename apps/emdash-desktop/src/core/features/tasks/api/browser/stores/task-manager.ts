@@ -1,6 +1,6 @@
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplica } from '@emdash/wire';
+import { createLiveJobReplicaCache } from '@emdash/wire';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
@@ -431,7 +431,7 @@ export class TaskManagerStore {
 
     // Activation gates on registry/outbox state, then assembles and registers the task session.
     const client = await getWorkspacesWireClient();
-    const jobs = createLiveJobReplica(workspacesWireContract.provision, client.provision);
+    const jobs = createLiveJobReplicaCache(workspacesWireContract.provision, client.provision);
     const lease = await jobs.start({ workspaceId: wsId, taskId });
     const job = await lease.ready();
 

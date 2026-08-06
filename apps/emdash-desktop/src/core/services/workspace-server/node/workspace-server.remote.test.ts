@@ -4,7 +4,7 @@ import { joinAbsolute, parsePortableRelativePath } from '@emdash/core/primitives
 import { fileSearchContract } from '@emdash/core/runtimes/file-search/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
-import { createLiveJobReplica } from '@emdash/wire';
+import { createLiveJobReplicaCache } from '@emdash/wire';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import { createRemoteMachineService } from '@core/services/remote-machine/node';
@@ -83,7 +83,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       }
 
       let searchRootRegistered = false;
-      const contentJobs = createLiveJobReplica(
+      const contentJobs = createLiveJobReplicaCache(
         fileSearchContract.searchContent,
         resolved.data.fileSearch.searchContent
       );

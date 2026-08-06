@@ -5,9 +5,9 @@ import { z } from 'zod';
 import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from '../api/define';
 import { WireError } from '../api/protocol';
 import { encodeTopic } from '../api/topics';
-import { LiveLog } from '../live/log';
-import { createLiveModelReplica, ReplicaState } from '../live/replica';
-import { LiveState } from '../live/state/server';
+import { LiveLogSource } from '../live/log';
+import { createLiveModelReplicaCache, ReplicaState } from '../live/replica';
+import { LiveStateSource } from '../live/state/source';
 import { expose } from '../state/bridge/expose';
 import { cell } from '../state/core';
 import { createTestWire } from '../testing';
@@ -21,7 +21,7 @@ const contract = defineContract({
   output: liveLog({ key: keySchema }),
 });
 
-function taskStateProvider(def: typeof contract.state, model: LiveState<{ count: number }>) {
+function taskStateProvider(def: typeof contract.state, model: LiveStateSource<{ count: number }>) {
   return {
     kind: 'liveModelProvider' as const,
     contract: def,
@@ -34,8 +34,8 @@ function taskStateProvider(def: typeof contract.state, model: LiveState<{ count:
 
 describe('client', () => {
   it('calls typed procedures and exposes live client handles', async () => {
-    const model = new LiveState({ count: 0 });
-    const log = new LiveLog({ generation: 2000 });
+    const model = new LiveStateSource({ count: 0 });
+    const log = new LiveLogSource({ generation: 2000 });
     const { client: contractClient } = createTestWire(contract, {
       increment: () => {
         model.produce((draft) => {
@@ -76,8 +76,8 @@ describe('client', () => {
 
   it('builds nested clients using object keys as call paths', async () => {
     const nested = defineContract({ child: contract });
-    const model = new LiveState({ count: 0 });
-    const log = new LiveLog({ generation: 2000 });
+    const model = new LiveStateSource({ count: 0 });
+    const log = new LiveLogSource({ generation: 2000 });
     const { client: contractClient } = createTestWire(nested, {
       child: {
         increment: () => {
@@ -140,7 +140,10 @@ describe('client', () => {
     const updates: unknown[] = [];
     source.subscribe((update) => updates.push(update));
 
-    const replica = createLiveModelReplica(wire.client.conversation.def, wire.client.conversation);
+    const replica = createLiveModelReplicaCache(
+      wire.client.conversation.def,
+      wire.client.conversation
+    );
     const lease = replica.acquire(key);
     const binding = await lease.ready();
 

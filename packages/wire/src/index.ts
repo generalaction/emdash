@@ -18,33 +18,33 @@ export {
 } from './live/follower';
 export {
   LIVE_JOB_TERMINAL_RETAIN_MS,
-  LiveJob,
+  LiveJobSource,
   LiveJobCancelledError,
   LiveJobFailedError,
   type LiveJobContext,
   type LiveJobHandler,
   type LiveJobListEntry,
-  type LiveJobOptions,
+  type LiveJobSourceOptions,
 } from './live/job';
-export { LiveLog, type LiveLogOptions } from './live/log';
+export { LiveLogSource, type LiveLogSourceOptions } from './live/log';
 export {
-  createLiveLogReplica,
-  isLiveLogReplica,
+  createLiveLogReplicaCache,
+  isLiveLogReplicaCache,
   ReplicaLog,
-  type LiveLogReplica,
-  type LiveLogReplicaOptions,
+  type LiveLogReplicaCache,
+  type LiveLogReplicaCacheOptions,
   type LogSink,
   type LogStore,
   type ReplicaLogOptions,
 } from './live/replica/log';
 export {
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   createPlainJobStore,
-  isLiveJobReplica,
+  isLiveJobReplicaCache,
   ReplicaJob,
   type JobStore,
-  type LiveJobReplica,
-  type LiveJobReplicaOptions,
+  type LiveJobReplicaCache,
+  type LiveJobReplicaCacheOptions,
   type ReplicaJobOptions,
   type ReplicaJobState,
 } from './live/replica/job';
@@ -54,12 +54,12 @@ export {
 } from './live/replica/leased-provider';
 export {
   isLiveModelProvider,
-  type GroupMutationEnvelope,
+  type LiveModelMutationEnvelope,
   type LiveModelProvider,
 } from './live/replica/provider';
 export { expose, type ExposedMutationContext } from './state/bridge/expose';
 export { assignDraft } from './state/bridge/assign-draft';
-export { withMappedMutationErrors } from './state/bridge/mutation-error';
+export { mapMutationErrors } from './state/bridge/mutation-error';
 export { publishStructural } from './state/bridge/publish-structural';
 export {
   remote,

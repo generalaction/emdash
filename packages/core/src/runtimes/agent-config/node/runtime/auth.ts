@@ -7,7 +7,7 @@ import {
   type ResourceCache,
   type Scope,
 } from '@emdash/shared/concurrency';
-import type { LiveLog } from '@emdash/wire';
+import type { LiveLogSource } from '@emdash/wire';
 import type { AgentConfigAuthError, AuthStatusModelState } from '@runtimes/agent-config/api';
 import type { AgentAuthStatus, AgentHostError } from '@services/agent-plugins/api/plugins';
 import { PtyRegistry, type PtyExitInfo, type PtySession } from '@services/pty/api';
@@ -167,7 +167,7 @@ export class AgentAuthManager {
     return ok();
   }
 
-  loginOutput(providerId: string): LiveLog | null {
+  loginOutput(providerId: string): LiveLogSource | null {
     return this.currentLogin(providerId)?.pty.output ?? null;
   }
 

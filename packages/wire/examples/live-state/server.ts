@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../src/api/channel';
-import { LiveState } from '../../src/live/state/index';
+import { LiveStateSource } from '../../src/live/state/index';
 
 const taskSchema = z.object({
   id: z.string(),
@@ -21,7 +21,7 @@ const initialState: TaskListState = {
   filter: 'all',
 };
 
-const server = new LiveState<TaskListState>(initialState, 1000);
+const server = new LiveStateSource<TaskListState>(initialState, 1000);
 
 export async function fetchSnapshot(): Promise<LiveSnapshot<TaskListState>> {
   return server.snapshot();

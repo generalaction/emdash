@@ -66,8 +66,7 @@ describe('ConversationSyncService', () => {
         reportProviderSessionId: unused,
         reportSessionActivity: unused,
         reportSessionEnded: unused,
-      }),
-      { validate: 'full' }
+      })
     );
     hostReachable = true;
     const broker = {

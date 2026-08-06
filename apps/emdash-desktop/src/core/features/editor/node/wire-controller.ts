@@ -1,10 +1,10 @@
 import { err, ok, type Result } from '@emdash/shared';
-import type { GroupMutationEnvelope, LiveModelProvider, LiveSource } from '@emdash/wire';
+import type { LiveModelProvider, LiveSource } from '@emdash/wire';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/api';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { editorContract } from '../api';
 import {
-  editorFilesRuntimeContract as filesContract,
   throwEditorRuntimeResolveError,
   type EditorHostRuntimesClient as HostRuntimesClient,
   type EditorRuntimeBroker,
@@ -108,22 +108,13 @@ function createTreeModelProvider(
           .asLiveSource()
       ),
     async runMutation(name, envelope) {
-      return withWorkspaceRuntime(options, envelope.key.workspaceId, async (client, identity) => {
-        const result = await client.files.tree.model.mutate(name, {
-          ...envelope,
-          key: {
-            root: hostPathFromNative(identity.path),
-            sessionId: envelope.key.sessionId,
-            exclusions: envelope.key.exclusions,
-          },
-        } as unknown as GroupMutationEnvelope<typeof filesContract.tree.model, typeof name>);
-        return rebindMutationCursors(
-          result,
-          filesContract.tree.model,
-          editorContract.tree.model,
-          envelope.key
-        );
-      }) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
+      return withWorkspaceRuntime(options, envelope.key.workspaceId, (client, identity) =>
+        forwardModelMutation(client.files.tree.model, editorContract.tree.model, name, envelope, {
+          root: hostPathFromNative(identity.path),
+          sessionId: envelope.key.sessionId,
+          exclusions: envelope.key.exclusions,
+        })
+      ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
 }
@@ -148,21 +139,12 @@ function createContentModelProvider(
           .asLiveSource()
       ),
     async runMutation(name, envelope) {
-      return withWorkspaceRuntime(options, envelope.key.workspaceId, async (client, identity) => {
-        const result = await client.files.content.mutate(name, {
-          ...envelope,
-          key: {
-            root: hostPathFromNative(identity.path),
-            relative: envelope.key.relative,
-          },
-        } as unknown as GroupMutationEnvelope<typeof filesContract.content, typeof name>);
-        return rebindMutationCursors(
-          result,
-          filesContract.content,
-          editorContract.content,
-          envelope.key
-        );
-      }) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
+      return withWorkspaceRuntime(options, envelope.key.workspaceId, (client, identity) =>
+        forwardModelMutation(client.files.content, editorContract.content, name, envelope, {
+          root: hostPathFromNative(identity.path),
+          relative: envelope.key.relative,
+        })
+      ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },
   };
 }
@@ -245,29 +227,4 @@ async function requireIdentity(
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
   return meta.signal ? { signal: meta.signal } : {};
-}
-
-function rebindMutationCursors<
-  ResultType extends Result<{ data: unknown; cursors: readonly { model: string }[] }, unknown>,
->(
-  result: ResultType,
-  source: { states: Record<string, { id: string }> },
-  target: { states: Record<string, { id: string }> },
-  key: unknown
-): ResultType {
-  if (!result.success) return result;
-  const ids = new Map(
-    Object.entries(source.states).flatMap(([name, state]) => {
-      const targetState = target.states[name];
-      return targetState ? [[state.id, targetState.id] as const] : [];
-    })
-  );
-  return ok({
-    ...result.data,
-    cursors: result.data.cursors.map((cursor) => ({
-      ...cursor,
-      model: ids.get(cursor.model) ?? cursor.model,
-      key,
-    })),
-  }) as unknown as ResultType;
 }

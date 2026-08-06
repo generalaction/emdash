@@ -2,7 +2,7 @@ import { Emitter, type Unsubscribe } from '@emdash/shared';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import { type Patch, produceWithPatches } from './immer-setup';
 
-export type LiveStateProduceOptions = {
+export type LiveStateSourceProduceOptions = {
   mutationIds?: string[];
 };
 
@@ -21,7 +21,7 @@ export type LiveStateProduceOptions = {
  * travel as opaque unknown across the wire; non-JSON values in the patched
  * result cause validation failures and resync loops on the client.
  */
-export class LiveState<T> {
+export class LiveStateSource<T> {
   private readonly emitter = new Emitter<LiveUpdate>();
   private generation: number;
   private sequence = 0;
@@ -62,7 +62,7 @@ export class LiveState<T> {
    * the current cursor because the authoritative state already reflected the
    * requested operation.
    */
-  produce(mutator: (draft: T) => void, options: LiveStateProduceOptions = {}): LiveCursor {
+  produce(mutator: (draft: T) => void, options: LiveStateSourceProduceOptions = {}): LiveCursor {
     const [next, patches] = produceWithPatches(
       this.current,
       mutator as (draft: object) => void
@@ -83,7 +83,7 @@ export class LiveState<T> {
   }
 
   /** Replaces the complete value while retaining normal patch and no-op semantics. */
-  replace(next: T, options: LiveStateProduceOptions = {}): LiveCursor {
+  replace(next: T, options: LiveStateSourceProduceOptions = {}): LiveCursor {
     const [value, patches] = produceWithPatches(this.current, () => next) as [T, Patch[], Patch[]];
     if (patches.length === 0) return this.cursor;
     this.current = value;

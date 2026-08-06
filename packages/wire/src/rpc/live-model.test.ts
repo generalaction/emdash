@@ -11,7 +11,7 @@ import {
   type LiveModelDef,
 } from '../api/define';
 import { encodeTopic } from '../api/topics';
-import { createLiveModelReplica, type LiveModelReplicaOptions } from '../live/replica';
+import { createLiveModelReplicaCache, type LiveModelReplicaCacheOptions } from '../live/replica';
 import { expose, type ExposedMutationHandlers } from '../state/bridge/expose';
 import { cell } from '../state/core';
 import { createTestWire } from '../testing';
@@ -226,9 +226,9 @@ describe('liveModel', () => {
 async function acquireConversation<Group extends LiveModelDef>(
   group: LiveModelClientHandle<Group>,
   key: LiveModelKey<Group>,
-  options: LiveModelReplicaOptions = {}
+  options: LiveModelReplicaCacheOptions = {}
 ) {
-  const replica = createLiveModelReplica(group.def, group, options);
+  const replica = createLiveModelReplicaCache(group.def, group, options);
   const lease = replica.acquire(key);
   const instance = await lease.ready();
   return {

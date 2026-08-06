@@ -85,9 +85,7 @@ describe('workspace registry contract', () => {
     handle = await workspaceRegistryStore.openTemp();
     clock = new ManualClock(10_000);
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
   afterEach(async () => {
@@ -463,9 +461,7 @@ describe('workspace registry contract', () => {
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const records = await listRecords();
     expect(records['ws-interrupted']).toMatchObject({
@@ -562,9 +558,7 @@ describe('workspace registry contract', () => {
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const records = await listRecords();
     expect(records['ws-1']).toMatchObject({ id: 'ws-1', kind: 'repository', path: repoPath });

@@ -12,25 +12,25 @@ export {
   type TranslateCursorsOptions,
 } from './instance';
 export {
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   createPlainJobStore,
-  isLiveJobReplica,
+  isLiveJobReplicaCache,
   LiveJobCancelledError,
   LiveJobFailedError,
   ReplicaJob,
-  type LiveJobReplica,
-  type LiveJobReplicaOptions,
+  type LiveJobReplicaCache,
+  type LiveJobReplicaCacheOptions,
   type JobStore,
   type ReplicaJobState,
   type ReplicaJobOptions,
 } from './job';
 export { isLeasedLiveModelProvider, type LeasedLiveModelProvider } from './leased-provider';
 export {
-  createLiveLogReplica,
-  isLiveLogReplica,
+  createLiveLogReplicaCache,
+  isLiveLogReplicaCache,
   ReplicaLog,
-  type LiveLogReplica,
-  type LiveLogReplicaOptions,
+  type LiveLogReplicaCache,
+  type LiveLogReplicaCacheOptions,
   type LogSink,
   type LogStore,
   type ReplicaLogOptions,
@@ -39,14 +39,14 @@ export { ReplicaState, type ReplicaStateOptions } from './state';
 export { resourceCachedLiveSource } from './source';
 export {
   isLiveModelProvider,
-  type GroupMutationEnvelope,
+  type LiveModelMutationEnvelope,
   type LiveModelProvider,
 } from './provider';
 export {
-  createLiveModelReplica,
-  isLiveModelReplica,
-  type LiveModelReplica,
-  type LiveModelReplicaOptions,
+  createLiveModelReplicaCache,
+  isLiveModelReplicaCache,
+  type LiveModelReplicaCache,
+  type LiveModelReplicaCacheOptions,
 } from './replica';
 export { createPlainStore, createStateMaterializer, type StateStore } from './store';
 export type { LiveChangeMeta } from '../state';

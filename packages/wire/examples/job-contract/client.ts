@@ -5,7 +5,7 @@ import {
   createController,
   client,
   connect,
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   defineContract,
   liveJob,
   memoryTransportPair,
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   });
   serve(pair.right, controller);
   const contractClient = client(api, connect(pair.left));
-  const jobs = createLiveJobReplica(api.build, contractClient.build, { retentionMs: 10_000 });
+  const jobs = createLiveJobReplicaCache(api.build, contractClient.build, { lingerMs: 10_000 });
 
   const successfulLease = await jobs.start({ target: 'desktop' });
   const successful = await successfulLease.ready();

@@ -1,5 +1,5 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
-import { LiveLog, peek, type LiveSource } from '@emdash/wire';
+import { LiveLogSource, peek, type LiveSource } from '@emdash/wire';
 import { formatCommandLine } from '@primitives/exec/api';
 import {
   compileIdlePolicy,
@@ -62,7 +62,7 @@ const BUSY_OUTPUT_WINDOW_MS = 60_000;
 
 type TuiAgentSession = {
   conversationId: string;
-  output: LiveLog;
+  output: LiveLogSource;
   pty: PtySession | null;
   config: TuiSessionConfig | null;
   provider: ResolvedTuiProvider | null;
@@ -72,7 +72,7 @@ export class TuiAgentsRuntime {
   private readonly registry: PtyRegistry;
   private readonly launchMutex = new KeyedMutex();
   private readonly sessions = new Map<string, TuiAgentSession>();
-  private readonly logs = new Map<string, LiveLog>();
+  private readonly logs = new Map<string, LiveLogSource>();
   private readonly configs = new Map<string, TuiSessionConfig>();
   private readonly generations = new Map<string, number>();
   private readonly sessionsHost: TuiSessionsLiveHost;
@@ -650,10 +650,10 @@ export class TuiAgentsRuntime {
     });
   }
 
-  private logFor(conversationId: string): LiveLog {
+  private logFor(conversationId: string): LiveLogSource {
     let log = this.logs.get(conversationId);
     if (!log) {
-      log = new LiveLog(this.deps.log);
+      log = new LiveLogSource(this.deps.log);
       this.logs.set(conversationId, log);
     }
     return log;

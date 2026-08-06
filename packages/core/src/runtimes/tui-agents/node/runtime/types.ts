@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import type { LiveLogOptions } from '@emdash/wire';
+import type { LiveLogSourceOptions } from '@emdash/wire';
 import type { IdlePolicyConfig } from '@primitives/io-activity/api';
 import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
 import type { AgentPluginHost } from '@services/agent-plugins/api/plugins';
@@ -16,7 +16,7 @@ export interface TuiAgentsRuntimeDeps {
   intents: SessionIntentStore;
   /** Lifecycle reports into the conversation index (spec §3.3); defaults to a no-op. */
   conversationReports?: ConversationLifecycleReporter;
-  log?: LiveLogOptions;
+  log?: LiveLogSourceOptions;
   clock?: Clock;
   lifecycle?: {
     session?: IdlePolicyConfig;

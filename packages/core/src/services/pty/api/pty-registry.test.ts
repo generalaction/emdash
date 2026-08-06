@@ -48,7 +48,7 @@ const spec: PtySpawnSpec = {
 };
 
 describe('PtyRegistry', () => {
-  it('spawns a session and streams output into a LiveLog', async () => {
+  it('spawns a session and streams output into a LiveLogSource', async () => {
     const spawner = new FakePtySpawner();
     const registry = new PtyRegistry(spawner);
 

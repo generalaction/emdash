@@ -6,7 +6,7 @@ import {
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import {
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   LiveJobFailedError,
   type JobError,
   type JobInput,
@@ -141,7 +141,7 @@ export class SearchService {
       });
     }
 
-    const jobs = createLiveJobReplica(
+    const jobs = createLiveJobReplicaCache(
       contentSearchRuntimeContract.searchContent,
       workspace.client.fileSearch.searchContent
     );

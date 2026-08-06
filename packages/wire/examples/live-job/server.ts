@@ -2,7 +2,7 @@ import { ok, type Unsubscribe } from '@emdash/shared';
 import { systemClock } from '@emdash/shared/scheduling';
 import { z } from 'zod';
 import type { LiveSnapshot, LiveUpdate } from '../../src/api/channel';
-import { LiveJob } from '../../src/live/job/index';
+import { LiveJobSource } from '../../src/live/job/index';
 import { liveJobStateSchema, type LiveJobState } from '../../src/live/protocol/index';
 
 const inputSchema = z.object({ name: z.string() });
@@ -17,7 +17,7 @@ type ErrorState = z.infer<typeof errorSchema>;
 
 export const jobStateSchema = liveJobStateSchema(progressSchema, resultSchema, errorSchema);
 
-const successfulJobs = new LiveJob<Input, Progress, Result, ErrorState>(
+const successfulJobs = new LiveJobSource<Input, Progress, Result, ErrorState>(
   async (input, ctx) => {
     await delay(ctx.signal);
     ctx.progress({ step: 'checkout' });
@@ -28,7 +28,7 @@ const successfulJobs = new LiveJob<Input, Progress, Result, ErrorState>(
   { toError, clock: systemClock }
 );
 
-const cancellableJobs = new LiveJob<Input, Progress, Result, ErrorState>(
+const cancellableJobs = new LiveJobSource<Input, Progress, Result, ErrorState>(
   async (_input, ctx) => {
     await new Promise<never>((_resolve, reject) => {
       ctx.signal.addEventListener('abort', () => reject(new Error('cancelled by user')), {
@@ -83,14 +83,14 @@ export async function attachCancellable(
   return await getSource(cancellableJobs, jobId).subscribe(push);
 }
 
-function getSource(server: LiveJob<Input, Progress, Result, ErrorState>, jobId: string) {
+function getSource(server: LiveJobSource<Input, Progress, Result, ErrorState>, jobId: string) {
   const source = server.source(jobId);
   if (!source) throw new Error(`Missing job ${jobId}`);
   return source;
 }
 
 async function getSnapshot(
-  server: LiveJob<Input, Progress, Result, ErrorState>,
+  server: LiveJobSource<Input, Progress, Result, ErrorState>,
   jobId: string
 ): Promise<LiveSnapshot<LiveJobState<Progress, Result, ErrorState>>> {
   return (await getSource(server, jobId).snapshot()) as LiveSnapshot<

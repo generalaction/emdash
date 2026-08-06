@@ -52,7 +52,7 @@ const component = defineWireComponent({
 });
 ```
 
-`create` is synchronous. Expected async work belongs in domain procedures, `LiveJob`s, machines,
+`create` is synchronous. Expected async work belongs in domain procedures, `LiveJobSource`s, machines,
 live state, or other explicit runtime APIs. Directory creation, installs, probing, and startup
 operations should expose their own lifecycle and errors rather than hiding inside component
 construction.

@@ -4,7 +4,7 @@ import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineContract, liveModel, liveState, mutation } from '../../api';
-import { LiveState } from '../../live/state/server';
+import { LiveStateSource } from '../../live/state/source';
 import { createTestWire } from '../../testing';
 import { cell, derived, flushStateTurn, snapshot } from '../core';
 import { optimistic } from '../optimistic';
@@ -86,7 +86,7 @@ describe('state bridge round trip', () => {
   it('resyncs a remote member after a generation gap as live authoritative data', async () => {
     const key = { id: 'one' };
     const clock = createManualClock();
-    const authoritative = new LiveState({ count: 1 }, 1);
+    const authoritative = new LiveStateSource({ count: 1 }, 1);
     const provider = {
       kind: 'leasedLiveModelProvider',
       contract: api.counter,
@@ -136,7 +136,7 @@ describe('state bridge round trip', () => {
   it('releases remote replica leases when the parent scope is disposed', async () => {
     const key = { id: 'one' };
     const parentScope = createScope();
-    const authoritative = new LiveState({ count: 1 });
+    const authoritative = new LiveStateSource({ count: 1 });
     const release = vi.fn(async () => {});
     const provider = {
       kind: 'leasedLiveModelProvider',

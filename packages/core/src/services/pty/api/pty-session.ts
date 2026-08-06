@@ -1,10 +1,10 @@
-import type { LiveLogOptions } from '@emdash/wire';
-import { LiveLog } from '@emdash/wire';
+import type { LiveLogSourceOptions } from '@emdash/wire';
+import { LiveLogSource } from '@emdash/wire';
 import type { PtyExitInfo, PtyProcess, PtySpawnSpec } from './types';
 
 export interface PtySessionOptions {
-  log?: LiveLogOptions;
-  output?: LiveLog;
+  log?: LiveLogSourceOptions;
+  output?: LiveLogSource;
   onProcess?: (process: PtyProcess) => void;
   onData?: (chunk: string) => void;
   onExit?: (info: PtyExitInfo) => void;
@@ -12,7 +12,7 @@ export interface PtySessionOptions {
 }
 
 export class PtySession {
-  readonly output: LiveLog;
+  readonly output: LiveLogSource;
   readonly startedAt = Date.now();
   private disposed = false;
   private exitInfo: PtyExitInfo | null = null;
@@ -23,7 +23,7 @@ export class PtySession {
     private readonly process: PtyProcess,
     private readonly options: PtySessionOptions = {}
   ) {
-    this.output = options.output ?? new LiveLog(options.log);
+    this.output = options.output ?? new LiveLogSource(options.log);
     this.process.onData((chunk) => {
       this.output.append(chunk);
       this.options.onData?.(chunk);

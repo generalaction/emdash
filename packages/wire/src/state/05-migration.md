@@ -9,8 +9,8 @@ legacy classes are deleted only when nothing constructs them.
 
 | Legacy (in `wire/src/live/` unless noted) | Fate | Replacement |
 |---|---|---|
-| `LiveState` used directly by feature/runtime code | migrates | `cell` (in-memory truth) or `query.settle` (external truth), published via `expose` |
-| `LiveState` as wire-edge patch publisher | **stays** | reused inside `expose` |
+| `LiveStateSource` used directly by feature/runtime code | migrates | `cell` (in-memory truth) or `query.settle` (external truth), published via `expose` |
+| `LiveStateSource` as wire-edge patch publisher | **stays** | reused inside `expose` |
 | `ComputedLiveState` | deleted | `query` — `compute`→`fetch`, `invalidate()`→pokes/`invalidate()`, `refresh(mutationId)`→`refresh({mutationIds})`, `debounceMs`/`revalidateIntervalMs`/`isEqual` → same options; demand gating and refresh collapse are kernel behavior |
 | `BatchedLiveState` (`microtaskScheduler`) | deleted | turn coalescing — synchronous writes coalesce automatically |
 | `BatchedLiveState` (`timerScheduler(ms)`) | deleted | `expose` per-state `debounceMs` (wire-edge windowing) or `query.debounceMs` (source-edge) |
@@ -20,7 +20,7 @@ legacy classes are deleted only when nothing constructs them.
 | `createLiveModelHost` (`mutations/host.ts`) registry of instances | **deleted (done)** | `family` of `cell`s + `expose`; `instances(partialKey)` enumeration → an explicit index `cell`/`derived` where actually needed |
 | `mutations/group.ts` optimistic recipes (`ctx.produce`) | **deleted (done)** | [`optimistic`](./02-primitives.md#optimistic) primitive + shared reducers ([03, example 4](./03-composition.md#worked-example-4-optimistic-overlay-client-side)) |
 | `MutationResultCache` (moved to `state/bridge/result-cache.ts`) | **stays** | reused by `expose` |
-| `createLiveModelReplica`, `ReplicaState`, stores, gap handling | **stays** | wrapped by `remote`; direct consumer use migrates to `remote` |
+| `createLiveModelReplicaCache`, `ReplicaState`, stores, gap handling | **stays** | wrapped by `remote`; direct consumer use migrates to `remote` |
 | `resourceCachedLiveSource`, `follower.ts` | **stays** | transport plumbing under the bridges |
 | `live/protocol/` (cursors, snapshots, updates, `LiveSource`) | **stays** | unchanged wire format |
 | `live/log/`, `live/event-stream/`, `live/job/` | **stay** | out of scope by design |
@@ -49,7 +49,7 @@ new state test under `wire/src/state/`:
 - [x] One-in-flight + one-queued refresh collapse; `refresh()` returns the
       cursor/revision containing its result
 - [x] Equality/no-op suppression at both source (`isEqual`) and wire edge
-      (Immer empty-patch check in `LiveState`)
+      (Immer empty-patch check in `LiveStateSource`)
 - [x] Debounce and revalidate-interval timers, `unref`'d, cleared when
       unobserved
 - [x] Mutation idempotency via `mutationId` result cache
@@ -75,9 +75,9 @@ New behavior, to be flagged in the PR that enables each:
   render reads return `undefined` + dev warning instead of silently fetching)
 
 One audit before enabling equality gating as default: no consumer may rely on
-publishes as heartbeats (`LiveState.replace` today bumps the sequence for
+publishes as heartbeats (`LiveStateSource.replace` today bumps the sequence for
 *changed* values only — but `ComputedLiveState` with `isEqual` never
-publishes equal results, so exposure is limited to direct `LiveState` users).
+publishes equal results, so exposure is limited to direct `LiveStateSource` users).
 
 ## Order of work
 
@@ -90,8 +90,8 @@ breakage):
 2. **`query` + `pokeChannel`** (`state/`): port
    `ComputedLiveState` semantics as options; add settle with lane ordering and
    the stale-fetch guard.
-3. **Bridges** (`state/bridge/`): `expose` (over `LiveState` +
-   `MutationResultCache`), `remote` (over `createLiveModelReplica`). Contract
+3. **Bridges** (`state/bridge/`): `expose` (over `LiveStateSource` +
+   `MutationResultCache`), `remote` (over `createLiveModelReplicaCache`). Contract
    tests: a round-trip expose→transport→remote harness. Alongside:
    `optimistic` and `pin`/`prefetch` (kernel-level compositions used by the
    client side of the bridge).
@@ -133,6 +133,6 @@ packages/wire/src/state/
 ```
 
 `core/` stays free of any `live/` import; only `bridge/` may import from
-`live/` (protocol, `LiveState`, replica, result cache). That keeps the kernel
+`live/` (protocol, `LiveStateSource`, replica, result cache). That keeps the kernel
 usable for purely local state and enforces the transport boundary
 structurally.

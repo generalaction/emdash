@@ -25,8 +25,8 @@ const controller = createController(
 
 The `impl` object is keyed by the contract shape. Procedures receive
 `(input, meta)`. Jobs use `{ run, toError? }`, a `LiveJobClientHandle`, or a
-`LiveJobReplica`. Live logs use resolver functions, `LiveLogClientHandle`s, or
-`LiveLogReplica`. Event streams use `createEventStreamHost()`, resolver functions,
+`LiveJobReplicaCache`. Live logs use resolver functions, `LiveLogClientHandle`s, or
+`LiveLogReplicaCache`. Event streams use `createEventStreamHost()`, resolver functions,
 or `EventStreamClientHandle`s. Live model contracts use `expose()` or an existing
 `LiveModelClientHandle`.
 
@@ -137,7 +137,7 @@ shape as the contract:
 ```ts
 const contractClient = client(notesApi, connection);
 
-const sessions = createLiveModelReplica(notesApi.session, contractClient.session, {
+const sessions = createLiveModelReplicaCache(notesApi.session, contractClient.session, {
   onChange: {
     notes: (state, meta) => {
       console.log('notes model:', state, meta.kind);
@@ -240,8 +240,8 @@ Use explicit `createController()` composition when the hop needs local behavior:
 const upstreamConnection = connect(upstreamTransport);
 const upstream = client(workspaceApi, upstreamConnection);
 
-const conversations = createLiveModelReplica(workspaceApi.conversation, upstream.conversation, {
-  retentionMs: 10 * 60_000,
+const conversations = createLiveModelReplicaCache(workspaceApi.conversation, upstream.conversation, {
+  lingerMs: 10 * 60_000,
 });
 
 const controller = createController(workspaceApi, {
@@ -295,7 +295,7 @@ one session and calls `transport.close?.()` after disposing the serve loop.
 
 `Controller.dispose`, when present, returns `Promise<void>`. Wrappers such as
 validation, logging, session hubs, tests, process runtimes, and Electron exposure
-propagate that promise so LiveJob servers and resource hosts can finish shutdown
+propagate that promise so LiveJobSource servers and resource hosts can finish shutdown
 before their owner reports disposed.
 
 ## Server-Side Call Helpers

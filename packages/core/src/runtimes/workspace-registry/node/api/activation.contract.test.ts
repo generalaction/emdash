@@ -54,9 +54,7 @@ describe('workspace registry activation lifecycle', () => {
       },
       activation: { teardownTimeoutMs: 500 },
     });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
   });
 
   afterEach(async () => {
@@ -226,9 +224,7 @@ describe('workspace registry activation lifecycle', () => {
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
     expect((await listRecords())['ws-outcomes']).toMatchObject({
       runtime: null,
       scriptOutcomes: { setup: { outcome: 'failed', at: 10_000 } },
@@ -256,9 +252,7 @@ describe('workspace registry activation lifecycle', () => {
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
-    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
-      validate: 'full',
-    });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const records = await listRecords();
     expect(records['ws-restarted']).toMatchObject({

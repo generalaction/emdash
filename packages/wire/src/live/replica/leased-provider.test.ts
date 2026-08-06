@@ -11,7 +11,7 @@ import {
 } from '../../api';
 import { client } from '../../rpc/client';
 import { createController } from '../../rpc/controller';
-import { LiveState } from '../state';
+import { LiveStateSource } from '../state';
 import type { LeasedLiveModelProvider } from './leased-provider';
 
 describe('LeasedLiveModelProvider', () => {
@@ -22,7 +22,7 @@ describe('LeasedLiveModelProvider', () => {
         states: { value: liveState({ data: z.object({ count: z.number() }) }) },
       }),
     });
-    const state = new LiveState({ count: 1 }, 1000);
+    const state = new LiveStateSource({ count: 1 }, 1000);
     const release = vi.fn(async () => {});
     const provider: LeasedLiveModelProvider<typeof contract.item> = {
       kind: 'leasedLiveModelProvider',
@@ -56,7 +56,7 @@ describe('LeasedLiveModelProvider', () => {
       kind: 'leasedLiveModelProvider',
       contract: contract.item,
       acquireState: () => ({
-        ready: async () => new LiveState({ count: 1 }),
+        ready: async () => new LiveStateSource({ count: 1 }),
         release,
       }),
       runMutation: async () => {
@@ -88,7 +88,7 @@ describe('LeasedLiveModelProvider', () => {
       }),
     });
     const release = vi.fn(async () => {});
-    const state = new LiveState({ count: 1 });
+    const state = new LiveStateSource({ count: 1 });
     const provider: LeasedLiveModelProvider<typeof contract.item> = {
       kind: 'leasedLiveModelProvider',
       contract: contract.item,

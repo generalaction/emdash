@@ -22,10 +22,10 @@ flowchart TB
     transports[Transports: memory, port, dom-port, electron, stream, reconnecting]
   end
   subgraph live [Live primitives]
-    model[LiveState and replicas]
-    log[LiveLog]
+    model[LiveStateSource and replicas]
+    log[LiveLogSource]
     eventStream[EventStream]
-    job[LiveJob]
+    job[LiveJobSource]
     mutations[Mutations and registries]
   end
   subgraph observability [Observability]
@@ -43,8 +43,8 @@ flowchart TB
   workerHost --> component
 ```
 
-The live layer owns the stateful primitives: `LiveState`, `LiveLog`,
-`EventStreamSource`, `LiveJob`, `LiveModelHost`, and consumer-instantiated
+The live layer owns the stateful primitives: `LiveStateSource`, `LiveLogSource`,
+`EventStreamSource`, `LiveJobSource`, `LiveModelHost`, and consumer-instantiated
 replicas. Low-level `*Client` followers track cursors and resync, while
 materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers use
 client handles directly or wrap them in replicas. The API layer turns those
@@ -78,7 +78,7 @@ live, and worker surfaces.
     reconnecting, and logging transports.
 - Live:
   - [Live models and protocol](./live/live-model.md): snapshots, updates,
-    cursors, `LiveState`, and replicas.
+    cursors, `LiveStateSource`, and replicas.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
   - [Event streams](./live/event-stream.md): keyed fire-and-forget events with
@@ -87,8 +87,8 @@ live, and worker surfaces.
     retention, and contract job handles.
   - [Mutations](./live/mutations.md): mutation ids, host contexts, cursor settling,
     idempotency cache, and retry behavior.
-  - [Replicas](./live/replicas.md): `LiveModelReplica`, `LiveLogReplica`,
-    `LiveJobReplica`, pluggable stores, ref counting, and serving cached state.
+  - [Replicas](./live/replicas.md): `LiveModelReplicaCache`, `LiveLogReplicaCache`,
+    `LiveJobReplicaCache`, pluggable stores, ref counting, and serving cached state.
 - Runtime:
   - [Lifecycle utilities](./runtime/lifecycle.md): Shared `Scope`,
     `LifecycleRegistry`, scope loggers, `describeScope()`, and resource
@@ -164,7 +164,7 @@ foundation subpaths without pulling in MobX.
 ## Typical Flow
 
 1. Define a contract with `defineContract({ ... })`.
-2. Create server-side `cell`, `query`, `LiveLog`, `EventStreamSource`, or `LiveJob`
+2. Create server-side `cell`, `query`, `LiveLogSource`, `EventStreamSource`, or `LiveJobSource`
    instances and publish live models with `expose()`.
 3. Use `family()` or explicit domain indexes for keyed live model resources.
 4. Create a controller with `createController(contract, impl)`. Validation is

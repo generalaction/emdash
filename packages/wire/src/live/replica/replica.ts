@@ -21,27 +21,29 @@ import { resourceCachedLiveSource } from './source';
 import { ReplicaState } from './state';
 import type { StateStore } from './store';
 
-export type LiveModelReplicaOptions<Group extends LiveModelDef = LiveModelDef> =
+export type LiveModelReplicaCacheOptions<Group extends LiveModelDef = LiveModelDef> =
   ReplicaInstanceOptions<Group> & {
-    retentionMs?: number;
+    lingerMs?: number;
   };
 
-export type LiveModelReplica<Group extends LiveModelDef = LiveModelDef> =
-  LiveModelProvider<Group> & {
-    readonly replica: true;
-    acquire(key: LiveModelKey<Group>): PendingLease<ReplicaInstance<Group>>;
-    peek(key: LiveModelKey<Group>): ReplicaInstance<Group> | undefined;
-    dispose(): Promise<void>;
-  };
+export type LiveModelReplicaCache<Group extends LiveModelDef = LiveModelDef> = Omit<
+  LiveModelProvider<Group>,
+  'kind'
+> & {
+  readonly kind: 'liveModelReplicaCache';
+  acquire(key: LiveModelKey<Group>): PendingLease<ReplicaInstance<Group>>;
+  peek(key: LiveModelKey<Group>): ReplicaInstance<Group> | undefined;
+  dispose(): Promise<void>;
+};
 
-export function createLiveModelReplica<Group extends LiveModelDef>(
+export function createLiveModelReplicaCache<Group extends LiveModelDef>(
   contract: Group,
   group: LiveModelClientHandle<Group>,
-  options: LiveModelReplicaOptions<Group> = {}
-): LiveModelReplica<Group> {
+  options: LiveModelReplicaCacheOptions<Group> = {}
+): LiveModelReplicaCache<Group> {
   const source = createReplicaResourceCache<LiveModelKey<Group>, ReplicaInstance<Group>>({
     key: stableStringify,
-    lingerMs: options.retentionMs,
+    lingerMs: options.lingerMs,
     async create(key, scope) {
       const instance = buildReplicaInstance(contract, key, {
         createState(name, model) {
@@ -73,8 +75,7 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
   });
 
   return {
-    kind: 'liveModelProvider',
-    replica: true,
+    kind: 'liveModelReplicaCache',
     contract,
     acquire(key) {
       return source.acquire(key);
@@ -142,9 +143,11 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
   }
 }
 
-export function isLiveModelReplica(value: unknown): value is LiveModelReplica {
+export function isLiveModelReplicaCache(value: unknown): value is LiveModelReplicaCache {
   return (
-    typeof value === 'object' && value !== null && (value as { replica?: unknown }).replica === true
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === 'liveModelReplicaCache'
   );
 }
 

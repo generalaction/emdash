@@ -8,7 +8,7 @@ import {
   client,
   connect,
   createController,
-  createLiveJobReplica,
+  createLiveJobReplicaCache,
   defineContract,
   memoryTransportPair,
   serve,
@@ -461,7 +461,7 @@ describe('createGitController', () => {
     const { repo, remote } = await makeRepoWithRemote();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
-    const jobs = createLiveJobReplica(gitContract.checkout.push, git.checkout.push);
+    const jobs = createLiveJobReplicaCache(gitContract.checkout.push, git.checkout.push);
 
     try {
       const lease = await jobs.start({
@@ -488,7 +488,7 @@ describe('createGitController', () => {
   it('fails checkout jobs fast when the selector cannot be resolved', async () => {
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
     const { client: git, dispose } = makeClient(runtime);
-    const jobs = createLiveJobReplica(gitContract.checkout.pull, git.checkout.pull);
+    const jobs = createLiveJobReplicaCache(gitContract.checkout.pull, git.checkout.pull);
 
     try {
       const lease = await jobs.start(checkoutSelector('/repo'));

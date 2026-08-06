@@ -2,7 +2,7 @@ import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { isRuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { createLiveJobReplica, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
+import { createLiveJobReplicaCache, LiveJobCancelledError, LiveJobFailedError } from '@emdash/wire';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
 import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';
@@ -679,7 +679,7 @@ export class ProjectManagerStore {
     name: string;
   }): Promise<Result<LocalProject | SshProject, ProjectCreationError>> {
     const client = await getProjectsWireClient();
-    const jobs = createLiveJobReplica(projectsWireContract.create, client.create);
+    const jobs = createLiveJobReplicaCache(projectsWireContract.create, client.create);
     const lease = await jobs.start({
       projectId: opts.projectId,
       host: opts.host,

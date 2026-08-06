@@ -34,7 +34,7 @@ flowchart LR
   progress, warnings, facts, and terminal error.
 - The effect driver executes `run-node` effects, wraps transient failures in shared `retry()`, and
   feeds outcomes back as machine events.
-- Callers can subscribe to `workflow.machine` directly or bind it to `LiveState` at a Wire edge.
+- Callers can subscribe to `workflow.machine` directly or bind it to `LiveStateSource` at a Wire edge.
 
 ## Authoring Paths
 

@@ -14,7 +14,7 @@ import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 
 const mocks = vi.hoisted(() => ({
   createGithubRepository: vi.fn(),
-  createLiveJobReplica: vi.fn(),
+  createLiveJobReplicaCache: vi.fn(),
   createProject: vi.fn(),
   deleteGithubRepository: vi.fn(),
   inspectProjectPath: vi.fn(),
@@ -56,7 +56,7 @@ vi.mock('@emdash/wire', async (importOriginal) => {
   const actual = await importOriginal<typeof Wire>();
   return {
     ...actual,
-    createLiveJobReplica: mocks.createLiveJobReplica,
+    createLiveJobReplicaCache: mocks.createLiveJobReplicaCache,
   };
 });
 
@@ -156,7 +156,7 @@ describe('ProjectManagerStore project creation', () => {
     mocks.projectWireDelete.mockResolvedValue({ success: true, data: undefined });
     mocks.deleteMementoSubject.mockResolvedValue(1);
     mocks.projectWireResult = undefined;
-    mocks.createLiveJobReplica.mockReturnValue({
+    mocks.createLiveJobReplicaCache.mockReturnValue({
       start: async (input: {
         projectId: string;
         host: { type: 'local' } | { type: 'ssh'; connectionId: string };
