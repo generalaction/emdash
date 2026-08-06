@@ -96,7 +96,9 @@ export const workspaceRegistryContract = defineContract({
 
   /**
    * Deactivate-if-active + unregister. Never touches disk, valid on every kind.
-   * Idempotent: an absent id succeeds.
+   * Idempotent: an absent id succeeds. A failing teardown is a removal-stage failure
+   * (ADR 0006): recorded durably as lastRemovalAttempt before the error returns; the
+   * record stays registered so the delete is retryable.
    */
   deleteWorkspace: fallible({
     input: deleteWorkspaceInputSchema,
@@ -110,6 +112,9 @@ export const workspaceRegistryContract = defineContract({
    * No host-side dirty/unpushed refusals: informed confirmation is the client's job from
    * mirror observations; the host executes what it is told. Idempotent: an absent id
    * succeeds, which is what makes an external tombstone-and-reconcile sweep safe.
+   * Failures (teardown included, as a removal stage) are recorded durably on the
+   * record as lastRemovalAttempt — stage, host-decided class, message — before the
+   * error returns; the return itself is loop control, never UI truth (ADR 0006).
    */
   deleteWorktree: fallible({
     input: deleteWorktreeInputSchema,

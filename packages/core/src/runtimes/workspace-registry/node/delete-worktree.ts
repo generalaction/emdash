@@ -10,9 +10,14 @@ export type DeleteWorktreeExecution = {
   branchHint: string | null;
 };
 
+/**
+ * The failure class is host-decided here, where the failure is understood (ADR 0006):
+ * 'terminal' for structural refusals an identical retry cannot fix (path safety),
+ * 'transient' for environmental git/filesystem failures a later sweep may clear.
+ */
 export type DeleteWorktreeExecutionResult =
   | { status: 'succeeded' }
-  | { status: 'failed'; message: string };
+  | { status: 'failed'; class: 'transient' | 'terminal'; message: string };
 
 /**
  * Force-removes the worktree artifact (and optionally its branch). No dirty/unpushed
@@ -31,7 +36,7 @@ export async function executeDeleteWorktree(
     mutation: 'remove',
   });
   if (!safe.success) {
-    return { status: 'failed', message: safe.error.message };
+    return { status: 'failed', class: 'terminal', message: safe.error.message };
   }
 
   const branch = execution.deleteBranch
@@ -44,6 +49,7 @@ export async function executeDeleteWorktree(
     } catch (error) {
       return {
         status: 'failed',
+        class: 'transient',
         message: error instanceof Error ? error.message : String(error),
       };
     }
@@ -59,6 +65,7 @@ export async function executeDeleteWorktree(
       if (!/not found/iu.test(error instanceof Error ? error.message : String(error))) {
         return {
           status: 'failed',
+          class: 'transient',
           message: error instanceof Error ? error.message : String(error),
         };
       }

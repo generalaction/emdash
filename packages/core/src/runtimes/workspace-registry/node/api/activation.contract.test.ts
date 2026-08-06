@@ -204,6 +204,50 @@ describe('workspace registry activation lifecycle', () => {
     expect(records['ws-hanging']?.runtime?.activation ?? null).toBeNull();
   });
 
+  it('script outcomes are durable: a failed setup survives a restart and a later success overwrites it', async () => {
+    const workspacePath = await makeWorkspace('outcomes', {
+      prepare: 'echo prepared',
+      setup: '[ -f fixed ] || { echo setup broke >&2; exit 3; }',
+      run: 'echo ran',
+    });
+
+    expect((await wire.client.activateWorkspace({ id: 'ws-outcomes' })).success).toBe(true);
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-outcomes']?.scriptOutcomes).toEqual({
+        prepare: { outcome: 'succeeded', at: 10_000 },
+        setup: { outcome: 'failed', at: 10_000, message: expect.any(String) },
+        // Run never started (setup gates it), so no outcome exists to record.
+        run: null,
+      });
+    });
+
+    // Simulated daemon restart: the overlay dies, the durable outcomes do not.
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
+      validate: 'full',
+    });
+    expect((await listRecords())['ws-outcomes']).toMatchObject({
+      runtime: null,
+      scriptOutcomes: { setup: { outcome: 'failed', at: 10_000 } },
+    });
+
+    // A later success overwrites the failure in place — no history list.
+    await fs.writeFile(path.join(workspacePath, 'fixed'), '');
+    await clock.advanceBy(7_000);
+    expect((await wire.client.activateWorkspace({ id: 'ws-outcomes' })).success).toBe(true);
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-outcomes']?.scriptOutcomes).toEqual({
+        prepare: { outcome: 'succeeded', at: 17_000 },
+        setup: { outcome: 'succeeded', at: 17_000 },
+        run: { outcome: 'succeeded', at: 17_000 },
+      });
+    });
+  });
+
   it('a daemon restart leaves no activation state and preserves lastActivatedAt', async () => {
     await makeWorkspace('restarted', {});
     const activated = await wire.client.activateWorkspace({ id: 'ws-restarted' });

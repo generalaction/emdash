@@ -20,8 +20,15 @@ export const createWorkspaceErrorSchema = z.discriminatedUnion('type', [
 ]);
 export type CreateWorkspaceError = z.infer<typeof createWorkspaceErrorSchema>;
 
-/** Deletes are idempotent — an absent id is success, like conversations. */
-export const deleteWorkspaceErrorSchema = z.never();
+/**
+ * Deletes are idempotent — an absent id is success, like conversations. The one
+ * failure mode is a failing teardown (a removal stage, ADR 0006): the record stays
+ * registered, annotated with lastRemovalAttempt, so the delete is retryable.
+ */
+export const deleteWorkspaceErrorSchema = z.object({
+  type: z.literal('remove-failed'),
+  message: z.string(),
+});
 export type DeleteWorkspaceError = z.infer<typeof deleteWorkspaceErrorSchema>;
 
 export const deleteWorktreeErrorSchema = z.discriminatedUnion('type', [

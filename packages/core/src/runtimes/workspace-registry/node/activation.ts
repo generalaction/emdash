@@ -17,12 +17,33 @@ import {
 type WorkspaceActivation = NonNullable<WorkspaceRuntimeOverlay['activation']>;
 type LifecycleScript = 'prepare' | 'setup' | 'run' | 'teardown';
 
+/** A settled activation-plane script run, as recorded durably (ADR 0006). */
+export type WorkspaceScriptOutcomeReport = {
+  outcome: 'succeeded' | 'failed' | 'timed-out';
+  message?: string;
+};
+
+export type WorkspaceDeactivationResult = {
+  /** Non-null when the teardown script settled unsuccessfully. */
+  teardownFailure: { message: string } | null;
+};
+
 export type WorkspaceActivationManagerOptions = {
   /** Overlay writer: null clears the activation block. */
   publishActivation: (id: string, activation: WorkspaceActivation | null) => void;
   /** Failed scripts become overlay notices; a later success clears them. */
   setNotice: (id: string, script: LifecycleScript, message: string) => void;
   clearNotice: (id: string, script: LifecycleScript) => void;
+  /**
+   * Durable per-script last outcome, overwrite-in-place — the trace that survives a
+   * daemon restart where notices do not. Cancelled runs are deliberate deactivations,
+   * not outcomes, so they are never reported.
+   */
+  recordScriptOutcome: (
+    id: string,
+    script: 'prepare' | 'setup' | 'run',
+    report: WorkspaceScriptOutcomeReport
+  ) => void;
   /** Persists lastActivatedAt — the only durable trace of an activation. */
   recordActivated: (id: string, at: number) => Promise<void>;
   runner?: WorkspaceScriptRunner;
@@ -111,18 +132,21 @@ export class WorkspaceActivationManager {
   }
 
   /**
-   * Aborts in-flight scripts and runs teardown, time-boxed and non-fatal. No-op when the
-   * workspace is not active — teardown runs at most once per activation. Session
-   * killing is the caller's step; this owns only the script plane.
+   * Aborts in-flight scripts and runs teardown, time-boxed and never throwing. No-op
+   * when the workspace is not active — teardown runs at most once per activation.
+   * Session killing is the caller's step; this owns only the script plane. A teardown
+   * failure is reported to the caller: notice-only for plain deactivation, a removal
+   * stage for the delete verbs (ADR 0006).
    */
-  async deactivate(id: string): Promise<void> {
+  async deactivate(id: string): Promise<WorkspaceDeactivationResult> {
     const state = this.active.get(id);
-    if (!state) return;
+    if (!state) return { teardownFailure: null };
     this.active.delete(id);
 
     state.controller.abort();
     await state.background;
 
+    let teardownFailure: { message: string } | null = null;
     const scripts = await this.readScripts(state.workspacePath);
     if (scripts.teardown) {
       const outcome = await this.runner.run({
@@ -135,9 +159,11 @@ export class WorkspaceActivationManager {
         this.options.clearNotice(id, 'teardown');
       } else {
         this.options.setNotice(id, 'teardown', outcome.message);
+        teardownFailure = { message: outcome.message };
       }
     }
     this.options.publishActivation(id, null);
+    return { teardownFailure };
   }
 
   /** Abandons all activations without teardown; used on runtime disposal only. */
@@ -197,13 +223,18 @@ export class WorkspaceActivationManager {
     });
     if (outcome.status === 'succeeded') {
       this.options.clearNotice(id, script);
+      this.options.recordScriptOutcome(id, script, { outcome: 'succeeded' });
       return 'succeeded';
     }
     if (outcome.status === 'cancelled') {
-      // Deactivation aborted it on purpose; a notice would be noise.
+      // Deactivation aborted it on purpose; a notice or outcome would be noise.
       return 'cancelled';
     }
     this.options.setNotice(id, script, outcome.message);
+    this.options.recordScriptOutcome(id, script, {
+      outcome: outcome.status === 'timed-out' ? 'timed-out' : 'failed',
+      message: outcome.message,
+    });
     return 'failed';
   }
 

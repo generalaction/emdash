@@ -8,6 +8,13 @@
       "when": 1785962601628,
       "tag": "0000_thankful_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785976062469,
+      "tag": "0001_tiny_moonstone",
+      "breakpoints": true
     }
   ]
 }

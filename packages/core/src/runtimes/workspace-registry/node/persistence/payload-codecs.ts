@@ -4,9 +4,13 @@ import {
   workspaceCreateOutcomeSchema,
   workspaceCreationSchema,
   workspaceGitObservationsSchema,
+  workspaceRemovalAttemptSchema,
+  workspaceScriptOutcomesSchema,
   type WorkspaceCreateOutcome,
   type WorkspaceCreation,
   type WorkspaceGitObservations,
+  type WorkspaceRemovalAttempt,
+  type WorkspaceScriptOutcomes,
 } from '../../api/schemas';
 
 const storedCreation = defineVersionedSchema()
@@ -19,6 +23,14 @@ const storedCreateOutcome = defineVersionedSchema()
 
 const storedGitObservations = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceGitObservationsSchema }))
+  .build();
+
+const storedRemovalAttempt = defineVersionedSchema()
+  .initial('1', z.object({ version: z.literal('1'), value: workspaceRemovalAttemptSchema }))
+  .build();
+
+const storedScriptOutcomes = defineVersionedSchema()
+  .initial('1', z.object({ version: z.literal('1'), value: workspaceScriptOutcomesSchema }))
   .build();
 
 export function serializeCreationPayload(creation: WorkspaceCreation): string {
@@ -43,6 +55,22 @@ export function serializeGitObservationsPayload(git: WorkspaceGitObservations): 
 
 export function parseGitObservationsPayload(payload: string): WorkspaceGitObservations {
   return parseVersioned(storedGitObservations, payload, 'git observations');
+}
+
+export function serializeRemovalAttemptPayload(attempt: WorkspaceRemovalAttempt): string {
+  return storedRemovalAttempt.serialize({ version: '1', value: attempt });
+}
+
+export function parseRemovalAttemptPayload(payload: string): WorkspaceRemovalAttempt {
+  return parseVersioned(storedRemovalAttempt, payload, 'removal attempt');
+}
+
+export function serializeScriptOutcomesPayload(outcomes: WorkspaceScriptOutcomes): string {
+  return storedScriptOutcomes.serialize({ version: '1', value: outcomes });
+}
+
+export function parseScriptOutcomesPayload(payload: string): WorkspaceScriptOutcomes {
+  return parseVersioned(storedScriptOutcomes, payload, 'script outcomes');
 }
 
 type VersionedEnvelope<T> = {

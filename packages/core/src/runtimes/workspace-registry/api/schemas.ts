@@ -33,6 +33,43 @@ export const workspaceCreateOutcomeSchema = z.union([
 export type WorkspaceCreateOutcome = z.infer<typeof workspaceCreateOutcomeSchema>;
 
 /**
+ * Durable trace of the last failed removal attempt (ADR 0006): written by the delete
+ * verbs before they return a failure; removed with the record on success — no explicit
+ * clear. `stage` names the removal step that failed ('teardown' | 'remove' |
+ * 'unregister'); `class` is host-decided — 'transient' failures ride silent sweep
+ * retries, 'terminal' ones stop auto-retry and need user attention. The client never
+ * classifies.
+ */
+export const workspaceRemovalAttemptSchema = z.object({
+  stage: z.string(),
+  class: z.enum(['transient', 'terminal']),
+  message: z.string(),
+  at: z.number(),
+});
+export type WorkspaceRemovalAttempt = z.infer<typeof workspaceRemovalAttemptSchema>;
+
+/**
+ * Durable last outcome of one lifecycle script run, overwrite-in-place (the
+ * conversations lastResumeOutcome precedent). Written where the script runner
+ * publishes notices today; unlike notices it survives daemon restarts and keeps
+ * success stamps. `message` is present for non-success outcomes.
+ */
+export const workspaceScriptOutcomeSchema = z.object({
+  outcome: z.enum(['succeeded', 'failed', 'timed-out']),
+  at: z.number(),
+  message: z.string().optional(),
+});
+export type WorkspaceScriptOutcome = z.infer<typeof workspaceScriptOutcomeSchema>;
+
+/** Per-script last outcomes; null per script until that script has settled once. */
+export const workspaceScriptOutcomesSchema = z.object({
+  prepare: workspaceScriptOutcomeSchema.nullable(),
+  setup: workspaceScriptOutcomeSchema.nullable(),
+  run: workspaceScriptOutcomeSchema.nullable(),
+});
+export type WorkspaceScriptOutcomes = z.infer<typeof workspaceScriptOutcomesSchema>;
+
+/**
  * Host-computed git observations. `diffStats` includes untracked files' lines as
  * additions (respecting .gitignore); null = stats unavailable — a pathological worktree
  * degrades its own record, never the scan.
@@ -116,6 +153,10 @@ export const workspaceRecordSchema = z.object({
   creation: workspaceCreationSchema.nullable(),
   /** Null unless this record was born from createWorktree. */
   lastCreateOutcome: workspaceCreateOutcomeSchema.nullable(),
+  /** Null until a delete verb fails; removed with the record on success. */
+  lastRemovalAttempt: workspaceRemovalAttemptSchema.nullable(),
+  /** Null until any lifecycle script has settled once. */
+  scriptOutcomes: workspaceScriptOutcomesSchema.nullable(),
   /** Null for plain directories (and until first observed). */
   git: workspaceGitObservationsSchema.nullable(),
   /** Observation only — never a durable "active" flag. */

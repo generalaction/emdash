@@ -185,6 +185,102 @@ describe('workspace registry deleteWorktree', () => {
     });
   });
 
+  /** Simulated daemon restart: a fresh runtime over the same durable store. */
+  function rebuildRuntime() {
+    wire.dispose();
+    runtime.dispose();
+    runtime = new WorkspaceRegistryRuntime({ handle, clock });
+    wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime), {
+      validate: 'full',
+    });
+  }
+
+  it('a failed removal records stage, class, and message durably; the trace survives a restart', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await createWorktree('ws-repo', 'stuck');
+    // The owning repository vanishes while the worktree directory remains: removal has
+    // no repository to prune from and cannot converge without user intervention.
+    await fs.rm(repoPath, { recursive: true, force: true });
+
+    await clock.advanceBy(2_000);
+    const deleted = await wire.client.deleteWorktree({ id: 'wt-stuck', deleteBranch: false });
+    if (deleted.success) throw new Error('expected the delete to fail');
+    expect(deleted.error.type).toBe('remove-failed');
+
+    const record = (await listRecords())['wt-stuck'];
+    expect(record?.lastRemovalAttempt).toEqual({
+      stage: 'remove',
+      class: 'terminal',
+      message: expect.stringContaining('Cannot resolve the owning repository'),
+      at: 12_000,
+    });
+    // The RPC return is loop control only: it carries nothing the record does not.
+    expect(deleted.error).toEqual({
+      type: 'remove-failed',
+      message: record?.lastRemovalAttempt?.message,
+    });
+
+    rebuildRuntime();
+    expect((await listRecords())['wt-stuck']?.lastRemovalAttempt).toEqual({
+      stage: 'remove',
+      class: 'terminal',
+      message: expect.stringContaining('Cannot resolve the owning repository'),
+      at: 12_000,
+    });
+  });
+
+  it('a failing teardown fails the delete at the teardown stage; the artifact stays; the retry converges', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const worktree = await createWorktree('ws-repo', 'torn');
+    await fs.writeFile(
+      path.join(worktree.path, '.emdash.json'),
+      JSON.stringify({ scripts: { teardown: 'echo torn down >&2; exit 9' } })
+    );
+    expect((await wire.client.activateWorkspace({ id: 'wt-torn' })).success).toBe(true);
+
+    const deleted = await wire.client.deleteWorktree({ id: 'wt-torn', deleteBranch: false });
+    expect(deleted).toMatchObject({ success: false, error: { type: 'remove-failed' } });
+
+    // Teardown failed, so nothing was removed and the record stays registered.
+    await expect(fs.stat(worktree.path)).resolves.toBeDefined();
+    expect((await listRecords())['wt-torn']?.lastRemovalAttempt).toMatchObject({
+      stage: 'teardown',
+      class: 'transient',
+      message: expect.any(String),
+    });
+
+    // Teardown runs at most once per activation: the retry proceeds past it.
+    const retried = await wire.client.deleteWorktree({ id: 'wt-torn', deleteBranch: false });
+    expect(retried).toEqual({ success: true, data: undefined });
+    await expect(fs.stat(worktree.path)).rejects.toThrow();
+    expect((await listRecords())['wt-torn']).toBeUndefined();
+  });
+
+  it('deleteWorkspace records a failing teardown as a removal attempt and stays retryable', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await fs.writeFile(
+      path.join(repoPath, '.emdash.json'),
+      JSON.stringify({ scripts: { teardown: 'exit 3' } })
+    );
+    expect((await wire.client.activateWorkspace({ id: 'ws-repo' })).success).toBe(true);
+
+    const deleted = await wire.client.deleteWorkspace({ id: 'ws-repo' });
+    expect(deleted).toMatchObject({ success: false, error: { type: 'remove-failed' } });
+    expect((await listRecords())['ws-repo']?.lastRemovalAttempt).toMatchObject({
+      stage: 'teardown',
+      class: 'transient',
+    });
+
+    const retried = await wire.client.deleteWorkspace({ id: 'ws-repo' });
+    expect(retried).toEqual({ success: true, data: undefined });
+    // Unregister never touches the artifact.
+    await expect(fs.stat(repoPath)).resolves.toBeDefined();
+    expect((await listRecords())['ws-repo']).toBeUndefined();
+  });
+
   it('deleteWorkspace deactivates before unregistering and still never touches disk', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });

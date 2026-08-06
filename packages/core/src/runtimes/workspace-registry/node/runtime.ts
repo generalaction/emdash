@@ -26,9 +26,10 @@ import type {
   RefreshWorkspacesInput,
   WorkspaceRecord,
   WorkspaceRecords,
+  WorkspaceRemovalAttempt,
   WorkspaceRuntimeOverlay,
 } from '../api/schemas';
-import { WorkspaceActivationManager } from './activation';
+import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
 import {
@@ -117,6 +118,23 @@ export class WorkspaceRegistryRuntime {
           ...overlay,
           notices: overlay.notices.filter((notice) => notice.id !== `script-failed:${script}`),
         })),
+      recordScriptOutcome: (id, script, report) =>
+        void this.enqueue(async () => {
+          const record = this.store.get(id);
+          if (!record) return;
+          const now = this.clock.now();
+          const outcomes = record.scriptOutcomes ?? { prepare: null, setup: null, run: null };
+          const updated: DurableWorkspaceRecord = {
+            ...record,
+            // Overwrite-in-place: one durable last outcome per script, no event list.
+            scriptOutcomes: { ...outcomes, [script]: { ...report, at: now } },
+            updatedAt: now,
+          };
+          this.store.update(updated);
+          this.publish(updated);
+        }).catch((error) => {
+          this.logger.warn?.(`recording ${script} outcome for '${id}' failed`, { error });
+        }),
       recordActivated: (id, at) =>
         this.enqueue(async () => {
           const record = this.store.get(id);
@@ -152,11 +170,18 @@ export class WorkspaceRegistryRuntime {
     return this.enqueue(() => this.createWorkspaceLocked(input));
   }
 
-  /** Deactivate-if-active + unregister. Never touches disk; idempotent on absent ids. */
+  /**
+   * Deactivate-if-active + unregister. Never touches disk; idempotent on absent ids.
+   * A failing teardown is a removal-stage failure: recorded durably on the record
+   * before the error returns, so the delete stays visible and retryable (ADR 0006).
+   */
   deleteWorkspace(input: DeleteWorkspaceInput): Promise<Result<void, DeleteWorkspaceError>> {
     return this.workspaceClaims.runExclusive(input.id, async () => {
       const record = this.store.get(input.id);
-      if (record) await this.deactivateLocked(record);
+      if (record) {
+        const teardownFailure = await this.deactivateForRemoval(record);
+        if (teardownFailure) return err(teardownFailure);
+      }
       return await this.enqueue(() => Promise.resolve(this.deleteWorkspaceLocked(input)));
     });
   }
@@ -183,12 +208,18 @@ export class WorkspaceRegistryRuntime {
       return this.workspaceClaims.runExclusive(input.id, async () => {
         const current = this.store.get(input.id);
         if (!current) return ok(undefined);
-        await this.deactivateLocked(current);
+        const teardownFailure = await this.deactivateForRemoval(current);
+        if (teardownFailure) return err(teardownFailure);
         if (await isDirectory(current.path)) {
-          return err({
-            type: 'remove-failed',
-            message: `Cannot resolve the owning repository of '${current.path}'`,
-          });
+          // Structural: the artifact remains but no repository can prune it — an
+          // identical retry cannot converge without user intervention.
+          return err(
+            await this.recordRemovalFailure(input.id, {
+              stage: 'remove',
+              class: 'terminal',
+              message: `Cannot resolve the owning repository of '${current.path}'`,
+            })
+          );
         }
         // Artifact already gone and no repository left to prune: just unregister.
         return await this.enqueue(() =>
@@ -201,7 +232,8 @@ export class WorkspaceRegistryRuntime {
       this.workspaceClaims.runExclusive(input.id, async () => {
         const current = this.store.get(input.id);
         if (!current) return ok(undefined);
-        await this.deactivateLocked(current);
+        const teardownFailure = await this.deactivateForRemoval(current);
+        if (teardownFailure) return err(teardownFailure);
         const result = await executeDeleteWorktree({
           repositoryPath,
           worktreePath: current.path,
@@ -209,7 +241,13 @@ export class WorkspaceRegistryRuntime {
           branchHint: current.git?.branch ?? current.creation?.branch ?? null,
         });
         if (result.status === 'failed') {
-          return err({ type: 'remove-failed', message: result.message });
+          return err(
+            await this.recordRemovalFailure(input.id, {
+              stage: 'remove',
+              class: result.class,
+              message: result.message,
+            })
+          );
         }
         return await this.enqueue(() =>
           Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
@@ -309,14 +347,57 @@ export class WorkspaceRegistryRuntime {
   }
 
   /** The shared deactivation step; callers must hold the per-workspace claim. */
-  private async deactivateLocked(record: DurableWorkspaceRecord): Promise<void> {
+  private async deactivateLocked(
+    record: DurableWorkspaceRecord
+  ): Promise<WorkspaceDeactivationResult> {
     try {
       await this.killSessions(record.path);
     } catch (error) {
       // Best-effort by contract: teardown must still run.
       this.logger.warn?.(`session cleanup for '${record.path}' failed`, { error });
     }
-    await this.activationManager.deactivate(record.id);
+    return await this.activationManager.deactivate(record.id);
+  }
+
+  /**
+   * The delete verbs' deactivation step: a failed teardown counts as a removal stage
+   * (ADR 0006) — recorded durably before the verb returns. Transient by design:
+   * teardown runs at most once per activation, so the next attempt proceeds past it.
+   */
+  private async deactivateForRemoval(
+    record: DurableWorkspaceRecord
+  ): Promise<{ type: 'remove-failed'; message: string } | null> {
+    const { teardownFailure } = await this.deactivateLocked(record);
+    if (!teardownFailure) return null;
+    return await this.recordRemovalFailure(record.id, {
+      stage: 'teardown',
+      class: 'transient',
+      message: teardownFailure.message,
+    });
+  }
+
+  /**
+   * Durable half of a failed removal: the annotation lands on the record (and the
+   * records live model) before the verb returns; the returned error is loop control
+   * carrying nothing the record does not (ADR 0006).
+   */
+  private async recordRemovalFailure(
+    id: string,
+    failure: Omit<WorkspaceRemovalAttempt, 'at'>
+  ): Promise<{ type: 'remove-failed'; message: string }> {
+    await this.enqueue(async () => {
+      const record = this.store.get(id);
+      if (!record) return;
+      const now = this.clock.now();
+      const updated: DurableWorkspaceRecord = {
+        ...record,
+        lastRemovalAttempt: { ...failure, at: now },
+        updatedAt: now,
+      };
+      this.store.update(updated);
+      this.publish(updated);
+    });
+    return { type: 'remove-failed', message: failure.message };
   }
 
   /** The parent record's path when it is usable, else what the disk says. */
@@ -417,6 +498,8 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'present',
       creation: null,
       lastCreateOutcome: null,
+      lastRemovalAttempt: null,
+      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: now,
@@ -498,6 +581,8 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'missing',
       creation: { branch: input.branch, baseRef: input.baseRef, requestedPath: input.path },
       lastCreateOutcome: { status: 'started', at: now },
+      lastRemovalAttempt: null,
+      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: now,
@@ -730,6 +815,8 @@ export class WorkspaceRegistryRuntime {
         observedStatus: 'present',
         creation: null,
         lastCreateOutcome: null,
+        lastRemovalAttempt: null,
+        scriptOutcomes: null,
         git: await observeWorkspaceGit(canonicalPath, listing),
         lastActivatedAt: null,
         createdAt: now,
@@ -831,6 +918,8 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'present',
       creation: null,
       lastCreateOutcome: null,
+      lastRemovalAttempt: null,
+      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: now,

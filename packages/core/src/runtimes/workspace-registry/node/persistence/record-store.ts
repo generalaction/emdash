@@ -5,9 +5,13 @@ import {
   parseCreateOutcomePayload,
   parseCreationPayload,
   parseGitObservationsPayload,
+  parseRemovalAttemptPayload,
+  parseScriptOutcomesPayload,
   serializeCreateOutcomePayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
+  serializeRemovalAttemptPayload,
+  serializeScriptOutcomesPayload,
 } from './payload-codecs';
 import { workspaceRecords } from './schema';
 import type { WorkspaceRegistryDb } from './store';
@@ -72,6 +76,10 @@ function rowToRecord(row: Row): DurableWorkspaceRecord {
     creation: row.creation === null ? null : parseCreationPayload(row.creation),
     lastCreateOutcome:
       row.lastCreateOutcome === null ? null : parseCreateOutcomePayload(row.lastCreateOutcome),
+    lastRemovalAttempt:
+      row.lastRemovalAttempt === null ? null : parseRemovalAttemptPayload(row.lastRemovalAttempt),
+    scriptOutcomes:
+      row.scriptOutcomes === null ? null : parseScriptOutcomesPayload(row.scriptOutcomes),
     git: row.git === null ? null : parseGitObservationsPayload(row.git),
     lastActivatedAt: row.lastActivatedAt,
     createdAt: row.createdAt,
@@ -94,6 +102,12 @@ function recordToRow(record: DurableWorkspaceRecord): Row {
       record.lastCreateOutcome === null
         ? null
         : serializeCreateOutcomePayload(record.lastCreateOutcome),
+    lastRemovalAttempt:
+      record.lastRemovalAttempt === null
+        ? null
+        : serializeRemovalAttemptPayload(record.lastRemovalAttempt),
+    scriptOutcomes:
+      record.scriptOutcomes === null ? null : serializeScriptOutcomesPayload(record.scriptOutcomes),
     git: record.git === null ? null : serializeGitObservationsPayload(record.git),
     lastActivatedAt: record.lastActivatedAt,
     createdAt: record.createdAt,
