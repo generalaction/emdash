@@ -23,6 +23,9 @@ export type InstallMethod = (typeof INSTALL_METHODS)[number];
 
 export type DependencyStatus = 'available' | 'missing' | 'error';
 
+export const elevationPolicySchema = z.enum(['never', 'always', 'on-failure']);
+export type ElevationPolicy = z.output<typeof elevationPolicySchema>;
+
 export interface ProbeResult {
   command: string;
   path: string | null;
@@ -43,17 +46,19 @@ export const installCommandOptionSchema = z.object({
   command: z.string().min(1),
   label: z.string().optional(),
   recommended: z.boolean().optional(),
-  requiresElevation: z.boolean().optional(),
+  elevation: elevationPolicySchema.default('never'),
   updateCommand: z.string().optional(),
   uninstallCommand: z.string().optional(),
 });
 export type InstallCommandOption = z.output<typeof installCommandOptionSchema>;
+export type InstallCommandOptionInput = z.input<typeof installCommandOptionSchema>;
 
 export const installCommandsSchema = z.partialRecord(
   z.enum(PLATFORMS),
   z.array(installCommandOptionSchema)
 );
 export type InstallCommands = z.output<typeof installCommandsSchema>;
+export type InstallCommandsInput = z.input<typeof installCommandsSchema>;
 
 export const hostDependencyDescriptorSchema = z
   .object({

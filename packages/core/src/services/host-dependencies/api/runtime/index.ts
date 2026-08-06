@@ -1,5 +1,5 @@
 export {
-  probeCanElevate,
+  probeHostElevation,
   resolveAllCommandPaths,
   resolveCommandPath,
   resolveRealpath,

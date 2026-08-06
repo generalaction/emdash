@@ -25,18 +25,21 @@ export const plugin = definePlugin(
           {
             method: 'npm',
             command: 'npm i -g @continuedev/cli',
+            elevation: 'on-failure',
           },
         ],
         linux: [
           {
             method: 'npm',
             command: 'npm i -g @continuedev/cli',
+            elevation: 'on-failure',
           },
         ],
         windows: [
           {
             method: 'npm',
             command: 'npm i -g @continuedev/cli',
+            elevation: 'on-failure',
           },
         ],
       },

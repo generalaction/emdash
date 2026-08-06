@@ -46,6 +46,7 @@ export const plugin = definePlugin(
             command: 'npm install -g @xai-official/grok@latest',
             updateCommand: 'npm install -g @xai-official/grok@latest',
             uninstallCommand: 'npm uninstall -g @xai-official/grok',
+            elevation: 'on-failure',
           },
         ],
         linux: [
@@ -60,6 +61,7 @@ export const plugin = definePlugin(
             command: 'npm install -g @xai-official/grok@latest',
             updateCommand: 'npm install -g @xai-official/grok@latest',
             uninstallCommand: 'npm uninstall -g @xai-official/grok',
+            elevation: 'on-failure',
           },
         ],
         windows: [
@@ -75,6 +77,7 @@ export const plugin = definePlugin(
             command: 'npm install -g @xai-official/grok@latest',
             updateCommand: 'npm install -g @xai-official/grok@latest',
             uninstallCommand: 'npm uninstall -g @xai-official/grok',
+            elevation: 'on-failure',
           },
         ],
       },

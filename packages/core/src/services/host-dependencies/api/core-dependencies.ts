@@ -1,13 +1,12 @@
 import type { HostDependencyDefinition } from '@primitives/host-dependencies/api';
 
-const aptInstallCommand = (packages: string) =>
-  `sudo apt-get update && sudo apt-get install -y ${packages}`;
+const aptInstallCommand = (packages: string) => `apt-get update && apt-get install -y ${packages}`;
 
 const aptInstallOption = (packages: string) => ({
   method: 'apt' as const,
   command: aptInstallCommand(packages),
   recommended: true,
-  requiresElevation: true,
+  elevation: 'always' as const,
 });
 
 export const GIT_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
@@ -17,9 +16,18 @@ export const GIT_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   binaryNames: ['git'],
   installDocs: 'https://git-scm.com/downloads',
   installCommands: {
-    macos: [{ method: 'homebrew', command: 'brew install git', recommended: true }],
+    macos: [
+      { method: 'homebrew', command: 'brew install git', recommended: true, elevation: 'never' },
+    ],
     linux: [aptInstallOption('git')],
-    windows: [{ method: 'winget', command: 'winget install --id Git.Git', recommended: true }],
+    windows: [
+      {
+        method: 'winget',
+        command: 'winget install --id Git.Git',
+        recommended: true,
+        elevation: 'never',
+      },
+    ],
   },
   status: 'active',
 };
@@ -31,13 +39,21 @@ export const RIPGREP_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   binaryNames: ['rg'],
   installDocs: 'https://github.com/BurntSushi/ripgrep#installation',
   installCommands: {
-    macos: [{ method: 'homebrew', command: 'brew install ripgrep', recommended: true }],
+    macos: [
+      {
+        method: 'homebrew',
+        command: 'brew install ripgrep',
+        recommended: true,
+        elevation: 'never',
+      },
+    ],
     linux: [aptInstallOption('ripgrep')],
     windows: [
       {
         method: 'winget',
         command: 'winget install --id BurntSushi.ripgrep.MSVC',
         recommended: true,
+        elevation: 'never',
       },
     ],
   },
@@ -51,10 +67,17 @@ export const NODE_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   binaryNames: ['node'],
   installDocs: 'https://nodejs.org/en/download',
   installCommands: {
-    macos: [{ method: 'homebrew', command: 'brew install node', recommended: true }],
+    macos: [
+      { method: 'homebrew', command: 'brew install node', recommended: true, elevation: 'never' },
+    ],
     linux: [aptInstallOption('nodejs npm')],
     windows: [
-      { method: 'winget', command: 'winget install --id OpenJS.NodeJS.LTS', recommended: true },
+      {
+        method: 'winget',
+        command: 'winget install --id OpenJS.NodeJS.LTS',
+        recommended: true,
+        elevation: 'never',
+      },
     ],
   },
   status: 'active',
@@ -67,10 +90,17 @@ export const NPM_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   binaryNames: ['npm'],
   installDocs: 'https://docs.npmjs.com/downloading-and-installing-node-js-and-npm',
   installCommands: {
-    macos: [{ method: 'homebrew', command: 'brew install node', recommended: true }],
+    macos: [
+      { method: 'homebrew', command: 'brew install node', recommended: true, elevation: 'never' },
+    ],
     linux: [aptInstallOption('npm')],
     windows: [
-      { method: 'winget', command: 'winget install --id OpenJS.NodeJS.LTS', recommended: true },
+      {
+        method: 'winget',
+        command: 'winget install --id OpenJS.NodeJS.LTS',
+        recommended: true,
+        elevation: 'never',
+      },
     ],
   },
   status: 'active',
@@ -83,7 +113,9 @@ export const TMUX_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   binaryNames: ['tmux'],
   installDocs: 'https://github.com/tmux/tmux/wiki/Installing',
   installCommands: {
-    macos: [{ method: 'homebrew', command: 'brew install tmux', recommended: true }],
+    macos: [
+      { method: 'homebrew', command: 'brew install tmux', recommended: true, elevation: 'never' },
+    ],
     linux: [aptInstallOption('tmux')],
   },
   status: 'active',
@@ -97,7 +129,14 @@ export const CURL_DEPENDENCY_DESCRIPTOR: HostDependencyDefinition = {
   installDocs: 'https://curl.se/download.html',
   installCommands: {
     linux: [aptInstallOption('curl')],
-    windows: [{ method: 'winget', command: 'winget install --id cURL.cURL', recommended: true }],
+    windows: [
+      {
+        method: 'winget',
+        command: 'winget install --id cURL.cURL',
+        recommended: true,
+        elevation: 'never',
+      },
+    ],
   },
   status: 'active',
 };

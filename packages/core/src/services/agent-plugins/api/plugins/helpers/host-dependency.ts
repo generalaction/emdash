@@ -1,9 +1,10 @@
 import type {
   HostDependencyDescriptor,
-  InstallCommands,
+  InstallCommandsInput,
   InstallCommandOption,
   HostDependencyUpdateCommand,
 } from '@primitives/host-dependencies/api';
+import { installCommandsSchema } from '@primitives/host-dependencies/api';
 
 export function homebrewOption(opts: {
   formula: string;
@@ -15,6 +16,7 @@ export function homebrewOption(opts: {
     method: 'homebrew',
     command: `brew install${caskFlag} ${opts.formula}`,
     recommended: opts.recommended,
+    elevation: 'never',
   };
 }
 
@@ -34,7 +36,7 @@ export function npmDependency(opts: {
   skipVersionProbe?: boolean;
   /** @deprecated Version probes are no longer part of HostDependencies. */
   versionArgs?: string[];
-  extraOptions?: InstallCommands;
+  extraOptions?: InstallCommandsInput;
   updateCommand?: HostDependencyUpdateCommand;
 }): HostDependencyDescriptor {
   const installFlags = opts.installFlags ? ` ${opts.installFlags}` : '';
@@ -42,12 +44,13 @@ export function npmDependency(opts: {
     method: 'npm',
     command: `npm install -g ${opts.package}${installFlags}`,
     recommended: opts.recommended,
+    elevation: 'on-failure',
   };
-  const installCommands: InstallCommands = {
+  const installCommands = installCommandsSchema.parse({
     macos: [npmInstall, ...(opts.extraOptions?.macos ?? [])],
     linux: [npmInstall, ...(opts.extraOptions?.linux ?? [])],
     windows: [npmInstall, ...(opts.extraOptions?.windows ?? [])],
-  };
+  });
 
   return {
     id: opts.id,

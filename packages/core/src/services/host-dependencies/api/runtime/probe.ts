@@ -1,5 +1,5 @@
 import type { IExecutionContext } from '@primitives/exec/api';
-import type { Platform, ProbeResult } from '@primitives/host-dependencies/api';
+import type { HostElevation, Platform, ProbeResult } from '@primitives/host-dependencies/api';
 
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
@@ -117,31 +117,31 @@ export async function runVersionProbe(
 }
 
 /**
- * Probes whether the current process can elevate non-interactively.
+ * Probes how the current process can elevate non-interactively.
  *
  * - Windows: returns `null` (no non-interactive elevation model; unused today).
- * - POSIX: true when euid is 0, or `sudo -n true` succeeds; otherwise false.
+ * - POSIX: distinguishes root from passwordless sudo and unavailable elevation.
  */
-export async function probeCanElevate(
+export async function probeHostElevation(
   exec: IExecutionContext,
   platform: NodeJS.Platform = process.platform
-): Promise<boolean | null> {
+): Promise<HostElevation | null> {
   if (platform === 'win32') return null;
 
   try {
     const { stdout } = await exec.exec('id', ['-u'], { timeout: ELEVATION_PROBE_TIMEOUT_MS });
-    if (stdout.trim() === '0') return true;
+    if (stdout.trim() === '0') return 'root';
   } catch {
     // Fall through to sudo probe.
   }
 
   const sudoPath = await resolveCommandPath('sudo', exec);
-  if (!sudoPath) return false;
+  if (!sudoPath) return 'unavailable';
 
   try {
     await exec.exec(sudoPath, ['-n', 'true'], { timeout: ELEVATION_PROBE_TIMEOUT_MS });
-    return true;
+    return 'passwordless-sudo';
   } catch {
-    return false;
+    return 'unavailable';
   }
 }

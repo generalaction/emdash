@@ -31,25 +31,25 @@ describe('CORE_DEPENDENCIES', () => {
     ).not.toThrow();
   });
 
-  it('marks linux apt install options as requiring elevation with a sudo-only command', () => {
+  it('marks linux apt install options as always elevated with sudo-free commands', () => {
     for (const dependency of CORE_DEPENDENCIES) {
       const linuxOptions = dependency.installCommands?.linux ?? [];
       for (const option of linuxOptions) {
         if (option.method !== 'apt') continue;
-        expect(option.requiresElevation).toBe(true);
-        expect(option.command).toMatch(/^sudo apt-get update && sudo apt-get install -y /);
-        expect(option.command).not.toContain('command -v sudo');
+        expect(option.elevation).toBe('always');
+        expect(option.command).toMatch(/^apt-get update && apt-get install -y /);
+        expect(option.command).not.toContain('sudo');
       }
     }
   });
 
-  it('uses sudo apt-get for git on linux', () => {
+  it('keeps the git apt command sudo-free', () => {
     expect(GIT_DEPENDENCY_DESCRIPTOR.installCommands?.linux).toEqual([
       {
         method: 'apt',
-        command: 'sudo apt-get update && sudo apt-get install -y git',
+        command: 'apt-get update && apt-get install -y git',
         recommended: true,
-        requiresElevation: true,
+        elevation: 'always',
       },
     ]);
   });

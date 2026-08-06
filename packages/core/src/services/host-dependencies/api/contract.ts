@@ -39,14 +39,18 @@ export const hostDependenciesContract = defineContract({
       }),
     },
   }),
-  runUpdateCommand: liveJob({
+  runSelfUpdateCommand: liveJob({
     input: depInput,
     progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
     result: hostDependencyViewSchema,
     error: hostDependencyErrorSchema,
   }),
   runInstallCommand: liveJob({
-    input: depInput.extend({ method: installMethodSchema.optional() }),
+    input: depInput.extend({
+      method: installMethodSchema.optional(),
+      elevate: z.boolean().optional(),
+      commandKind: z.enum(['install', 'update']).optional(),
+    }),
     progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
     result: hostDependencyViewSchema,
     error: hostDependencyErrorSchema,
