@@ -30,6 +30,7 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   deps: {
+    alwaysBundle: ['glob'],
     neverBundle: [
       '@emdash/wire',
       'zod',

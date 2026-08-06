@@ -84,6 +84,7 @@
     "smol-toml": "^1.6.0",
     "ssh2": "^1.17.0",
     "ts-pattern": "^5.9.0",
+    "whatwg-url": "5.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
