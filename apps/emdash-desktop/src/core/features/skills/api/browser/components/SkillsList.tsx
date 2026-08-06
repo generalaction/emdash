@@ -1,11 +1,10 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
 import { Loader2 } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { CardGridSection } from '@core/primitives/ui/browser/components/card-grid';
 import { SkillCard } from '../../../browser/components/SkillCard';
 import { SkillDetailModal } from '../../../browser/components/SkillDetailModal';
-import { useSkills, type UseSkillsResult } from '../../../browser/components/useSkills';
+import type { UseSkillsResult } from '../../../browser/components/useSkills';
 
 type SkillsListProps = {
   skills: UseSkillsResult;
@@ -101,9 +100,3 @@ export const SkillsList: React.FC<SkillsListProps> = ({ skills, onOpenTerminal }
     </div>
   );
 };
-
-export function SkillsListForHost({ host }: { host: HostRef }) {
-  const skills = useSkills({ host });
-
-  return <SkillsList skills={skills} />;
-}

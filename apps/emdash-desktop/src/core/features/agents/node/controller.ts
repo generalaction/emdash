@@ -1,6 +1,6 @@
 import type {
   DependencyId,
-  HostDependencyError,
+  HostDependencyOperationProgress,
   HostDependencySnapshot,
 } from '@emdash/core/services/host-dependencies/node';
 import { hostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
@@ -9,10 +9,11 @@ import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
-import type { AgentInstallError, InstallMethod } from '@core/primitives/agents/api';
+import type { InstallMethod } from '@core/primitives/agents/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
 import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
+import { toAgentUpdateError } from './agent-error-mapping';
 import {
   buildAgentMetadataList,
   buildAgentPayload,
@@ -21,6 +22,10 @@ import {
 } from './agent-payload-builder';
 
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type AgentOperationContext = {
+  signal?: AbortSignal;
+  progress?: (progress: HostDependencyOperationProgress) => void;
+};
 
 export function createAgentOperations(dependencies: {
   ensureAgentDependenciesProbed(manager: HostDependenciesClient): Promise<void>;
@@ -71,28 +76,65 @@ export function createAgentOperations(dependencies: {
 
     // ── Install / update ─────────────────────────────────────────────────────────
 
-    update: async (_id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
-      success: false as const,
-      error: { type: 'no-update-command' as const, id: _id },
-    }),
+    update: async (
+      id: AgentProviderId,
+      connectionId?: string,
+      method?: InstallMethod,
+      elevate?: boolean,
+      manager?: HostDependenciesClient,
+      context: AgentOperationContext = {}
+    ) => {
+      const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
+      const result = method
+        ? await runRuntimeLiveJob(
+            hostDependenciesContract.runInstallCommand,
+            mgr.runInstallCommand,
+            { id, method, elevate, commandKind: 'update' },
+            context.progress,
+            { signal: context.signal }
+          )
+        : await runRuntimeLiveJob(
+            hostDependenciesContract.runSelfUpdateCommand,
+            mgr.runSelfUpdateCommand,
+            { id },
+            context.progress,
+            { signal: context.signal }
+          );
+      if (result.success) {
+        return {
+          success: true as const,
+          data: toAgentInstallationStatus(id, connectionId, result.data),
+        };
+      }
+      return { success: false as const, error: toAgentUpdateError(result.error, id) };
+    },
 
     install: async (
       id: AgentProviderId,
       connectionId?: string,
-      method?: unknown,
-      manager?: HostDependenciesClient
+      method?: InstallMethod,
+      elevate?: boolean,
+      manager?: HostDependenciesClient,
+      context: AgentOperationContext = {}
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
       const result = await runRuntimeLiveJob(
         hostDependenciesContract.runInstallCommand,
         mgr.runInstallCommand,
-        { id, method: normalizeInstallMethod(method) }
+        { id, method, elevate },
+        context.progress,
+        { signal: context.signal }
       );
-      if (result.success) return { success: true as const, data: result.data };
-      return { success: false as const, error: toAgentInstallError(result.error, id) };
+      if (result.success) {
+        return {
+          success: true as const,
+          data: toAgentInstallationStatus(id, connectionId, result.data),
+        };
+      }
+      return { success: false as const, error: result.error };
     },
 
-    uninstall: async (id: AgentProviderId, _connectionId?: string, _method?: unknown) => ({
+    uninstall: async (id: AgentProviderId, _connectionId?: string, _method?: InstallMethod) => ({
       success: false as const,
       error: { type: 'no-uninstall-strategy' as const, id },
     }),
@@ -203,45 +245,4 @@ function normalizeSelection(selection: unknown): { kind: 'path'; path: string } 
     return { kind: 'path', path: candidate.command };
   }
   return null;
-}
-
-function normalizeInstallMethod(method: unknown): InstallMethod | undefined {
-  return typeof method === 'string' ? (method as InstallMethod) : undefined;
-}
-
-function toAgentInstallError(error: HostDependencyError, id: AgentProviderId): AgentInstallError {
-  switch (error.type) {
-    case 'unknown-dependency':
-    case 'no-install-command':
-    case 'installer-missing':
-      return error;
-    case 'permission-denied':
-      return { type: 'permission-denied', message: error.message, output: '' };
-    case 'not-detected-after-install':
-      return {
-        type: 'command-failed',
-        message: `Installed ${id}, but the binary was not detected on PATH.`,
-        output: error.output ?? '',
-      };
-    case 'command-failed':
-      return error;
-    case 'missing':
-      return {
-        type: 'command-failed',
-        message: `Installed ${id}, but the binary was not detected on PATH.`,
-        output: '',
-      };
-    case 'stale-selection':
-      return {
-        type: 'command-failed',
-        message: `Selected installation path is stale: ${error.path}`,
-        output: '',
-      };
-    case 'invalid-selection':
-      return { type: 'command-failed', message: error.message, output: '' };
-    case 'no-update-command':
-      return { type: 'no-install-command', id: error.id };
-    case 'io':
-      return { type: 'command-failed', message: error.message, output: '' };
-  }
 }

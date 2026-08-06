@@ -177,8 +177,8 @@ function describeShutdownImpact(summary: ActiveSessionSummary): string {
         ? 'Running agent sessions and terminals may be stopped.'
         : 'Background services and automations will stop.';
   const remote =
-    summary.remoteTuiSessions > 0
-      ? ` ${summary.incomplete ? 'At least ' : ''}${summary.remoteTuiSessions} remote ${summary.remoteTuiSessions === 1 ? 'session' : 'sessions'} will keep running.`
+    summary.remoteSessions > 0
+      ? ` ${summary.incomplete ? 'At least ' : ''}${summary.remoteSessions} remote ${summary.remoteSessions === 1 ? 'session' : 'sessions'} will keep running.`
       : '';
   return `${stopped}${remote}`;
 }

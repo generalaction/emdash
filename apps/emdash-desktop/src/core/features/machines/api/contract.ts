@@ -7,11 +7,20 @@ import type {
 } from '@emdash/core/services/host-dependencies/api';
 import {
   hostDependencyErrorSchema,
+  hostDependencyOperationProgressSchema,
+  hostDependencySnapshotSchema,
   installMethodSchema,
 } from '@emdash/core/services/host-dependencies/api';
 import type { Result } from '@emdash/shared';
 import { resultSchema } from '@emdash/shared';
-import { defineContract, procedure } from '@emdash/wire/rpc';
+import {
+  defineContract,
+  liveJob,
+  liveModel,
+  liveState,
+  mutation,
+  procedure,
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 
@@ -34,15 +43,33 @@ export type InstallMachineSystemDependencyInput = {
   machineId?: string;
   id: string;
   method?: InstallMethod;
+  elevate?: boolean;
 };
 
 export type InstallMachineSystemDependencyResult = Result<
   MachineSystemDependencyStatus,
   HostDependencyError
 >;
+export type InstallMachineSystemDependenciesInput = {
+  machineId?: string;
+  dependencies: Array<Omit<InstallMachineSystemDependencyInput, 'machineId'>>;
+};
+export type InstallMachineSystemDependenciesResult = Record<
+  string,
+  InstallMachineSystemDependencyResult
+>;
 
 const voidInput = z.void();
 const hostInput = z.object({ machineId: z.string().min(1).optional() });
+const systemDependencyInstallInput = z.object({
+  id: z.string().min(1),
+  method: installMethodSchema.optional(),
+  elevate: z.boolean().optional(),
+});
+const systemDependencyInstallResult = resultSchema(
+  z.custom<MachineSystemDependencyStatus>(),
+  hostDependencyErrorSchema
+);
 
 export const machinesContract = defineContract({
   getMachines: procedure({ input: voidInput, output: z.array(z.custom<SshConfig>()) }),
@@ -54,16 +81,24 @@ export const machinesContract = defineContract({
     input: hostInput,
     output: resourceUsageSampleSchema,
   }),
-  getMachineSystemDependencies: procedure({
-    input: hostInput,
-    output: z.array(z.custom<MachineSystemDependencyStatus>()),
+  systemDependencies: liveModel({
+    key: hostInput,
+    states: {
+      current: liveState({ data: hostDependencySnapshotSchema }),
+    },
+    mutations: {
+      refresh: mutation({
+        input: z.void(),
+        data: hostDependencySnapshotSchema,
+        error: hostDependencyErrorSchema,
+      }),
+    },
   }),
-  installMachineSystemDependency: procedure({
-    input: hostInput.extend({
-      id: z.string().min(1),
-      method: installMethodSchema.optional(),
-    }),
-    output: resultSchema(z.custom<MachineSystemDependencyStatus>(), hostDependencyErrorSchema),
+  installSystemDependencies: liveJob({
+    input: hostInput.extend({ dependencies: z.array(systemDependencyInstallInput).min(1) }),
+    progress: hostDependencyOperationProgressSchema,
+    result: z.record(z.string(), systemDependencyInstallResult),
+    error: hostDependencyErrorSchema,
   }),
   saveMachine: procedure({
     input: z.custom<SaveMachineInput>(),

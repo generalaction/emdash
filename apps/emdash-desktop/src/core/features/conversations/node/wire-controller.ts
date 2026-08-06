@@ -1,5 +1,6 @@
 import {
   LOCAL_HOST_REF,
+  parseHostRef,
   type HostRef,
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
@@ -98,8 +99,8 @@ export function createConversationsWireController(
   ) => withConversationRuntime(options.runtimes, target(conversationId), work);
 
   const acpSessions = forwardLiveModel(conversationsContract.acp.sessions, (key, name) =>
-    resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
-      client.acp.sessions.state(key, name).asLiveSource()
+    resolveRuntimeSource(options.runtimes, Promise.resolve(parseHostRef(key.host)), (client) =>
+      client.acp.sessions.state(undefined, name).asLiveSource()
     )
   );
   const acpSession = forwardLiveModel(conversationsContract.acp.session, (key, name) =>
@@ -108,8 +109,8 @@ export function createConversationsWireController(
     )
   );
   const tuiSessions = forwardLiveModel(conversationsContract.tui.sessions, (key, name) =>
-    resolveRuntimeSource(options.runtimes, Promise.resolve(LOCAL_HOST_REF), (client) =>
-      client.tuiAgents.sessions.state(key, name).asLiveSource()
+    resolveRuntimeSource(options.runtimes, Promise.resolve(parseHostRef(key.host)), (client) =>
+      client.tuiAgents.sessions.state(undefined, name).asLiveSource()
     )
   );
 

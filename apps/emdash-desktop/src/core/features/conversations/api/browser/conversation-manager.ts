@@ -1,3 +1,8 @@
+import {
+  formatHostRef,
+  LOCAL_HOST_REF,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import type { SessionSummary } from '@emdash/core/runtimes/acp/api/client';
 import type { TuiSessionList } from '@emdash/core/runtimes/tui-agents/api';
 import { createScope, type Disposable } from '@emdash/shared/concurrency';
@@ -41,7 +46,8 @@ export class ConversationManagerStore implements Disposable {
   constructor(
     private readonly projectId: string,
     private readonly taskId: string,
-    preloaded?: Conversation[]
+    preloaded?: Conversation[],
+    private readonly sessionHost: () => SerializedHostRef = () => formatHostRef(LOCAL_HOST_REF)
   ) {
     makeObservable(this, {
       conversations: observable,
@@ -157,25 +163,34 @@ export class ConversationManagerStore implements Disposable {
 
   private listenToTuiSessionState(): () => void {
     if (typeof window === 'undefined') return () => {};
-    let disposed = false;
-    const scope = createScope({ label: 'conversation-manager:tui-sessions' });
-    void (async () => {
-      const client = await getConversationsClient();
-      if (disposed) return;
-      const sessions = remote(conversationsContract.tui.sessions, client.tui.sessions, {
-        scope,
-        lingerMs: 15_000,
-      });
-      const member = sessions(undefined);
-      observe(
-        member.states.list,
-        (snapshot) => this.handleTuiSessionListChanged(snapshot.value ?? {}),
-        { scope }
-      );
-    })();
+    let currentScope: ReturnType<typeof createScope> | undefined;
+    const disposeReaction = reaction(
+      this.sessionHost,
+      (host) => {
+        void currentScope?.dispose();
+        currentScope = createScope({ label: `conversation-manager:tui-sessions:${host}` });
+        const scope = currentScope;
+        this.handleTuiSessionListChanged({});
+        void (async () => {
+          const client = await getConversationsClient();
+          if (scope.disposed) return;
+          const sessions = remote(conversationsContract.tui.sessions, client.tui.sessions, {
+            scope,
+            lingerMs: 15_000,
+          });
+          const member = sessions({ host });
+          observe(
+            member.states.list,
+            (snapshot) => this.handleTuiSessionListChanged(snapshot.value ?? {}),
+            { scope }
+          );
+        })();
+      },
+      { fireImmediately: true }
+    );
     return () => {
-      disposed = true;
-      void scope.dispose();
+      disposeReaction();
+      void currentScope?.dispose();
     };
   }
 
@@ -192,25 +207,34 @@ export class ConversationManagerStore implements Disposable {
 
   private listenToAcpSessionState(): () => void {
     if (typeof window === 'undefined') return () => {};
-    let disposed = false;
-    const scope = createScope({ label: 'conversation-manager:acp-sessions' });
-    void (async () => {
-      const client = await getConversationsClient();
-      if (disposed) return;
-      const sessions = remote(conversationsContract.acp.sessions, client.acp.sessions, {
-        scope,
-        lingerMs: 15_000,
-      });
-      const member = sessions(undefined);
-      observe(
-        member.states.list,
-        (snapshot) => this.handleAcpSessionListChanged(snapshot.value ?? {}),
-        { scope }
-      );
-    })();
+    let currentScope: ReturnType<typeof createScope> | undefined;
+    const disposeReaction = reaction(
+      this.sessionHost,
+      (host) => {
+        void currentScope?.dispose();
+        currentScope = createScope({ label: `conversation-manager:acp-sessions:${host}` });
+        const scope = currentScope;
+        this.handleAcpSessionListChanged({});
+        void (async () => {
+          const client = await getConversationsClient();
+          if (scope.disposed) return;
+          const sessions = remote(conversationsContract.acp.sessions, client.acp.sessions, {
+            scope,
+            lingerMs: 15_000,
+          });
+          const member = sessions({ host });
+          observe(
+            member.states.list,
+            (snapshot) => this.handleAcpSessionListChanged(snapshot.value ?? {}),
+            { scope }
+          );
+        })();
+      },
+      { fireImmediately: true }
+    );
     return () => {
-      disposed = true;
-      void scope.dispose();
+      disposeReaction();
+      void currentScope?.dispose();
     };
   }
 

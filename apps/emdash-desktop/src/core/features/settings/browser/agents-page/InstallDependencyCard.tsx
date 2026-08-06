@@ -1,8 +1,12 @@
 import { Loader2 } from 'lucide-react';
 import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { InstallMethod, InstallOption } from '@core/primitives/agents/api';
+import {
+  CommandActionButton,
+  CommandRow,
+} from '@core/primitives/agents/browser/install-command-row';
+import { SudoRetryPanel } from '@core/primitives/agents/browser/SudoRetryPanel';
 import { cn } from '@core/primitives/ui/browser/cn';
-import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type InstallDependencyCardProps = {
   vm: HostDependencyInstallation;
@@ -12,6 +16,8 @@ export type InstallDependencyCardProps = {
   isInstalling?: boolean;
   /** The install method currently being installed, if any. */
   installingMethod?: InstallMethod;
+  dependencyName?: string;
+  compact?: boolean;
   /** Additional class name for the container. */
   className?: string;
 };
@@ -25,6 +31,8 @@ export function InstallDependencyCard({
   installOptions,
   isInstalling = false,
   installingMethod,
+  dependencyName,
+  compact = false,
   className,
 }: InstallDependencyCardProps) {
   const { install } = vm;
@@ -37,16 +45,35 @@ export function InstallDependencyCard({
       {installOptions.map((opt) => {
         const isInstallingThis =
           isInstalling && (installingMethod === undefined || installingMethod === opt.method);
+        const failure =
+          vm.installFailure &&
+          (vm.installFailure.method === undefined || vm.installFailure.method === opt.method)
+            ? vm.installFailure
+            : null;
         return (
-          <CommandRow
-            key={opt.method}
-            command={opt.command}
-            action={
-              <CommandActionButton disabled={isInstalling} onClick={() => void install(opt.method)}>
-                {isInstallingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Install'}
-              </CommandActionButton>
-            }
-          />
+          <div key={opt.method} className="space-y-2">
+            <CommandRow
+              command={opt.command}
+              action={
+                <CommandActionButton
+                  disabled={isInstalling}
+                  onClick={() => void install(opt.method)}
+                >
+                  {isInstallingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Install'}
+                </CommandActionButton>
+              }
+            />
+            {failure ? (
+              <SudoRetryPanel
+                error={failure.error}
+                dependencyName={dependencyName ?? vm.data?.id ?? 'this dependency'}
+                isRetrying={isInstallingThis}
+                onRetry={() => void install(opt.method, true)}
+                onDismiss={vm.dismissInstallFailure}
+                compact={compact}
+              />
+            ) : null}
+          </div>
         );
       })}
     </div>

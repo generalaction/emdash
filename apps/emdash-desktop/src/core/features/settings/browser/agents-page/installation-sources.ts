@@ -8,7 +8,7 @@ import type {
   SelectedSource,
 } from '@core/primitives/agents/api';
 import { resolveActiveInstallation, sourceKey } from '@core/primitives/agents/api';
-import { humanizeMethod } from './install-command-row';
+import { humanizeMethod } from '@core/primitives/agents/browser/install-command-row';
 
 // Re-export shared SelectedSource as SourceRef for backward compat with callers.
 export type { SelectedSource as SourceRef };

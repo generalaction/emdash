@@ -19,6 +19,8 @@ export type DependencyId = string;
 export const dependencyCategorySchema = z.enum(['core', 'agent']);
 export const dependencyIdSchema = z.string().min(1);
 export const dependencyStatusSchema = z.enum(['available', 'missing', 'error']);
+export const hostElevationSchema = z.enum(['root', 'passwordless-sudo', 'unavailable']);
+export type HostElevation = z.output<typeof hostElevationSchema>;
 
 export const hostDependencyDefinitionSchema = hostDependencyDescriptorSchema.extend({
   name: z.string(),
@@ -78,6 +80,12 @@ export const hostDependencyErrorSchema = z.discriminatedUnion('type', [
     type: z.literal('permission-denied'),
     id: dependencyIdSchema,
     message: z.string(),
+    output: z.string().optional(),
+    exitCode: z.number().nullable().optional(),
+    canRetryWithSudo: z.boolean().optional(),
+    elevatedCommand: z.string().optional(),
+    interactiveCommand: z.string().optional(),
+    command: z.string().optional(),
   }),
   z.object({
     type: z.literal('command-failed'),
@@ -88,6 +96,7 @@ export const hostDependencyErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('io'), message: z.string() }),
 ]);
 export type HostDependencyError = z.output<typeof hostDependencyErrorSchema>;
+export type PermissionDeniedError = Extract<HostDependencyError, { type: 'permission-denied' }>;
 
 export const hostDependencyViewSchema = z.object({
   hostId: z.string(),
@@ -105,7 +114,7 @@ export type HostDependencyView = z.output<typeof hostDependencyViewSchema>;
 export const hostDependencySnapshotSchema = z.object({
   hostId: z.string(),
   generation: z.number().int().nonnegative(),
-  canElevate: z.boolean().nullable(),
+  hostElevation: hostElevationSchema.nullable(),
   dependencies: z.record(dependencyIdSchema, hostDependencyViewSchema),
 });
 export type HostDependencySnapshot = z.output<typeof hostDependencySnapshotSchema>;
@@ -141,7 +150,16 @@ export interface DependencyState {
 export type DependencyStatusMap = Record<string, DependencyState>;
 
 export type InstallCommandError =
-  | { type: 'permission-denied'; message: string; output: string; exitCode?: number | null }
+  | {
+      type: 'permission-denied';
+      message: string;
+      output: string;
+      exitCode?: number | null;
+      canRetryWithSudo?: boolean;
+      elevatedCommand?: string;
+      interactiveCommand?: string;
+      command?: string;
+    }
   | { type: 'command-failed'; message: string; output: string; exitCode?: number | null }
   | { type: 'pty-open-failed'; message: string };
 

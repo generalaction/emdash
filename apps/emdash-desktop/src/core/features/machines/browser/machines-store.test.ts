@@ -1,8 +1,14 @@
+import type { HostDependencySnapshot } from '@emdash/core/services/host-dependencies/api';
+import { ok } from '@emdash/shared';
 import { deferred, type Deferred } from '@emdash/shared/testing';
 import { cell, expose, peek, produce } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { machinesContract, type SaveMachineInput } from '@core/features/machines/api';
+import {
+  machinesContract,
+  type InstallMachineSystemDependenciesInput,
+  type SaveMachineInput,
+} from '@core/features/machines/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { MachinesStore } from './machines-store';
@@ -213,6 +219,29 @@ describe('MachinesStore', () => {
 
     await fixture.dispose();
   });
+
+  it('runs system dependency installs through the live job client', async () => {
+    const fixture = setup();
+
+    await expect(
+      fixture.store.installSystemDependencies({
+        machineId: 'ssh-1',
+        dependencies: [{ id: 'git' }, { id: 'node', method: 'apt' }],
+      })
+    ).resolves.toEqual({
+      git: { success: false, error: { type: 'unknown-dependency', id: 'git' } },
+      node: { success: false, error: { type: 'unknown-dependency', id: 'node' } },
+    });
+    expect(fixture.installSystemDependencies).toHaveBeenCalledWith(
+      {
+        machineId: 'ssh-1',
+        dependencies: [{ id: 'git' }, { id: 'node', method: 'apt' }],
+      },
+      expect.anything()
+    );
+
+    await fixture.dispose();
+  });
 });
 
 function runtimeEntry(
@@ -258,6 +287,35 @@ function setup(
       delete runtime[id];
     });
   });
+  const installSystemDependencies = vi.fn(
+    async ({ dependencies }: InstallMachineSystemDependenciesInput) =>
+      ok(
+        Object.fromEntries(
+          dependencies.map(({ id }) => [
+            id,
+            {
+              success: false as const,
+              error: { type: 'unknown-dependency' as const, id },
+            },
+          ])
+        )
+      )
+  );
+  const systemDependenciesSnapshot = cell<HostDependencySnapshot>({
+    hostId: 'test-host',
+    generation: 0,
+    hostElevation: null,
+    dependencies: {},
+  });
+  const systemDependencies = expose(
+    machinesContract.systemDependencies,
+    { current: systemDependenciesSnapshot },
+    {
+      mutations: {
+        refresh: async () => ok(peek(systemDependenciesSnapshot)),
+      },
+    }
+  );
   const sshWire = createTestWire(sshContract, {
     connections,
     connect: async ({ connectionId }) => {
@@ -301,11 +359,14 @@ function setup(
     getMachines: async () => options.saved ?? [],
     getMachineUsage: async () => ({}),
     getMachineMetrics: async () => null as never,
-    getMachineSystemDependencies: async () => [],
-    installMachineSystemDependency: async ({ id }) => ({
-      success: false as const,
-      error: { type: 'unknown-dependency' as const, id },
-    }),
+    systemDependencies,
+    installSystemDependencies: {
+      run: installSystemDependencies,
+      toError: (error) => ({
+        type: 'io' as const,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    },
     saveMachine,
     deleteMachine,
     renameMachine,
@@ -325,6 +386,7 @@ function setup(
     saveMachine,
     renameMachine,
     deleteMachine,
+    installSystemDependencies,
     async dispose() {
       store.dispose();
       await Promise.all([sshWire.dispose(), machinesWire.dispose()]);

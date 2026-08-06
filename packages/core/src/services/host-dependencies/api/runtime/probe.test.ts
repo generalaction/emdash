@@ -1,32 +1,32 @@
 import type { IExecutionContext } from '@primitives/exec/api';
 import { describe, expect, it, vi } from 'vitest';
-import { probeCanElevate } from './probe';
+import { probeHostElevation } from './probe';
 
-describe('probeCanElevate', () => {
+describe('probeHostElevation', () => {
   it('returns null on windows without probing', async () => {
     const exec = createExec();
-    await expect(probeCanElevate(exec, 'win32')).resolves.toBeNull();
+    await expect(probeHostElevation(exec, 'win32')).resolves.toBeNull();
     expect(exec.exec).not.toHaveBeenCalled();
   });
 
-  it('returns true when the process is root', async () => {
+  it('returns root when the process is root', async () => {
     const exec = createExec({ uid: '0' });
-    await expect(probeCanElevate(exec, 'linux')).resolves.toBe(true);
+    await expect(probeHostElevation(exec, 'linux')).resolves.toBe('root');
   });
 
-  it('returns true when passwordless sudo works', async () => {
+  it('returns passwordless-sudo when passwordless sudo works', async () => {
     const exec = createExec({ uid: '1000', sudo: true });
-    await expect(probeCanElevate(exec, 'linux')).resolves.toBe(true);
+    await expect(probeHostElevation(exec, 'linux')).resolves.toBe('passwordless-sudo');
   });
 
-  it('returns false when sudo is missing', async () => {
+  it('returns unavailable when sudo is missing', async () => {
     const exec = createExec({ uid: '1000', sudo: false });
-    await expect(probeCanElevate(exec, 'linux')).resolves.toBe(false);
+    await expect(probeHostElevation(exec, 'linux')).resolves.toBe('unavailable');
   });
 
-  it('returns false when sudo requires a password', async () => {
+  it('returns unavailable when sudo requires a password', async () => {
     const exec = createExec({ uid: '1000', sudo: 'password' });
-    await expect(probeCanElevate(exec, 'darwin')).resolves.toBe(false);
+    await expect(probeHostElevation(exec, 'darwin')).resolves.toBe('unavailable');
   });
 });
 

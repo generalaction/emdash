@@ -15,9 +15,9 @@ import {
   checkoutSelector,
   getSourceControlClient,
   gitFilePath,
-  runSourceControlJob,
 } from '@core/features/source-control/api/browser/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../../api';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
@@ -265,7 +265,7 @@ export class GitCheckoutStore {
   async push() {
     const client = await getSourceControlClient();
     const remote = getGitRepositoryStore(this.projectId)?.pushRemote.name;
-    return runSourceControlJob(sourceControlContract.checkout.push, client.checkout.push, {
+    return runDesktopLiveJob(sourceControlContract.checkout.push, client.checkout.push, {
       ...checkoutSelector(this.workspaceId),
       options: remote ? { remote } : undefined,
     });
@@ -273,7 +273,7 @@ export class GitCheckoutStore {
 
   async pull() {
     const client = await getSourceControlClient();
-    return runSourceControlJob(
+    return runDesktopLiveJob(
       sourceControlContract.checkout.pull,
       client.checkout.pull,
       checkoutSelector(this.workspaceId)

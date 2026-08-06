@@ -71,6 +71,7 @@ export const SyncToAgentsSection: React.FC<SyncToAgentsSectionProps> = ({
         ))}
         <AgentSelector
           value={null}
+          placeholder="Select agent"
           onChange={(id) => {
             if (!selectedProviderIds.has(id)) onToggle(id);
           }}

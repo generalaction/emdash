@@ -11,6 +11,7 @@ export async function resetStaleAcpAgentStatuses(db: AppDb): Promise<void> {
       .where(
         and(
           eq(conversations.type, 'acp'),
+          eq(conversations.location, 'local'),
           inArray(conversations.agentStatus, ['working', 'awaiting-input'])
         )
       );

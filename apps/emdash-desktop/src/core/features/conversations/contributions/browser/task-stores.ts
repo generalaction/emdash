@@ -1,3 +1,4 @@
+import { formatHostRef, hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { ConversationManagerStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
@@ -14,7 +15,14 @@ export const conversationTaskStoreContributions: readonly ScopedStoreContributio
   [
     contributeScopedStore({
       token: conversationManagerStoreToken,
-      create: ({ projectId, taskId }) => conversationRegistry.acquire(taskId, projectId),
+      create: ({ projectId, taskId, task }) =>
+        conversationRegistry.acquire(taskId, projectId, () =>
+          formatHostRef(
+            task.workspaceSshConnectionId
+              ? hostRef('remote', task.workspaceSshConnectionId)
+              : LOCAL_HOST_REF
+          )
+        ),
       dispose: (_, { taskId }) => conversationRegistry.release(taskId),
     }),
   ];

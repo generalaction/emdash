@@ -7,13 +7,26 @@ import {
   hooksStatusSchema,
 } from '@emdash/core/runtimes/agent-config/api';
 import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins';
+import { hostDependencyOperationProgressSchema } from '@emdash/core/services/host-dependencies/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
-import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
+import type { Result } from '@emdash/shared';
+import {
+  defineContract,
+  fallible,
+  liveJob,
+  liveLog,
+  liveModel,
+  liveState,
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   AgentInstallationStatus,
+  AgentInstallError,
   AgentPayload,
   AgentSettings,
+  AgentUninstallError,
+  AgentUpdateError,
+  InstallMethod,
 } from '@core/primitives/agents/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 
@@ -42,19 +55,27 @@ export const agentsContract = defineContract({
     data: z.custom<AgentInstallationStatus[]>(),
     error: runtimeResolveErrorSchema,
   }),
-  install: fallible({
-    input: agentInputSchema.extend({ method: z.unknown().optional() }),
-    data: z.unknown(),
-    error: runtimeResolveErrorSchema,
+  install: liveJob({
+    input: agentInputSchema.extend({
+      method: z.custom<InstallMethod>().optional(),
+      elevate: z.boolean().optional(),
+    }),
+    progress: hostDependencyOperationProgressSchema,
+    result: z.custom<AgentInstallationStatus>(),
+    error: z.union([z.custom<AgentInstallError>(), runtimeResolveErrorSchema]),
   }),
-  update: fallible({
-    input: agentInputSchema.extend({ method: z.unknown().optional() }),
-    data: z.unknown(),
-    error: runtimeResolveErrorSchema,
+  update: liveJob({
+    input: agentInputSchema.extend({
+      method: z.custom<InstallMethod>().optional(),
+      elevate: z.boolean().optional(),
+    }),
+    progress: hostDependencyOperationProgressSchema,
+    result: z.custom<AgentInstallationStatus>(),
+    error: z.union([z.custom<AgentUpdateError>(), runtimeResolveErrorSchema]),
   }),
   uninstall: fallible({
-    input: agentInputSchema.extend({ method: z.unknown().optional() }),
-    data: z.unknown(),
+    input: agentInputSchema.extend({ method: z.custom<InstallMethod>().optional() }),
+    data: z.custom<Result<AgentInstallationStatus, AgentUninstallError>>(),
     error: runtimeResolveErrorSchema,
   }),
   getDefaultSettings: fallible({

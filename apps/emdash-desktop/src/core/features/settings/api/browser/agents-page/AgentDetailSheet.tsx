@@ -9,7 +9,10 @@ import {
   AgentHooksSection,
   AgentTrustSection,
 } from '../../../browser/agents-page/AgentIntegrationSection';
-import { AgentMcpSection } from '../../../browser/agents-page/AgentMcpSection';
+import {
+  AgentMcpSection,
+  useManageMcpSettingsNavigation,
+} from '../../../browser/agents-page/AgentMcpSection';
 import { AgentSheetHeaderSection } from '../../../browser/agents-page/AgentSheetHeaderSection';
 import { InstalledAgentContent } from '../../../browser/agents-page/InstalledAgentContent';
 import { InstallSection } from './InstallSection';
@@ -17,15 +20,19 @@ import { InstallSection } from './InstallSection';
 interface AgentDetailSheetProps {
   agentId: string | null;
   connectionId?: string;
+  onManageMcp?: () => void;
   onClose: () => void;
 }
 
 const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   agentId,
   connectionId,
+  onManageMcp,
+  onClose,
 }: {
   agentId: string;
   connectionId?: string;
+  onManageMcp?: () => void;
   onClose: () => void;
 }) {
   const host = hostRefFromConnectionId(connectionId);
@@ -33,9 +40,17 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   const agentPayload = agents?.find((a) => a.id === agentId);
 
   const { value: storedConfig, isOverridden, isLoading, update, reset } = useAgentSettings(agentId);
+  const navigateToMcpSettings = useManageMcpSettingsNavigation();
 
   const isInstalled = agentPayload?.status === 'available';
   const isRemote = !!connectionId;
+  const handleManageMcp = isRemote
+    ? onManageMcp &&
+      (() => {
+        onClose();
+        onManageMcp();
+      })
+    : navigateToMcpSettings;
 
   return (
     <>
@@ -56,11 +71,13 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
             </Field>
             {isInstalled && <AgentHooksSection agent={agentPayload} host={host} />}
             {isInstalled && <AgentTrustSection agent={agentPayload} />}
-            {isInstalled && !isRemote && <AgentMcpSection agentId={agentId} />}
+            {isInstalled && (
+              <AgentMcpSection agentId={agentId} host={host} onManage={handleManageMcp} />
+            )}
           </div>
         )}
       </div>
-      {agentPayload && isInstalled && !isRemote && (
+      {agentPayload && isInstalled && (
         <InstalledAgentContent
           storedConfig={storedConfig}
           isOverridden={isOverridden}
@@ -73,7 +90,12 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
   );
 });
 
-export function AgentDetailSheet({ agentId, connectionId, onClose }: AgentDetailSheetProps) {
+export function AgentDetailSheet({
+  agentId,
+  connectionId,
+  onManageMcp,
+  onClose,
+}: AgentDetailSheetProps) {
   return (
     <Sheet open={agentId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="flex flex-col gap-0 p-0">
@@ -81,6 +103,7 @@ export function AgentDetailSheet({ agentId, connectionId, onClose }: AgentDetail
           <AgentDetailSheetContent
             agentId={agentId}
             connectionId={connectionId}
+            onManageMcp={onManageMcp}
             onClose={onClose}
           />
         )}

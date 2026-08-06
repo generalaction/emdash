@@ -1,6 +1,10 @@
 import { hostRefKey, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import {
+  isRuntimeResolveError,
+  type RuntimeResolveError,
+} from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { Result } from '@emdash/shared';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getAgentsClient, unwrapAgentsResult } from '@core/features/agents/api/browser/client';
@@ -10,17 +14,21 @@ import type {
   AgentInstallError,
   AgentPayload,
   AgentUpdateError,
+  AgentUninstallError,
   DependencyStatus,
   HostDependencySelection,
   Installation,
   InstallMethod,
   SelectedSource,
 } from '@core/primitives/agents/api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
-  getAgentInstallErrorMessage,
-  getAgentUpdateErrorMessage,
-} from './components/agent-selector/agent-install';
+  type DependencyOperationFailure,
+  useDependencyOperationFailures,
+} from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
+import { toast } from '@core/primitives/ui/browser/use-toast';
+import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
+import { agentsContract } from '../contract';
+import { getAgentOperationErrorMessage } from './components/agent-selector/agent-install';
 
 function statusQueryKey(host: HostRef) {
   return ['agents', 'status', hostRefKey(host)] as const;
@@ -30,12 +38,16 @@ function opKey(op: 'install' | 'update' | 'uninstall', host: HostRef) {
   return ['agents', op, hostRefKey(host)] as const;
 }
 
-type OpVars = { id: AgentProviderId; method?: InstallMethod };
+type OpVars = { id: AgentProviderId; method?: InstallMethod; elevate?: boolean };
+type AgentOperation = 'install' | 'update';
+type AgentOperationResult = Result<AgentInstallationStatus, AgentInstallError | AgentUpdateError>;
 const selectOpVars = (mutation: { state: { variables?: unknown } }) =>
   mutation.state.variables as OpVars | undefined;
 
 export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
   const queryClient = useQueryClient();
+  const installFailureMap = useDependencyOperationFailures();
+  const updateFailureMap = useDependencyOperationFailures();
   const key = statusQueryKey(host);
   const { data: agents } = useAgents(host);
   const agentNameMap = useMemo(() => {
@@ -43,7 +55,7 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     for (const agent of agents ?? []) map.set(agent.id, agent.name);
     return map;
   }, [agents]);
-  const nameOf = (id: string) => agentNameMap.get(id) ?? id;
+  const nameOf = useCallback((id: string) => agentNameMap.get(id) ?? id, [agentNameMap]);
 
   const query = useQuery<AgentInstallationStatus[], RuntimeResolveError>({
     queryKey: key,
@@ -52,70 +64,92 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     staleTime: 30_000,
   });
 
-  const invalidate = () => {
+  const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: key });
-  };
+  }, [key, queryClient]);
 
-  const installMutation = useMutation<
-    unknown,
-    RuntimeResolveError,
-    { id: AgentProviderId; method?: InstallMethod }
-  >({
-    mutationKey: opKey('install', host),
-    mutationFn: async ({ id, method }) =>
-      unwrapAgentsResult((await getAgentsClient()).install({ host, id, method })),
-    onSuccess: (result, variables) => {
+  const handleOperationResult = useCallback(
+    (op: AgentOperation, result: AgentOperationResult, variables: OpVars) => {
       invalidate();
       const name = nameOf(variables.id);
-      const installResult = result as { success: boolean; error?: AgentInstallError };
-      if (installResult.success) {
-        toast({ title: `${name} successfully installed` });
-      } else {
-        toast({
-          title: `Failed to install ${name}`,
-          description: installResult.error
-            ? getAgentInstallErrorMessage(installResult.error)
-            : undefined,
-          variant: 'destructive',
-        });
+      const failureMap = op === 'install' ? installFailureMap : updateFailureMap;
+      if (result.success) {
+        failureMap.clearFailure(variables.id);
+        toast({ title: `${name} successfully ${op === 'install' ? 'installed' : 'updated'}` });
+        return;
       }
+
+      const permissionError = result.error.type === 'permission-denied' ? result.error : null;
+      if (permissionError) {
+        failureMap.setFailure(variables.id, {
+          error: permissionError,
+          method: variables.method,
+        });
+        toast({
+          title: 'Permission denied',
+          description: `See the ${op} panel for retry and recovery options.`,
+        });
+        return;
+      }
+
+      failureMap.clearFailure(variables.id);
+      toast({
+        title: `Failed to ${op} ${name}`,
+        description: getAgentOperationErrorMessage(result.error),
+        variant: 'destructive',
+      });
     },
+    [installFailureMap, invalidate, nameOf, updateFailureMap]
+  );
+
+  const installMutation = useMutation<
+    Result<AgentInstallationStatus, AgentInstallError>,
+    RuntimeResolveError,
+    OpVars
+  >({
+    mutationKey: opKey('install', host),
+    mutationFn: async ({ id, method, elevate }) => {
+      const client = await getAgentsClient();
+      const result = await runDesktopLiveJob(agentsContract.install, client.install, {
+        host,
+        id,
+        method,
+        elevate,
+      });
+      if (!result.success && isRuntimeResolveError(result.error)) throw result.error;
+      return result as Result<AgentInstallationStatus, AgentInstallError>;
+    },
+    onSuccess: (result, variables) => handleOperationResult('install', result, variables),
     onError: (_, variables) => {
       toast({ title: `Failed to install ${nameOf(variables.id)}`, variant: 'destructive' });
     },
   });
 
   const updateMutation = useMutation<
-    unknown,
+    Result<AgentInstallationStatus, AgentUpdateError>,
     RuntimeResolveError,
-    { id: AgentProviderId; method?: InstallMethod }
+    OpVars
   >({
     mutationKey: opKey('update', host),
-    mutationFn: async ({ id, method }) =>
-      unwrapAgentsResult((await getAgentsClient()).update({ host, id, method })),
-    onSuccess: (result, variables) => {
-      invalidate();
-      const name = nameOf(variables.id);
-      const updateResult = result as { success: boolean; error?: AgentUpdateError };
-      if (updateResult.success) {
-        toast({ title: `${name} successfully updated` });
-      } else {
-        toast({
-          title: `Failed to update ${name}`,
-          description: updateResult.error
-            ? getAgentUpdateErrorMessage(updateResult.error)
-            : undefined,
-          variant: 'destructive',
-        });
-      }
+    mutationFn: async ({ id, method, elevate }) => {
+      const client = await getAgentsClient();
+      const result = await runDesktopLiveJob(agentsContract.update, client.update, {
+        host,
+        id,
+        method,
+        elevate,
+      });
+      if (!result.success && isRuntimeResolveError(result.error)) throw result.error;
+      return result as Result<AgentInstallationStatus, AgentUpdateError>;
     },
+    onSuccess: (result, variables) => handleOperationResult('update', result, variables),
     onError: (_, variables) => {
       toast({ title: `Failed to update ${nameOf(variables.id)}`, variant: 'destructive' });
     },
   });
 
   const uninstallMutation = useMutation<
-    unknown,
+    Result<AgentInstallationStatus, AgentUninstallError>,
     RuntimeResolveError,
     { id: AgentProviderId; method?: InstallMethod }
   >({
@@ -151,6 +185,10 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     install: installMutation.mutate,
     update: updateMutation.mutate,
     uninstall: uninstallMutation.mutate,
+    installFailures: installFailureMap.failures,
+    updateFailures: updateFailureMap.failures,
+    dismissInstallFailure: installFailureMap.clearFailure,
+    dismissUpdateFailure: updateFailureMap.clearFailure,
     setUsedInstallation: setUsedMutation.mutate,
     refreshLatestVersion: refreshLatestMutation.mutate,
     probeAll: probeAllMutation.mutate,
@@ -177,9 +215,13 @@ export type HostDependencyInstallation = {
   installingMethod: InstallMethod | undefined;
   updatingMethod: InstallMethod | undefined;
   uninstallingMethod: InstallMethod | undefined;
-  install(method: InstallMethod): Promise<void>;
-  update(method?: InstallMethod): Promise<void>;
+  installFailure: DependencyOperationFailure | null;
+  updateFailure: DependencyOperationFailure | null;
+  install(method: InstallMethod, elevate?: boolean): Promise<void>;
+  update(method?: InstallMethod, elevate?: boolean): Promise<void>;
   uninstall(method?: InstallMethod): Promise<void>;
+  dismissInstallFailure(): void;
+  dismissUpdateFailure(): void;
   setUsed(selection: HostDependencySelection): Promise<void>;
   refresh(): Promise<void>;
   fetchLatestVersion(): Promise<void>;
@@ -197,34 +239,24 @@ export function useAgentInstallationStatus(
     install: installMutate,
     update: updateMutate,
     uninstall: uninstallMutate,
+    installFailures,
+    updateFailures,
+    dismissInstallFailure,
+    dismissUpdateFailure,
     setUsedInstallation,
     refreshLatestVersion,
     probeAll,
   } = useAgentInstallationStatuses(host);
 
-  const pendingInstalls = useMutationState({
-    filters: { mutationKey: opKey('install', host), status: 'pending' },
-    select: selectOpVars,
-  });
-  const installVariable = pendingInstalls.find((variable) => variable?.id === id);
-  const isInstalling = !!installVariable;
-  const installingMethod = installVariable?.method;
-
-  const pendingUpdates = useMutationState({
-    filters: { mutationKey: opKey('update', host), status: 'pending' },
-    select: selectOpVars,
-  });
-  const updateVariable = pendingUpdates.find((variable) => variable?.id === id);
-  const isUpdating = !!updateVariable;
-  const updatingMethod = updateVariable?.method;
-
-  const pendingUninstalls = useMutationState({
-    filters: { mutationKey: opKey('uninstall', host), status: 'pending' },
-    select: selectOpVars,
-  });
-  const uninstallVariable = pendingUninstalls.find((variable) => variable?.id === id);
-  const isUninstalling = !!uninstallVariable;
-  const uninstallingMethod = uninstallVariable?.method;
+  const { isPending: isInstalling, method: installingMethod } = usePendingOp('install', host, id);
+  const { isPending: isUpdating, method: updatingMethod } = usePendingOp('update', host, id);
+  const { isPending: isUninstalling, method: uninstallingMethod } = usePendingOp(
+    'uninstall',
+    host,
+    id
+  );
+  const installFailure = installFailures[id] ?? null;
+  const updateFailure = updateFailures[id] ?? null;
 
   const statusEntry = statuses?.find((status) => status.id === id) ?? null;
   const installations = useMemo<Installation[]>(() => {
@@ -251,17 +283,23 @@ export function useAgentInstallationStatus(
   const status: DependencyStatus = statusEntry?.status ?? agentPayload?.status ?? 'missing';
 
   const install = useCallback(
-    (method: InstallMethod) =>
+    (method: InstallMethod, elevate?: boolean) =>
       new Promise<void>((resolve) => {
-        installMutate({ id: id as AgentProviderId, method }, { onSettled: () => resolve() });
+        installMutate(
+          { id: id as AgentProviderId, method, elevate },
+          { onSettled: () => resolve() }
+        );
       }),
     [installMutate, id]
   );
 
   const update = useCallback(
-    (method?: InstallMethod) =>
+    (method?: InstallMethod, elevate?: boolean) =>
       new Promise<void>((resolve) => {
-        updateMutate({ id: id as AgentProviderId, method }, { onSettled: () => resolve() });
+        updateMutate(
+          { id: id as AgentProviderId, method, elevate },
+          { onSettled: () => resolve() }
+        );
       }),
     [updateMutate, id]
   );
@@ -322,12 +360,25 @@ export function useAgentInstallationStatus(
     installingMethod,
     updatingMethod,
     uninstallingMethod,
+    installFailure,
+    updateFailure,
     install,
     update,
     uninstall,
+    dismissInstallFailure: () => dismissInstallFailure(id),
+    dismissUpdateFailure: () => dismissUpdateFailure(id),
     setUsed,
     refresh,
     fetchLatestVersion,
     probeOverride,
   };
+}
+
+function usePendingOp(op: 'install' | 'update' | 'uninstall', host: HostRef, id: string) {
+  const pending = useMutationState({
+    filters: { mutationKey: opKey(op, host), status: 'pending' },
+    select: selectOpVars,
+  });
+  const variables = pending.find((candidate) => candidate?.id === id);
+  return { isPending: !!variables, method: variables?.method };
 }

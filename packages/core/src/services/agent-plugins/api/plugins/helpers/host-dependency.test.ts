@@ -8,6 +8,7 @@ describe('homebrewOption', () => {
       method: 'homebrew',
       command: 'brew install myapp',
       recommended: true,
+      elevation: 'never',
     });
   });
 
@@ -54,6 +55,7 @@ describe('npmDependency', () => {
       method: 'npm',
       command: 'npm install -g @acme/mytool --ignore-scripts',
       recommended: true,
+      elevation: 'on-failure',
     });
     expect(dep.installCommands?.linux?.[0]).toEqual(dep.installCommands?.macos?.[0]);
     expect(dep.installCommands?.windows?.[0]).toEqual(dep.installCommands?.macos?.[0]);
@@ -63,7 +65,12 @@ describe('npmDependency', () => {
     const extra = homebrewOption({ formula: 'mytool' });
     const dep = npmDependency({ ...base, extraOptions: { macos: [extra] } });
     expect(dep.installCommands?.macos).toEqual([
-      { method: 'npm', command: 'npm install -g @acme/mytool', recommended: undefined },
+      {
+        method: 'npm',
+        command: 'npm install -g @acme/mytool',
+        recommended: undefined,
+        elevation: 'on-failure',
+      },
       extra,
     ]);
   });

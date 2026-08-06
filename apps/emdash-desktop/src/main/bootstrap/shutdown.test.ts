@@ -75,7 +75,7 @@ vi.mock('./core/app-scope', () => ({
 const emptySummary: ActiveSessionSummary = {
   acpSessions: 0,
   localTuiSessions: 0,
-  remoteTuiSessions: 0,
+  remoteSessions: 0,
   terminals: 0,
   incomplete: false,
 };

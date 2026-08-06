@@ -4,7 +4,11 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import { useAgentInstallationStatus } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { AgentPayload, InstallMethod } from '@core/primitives/agents/api';
 import { resolveActiveInstallation } from '@core/primitives/agents/api';
-import { CommandActionButton, CommandRow } from './install-command-row';
+import {
+  CommandActionButton,
+  CommandRow,
+} from '@core/primitives/agents/browser/install-command-row';
+import { SudoRetryPanel } from '@core/primitives/agents/browser/SudoRetryPanel';
 
 export type DependencyInstallationUpdateCardProps = {
   agentId: string;
@@ -12,6 +16,7 @@ export type DependencyInstallationUpdateCardProps = {
   connectionId?: string;
   /** Full agent payload used to hydrate the hook and derive the update strategy. */
   agentPayload: AgentPayload | undefined;
+  compact?: boolean;
 };
 
 /**
@@ -31,13 +36,14 @@ export function DependencyInstallationUpdateCard({
   agentId,
   connectionId,
   agentPayload,
+  compact = false,
 }: DependencyInstallationUpdateCardProps) {
   const vm = useAgentInstallationStatus(
     agentId,
     hostRefFromConnectionId(connectionId),
     agentPayload
   );
-  const { used, installations, update, isUpdating, updatingMethod } = vm;
+  const { used, installations, update, isUpdating, updatingMethod, updateFailure } = vm;
 
   const updates = agentPayload?.capabilities.hostDependency.updates;
   const strategyKind = updates?.kind === 'supported' ? updates.update.kind : ('none' as const);
@@ -104,6 +110,17 @@ export function DependencyInstallationUpdateCard({
             </CommandActionButton>
           }
         />
+        {updateFailure &&
+        (updateFailure.method === undefined || updateFailure.method === usedMethod) ? (
+          <SudoRetryPanel
+            error={updateFailure.error}
+            dependencyName={agentPayload?.name ?? agentId}
+            isRetrying={isUpdatingThis}
+            onRetry={() => void update(usedMethod, true)}
+            onDismiss={vm.dismissUpdateFailure}
+            compact={compact}
+          />
+        ) : null}
       </UpdateCard>
     );
   }

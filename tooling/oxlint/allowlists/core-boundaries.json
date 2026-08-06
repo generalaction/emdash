@@ -100,7 +100,7 @@
     "apps/emdash-desktop/src/core/features/settings/browser/github-device-flow-modal.tsx",
     "apps/emdash-desktop/src/core/features/settings/browser/settings-view.tsx",
     "apps/emdash-desktop/src/core/features/settings/browser/use-installed-fonts.ts",
-    "apps/emdash-desktop/src/core/features/skills/api/browser/components/SkillsView.tsx",
+    "apps/emdash-desktop/src/core/features/skills/api/browser/components/SkillsPanel.tsx",
     "apps/emdash-desktop/src/core/features/skills/browser/client.ts",
     "apps/emdash-desktop/src/core/features/skills/browser/components/CreateSkillModal.tsx",
     "apps/emdash-desktop/src/core/features/skills/browser/components/useSkills.ts",

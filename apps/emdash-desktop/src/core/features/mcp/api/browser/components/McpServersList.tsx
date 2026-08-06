@@ -1,11 +1,10 @@
-import type { HostRef } from '@emdash/core/primitives/host/api';
 import { Loader2 } from 'lucide-react';
-import React, { useState } from 'react';
+import React from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { CardGridSection } from '@core/primitives/ui/browser/components/card-grid';
 import { McpCard } from '../../../browser/components/McpCard';
 import { McpDrawer, type McpDrawerMode } from '../../../browser/components/McpDrawer';
-import { useMcps, type UseMcpsResult } from '../../../browser/components/useMcps';
+import type { UseMcpsResult } from '../../../browser/components/useMcps';
 
 type McpServersListProps = {
   mcp: UseMcpsResult;
@@ -110,10 +109,3 @@ export const McpServersList: React.FC<McpServersListProps> = ({
     </div>
   );
 };
-
-export function McpServersListForHost({ host }: { host: HostRef }) {
-  const mcp = useMcps(host);
-  const [drawerMode, setDrawerMode] = useState<McpDrawerMode | null>(null);
-
-  return <McpServersList mcp={mcp} drawerMode={drawerMode} onDrawerModeChange={setDrawerMode} />;
-}

@@ -1,12 +1,18 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PROTOCOL_VERSION } from '@emdash/core/workspace-server';
+import { PROTOCOL_VERSION, workspaceWireContract } from '@emdash/core/workspace-server';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { createManualClock, deferred, waitFor } from '@emdash/shared/testing';
-import type { WireTransport } from '@emdash/wire/rpc';
+import { defineContract, type WireTransport } from '@emdash/wire/rpc';
+import { cell, expose, remote, snapshot } from '@emdash/wire/state';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { createTestWorkspaceWireController } from '../../../../../../../workspace-server/src/testing/controller';
+import type { z } from 'zod';
+import {
+  createTestRuntimeClients,
+  createTestWorkspaceWireController,
+} from '../../../../../../../workspace-server/src/testing/controller';
 import { serveSocket } from '../../../../../../../workspace-server/src/wire/serve-socket';
 import { workspaceServerTargetKey, type LocalWorkspaceServerTarget } from '../targets';
 import { openLocalWorkspaceServerTransport } from './local-socket-transport';
@@ -14,6 +20,9 @@ import {
   createWireConnectionManager,
   workspaceServerReconnectSchedule,
 } from './wire-connection-manager';
+
+type AcpSessionList = z.infer<typeof workspaceWireContract.acp.sessions.states.list.dataSchema>;
+type AcpSessionSummary = AcpSessionList[string];
 
 describe('WireConnectionManager', () => {
   it('keys SSH targets by connection id and socket path', () => {
@@ -63,6 +72,56 @@ describe('WireConnectionManager', () => {
     } finally {
       await manager.dispose();
       await server.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('re-delivers a full live-model snapshot to a converger held across reconnect', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-client-'));
+    const target = localTarget(join(directory, 'workspace.sock'));
+    const sessionsList = cell<AcpSessionList>({
+      first: acpSummary('first'),
+    });
+    const sessionsHost = expose(
+      workspaceWireContract.acp.sessions,
+      { list: sessionsList },
+      { publish: { list: 'diff' } }
+    );
+    const sessionsContract = defineContract({
+      acp: defineContract({ sessions: workspaceWireContract.acp.sessions }),
+    });
+    const sessionsWire = createTestWire(sessionsContract, {
+      acp: { sessions: sessionsHost },
+    });
+    const baseClients = createTestRuntimeClients();
+    const acp = { ...baseClients.acp, sessions: sessionsWire.client.acp.sessions };
+    let server = await serveSocket(createTestWorkspaceWireController({ acp }), {
+      socketPath: target.socketPath,
+    });
+    const manager = createWireConnectionManager({
+      retrySchedule: retrySchedules.sequence([5], { repeatLast: true }),
+    });
+    const connection = await manager.client(target);
+    const sessions = remote(workspaceWireContract.acp.sessions, connection.client.acp.sessions);
+    const list = sessions(undefined).states.list;
+
+    try {
+      await list.refresh();
+      expect(snapshot(list).value).toEqual({ first: acpSummary('first') });
+
+      await server.dispose();
+      sessionsList.set({ second: acpSummary('second') });
+      server = await serveSocket(createTestWorkspaceWireController({ acp }), {
+        socketPath: target.socketPath,
+      });
+
+      await waitFor(() => snapshot(list).value?.['second']?.conversationId === 'second');
+      expect(snapshot(list).value).toEqual({ second: acpSummary('second') });
+    } finally {
+      await sessions.dispose();
+      await manager.dispose();
+      await server.dispose();
+      await sessionsWire.dispose();
       await rm(directory, { recursive: true, force: true });
     }
   });
@@ -264,4 +323,20 @@ describe('WireConnectionManager', () => {
 
 function localTarget(socketPath: string): LocalWorkspaceServerTarget {
   return { kind: 'local-socket', socketPath };
+}
+
+function acpSummary(conversationId: string): AcpSessionSummary {
+  return {
+    conversationId,
+    providerId: 'codex',
+    lifecycle: 'working',
+    isGenerating: true,
+    lastStopReason: null,
+    lastTurnErrored: false,
+    pendingPermissionCount: 0,
+    backgroundAgentCount: 0,
+    queuedPromptCount: 0,
+    title: null,
+    updatedAt: 1,
+  };
 }

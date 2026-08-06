@@ -1,3 +1,4 @@
+import type { HostDependencyError } from '@emdash/core/primitives/host-dependencies/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 
 // ---------------------------------------------------------------------------
@@ -112,32 +113,29 @@ export function resolveActiveInstallation(
 export type HostDependencySelection = InstallOverride | null;
 
 // ---------------------------------------------------------------------------
-// Error DTOs — mirrors Dependency*Error types in @emdash/core/services/host-dependencies/node
+// Host dependency operation errors
 // ---------------------------------------------------------------------------
 
-type InstallCommandError =
-  | { type: 'permission-denied'; message: string; output: string; exitCode?: number | null }
-  | { type: 'command-failed'; message: string; output: string; exitCode?: number | null }
-  | { type: 'pty-open-failed'; message: string };
-
-export type AgentInstallError =
-  | { type: 'unknown-dependency'; id: string }
-  | { type: 'no-install-command'; id: string }
-  | { type: 'installer-missing'; id: string; tool: string; method: InstallMethod }
-  | InstallCommandError
-  | { type: 'not-detected-after-install'; id: string; output?: string };
+export type AgentInstallError = HostDependencyError;
 
 export type AgentUpdateError =
-  | { type: 'unknown-dependency'; id: string }
+  | Exclude<
+      HostDependencyError,
+      | { type: 'missing' }
+      | { type: 'no-install-command' }
+      | { type: 'no-update-command' }
+      | { type: 'not-detected-after-install' }
+    >
   | { type: 'no-update-strategy'; id: string }
-  | InstallCommandError
   | { type: 'not-detected-after-update'; id: string };
 
 export type AgentUninstallError =
-  | { type: 'unknown-dependency'; id: string }
+  | Extract<
+      HostDependencyError,
+      { type: 'unknown-dependency' | 'permission-denied' | 'command-failed' }
+    >
   | { type: 'no-uninstall-strategy'; id: string }
-  | { type: 'no-uninstall-command'; id: string }
-  | InstallCommandError;
+  | { type: 'no-uninstall-command'; id: string };
 
 // ---------------------------------------------------------------------------
 // Narrowed capability types — only the subset the renderer reads

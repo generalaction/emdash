@@ -5,7 +5,7 @@ import {
 } from '@emdash/core/runtimes/conversations/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote } from '@emdash/wire/state';
+import { observe, remote, whenReady } from '@emdash/wire/state';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   applyConversationSnapshot,
@@ -50,10 +50,11 @@ export class ConversationSyncService {
     const records = remote(conversationsContract.records, client.data.conversations.records, {
       scope,
     });
+    const list = records(undefined).states.list;
     const hostIdentity = hostIdentityFor(host);
     let chain = Promise.resolve();
     observe(
-      records(undefined).states.list,
+      list,
       (snapshot) => {
         if (snapshot.status === 'loading') return;
         const parsed = conversationRecordsSchema.parse(snapshot.value ?? {});
@@ -71,6 +72,9 @@ export class ConversationSyncService {
       },
       { scope }
     );
+    await whenReady(list, { scope });
+    await chain;
+    if (this.attachments.get(key) !== scope) await scope.dispose();
   }
 
   detachHost(host: HostRef): void {

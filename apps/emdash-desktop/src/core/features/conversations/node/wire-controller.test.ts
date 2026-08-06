@@ -1,4 +1,9 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  formatHostRef,
+  hostRef,
+  LOCAL_HOST_REF,
+  type HostRef,
+} from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
 import type { LiveSource } from '@emdash/wire/rpc';
 import { encodeTopic, isDownloadFileOpenResult, type WireFile } from '@emdash/wire/rpc';
@@ -149,6 +154,54 @@ describe('createConversationsWireController', () => {
     await lease?.release();
   });
 
+  it('forwards aggregate ACP sessions through the host encoded in the desktop key', async () => {
+    const remoteHost = hostRef('remote', 'ssh-1');
+    const resolvedHosts: HostRef[] = [];
+    const source: LiveSource = {
+      snapshot: async () => ({ generation: 1, sequence: 0, timestamp: 0, data: {} }),
+      subscribe: () => () => {},
+    };
+    const state = vi.fn(() => ({ asLiveSource: () => source }));
+    const controller = setupController({
+      client: { acp: { sessions: { state } } },
+      resolvedHosts,
+    });
+    const topic = encodeTopic(conversationsContract.acp.sessions.states.list.id, {
+      host: formatHostRef(remoteHost),
+    });
+
+    const lease = controller.acquireLive(topic);
+    await expect(lease?.ready()).resolves.toBe(source);
+
+    expect(resolvedHosts).toEqual([remoteHost]);
+    expect(state).toHaveBeenCalledWith(undefined, 'list');
+    await lease?.release();
+  });
+
+  it('forwards aggregate TUI sessions through the host encoded in the desktop key', async () => {
+    const remoteHost = hostRef('remote', 'ssh-2');
+    const resolvedHosts: HostRef[] = [];
+    const source: LiveSource = {
+      snapshot: async () => ({ generation: 1, sequence: 0, timestamp: 0, data: {} }),
+      subscribe: () => () => {},
+    };
+    const state = vi.fn(() => ({ asLiveSource: () => source }));
+    const controller = setupController({
+      client: { tuiAgents: { sessions: { state } } },
+      resolvedHosts,
+    });
+    const topic = encodeTopic(conversationsContract.tui.sessions.states.list.id, {
+      host: formatHostRef(remoteHost),
+    });
+
+    const lease = controller.acquireLive(topic);
+    await expect(lease?.ready()).resolves.toBe(source);
+
+    expect(resolvedHosts).toEqual([remoteHost]);
+    expect(state).toHaveBeenCalledWith(undefined, 'list');
+    await lease?.release();
+  });
+
   it('returns RuntimeResolveError from fallible conversation procedures and downloads', async () => {
     const resolveError: RuntimeResolveError = {
       type: 'host-unavailable',
@@ -175,6 +228,7 @@ describe('createConversationsWireController', () => {
 function setupController(options: {
   client: object;
   runtimeError?: RuntimeResolveError;
+  resolvedHosts?: HostRef[];
   hooks?: Partial<{
     persistAcpMode: (target: TestRuntimeTarget, modeId: string) => Promise<void>;
     recordTuiInput: (target: TestRuntimeTarget) => Promise<void>;
@@ -189,7 +243,10 @@ function setupController(options: {
     db: {} as never,
     logger: { warn: vi.fn() } as never,
     runtimes: {
-      client: async () => (options.runtimeError ? err(options.runtimeError) : ok(options.client)),
+      client: async (host: HostRef) => {
+        options.resolvedHosts?.push(host);
+        return options.runtimeError ? err(options.runtimeError) : ok(options.client);
+      },
     } as never,
     workspaceIdentity: {} as never,
     telemetry: { capture: vi.fn() } as never,

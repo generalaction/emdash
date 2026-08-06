@@ -1,10 +1,13 @@
-import { acpApiContract } from '@emdash/core/runtimes/acp/api/client';
-import { tuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
+import { serializedHostRefSchema } from '@emdash/core/primitives/host/api';
+import { acpApiContract, sessionSummarySchema } from '@emdash/core/runtimes/acp/api/client';
+import { tuiAgentsContract, tuiSessionListSchema } from '@emdash/core/runtimes/tui-agents/api';
 import {
   defineContract,
   downloadFile,
   eventStream,
   liveLog,
+  liveModel,
+  liveState,
   procedure,
   uploadFile,
 } from '@emdash/wire/rpc';
@@ -27,6 +30,21 @@ const conversationLocation = z.object({
   conversationId: z.string(),
 });
 const attachmentKey = conversationKey.extend({ id: z.string() });
+const hostSessionsKey = z.object({ host: serializedHostRefSchema });
+
+const desktopAcpSessions = liveModel({
+  key: hostSessionsKey,
+  states: {
+    list: liveState({ data: z.record(z.string(), sessionSummarySchema) }),
+  },
+});
+
+const desktopTuiSessions = liveModel({
+  key: hostSessionsKey,
+  states: {
+    list: liveState({ data: tuiSessionListSchema }),
+  },
+});
 
 const conversationsAcpContract = defineContract({
   startSession: runtimeFallibleProcedure(conversationKey, acpApiContract.startSession.output),
@@ -103,7 +121,7 @@ const conversationsAcpContract = defineContract({
     acpApiContract.getHistory.input,
     acpApiContract.getHistory.output
   ),
-  sessions: acpApiContract.sessions,
+  sessions: desktopAcpSessions,
   session: acpApiContract.session,
   terminalOutput: liveLog({
     key: conversationKey.extend({ terminalId: z.string() }),
@@ -141,7 +159,7 @@ const conversationsTuiContract = defineContract({
   ),
   resize: runtimeFallibleProcedure(tuiAgentsContract.resize.input, tuiAgentsContract.resize.output),
   output: tuiAgentsContract.output,
-  sessions: tuiAgentsContract.sessions,
+  sessions: desktopTuiSessions,
 });
 
 export const conversationsContract = defineContract({

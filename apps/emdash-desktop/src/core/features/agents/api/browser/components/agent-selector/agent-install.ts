@@ -1,6 +1,5 @@
-import { formatCommandOutputTail } from '@emdash/core/primitives/host-dependencies/api';
-import { match } from 'ts-pattern';
 import type { AgentInstallError, AgentUpdateError } from '@core/primitives/agents/api';
+import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
 
 export type AgentInstallActionState = {
   render: boolean;
@@ -8,28 +7,6 @@ export type AgentInstallActionState = {
   installing: boolean;
   label: string;
 };
-
-export function getAgentInstallErrorMessage(error: AgentInstallError): string {
-  return match(error)
-    .with({ type: 'permission-denied' }, (e) => e.message)
-    .with({ type: 'command-failed' }, (e) => {
-      const tail = formatCommandOutputTail(e.output);
-      return tail ? `${e.message}\n${tail}` : e.message;
-    })
-    .with({ type: 'pty-open-failed' }, (e) => e.message)
-    .with({ type: 'unknown-dependency' }, (e) => `Unknown dependency: ${e.id}`)
-    .with({ type: 'no-install-command' }, (e) => `No install command is available for ${e.id}.`)
-    .with(
-      { type: 'installer-missing' },
-      (e) =>
-        `The installer \`${e.tool}\` is not installed on this machine, so ${e.id} cannot be installed. Install \`${e.tool}\` or choose a different install method.`
-    )
-    .with(
-      { type: 'not-detected-after-install' },
-      () => 'The agent was not detected after installation.'
-    )
-    .exhaustive();
-}
 
 export function getAgentInstallActionState({
   agentName,
@@ -59,17 +36,21 @@ export type AgentUpdateActionState = {
 };
 
 export function getAgentUpdateErrorMessage(error: AgentUpdateError): string {
-  return match(error)
-    .with({ type: 'permission-denied' }, (e) => e.message)
-    .with({ type: 'command-failed' }, (e) => {
-      const tail = formatCommandOutputTail(e.output);
-      return tail ? `${e.message}\n${tail}` : e.message;
-    })
-    .with({ type: 'pty-open-failed' }, (e) => e.message)
-    .with({ type: 'unknown-dependency' }, (e) => `Unknown dependency: ${e.id}`)
-    .with({ type: 'no-update-strategy' }, (e) => `No update strategy is available for ${e.id}.`)
-    .with({ type: 'not-detected-after-update' }, () => 'The agent was not detected after update.')
-    .exhaustive();
+  switch (error.type) {
+    case 'no-update-strategy':
+      return `No update strategy is available for ${error.id}.`;
+    case 'not-detected-after-update':
+      return 'The agent was not detected after update.';
+    default:
+      return getHostDependencyErrorMessage(error);
+  }
+}
+
+export function getAgentOperationErrorMessage(error: AgentInstallError | AgentUpdateError): string {
+  if (error.type === 'no-update-strategy' || error.type === 'not-detected-after-update') {
+    return getAgentUpdateErrorMessage(error);
+  }
+  return getHostDependencyErrorMessage(error);
 }
 
 export function getAgentUpdateActionState({

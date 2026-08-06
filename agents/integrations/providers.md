@@ -62,6 +62,11 @@ host's `agent-config` runtime for both local and remote hosts.
   Provider plugins declare PATH-only definitions (`binaryNames`, install guidance, and optional
   update argv). Runtimes receive only the narrow resolver contract and must not infer package
   managers, fetch latest versions, or keep a second executable cache.
+- Install command metadata stays sudo-free and declares an elevation policy. Commands that always
+  require elevation are wrapped by the host-dependency runtime, while npm-style `on-failure`
+  commands first run with user privileges and may be explicitly retried with passwordless sudo
+  after a permission-classified failure. Homebrew and user-local installers must remain
+  `never`-elevated.
 - A provider self-update command runs directly as argv against the selected PATH binary. There is no
   interpolated shell command and no uninstall/install lifecycle in provider metadata. Future managed
   sources such as Nix should add new source and selection variants without changing runtime spawn
