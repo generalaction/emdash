@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { TuiAgentState, TuiSessionState } from '@runtimes/tui-agents/api';
+import { describe, expect, it } from 'vitest';
 import {
   createTuiAgentStatesLiveHost,
   createTuiSessionsLiveHost,

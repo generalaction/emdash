@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 import type { LiveSource } from '@emdash/wire';
 import { defineContract, liveModel, liveState } from '@emdash/wire/api';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { forwardLiveModel } from './forward-live-model';
 
 const contract = defineContract({
@@ -35,9 +35,9 @@ describe('forwardLiveModel', () => {
   it('rejects mutations with the default message', async () => {
     const provider = forwardLiveModel(contract.state, async () => stubSource(1));
 
-    await expect(
-      provider.runMutation('anything' as never, {} as never)
-    ).rejects.toThrow("Live model 'state' has no mutations");
+    await expect(provider.runMutation('anything' as never, {} as never)).rejects.toThrow(
+      "Live model 'state' has no mutations"
+    );
   });
 
   it('rejects mutations with a configured message', async () => {
