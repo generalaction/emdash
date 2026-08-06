@@ -95,7 +95,6 @@
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-card.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/diff-file-renderer.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/diff-toolbar.tsx",
-    "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/stacked-diff-view.tsx",
     "apps/emdash-desktop/src/core/features/tasks/api/browser/components/task-context-menu.tsx",
     "apps/emdash-desktop/src/core/features/tasks/api/browser/context-bar/context-bar.tsx",
     "apps/emdash-desktop/src/core/features/tasks/api/browser/create-task-modal/project-selector.tsx",
