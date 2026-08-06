@@ -10,8 +10,8 @@ subsystem's eventual port — nothing here is implemented yet).
    External truth → `query` (+ pokes). Never mirror external truth into a `cell` "for convenience" —
    that creates a second source of truth with no invalidation story.
 2. **Everything above sources is `derived`.** Joins, filters, projections,
-   overlays, roll-ups: pure sync functions over `read()`s. If you need async
-   in a derivation, the async part is a missing `query`.
+   overlays, roll-ups: pure sync functions over tracked `snapshot()` reads. If
+   you need async in a derivation, the async part is a missing `query`.
 3. **Key with `family`, don't key by hand.** Any "per project / per workspace
    / per directory" reactive is a family member. Family + auto-tracking gives
    dynamic dependency sets for free (see the file tree below).
@@ -64,7 +64,9 @@ const checkout = family((key: CheckoutIdentity, scope) => {
       pokes: [repo.channels.refs.subscription()],
     }),
     aheadBehind: derived(() =>
-      computeAheadBehind(read(checkout(key).status), read(repo.refs))),
+      computeAheadBehind(
+        snapshot(checkout(key).status).value,
+        snapshot(repo.refs).value)),
   };
 });
 ```
@@ -102,9 +104,9 @@ const expandedDirs = family((key: { root: RootId; sessionId: string }) =>
 // The tree: a derived join whose dependency set follows the expansion cell.
 const fileTree = family((key: TreeKey) =>
   derived(() => {
-    const expanded = read(expandedDirs(key));
+    const expanded = snapshot(expandedDirs(key)).value;
     return buildTree(key.root, [...expanded].map((dir) =>
-      [dir, read(dirListing({ root: key.root, dir }))] as const));
+      [dir, snapshot(dirListing({ root: key.root, dir })).value] as const));
   }));
 ```
 
@@ -143,7 +145,8 @@ const taskList = family((key: { projectId: string }) =>
 // Volatile overlay: machine frequency, in-memory source.
 const agentActivity = cell<Record<ConversationId, AgentActivity>>({});
 const taskActivity = family((key: { projectId: string }) =>
-  derived(() => sliceActivityForProject(read(agentActivity), key.projectId)));
+  derived(() =>
+    sliceActivityForProject(snapshot(agentActivity).value, key.projectId)));
 ```
 
 The two are exposed as **separate wire models** and joined in the consumer's

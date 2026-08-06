@@ -98,14 +98,14 @@ runtime failures.
 
 Wire expresses all retry timing through one schedule vocabulary:
 `BackoffSchedule` and the `backoffSchedule()` helper in `src/util/backoff.ts`
-(exported from `@emdash/wire/util`), built on the shared retry schedules. The
+(exported from `@emdash/wire/rpc`), built on the shared retry schedules. The
 reconnecting transport's reconnect delays, worker-slot supervision, the
 follower's `resyncRetry` policy, and per-call opt-in retries all consume it.
 Shared vocabulary, not shared state — each site keeps its own independently
 tunable schedule:
 
 ```ts
-import { backoffSchedule } from '@emdash/wire/util';
+import { backoffSchedule } from '@emdash/wire/rpc';
 
 const supervision = {
   restart: 'on-failure',

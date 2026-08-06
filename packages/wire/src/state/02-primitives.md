@@ -101,7 +101,7 @@ function query<T>(options: {
   fetch: (ctx: { signal: AbortSignal }) => Promise<T>;
   pokes?: readonly PokeSubscription[];   // declared invalidation inputs
   equals?: (a: T, b: T) => boolean;      // default: deep-equality fingerprint
-  initial?: T;                            // makes read() return T instead of T | undefined
+  initial?: T;                            // makes the snapshot value T instead of T | undefined
   debounceMs?: number;                    // poke → refetch coalescing window (default 0)
   revalidateEveryMs?: number;             // periodic freshness while observed
   lane?: Lane;                            // serialize fetch/settle against other work

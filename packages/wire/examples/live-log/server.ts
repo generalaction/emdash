@@ -1,17 +1,30 @@
-import type { Unsubscribe } from '@emdash/shared';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../src/api/channel';
-import { LiveLogSource } from '../../src/live/log/index';
+import { z } from 'zod';
+import { LiveLogSource } from '../../src/live';
+import { createController, defineContract, liveLog, type Controller } from '../../src/rpc';
 
-const server = new LiveLogSource({ generation: 3000, maxBufferBytes: 12 });
+export const api = defineContract({
+  buildLog: liveLog({ key: z.object({ buildId: z.string() }) }),
+});
 
-export async function fetchSnapshot(): Promise<LiveSnapshot<LiveLogSnapshotData>> {
-  return server.snapshot();
+// One authoritative log source per build id; the resolver hands the source to
+// the wire so attached clients receive resets and appends as live updates.
+const logs = new Map<string, LiveLogSource>();
+
+function logFor(buildId: string): LiveLogSource {
+  let source = logs.get(buildId);
+  if (!source) {
+    source = new LiveLogSource({ maxBufferBytes: 64 });
+    logs.set(buildId, source);
+  }
+  return source;
 }
 
-export function attach(push: (update: LiveUpdate) => void): Unsubscribe {
-  return server.subscribe(push);
+export function appendLine(buildId: string, line: string): void {
+  logFor(buildId).append(`${line}\n`);
 }
 
-export function appendLine(line: string): void {
-  server.append(`${line}\n`);
+export function createLogController(): Controller {
+  return createController(api, {
+    buildLog: ({ buildId }) => logFor(buildId),
+  });
 }

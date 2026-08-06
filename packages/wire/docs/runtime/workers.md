@@ -27,8 +27,8 @@ flowchart LR
 - The internal worker slot is the only multi-generation state machine. It keeps one stable
   connection/client while child processes restart underneath it; it is not an author-facing API.
 - `WorkerProcessSpawner` is platform-specific and creates one generation. Use
-  `@emdash/wire/worker/node` for Node child processes or
-  `@emdash/wire/worker/electron` for Electron utility processes.
+  `childProcessSpawner()` from `@emdash/wire/worker/node` for Node child
+  processes.
 - `runWireComponentWorker(component)` is the child-side IPC bridge. It bootstraps typed config,
   connects explicit dependency clients, creates the component, serves its controller, and signals
   readiness.

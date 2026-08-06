@@ -61,20 +61,20 @@ Retrying may make sense only if the domain resource is expected to appear later.
 
 Controller creation-time error: a contract endpoint has no implementation. Examples include a
 missing procedure implementation, missing live resolver, missing job handler, or
-missing live model host.
+missing live model provider.
 
 This should not cross the wire during normal operation. Fix the controller implementation.
 
 ### `CONTRACT_MISMATCH`
 
-Controller creation-time error: a `LiveModelHost` was created for a different live model
-contract than the contract endpoint being bound.
+Controller creation-time error: a live model provider, replica cache, or client
+handle was created for a different contract than the endpoint being bound.
 
-This is not retryable; fix the host/contract pairing.
+This is not retryable; fix the provider/contract pairing.
 
 ### `ALREADY_EXISTS`
 
-`LiveModelHost.create()` was called for a key that already has a live instance.
+A keyed live resource was created for a key that already has a live instance.
 
 This is a lifecycle error. Dispose or reuse the existing instance instead of
 creating another one for the same key.

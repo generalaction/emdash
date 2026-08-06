@@ -74,13 +74,13 @@ Async fits in naturally: a `query`'s *fetch* runs outside the turn (it is IO);
 only its *resolution* is a write that schedules a turn. The graph itself is
 always synchronous and glitch-free; asynchrony lives at the source nodes.
 
-## 4. Tracked reads (`read`) — inside the graph
+## 4. Tracked reads (`snapshot`) — inside the graph
 
-Inside a `derived` computation, `read(node)`:
+Inside a `derived` computation, `snapshot(node)`:
 
-- returns the node's current **value** (`T` for `cell`/`derived`; `T |
-  undefined` for a `query` that has never fetched, unless it declares
-  `initial`),
+- returns the node's full `Snapshot<T>` — `.value` holds the current value
+  (`T` for `cell`/`derived`; `T | undefined` for a `query` that has never
+  fetched, unless it declares `initial`),
 - registers a dependency edge for exactly this recompute (dependencies are
   re-discovered every run, so conditional and dynamic reads work — including
   reading different `family` members on different runs),
@@ -88,12 +88,11 @@ Inside a `derived` computation, `read(node)`:
 - and folds the node's pending **mutationIds** into the computation's output
   snapshot.
 
-`peek(node)` reads without any of the above — the escape hatch, equivalent to
-Solid's `untrack`.
+`peek(node)` reads the current value without any of the above — the escape
+hatch, equivalent to Solid's `untrack`.
 
-Outside a computation (event handlers, tests), `read` returns the current
-value without tracking, and `snapshot(node)` returns the full
-`Snapshot<T>` when the status/metadata is needed explicitly.
+Outside a computation (event handlers, tests), `snapshot(node)` returns the
+current `Snapshot<T>` without registering anything.
 
 ## 5. The tracked/declared boundary
 

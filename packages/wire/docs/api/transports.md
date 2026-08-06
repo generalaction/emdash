@@ -48,20 +48,6 @@ Posting on `left` delivers to listeners registered on `right`, and posting on
 `MessageChannel`'s `port1`/`port2`: tests commonly call `serve(pair.right, ...)`
 and `connect(pair.left)`, but the opposite assignment is equally valid.
 
-## Event Ports
-
-`portTransport(port)` adapts Electron-style ports with `postMessage()` and
-`on('message')`:
-
-```ts
-const transport = portTransport(messagePortMain);
-serve(transport, controller);
-```
-
-The adapter listens for `close`, `exit`, and `error` as disconnect signals.
-`close()` removes the message and lifecycle listeners it registered and calls
-`port.close?.()`.
-
 ## DOM MessagePort
 
 `domPortTransport(port)` adapts browser `MessagePort` objects:
@@ -195,21 +181,7 @@ re-issue active `attach` requests; replicas refresh their snapshots after
 reattach. `close()` stops the retry loop, closes the current inner transport if
 present, fires `onTerminalFailure`, and clears listeners.
 
-## Logging Transport
-
-`loggingTransport(transport, logger, options?)` wraps any transport and debug
-logs every sent and received protocol message:
-
-```ts
-const transport = loggingTransport(pair.right, logger.child({ side: 'server' }), {
-  payloads: true,
-  maxPayloadLength: 4096,
-});
-```
-
-Use it for local debugging and integration diagnostics. For semantic request
-events, prefer instrumentation and `withLogging()`; see
-[observability](../observability.md).
+## Composition Notes
 
 `reconnectingTransport()` accepts `clock` and `retrySchedule` options. The legacy
 `backoffMs` array is normalized to a repeat-last retry schedule. Closing the
@@ -220,25 +192,8 @@ Electron window exposure returns an async cleanup function. Await it when tearin
 down a runtime host so session hubs and controllers finish disposal before the
 worker or window bridge is replaced.
 
-`loggingTransport.close()` delegates to the wrapped transport, and
-`onReconnect()`/`onTerminalFailure()` are forwarded when the wrapped transport
-supports them.
-
-Transport composition is ordinary function wrapping, so order matters:
-
-```ts
-// Logs the stable outer endpoint, including reconnect events.
-const outerLogged = loggingTransport(reconnectingTransport(openTransport), logger);
-
-// Logs each concrete inner connection separately.
-const innerLogged = reconnectingTransport(async () =>
-  loggingTransport(await openTransport(), logger)
-);
-```
-
-Use transport-level logging when you need frame-level evidence: raw `call`,
-`result`, `attach`, `update`, and reconnect traffic. Use controller/client
-instrumentation for semantic telemetry: one event per logical call, snapshot,
-attachment, cancellation, resync, or mutation dedupe. In practice, apps should
-enable instrumentation by default and turn on transport logging only while
-debugging a boundary.
+Transport composition is ordinary function wrapping, so order matters when
+stacking adapters around `reconnectingTransport()`. For semantic telemetry (one
+event per logical call, snapshot, attachment, cancellation, resync, or mutation
+dedupe), attach a `WireInstrumentation`; see
+[observability](../observability.md).

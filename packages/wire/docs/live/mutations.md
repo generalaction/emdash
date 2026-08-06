@@ -23,34 +23,32 @@ server.produce(
 The update carries `mutationIds: ['example-add-task']`. A replica can resolve
 `waitForMutation('example-add-task')` when its local model applies that update.
 
-## Hosts and Context
+## Providers and Context
 
-Live model contract mutations run against a keyed `LiveModelHost` instance. The
-host owns each instance's member `LiveStateSource`s and resolves schema-only mutation
-handlers supplied at host creation:
+Live model contract mutations run against a `LiveModelProvider` — most commonly
+one produced by `expose()` from `@emdash/wire/state`, which bridges kernel state
+onto the endpoint. Mutation handlers update kernel cells and await the observed
+revision so the returned cursor is settled:
 
 ```ts
-const sessions = createLiveModelHost(sessionContract, {
+const sessions = expose(api.session, { metadata: (key) => metadataCell(key) }, {
   mutations: {
-    setTitle: (ctx, input) => {
-      ctx.produce('metadata', (draft) => {
-        draft.title = input.title;
-      });
-      return ok({ title: input.title });
+    async setTitle(ctx) {
+      const revision = metadataCell(ctx.key).update(
+        (previous) => ({ ...previous, title: ctx.input.title }),
+        { mutationIds: [ctx.mutationId] }
+      );
+      await ctx.observed('metadata', revision);
+      return ok({ title: ctx.input.title });
     },
   },
 });
-
-sessions.create({ sessionId: 'demo' }, {
-  metadata: { title: 'Untitled' },
-  transcript: { items: [] },
-});
 ```
 
-Keys use `stableStringify()`, so object key order does not matter when hosts and
-client bindings look up an instance. `LiveModelMutationContext` is instance-bound:
-`ctx.key` identifies the current host instance and `ctx.produce(member, mutator)`
-records the cursor of every touched member model. The wire result is:
+Keys use `stableStringify()`, so object key order does not matter when providers
+and client bindings look up an instance. The mutation context is instance-bound:
+`ctx.key` identifies the addressed member and `ctx.observed(name, revision)`
+records the cursor of every touched member state. The wire result is:
 
 ```ts
 type LiveMutationResult<D, E> =
@@ -107,23 +105,20 @@ mutation must share the same confirmation id.
 
 ## Idempotency and Retries
 
-`MutationResultCache` is the server-side idempotency cache used by
-`createLiveModelHost()`. It stores settled mutation results by `mutationId` and
-shares one in-flight execution for concurrent duplicates.
+The server-side idempotency cache used by `expose()` stores settled mutation
+results by `mutationId` and shares one in-flight execution for concurrent
+duplicates.
 
-By default, `createLiveModelHost()` creates a cache with:
-
-- `DEFAULT_MUTATION_RESULT_CACHE_TTL_MS` (5 minutes).
-- `DEFAULT_MUTATION_RESULT_CACHE_MAX_ENTRIES` (1000).
-
-Configure or disable it on the live model host:
+By default the cache keeps entries for 5 minutes with a 1000-entry cap.
+Configure or disable it through the `idempotency` option:
 
 ```ts
-const sessionsHost = createLiveModelHost(api.session, {
+const sessions = expose(api.session, states, {
+  mutations,
   idempotency: { ttlMs: 60_000, maxEntries: 500 },
 });
 
-const withoutDedupe = createLiveModelHost(api.session, { idempotency: false });
+const withoutDedupe = expose(api.session, states, { mutations, idempotency: false });
 ```
 
 The client never retries mutations automatically. Callers opt in per call with

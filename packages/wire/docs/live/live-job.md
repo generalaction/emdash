@@ -158,5 +158,4 @@ Cancellation at the procedure/wire level is documented in
 `ReplicaJob.cancel()` calls the generated `<path>.cancel` procedure, which calls
 `LiveJobSource.cancel(jobId)`.
 
-See [../../examples/job-contract/client.ts](../../examples/job-contract/client.ts)
-and [../../examples/live-job/client.ts](../../examples/live-job/client.ts).
+See [../../examples/job-contract/client.ts](../../examples/job-contract/client.ts).

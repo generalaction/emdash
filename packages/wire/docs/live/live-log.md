@@ -62,8 +62,8 @@ bounded `LiveLogSource` buffer and `text()` remains readable. With a custom `Log
 the sink owns storage; readable `LogStore`s add `text()`, while write-only sinks
 can stream directly into xterm without a duplicate text buffer.
 
-`LiveLogClient` tracks the followed generation/sequence plus the UTF-8 byte
-offset already written to its sink. On reconnect or explicit `refresh()`, it
+The replica's internal log follower tracks the followed generation/sequence
+plus the UTF-8 byte offset already written to its sink. On reconnect or explicit `refresh()`, it
 splices from the retained snapshot when the generation still matches, appending
 only missing bytes instead of resetting rendered output. Generation changes or
 evicted gaps still reset the sink from the retained snapshot.

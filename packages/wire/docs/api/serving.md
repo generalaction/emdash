@@ -55,7 +55,7 @@ See the state bridge tests under `src/state/bridge/`.
 const pair = memoryTransportPair();
 const stop = serve(pair.right, controller, {
   logger,
-  instrumentation: loggerInstrumentation(logger),
+  instrumentation: { callEnd: (event) => logger.debug('call finished', event) },
 });
 ```
 

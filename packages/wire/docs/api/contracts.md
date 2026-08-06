@@ -215,20 +215,24 @@ The final mount path determines ids and procedure paths:
 This lets packages define small contracts locally and compose them into a larger
 workspace API without an extra namespace argument.
 
-## Group Instances
+## Live Model Providers
 
-On the server, create a host for the group contract, then create instances as
-keyed resources appear:
+On the server, implement a live model endpoint with a `LiveModelProvider`. The
+usual way to build one is `expose()` from `@emdash/wire/state`, which resolves
+each contract state to a kernel readable per key:
 
 ```ts
-const conversations = createLiveModelHost(api.conversation);
-const instance = conversations.create(key, {
-  state: { title: 'Initial' },
-  usage: { tokens: 0 },
-});
+const conversations = expose(
+  api.conversation,
+  {
+    state: (key) => conversationState(key),
+    usage: (key) => conversationUsage(key),
+  },
+  { mutations }
+);
 ```
 
-Then expose the group by passing the host in the implementation object:
+Then bind the endpoint by passing the provider in the implementation object:
 
 ```ts
 const controller = createController(api, { conversation: conversations });

@@ -28,24 +28,19 @@ flowchart TB
     job[LiveJobSource]
     mutations[Mutations and registries]
   end
-  subgraph observability [Observability]
-    instrumentation[Instrumentation and logging]
-  end
   subgraph workers [Wire workers]
     component[WireComponent]
     workerHost[WireWorkerHost]
   end
   shared --> api --> live
-  observability --> api
-  observability --> live
   component --> api
   workerHost --> api
   workerHost --> component
 ```
 
 The live layer owns the stateful primitives: `LiveStateSource`, `LiveLogSource`,
-`EventStreamSource`, `LiveJobSource`, `LiveModelHost`, and consumer-instantiated
-replicas. Low-level `*Client` followers track cursors and resync, while
+`EventStreamSource`, `LiveJobSource`, and consumer-instantiated replicas; live
+models are served by providers, usually `expose()` over kernel state. Low-level `*Client` followers track cursors and resync, while
 materializers (`StateStore`, `LogSink`, `JobStore`) own values. Most consumers use
 client handles directly or wrap them in replicas. The API layer turns those
 primitives into a contract with typed procedure calls and live topic client
@@ -54,8 +49,8 @@ declares explicit typed requirements, validates config at the creation boundary,
 and can be created in-process or hosted in a worker. Worker hosting is Wire-specific because it
 serves components across processes. Generic lifecycle, scheduling, concurrency, testing, and stable
 utility primitives live in `@emdash/shared` and are documented here where Wire
-uses them. Observability hooks are cross-cutting and can be attached to API,
-live, and worker surfaces.
+uses them. The `WireInstrumentation` seam is cross-cutting and can be attached
+to API, live, and worker surfaces through their options.
 
 ## Pages
 
@@ -74,8 +69,8 @@ live, and worker surfaces.
     channels, and binary stream transport framing.
   - [Wire errors](./api/errors.md): error planes, `WireErrorCode` meanings,
     origins, and retry guidance.
-  - [Transports](./api/transports.md): memory, ports, Electron, streams,
-    reconnecting, and logging transports.
+  - [Transports](./api/transports.md): memory, ports, Electron, streams, and
+    reconnecting transports.
 - Live:
   - [Live models and protocol](./live/live-model.md): snapshots, updates,
     cursors, `LiveStateSource`, and replicas.
@@ -107,40 +102,44 @@ live, and worker surfaces.
     rules.
   - [Workers](./runtime/workers.md): `WireWorkerHost`, one-generation spawners,
     `runWireComponentWorker()`, and process-hosted components.
-- [Observability](./observability.md): ambient logger context, instrumentation
-  hooks, controller logging, transport debug logging, and scope loggers.
+- [Observability](./observability.md): ambient logger context, the
+  `WireInstrumentation` seam, and scope loggers.
 
 Runnable examples live under [../examples](../examples). Most snippets in these
 docs are shortened versions of those files.
 
 ## Package Exports
 
-Use the broad `@emdash/wire` export when building examples or package-local
-features that need both API and live primitives:
+There is no root export: every symbol has exactly one home in a hand-curated
+subpath entrypoint.
 
 ```ts
-import { cell, createController, defineContract, expose } from '@emdash/wire';
+import { createController, defineContract } from '@emdash/wire/rpc';
+import { cell, expose } from '@emdash/wire/state';
 ```
 
-Use narrower subpath exports at app boundaries:
-
-- `@emdash/wire/api`: contract definition, controller creation, client creation, and transports.
-- `@emdash/wire/state`: state kernel primitives and Wire bridges (`cell`, `query`,
-  `family`, `expose`, `remote`, `optimistic`).
-- `@emdash/wire/component`: `defineWireComponent()`, requirement helpers, component
-  instance types, and explicit component composition types.
-- `@emdash/wire/observability`: instrumentation hooks, logger adapters, and
-  controller logging middleware.
+- `@emdash/wire/rpc`: contract definition (`defineContract()`, endpoint
+  factories), controller creation, clients, `connect()`/`serve()`, transports,
+  protocol vocabulary (`WireMessage`, `WireTransport`, `WireError`,
+  `LiveSource`, `LiveUpdate`, cursors), provider seam types
+  (`LiveModelProvider`, `LeasedLiveModelProvider`,
+  `LiveModelMutationEnvelope`), the blob/file surface, validation, backoff
+  schedules, and the `WireInstrumentation` seam types.
+- `@emdash/wire/live`: the server-side reactivity sources (`LiveLogSource`,
+  `LiveJobSource`, `EventStreamSource`, `createEventStreamHost()`), the keyed
+  replica caches (`createLiveLogReplicaCache()`, `createLiveJobReplicaCache()`,
+  `ReplicaLog`), and resync failure policies (`resyncRetry()`,
+  `resyncMarkStale()`).
+- `@emdash/wire/state`: state kernel primitives and Wire bridges (`cell`,
+  `query`, `family`, `optimistic`, `observe`, `expose`, `remote`).
+- `@emdash/wire/mobx`: MobX-backed log/store helpers
+  (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`).
 - `@emdash/wire/testing`: Wire test helpers such as `createTestWire()` and fake
   worker process support.
-- `@emdash/wire/util`: Wire transport helpers for diagnosing structured-clone
-  failures.
-- `@emdash/wire/util/mobx`: MobX-backed log/store helpers
-  (`createImmutableMobxStore`, `createReactiveMobxStore`, `createMobxLogStore`).
-- `@emdash/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`, worker signal types,
-  supervision types, process contracts, and worker log forwarding.
+- `@emdash/wire/worker`: `WireWorkerHost`, `runWireComponentWorker()`,
+  `defineWireComponent()` and component requirement helpers, worker signal
+  types, supervision types, process contracts, and worker log forwarding.
 - `@emdash/wire/worker/node`: Node `childProcessSpawner()`.
-- `@emdash/wire/worker/electron`: Electron utility-process spawners.
 
 Use Shared subpaths directly for generic foundations:
 
@@ -157,8 +156,8 @@ Use Shared subpaths directly for generic foundations:
 - `@emdash/shared/util`: stable utility helpers such as `stableStringify()`.
 
 MobX-backed utilities intentionally live in their own export because they have a
-`mobx` peer dependency. Server-only code can import `@emdash/wire`,
-`@emdash/wire/api`, `@emdash/wire/state`, `@emdash/wire/worker`, and Shared
+`mobx` peer dependency. Server-only code can import `@emdash/wire/rpc`,
+`@emdash/wire/live`, `@emdash/wire/state`, `@emdash/wire/worker`, and Shared
 foundation subpaths without pulling in MobX.
 
 ## Typical Flow
@@ -175,4 +174,5 @@ foundation subpaths without pulling in MobX.
 7. Use client handles directly for streaming, or use `remote()` for local state,
    ref counting, and downstream observation.
 
-For a complete state bridge example, see the tests under `src/state/bridge/`.
+For a complete state kernel example (`cell` + `expose` on the server,
+`remote()` on the client), see [../examples/state-kernel](../examples/state-kernel).

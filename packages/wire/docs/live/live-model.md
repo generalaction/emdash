@@ -102,5 +102,5 @@ authoritative.
 
 These waiters are used by mutation settling; see [mutations](./mutations.md).
 
-See [../../examples/live-state/client.ts](../../examples/live-state/client.ts)
+See [../../examples/state-kernel/client.ts](../../examples/state-kernel/client.ts)
 for an end-to-end example.

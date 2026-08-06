@@ -58,9 +58,9 @@ owned by `BoundExec`, so repository scoping and dynamic executable selection app
 
 ## Live Models
 
-Wire's `ResourceLiveModelHost` adapts keyed, externally authoritative resources to live models. It
-owns generic resource acquisition, nested state leases, mutation idempotency, typed handler
-dispatch, and settled cursor construction.
+Wire's `expose()` (from `@emdash/wire/state`) adapts keyed, externally authoritative resources to
+live models as a `LeasedLiveModelProvider`. It owns generic resource acquisition, keyed state
+retention, mutation idempotency, typed handler dispatch, and settled cursor construction.
 
 Git supplies exhaustive mutation-handler maps:
 

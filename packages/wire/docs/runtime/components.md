@@ -11,8 +11,8 @@ its config schema, and how to synchronously create a scope-owned instance.
 ## Define A Component
 
 ```ts
-import { defineContract, procedure, createController } from '@emdash/wire/api';
-import { defineWireComponent, requireContract } from '@emdash/wire/component';
+import { defineContract, procedure, createController } from '@emdash/wire/rpc';
+import { defineWireComponent, requireContract } from '@emdash/wire/worker';
 import { z } from 'zod';
 
 export const clockContract = defineContract({
@@ -196,8 +196,8 @@ explicitly.
 
 ```ts
 import { createScope } from '@emdash/shared/concurrency';
-import { createController } from '@emdash/wire/api';
-import { defineWireComponent } from '@emdash/wire/component';
+import { createController } from '@emdash/wire/rpc';
+import { defineWireComponent } from '@emdash/wire/worker';
 import { z } from 'zod';
 
 const scope = createScope({ label: 'test' });

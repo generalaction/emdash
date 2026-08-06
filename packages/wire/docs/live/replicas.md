@@ -4,7 +4,8 @@ Replicas are consumer-instantiated materialization wrappers around client handle
 `client()`. The typed client itself never stores live state. A consumer chooses
 one of four shapes:
 
-- Own state: `LiveStateSource`, `LiveLogSource`, `LiveJobSource`, or `LiveModelHost`.
+- Own state: `LiveStateSource`, `LiveLogSource`, `LiveJobSource`, or an
+  `expose()` provider over kernel state.
 - Stream directly: use a client `snapshot()`/`attach()` handle with no local store,
   for example PTY output written straight into xterm.
 - Forward: pass client handles or subtrees to `createController()` so a hop stays stateless.
@@ -31,7 +32,7 @@ Live models are exposed only through `liveModel()`. A
 `LiveModelReplicaCache` follows a live model client handle and yields a `ReplicaInstance`:
 
 ```ts
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/mobx';
 
 const conversations = createLiveModelReplicaCache(api.conversation, contractClient.conversation, {
   lingerMs: 30_000,
@@ -77,7 +78,7 @@ Use a `LiveLogReplicaCache` when a process needs a local retained text buffer or
 to serve log output downstream:
 
 ```ts
-import { createMobxLogStore } from '@emdash/wire/util/mobx';
+import { createMobxLogStore } from '@emdash/wire/mobx';
 
 const outputs = createLiveLogReplicaCache(api.ptyOutput, contractClient.ptyOutput, {
   lingerMs: 10_000,
@@ -114,7 +115,7 @@ materializes job state by `jobId`, and keeps terminal state readable under lease
 or retention:
 
 ```ts
-import { createImmutableMobxStore } from '@emdash/wire/util/mobx';
+import { createImmutableMobxStore } from '@emdash/wire/mobx';
 
 const jobs = createLiveJobReplicaCache(api.build, contractClient.build, {
   lingerMs: 30_000,

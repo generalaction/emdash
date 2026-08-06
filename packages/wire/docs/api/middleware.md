@@ -6,7 +6,7 @@ shape; middleware wraps handlers or controllers at the composition site.
 ```ts
 import { compose, deduplicate, withRetry, withTimeout } from '@emdash/shared/requests';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { createController } from '@emdash/wire/api';
+import { createController } from '@emdash/wire/rpc';
 
 const loadStats = compose(
   async (input: { repo: string }, meta: { signal?: AbortSignal }) => {
