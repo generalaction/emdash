@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { getDevPerfClient } from '@core/features/dev-perf/api/browser/client';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
@@ -96,6 +97,26 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
     }),
     'workbench.toggleLeftSidebar': () => ({
       execute: () => toggleLeft(),
+    }),
+    'devPerf.processPanel': () => ({
+      execute: () => {
+        void openModal('devProcessPanelModal');
+      },
+    }),
+    'devPerf.captureTrace': () => ({
+      execute: () => {
+        toast({ title: 'Recording performance trace', description: 'Capturing 10 seconds…' });
+        void getDevPerfClient()
+          .then((client) => client.captureTrace({ durationMs: 10_000 }))
+          .then(({ path }) => toast({ title: 'Trace captured', description: path }))
+          .catch((error: unknown) =>
+            toast({
+              title: 'Trace capture failed',
+              description: error instanceof Error ? error.message : String(error),
+              variant: 'destructive',
+            })
+          );
+      },
     }),
     'workbench.zenMode': () => ({
       execute: () => {

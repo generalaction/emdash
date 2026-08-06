@@ -1,9 +1,11 @@
+import type { Logger } from '@emdash/shared/logger';
+import { setSpawnObserver } from '@emdash/shared/perf';
 import {
   startVitalsReporting,
   type StartVitalsReportingOptions,
   type VitalsReporting,
 } from '@emdash/shared/perf/node';
-import { isWorkerVitalsStart, workerVitalsReport } from '../vitals';
+import { isWorkerSpawnLogToggle, isWorkerVitalsStart, workerVitalsReport } from '../vitals';
 
 export type WorkerVitalsPort = {
   send(message: unknown): void;
@@ -12,15 +14,18 @@ export type WorkerVitalsPort = {
 
 export type InstallWorkerVitalsOptions = {
   port?: WorkerVitalsPort;
+  /** Destination for verbose per-spawn log lines when the host toggles them on. */
+  logger?: Logger;
   startReporting?: (options: StartVitalsReportingOptions) => VitalsReporting;
 };
 
 /**
- * Worker-side vitals hookup: waits for the host's start message and only then
- * begins self-sampling on the requested cadence, sending numbers-only reports
- * back over the IPC channel. Until the start message arrives (i.e. in every
- * unsampled or telemetry-disabled session) no timers or instruments exist —
- * just this message listener.
+ * Worker-side perf hookup: waits for host control messages and only then does
+ * any work. A vitals start message begins self-sampling on the requested
+ * cadence, sending numbers-only reports back over the IPC channel; a spawn-log
+ * toggle installs/removes a verbose per-spawn log observer. Until a control
+ * message arrives (i.e. in every unsampled or telemetry-disabled session) no
+ * timers or instruments exist — just this message listener.
  */
 export function installWorkerVitals(options: InstallWorkerVitalsOptions = {}): void {
   const port = options.port ?? processPort();
@@ -29,18 +34,29 @@ export function installWorkerVitals(options: InstallWorkerVitalsOptions = {}): v
 
   let reporting: VitalsReporting | null = null;
   port.onMessage((message) => {
-    if (!isWorkerVitalsStart(message)) return;
-    reporting?.dispose();
-    reporting = startReporting({
-      intervalMs: message.intervalMs,
-      report(vitals) {
-        try {
-          port.send(workerVitalsReport(vitals));
-        } catch {
-          // Parent gone (shutdown race); vitals are best-effort.
-        }
-      },
-    });
+    if (isWorkerVitalsStart(message)) {
+      reporting?.dispose();
+      reporting = startReporting({
+        intervalMs: message.intervalMs,
+        report(vitals) {
+          try {
+            port.send(workerVitalsReport(vitals));
+          } catch {
+            // Parent gone (shutdown race); vitals are best-effort.
+          }
+        },
+      });
+      return;
+    }
+    if (isWorkerSpawnLogToggle(message)) {
+      const logger = options.logger;
+      if (!logger) return;
+      setSpawnObserver(
+        message.enabled
+          ? (purpose, command) => logger.info('perf.spawn', { purpose, command })
+          : null
+      );
+    }
   });
 }
 

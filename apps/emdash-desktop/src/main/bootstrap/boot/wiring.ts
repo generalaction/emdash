@@ -16,6 +16,7 @@ import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { browserOperations } from '@main/host/browser/controller';
+import { createDevPerfOperations } from '@main/host/dev-perf/controller-operations';
 import { updateOperations } from '@main/host/updates/controller-operations';
 import { applyNativeTheme } from '@main/host/window';
 import { log } from '@main/lib/logger';
@@ -63,6 +64,7 @@ export function createDesktopWireOptions(
     browserOperations,
     compensation: withCompensation,
     db: database.db,
+    devPerfOperations: createDevPerfOperations(runtimes),
     editorBuffer: database.editorBuffer,
     github: {
       accountService: github.account,

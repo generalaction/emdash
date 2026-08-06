@@ -110,6 +110,8 @@ export type DesktopWorkersHandle = {
    * only). Reaches every live worker and any worker spawned later.
    */
   startVitalsSampling(intervalMs: number): void;
+  /** Toggle verbose per-spawn logging in every live and future worker. */
+  setSpawnLogging(enabled: boolean): void;
   dispose(): Promise<void>;
 };
 
@@ -137,6 +139,7 @@ export async function startDesktopWorkers(
     return {
       ...handle,
       startVitalsSampling: (intervalMs) => vitalsSpawner.startSampling(intervalMs),
+      setSpawnLogging: (enabled) => vitalsSpawner.setSpawnLogging(enabled),
     };
   } catch (error) {
     await workerScope.dispose(error);
@@ -148,7 +151,7 @@ async function startDesktopWorkersWithHost(
   deps: StartDesktopWorkersDeps,
   workerScope: Scope,
   host: ReturnType<typeof createWireWorkerHost>
-): Promise<Omit<DesktopWorkersHandle, 'startVitalsSampling'>> {
+): Promise<Omit<DesktopWorkersHandle, 'startVitalsSampling' | 'setSpawnLogging'>> {
   const hostDependencies = createHostDependenciesComponent({
     store: desktopKeyValueStore,
     exec: new NodeExecutionContext({ env: process.env, refreshShellEnv: refreshUserEnv }),

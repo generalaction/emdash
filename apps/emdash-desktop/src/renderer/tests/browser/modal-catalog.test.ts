@@ -21,6 +21,7 @@ const expectedModalIds = [
   'createPrModal',
   'createSkillModal',
   'deleteTaskModal',
+  'devProcessPanelModal',
   'directorySelectorModal',
   'feedbackModal',
   'githubConnectModal',

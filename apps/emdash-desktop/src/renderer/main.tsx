@@ -6,6 +6,7 @@ import {
   pinTopMode,
 } from '@emdash/chat-ui';
 import ReactDOM from 'react-dom/client';
+import { configureDevPerfClient } from '@core/features/dev-perf/api/browser/client';
 import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
 import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import {
@@ -29,6 +30,7 @@ import { ErrorBoundary } from '@core/primitives/ui/browser/components/error-boun
 import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
+import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getMementosWireClient } from '@renderer/lib/runtime/mementos-wire-client';
 import { log } from '@renderer/utils/logger';
 import { initRendererPerfVitals } from '@renderer/utils/perf-vitals';
@@ -53,6 +55,7 @@ async function bootstrap() {
   initSoundPlayer();
   initNotificationDeliveryListener();
   initRendererPerfVitals();
+  configureDevPerfClient(async () => (await getDesktopWireClient()).devPerf);
 
   // Stores may acquire memento spaces while project data loads, so initialize
   // the singleton before starting any store construction.

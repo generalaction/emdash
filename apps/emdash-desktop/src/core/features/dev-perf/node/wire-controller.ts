@@ -1,0 +1,45 @@
+import type { Logger } from '@emdash/shared/logger';
+import { setSpawnObserver } from '@emdash/shared/perf';
+import { createController, type Controller } from '@emdash/wire/rpc';
+import { devPerfContract } from '../api';
+import { PROCESS_SNAPSHOT_SUPPORTED, snapshotProcessTree } from './process-snapshot';
+
+export type DevPerfOperations = {
+  /** Record a contentTracing trace and return the file path it was written to. */
+  captureTrace(durationMs: number): Promise<string>;
+  /** Toggle verbose per-spawn logging in every worker process. */
+  setWorkerSpawnLogging(enabled: boolean): void;
+};
+
+const DEFAULT_TRACE_DURATION_MS = 10_000;
+const MAX_TRACE_DURATION_MS = 120_000;
+
+export function createDevPerfWireController(
+  operations: DevPerfOperations,
+  logger: Logger
+): Controller {
+  let verboseSpawnLogging = false;
+
+  return createController(devPerfContract, {
+    processSnapshot: async () => ({
+      supported: PROCESS_SNAPSHOT_SUPPORTED,
+      processes: await snapshotProcessTree(),
+    }),
+    captureTrace: async ({ durationMs }) => {
+      const clamped = Math.min(
+        MAX_TRACE_DURATION_MS,
+        Math.max(1_000, durationMs ?? DEFAULT_TRACE_DURATION_MS)
+      );
+      return { path: await operations.captureTrace(clamped) };
+    },
+    setVerboseSpawnLogging: ({ enabled }) => {
+      verboseSpawnLogging = enabled;
+      setSpawnObserver(
+        enabled ? (purpose, command) => logger.info('perf.spawn', { purpose, command }) : null
+      );
+      operations.setWorkerSpawnLogging(enabled);
+      return { enabled };
+    },
+    getVerboseSpawnLogging: () => ({ enabled: verboseSpawnLogging }),
+  });
+}

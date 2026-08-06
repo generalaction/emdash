@@ -10,8 +10,8 @@ export function initWorkerProcessLogging(fallbackName: string): Logger {
   });
   // Dev-only spawn/RSS reporting; a no-op unless debug logging is enabled.
   startDevPerfInstruments({ logger });
-  // Telemetry vitals: inert until the host sends a start message (sampled
-  // sessions only); no timers or instruments are created before then.
-  installWorkerVitals();
+  // Telemetry vitals + verbose spawn logging: inert until the host sends a
+  // control message; no timers or instruments are created before then.
+  installWorkerVitals({ logger });
   return logger;
 }

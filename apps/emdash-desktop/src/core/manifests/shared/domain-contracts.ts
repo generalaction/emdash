@@ -4,6 +4,7 @@ import { automationsContract } from '@core/features/automations/api';
 import { browserContract } from '@core/features/browser/api';
 import { catalogWireContract } from '@core/features/catalog/api';
 import { conversationsContract } from '@core/features/conversations/api';
+import { devPerfContract } from '@core/features/dev-perf/api';
 import { editorContract } from '@core/features/editor/api';
 import { githubContract } from '@core/features/github/api';
 import { integrationsContract } from '@core/features/integrations/api';
@@ -40,6 +41,7 @@ export const desktopDomainContracts = {
   account: accountContract,
   agents: agentsContract,
   appSettings: appSettingsContract,
+  devPerf: devPerfContract,
   editor: editorContract,
   legacyPort: legacyPortContract,
   machines: machinesContract,
