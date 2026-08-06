@@ -1,4 +1,4 @@
-import { ContainedImage } from '@core/primitives/ui/browser/contained-image';
+import { ExpandableImage } from '@emdash/ui/react/components';
 
 interface ImageRendererProps {
   file: { path: string; content: string };
@@ -10,7 +10,12 @@ export function ImageRenderer({ file }: ImageRendererProps) {
 
   return (
     <div className="flex h-full items-center justify-center overflow-auto p-4">
-      <ContainedImage src={file.content} alt={fileName} className="max-h-full max-w-full" />
+      <ExpandableImage
+        src={file.content}
+        alt={fileName}
+        containerClassName="max-h-full max-w-full"
+        className="max-h-full max-w-full"
+      />
     </div>
   );
 }

@@ -87,7 +87,14 @@ export {
   type DirectoryHistory,
   type DirectoryHistoryState,
 } from './directory-selector/use-directory-history';
-export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer';
+export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer/image-viewer-dialog';
+export {
+  ZoomViewerDialog,
+  type ZoomViewerApi,
+  type ZoomViewerDialogProps,
+} from './image-viewer/zoom-viewer-dialog';
+export { ContainedImage, type ContainedImageProps } from './image-viewer/contained-image';
+export { ExpandableImage, type ExpandableImageProps } from './image-viewer/expandable-image';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
 export {

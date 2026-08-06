@@ -112,7 +112,8 @@
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
     "@tiptap/suggestion": "^3.26.1",
-    "lucide-react": "^0.564.0"
+    "lucide-react": "^0.564.0",
+    "react-zoom-pan-pinch": "^4.0.3"
   },
   "devDependencies": {
     "@storybook/addon-docs": "^10.4.6",
