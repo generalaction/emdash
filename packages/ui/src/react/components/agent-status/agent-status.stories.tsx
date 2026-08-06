@@ -1,12 +1,17 @@
+import { Tooltip } from '@react/primitives/tooltip';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AgentStatus, type AgentStatusKind } from './agent-status';
+import { BrailleSpinner, type BrailleSpinnerVariant } from './braille-spinner';
 
 const STATUSES: Array<{ label: string; status: AgentStatusKind }> = [
   { label: 'Working', status: 'working' },
-  { label: 'User Action Required', status: 'user-action-required' },
-  { label: 'Done', status: 'done' },
+  { label: 'Awaiting Input', status: 'awaiting-input' },
   { label: 'Error', status: 'error' },
+  { label: 'Completed', status: 'completed' },
+  { label: 'Idle (renders nothing)', status: 'idle' },
 ];
+
+const ACTIVE_STATUSES = STATUSES.filter(({ status }) => status !== 'idle');
 
 const meta: Meta<typeof AgentStatus> = {
   title: 'Components/AgentStatus',
@@ -69,6 +74,19 @@ export const AllStates: Story = {
   ),
 };
 
+export const WithTooltip: Story = {
+  name: 'With tooltip',
+  render: () => (
+    <Tooltip.Provider>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        {ACTIVE_STATUSES.map(({ status }) => (
+          <AgentStatus key={status} status={status} size="2rem" tooltip />
+        ))}
+      </div>
+    </Tooltip.Provider>
+  ),
+};
+
 export const Sizes: Story = {
   name: 'Sizes',
   render: () => (
@@ -79,7 +97,7 @@ export const Sizes: Story = {
         gap: '2rem',
       }}
     >
-      {STATUSES.map(({ label, status }) => (
+      {ACTIVE_STATUSES.map(({ label, status }) => (
         <div key={status}>
           <span
             style={{
@@ -117,6 +135,37 @@ export const Sizes: Story = {
               </div>
             ))}
           </div>
+        </div>
+      ))}
+    </div>
+  ),
+};
+
+export const SpinnerVariants: Story = {
+  name: 'Braille spinner variants',
+  render: () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
+      {(['dots', 'wave'] satisfies BrailleSpinnerVariant[]).map((variant) => (
+        <div
+          key={variant}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.75rem',
+            fontSize: 'var(--em-text-lg)',
+          }}
+        >
+          <BrailleSpinner variant={variant} />
+          <span
+            style={{
+              fontFamily: 'var(--em-font-mono)',
+              fontSize: 'var(--em-text-xs)',
+              color: 'var(--em-foreground-muted)',
+            }}
+          >
+            {variant}
+          </span>
         </div>
       ))}
     </div>

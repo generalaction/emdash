@@ -103,6 +103,11 @@ export {
   type AgentStatusProps,
 } from './agent-status/agent-status';
 export {
+  BrailleSpinner,
+  type BrailleSpinnerProps,
+  type BrailleSpinnerVariant,
+} from './agent-status/braille-spinner';
+export {
   MachineStatus,
   type MachineStatusKind,
   type MachineStatusProps,

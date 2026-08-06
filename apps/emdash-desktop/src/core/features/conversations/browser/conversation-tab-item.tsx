@@ -1,8 +1,8 @@
+import { AgentStatus } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import type {
   TabBarItemProps,
   ResolvedTab,
@@ -31,7 +31,7 @@ export const ConversationTabBarItem = observer(function ConversationTabBarItem({
       preSlot={<AgentIcon id={store.data.providerId} size={16} />}
       statusSlot={
         <span className="transition-opacity group-hover:opacity-0">
-          <AgentStatusIndicator status={store.indicatorStatus} disableTooltip />
+          <AgentStatus status={store.indicatorStatus} />
         </span>
       }
       kindCommands={[

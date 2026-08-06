@@ -1,3 +1,4 @@
+import { AgentStatus } from '@emdash/ui/react/components';
 import { Checkbox } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
@@ -15,7 +16,6 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { type Task } from '@core/primitives/tasks/api';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -129,7 +129,7 @@ export const TaskRow = observer(function TaskRow({
           )}
         >
           {agentAttention ? (
-            <AgentStatusIndicator status={agentAttention} />
+            <AgentStatus status={agentAttention} tooltip />
           ) : (
             <RelativeTime
               value={task.data.createdAt}

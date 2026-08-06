@@ -1,3 +1,4 @@
+import { AgentStatus } from '@emdash/ui/react/components';
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
 import { Button, Checkbox, MicroLabel, Spinner } from '@emdash/ui/react/primitives';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
@@ -27,7 +28,6 @@ import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-r
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import {
   ContextMenu,
@@ -245,7 +245,7 @@ const ConversationRow = observer(function ConversationRow({
             selectionId={conversationId}
           >
             {conversation.indicatorStatus ? (
-              <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+              <AgentStatus status={conversation.indicatorStatus} />
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}

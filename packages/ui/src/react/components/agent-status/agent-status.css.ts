@@ -1,27 +1,8 @@
-import { keyframes, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { vars } from '@theme/core/contract/contract.css';
 // Side-effect import so the @layer order declaration is emitted before these
 // rules; otherwise `recipes` gets registered first and loses to app layers.
 import '@styles/layers.css';
-
-const dotShimmer = keyframes({
-  '0%, 100%': {
-    opacity: 0.3,
-    transform: 'scale(0.8)',
-  },
-  '35%': {
-    opacity: 1,
-    transform: 'scale(1.0)',
-  },
-  '68%': {
-    opacity: 0.4,
-    transform: 'scale(0.89)',
-  },
-});
-
-const DOT_COUNT = 9;
-const PERIOD_MS = 1200;
-const dotStaticOpacity = [0.96, 0.72, 0.48, 0.72, 0.48, 0.32, 0.48, 0.32, 0.24];
 
 export const root = style({
   '@layer': {
@@ -33,6 +14,10 @@ export const root = style({
       alignItems: 'center',
       justifyContent: 'center',
       verticalAlign: 'middle',
+      // Sizes the braille spinner glyph relative to the bounding box
+      // (~14px at the default 1.5rem box, matching ambient text size).
+      fontSize: 'calc(var(--agent-status-size, 1.5rem) * 0.6)',
+      lineHeight: 1,
     },
   },
 });
@@ -47,40 +32,6 @@ export const icon = style({
     },
   },
 });
-
-export const workingIcon = style({
-  '@layer': {
-    recipes: {
-      color: vars.foregroundMuted,
-    },
-  },
-});
-
-export const dot = Array.from({ length: DOT_COUNT }, (_, index) =>
-  style({
-    '@layer': {
-      recipes: {
-        fill: 'currentColor',
-        opacity: 0.28,
-        transform: 'scale(0.72)',
-        transformBox: 'fill-box',
-        transformOrigin: 'center',
-        animationName: dotShimmer,
-        animationDuration: `${PERIOD_MS}ms`,
-        animationTimingFunction: 'cubic-bezier(0.45, 0, 0.2, 1)',
-        animationIterationCount: 'infinite',
-        animationDelay: `${-((DOT_COUNT - index) % DOT_COUNT) * (PERIOD_MS / DOT_COUNT)}ms`,
-        '@media': {
-          '(prefers-reduced-motion: reduce)': {
-            animationName: 'none',
-            opacity: dotStaticOpacity[index]?.toString() ?? '0.48',
-            transform: 'scale(0.9)',
-          },
-        },
-      },
-    },
-  })
-);
 
 export const warningShape = style({
   '@layer': {

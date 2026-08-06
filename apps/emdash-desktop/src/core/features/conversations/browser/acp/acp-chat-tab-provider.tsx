@@ -1,9 +1,9 @@
+import { AgentStatus } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import type {
   TabEntry,
   TabHandle,
@@ -55,7 +55,7 @@ export const AcpChatTabBarItem = observer(function AcpChatTabBarItem({
       statusSlot={
         conversation ? (
           <span className="transition-opacity group-hover:opacity-0">
-            <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+            <AgentStatus status={conversation.indicatorStatus} />
           </span>
         ) : undefined
       }
