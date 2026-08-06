@@ -145,7 +145,6 @@
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-card.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-input.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-widget.tsx",
-    "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/diff-file-renderer.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/diff-toolbar.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/stacked-diff-view.tsx",
     "apps/emdash-desktop/src/core/features/tasks/api/browser/components/task-context-menu.tsx",
@@ -232,14 +231,11 @@
     "apps/emdash-desktop/src/core/primitives/ui/browser/components/titlebar/Titlebar.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/dialog.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/editable-name-field.tsx",
-    "apps/emdash-desktop/src/core/primitives/ui/browser/expandable-image.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/field.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/input-group.tsx",
-    "apps/emdash-desktop/src/core/primitives/ui/browser/mermaid-diagram-preview.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/panel-tabs.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/search-input.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/toggle-group.tsx",
-    "apps/emdash-desktop/src/core/primitives/ui/browser/zoomable-content-dialog.tsx",
     "apps/emdash-desktop/src/core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item.tsx",
     "apps/emdash-desktop/src/core/primitives/workbench-shell/browser/tabs/tab-bar/tab-context-menu.tsx",
     "apps/emdash-desktop/src/renderer/App.tsx",
@@ -259,8 +255,6 @@
     "apps/emdash-desktop/src/renderer/main.tsx",
     "apps/emdash-desktop/src/renderer/tests/agent-icon-variant.test.ts",
     "apps/emdash-desktop/src/renderer/tests/browser/conversation-selection-layout.test.tsx",
-    "apps/emdash-desktop/src/renderer/tests/browser/settings-search-shortcuts.test.tsx",
-    "apps/emdash-desktop/src/renderer/tests/markdown-renderer.test.ts",
-    "apps/emdash-desktop/src/renderer/tests/mermaid-diagram-preview.test.ts"
+    "apps/emdash-desktop/src/renderer/tests/browser/settings-search-shortcuts.test.tsx"
   ]
 }
