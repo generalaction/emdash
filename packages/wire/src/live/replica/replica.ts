@@ -143,14 +143,6 @@ export function createLiveModelReplicaCache<Group extends LiveModelDef>(
   }
 }
 
-export function isLiveModelReplicaCache(value: unknown): value is LiveModelReplicaCache {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { kind?: unknown }).kind === 'liveModelReplicaCache'
-  );
-}
-
 function stateFor(instance: ReplicaInstance, name: string): LiveSource {
   const model = instance.states[name];
   if (!model) throw new Error(`Unknown replica model '${name}'`);

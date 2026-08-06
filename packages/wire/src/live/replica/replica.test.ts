@@ -7,6 +7,7 @@ import { defineContract, liveModel, liveState, mutation } from '../../api/define
 import { expose } from '../../state/bridge/expose';
 import { cell, snapshot } from '../../state/core';
 import { createTestWire } from '../../testing';
+import type { LiveModelProvider } from './provider';
 import { createLiveModelReplicaCache } from './replica';
 
 const keySchema = z.object({ id: z.string() });
@@ -81,7 +82,15 @@ describe('createLiveModelReplicaCache', () => {
     const { state, provider } = counterSource({ count: 0 });
     const upstream = createTestWire(api, { counter: provider }).client;
     const replica = createLiveModelReplicaCache(api.counter, upstream.counter, { lingerMs: 100 });
-    const downstream = createTestWire(api, { counter: replica }).client;
+    // Replica caches are not controller impls; serving one downstream takes an
+    // explicit LiveModelProvider adapter.
+    const replicaProvider: LiveModelProvider<typeof api.counter> = {
+      kind: 'liveModelProvider',
+      contract: replica.contract,
+      resolveState: (key, name) => replica.resolveState(key, name),
+      runMutation: (name, envelope) => replica.runMutation(name, envelope),
+    };
+    const downstream = createTestWire(api, { counter: replicaProvider }).client;
     const downstreamReplica = createLiveModelReplicaCache(api.counter, downstream.counter);
     const downstreamLease = downstreamReplica.acquire(key);
     const counter = await downstreamLease.ready();

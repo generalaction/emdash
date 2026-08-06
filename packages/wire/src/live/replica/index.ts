@@ -44,7 +44,6 @@ export {
 } from './provider';
 export {
   createLiveModelReplicaCache,
-  isLiveModelReplicaCache,
   type LiveModelReplicaCache,
   type LiveModelReplicaCacheOptions,
 } from './replica';

@@ -44,12 +44,10 @@ import {
   isLiveJobReplicaCache,
   isLiveLogReplicaCache,
   isLiveModelProvider,
-  isLiveModelReplicaCache,
   type LeasedLiveModelProvider,
   type LiveJobReplicaCache,
   type LiveLogReplicaCache,
   type LiveModelProvider,
-  type LiveModelReplicaCache,
 } from './replica';
 
 /**
@@ -82,8 +80,7 @@ export type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
 export type LiveModelEntryImpl<Def extends LiveModelDef> =
   | LiveModelClientHandle<Def>
   | LiveModelProvider<Def>
-  | LeasedLiveModelProvider<Def>
-  | LiveModelReplicaCache<Def>;
+  | LeasedLiveModelProvider<Def>;
 
 export type JobImpl<Def extends LiveJobEndpointDef> = {
   run(
@@ -293,21 +290,6 @@ function resolveLiveModelProvider(
       );
     }
     return entryImpl;
-  }
-
-  if (isLiveModelReplicaCache(entryImpl)) {
-    if (entryImpl.contract.id !== def.id) {
-      throw new WireError(
-        'CONTRACT_MISMATCH',
-        `Live model replica cache for '${fullPath}' was created for '${entryImpl.contract.id}'`
-      );
-    }
-    return {
-      kind: 'liveModelProvider',
-      contract: entryImpl.contract,
-      resolveState: (key, name) => entryImpl.resolveState(key, name),
-      runMutation: (name, envelope) => entryImpl.runMutation(name, envelope),
-    };
   }
 
   if (isLiveModelClientHandle(entryImpl)) {
