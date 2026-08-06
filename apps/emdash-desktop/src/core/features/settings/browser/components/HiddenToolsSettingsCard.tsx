@@ -1,13 +1,8 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { OPEN_IN_APPS, type OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { Switch } from '@core/primitives/ui/browser/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import IntegrationRow from './IntegrationRow';
 
@@ -58,9 +53,9 @@ export default function HiddenToolsSettingsCard() {
                 </span>
               }
               rightExtra={
-                <TooltipProvider delay={150}>
-                  <Tooltip>
-                    <TooltipTrigger>
+                <Tooltip.Provider delay={150}>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger>
                       <span>
                         <Switch
                           checked={isVisible}
@@ -69,16 +64,16 @@ export default function HiddenToolsSettingsCard() {
                           aria-label={`${isVisible ? 'Hide' : 'Show'} ${label} in open menu`}
                         />
                       </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side="top" className="text-xs">
                       {!isDetected
                         ? 'Install this tool to show it in menu'
                         : isVisible
                           ? 'Hide from menu'
                           : 'Show in menu'}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </Tooltip.Provider>
               }
             />
           );

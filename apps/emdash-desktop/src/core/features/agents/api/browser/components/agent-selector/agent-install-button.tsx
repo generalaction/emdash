@@ -1,14 +1,9 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Download, Loader2 } from 'lucide-react';
 import type React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
 import { getAgentInstallActionState } from './agent-install';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
@@ -49,9 +44,9 @@ export function AgentInstallButton({
   const InstallIcon = state.installing ? Loader2 : Download;
 
   return (
-    <TooltipProvider delay={150}>
-      <Tooltip>
-        <TooltipTrigger>
+    <Tooltip.Provider delay={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             type="button"
             variant="ghost"
@@ -66,11 +61,11 @@ export function AgentInstallButton({
               aria-hidden="true"
             />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side={tooltipSide} className="text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content side={tooltipSide} className="text-xs">
           {state.label}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }

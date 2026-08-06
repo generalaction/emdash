@@ -1,7 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { CircleAlert } from 'lucide-react';
 import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import type { IntegrationItem } from './IntegrationsCard';
 
 export function IntegrationGridCard({
@@ -54,8 +54,8 @@ export function ConnectionIssueIndicator({
   error: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Tooltip.Root>
+      <Tooltip.Trigger
         render={
           <span
             className="text-destructive absolute top-3 right-3 inline-flex h-5 w-5 items-center justify-center rounded-full"
@@ -65,7 +65,7 @@ export function ConnectionIssueIndicator({
           </span>
         }
       />
-      <TooltipContent side="top">{error || 'Connection issue'}</TooltipContent>
-    </Tooltip>
+      <Tooltip.Content side="top">{error || 'Connection issue'}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }

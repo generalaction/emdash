@@ -1,12 +1,12 @@
 import type { McpCatalogEntry, McpServer } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { Button } from '@core/primitives/ui/browser/button';
 import { CardGridItem } from '@core/primitives/ui/browser/components/card-grid';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
 
 interface McpCardProps {
@@ -86,8 +86,8 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
 
       <div className="absolute inset-y-0 right-0 flex items-center gap-1 rounded-r-lg bg-linear-to-r from-transparent to-background-2 pr-3 pl-10 opacity-0 transition-opacity group-hover:opacity-100">
         {docsUrl && (
-          <Tooltip>
-            <TooltipTrigger>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -99,12 +99,12 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
               >
                 <ExternalLink className="h-4 w-4" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>View docs</TooltipContent>
-          </Tooltip>
+            </Tooltip.Trigger>
+            <Tooltip.Content>View docs</Tooltip.Content>
+          </Tooltip.Root>
         )}
-        <Tooltip>
-          <TooltipTrigger>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
             <Button
               size="icon-sm"
               variant="ghost"
@@ -120,9 +120,9 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
             >
               {isInstalled ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isInstalled ? 'Edit' : 'Add'}</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{isInstalled ? 'Edit' : 'Add'}</Tooltip.Content>
+        </Tooltip.Root>
       </div>
     </CardGridItem>
   );

@@ -1,11 +1,11 @@
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { SeparatedList } from '@emdash/ui/react/primitives';
+import { SeparatedList, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Select,
   SelectContent,
@@ -14,12 +14,6 @@ import {
   SelectValue,
 } from '@core/primitives/ui/browser/select';
 import { Switch } from '@core/primitives/ui/browser/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
@@ -40,9 +34,9 @@ function PreviewSoundButton({
   disabled?: boolean;
 }): React.JSX.Element {
   return (
-    <TooltipProvider delay={150}>
-      <Tooltip>
-        <TooltipTrigger
+    <Tooltip.Provider delay={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <Button
               type="button"
@@ -57,9 +51,9 @@ function PreviewSoundButton({
             </Button>
           }
         />
-        <TooltipContent side="top">Preview</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        <Tooltip.Content side="top">Preview</Tooltip.Content>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
 
@@ -166,9 +160,9 @@ const NotificationSettingsCard: React.FC = () => {
                   {customSoundPath && (
                     <PreviewSoundButton path={customSoundPath} disabled={loading} />
                   )}
-                  <TooltipProvider delay={150}>
-                    <Tooltip>
-                      <TooltipTrigger
+                  <Tooltip.Provider delay={150}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger
                         render={
                           <Button
                             type="button"
@@ -188,12 +182,12 @@ const NotificationSettingsCard: React.FC = () => {
                         }
                       />
                       {customSoundPath && (
-                        <TooltipContent side="top" className="break-all">
+                        <Tooltip.Content side="top" className="break-all">
                           {customSoundPath}
-                        </TooltipContent>
+                        </Tooltip.Content>
                       )}
-                    </Tooltip>
-                  </TooltipProvider>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
                 </>
               }
             />

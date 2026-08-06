@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Ellipsis, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -12,7 +13,6 @@ import {
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
 import { Switch } from '@core/primitives/ui/browser/switch';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useAutomationTargetAvailability, useRunAutomationNow } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
@@ -117,8 +117,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
           {activeTab === 'runs' && (
             <div className="ml-auto flex items-center gap-1">
-              <Tooltip>
-                <TooltipTrigger
+              <Tooltip.Root>
+                <Tooltip.Trigger
                   render={
                     <Button
                       variant="ghost"
@@ -134,8 +134,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                   }
                 >
                   <Play className="size-3.5" />
-                </TooltipTrigger>
-                <TooltipContent>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
                   {automation.projectId == null
                     ? 'Assign a project before running'
                     : !canEdit
@@ -147,8 +147,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                             !automation.taskConfig
                           ? 'Configure the automation before running'
                           : 'Run now'}
-                </TooltipContent>
-              </Tooltip>
+                </Tooltip.Content>
+              </Tooltip.Root>
             </div>
           )}
         </div>

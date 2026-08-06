@@ -1,12 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Loader2, Undo2 } from 'lucide-react';
 import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 
 export type ProjectSettingsSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -35,9 +30,9 @@ export function ProjectSettingsFooter({
 
   return (
     <div className="flex justify-between gap-2 pt-5">
-      <TooltipProvider delay={150}>
-        <Tooltip>
-          <TooltipTrigger>
+      <Tooltip.Provider delay={150}>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
             <Button
               type="button"
               variant="outline"
@@ -48,13 +43,13 @@ export function ProjectSettingsFooter({
             >
               Share with team
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" align="end">
+          </Tooltip.Trigger>
+          <Tooltip.Content side="bottom" align="end">
             Writes selected settings to .emdash.json. Commit that file to share these defaults with
             your team.
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </Tooltip.Provider>
 
       <div className="flex items-center gap-2">
         <Button

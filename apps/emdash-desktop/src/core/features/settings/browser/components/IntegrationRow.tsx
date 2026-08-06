@@ -1,12 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@core/primitives/theme/browser';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 
 type IntegrationStatus =
   | 'connected'
@@ -181,9 +176,9 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
 
       <div className="text-muted-foreground flex items-center justify-end gap-2 text-sm">
         {showInstallCopy ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
+          <Tooltip.Provider>
+            <Tooltip.Root>
+              <Tooltip.Trigger>
                 <button
                   type="button"
                   onClick={() => {
@@ -194,17 +189,17 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
                 >
                   <CopyIcon className="h-4 w-4" aria-hidden="true" />
                 </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
+              </Tooltip.Trigger>
+              <Tooltip.Content side="top">
                 <div className="max-w-[240px] space-y-1">
                   <div className="text-xs font-medium text-foreground">Copy install command</div>
                   <code className="text-muted-foreground block truncate font-mono text-tiny">
                     {installCommand}
                   </code>
                 </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
         ) : null}
 
         <div className="min-w-0">{middle ?? defaultMiddle}</div>

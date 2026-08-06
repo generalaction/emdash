@@ -1,9 +1,9 @@
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Plus, Trash2 } from 'lucide-react';
 import React from 'react';
 import { Button } from '@core/primitives/ui/browser/button';
 import { CardGridItem } from '@core/primitives/ui/browser/components/card-grid';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 interface SkillCardProps {
@@ -29,8 +29,8 @@ export const SkillCard: React.FC<SkillCardProps> = ({
         <p className="mt-0.5 line-clamp-1 text-xs text-foreground-muted">{skill.description}</p>
       </div>
       <div className="absolute top-1/2 right-2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100">
-        <Tooltip>
-          <TooltipTrigger>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
             <Button
               size="icon-sm"
               variant="ghost"
@@ -45,9 +45,9 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             >
               {isInstalled ? <Trash2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isInstalled ? 'Uninstall' : 'Install'}</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{isInstalled ? 'Uninstall' : 'Install'}</Tooltip.Content>
+        </Tooltip.Root>
       </div>
     </CardGridItem>
   );

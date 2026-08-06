@@ -1,8 +1,8 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Button } from '@core/primitives/ui/browser/button';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { HistoryEntry } from '@renderer/lib/stores/navigation-history-store';
 
@@ -14,8 +14,8 @@ export const NavButtons = observer(function NavButtons() {
   const { canGoBack, canGoForward } = appState.history;
   return (
     <div className="flex items-center gap-0.5 [-webkit-app-region:no-drag]">
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             variant="ghost"
             size="sm"
@@ -25,14 +25,14 @@ export const NavButtons = observer(function NavButtons() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           Go Back
           <BoundShortcut command="app.navigateBack" variant="keycaps" />
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             variant="ghost"
             size="sm"
@@ -42,12 +42,12 @@ export const NavButtons = observer(function NavButtons() {
           >
             <ArrowRight className="h-4 w-4" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           Go Forward
           <BoundShortcut command="app.navigateForward" variant="keycaps" />
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     </div>
   );
 });

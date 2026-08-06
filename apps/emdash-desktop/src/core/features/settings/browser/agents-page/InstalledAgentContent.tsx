@@ -1,10 +1,11 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -13,21 +14,15 @@ import {
 import { Field } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Label } from '@core/primitives/ui/browser/label';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { log } from '@renderer/utils/logger';
 
 type EnvEntry = { key: string; value: string };
 
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger>
+  <Tooltip.Provider>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground"
@@ -35,12 +30,12 @@ const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
         >
           <Info className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[200px] text-xs">
+      </Tooltip.Trigger>
+      <Tooltip.Content side="top" className="max-w-[200px] text-xs">
         {content}
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  </Tooltip.Provider>
 );
 
 export interface InstalledAgentContentProps {

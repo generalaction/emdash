@@ -1,7 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import type { AgentStatus } from '@core/primitives/agents/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { CLISpinner } from '@core/primitives/ui/browser/components/cliSpinner';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 export type AgentIndicatorStatus = AgentStatus | null;
 
@@ -65,9 +65,9 @@ export function AgentStatusIndicator({
   if (disableTooltip) return indicator;
 
   return (
-    <Tooltip>
-      <TooltipTrigger render={indicator} />
-      <TooltipContent>{STATUS_LABELS[status]}</TooltipContent>
-    </Tooltip>
+    <Tooltip.Root>
+      <Tooltip.Trigger render={indicator} />
+      <Tooltip.Content>{STATUS_LABELS[status]}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }

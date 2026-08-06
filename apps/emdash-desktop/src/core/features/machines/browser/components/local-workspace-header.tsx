@@ -1,7 +1,6 @@
 import { WorkspaceIcon, type WorkspaceIconStatus } from '@emdash/ui/react/components';
-import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Tooltip } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceGitStats,
@@ -145,13 +144,13 @@ function PathIssueSummaryPill({
   summary: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span className="rounded-full border border-border-warning px-2 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
           {summary}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-96 text-xs">
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-96 text-xs">
         <div className="flex flex-col gap-1">
           {rows.map((row) => (
             <div key={`${row.workspaceId ?? row.path}:${row.path}`} className="min-w-0">
@@ -160,8 +159,8 @@ function PathIssueSummaryPill({
             </div>
           ))}
         </div>
-      </TooltipContent>
-    </Tooltip>
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 

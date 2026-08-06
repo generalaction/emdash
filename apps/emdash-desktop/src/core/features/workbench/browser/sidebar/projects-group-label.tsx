@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -13,7 +14,6 @@ import {
 } from '@core/primitives/ui/browser/dropdown-menu';
 import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
@@ -24,10 +24,10 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
       <MicroLabel className="font-medium text-foreground-tertiary-passive">Projects</MicroLabel>
       <div className="flex items-center gap-1">
         <DropdownMenu>
-          <Tooltip>
+          <Tooltip.Root>
             <DropdownMenuTrigger
               render={
-                <TooltipTrigger
+                <Tooltip.Trigger
                   render={
                     <button
                       type="button"
@@ -45,8 +45,8 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
                 />
               }
             />
-            <TooltipContent>Sort by</TooltipContent>
-          </Tooltip>
+            <Tooltip.Content>Sort by</Tooltip.Content>
+          </Tooltip.Root>
           <DropdownMenuContent className="min-w-48">
             <DropdownMenuGroup>
               <DropdownMenuLabel>Sort by</DropdownMenuLabel>
@@ -67,8 +67,8 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger
+        <Tooltip.Root>
+          <Tooltip.Trigger
             render={
               <button
                 type="button"
@@ -84,11 +84,11 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
               </button>
             }
           />
-          <TooltipContent>
+          <Tooltip.Content>
             Add Project
             <BoundShortcut command="app.newProject" variant="keycaps" />
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
       </div>
     </div>
   );

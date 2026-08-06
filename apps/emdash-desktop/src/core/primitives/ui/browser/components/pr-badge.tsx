@@ -1,11 +1,11 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrUrlCopyButton } from '@core/primitives/ui/browser/components/pr-url-copy-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrNumberBadge } from './pr-number-badge';
@@ -59,8 +59,8 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                 {pr.title}
               </span>
               <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-              <Tooltip>
-                <TooltipTrigger>
+              <Tooltip.Root>
+                <Tooltip.Trigger>
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -69,9 +69,9 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                   >
                     <ExternalLink className="size-3.5" />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Open PR on GitHub</TooltipContent>
-              </Tooltip>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Open PR on GitHub</Tooltip.Content>
+              </Tooltip.Root>
               <PrUrlCopyButton url={pr.url} />
             </div>
             <RelativeTime

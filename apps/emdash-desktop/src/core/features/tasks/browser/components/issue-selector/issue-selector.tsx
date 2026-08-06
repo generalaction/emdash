@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
@@ -9,8 +10,8 @@ import { IntegrationIcon } from '@core/features/integrations/api/browser/integra
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxContent,
@@ -32,7 +33,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@core/primitives/ui/browser/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
@@ -87,16 +87,16 @@ export function ProviderLogo({
 
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Tooltip.Root>
+      <Tooltip.Trigger
         render={
           <span className="ml-auto flex shrink-0 items-center text-foreground-info">
             <Link className="size-3.5" />
           </span>
         }
       />
-      <TooltipContent>Already linked to task: {linkedTo.taskName}</TooltipContent>
-    </Tooltip>
+      <Tooltip.Content>Already linked to task: {linkedTo.taskName}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -105,12 +105,12 @@ export function IssueRow({ issue, linkedTo }: { issue: LinkedIssue; linkedTo?: L
     <span className="flex w-full min-w-0 items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
         {issue.status ? (
-          <Tooltip>
-            <TooltipTrigger
+          <Tooltip.Root>
+            <Tooltip.Trigger
               render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />}
             />
-            <TooltipContent>{issue.status}</TooltipContent>
-          </Tooltip>
+            <Tooltip.Content>{issue.status}</Tooltip.Content>
+          </Tooltip.Root>
         ) : null}
         <span className="flex min-w-0 items-center gap-2">
           {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}

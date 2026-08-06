@@ -86,14 +86,18 @@ vi.mock('@core/primitives/ui/browser/select', async () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/tooltip', async () => {
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   const React = await import('react');
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
-    Tooltip: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipTrigger: ({ render }: { render: React.ReactElement }) => render,
+    ...actual,
+    Tooltip: {
+      Root: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Trigger: ({ render }: { render: React.ReactElement }) => render,
+    },
   };
 });
 

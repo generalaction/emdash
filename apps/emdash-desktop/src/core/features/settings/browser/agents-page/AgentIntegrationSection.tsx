@@ -1,4 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Clock3, ExternalLink, Info, Loader2 } from 'lucide-react';
 import { useAgentHooksStatus } from '@core/features/agents/api/browser/use-agent-hooks-status';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -7,12 +8,6 @@ import type { AgentPayload } from '@core/primitives/agents/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Field } from '@core/primitives/ui/browser/field';
 import { Label } from '@core/primitives/ui/browser/label';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 const HOME_PREFIX_RE = /^\/(?:Users|home)\/[^/]+/;
@@ -23,9 +18,9 @@ function tildify(absolutePath: string): string {
 
 function InfoTooltip({ children }: { children: React.ReactNode }) {
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
+    <Tooltip.Provider>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <button
             type="button"
             className="text-foreground-muted hover:text-foreground"
@@ -33,12 +28,12 @@ function InfoTooltip({ children }: { children: React.ReactNode }) {
           >
             <Info className="size-3.5" aria-hidden="true" />
           </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[260px] text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top" className="max-w-[260px] text-xs">
           {children}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
 

@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,8 +31,8 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +46,6 @@ import {
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
@@ -387,8 +387,8 @@ function ToolbarIconButton({
   children: ReactNode;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Tooltip.Root>
+      <Tooltip.Trigger
         render={
           <Button
             type="button"
@@ -403,8 +403,8 @@ function ToolbarIconButton({
           </Button>
         }
       />
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+      <Tooltip.Content>{label}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 

@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowUp, LoaderCircle } from 'lucide-react';
 import {
   type ContextAction,
@@ -5,12 +6,6 @@ import {
 } from '@core/features/tasks/browser/context-bar/context-actions';
 import { PromptActionsMenu } from '@core/features/tasks/browser/context-bar/prompt-actions-menu';
 import { Button } from '@core/primitives/ui/browser/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 
 interface ModalContextBarProps {
@@ -30,7 +25,7 @@ export function ModalContextBar({
   const promptActions = actions.filter((a): a is PromptContextAction => a.kind === 'prompt');
 
   return (
-    <TooltipProvider>
+    <Tooltip.Provider>
       <div className="flex h-[41px] items-center gap-2 border-t border-border px-2">
         <PromptActionsMenu
           actions={promptActions}
@@ -40,8 +35,8 @@ export function ModalContextBar({
           onActionClick={onActionClick}
         />
         {issueAction ? (
-          <Tooltip>
-            <TooltipTrigger>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
               <Button
                 variant="outline"
                 size="sm"
@@ -63,15 +58,15 @@ export function ModalContextBar({
                   <ArrowUp className="size-3 shrink-0" />
                 )}
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>
+            </Tooltip.Trigger>
+            <Tooltip.Content>
               {issueActionPending
                 ? 'Adding issue context to the initial message'
                 : 'Add issue context to the initial message'}
-            </TooltipContent>
-          </Tooltip>
+            </Tooltip.Content>
+          </Tooltip.Root>
         ) : null}
       </div>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 }

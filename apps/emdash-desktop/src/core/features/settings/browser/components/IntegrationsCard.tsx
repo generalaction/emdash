@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import React, { useMemo, useState } from 'react';
 import { isIssueIntegration } from '@core/features/integrations/api/browser/integration-display';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
@@ -6,7 +7,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { AgentIconAsset } from '@core/primitives/agents/api';
 import type { ConnectionStatus, IssueProviderType } from '@core/primitives/issue-providers/api';
 import { Sheet, SheetContent } from '@core/primitives/ui/browser/sheet';
-import { TooltipProvider } from '@core/primitives/ui/browser/tooltip';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
@@ -132,7 +132,7 @@ const IntegrationsCard: React.FC = () => {
   }
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <div className="space-y-8">
         {connectedIntegrations.length > 0 && (
           <IntegrationSection title="Connected">
@@ -170,7 +170,7 @@ const IntegrationsCard: React.FC = () => {
           )}
         </SheetContent>
       </Sheet>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 };
 

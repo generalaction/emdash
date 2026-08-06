@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
@@ -8,7 +9,6 @@ import {
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
 export const TabBarActions = observer(function TabBarActions() {
@@ -36,18 +36,18 @@ export const TabBarActions = observer(function TabBarActions() {
 
   return (
     <div className="flex h-full shrink-0 items-center px-2">
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button size="icon-sm" variant="ghost" onClick={handleCreateConversation}>
             <MessageSquarePlus className="size-3.5" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           New Conversations <BoundShortcut command="task.newConversation" variant="keycaps" />
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             size="icon-sm"
             variant="ghost"
@@ -61,12 +61,12 @@ export const TabBarActions = observer(function TabBarActions() {
           >
             <FileSearch className="size-3.5" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>Open File</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>Open File</Tooltip.Content>
+      </Tooltip.Root>
       {paneLayout.groups.length < 3 && (
-        <Tooltip>
-          <TooltipTrigger>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
             <span>
               <Button
                 size="icon-sm"
@@ -78,8 +78,8 @@ export const TabBarActions = observer(function TabBarActions() {
                 <Columns2 className="size-3.5" />
               </Button>
             </span>
-          </TooltipTrigger>
-          <TooltipContent>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
             {canSplit ? (
               <span className="flex items-center gap-2">
                 Move active tab to a new pane
@@ -88,8 +88,8 @@ export const TabBarActions = observer(function TabBarActions() {
             ) : (
               'Open at least 2 tabs to split this pane'
             )}
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
       )}
     </div>
   );

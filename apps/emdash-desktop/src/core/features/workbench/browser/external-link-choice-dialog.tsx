@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -9,12 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 
 export type ExternalLinkChoice = 'emdash-browser' | 'external-browser';
 
@@ -61,9 +56,9 @@ export function ExternalLinkChoiceDialog({
           <div className="max-h-32 overflow-y-auto px-3 py-2.5 pr-10 font-mono text-[13px] leading-relaxed break-all text-foreground">
             {url}
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
+          <Tooltip.Provider>
+            <Tooltip.Root>
+              <Tooltip.Trigger
                 render={
                   <Button
                     type="button"
@@ -80,10 +75,10 @@ export function ExternalLinkChoiceDialog({
                 ) : (
                   <Copy className="size-4" />
                 )}
-              </TooltipTrigger>
-              <TooltipContent>{copied ? 'Copied' : 'Copy link'}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </Tooltip.Trigger>
+              <Tooltip.Content>{copied ? 'Copied' : 'Copy link'}</Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
         </div>
       </DialogContentArea>
       <DialogFooter className="flex-col-reverse sm:flex-col-reverse">

@@ -1,5 +1,5 @@
 import { FormFieldShell, useAppForm, useFieldContext } from '@emdash/ui/react/form';
-import { Button, Collapsible, Select } from '@emdash/ui/react/primitives';
+import { Button, Collapsible, Select, Tooltip } from '@emdash/ui/react/primitives';
 import {
   CheckCircle2,
   ChevronDown,
@@ -10,12 +10,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { appState } from '@renderer/lib/stores/app-state';
 import { suggestedAuthTypeForSshConfigHost, type MachineAuthType } from './machine-form-model';
 import { machineFormSchema } from './machine-form-schema';
@@ -41,8 +35,8 @@ function formatMachineError(error: unknown): string {
 
 function FieldInfoTooltip({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Tooltip.Root>
+      <Tooltip.Trigger
         render={
           <button
             type="button"
@@ -53,14 +47,14 @@ function FieldInfoTooltip({ label, children }: { label: string; children: ReactN
           </button>
         }
       />
-      <TooltipContent
+      <Tooltip.Content
         side="top"
         align="start"
         className="max-w-[240px] items-start text-left leading-relaxed whitespace-normal"
       >
         {children}
-      </TooltipContent>
-    </Tooltip>
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -388,7 +382,7 @@ export function MachineFormFields({
   } = controller;
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <form
         id={formId}
         onSubmit={(event) => {
@@ -664,7 +658,7 @@ export function MachineFormFields({
           )}
         </div>
       )}
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 }
 

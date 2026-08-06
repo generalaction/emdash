@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -11,11 +12,10 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
@@ -156,8 +156,8 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                 label="Pull request files"
               />
             )}
-            <Tooltip>
-              <TooltipTrigger>
+            <Tooltip.Root>
+              <Tooltip.Trigger>
                 <SplitButton
                   variant="outline"
                   size="xs"
@@ -165,11 +165,11 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                   disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
                   icon={<Plus className="size-3" />}
                 />
-              </TooltipTrigger>
-              <TooltipContent>{createPrTooltip}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
+              </Tooltip.Trigger>
+              <Tooltip.Content>{createPrTooltip}</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger>
                 <Button
                   variant="outline"
                   size="icon-xs"
@@ -178,9 +178,9 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                 >
                   <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Refresh pull requests</TooltipContent>
-            </Tooltip>
+              </Tooltip.Trigger>
+              <Tooltip.Content>Refresh pull requests</Tooltip.Content>
+            </Tooltip.Root>
           </>
         }
       />

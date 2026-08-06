@@ -1,8 +1,8 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { AlignJustify, ListTree } from 'lucide-react';
 import { useState } from 'react';
 import type { ChangesListViewMode } from '@core/primitives/app-settings/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 interface ChangesViewModeToggleProps {
   value: ChangesListViewMode;
@@ -17,7 +17,7 @@ export function ChangesViewModeToggle({ value, onChange, label }: ChangesViewMod
   const [open, setOpen] = useState(false);
 
   return (
-    <Tooltip
+    <Tooltip.Root
       open={open}
       onOpenChange={(nextOpen, details) => {
         // Keep the tooltip visible after a click so the user can read the
@@ -26,7 +26,7 @@ export function ChangesViewModeToggle({ value, onChange, label }: ChangesViewMod
         setOpen(nextOpen);
       }}
     >
-      <TooltipTrigger>
+      <Tooltip.Trigger>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -35,8 +35,8 @@ export function ChangesViewModeToggle({ value, onChange, label }: ChangesViewMod
         >
           <Icon className="size-3" />
         </Button>
-      </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{tooltip}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }

@@ -1,8 +1,8 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NewTerminalButton } from '@core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar';
-import { TooltipProvider } from '@core/primitives/ui/browser/tooltip';
 
 beforeAll(() => {
   (
@@ -28,14 +28,14 @@ describe('terminal shell menu', () => {
   it('shows a loading item while shell availability is unresolved', async () => {
     await act(async () => {
       root.render(
-        <TooltipProvider>
+        <Tooltip.Provider>
           <NewTerminalButton
             shellMenuState={{ kind: 'loading' }}
             onShellMenuOpen={() => {}}
             onRetryShellAvailability={() => {}}
             onAddTerminal={() => {}}
           />
-        </TooltipProvider>
+        </Tooltip.Provider>
       );
     });
 
@@ -50,14 +50,14 @@ describe('terminal shell menu', () => {
     const onRetry = vi.fn();
     await act(async () => {
       root.render(
-        <TooltipProvider>
+        <Tooltip.Provider>
           <NewTerminalButton
             shellMenuState={{ kind: 'error', message: 'Remote endpoint unavailable' }}
             onShellMenuOpen={() => {}}
             onRetryShellAvailability={onRetry}
             onAddTerminal={() => {}}
           />
-        </TooltipProvider>
+        </Tooltip.Provider>
       );
     });
 
@@ -77,7 +77,7 @@ describe('terminal shell menu', () => {
     const onOpen = vi.fn();
     await act(async () => {
       root.render(
-        <TooltipProvider>
+        <Tooltip.Provider>
           <NewTerminalButton
             shellMenuState={{
               kind: 'ready',
@@ -94,7 +94,7 @@ describe('terminal shell menu', () => {
             onRetryShellAvailability={() => {}}
             onAddTerminal={() => {}}
           />
-        </TooltipProvider>
+        </Tooltip.Provider>
       );
     });
     const trigger = host.querySelector<HTMLButtonElement>(

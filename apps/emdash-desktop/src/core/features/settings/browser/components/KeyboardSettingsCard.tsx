@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
@@ -19,12 +20,6 @@ import {
 } from '@core/primitives/keybindings/browser';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 
 const groupsByCommandId = new Map<string, string[]>();
@@ -171,10 +166,10 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                         <>
                           {(showClear || showReset) && (
                             <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover/shortcut:pointer-events-auto group-hover/shortcut:opacity-100">
-                              <TooltipProvider delay={150}>
+                              <Tooltip.Provider delay={150}>
                                 {showReset && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger>
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -192,13 +187,13 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                       >
                                         <RotateCcw className="h-3.5 w-3.5" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">Reset to default</TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side="top">Reset to default</Tooltip.Content>
+                                  </Tooltip.Root>
                                 )}
                                 {showClear && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger>
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -216,11 +211,11 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                       >
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">Remove shortcut</TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side="top">Remove shortcut</Tooltip.Content>
+                                  </Tooltip.Root>
                                 )}
-                              </TooltipProvider>
+                              </Tooltip.Provider>
                             </div>
                           )}
                           <Button

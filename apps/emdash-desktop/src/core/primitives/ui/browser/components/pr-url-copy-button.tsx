@@ -1,8 +1,8 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
 import { copyPrUrl } from './pr-url-copy';
 
 interface PrUrlCopyButtonProps {
@@ -42,8 +42,8 @@ export function PrUrlCopyButton({ url, className }: PrUrlCopyButtonProps) {
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Tooltip.Root>
+      <Tooltip.Trigger
         render={
           <Button
             type="button"
@@ -57,7 +57,7 @@ export function PrUrlCopyButton({ url, className }: PrUrlCopyButtonProps) {
           </Button>
         }
       />
-      <TooltipContent>{copied ? 'Copied!' : 'Copy PR URL'}</TooltipContent>
-    </Tooltip>
+      <Tooltip.Content>{copied ? 'Copied!' : 'Copy PR URL'}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }

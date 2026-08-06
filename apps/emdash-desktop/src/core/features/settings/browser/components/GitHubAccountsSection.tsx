@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
 import {
   GitHubCredentialSourceBadge,
@@ -7,12 +8,6 @@ import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useGitHubAccounts,
@@ -32,9 +27,9 @@ export function GitHubAccountsSection() {
         <div className="min-w-0">
           <p className="text-sm text-foreground">GitHub</p>
         </div>
-        <TooltipProvider delay={150}>
-          <Tooltip>
-            <TooltipTrigger>
+        <Tooltip.Provider delay={150}>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
               <Button
                 type="button"
                 variant="ghost"
@@ -44,10 +39,10 @@ export function GitHubAccountsSection() {
               >
                 <Plus className="h-3.5 w-3.5" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Add GitHub account</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </Tooltip.Trigger>
+            <Tooltip.Content side="top">Add GitHub account</Tooltip.Content>
+          </Tooltip.Root>
+        </Tooltip.Provider>
       </div>
 
       {isLoading ? (
@@ -130,7 +125,7 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
   };
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <div className="space-y-2">
         {accounts.map((account) => (
           <GitHubAccountRow
@@ -143,7 +138,7 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
           />
         ))}
       </div>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 }
 
@@ -181,8 +176,8 @@ function GitHubAccountRow({
         </div>
         <p className="text-muted-foreground truncate text-xs">{account.host}</p>
       </div>
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             type="button"
             variant="ghost"
@@ -201,13 +196,13 @@ function GitHubAccountRow({
               <Circle className="text-foreground-muted" />
             )}
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top">
           {account.isDefault ? 'Default account' : 'Set as default'}
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             type="button"
             variant="ghost"
@@ -218,20 +213,20 @@ function GitHubAccountRow({
           >
             <X />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">Remove account</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top">Remove account</Tooltip.Content>
+      </Tooltip.Root>
     </div>
   );
 }
 
 export function DefaultGitHubAccountBadge({ login }: { login: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger className="inline-flex h-4.5 items-center leading-none">
+    <Tooltip.Root>
+      <Tooltip.Trigger className="inline-flex h-4.5 items-center leading-none">
         <GitHubDefaultAccountBadge />
-      </TooltipTrigger>
-      <TooltipContent side="top">New projects will use @{login} by default.</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content side="top">New projects will use @{login} by default.</Tooltip.Content>
+    </Tooltip.Root>
   );
 }

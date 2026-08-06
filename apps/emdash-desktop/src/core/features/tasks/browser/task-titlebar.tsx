@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowDown,
   ArrowUp,
@@ -34,9 +35,9 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Badge } from '@core/primitives/ui/browser/badge';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/styling/browser/cn';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
 import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
 import { MicroLabel } from '@core/primitives/ui/browser/label';
@@ -45,7 +46,6 @@ import { Separator } from '@core/primitives/ui/browser/separator';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { Toggle } from '@core/primitives/ui/browser/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
@@ -151,8 +151,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           </button>
           <span className="text-sm text-foreground-passive">/</span>
           <Popover>
-            <Tooltip>
-              <TooltipTrigger
+            <Tooltip.Root>
+              <Tooltip.Trigger
                 render={
                   <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -163,8 +163,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   </PopoverTrigger>
                 }
               />
-              <TooltipContent>Link to issue</TooltipContent>
-            </Tooltip>
+              <Tooltip.Content>Link to issue</Tooltip.Content>
+            </Tooltip.Root>
             <PopoverContent align="start" className="flex w-96 flex-col gap-2 p-4">
               <div className="flex w-full flex-col gap-1">
                 <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
@@ -178,8 +178,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
                     <>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
+                      <Tooltip.Root>
+                        <Tooltip.Trigger className="flex-1">
                           <Button
                             className="w-full"
                             variant="outline"
@@ -190,13 +190,13 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                             <RefreshCcw className="size-3" />
                             {isFetching ? 'Fetching...' : 'Fetch'}
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
                           {isFetching ? 'Fetching...' : 'Fetch changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger className="flex-1">
                           <Button
                             className="w-full"
                             variant="outline"
@@ -216,17 +216,17 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                               </span>
                             )}
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
                           {isPulling
                             ? 'Pulling...'
                             : behindCount === 0
                               ? 'Nothing to pull'
                               : 'Pull changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger className="flex-1">
                           <Button
                             className="w-full"
                             variant="outline"
@@ -246,19 +246,19 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                               </span>
                             )}
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
                           {isPushing
                             ? 'Pushing...'
                             : aheadCount === 0
                               ? 'Nothing to push'
                               : 'Push changes'}
-                        </TooltipContent>
-                      </Tooltip>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
                     </>
                   ) : (
-                    <Tooltip>
-                      <TooltipTrigger className="flex-1">
+                    <Tooltip.Root>
+                      <Tooltip.Trigger className="flex-1">
                         <Button
                           className="w-full"
                           variant="outline"
@@ -269,11 +269,11 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                           <ArrowUp className="size-3" />
                           {isPublishing ? 'Publishing...' : 'Publish'}
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
                         {isPublishing ? 'Publishing...' : 'Publish branch'}
-                      </TooltipContent>
-                    </Tooltip>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   )}
                 </div>
               </div>
@@ -321,8 +321,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             sshConnectionId={workspace.sshConnectionId}
           />
           <Separator orientation="vertical" className="h-5 self-center!" />
-          <Tooltip>
-            <TooltipTrigger>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
               <Toggle
                 size="sm"
                 pressed={taskView.isTerminalDrawerOpen}
@@ -333,12 +333,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               >
                 <Terminal className="size-3.5" />
               </Toggle>
-            </TooltipTrigger>
-            <TooltipContent>
+            </Tooltip.Trigger>
+            <Tooltip.Content>
               Toggle terminal{' '}
               <BoundShortcut command="task.toggleTerminalDrawer" variant="keycaps" />
-            </TooltipContent>
-          </Tooltip>
+            </Tooltip.Content>
+          </Tooltip.Root>
           <Separator orientation="vertical" className="h-5 self-center!" />
           <ToggleGroup
             value={taskView.isSidebarCollapsed ? [] : [taskView.sidebarTab]}
@@ -353,8 +353,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             size="icon-sm"
             className="border-none bg-transparent"
           >
-            <Tooltip>
-              <TooltipTrigger
+            <Tooltip.Root>
+              <Tooltip.Trigger
                 render={
                   <ToggleGroupItem
                     value="changes"
@@ -382,35 +382,35 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   </ToggleGroupItem>
                 }
               />
-              <TooltipContent>
+              <Tooltip.Content>
                 Changes <BoundShortcut command="task.sidebarChanges" variant="keycaps" />
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
+              </Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger
                 render={
                   <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
                     <FolderOpen className="size-3.5" />
                   </ToggleGroupItem>
                 }
               />
-              <TooltipContent>
+              <Tooltip.Content>
                 Files <BoundShortcut command="task.sidebarFiles" variant="keycaps" />
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
+              </Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger
                 render={
                   <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
                     <Clock className="size-3.5" />
                   </ToggleGroupItem>
                 }
               />
-              <TooltipContent>
+              <Tooltip.Content>
                 Conversations{' '}
                 <BoundShortcut command="task.sidebarConversations" variant="keycaps" />
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           </ToggleGroup>
         </div>
       }
@@ -422,8 +422,8 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
   const displayIdentifier = linkedIssueDisplayIdentifier(issue);
 
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Tooltip.Root>
+      <Tooltip.Trigger
         render={
           <button
             type="button"
@@ -442,7 +442,7 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
           </button>
         }
       />
-      <TooltipContent>{issue.title || issue.identifier}</TooltipContent>
-    </Tooltip>
+      <Tooltip.Content>{issue.title || issue.identifier}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }

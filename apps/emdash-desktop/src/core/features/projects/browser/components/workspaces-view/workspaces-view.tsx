@@ -10,6 +10,7 @@ import {
   defineSort,
   ListView,
 } from '@emdash/ui/react/patterns';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -20,19 +21,13 @@ import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/c
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { cn } from '@core/primitives/styling/browser/cn';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,
@@ -245,7 +240,7 @@ export const WorkspacesView = observer(function WorkspacesView({
   }, [store]);
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <view.Root>
         <div className="relative flex h-full min-h-0 w-full flex-col">
           <WorkspacesHeader store={store} view={view} />
@@ -271,7 +266,7 @@ export const WorkspacesView = observer(function WorkspacesView({
           <WorkspacesSelectionBar store={store} view={view} projectId={projectId} />
         </div>
       </view.Root>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 });
 
@@ -367,14 +362,14 @@ const WorkspaceRow = observer(function WorkspaceRow({
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-foreground-muted">
             <span>{taskCount(row.tasks.length)}</span>
             {row.tasks.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger className="truncate text-left underline decoration-dotted underline-offset-2">
+              <Tooltip.Root>
+                <Tooltip.Trigger className="truncate text-left underline decoration-dotted underline-offset-2">
                   {row.tasks.map((task) => task.name).join(', ')}
-                </TooltipTrigger>
-                <TooltipContent className="max-w-70 text-xs">
+                </Tooltip.Trigger>
+                <Tooltip.Content className="max-w-70 text-xs">
                   {row.tasks.map((task) => task.name).join(', ')}
-                </TooltipContent>
-              </Tooltip>
+                </Tooltip.Content>
+              </Tooltip.Root>
             )}
           </div>
         </div>
@@ -411,17 +406,17 @@ function SelectableCheckbox({
   );
   if (!disabled || !disabledReason) return checkbox;
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span
           className="inline-flex size-4 items-center justify-center"
           onClick={(event) => event.stopPropagation()}
         >
           {checkbox}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-55 text-xs">{disabledReason}</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-55 text-xs">{disabledReason}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -671,16 +666,16 @@ function removalBadgeFor(row: ProjectWorkspaceRow): ReactNode {
   if (!row.pendingRemoval) return null;
   if (workspaceRemovalNeedsAttention(row)) {
     return (
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <span className="rounded-full border border-border-destructive px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-destructive uppercase">
             Removal failed
           </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-70 text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content className="max-w-70 text-xs">
           {row.removalStop?.message ?? 'The removal stopped after a failure.'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     );
   }
   return (

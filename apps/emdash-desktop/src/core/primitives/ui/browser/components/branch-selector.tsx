@@ -1,8 +1,9 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
-import { Badge } from '@core/primitives/ui/browser/badge';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Badge } from '@core/primitives/ui/browser/badge';
 import {
   Combobox,
   ComboboxContent,
@@ -16,7 +17,6 @@ import {
 import { InputGroupButton } from '@core/primitives/ui/browser/input-group';
 import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import {
   filterBranchesForPicker,
   getBranchLabel,
@@ -190,8 +190,8 @@ export function BranchSelector({
           inputRef={inputRef}
           rightAddon={
             onRefresh && (
-              <Tooltip>
-                <TooltipTrigger>
+              <Tooltip.Root>
+                <Tooltip.Trigger>
                   <InputGroupButton
                     size="icon-xs"
                     className="text-foreground-muted hover:text-foreground"
@@ -201,9 +201,9 @@ export function BranchSelector({
                   >
                     <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
                   </InputGroupButton>
-                </TooltipTrigger>
-                <TooltipContent>Refresh branches</TooltipContent>
-              </Tooltip>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Refresh branches</Tooltip.Content>
+              </Tooltip.Root>
             )
           }
         />

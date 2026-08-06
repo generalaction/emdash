@@ -4,6 +4,7 @@ import type {
   TerminalShellId,
 } from '@emdash/core/primitives/terminal-shell/api';
 import { ScriptStatus, type ScriptStatusKind } from '@emdash/ui/react/components';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -16,8 +17,8 @@ import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
 import {
   DropdownMenu,
@@ -27,7 +28,6 @@ import {
 } from '@core/primitives/ui/browser/dropdown-menu';
 import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 export type TerminalDrawerMode = 'terminals' | 'scripts';
 
@@ -118,8 +118,8 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                 onRename={(name) => onRenameTerminal(terminal.data.id, name)}
                 onHover={onHoverTerminal ? () => onHoverTerminal(terminal.data.id) : undefined}
                 action={
-                  <Tooltip>
-                    <TooltipTrigger
+                  <Tooltip.Root>
+                    <Tooltip.Trigger
                       render={
                         <button
                           type="button"
@@ -134,9 +134,9 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                       }
                     >
                       <X className="size-3" />
-                    </TooltipTrigger>
-                    <TooltipContent>Close terminal</TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>Close terminal</Tooltip.Content>
+                  </Tooltip.Root>
                 }
               />
             ))}
@@ -157,8 +157,8 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
               isActive={activeScriptId === script.data.id}
               onSelect={() => onSelectScript(script.data.id)}
               iconAction={
-                <Tooltip>
-                  <TooltipTrigger
+                <Tooltip.Root>
+                  <Tooltip.Trigger
                     render={
                       <button
                         type="button"
@@ -180,9 +180,9 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
                     }
                   >
                     {script.isRunning ? <Pause className="size-3" /> : <Play className="size-3" />}
-                  </TooltipTrigger>
-                  <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{script.isRunning ? 'Stop' : 'Run'}</Tooltip.Content>
+                </Tooltip.Root>
               }
             />
           ))
@@ -215,8 +215,8 @@ export function NewTerminalButton({
 }) {
   return (
     <div className="flex shrink-0 items-center">
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <Button
               variant="ghost"
@@ -228,11 +228,11 @@ export function NewTerminalButton({
           }
         >
           <Plus className="size-3" />
-        </TooltipTrigger>
-        <TooltipContent>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
           New terminal <BoundShortcut command="task.newTerminal" variant="keycaps" />
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
       <DropdownMenu onOpenChange={(open) => open && onShellMenuOpen()}>
         <DropdownMenuTrigger
           render={

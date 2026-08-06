@@ -1,9 +1,9 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Expand } from 'lucide-react';
 import type React from 'react';
 import { useRef, useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
 import { ContainedImage } from './contained-image';
 import { ZoomableContentDialog } from './zoomable-content-dialog';
 
@@ -39,8 +39,8 @@ export function ExpandableImage({
     <span
       className={cn('group/image relative inline-block max-w-full align-top', containerClassName)}
     >
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <Button
               type="button"
@@ -54,10 +54,10 @@ export function ExpandableImage({
             </Button>
           }
         />
-        <TooltipContent side="left" align="end">
+        <Tooltip.Content side="left" align="end">
           Expand image
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
       <ContainedImage src={src} alt={imageAlt} className={className} {...props} />
       {shouldRenderDialog && (
         <ZoomableContentDialog

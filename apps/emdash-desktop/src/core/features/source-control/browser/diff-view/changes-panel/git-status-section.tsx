@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -11,12 +12,6 @@ import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-s
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Button } from '@core/primitives/ui/browser/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {
@@ -60,23 +55,23 @@ export const GitStatusSection = observer(function GitStatusSection() {
   };
 
   return (
-    <TooltipProvider>
+    <Tooltip.Provider>
       <div className="flex flex-col gap-2 border-t border-border p-2">
         <div className="flex items-center justify-between gap-2 text-foreground-muted">
-          <Tooltip>
-            <TooltipTrigger className="flex min-w-0 items-center gap-2">
+          <Tooltip.Root>
+            <Tooltip.Trigger className="flex min-w-0 items-center gap-2">
               <GitBranch className="size-3 shrink-0" />
               <span className="truncate text-xs">{headDisplay}</span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
+            </Tooltip.Trigger>
+            <Tooltip.Content side="bottom">
               {getBranchTooltipText(headDisplay, headKind)}
-            </TooltipContent>
-          </Tooltip>
+            </Tooltip.Content>
+          </Tooltip.Root>
           <div className="flex items-center gap-1">
             {hasUpstream && !isDetached ? (
               <>
-                <Tooltip>
-                  <TooltipTrigger>
+                <Tooltip.Root>
+                  <Tooltip.Trigger>
                     <Button
                       variant="outline"
                       size="icon-xs"
@@ -85,11 +80,11 @@ export const GitStatusSection = observer(function GitStatusSection() {
                     >
                       <RefreshCcw className="size-3" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{isFetching ? 'Fetching...' : 'Fetch changes'}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>{isFetching ? 'Fetching...' : 'Fetch changes'}</Tooltip.Content>
+                </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger>
                     <Button
                       variant="outline"
                       size="icon-xs"
@@ -98,17 +93,17 @@ export const GitStatusSection = observer(function GitStatusSection() {
                     >
                       <ArrowDown className="size-3" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
                     {isPulling
                       ? 'Pulling...'
                       : behindCount === 0
                         ? 'Nothing to pull'
                         : 'Pull changes'}
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger>
                     <Button
                       variant="outline"
                       size="icon-xs"
@@ -117,20 +112,20 @@ export const GitStatusSection = observer(function GitStatusSection() {
                     >
                       <ArrowUp className="size-3" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
                     {isPushing
                       ? 'Pushing...'
                       : aheadCount === 0
                         ? 'Nothing to push'
                         : 'Push changes'}
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </>
             ) : (
               !isDetached && (
-                <Tooltip>
-                  <TooltipTrigger>
+                <Tooltip.Root>
+                  <Tooltip.Trigger>
                     <Button
                       variant="outline"
                       size="xs"
@@ -144,21 +139,21 @@ export const GitStatusSection = observer(function GitStatusSection() {
                           ? 'Add Remote'
                           : 'Publish'}
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
                     {getPublishTooltipText({
                       isPublishing,
                       headDisplay,
                       headKind,
                       shouldOfferAddRemote,
                     })}
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )
             )}
           </div>
         </div>
       </div>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 });

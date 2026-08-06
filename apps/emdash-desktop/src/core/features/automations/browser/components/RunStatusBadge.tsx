@@ -1,10 +1,10 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Clock, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import type {
   AutomationRun,
   AutomationRunStatus,
 } from '@core/features/automations/api/automation-run';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { formatRunError } from '../automation-run-format';
 
 interface RunStatusBadgeProps {
@@ -40,17 +40,17 @@ export function RunStatusBadge({ status, error }: RunStatusBadgeProps) {
     );
     if (!error) return badge;
     return (
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <span className={cn(BASE, 'bg-destructive/10 text-destructive cursor-default')} />
           }
         >
           <XCircle className="size-3" />
           Failed
-        </TooltipTrigger>
-        <TooltipContent>{formatRunError(error)}</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{formatRunError(error)}</Tooltip.Content>
+      </Tooltip.Root>
     );
   }
 

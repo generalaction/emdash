@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
@@ -11,12 +12,6 @@ import {
   ComboboxTrigger,
 } from '@core/primitives/ui/browser/combobox';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
@@ -50,19 +45,19 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
           </span>
         )}
         {ws.linkedTaskCount > 0 && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger className="ml-1 flex items-center gap-0.5 text-xs text-foreground-info">
+          <Tooltip.Provider>
+            <Tooltip.Root>
+              <Tooltip.Trigger className="ml-1 flex items-center gap-0.5 text-xs text-foreground-info">
                 <Link className="size-3" />
                 {ws.linkedTaskCount}
-              </TooltipTrigger>
-              <TooltipContent>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
                 {ws.linkedTaskCount === 1
                   ? '1 associated task'
                   : `${ws.linkedTaskCount} associated tasks`}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
         )}
       </span>
       <span className="truncate text-left text-xs leading-snug text-foreground-muted">

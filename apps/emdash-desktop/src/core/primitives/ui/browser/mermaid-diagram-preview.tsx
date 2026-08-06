@@ -1,8 +1,8 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Expand } from 'lucide-react';
 import type React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
+import { Button } from '@core/primitives/ui/browser/button';
 
 interface MermaidDiagramPreviewProps {
   svg: string;
@@ -25,8 +25,8 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
 
   return (
     <div className="group/mermaid relative overflow-x-auto rounded-md border border-border bg-background">
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <Button
               type="button"
@@ -40,10 +40,10 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
             </Button>
           }
         />
-        <TooltipContent side="left" align="end">
+        <Tooltip.Content side="left" align="end">
           Expand diagram
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
       <div
         role="button"
         tabIndex={0}

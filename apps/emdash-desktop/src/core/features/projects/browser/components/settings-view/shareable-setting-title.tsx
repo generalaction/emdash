@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw } from 'lucide-react';
 import type {
   ProjectSettingsOverrideState,
@@ -6,12 +7,6 @@ import type {
 import { Badge } from '@core/primitives/ui/browser/badge';
 import { Button } from '@core/primitives/ui/browser/button';
 import { FieldTitle } from '@core/primitives/ui/browser/field';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 
 type Props = {
   children: React.ReactNode;
@@ -31,22 +26,22 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
       <FieldTitle className="min-w-0 flex-1">{children}</FieldTitle>
       {overrideSources.length > 0 ? (
         <div className="flex h-4.5 shrink-0 items-center gap-1.5">
-          <TooltipProvider delay={150}>
-            <Tooltip>
-              <TooltipTrigger className="inline-flex h-4.5 items-center">
+          <Tooltip.Provider delay={150}>
+            <Tooltip.Root>
+              <Tooltip.Trigger className="inline-flex h-4.5 items-center">
                 <Badge
                   variant="outline"
                   className="h-4.5 rounded-xs border-border-warning bg-background-warning leading-none text-foreground-warning"
                 >
                   Overriding
                 </Badge>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="start" className="max-w-sm">
+              </Tooltip.Trigger>
+              <Tooltip.Content side="top" align="start" className="max-w-sm">
                 This overrides {teamConfigLabel} in {overrideWorkingDirectoryCount}.
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger className="inline-flex h-4.5 items-center">
+              </Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger className="inline-flex h-4.5 items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -57,12 +52,12 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
                 >
                   <RotateCcw className="size-3" aria-hidden="true" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="end">
+              </Tooltip.Trigger>
+              <Tooltip.Content side="top" align="end">
                 Use team settings
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
         </div>
       ) : null}
     </div>

@@ -6,6 +6,7 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
@@ -14,12 +15,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import type {
   ProjectWorkspaceGitStats,
@@ -226,7 +221,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   if (!group || !rootJoined || !rootRow) return <DetailMissingState />;
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <div className="flex min-h-0 flex-col gap-6 pb-4">
         <RepositoryHeader
           project={group.project}
@@ -254,7 +249,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
           />
         </WorkspaceSection>
       </div>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 });
 
@@ -328,14 +323,16 @@ function workspaceScriptIssues(row: ProjectWorkspaceRow): WorkspaceScriptIssue[]
 
 function PathIssueChip({ issue, path }: { issue: ProjectWorkspacePathIssue; path: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span className={pathIssueChipClass(issue)}>
           {issue.kind === 'prunable' ? 'Stale git record' : 'Missing'}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-80 text-xs">{pathIssueMessage(issue, path)}</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-80 text-xs">
+        {pathIssueMessage(issue, path)}
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -357,16 +354,16 @@ function RemovalChip({ item }: { item: WorkspaceDetailListItem }) {
   const chipBase = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
   if (item.removalNeedsAttention) {
     return (
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <span className={`${chipBase} border-border-destructive text-foreground-destructive`}>
             Removal failed
           </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-70 text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content className="max-w-70 text-xs">
           {item.statusMessage ?? 'The removal stopped after a failure that needs your decision.'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     );
   }
   return (
@@ -378,17 +375,17 @@ function RemovalChip({ item }: { item: WorkspaceDetailListItem }) {
 
 function ScriptIssueChip({ issue }: { issue: WorkspaceScriptIssue }) {
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span className="shrink-0 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
           {scriptIssueLabel(issue)}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-80 text-xs">
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-80 text-xs">
         {scriptIssueLabel(issue)} <RelativeTime value={issue.at} />
         {issue.message ? `: ${issue.message}` : ''}
-      </TooltipContent>
-    </Tooltip>
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 

@@ -1,7 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowUp, ChevronDown, ChevronUp, FileSearch } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import type { ContextAction, PromptContextAction } from '../context-bar/context-actions';
 
 const EXPAND_TEXT_LENGTH = 140;
@@ -54,8 +54,8 @@ export function PromptActionsMenu({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <PopoverTrigger
               disabled={disabled}
@@ -67,8 +67,8 @@ export function PromptActionsMenu({
             </PopoverTrigger>
           }
         />
-        <TooltipContent>{disabled ? disabledTooltip : actionTooltip}</TooltipContent>
-      </Tooltip>
+        <Tooltip.Content>{disabled ? disabledTooltip : actionTooltip}</Tooltip.Content>
+      </Tooltip.Root>
 
       <PopoverContent
         align="start"
