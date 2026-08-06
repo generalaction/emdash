@@ -27,7 +27,8 @@ Spec: [terminal retention decision](../../performance-footprint/issues/04-termin
       browser-project test (`src/renderer/tests/browser/terminal-retention.test.ts`)
 - [ ] Before/after renderer RSS with ~10 open terminals recorded in the PR
       — *Not captured: requires attaching to a live GUI run with ~10 populated terminals.
-      The ticket-02 dev instruments (`EMDASH_DEV_PERF=1` RSS log + dev process panel) are in
+      The ticket-02 dev instruments (RSS log gated on debug logging via `EMDASH_LOG_LEVEL=debug`
+      or `--debug-logs`, plus the dev process panel) are in
       place to record this during a manual smoke pass. The expected effect is a ~10× cut in
       per-terminal text-buffer memory (10k vs 100k line cap).*
 
