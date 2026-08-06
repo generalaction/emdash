@@ -1,7 +1,15 @@
 import net from 'node:net';
+import { recordSpawn } from '@emdash/shared/perf';
 import { normalizeTerminalHttpUrl } from '@runtimes/terminals/api';
 
-const PROBE_INTERVAL_MS = 1000;
+/**
+ * Adaptive probe cadence: fast (1 s) until the port first responds — a
+ * just-detected server may still be starting — and again after any failure so
+ * the second, closing failure lands within ~1 s. Steady-state (15 s) while
+ * the server stays up, cutting probe cost 60 → 4 probes/minute per URL.
+ */
+export const PROBE_FAST_INTERVAL_MS = 1_000;
+export const PROBE_STEADY_INTERVAL_MS = 15_000;
 const PROBE_TIMEOUT_MS = 500;
 const PROBE_FAILURES_TO_CLOSE = 2;
 const URL_PATTERN = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d{2,5})?(?:\/\S*)?/g;
@@ -127,6 +135,7 @@ function detectedKey(server: DetectedPreviewUrl): string {
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {
+  recordSpawn('probe');
   return new Promise((resolve) => {
     const socket = net.createConnection({ host, port });
     socket.setTimeout(PROBE_TIMEOUT_MS);
@@ -165,9 +174,12 @@ function startProbe(
         return;
       }
     }
-    timer = setTimeout(() => {
-      void tick();
-    }, PROBE_INTERVAL_MS);
+    timer = setTimeout(
+      () => {
+        void tick();
+      },
+      open ? PROBE_STEADY_INTERVAL_MS : PROBE_FAST_INTERVAL_MS
+    );
   };
 
   timer = setTimeout(() => {
