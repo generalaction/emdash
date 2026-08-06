@@ -1,18 +1,26 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { app, type BrowserWindow } from 'electron';
 import { desktopHostEvents } from '@core/features/workbench/node';
-import type { DesktopRuntimeClients } from '@main/gateway/desktop-workers';
 import { getActiveSessionSummary } from '@main/host/sessions/active-session-summary';
 import { updateService } from '@main/host/updates/update-service';
 import { createShutdownCoordinator } from './coordinator';
 import { runQuitCleanup } from './phases';
 
-let sessionClients: Pick<DesktopRuntimeClients, 'acp' | 'terminals' | 'tuiAgents'> | undefined;
+let sessionSummarySource:
+  | { runtimes: RuntimeBroker; attachedHosts: () => readonly HostRef[] }
+  | undefined;
 
 const shutdownCoordinator = createShutdownCoordinator({
   emit: (event) => desktopHostEvents.emit(undefined, event),
   getActiveSessionSummary: () => {
-    if (!sessionClients) throw new Error('Shutdown runtime clients have not been configured');
-    return getActiveSessionSummary(sessionClients);
+    if (!sessionSummarySource) {
+      throw new Error('Shutdown runtime clients have not been configured');
+    }
+    return getActiveSessionSummary(
+      sessionSummarySource.runtimes,
+      sessionSummarySource.attachedHosts()
+    );
   },
   isInstallRequested: () => updateService.isInstallRequested,
   runCleanup: runQuitCleanup,
@@ -22,9 +30,10 @@ const shutdownCoordinator = createShutdownCoordinator({
 let registered = false;
 
 export function configureShutdownRuntimeClients(
-  clients: Pick<DesktopRuntimeClients, 'acp' | 'terminals' | 'tuiAgents'>
+  runtimes: RuntimeBroker,
+  attachedHosts: () => readonly HostRef[]
 ): void {
-  sessionClients = clients;
+  sessionSummarySource = { runtimes, attachedHosts };
 }
 
 export function registerQuitHandler(): void {

@@ -1,17 +1,62 @@
+import { formatHostRef, isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { ActiveSessionSummary } from '@core/features/workbench/api';
-import type { DesktopRuntimeClients } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 
 const SESSION_READ_DEADLINE_MS = 500;
 
+type HostSessionSummary = {
+  acpSessions: number;
+  tuiSessions: number;
+  terminals: number;
+  incomplete: boolean;
+};
+
 export async function getActiveSessionSummary(
-  clients: Pick<DesktopRuntimeClients, 'acp' | 'terminals' | 'tuiAgents'>
+  runtimes: Pick<RuntimeBroker, 'client'>,
+  attachedHosts: readonly HostRef[]
 ): Promise<ActiveSessionSummary> {
+  const hostSummaries = await Promise.all(
+    attachedHosts.map(async (host) => ({
+      host,
+      summary: await readHostSessionSummary(runtimes, host),
+    }))
+  );
+  const result: ActiveSessionSummary = {
+    acpSessions: 0,
+    localTuiSessions: 0,
+    remoteSessions: 0,
+    terminals: 0,
+    incomplete: false,
+  };
+
+  for (const { host, summary } of hostSummaries) {
+    result.incomplete ||= summary.incomplete;
+    if (isLocalHostRef(host)) {
+      result.acpSessions += summary.acpSessions;
+      result.localTuiSessions += summary.tuiSessions;
+      result.terminals += summary.terminals;
+    } else {
+      result.remoteSessions += summary.acpSessions + summary.tuiSessions;
+    }
+  }
+  return result;
+}
+
+async function readHostSessionSummary(
+  runtimes: Pick<RuntimeBroker, 'client'>,
+  host: HostRef
+): Promise<HostSessionSummary> {
+  const key = formatHostRef(host);
+  const client = runtimes.client(host).then((result) => {
+    if (!result.success) throw new Error(result.error.message);
+    return result.data;
+  });
   const [acpSessions, tuiSessions, terminals] = await Promise.all([
     readWithDeadline(
-      'acp',
+      `${key} ACP`,
       async () => {
-        const snapshot = await clients.acp.sessions.state(undefined, 'list').snapshot();
+        const snapshot = await (await client).acp.sessions.state(undefined, 'list').snapshot();
         return Object.values(snapshot.data).filter(
           (session) => session.lifecycle === 'working' || session.isGenerating
         ).length;
@@ -19,35 +64,39 @@ export async function getActiveSessionSummary(
       0
     ),
     readWithDeadline(
-      'tui-agents',
+      `${key} TUI`,
       async () => {
-        const snapshot = await clients.tuiAgents.sessions.state(undefined, 'list').snapshot();
-        const running = Object.values(snapshot.data).filter(
-          (session) => session.status === 'running'
-        );
-        return {
-          local: running.filter((session) => !session.isRemote).length,
-          remote: running.filter((session) => session.isRemote).length,
-        };
-      },
-      { local: 0, remote: 0 }
-    ),
-    readWithDeadline(
-      'terminals',
-      async () => {
-        const snapshot = await clients.terminals.sessions.state(undefined, 'list').snapshot();
-        return Object.values(snapshot.data).filter(
-          (session) => session.status === 'running' && session.kind === 'terminal'
-        ).length;
+        const snapshot = await (
+          await client
+        ).tuiAgents.sessions
+          .state(undefined, 'list')
+          .snapshot();
+        return Object.values(snapshot.data).filter((session) => session.status === 'running')
+          .length;
       },
       0
     ),
+    isLocalHostRef(host)
+      ? readWithDeadline(
+          `${key} terminals`,
+          async () => {
+            const snapshot = await (
+              await client
+            ).terminals.sessions
+              .state(undefined, 'list')
+              .snapshot();
+            return Object.values(snapshot.data).filter(
+              (session) => session.status === 'running' && session.kind === 'terminal'
+            ).length;
+          },
+          0
+        )
+      : Promise.resolve({ value: 0, incomplete: false }),
   ]);
 
   return {
     acpSessions: acpSessions.value,
-    localTuiSessions: tuiSessions.value.local,
-    remoteTuiSessions: tuiSessions.value.remote,
+    tuiSessions: tuiSessions.value,
     terminals: terminals.value,
     incomplete: acpSessions.incomplete || tuiSessions.incomplete || terminals.incomplete,
   };

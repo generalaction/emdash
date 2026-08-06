@@ -6,7 +6,7 @@ import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps
 export interface ActiveSessionSummary {
   acpSessions: number;
   localTuiSessions: number;
-  remoteTuiSessions: number;
+  remoteSessions: number;
   terminals: number;
   incomplete: boolean;
 }

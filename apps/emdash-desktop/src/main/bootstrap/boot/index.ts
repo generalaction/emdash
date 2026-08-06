@@ -26,7 +26,9 @@ export async function finishBoot(config: AppConfig, signals: BootSignals): Promi
       pullRequests: services.pullRequestsRegistration,
       runtimes,
     });
-    configureShutdownRuntimeClients(runtimes.clients);
+    configureShutdownRuntimeClients(runtimes.broker, () =>
+      services.hostAttachments.attachedHosts()
+    );
     const controllers = await step('controllers', () =>
       bootControllers(database, infrastructure, runtimes, services)
     );
