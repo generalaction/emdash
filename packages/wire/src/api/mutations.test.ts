@@ -2,8 +2,10 @@ import { ok } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost, createLiveModelReplica } from '../live';
+import { createLiveModelReplica } from '../live/replica';
 import type { WireInstrumentation } from '../observability';
+import { expose } from '../state/bridge/expose';
+import { cell, snapshot } from '../state/core';
 import { createTestWire } from '../testing';
 import type { LiveModelClientHandle } from './client';
 import { client } from './client';
@@ -15,7 +17,6 @@ import {
   liveState,
   mutation,
   type LiveModelKey,
-  type LiveModelMutationHandler,
   type LiveModelDef,
 } from './define';
 import { serve } from './serve';
@@ -26,32 +27,42 @@ const stateSchema = z.object({ count: z.number() });
 
 function setup(instrumentation?: WireInstrumentation) {
   let handlerCalls = 0;
-  const contract = createCounterContract((ctx, input) => {
-    handlerCalls += 1;
-    ctx.produce('left', (draft) => {
-      (draft as { count: number }).count += 1;
-    });
-    const touched = ['left'];
-    if ((input as { touchRight: boolean }).touchRight) {
-      ctx.produce('right', (draft) => {
-        (draft as { count: number }).count += 1;
-      });
-      touched.push('right');
+  const contract = createCounterContract();
+  const left = cell({ count: 0 });
+  const right = cell({ count: 10 });
+  const provider = expose(
+    contract.counter,
+    { left: () => left, right: () => right },
+    {
+      instrumentation,
+      mutations: {
+        async bump(context) {
+          handlerCalls += 1;
+          const touched = ['left'];
+          const leftRevision = left.update((previous) => ({ count: previous.count + 1 }), {
+            mutationIds: [context.mutationId],
+          });
+          const observations = [context.observed('left', leftRevision)];
+          if (context.input.touchRight) {
+            const rightRevision = right.update((previous) => ({ count: previous.count + 1 }), {
+              mutationIds: [context.mutationId],
+            });
+            observations.push(context.observed('right', rightRevision));
+            touched.push('right');
+          }
+          await Promise.all(observations);
+          return ok({ touched });
+        },
+      },
     }
-    return ok({ touched });
-  });
+  );
   const key = { id: 'shared' };
-  const host = createLiveModelHost(contract.counter, { instrumentation });
-  const instance = host.create(key, {
-    left: { count: 0 },
-    right: { count: 10 },
-  });
-  const wire = createTestWire(contract, { counter: host });
+  const wire = createTestWire(contract, { counter: provider });
   return {
     client: wire.client,
     key,
-    left: instance.states.left,
-    right: instance.states.right,
+    left,
+    right,
     calls: () => handlerCalls,
   };
 }
@@ -97,7 +108,7 @@ describe('live model group mutations', () => {
     const second = await counter.mutations.bump({ touchRight: false }, { mutationId: 'same' });
 
     expect(first.result).toEqual(second.result);
-    expect(left.snapshot().data).toEqual({ count: 1 });
+    expect(snapshot(left).value).toEqual({ count: 1 });
     expect(calls()).toBe(1);
     expect(dedupes).toEqual([{ mutationId: 'same', path: 'counter.bump' }]);
     await dispose();
@@ -106,22 +117,29 @@ describe('live model group mutations', () => {
   it('retries disconnected mutations with the same mutation id', async () => {
     let handlerCalls = 0;
     const gate = deferred<void>();
-    const contract = createCounterContract(async (ctx) => {
-      handlerCalls += 1;
-      ctx.produce('left', (draft) => {
-        (draft as { count: number }).count += 1;
-      });
-      await gate.promise;
-      return ok({ touched: ['left'] });
-    });
+    const contract = createCounterContract();
+    const left = cell({ count: 0 });
+    const right = cell({ count: 0 });
+    const provider = expose(
+      contract.counter,
+      { left: () => left, right: () => right },
+      {
+        mutations: {
+          async bump(context) {
+            handlerCalls += 1;
+            const revision = left.update((previous) => ({ count: previous.count + 1 }), {
+              mutationIds: [context.mutationId],
+            });
+            await gate.promise;
+            await context.observed('left', revision);
+            return ok({ touched: ['left'] });
+          },
+        },
+      }
+    );
     const key = { id: 'shared' };
-    const host = createLiveModelHost(contract.counter);
-    const instance = host.create(key, {
-      left: { count: 0 },
-      right: { count: 0 },
-    });
     let currentPair: MemoryTransportPair | undefined;
-    const controller = createController(contract, { counter: host });
+    const controller = createController(contract, { counter: provider });
     const transport = reconnectingTransport(
       async () => {
         currentPair = memoryTransportPair();
@@ -144,7 +162,7 @@ describe('live model group mutations', () => {
     await expect(invocation).resolves.toMatchObject({
       result: { success: true },
     });
-    expect(instance.states.left.snapshot().data).toEqual({ count: 1 });
+    expect(snapshot(left).value).toEqual({ count: 1 });
     expect(handlerCalls).toBe(1);
     await dispose();
     transport.close();
@@ -167,13 +185,7 @@ async function acquireCounter<Group extends LiveModelDef>(
   };
 }
 
-function createCounterContract(
-  handler: LiveModelMutationHandler<
-    z.ZodObject<{ touchRight: z.ZodBoolean }>,
-    z.ZodObject<{ touched: z.ZodArray<z.ZodString> }>,
-    z.ZodString
-  >
-) {
+function createCounterContract() {
   return defineContract({
     counter: liveModel({
       key: keySchema,
@@ -182,14 +194,11 @@ function createCounterContract(
         right: liveState({ data: stateSchema }),
       },
       mutations: {
-        bump: mutation(
-          {
-            input: z.object({ touchRight: z.boolean() }),
-            data: z.object({ touched: z.array(z.string()) }),
-            error: z.string(),
-          },
-          handler
-        ),
+        bump: mutation({
+          input: z.object({ touchRight: z.boolean() }),
+          data: z.object({ touched: z.array(z.string()) }),
+          error: z.string(),
+        }),
       },
     }),
   });

@@ -3,8 +3,9 @@ import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createEventStreamHost } from '../live/event-stream';
-import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../live/protocol';
+import { expose } from '../state/bridge/expose';
+import { cell } from '../state/core';
 import { createTestWire } from '../testing';
 import {
   defineContract,
@@ -53,31 +54,43 @@ const contract = defineContract({
       state: liveState({ data: z.object({ count: z.number() }) }),
     },
     mutations: {
-      bump: mutation(
-        {
-          input: z.object({ amount: z.number() }),
-          data: z.object({ count: z.number() }),
-          error: errorSchema,
-        },
-        (ctx, input) => {
-          let count = 0;
-          ctx.produce('state', (draft) => {
-            const state = draft as { count: number };
-            state.count += input.amount;
-            count = state.count;
-          });
-          return ok({ count });
-        }
-      ),
+      bump: mutation({
+        input: z.object({ amount: z.number() }),
+        data: z.object({ count: z.number() }),
+        error: errorSchema,
+      }),
     },
   }),
 });
 
+function counterModelProvider(initial: { count: number }) {
+  const state = cell(initial);
+  return expose(
+    contract.model,
+    { state: () => state },
+    {
+      mutations: {
+        async bump(context) {
+          let count = 0;
+          const revision = state.update(
+            (previous) => {
+              count = previous.count + context.input.amount;
+              return { count };
+            },
+            { mutationIds: [context.mutationId] }
+          );
+          await context.observed('state', revision);
+          return ok({ count });
+        },
+      },
+    }
+  );
+}
+
 describe('forwardController', () => {
   it('forwards every endpoint kind through an existing client', async () => {
     const key = { id: 'known' };
-    const model = createLiveModelHost(contract.model);
-    model.create(key, { state: { count: 1 } });
+    const model = counterModelProvider({ count: 1 });
     const log = createLogSource('forwarded log');
     const events = createEventStreamHost(contract.events);
     const upstream = createTestWire(
@@ -154,14 +167,13 @@ describe('forwardController', () => {
       forwarded.dispose();
       upstream.dispose();
       events.dispose();
-      model.dispose();
+      await model.dispose();
     }
   });
 
   it('rebinds live endpoint definitions when mounting a client under a namespace', async () => {
     const key = { id: 'known' };
-    const model = createLiveModelHost(contract.model);
-    model.create(key, { state: { count: 1 } });
+    const model = counterModelProvider({ count: 1 });
     const events = createEventStreamHost(contract.events);
     const upstream = createTestWire(contract, {
       download: ({ id }) =>
@@ -206,7 +218,7 @@ describe('forwardController', () => {
       forwarded.dispose();
       upstream.dispose();
       events.dispose();
-      model.dispose();
+      await model.dispose();
     }
   });
 

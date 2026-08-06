@@ -1,7 +1,9 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost, createLiveModelReplica, type LiveModelReplicaOptions } from '../live';
+import { createLiveModelReplica, type LiveModelReplicaOptions } from '../live/replica';
+import { expose, type ExposedMutationHandlers } from '../state/bridge/expose';
+import { cell } from '../state/core';
 import { createTestWire } from '../testing';
 import type { LiveModelClientHandle } from './client';
 import { createController } from './controller';
@@ -27,47 +29,69 @@ const contract = defineContract({
       usage: liveState({ data: usageSchema }),
     },
     mutations: {
-      setTitle: mutation(
-        {
-          input: z.object({ title: z.string() }),
-          data: z.void(),
-          error: z.string(),
-        },
-        (ctx, input) => {
-          ctx.produce('state', (draft) => {
-            (draft as { title: string }).title = input.title;
-          });
-          ctx.produce('usage', (draft) => {
-            (draft as { tokens: number }).tokens += input.title.length;
-          });
-          return ok(undefined);
-        }
-      ),
+      setTitle: mutation({
+        input: z.object({ title: z.string() }),
+        data: z.void(),
+        error: z.string(),
+      }),
     },
   }),
 });
 
+type ConversationDef = typeof contract.conversation;
+
+function conversationSource(
+  def: ConversationDef,
+  initial: { title: string; tokens: number },
+  mutations?: Partial<ExposedMutationHandlers<ConversationDef>>
+) {
+  const state = cell({ title: initial.title });
+  const usage = cell({ tokens: initial.tokens });
+  const provider = expose(
+    def,
+    { state: () => state, usage: () => usage },
+    {
+      mutations: mutations ?? {
+        async setTitle(context) {
+          const stateRevision = state.update(() => ({ title: context.input.title }), {
+            mutationIds: [context.mutationId],
+          });
+          const usageRevision = usage.update(
+            (previous) => ({ tokens: previous.tokens + context.input.title.length }),
+            { mutationIds: [context.mutationId] }
+          );
+          await Promise.all([
+            context.observed('state', stateRevision),
+            context.observed('usage', usageRevision),
+          ]);
+          return ok(undefined);
+        },
+      },
+    }
+  );
+  return { state, usage, provider };
+}
+
 function setup() {
   const key = { conversationId: 'c1' };
-  const host = createLiveModelHost(contract.conversation);
-  const instance = host.create(key, {
-    state: { title: 'Initial' },
-    usage: { tokens: 0 },
-  });
-  const wire = createTestWire(contract, { conversation: host });
-  return { client: wire.client, controller: wire.controller, key, instance };
+  const { provider } = conversationSource(contract.conversation, { title: 'Initial', tokens: 0 });
+  const wire = createTestWire(contract, { conversation: provider });
+  return { client: wire.client, controller: wire.controller, key, provider };
 }
 
 describe('liveModel', () => {
-  it('registers group member models and resolves their live topics', () => {
-    const { controller, key, instance } = setup();
-    expect(
-      controller.resolveLive(encodeTopic(contract.conversation.states.state.id, key))?.snapshot()
-    ).toMatchObject({ data: { title: 'Initial' } });
-    instance.dispose();
-    expect(
-      controller.resolveLive(encodeTopic(contract.conversation.states.state.id, key))?.snapshot
-    ).toThrow(/Unknown live topic/);
+  it('registers group member models and resolves their live topics', async () => {
+    const { controller, key, provider } = setup();
+    const topic = encodeTopic(contract.conversation.states.state.id, key);
+    const lease = controller.acquireLive(topic);
+    expect(lease).not.toBeNull();
+    const source = await lease!.ready();
+    await expect(Promise.resolve(source.snapshot())).resolves.toMatchObject({
+      data: { title: 'Initial' },
+    });
+    await lease!.release();
+    await provider.dispose();
+    expect(() => controller.acquireLive(topic)).toThrow(/disposed/);
   });
 
   it('binds a group client and settles multi-member mutations', async () => {
@@ -109,89 +133,82 @@ describe('liveModel', () => {
     await dispose();
   });
 
-  it('requires a matching host for groups', () => {
+  it('requires a matching provider for groups', () => {
     const other = defineContract({
       other: liveModel({
         key: keySchema,
-        states: { state: liveState({ data: stateSchema }) },
+        states: {
+          state: liveState({ data: stateSchema }),
+          usage: liveState({ data: usageSchema }),
+        },
       }),
     });
-    const host = createLiveModelHost(other.other);
-    expect(() => createController(contract, { conversation: host as never })).toThrow(
+    const { provider } = conversationSource(other.other as unknown as ConversationDef, {
+      title: 'Initial',
+      tokens: 0,
+    });
+    expect(() => createController(contract, { conversation: provider as never })).toThrow(
       /created for 'other'/
     );
   });
 
-  it('runs schema-only mutation handlers supplied by the host', async () => {
-    const schemaOnly = defineContract({
-      conversation: liveModel({
-        key: keySchema,
-        states: { state: liveState({ data: stateSchema }) },
+  it('passes the envelope key to exposed mutation handlers', async () => {
+    const key = { conversationId: 'keyed' };
+    const state = cell({ title: 'Initial' });
+    const usage = cell({ tokens: 0 });
+    const provider = expose(
+      contract.conversation,
+      { state: () => state, usage: () => usage },
+      {
         mutations: {
-          setTitle: mutation({
-            input: z.object({ title: z.string() }),
-            data: z.void(),
-            error: z.string(),
-          }),
+          async setTitle(context) {
+            expect(context.key).toEqual(key);
+            const revision = state.update(() => ({ title: context.input.title }), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('state', revision);
+            return ok(undefined);
+          },
         },
-      }),
-    });
-    const key = { conversationId: 'schema-only' };
-    const host = createLiveModelHost(schemaOnly.conversation, {
-      mutations: {
-        setTitle: (ctx, input) => {
-          expect(ctx.key).toEqual(key);
-          ctx.produce('state', (draft) => {
-            (draft as { title: string }).title = input.title;
-          });
-          return ok(undefined);
-        },
-      },
-    });
-    host.create(key, { state: { title: 'Initial' } });
-    const { client: contractClient } = createTestWire(schemaOnly, { conversation: host });
+      }
+    );
+    const { client: contractClient } = createTestWire(contract, { conversation: provider });
 
     const { instance: conversation, dispose } = await acquireConversation(
       contractClient.conversation,
       key
     );
-    const invocation = await conversation.mutations.setTitle({ title: 'Host handled' });
+    const invocation = await conversation.mutations.setTitle({ title: 'Handled' });
     await invocation.settled;
 
-    expect(conversation.states.state.current()).toEqual({ title: 'Host handled' });
+    expect(conversation.states.state.current()).toEqual({ title: 'Handled' });
     await dispose();
   });
 
-  it('requires handlers for schema-only mutations', () => {
-    const schemaOnly = defineContract({
-      conversation: liveModel({
-        key: keySchema,
-        states: { state: liveState({ data: stateSchema }) },
-        mutations: {
-          setTitle: mutation({
-            input: z.object({ title: z.string() }),
-            data: z.void(),
-            error: z.string(),
-          }),
-        },
-      }),
-    });
-    const host = createLiveModelHost(schemaOnly.conversation);
-
-    expect(() => createController(schemaOnly, { conversation: host })).toThrow(
-      /requires a handler/
+  it('requires handlers for exposed mutations', async () => {
+    const key = { conversationId: 'no-handler' };
+    const { provider } = conversationSource(
+      contract.conversation,
+      { title: 'Initial', tokens: 0 },
+      {}
     );
+    const { client: contractClient } = createTestWire(contract, { conversation: provider });
+
+    await expect(
+      contractClient.conversation.mutate('setTitle', { key, input: { title: 'x' } })
+    ).rejects.toThrow(/requires a handler/);
   });
 
   it('mounts group model ids and mutations under nested contract keys', async () => {
     const nested = defineContract({ child: contract });
     const key = { conversationId: 'nested' };
-    const host = createLiveModelHost(nested.child.conversation);
-    host.create(key, {
-      state: { title: 'Initial' },
-      usage: { tokens: 0 },
+    const { provider } = conversationSource(nested.child.conversation, {
+      title: 'Initial',
+      tokens: 0,
     });
-    const { client: contractClient } = createTestWire(nested, { child: { conversation: host } });
+    const { client: contractClient } = createTestWire(nested, {
+      child: { conversation: provider },
+    });
 
     expect(nested.child.conversation.states.state.id).toBe('child.conversation.state');
     const { instance: conversation, dispose } = await acquireConversation(

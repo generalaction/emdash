@@ -2,7 +2,7 @@ import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
 import { isEventStreamHost, type EventStreamHost } from '../live/event-stream';
 import { LiveJob, type LiveJobContext } from '../live/job';
-import { isLiveModelHost, type LiveModelHost, createMutationId } from '../live/mutations';
+import { createMutationId } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
 import {
   isLiveJobReplica,
@@ -132,7 +132,6 @@ type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
   | EventStreamClientHandle<Def>;
 
 type GroupImpl<Def extends LiveModelDef> =
-  | LiveModelHost<Def>
   | LiveModelClientHandle<Def>
   | LiveModelProvider<Def>
   | LeasedLiveModelProvider<Def>;
@@ -396,32 +395,9 @@ export function createController<Defs extends ContractDefinitions>(
       };
     }
 
-    if (isLiveModelHost(entryImpl)) {
-      const host = entryImpl as LiveModelHost<LiveModelDef>;
-      if (host.contract.id !== def.id) {
-        throw new WireError(
-          'CONTRACT_MISMATCH',
-          `Live model host for '${fullPath}' was created for '${host.contract.id}'`
-        );
-      }
-      for (const [mutationName, mutationDef] of Object.entries(def.mutations)) {
-        if (mutationDef.handler ?? host.mutationHandler(mutationName)) continue;
-        throw new WireError(
-          'MISSING_HANDLER',
-          `Mutation '${fullPath}.${mutationName}' requires a handler`
-        );
-      }
-      return {
-        kind: 'liveModelProvider',
-        contract: def,
-        resolveState: (key, name) => host.get(key as never)?.states[name],
-        runMutation: (name, envelope) => host.runMutation(name as never, envelope as never),
-      };
-    }
-
     throw new WireError(
       'MISSING_HANDLER',
-      `Group '${fullPath}' requires a LiveModelHost or provider`
+      `Live model '${fullPath}' requires a provider or client handle`
     );
   }
 

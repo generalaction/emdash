@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
 import { createController } from './controller';
 import { defineContract, eventStream, liveModel, liveState, liveLog, procedure } from './define';
+import { WireError } from './protocol';
 import { encodeTopic, splitTopic } from './topics';
 import { withValidation } from './with-validation';
 
@@ -26,6 +26,20 @@ function stubSource(data: unknown): LiveSource {
   };
 }
 
+function stateProvider(
+  def: ReturnType<typeof makeContract>['state'],
+  entries: Record<string, LiveSource>
+) {
+  return {
+    kind: 'liveModelProvider' as const,
+    contract: def,
+    resolveState: (key: { id: string }) => entries[key.id],
+    runMutation: async (): Promise<never> => {
+      throw new WireError('UNKNOWN_PROCEDURE', 'no mutations');
+    },
+  };
+}
+
 describe('createController', () => {
   it('validates inputs and outputs according to policy', async () => {
     const contract = makeContract();
@@ -33,7 +47,7 @@ describe('createController', () => {
       contract,
       createController(contract, {
         echo: (input) => ({ value: input.value.toUpperCase() }),
-        state: createLiveModelHost(contract.state),
+        state: stateProvider(contract.state, {}),
         output: () => null,
       }),
       'full'
@@ -45,11 +59,9 @@ describe('createController', () => {
 
   it('routes live topics through encoded keys', () => {
     const contract = makeContract();
-    const host = createLiveModelHost(contract.state);
-    host.create({ id: 'known' }, { state: { count: 1 } });
     const controller = createController(contract, {
       echo: (input) => ({ value: input.value }),
-      state: host,
+      state: stateProvider(contract.state, { known: stubSource({ count: 1 }) }),
       output: () => null,
     });
 
@@ -70,7 +82,7 @@ describe('createController', () => {
         echo: (input) => ({ value: input.value }),
         output: () => null,
       })
-    ).toThrow(/requires a LiveModelHost or provider/);
+    ).toThrow(/requires a provider or client handle/);
   });
 
   it('roundtrips topic encoding including undefined keys', () => {
@@ -87,12 +99,10 @@ describe('createController', () => {
   it('binds nested contracts using object keys as paths', async () => {
     const child = makeContract();
     const contract = defineContract({ child });
-    const host = createLiveModelHost(contract.child.state);
-    host.create({ id: 'known' }, { state: { count: 3 } });
     const controller = createController(contract, {
       child: {
         echo: (input) => ({ value: `child:${input.value}` }),
-        state: host,
+        state: stateProvider(contract.child.state, { known: stubSource({ count: 3 }) }),
         output: () => null,
       },
     });
@@ -177,7 +187,7 @@ describe('createController', () => {
     const source = stubSource({ line: 'output' });
     const controller = createController(contract, {
       echo: (input) => ({ value: input.value }),
-      state: createLiveModelHost(contract.state),
+      state: stateProvider(contract.state, {}),
       output: async () => source,
     });
 

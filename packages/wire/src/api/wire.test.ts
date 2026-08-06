@@ -2,9 +2,9 @@ import { err, ok, type Unsubscribe } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource, LiveUpdate } from '../live/protocol';
 import { ReplicaState } from '../live/replica';
+import { LiveState } from '../live/state/server';
 import { createTestWire } from '../testing';
 import { client } from './client';
 import { connect } from './connect';
@@ -24,16 +24,25 @@ const contract = defineContract({
   }),
 });
 
+function knownStateProvider(model: LiveState<{ count: number }>) {
+  return {
+    kind: 'liveModelProvider' as const,
+    contract: contract.state,
+    resolveState: (key: { id: string }) => (key.id === 'known' ? model : undefined),
+    runMutation: async (): Promise<never> => {
+      throw new WireError('UNKNOWN_PROCEDURE', 'no mutations');
+    },
+  };
+}
+
 function setup() {
-  const host = createLiveModelHost(contract.state);
-  const instance = host.create({ id: 'known' }, { state: { count: 0 } });
-  const model = instance.states.state;
+  const model = new LiveState({ count: 0 });
   const wire = createTestWire(contract, {
     greet: ({ name }) => `hello ${name}`,
     fail: () => {
       throw new WireError('NOT_FOUND', 'expected failure');
     },
-    state: host,
+    state: knownStateProvider(model),
   });
   return { pair: wire.pair, connection: wire.connection, model };
 }
@@ -412,15 +421,13 @@ describe('wire serve/connect', () => {
   });
 
   it('reattaches and refreshes bound live models after reconnect', async () => {
-    const host = createLiveModelHost(contract.state);
-    const instance = host.create({ id: 'known' }, { state: { count: 0 } });
-    const model = instance.states.state;
+    const model = new LiveState({ count: 0 });
     const controller = createController(contract, {
       greet: ({ name }) => `hello ${name}`,
       fail: () => {
         throw new WireError('NOT_FOUND', 'expected failure');
       },
-      state: host,
+      state: knownStateProvider(model),
     });
     const pairs: ReturnType<typeof memoryTransportPair>[] = [];
     const serverDisposers: Unsubscribe[] = [];

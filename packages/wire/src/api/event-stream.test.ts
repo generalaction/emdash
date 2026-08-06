@@ -2,7 +2,7 @@ import type { Unsubscribe } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createEventStreamHost } from '../live';
+import { createEventStreamHost } from '../live/event-stream';
 import { createTestWire } from '../testing';
 import { client } from './client';
 import { connect } from './connect';

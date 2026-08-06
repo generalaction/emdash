@@ -12,10 +12,6 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import {
-  MutationResultCache,
-  type MutationResultCacheOptions,
-} from '../../live/mutations/result-cache';
 import type { LiveMutationResult } from '../../live/mutations/types';
 import type { LiveCursor, LiveCursorEntry, LiveSource } from '../../live/protocol';
 import type { LeasedLiveModelProvider } from '../../live/replica/leased-provider';
@@ -31,6 +27,7 @@ import {
   type Snapshot,
 } from '../core';
 import { assignDraft } from './assign-draft';
+import { MutationResultCache, type MutationResultCacheOptions } from './result-cache';
 
 type StateName<Group extends LiveModelDef> = Extract<keyof LiveModelStates<Group>, string>;
 type MutationName<Group extends LiveModelDef> = Extract<keyof LiveModelMutations<Group>, string>;

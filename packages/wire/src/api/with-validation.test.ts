@@ -1,8 +1,9 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelHost } from '../live/mutations';
 import { type LiveSource } from '../live/protocol';
+import { expose } from '../state/bridge/expose';
+import { cell, snapshot } from '../state/core';
 import { createTestWire } from '../testing';
 import { createController } from './controller';
 import {
@@ -94,27 +95,32 @@ describe('withValidation', () => {
         },
       }),
     });
-    const host = createLiveModelHost(contract.group, {
-      mutations: {
-        set: (ctx, input) => {
-          ctx.produce('item', (draft) => {
-            (draft as { value: string }).value = input.value;
-          });
-          return ok({ value: input.value });
+    const item = cell({ value: 'old' });
+    const provider = expose(
+      contract.group,
+      { item: () => item },
+      {
+        mutations: {
+          async set(context) {
+            const revision = item.update(() => ({ value: context.input.value }), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('item', revision);
+            return ok({ value: context.input.value });
+          },
         },
-      },
-    });
-    host.create({ id: 'known' }, { item: { value: 'old' } });
+      }
+    );
     const controller = withValidation(
       contract,
-      createController(contract, { group: host }),
+      createController(contract, { group: provider }),
       'full'
     );
 
     await expect(
       controller.call('group.set', { key: { id: ' known ' }, input: { value: ' next ' } })
     ).resolves.toMatchObject({ success: true, data: { data: { value: 'next' } } });
-    expect(host.get({ id: 'known' })?.states.item.snapshot().data).toEqual({ value: 'next' });
+    expect(snapshot(item).value).toEqual({ value: 'next' });
     await expect(
       controller.call('group.set', { key: { id: 'known' }, input: { value: 1 } })
     ).rejects.toThrow();
@@ -134,27 +140,32 @@ describe('withValidation', () => {
         },
       }),
     });
-    const host = createLiveModelHost(contract.group, {
-      mutations: {
-        touch: (ctx) => {
-          ctx.produce('item', (draft) => {
-            (draft as { touched: boolean }).touched = true;
-          });
-          return ok<void>();
+    const item = cell({ touched: false });
+    const provider = expose(
+      contract.group,
+      { item: () => item },
+      {
+        mutations: {
+          async touch(context) {
+            const revision = item.update(() => ({ touched: true }), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('item', revision);
+            return ok<void>();
+          },
         },
-      },
-    });
-    host.create({ id: 'known' }, { item: { touched: false } });
+      }
+    );
     const controller = withValidation(
       contract,
-      withValidation(contract, createController(contract, { group: host }), 'full'),
+      withValidation(contract, createController(contract, { group: provider }), 'full'),
       'inputs'
     );
 
     await expect(
       controller.call('group.touch', { key: { id: 'known' }, input: undefined })
     ).resolves.toMatchObject({ success: true });
-    expect(host.get({ id: 'known' })?.states.item.snapshot().data).toEqual({ touched: true });
+    expect(snapshot(item).value).toEqual({ touched: true });
   });
 
   it('accepts void mutation results whose data key was dropped by JSON transports', async () => {

@@ -3,10 +3,14 @@ import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { LiveLog } from '../live/log';
-import { createLiveModelHost } from '../live/mutations';
 import { createLiveModelReplica, ReplicaState } from '../live/replica';
+import { LiveState } from '../live/state/server';
+import { expose } from '../state/bridge/expose';
+import { cell } from '../state/core';
 import { createTestWire } from '../testing';
 import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from './define';
+import { WireError } from './protocol';
+import { encodeTopic } from './topics';
 
 const stateSchema = z.object({ count: z.number() });
 const keySchema = z.object({ id: z.string() });
@@ -17,20 +21,30 @@ const contract = defineContract({
   output: liveLog({ key: keySchema }),
 });
 
+function taskStateProvider(def: typeof contract.state, model: LiveState<{ count: number }>) {
+  return {
+    kind: 'liveModelProvider' as const,
+    contract: def,
+    resolveState: (key: { id: string }) => (key.id === 'task' ? model : undefined),
+    runMutation: async (): Promise<never> => {
+      throw new WireError('UNKNOWN_PROCEDURE', 'no mutations');
+    },
+  };
+}
+
 describe('client', () => {
   it('calls typed procedures and exposes live client handles', async () => {
-    const host = createLiveModelHost(contract.state);
-    const instance = host.create({ id: 'task' }, { state: { count: 0 } });
+    const model = new LiveState({ count: 0 });
     const log = new LiveLog({ generation: 2000 });
     const { client: contractClient } = createTestWire(contract, {
       increment: () => {
-        instance.states.state.produce((draft) => {
+        model.produce((draft) => {
           draft.count += 1;
         });
         log.append('incremented\n');
-        return instance.states.state.snapshot().data;
+        return model.snapshot().data;
       },
-      state: host,
+      state: taskStateProvider(contract.state, model),
       output: () => log,
     });
 
@@ -62,19 +76,18 @@ describe('client', () => {
 
   it('builds nested clients using object keys as call paths', async () => {
     const nested = defineContract({ child: contract });
-    const host = createLiveModelHost(nested.child.state);
-    const instance = host.create({ id: 'task' }, { state: { count: 0 } });
+    const model = new LiveState({ count: 0 });
     const log = new LiveLog({ generation: 2000 });
     const { client: contractClient } = createTestWire(nested, {
       child: {
         increment: () => {
-          instance.states.state.produce((draft) => {
+          model.produce((draft) => {
             draft.count += 1;
           });
           log.append('incremented\n');
-          return instance.states.state.snapshot().data;
+          return model.snapshot().data;
         },
-        state: host,
+        state: taskStateProvider(nested.child.state, model),
         output: () => log,
       },
     });
@@ -96,28 +109,38 @@ describe('client', () => {
           state: liveState({ data: stateSchema }),
         },
         mutations: {
-          bump: mutation({ input: z.object({}), data: z.void(), error: z.string() }, (ctx) => {
-            ctx.produce('state', (draft) => {
-              (draft as { count: number }).count += 1;
-            });
-            return ok(undefined);
-          }),
+          bump: mutation({ input: z.object({}), data: z.void(), error: z.string() }),
         },
       }),
     });
     const key = { id: 'task' };
-    const host = createLiveModelHost(groupContract.conversation);
-    const instance = host.create(key, {
-      state: { count: 0 },
-    });
-    const updates: unknown[] = [];
-    instance.states.state.subscribe((update) => updates.push(update));
-
-    const { client: contractClient } = createTestWire(groupContract, { conversation: host });
-    const replica = createLiveModelReplica(
-      contractClient.conversation.def,
-      contractClient.conversation
+    const base = cell({ count: 0 });
+    const provider = expose(
+      groupContract.conversation,
+      { state: () => base },
+      {
+        mutations: {
+          async bump(context) {
+            const revision = base.update((previous) => ({ count: previous.count + 1 }), {
+              mutationIds: [context.mutationId],
+            });
+            await context.observed('state', revision);
+            return ok(undefined);
+          },
+        },
+      }
     );
+
+    const wire = createTestWire(groupContract, { conversation: provider });
+    const sourceLease = wire.controller.acquireLive(
+      encodeTopic(groupContract.conversation.states.state.id, key)
+    );
+    expect(sourceLease).not.toBeNull();
+    const source = await sourceLease!.ready();
+    const updates: unknown[] = [];
+    source.subscribe((update) => updates.push(update));
+
+    const replica = createLiveModelReplica(wire.client.conversation.def, wire.client.conversation);
     const lease = replica.acquire(key);
     const binding = await lease.ready();
 
@@ -128,5 +151,7 @@ describe('client', () => {
     expect(updates).toMatchObject([{ mutationIds: ['custom-mutation'] }]);
     await lease.release();
     await replica.dispose();
+    await sourceLease!.release();
+    await provider.dispose();
   });
 });

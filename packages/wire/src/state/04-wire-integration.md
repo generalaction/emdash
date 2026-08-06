@@ -183,7 +183,7 @@ needing bespoke code.
 | `live/replica/` transport (`ReplicaState`, gap handling, stores) | Network realities: reconnects, resync, validation, persistence. `remote` wraps it. |
 | `live/state/server.ts` (`LiveState`) | Reused *inside* `expose` as the patch publisher. Direct feature use is what migrates. |
 | `live/log/`, `live/event-stream/`, `live/job/` | Append-only / job-shaped data; value semantics would lose functionality. |
-| `live/mutations/result-cache.ts`, mutation envelope + settled-cursor client machinery | Idempotency and read-your-writes transport; reused by `expose`/`remote`. |
+| `live/mutations/` envelope types + settled-cursor client machinery | Idempotency envelope and read-your-writes transport; reused by `expose`/`remote`. The mutation result cache lives beside `expose` in `state/bridge/result-cache.ts`. |
 
 What `expose`/`remote` make obsolete is listed in
 [05-migration.md](./05-migration.md).
