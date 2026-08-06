@@ -81,6 +81,7 @@ import { createNotificationsWireController } from '@core/services/notifications/
 import type { OperationsEngine } from '@core/services/operations/node';
 import { createOperationsWireController } from '@core/services/operations/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
+import type { ReconcileSweepHandle } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 import type { RemoteMachineService } from '@core/services/remote-machine/node';
 import { createRemoteMachineWireController } from '@core/services/remote-machine/node/wire-controller';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
@@ -115,6 +116,7 @@ export type DesktopControllerContext = {
   readonly projects: ProjectSessionManager;
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
+  readonly reconcileSweep: ReconcileSweepHandle;
   readonly remoteMachine: RemoteMachineService;
   readonly runtimeClients: {
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
@@ -281,7 +283,8 @@ export const desktopNodeControllers = {
       ),
   },
   workspaceRegistry: {
-    create: ({ db, runtimes }) => createWorkspaceRegistryWireController({ db, runtimes }),
+    create: ({ db, reconcileSweep, runtimes }) =>
+      createWorkspaceRegistryWireController({ db, runtimes, sweep: reconcileSweep }),
   },
   projects: {
     create: ({ db, operations, projects, projectSettings, runtimes, scope, workspacePlacement }) =>

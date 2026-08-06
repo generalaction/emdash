@@ -33,6 +33,8 @@ export interface ApplyWorkspaceRegistrySnapshotResult {
   refreshed: number;
   markedMissing: number;
   untracked: number;
+  /** Tombstoned rows whose host record this delivery confirmed gone (ADR 0006). */
+  purgedTombstones: number;
 }
 
 /**
@@ -72,6 +74,7 @@ function applyWorkspaceRegistrySnapshotTx(
     refreshed: 0,
     markedMissing: 0,
     untracked: 0,
+    purgedTombstones: 0,
   };
 
   const tombstoned = loadTombstonedIds(
@@ -105,6 +108,15 @@ function applyWorkspaceRegistrySnapshotTx(
 
   for (const row of hostRows) {
     if (seen.has(row.id)) continue;
+    // Purge-on-mirror-confirmed-gone (ADR 0006): the delivery is the host's full
+    // snapshot, so a live tombstoned row absent from it has converged — the pending
+    // deletion completed (or the record never existed). The untrack is the purge;
+    // annotation never keeps a row the user already deleted visible as missing.
+    if (row.deletionTombstone !== null) {
+      registry.untrack([row.id], now, undefined, tx);
+      counts.purgedTombstones += 1;
+      continue;
+    }
     const annotated = isAnnotatedWorkspace({
       config: row.config,
       hasTaskLink: annotations.taskWorkspaceIds.has(row.id),

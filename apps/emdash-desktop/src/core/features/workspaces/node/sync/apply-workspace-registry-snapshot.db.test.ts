@@ -85,7 +85,13 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       observedAt: Date.parse('2026-01-03T00:00:00.000Z'),
     });
 
-    expect(result).toEqual({ adopted: 2, refreshed: 0, markedMissing: 0, untracked: 0 });
+    expect(result).toEqual({
+      adopted: 2,
+      refreshed: 0,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
 
     const registry = createWorkspaceRegistry(fixture.db);
     expect(registry.getLive('wt-1')).toMatchObject({
@@ -117,7 +123,13 @@ describe('applyWorkspaceRegistrySnapshot', () => {
         'wt-1': hostRecord({ id: 'wt-1' }),
       },
     });
-    expect(replay).toEqual({ adopted: 0, refreshed: 2, markedMissing: 0, untracked: 0 });
+    expect(replay).toEqual({
+      adopted: 0,
+      refreshed: 2,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
   });
 
   it('overwrites observations wholesale — overlay included — but never touches annotations', async () => {
@@ -150,7 +162,13 @@ describe('applyWorkspaceRegistrySnapshot', () => {
         }),
       },
     });
-    expect(withOverlay).toEqual({ adopted: 0, refreshed: 1, markedMissing: 0, untracked: 0 });
+    expect(withOverlay).toEqual({
+      adopted: 0,
+      refreshed: 1,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
     expect(registry.getLive('wt-1')).toMatchObject({
       observedGit: { branch: 'feature/x', diffStats: { added: 12, deleted: 3 } },
       lastActivatedAt: Date.parse('2026-01-05T00:00:00.000Z'),
@@ -255,12 +273,70 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       observedAt: Date.parse('2026-01-07T00:00:00.000Z'),
     });
 
-    expect(result).toEqual({ adopted: 0, refreshed: 0, markedMissing: 1, untracked: 1 });
+    expect(result).toEqual({
+      adopted: 0,
+      refreshed: 0,
+      markedMissing: 1,
+      untracked: 1,
+      purgedTombstones: 0,
+    });
     expect(registry.getLive('wt-linked')).toMatchObject({
       observedStatus: 'missing',
       observedAt: Date.parse('2026-01-07T00:00:00.000Z'),
     });
     expect(registry.getLive('wt-mirror')).toBeUndefined();
+  });
+
+  it('purges a tombstoned row once the delivery confirms the record gone — annotation included', async () => {
+    const registry = createWorkspaceRegistry(fixture.db);
+    registry.register({
+      id: 'wt-doomed',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/worktrees/doomed',
+    });
+    // Annotated (task-linked) rows normally stay visible as missing; a deletion
+    // tombstone overrides that — the user already asked for the row to go.
+    seedTask('project-1', 'task-1', 'wt-doomed');
+    registry.tombstone('wt-doomed', {
+      version: '1',
+      targetRecordId: 'wt-doomed',
+      tombstonedAt: Date.parse('2026-01-06T00:00:00.000Z'),
+      options: { deleteBranch: true, deleteConversations: false },
+    });
+
+    // While the record is still delivered, the tombstoned row refreshes and waits.
+    const pending = await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: { 'wt-doomed': hostRecord({ id: 'wt-doomed', path: '/worktrees/doomed' }) },
+    });
+    expect(pending).toEqual({
+      adopted: 0,
+      refreshed: 1,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
+    expect(registry.getLive('wt-doomed')?.deletionTombstone).toMatchObject({
+      targetRecordId: 'wt-doomed',
+    });
+
+    // The record disappears from the delivery: mirror-confirmed gone, purge.
+    const purged = await applyWorkspaceRegistrySnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: {},
+    });
+    expect(purged).toEqual({
+      adopted: 0,
+      refreshed: 0,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 1,
+    });
+    expect(registry.getLive('wt-doomed')).toBeUndefined();
   });
 
   it('scopes the sweep to the snapshot host; other hosts are untouched', async () => {
@@ -287,7 +363,13 @@ describe('applyWorkspaceRegistrySnapshot', () => {
       records: {},
     });
 
-    expect(result).toEqual({ adopted: 0, refreshed: 0, markedMissing: 0, untracked: 0 });
+    expect(result).toEqual({
+      adopted: 0,
+      refreshed: 0,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
     expect(registry.getLive('wt-remote')).toMatchObject({ observedStatus: 'present' });
   });
 });

@@ -110,6 +110,7 @@ export function createDesktopWireOptions(
     projects: services.projects,
     projectSettings: services.projectSettings,
     providerSettings: services.providerSettings,
+    reconcileSweep: services.reconcileSweep,
     search: services.search,
     runtimeClients: {
       getMementosRuntimeClient: async () => runtimes.clients.mementos,

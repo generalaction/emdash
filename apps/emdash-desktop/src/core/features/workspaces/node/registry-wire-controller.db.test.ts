@@ -1,4 +1,4 @@
-import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { WorkspaceRecord } from '@emdash/core/runtimes/workspace-registry/api';
 import { runtimeHostUnavailable } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
@@ -49,10 +49,18 @@ describe('createWorkspaceRegistryWireController', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
   let hostVerbs: Record<string, ReturnType<typeof vi.fn>>;
   let reachable: boolean;
+  let sweep: {
+    retry: ReturnType<typeof vi.fn<(kind: string, host: HostRef, id: string) => void>>;
+    drop: ReturnType<typeof vi.fn<(kind: string, id: string) => void>>;
+  };
 
   beforeEach(async () => {
     fixture = await openFixture('empty');
     reachable = true;
+    sweep = {
+      retry: vi.fn<(kind: string, host: HostRef, id: string) => void>(),
+      drop: vi.fn<(kind: string, id: string) => void>(),
+    };
     hostVerbs = {
       createWorkspace: vi.fn(async (input: { id: string; path: string }) =>
         ok(hostRecord({ id: input.id, path: input.path }))
@@ -82,6 +90,7 @@ describe('createWorkspaceRegistryWireController', () => {
     return createWorkspaceRegistryWireController({
       db: fixture.db,
       runtimes: broker as never,
+      sweep,
       ...(mintId ? { mintId } : {}),
     });
   }
@@ -247,8 +256,79 @@ describe('createWorkspaceRegistryWireController', () => {
         host: { location: 'local', sshConnectionId: null },
         records: { 'wt-1': hostRecord({ id: 'wt-1', path: '/work/wt-1' }) },
       });
-      expect(applied).toEqual({ adopted: 0, refreshed: 0, markedMissing: 0, untracked: 0 });
+      expect(applied).toEqual({
+        adopted: 0,
+        refreshed: 0,
+        markedMissing: 0,
+        untracked: 0,
+        purgedTombstones: 0,
+      });
       expect(registry.getLive('wt-1')).toBeUndefined();
+    });
+  });
+
+  describe('needs-attention affordances (ADR 0006)', () => {
+    function seedTombstonedRow(id: string): void {
+      seedRow(id, {
+        lastRemovalAttempt: {
+          version: '1',
+          stage: 'remove',
+          class: 'terminal',
+          message: 'worktree is locked',
+          at: Date.parse('2026-01-03T00:00:00.000Z'),
+        },
+      });
+      createWorkspaceRegistry(fixture.db).tombstone(id, {
+        version: '1',
+        targetRecordId: id,
+        tombstonedAt: Date.parse('2026-01-02T00:00:00.000Z'),
+        options: { deleteBranch: true, deleteConversations: false },
+      });
+    }
+
+    it('retryWorkspaceRemoval clears the terminal mark and pokes the sweep', async () => {
+      seedTombstonedRow('wt-stuck');
+      const wire = controller();
+
+      await wire.call('retryWorkspaceRemoval', { workspaceId: 'wt-stuck' });
+
+      const row = createWorkspaceRegistry(fixture.db).getLive('wt-stuck');
+      expect(row?.lastRemovalAttempt).toBeNull();
+      // The tombstone survives: retry re-arms the pending deletion, never cancels it.
+      expect(row?.deletionTombstone).toMatchObject({ targetRecordId: 'wt-stuck' });
+      expect(sweep.retry).toHaveBeenCalledWith('workspaces', LOCAL_HOST_REF, 'wt-stuck');
+    });
+
+    it('retryWorkspaceRemoval is a no-op without a pending tombstone', async () => {
+      seedRow('wt-plain');
+      const wire = controller();
+
+      await wire.call('retryWorkspaceRemoval', { workspaceId: 'wt-plain' });
+
+      expect(sweep.retry).not.toHaveBeenCalled();
+    });
+
+    it('abandonWorkspaceRemoval purges the tombstoned row client-side, keeping host artifacts', async () => {
+      seedTombstonedRow('wt-abandoned');
+      const wire = controller();
+
+      await wire.call('abandonWorkspaceRemoval', { workspaceId: 'wt-abandoned' });
+
+      const registry = createWorkspaceRegistry(fixture.db);
+      expect(registry.getLive('wt-abandoned')).toBeUndefined();
+      expect(sweep.drop).toHaveBeenCalledWith('workspaces', 'wt-abandoned');
+      // No host verb was issued: the artifacts stay.
+      expect(hostVerbs.deleteWorktree).not.toHaveBeenCalled();
+      expect(hostVerbs.deleteWorkspace).not.toHaveBeenCalled();
+
+      // The durable untrack keeps sync from resurrecting the surviving host record.
+      const applied = await applyWorkspaceRegistrySnapshot({
+        db: fixture.db,
+        host: { location: 'local', sshConnectionId: null },
+        records: { 'wt-abandoned': hostRecord({ id: 'wt-abandoned', path: '/work/wt-abandoned' }) },
+      });
+      expect(applied.adopted).toBe(0);
+      expect(registry.getLive('wt-abandoned')).toBeUndefined();
     });
   });
 });

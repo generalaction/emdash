@@ -24,10 +24,13 @@ import type { WorkspaceConfig, WorkspaceMirrorRow } from '@core/primitives/works
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
+import type { ReconcileSweepHandle } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
 
 export type CreateWorkspaceRegistryWireControllerOptions = {
   db: AppDb;
   runtimes: RuntimeBroker;
+  /** The reconcile sweep, for the Retry / Untrack-anyway affordances (ADR 0006). */
+  sweep: ReconcileSweepHandle;
   /** Test seam; production mints random UUIDs for the create verbs. */
   mintId?: () => string;
 };
@@ -99,6 +102,30 @@ export function createWorkspaceRegistryWireController(
     untrackWorkspace: async ({ workspaceId }) => {
       createWorkspaceRegistry(options.db).untrack([workspaceId], new Date().toISOString());
       appDbPokes.workspaces.poke({});
+    },
+
+    retryWorkspaceRemoval: async ({ workspaceId }) => {
+      const registry = createWorkspaceRegistry(options.db);
+      const row = registry.getLive(workspaceId);
+      if (!row?.deletionTombstone) return;
+      // Clear the terminal mark client-side so the pending row stops reading as
+      // needs-attention; the next delivery may restore it, but the sweep's cleared
+      // stamp keeps the retry live until a fresh attempt writes a newer outcome.
+      registry.refresh(workspaceId, { lastRemovalAttempt: null });
+      appDbPokes.workspaces.poke({ workspaceId });
+      const host = decodeHost(row);
+      if (host !== null) options.sweep.retry('workspaces', host, workspaceId);
+    },
+
+    abandonWorkspaceRemoval: async ({ workspaceId }) => {
+      const registry = createWorkspaceRegistry(options.db);
+      const row = registry.getLive(workspaceId);
+      if (!row?.deletionTombstone) return;
+      // Untrack-anyway: the durable untrack purges the tombstoned row client-side
+      // and keeps sync from resurrecting it while the host artifacts live on.
+      registry.untrack([workspaceId], new Date().toISOString());
+      options.sweep.drop('workspaces', workspaceId);
+      appDbPokes.workspaces.poke({ workspaceId });
     },
   });
 }

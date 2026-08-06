@@ -72,6 +72,7 @@ import {
 import { WorkspaceCreations } from '@core/features/workspaces/api/node/registry-verbs';
 import { acquireWorkspaceRuntime } from '@core/features/workspaces/api/node/runtime-access';
 import type { TaskProviderOpts } from '@core/features/workspaces/api/node/workspace-factory';
+import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node/sweep/workspace-deletion-sweep';
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
@@ -80,6 +81,8 @@ import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { createOperationsEngine } from '@core/services/operations/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
+import { ReconcileSweepService } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
+import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
@@ -154,6 +157,7 @@ export type ServicesBundle = {
   readonly taskSessions: TaskSessionManager;
   readonly workspacePlacement: WorkspacePlacementResolver;
   readonly conversationSync: ConversationSyncService;
+  readonly reconcileSweep: ReconcileSweepService;
 };
 
 export async function bootServices(
@@ -523,7 +527,7 @@ export async function bootServices(
     onError: (context, error) => log.warn(context, { error }),
   });
   // Backfill precedes attach so the first missing-sweep already sees pre-upgrade rows.
-  void workspaceRegistryBackfill
+  const localWorkspaceRegistryReady = workspaceRegistryBackfill
     .backfillHost(LOCAL_HOST_REF)
     .then(() => workspaceRegistrySync.attachHost(LOCAL_HOST_REF));
   const conversationSync = new ConversationSyncService({
@@ -588,6 +592,24 @@ export async function bootServices(
   });
   appScope.add(() => operations.dispose());
   infrastructure.ssh.machines.setOperations(operations.engine);
+  // The reconcile sweep (ADR 0006): tombstoned mirror rows are the durable deletion
+  // queue; they converge whenever their host is reachable. Boot trigger: the local
+  // host attaches once its registry sync is up; the service's internal 10-minute
+  // backstop is the retry vehicle (per-item backoff, no separate scheduler).
+  const reconcileSweep = new ReconcileSweepService({
+    scope: appScope,
+    onError: (context, error) => log.warn(context, { error: String(error) }),
+  });
+  reconcileSweep.registerKind(
+    createWorkspaceDeletionSweepKind({ operations: operations.engine, runtimes })
+  );
+  void localWorkspaceRegistryReady.then(() => reconcileSweep.attachHost(LOCAL_HOST_REF));
+  // Tombstoned-while-reachable trigger: the tombstone write path pokes this channel.
+  appScope.add(
+    reconcileSweepTriggers.subscribe((host) => {
+      void reconcileSweep.sweepHost(host);
+    })
+  );
   const sessionHygieneDependencies = {
     agentStatus: agentStatusService,
     createSessionIntentStores: createDesktopSessionIntentStores,
@@ -609,12 +631,16 @@ export async function bootServices(
     if (event.type === 'connected' || event.type === 'reconnected') {
       const host = hostRef('remote', event.connectionId);
       void conversationBackfill.backfillHost(host).then(() => conversationSync.attachHost(host));
+      // The unreachable→reachable sweep trigger rides the same signal as the sync
+      // attach, after it, so the first sweep sees a freshly converged mirror.
       void workspaceRegistryBackfill
         .backfillHost(host)
-        .then(() => workspaceRegistrySync.attachHost(host));
+        .then(() => workspaceRegistrySync.attachHost(host))
+        .then(() => reconcileSweep.attachHost(host));
     } else if (event.type === 'disconnected' || event.type === 'reconnect-failed') {
       conversationSync.detachHost(hostRef('remote', event.connectionId));
       workspaceRegistrySync.detachHost(hostRef('remote', event.connectionId));
+      reconcileSweep.detachHost(hostRef('remote', event.connectionId));
     }
   };
   infrastructure.ssh.manager.on('connection-event', handleConversationSyncSshEvent);
@@ -640,5 +666,6 @@ export async function bootServices(
     taskSessions: taskSessionManager,
     workspacePlacement,
     conversationSync,
+    reconcileSweep,
   };
 }

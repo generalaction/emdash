@@ -26,6 +26,7 @@ import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { OperationSubmitter } from '@core/services/operations/api/node';
+import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
 
 /**
  * Workspace removal through the host registry verbs (ADR 0005): one fail-fast
@@ -213,7 +214,7 @@ async function removeWorkspaceThroughRegistry(
     const workspace = params.workspace;
     const client = await runtimes.client(params.host);
     if (!client.success) {
-      return tombstoneUnreachableRemoval(operations.db, workspace, params, createdAt);
+      return tombstoneUnreachableRemoval(operations.db, workspace, params, createdAt, params.host);
     }
     const verb = client.data.workspaceRegistry;
     const removed =
@@ -222,7 +223,13 @@ async function removeWorkspaceThroughRegistry(
         : await verb.deleteWorkspace({ id: workspaceId });
     if (!removed.success) {
       if (removed.error.type === 'host-unreachable') {
-        return tombstoneUnreachableRemoval(operations.db, workspace, params, createdAt);
+        return tombstoneUnreachableRemoval(
+          operations.db,
+          workspace,
+          params,
+          createdAt,
+          params.host
+        );
       }
       return err({
         type: 'delete-failed',
@@ -260,7 +267,8 @@ function tombstoneUnreachableRemoval(
     deleteBranch?: boolean;
     deleteConversations?: boolean;
   },
-  createdAt: number
+  createdAt: number,
+  host: HostRef
 ): WorkspaceRemovalResult {
   const written = tombstoneWorkspaceRow(db, {
     workspace,
@@ -278,7 +286,35 @@ function tombstoneUnreachableRemoval(
   });
   if (!written.success) return err(written.error);
   appDbPokes.workspaces.poke({ projectId: params.projectId });
+  // Tombstoned-while-reachable trigger (ADR 0006): reachability may have flapped
+  // mid-call, so poke the reconcile sweep — a genuinely unreachable host makes the
+  // sweep a no-op attempt with no backoff.
+  reconcileSweepTriggers.poke(host);
   return ok({});
+}
+
+/**
+ * Sweep-time conversation cascade for a tombstone's frozen `deleteConversations`
+ * option (spec §7.1): compiles per-record delete requests for the workspace's cached
+ * same-path, same-host conversation records, untracks their mirror rows, and submits
+ * the host deletions — the same shape the reachable-host removal path uses. A later
+ * slice replaces this with conversation deletion tombstones of their own.
+ */
+export async function cascadeTombstonedConversationDeletions(
+  operations: OperationSubmitter,
+  params: { workspacePath: string | undefined; host: HostRef; createdAt: number }
+): Promise<void> {
+  const deletions = snapshotWorkspaceConversationDeletions(operations.db, {
+    workspacePath: params.workspacePath,
+    hostRef: formatHostRef(params.host),
+    createdAt: params.createdAt,
+  });
+  if (deletions.length === 0) return;
+  createConversationRegistry(operations.db).untrack(
+    deletions.map((deletion) => deletion.conversationId),
+    new Date(params.createdAt).toISOString()
+  );
+  await submitConversationDeletions(operations, undefined, deletions);
 }
 
 function describeDeleteVerbError(error: DeleteVerbError): string {

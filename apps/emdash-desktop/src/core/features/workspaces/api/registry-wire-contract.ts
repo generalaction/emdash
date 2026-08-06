@@ -106,6 +106,26 @@ export const workspaceRegistryWireContract = defineContract({
     input: z.object({ workspaceId: z.string().min(1) }),
     output: z.void(),
   }),
+
+  /**
+   * Retry affordance for a pending deletion stopped by a terminal removal failure
+   * (ADR 0006): clears the host-written mark client-side and resets the reconcile
+   * sweep's backoff so the next sweep retries immediately. No-op without a tombstone.
+   */
+  retryWorkspaceRemoval: procedure({
+    input: z.object({ workspaceId: z.string().min(1) }),
+    output: z.void(),
+  }),
+
+  /**
+   * "Untrack anyway" affordance (ADR 0006): abandons the pending deletion — purges
+   * the tombstoned mirror row client-side and keeps the host artifacts. The durable
+   * untrack means sync never resurrects the row while the host record survives.
+   */
+  abandonWorkspaceRemoval: procedure({
+    input: z.object({ workspaceId: z.string().min(1) }),
+    output: z.void(),
+  }),
 });
 
 export type WorkspaceRegistryWireContract = typeof workspaceRegistryWireContract;
