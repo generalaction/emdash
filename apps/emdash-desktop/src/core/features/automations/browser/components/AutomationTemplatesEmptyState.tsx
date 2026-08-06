@@ -14,7 +14,7 @@ export function AutomationTemplatesEmptyState({
   return (
     <section className="flex flex-col gap-4 py-8">
       <div className="flex flex-col gap-1">
-        <Label className="text-md text-foreground">Start with a template</Label>
+        <Label>Start with a template</Label>
         <p className="max-w-xl text-sm text-foreground-muted">
           Choose a template and adjust it before creating your first automation
         </p>

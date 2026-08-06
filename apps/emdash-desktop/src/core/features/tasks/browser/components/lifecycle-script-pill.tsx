@@ -34,11 +34,7 @@ export const LifecycleScriptPill = observer(function LifecycleScriptPill() {
         taskView.setTerminalDrawerOpen(true);
       }}
     >
-      {failed ? (
-        <ScrollText className="size-3 shrink-0" />
-      ) : (
-        <Spinner className="size-3 shrink-0" />
-      )}
+      {failed ? <ScrollText className="size-3 shrink-0" /> : <Spinner size="sm" />}
       <span className="max-w-28 truncate">{label}</span>
     </button>
   );

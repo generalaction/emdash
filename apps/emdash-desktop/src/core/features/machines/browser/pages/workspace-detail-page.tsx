@@ -423,7 +423,7 @@ function DetailOfflineState({ machineName }: { machineName?: string }) {
 function DetailLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspace
     </div>
   );

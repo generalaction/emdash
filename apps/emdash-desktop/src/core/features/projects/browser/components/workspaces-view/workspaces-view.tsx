@@ -566,11 +566,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           disabled={archivableRows.length === 0 || pendingAction !== null}
           onClick={confirmArchive}
         >
-          {pendingAction === 'archive' ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Archive className="size-4" />
-          )}
+          {pendingAction === 'archive' ? <Spinner size="sm" /> : <Archive className="size-4" />}
           Archive
         </Button>
         <Button
@@ -579,11 +575,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           disabled={deletableRows.length === 0 || pendingAction !== null}
           onClick={confirmDelete}
         >
-          {pendingAction === 'delete' ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Trash2 className="size-4" />
-          )}
+          {pendingAction === 'delete' ? <Spinner size="sm" /> : <Trash2 className="size-4" />}
           Delete
         </Button>
         <Button
@@ -625,7 +617,7 @@ function WorkspaceWarnings({ warnings }: { warnings: string[] }) {
 function WorkspacesLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspaces
     </div>
   );

@@ -365,7 +365,7 @@ const ConversationSelectionBar = observer(function ConversationSelectionBar({
           disabled={deleting}
           onClick={() => onDelete([...selection.selectedIds])}
         >
-          {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+          {deleting ? <Spinner size="sm" /> : <Trash2 className="size-3.5" />}
           Delete
         </Button>
         <Button

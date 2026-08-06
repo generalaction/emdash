@@ -79,9 +79,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
       <DialogContentArea>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="skill-name" className="text-xs">
-              Name
-            </Label>
+            <Label htmlFor="skill-name">Name</Label>
             <Input
               id="skill-name"
               placeholder="my-skill"
@@ -98,9 +96,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="skill-desc" className="text-xs">
-              Description
-            </Label>
+            <Label htmlFor="skill-desc">Description</Label>
             <Input
               id="skill-desc"
               placeholder="What does this skill do?"
@@ -114,9 +110,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="skill-content" className="text-xs">
-              Instructions
-            </Label>
+            <Label htmlFor="skill-content">Instructions</Label>
             <Textarea
               id="skill-content"
               placeholder="Write the skill instructions here. The YAML frontmatter (name and description) will be added automatically."

@@ -268,7 +268,7 @@ function ConversationActionsCell({ row }: { row: ConversationListRow }) {
           />
         }
       >
-        {busy ? <Spinner className="size-3.5" /> : <EllipsisIcon className="size-3.5" />}
+        {busy ? <Spinner size="sm" /> : <EllipsisIcon className="size-3.5" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={onLink}>
@@ -310,7 +310,7 @@ function Pill({
 function ConversationsLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading conversations
     </div>
   );

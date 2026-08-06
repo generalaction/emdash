@@ -121,7 +121,7 @@ function RemovalActionButton({
 }) {
   return (
     <Button variant="outline" size="sm" disabled={disabled} onClick={onClick}>
-      {pending && <Spinner className="size-3.5" />}
+      {pending && <Spinner size="sm" />}
       {label}
     </Button>
   );

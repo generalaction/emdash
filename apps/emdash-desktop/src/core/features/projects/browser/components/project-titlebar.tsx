@@ -71,10 +71,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
       </DropdownMenu>
       {remoteUrl && (
         <>
-          <Separator
-            orientation="vertical"
-            className="h-4 data-[orientation=vertical]:self-center"
-          />
+          <Separator orientation="vertical" className="h-4 self-center!" />
           <Button
             variant="ghost"
             className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"
