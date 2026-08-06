@@ -14,6 +14,7 @@ import {
   translateCursors,
   type ReplicaInstance,
   type ReplicaInstanceOptions,
+  type ReplicaMutationResult,
 } from './instance';
 import type { LiveModelProvider } from './provider';
 import { createReplicaResourceCache } from './retention';
@@ -51,6 +52,8 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
             {
               instrumentation: options.instrumentation,
               logger: options.logger,
+              clock: options.clock,
+              onResyncFailed: options.onResyncFailed,
               onChange: options.onChange?.[stateName] as
                 | ((value: unknown, meta: LiveChangeMeta) => void)
                 | undefined,
@@ -100,7 +103,7 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
     },
     callOptions?: MutationCallOptions
   ): Promise<
-    LiveMutationResult<
+    ReplicaMutationResult<
       MutationData<Group['mutations'][Name]>,
       MutationError<Group['mutations'][Name]>
     >
@@ -121,12 +124,17 @@ export function createLiveModelReplica<Group extends LiveModelDef>(
         MutationError<Group['mutations'][Name]>
       >;
       if (!result.success) return result;
-      const cursors = await translateCursors(instance, contract, result.data.cursors);
+      const translation = await translateCursors(instance, contract, result.data.cursors, {
+        instrumentation: options.instrumentation,
+        mutationId: envelope.mutationId,
+      });
       return {
         success: true,
         data: {
           ...result.data,
-          cursors,
+          cursors: translation.cursors,
+          // Only added on timeout so the settled wire shape stays byte-identical.
+          ...(translation.settled ? {} : { settled: false }),
         },
       };
     } finally {

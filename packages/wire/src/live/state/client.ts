@@ -16,7 +16,13 @@ export type LiveStateClientOptions<T = unknown> = {
   logger?: Logger;
   clock?: Clock;
   topic?: string;
+  /** Label used in resync log messages; defaults to `live model`. */
+  label?: string;
   store?: StateStore<T>;
+  /** Composition hook invoked on every seed before change/waiter handling. */
+  onSeeded?: () => void;
+  /** Composition hook invoked on every applied update before change/waiter handling. */
+  onApplied?: (update: LiveUpdate) => void;
 };
 
 export class LiveStateClient<T> {
@@ -24,21 +30,25 @@ export class LiveStateClient<T> {
   private readonly waiters: LiveStateWaiters;
   private readonly store: StateStore<T>;
   private readonly onChange: (value: T, meta: LiveChangeMeta) => void;
+  private readonly onSeededHook: (() => void) | undefined;
+  private readonly onAppliedHook: ((update: LiveUpdate) => void) | undefined;
   private disposed = false;
 
   constructor(
-    schema: z.ZodType<T>,
+    schema: z.ZodType<T> | undefined,
     refetchSnapshot: () => Promise<LiveSnapshot<T>>,
     onChange: (value: T, meta: LiveChangeMeta) => void,
     options: LiveStateClientOptions<T>
   ) {
-    const { store, ...followerOptions } = options;
+    const { store, label, onSeeded, onApplied, ...followerOptions } = options;
     this.store = store ?? createPlainStore<T>();
     this.onChange = onChange;
+    this.onSeededHook = onSeeded;
+    this.onAppliedHook = onApplied;
     this.waiters = new LiveStateWaiters(() => this.cursor, { clock: options.clock });
     this.follower = new LiveFollower(refetchSnapshot, createStateMaterializer(this.store, schema), {
       ...followerOptions,
-      label: 'live model',
+      label: label ?? 'live model',
       onSeeded: () => this.handleSeeded(),
       onApplied: (update) => this.handleApplied(update),
     });
@@ -104,12 +114,14 @@ export class LiveStateClient<T> {
   }
 
   private handleSeeded(): void {
+    this.onSeededHook?.();
     this.onChange(this.store.current(), { kind: 'seed' });
     this.waiters.flushCursorWaiters();
     this.waiters.flushAllMutationWaiters();
   }
 
   private handleApplied(update: LiveUpdate): void {
+    this.onAppliedHook?.(update);
     this.onChange(this.store.current(), { kind: 'update', mutationIds: update.mutationIds ?? [] });
     this.waiters.flushCursorWaiters();
     this.waiters.flushMutationWaiters(update.mutationIds ?? []);

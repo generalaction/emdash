@@ -5,8 +5,11 @@ export {
   type ContractMutationInvocation,
   type ReplicaInstance,
   type ReplicaInstanceOptions,
+  type ReplicaMutationResult,
+  type ReplicaMutationSuccess,
   type ReplicaStates,
   type ReplicaMutations,
+  type TranslateCursorsOptions,
 } from './instance';
 export {
   createLiveJobReplica,

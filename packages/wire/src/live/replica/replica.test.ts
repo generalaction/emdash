@@ -1,6 +1,8 @@
 import { ok } from '@emdash/shared';
+import { createManualClock } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import type { LiveClientHandle, LiveModelClientHandle } from '../../api/client';
 import { defineContract, liveModel, liveState, mutation } from '../../api/define';
 import { expose } from '../../state/bridge/expose';
 import { cell, snapshot } from '../../state/core';
@@ -92,6 +94,84 @@ describe('createLiveModelReplica', () => {
 
     await downstreamLease.release();
     await downstreamReplica.dispose();
+    await replica.dispose();
+  });
+
+  it('omits settled metadata when cursor translation completes', async () => {
+    const key = { id: 'settled' };
+    const { provider } = counterSource({ count: 0 });
+    const upstream = createTestWire(api, { counter: provider }).client;
+    const replica = createLiveModelReplica(api.counter, upstream.counter);
+    const lease = replica.acquire(key);
+    const counter = await lease.ready();
+
+    const invocation = await counter.mutations.bump({});
+    await invocation.settled;
+
+    expect(invocation.result.success).toBe(true);
+    if (invocation.result.success) {
+      expect(Object.hasOwn(invocation.result.data, 'settled')).toBe(false);
+    }
+
+    await lease.release();
+    await replica.dispose();
+  });
+
+  it('resolves committed mutations with settled: false when translation times out', async () => {
+    const key = { id: 'timeout' };
+    const clock = createManualClock();
+    const cursorTranslationTimeout = vi.fn();
+
+    const stateHandle: LiveClientHandle<{ count: number }> = {
+      topic: 'counter/state',
+      snapshot: async () => ({ generation: 1, sequence: 0, timestamp: 0, data: { count: 0 } }),
+      // Never pushes updates, so the replica can never reach the mutation cursor.
+      attach: async () => () => {},
+      asLiveSource() {
+        throw new Error('unused in this test');
+      },
+    };
+    const group = {
+      kind: 'liveModelClientHandle',
+      def: api.counter,
+      state: () => stateHandle,
+      mutate: async () =>
+        ok({
+          data: { count: 1 },
+          cursors: [
+            { model: api.counter.states.state.id, key, cursor: { generation: 1, sequence: 3 } },
+          ],
+        }),
+    } as unknown as LiveModelClientHandle<typeof api.counter>;
+
+    const replica = createLiveModelReplica(api.counter, group, {
+      clock,
+      instrumentation: { cursorTranslationTimeout },
+    });
+    const lease = replica.acquire(key);
+    const counter = await lease.ready();
+
+    const invocationPromise = counter.mutations.bump({}, { mutationId: 'mutation-1' });
+    await clock.advanceBy(0);
+    await clock.advanceBy(15_000);
+    const invocation = await invocationPromise;
+
+    expect(invocation.result.success).toBe(true);
+    if (invocation.result.success) {
+      expect(invocation.result.data.settled).toBe(false);
+      expect(invocation.result.data.data).toEqual({ count: 1 });
+      // Translation still yields a best-effort local cursor for the entry.
+      expect(invocation.result.data.cursors).toHaveLength(1);
+      expect(invocation.result.data.cursors[0].cursor.sequence).toBe(3);
+    }
+    expect(cursorTranslationTimeout).toHaveBeenCalledWith(
+      expect.objectContaining({ model: api.counter.states.state.id, mutationId: 'mutation-1' })
+    );
+
+    await clock.advanceBy(15_000);
+    await invocation.settled;
+
+    await lease.release();
     await replica.dispose();
   });
 

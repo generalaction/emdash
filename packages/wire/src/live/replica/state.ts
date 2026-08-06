@@ -4,11 +4,11 @@ import type { Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
 import type { LiveClientHandle } from '../../api/client';
 import type { WireInstrumentation } from '../../observability';
-import { LiveFollower, resyncRetry, type LiveResyncFailurePolicy } from '../follower';
+import { resyncRetry, type LiveResyncFailurePolicy } from '../follower';
 import type { LiveCursor, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
-import type { LiveChangeMeta } from '../state';
+import { LiveStateClient, type LiveChangeMeta } from '../state';
 import { LiveStateWaiters } from '../state/waiters';
-import { createPlainStore, createStateMaterializer, type StateStore } from './store';
+import { createPlainStore, type StateStore } from './store';
 
 export type ReplicaStateOptions<T> = {
   store?: StateStore<T>;
@@ -31,9 +31,8 @@ export class ReplicaState<T> implements LiveSource {
 
   private readonly emitter = new Emitter<LiveUpdate>();
   private readonly changeEmitter = new Emitter<ReplicaStateChange<T>>();
-  private readonly follower: LiveFollower<T>;
+  private readonly client: LiveStateClient<T>;
   private readonly store: StateStore<T>;
-  private readonly waiters: LiveStateWaiters;
   private readonly localWaiters: LiveStateWaiters;
   private readonly detachPromise: Promise<Unsubscribe>;
   private localGeneration = nextGeneration();
@@ -46,24 +45,25 @@ export class ReplicaState<T> implements LiveSource {
     private readonly deps: ReplicaStateOptions<T> = {}
   ) {
     this.store = deps.store ?? createPlainStore<T>();
-    this.waiters = new LiveStateWaiters(() => this.cursor, { clock: deps.clock });
     this.localWaiters = new LiveStateWaiters(() => this.localCursor(), { clock: deps.clock });
-    this.follower = new LiveFollower(
+    this.client = new LiveStateClient<T>(
+      deps.schema,
       () => handle.snapshot(),
-      createStateMaterializer(this.store, deps.schema),
+      (value, meta) => this.handleChange(value, meta),
       {
         instrumentation: deps.instrumentation,
         logger: deps.logger,
         clock: deps.clock,
         topic: handle.topic,
         label: 'replica model',
+        store: this.store,
         onResyncFailed: deps.onResyncFailed ?? resyncRetry(),
         onSeeded: () => this.handleSeeded(),
         onApplied: (update) => this.handleApplied(update),
       }
     );
     this.detachPromise = handle.attach((update) => this.applyUpdate(update), {
-      onReattach: () => this.follower.invalidate(),
+      onReattach: () => this.client.invalidate(),
     });
     this.ready = Promise.all([handle.snapshot(), this.detachPromise]).then(([snapshot]) =>
       this.seed(snapshot)
@@ -75,12 +75,12 @@ export class ReplicaState<T> implements LiveSource {
   }
 
   get cursor(): LiveCursor | undefined {
-    return this.follower.cursor;
+    return this.client.cursor;
   }
 
   /** True while a resync is needed or in flight, including after a give-up. */
   get stale(): boolean {
-    return this.follower.stale;
+    return this.client.stale;
   }
 
   seed(snapshot: LiveSnapshot<T>): void {
@@ -88,15 +88,15 @@ export class ReplicaState<T> implements LiveSource {
       generation: snapshot.generation,
       sequence: snapshot.sequence,
     };
-    this.follower.seed(snapshot);
+    this.client.seed(snapshot);
   }
 
   applyUpdate(update: LiveUpdate): void {
-    this.follower.applyUpdate(update);
+    this.client.applyUpdate(update);
   }
 
   refresh(): Promise<void> {
-    return this.follower.refresh();
+    return this.client.refresh();
   }
 
   async snapshot(): Promise<LiveSnapshot<unknown>> {
@@ -119,7 +119,7 @@ export class ReplicaState<T> implements LiveSource {
 
   waitForCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
     if (this.disposed) return Promise.reject(new Error('ReplicaState disposed'));
-    return this.waiters.waitForCursor(target, timeoutMs);
+    return this.client.waitForCursor(target, timeoutMs);
   }
 
   waitForLocalCursor(target: LiveCursor, timeoutMs = 15_000): Promise<void> {
@@ -129,7 +129,7 @@ export class ReplicaState<T> implements LiveSource {
 
   waitForMutation(mutationId: string, timeoutMs = 15_000): Promise<void> {
     if (this.disposed) return Promise.reject(new Error('ReplicaState disposed'));
-    return this.waiters.waitForMutation(mutationId, timeoutMs);
+    return this.client.waitForMutation(mutationId, timeoutMs);
   }
 
   localCursorFor(upstream: LiveCursor): LiveCursor {
@@ -152,23 +152,20 @@ export class ReplicaState<T> implements LiveSource {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.waiters.rejectAll(new Error('ReplicaState disposed'));
     this.localWaiters.rejectAll(new Error('ReplicaState disposed'));
-    this.follower.dispose();
+    this.client.dispose();
     this.emitter.clear();
     this.changeEmitter.clear();
     (await this.detachPromise)();
   }
 
+  /** Renumbers the local generation before the seed change fans out. */
   private handleSeeded(): void {
     this.localGeneration = nextGeneration(this.localGeneration);
     this.localSequence = 0;
-    this.emitChange({ kind: 'seed' });
-    this.waiters.flushCursorWaiters();
-    this.waiters.flushAllMutationWaiters();
-    this.localWaiters.flushCursorWaiters();
   }
 
+  /** Re-emits the applied update under local numbering before the change fans out. */
   private handleApplied(update: LiveUpdate): void {
     const baseSequence = this.localSequence;
     this.localSequence += 1;
@@ -180,9 +177,11 @@ export class ReplicaState<T> implements LiveSource {
       delta: update.delta,
       mutationIds: update.mutationIds,
     });
-    this.emitChange({ kind: 'update', mutationIds: update.mutationIds ?? [] });
-    this.waiters.flushCursorWaiters();
-    this.waiters.flushMutationWaiters(update.mutationIds ?? []);
+  }
+
+  private handleChange(value: T, meta: LiveChangeMeta): void {
+    this.deps.onChange?.(value, meta);
+    this.changeEmitter.emit({ value, meta });
     this.localWaiters.flushCursorWaiters();
   }
 
@@ -191,12 +190,6 @@ export class ReplicaState<T> implements LiveSource {
       generation: this.localGeneration,
       sequence: this.localSequence,
     };
-  }
-
-  private emitChange(meta: LiveChangeMeta): void {
-    const value = this.store.current();
-    this.deps.onChange?.(value, meta);
-    this.changeEmitter.emit({ value, meta });
   }
 }
 

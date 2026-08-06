@@ -79,6 +79,13 @@ export function loggerInstrumentation(
         error: event.error,
       });
     },
+    cursorTranslationTimeout(event) {
+      logger.warn('wire replica cursor translation timed out', {
+        model: event.model,
+        mutationId: event.mutationId,
+        error: event.error,
+      });
+    },
     mutationDeduped(event) {
       logger.debug('wire mutation deduped', {
         mutationId: event.mutationId,

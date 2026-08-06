@@ -56,6 +56,13 @@ export type WireResyncFailedEvent = {
   willRetry: boolean;
 };
 
+export type WireCursorTranslationTimeoutEvent = {
+  /** Live model id from the cursor entry that failed to translate. */
+  model: string;
+  mutationId?: string;
+  error: unknown;
+};
+
 export type WireMutationDedupedEvent = {
   mutationId: string;
   path: string;
@@ -83,6 +90,7 @@ export type WireInstrumentation = {
   cancel?(event: WireCancelEvent): void;
   resync?(event: WireResyncEvent): void;
   resyncFailed?(event: WireResyncFailedEvent): void;
+  cursorTranslationTimeout?(event: WireCursorTranslationTimeoutEvent): void;
   mutationDeduped?(event: WireMutationDedupedEvent): void;
   batchDropped?(event: WireBatchDroppedEvent): void;
   scopeCleanupError?(event: WireScopeCleanupErrorEvent): void;
@@ -107,6 +115,7 @@ export function mergeInstrumentation(
     cancel: (event) => emit(active, 'cancel', event),
     resync: (event) => emit(active, 'resync', event),
     resyncFailed: (event) => emit(active, 'resyncFailed', event),
+    cursorTranslationTimeout: (event) => emit(active, 'cursorTranslationTimeout', event),
     mutationDeduped: (event) => emit(active, 'mutationDeduped', event),
     batchDropped: (event) => emit(active, 'batchDropped', event),
     scopeCleanupError: (event) => emit(active, 'scopeCleanupError', event),

@@ -64,6 +64,13 @@ Mutation helpers return `{ result, settled }`. On success, the replica translate
 upstream cursors to local cursors before returning them to downstream clients, so
 both local UI and served clients settle against the same local state.
 
+A cursor-translation timeout never fails a committed mutation. If the replica
+cannot observe the mutation's upstream cursor in time, the mutation still
+resolves successfully and the result data carries `settled: false` (client-side
+metadata; the wire shape of `LiveMutationResult` is unchanged). Instrumentation
+records the timeout via `cursorTranslationTimeout`, and the `settled` promise
+stays best-effort as before.
+
 ## Log Replicas
 
 Use a `LiveLogReplica` when a process needs a local retained text buffer or wants

@@ -48,7 +48,8 @@ Hooks currently cover:
 - procedure start/end, cancellation, and duration.
 - snapshot timing and errors.
 - live topic attach/detach.
-- live model/log resync reasons.
+- live model/log resync reasons and resync failures.
+- replica cursor-translation timeouts.
 - mutation dedupe hits.
 - scope cleanup errors.
 - transport connect/disconnect events.
