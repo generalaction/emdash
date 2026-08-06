@@ -74,6 +74,10 @@
       "types": "./dist/src/styles/recipes/box.d.ts",
       "default": "./dist/styles/recipes/box.js"
     },
+    "./styles/recipes/menu-item": {
+      "types": "./dist/src/styles/recipes/menu-item.css.d.ts",
+      "default": "./dist/styles/recipes/menu-item.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css",
     "./styles/global": {
       "types": "./dist/src/styles/global.css.d.ts",

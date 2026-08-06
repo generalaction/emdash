@@ -1,10 +1,12 @@
+import { menuItemBase } from '@emdash/ui/styles/recipes/menu-item';
 import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Fragment } from 'react';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { useTheme } from '@core/primitives/theme/browser';
-import { ActionListItem } from '@core/primitives/ui/browser/action-list-item';
+import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
@@ -85,7 +87,7 @@ export function HomeMainPanel() {
 function HomeProjectAction({
   label,
   description,
-  icon,
+  icon: Icon,
   isSelected,
   onClick,
   onMouseEnter,
@@ -98,14 +100,33 @@ function HomeProjectAction({
   onMouseEnter: () => void;
 }) {
   return (
-    <ActionListItem
-      label={label}
-      description={description}
-      icon={icon}
-      isSelected={isSelected}
+    <button
+      type="button"
+      aria-label={label}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-    />
+      className={cn(
+        menuItemBase({ fullWidth: true }),
+        'justify-between hover:bg-background-1',
+        isSelected && 'bg-background-1'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Icon className="size-7 shrink-0 text-foreground-passive" strokeWidth={1} />
+        <div className="flex flex-col gap-1 text-left">
+          <span
+            className={cn(
+              'text-sm whitespace-nowrap text-foreground-muted transition-colors',
+              isSelected && 'text-foreground'
+            )}
+          >
+            {label}
+          </span>
+          <span className="text-xs text-foreground-passive">{description}</span>
+        </div>
+      </div>
+      {isSelected && <Shortcut hotkey="Enter" variant="keycaps" />}
+    </button>
   );
 }
 

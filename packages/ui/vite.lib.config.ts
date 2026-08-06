@@ -43,6 +43,7 @@ export default defineConfig({
         'styles/recipes/surface': resolve(__dirname, 'src/styles/recipes/surface.css.ts'),
         'styles/recipes/card': resolve(__dirname, 'src/styles/recipes/card.css.ts'),
         'styles/recipes/box': resolve(__dirname, 'src/styles/recipes/box.ts'),
+        'styles/recipes/menu-item': resolve(__dirname, 'src/styles/recipes/menu-item.css.ts'),
         // VE theme utilities — exports sx (Sprinkles) and vars (theme contract).
         // Importing this entry causes style.css to include the extracted VE atoms.
         'styles/utilities/sprinkles': resolve(__dirname, 'src/styles/utilities/sprinkles.css.ts'),

@@ -1,7 +1,7 @@
+import { CardGridSection } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { CardGridSection } from '@core/primitives/ui/browser/components/card-grid';
 import { SkillCard } from '../../../browser/components/SkillCard';
 import { SkillDetailModal } from '../../../browser/components/SkillDetailModal';
 import type { UseSkillsResult } from '../../../browser/components/useSkills';

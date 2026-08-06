@@ -1,5 +1,5 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { PageLayout } from '@emdash/ui/react/patterns';
+import { ListView, PageLayout } from '@emdash/ui/react/patterns';
 import { Button, toast } from '@emdash/ui/react/primitives';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -7,7 +7,6 @@ import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 
 type PromptListItem = {
@@ -166,10 +165,11 @@ export function PromptLibraryView() {
         {filteredItems.length > 0 ? (
           filteredItems.map((prompt, index) => {
             return (
-              <MultiLineListItem
+              <ListView.Row
                 key={prompt.id}
+                interactive
                 isLast={index === filteredItems.length - 1}
-                className="py-3"
+                className="group"
               >
                 <PromptRow
                   item={prompt}
@@ -177,7 +177,7 @@ export function PromptLibraryView() {
                   onEdit={() => editPrompt(prompt)}
                   onDelete={() => deletePrompt(prompt)}
                 />
-              </MultiLineListItem>
+              </ListView.Row>
             );
           })
         ) : (

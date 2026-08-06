@@ -1,3 +1,4 @@
+import { ListPopoverCard } from '@emdash/ui/react/components';
 import { Button } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
@@ -14,7 +15,6 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from '@core/primitives/ui/browser/combobox';
-import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
 import {
   Select,
@@ -253,11 +253,7 @@ export function PrSelector({
             )}
           </ComboboxList>
           {errorMessage && prs.length > 0 && (
-            <ListPopoverCard
-              className={
-                'border-border-destructive bg-background-destructive text-foreground-destructive'
-              }
-            >
+            <ListPopoverCard status="destructive" className="text-foreground-destructive">
               <AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />
               <span className="shrink-0 font-medium text-foreground-destructive">Sync failed</span>
               <span
