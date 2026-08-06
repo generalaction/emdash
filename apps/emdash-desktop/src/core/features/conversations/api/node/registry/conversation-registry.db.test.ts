@@ -70,6 +70,91 @@ describe('ConversationRegistry', () => {
     expect(adopted && isAnnotatedConversation(adopted)).toBe(false);
   });
 
+  it('claims an adopted row while preserving its sync metadata', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registry.adopt({
+      id: 'conv',
+      title: 'Host title',
+      provider: 'claude',
+      type: 'acp',
+      config: { version: '1', type: 'acp' },
+      cwd: '/host/repo',
+      workspacePath: '/host/repo',
+      providerSessionId: null,
+      idRegime: 'provider-minted',
+      lastSessionActivityAt: '2026-01-02T00:00:00.000Z',
+      observedStatus: 'present',
+      lastObservedAt: '2026-01-03T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+      location: 'local',
+    });
+    seedTask('project-conv', 'task-conv');
+
+    const claimed = registry.register({
+      id: 'conv',
+      projectId: 'project-conv',
+      taskId: 'task-conv',
+      isInitialConversation: true,
+      title: 'Client title',
+      provider: 'claude-code',
+      type: 'acp',
+      config: { version: '1', type: 'acp', model: 'sonnet' },
+      cwd: '/client/repo',
+      workspacePath: '/client/repo',
+      providerSessionId: 'session-1',
+      idRegime: 'provider-minted',
+      lastSessionActivityAt: '2026-01-04T00:00:00.000Z',
+      createdAt: '2026-02-01T00:00:00.000Z',
+      updatedAt: '2026-01-04T00:00:00.000Z',
+      location: 'local',
+    });
+
+    expect(claimed).toMatchObject({
+      origin: 'registered',
+      projectId: 'project-conv',
+      taskId: 'task-conv',
+      isInitialConversation: true,
+      title: 'Client title',
+      provider: 'claude-code',
+      config: { version: '1', type: 'acp', model: 'sonnet' },
+      cwd: '/client/repo',
+      workspacePath: '/client/repo',
+      providerSessionId: 'session-1',
+      lastSessionActivityAt: '2026-01-04T00:00:00.000Z',
+      updatedAt: '2026-01-04T00:00:00.000Z',
+      // The sync observation remains valid across the claim.
+      observedStatus: 'present',
+      lastObservedAt: '2026-01-03T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('does not let a losing adopt clear registered annotations', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'conv');
+
+    const row = registry.adopt({
+      id: 'conv',
+      title: 'Host delivery',
+      provider: 'codex',
+      type: 'pty',
+      location: 'local',
+      lastObservedAt: '2026-01-03T00:00:00.000Z',
+      observedStatus: 'present',
+    });
+
+    expect(row).toMatchObject({
+      origin: 'registered',
+      taskId: 'task-conv',
+      projectId: 'project-conv',
+      isInitialConversation: true,
+      title: 'Linked conversation',
+      provider: 'claude',
+      type: 'acp',
+    });
+  });
+
   it('refreshes observation columns wholesale and stamps the observation time', () => {
     const registry = createConversationRegistry(fixture.db);
     registerLinked(registry, 'conv');

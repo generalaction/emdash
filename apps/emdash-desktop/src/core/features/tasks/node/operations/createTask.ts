@@ -368,7 +368,8 @@ export async function createTask(
 
   // Host-first ordering (spec §6.2): the index is authoritative for conversation
   // existence, so the record must exist — dangling — before the desktop transaction
-  // links to it. The host is reachable by construction (gate in prepare).
+  // links to it. Live sync may adopt it first; register atomically claims that mirror row.
+  // The host is reachable by construction (gate in prepare).
   const hostInput = prepared.data.hostConversationInput;
   if (hostInput) {
     const registered = await createHostConversationRecord(runtimes, prepared.data.host, hostInput);

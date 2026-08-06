@@ -55,6 +55,10 @@ _Avoid_: Source of truth (the filesystem is), desired state
 The desktop's mirror of each Host registry plus desktop annotations (task links, Provenance, client config) — never the authority on what exists on a host.
 _Avoid_: Spec, expected state, source of truth (for host state)
 
+**Mirror kernel**:
+The desktop module that maintains the Registry across entity kinds: the shared snapshot-convergence transaction, the per-host sync attachment, and the Claim/Observe verb builders that per-kind registries delegate to — parameterized by a per-kind policy (column families, host-record projection, annotated predicate). It converges the mirror toward host Observations and is never an authority.
+_Avoid_: Sync kernel (that is the client↔client CRDT plane), Registry kernel (invites confusion with the Host registry, which is the authority the kernel is not)
+
 ### State vocabulary
 
 **Host fact**:
@@ -110,6 +114,14 @@ _Avoid_: Reconciling the host toward records generally (ADR 0001 still rejects t
 **Placement**:
 The desktop policy that picks the intended path for a new Workspace — computed from settings and Registry knowledge only, never by probing the host. The host is the final arbiter of what actually happens at that path.
 _Avoid_: Probing, path reservation (nothing holds a path on the host)
+
+**Claim**:
+Registration atomically taking ownership of an already-mirrored live row in one statement: origin becomes registered, the caller's annotations are written, observations refresh. Colliding with an untracked row refuses — a Claim never revives a Tombstone.
+_Avoid_: Upsert (the mechanism, not the meaning), creation reviving tombstones
+
+**Observe**:
+A snapshot delivery's sole write verb: insert-as-adopted for an unknown id, or refresh observation columns only — never annotations, never origin, never an untracked row. The never-resurrect guard is structural, not a separate check.
+_Avoid_: Adopt-or-refresh branching (Observe is one statement), deliveries resurrecting untracked rows
 
 **Activation**:
 The moment a Workspace accepts Sessions. Session start waits for the prepare script to finish, but activation is never blocked by a script failure — failures surface as Workspace notices. Setup runs after activation, concurrent with live sessions; run scripts wait on setup success. Activation is ephemeral host-runtime state living in the Runtime overlay: after a daemon restart every workspace is inactive, and only lastActivatedAt persists as an Observation. Deactivation (kill all sessions + time-boxed, non-fatal teardown) is owned by deactivateWorkspace alone.

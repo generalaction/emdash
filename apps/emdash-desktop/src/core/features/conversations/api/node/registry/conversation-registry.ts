@@ -73,28 +73,84 @@ export class ConversationRegistry {
     return row;
   }
 
-  /** Insert on host-acknowledged creation; the id is the host record's id. */
+  /**
+   * Claim a host-acknowledged conversation for this client. The live sync may have
+   * adopted the host record before the create RPC unwinds, so conflict updates make
+   * registration commutative with that adoption while preserving sync metadata.
+   */
   register(values: ConversationInsert, tx?: DrizzleTx): ConversationRow {
     const now = this.now();
+    const registered = {
+      ...values,
+      origin: 'registered' as const,
+      createdAt: values.createdAt ?? now,
+      updatedAt: values.updatedAt ?? now,
+      untrackedAt: null,
+    };
     return this.source(tx)
       .insert(conversations)
-      .values({
-        ...values,
-        origin: values.origin ?? 'registered',
-        createdAt: values.createdAt ?? now,
-        updatedAt: values.updatedAt ?? now,
-        untrackedAt: null,
+      .values(registered)
+      .onConflictDoUpdate({
+        target: conversations.id,
+        set: {
+          projectId: registered.projectId,
+          taskId: registered.taskId,
+          isInitialConversation: registered.isInitialConversation,
+          title: registered.title,
+          provider: registered.provider,
+          type: registered.type,
+          config: registered.config,
+          cwd: registered.cwd,
+          workspacePath: registered.workspacePath,
+          providerSessionId: registered.providerSessionId,
+          idRegime: registered.idRegime,
+          lastSessionActivityAt: registered.lastSessionActivityAt,
+          location: registered.location,
+          sshConnectionId: registered.sshConnectionId,
+          origin: 'registered',
+          updatedAt: registered.updatedAt,
+          untrackedAt: null,
+        },
       })
       .returning()
       .get();
   }
 
-  /** Insert for a host record with no local row: reuses the host's id, carries no links. */
+  /**
+   * Mirror a host record without client-owned links. If registration won the race,
+   * preserve that row wholesale instead of clearing its annotations.
+   */
   adopt(
     values: Omit<ConversationInsert, 'taskId' | 'projectId' | 'origin'>,
     tx?: DrizzleTx
   ): ConversationRow {
-    return this.register({ ...values, taskId: null, projectId: null, origin: 'adopted' }, tx);
+    const now = this.now();
+    const source = this.source(tx);
+    const adopted = source
+      .insert(conversations)
+      .values({
+        ...values,
+        taskId: null,
+        projectId: null,
+        origin: 'adopted',
+        createdAt: values.createdAt ?? now,
+        updatedAt: values.updatedAt ?? now,
+        untrackedAt: null,
+      })
+      .onConflictDoNothing({ target: conversations.id })
+      .returning()
+      .get();
+    if (adopted !== undefined) return adopted;
+
+    const existing = source
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, values.id))
+      .get();
+    if (existing === undefined) {
+      throw new Error(`Conversation '${values.id}' disappeared during adoption`);
+    }
+    return existing;
   }
 
   /** Observation columns only, stamped with the host-side observation time; live rows only. */

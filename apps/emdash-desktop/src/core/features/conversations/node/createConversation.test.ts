@@ -59,12 +59,14 @@ function fakeDatabase(options: { failInsert?: boolean } = {}) {
     })),
     insert: vi.fn(() => ({
       values: (values: unknown) => ({
-        returning: () => ({
-          get: () => {
-            if (options.failInsert) throw new Error('constraint violation');
-            inserted.push(values);
-            return { ...conversationRow, ...(values as object) };
-          },
+        onConflictDoUpdate: () => ({
+          returning: () => ({
+            get: () => {
+              if (options.failInsert) throw new Error('constraint violation');
+              inserted.push(values);
+              return { ...conversationRow, ...(values as object) };
+            },
+          }),
         }),
       }),
     })),

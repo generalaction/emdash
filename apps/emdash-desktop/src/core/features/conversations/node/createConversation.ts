@@ -109,7 +109,8 @@ export async function createConversation(
   const config = configObj;
 
   // Host-first ordering (spec §6.2): the index is authoritative for conversation
-  // existence, so the client registry link must never precede the record.
+  // existence, so the client registry link must never precede the record. Live sync
+  // may adopt the record before this call returns; registry.register atomically claims it.
   const registered = await createHostConversationRecord(
     runtimes,
     identity.host,

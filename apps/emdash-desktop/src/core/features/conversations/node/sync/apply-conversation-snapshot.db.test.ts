@@ -95,6 +95,41 @@ describe('applyConversationSnapshot', () => {
     expect(replay).toEqual({ adopted: 0, refreshed: 2, markedMissing: 0, untracked: 0 });
   });
 
+  it('lets host-first creation claim a row already adopted by live sync', async () => {
+    seedTask('project-1', 'task-1');
+    const registry = createConversationRegistry(fixture.db);
+    await applyConversationSnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: { 'conv-1': hostRecord({ id: 'conv-1' }) },
+      observedAt: '2026-01-03T00:00:00.000Z',
+    });
+
+    expect(() =>
+      registry.register({
+        id: 'conv-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        isInitialConversation: true,
+        title: 'Client title',
+        provider: 'claude',
+        type: 'acp',
+        config: { version: '1', type: 'acp' },
+        cwd: '/repo/worktree',
+        workspacePath: '/repo/worktree',
+        idRegime: 'provider-minted',
+        location: 'local',
+      })
+    ).not.toThrow();
+    expect(registry.getLive('conv-1')).toMatchObject({
+      origin: 'registered',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      isInitialConversation: true,
+      lastObservedAt: '2026-01-03T00:00:00.000Z',
+    });
+  });
+
   it('overwrites cached observations wholesale but never touches annotations', async () => {
     seedTask('project-1', 'task-1');
     const registry = createConversationRegistry(fixture.db);
