@@ -77,7 +77,7 @@ live, and worker surfaces.
   - [Transports](./api/transports.md): memory, ports, Electron, streams,
     reconnecting, and logging transports.
 - Live:
-  - [Live models and protocol](./live/live-state.md): snapshots, updates,
+  - [Live models and protocol](./live/live-model.md): snapshots, updates,
     cursors, `LiveState`, and replicas.
   - [Live logs](./live/live-log.md): retained terminal-style logs and client
     callbacks.
@@ -89,8 +89,6 @@ live, and worker surfaces.
     idempotency cache, and retry behavior.
   - [Replicas](./live/replicas.md): `LiveModelReplica`, `LiveLogReplica`,
     `LiveJobReplica`, pluggable stores, ref counting, and serving cached state.
-  - [Optimistic live model groups](./live/optimistic-group.md): MobX-backed
-    optimistic previews for live model contract mutations.
 - Runtime:
   - [Lifecycle utilities](./runtime/lifecycle.md): Shared `Scope`,
     `LifecycleRegistry`, scope loggers, `describeScope()`, and resource

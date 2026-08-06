@@ -177,8 +177,6 @@ await session.mutations.addNote({ text: 'Optimistic title' }, {
 });
 ```
 
-See [../../examples/api-client/client.ts](../../examples/api-client/client.ts).
-
 ## Cancellation
 
 Wire supports cooperative cancellation for request messages. The client sends a
@@ -298,8 +296,6 @@ one session and calls `transport.close?.()` after disposing the serve loop.
 validation, logging, session hubs, tests, process runtimes, and Electron exposure
 propagate that promise so LiveJob servers and resource hosts can finish shutdown
 before their owner reports disposed.
-
-See [../../examples/multi-window/client.ts](../../examples/multi-window/client.ts).
 
 ## Server-Side Call Helpers
 

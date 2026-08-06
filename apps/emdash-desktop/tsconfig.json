@@ -41,7 +41,6 @@
       "@emdash/wire/testing": ["../../packages/wire/src/testing/index.ts"],
       "@emdash/wire/util/mobx": ["../../packages/wire/src/util/mobx/index.ts"],
       "@emdash/wire/worker": ["../../packages/wire/src/worker/index.ts"],
-      "@emdash/wire/worker/electron": ["../../packages/wire/src/worker/electron/index.ts"],
       "@emdash/wire/worker/node": ["../../packages/wire/src/worker/node/index.ts"],
       "@emdash/wire/util": ["../../packages/wire/src/util/index.ts"],
       "@emdash/wire": ["../../packages/wire/src/index.ts"],

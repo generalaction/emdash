@@ -531,8 +531,6 @@ function validateUploadFileEnvelope(def: UploadFileEndpointDef, file: WireFile):
   }
 }
 
-export { encodeTopic, splitTopic } from './topics';
-
 function createLiveLogResolver(
   impl: LiveLogEntryImpl<LiveLogEndpointDef>
 ): (key: unknown) => MaybeAsyncLiveSource {

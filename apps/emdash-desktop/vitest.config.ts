@@ -69,10 +69,6 @@ const alias = {
   '@emdash/wire/testing': resolve(__dirname, '../../packages/wire/src/testing/index.ts'),
   '@emdash/wire/util/mobx': resolve(__dirname, '../../packages/wire/src/util/mobx/index.ts'),
   '@emdash/wire/util': resolve(__dirname, '../../packages/wire/src/util/index.ts'),
-  '@emdash/wire/worker/electron': resolve(
-    __dirname,
-    '../../packages/wire/src/worker/electron/index.ts'
-  ),
   '@emdash/wire/worker/node': resolve(__dirname, '../../packages/wire/src/worker/node/index.ts'),
   '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
   '@emdash/wire': resolve(__dirname, '../../packages/wire/src/index.ts'),

@@ -1,9 +1,10 @@
 # `@emdash/wire` reactive state (`wire/src/state/`)
 
 > **Status: implemented in parallel to `wire/src/live/`.** The primitives in
-> this folder are available as `@emdash/wire/state`, but no legacy consumer has
-> been refactored yet and only obsolete unused live helpers have been deleted. See
-> [05-migration.md](./05-migration.md) for the replacement plan.
+> this folder are available as `@emdash/wire/state` and are in production use:
+> desktop feature slices (tasks, workspaces, source-control, editor, projects)
+> author providers with `expose` and consume them with `remote`. See
+> [05-migration.md](./05-migration.md) for the remaining migration plan.
 
 This folder holds the reactive state kernel for wire: a small set of
 signals-style primitives that unify how authoritative state is produced,

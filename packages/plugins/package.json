@@ -61,7 +61,6 @@
   "devDependencies": {
     "@agentclientprotocol/claude-agent-acp": "^0.54.1",
     "@agentclientprotocol/codex-acp": "^1.0.2",
-    "@emdash/wire": "workspace:*",
     "@typescript/native-preview": "7.0.0-dev.20260609.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.69.0",

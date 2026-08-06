@@ -8,10 +8,11 @@ import { ReplicaState } from '../live/replica';
 import { createTestWire } from '../testing';
 import { client } from './client';
 import { connect } from './connect';
-import { createController, encodeTopic } from './controller';
+import { createController } from './controller';
 import { defineContract, liveModel, liveState, fallible, procedure } from './define';
 import { isWireError, WireError, type WireMessage, type WireTransport } from './protocol';
 import { serve } from './serve';
+import { encodeTopic } from './topics';
 import { memoryTransportPair, reconnectingTransport } from './transports';
 
 const contract = defineContract({

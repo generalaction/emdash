@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import type { LiveSource } from '../live/protocol';
-import { createController, encodeTopic, splitTopic } from './controller';
+import { createController } from './controller';
 import { defineContract, eventStream, liveModel, liveState, liveLog, procedure } from './define';
+import { encodeTopic, splitTopic } from './topics';
 import { withValidation } from './with-validation';
 
 const keySchema = z.object({ id: z.string() });

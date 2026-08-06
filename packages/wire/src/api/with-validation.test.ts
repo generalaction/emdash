@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createLiveModelHost } from '../live/mutations';
 import { type LiveSource } from '../live/protocol';
 import { createTestWire } from '../testing';
-import { createController, encodeTopic } from './controller';
+import { createController } from './controller';
 import {
   defineContract,
   downloadFile,
@@ -15,6 +15,7 @@ import {
   procedure,
 } from './define';
 import { WireError } from './protocol';
+import { encodeTopic } from './topics';
 import { withValidation } from './with-validation';
 
 const source: LiveSource = {

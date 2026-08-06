@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createLiveModelHost, createLiveModelReplica, type LiveModelReplicaOptions } from '../live';
 import { createTestWire } from '../testing';
 import type { LiveModelClientHandle } from './client';
-import { createController, encodeTopic } from './controller';
+import { createController } from './controller';
 import {
   defineContract,
   liveModel,
@@ -13,6 +13,7 @@ import {
   type LiveModelKey,
   type LiveModelDef,
 } from './define';
+import { encodeTopic } from './topics';
 
 const keySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ title: z.string() });
