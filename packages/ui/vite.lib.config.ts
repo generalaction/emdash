@@ -63,6 +63,7 @@ export default defineConfig({
         'react-resizable-panels',
         'react-zoom-pan-pinch',
         'react/jsx-runtime',
+        'sonner',
         '@base-ui/react',
         'lucide-react',
         'lucide-react/dynamic',

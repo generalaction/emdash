@@ -79,7 +79,7 @@ export type { ThemeId };
 export type { DensityId };
 export { DENSITY_MANIFEST, THEME_MANIFEST };
 
-interface ThemeContextValue {
+export interface ThemeContextValue {
   /** Active theme id (e.g. "light" | "dark"). */
   themeId: ThemeId;
   /** Active density id (e.g. "comfortable" | "compact"). */
@@ -103,6 +103,15 @@ export function useTheme(): ThemeContextValue {
     throw new Error('useTheme must be used inside a ThemeProvider');
   }
   return ctx;
+}
+
+/**
+ * Non-throwing variant of {@link useTheme} for components that accept a prop
+ * fallback when rendered outside a ThemeProvider (e.g. Toaster). Returns null
+ * when no provider is mounted.
+ */
+export function useThemeOptional(): ThemeContextValue | null {
+  return useContext(ThemeContext);
 }
 
 /**

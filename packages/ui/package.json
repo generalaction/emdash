@@ -114,7 +114,8 @@
     "@tiptap/suggestion": "^3.26.1",
     "lucide-react": "^0.564.0",
     "react-resizable-panels": "^4.7.3",
-    "react-zoom-pan-pinch": "^4.0.3"
+    "react-zoom-pan-pinch": "^4.0.3",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@storybook/addon-docs": "^10.4.6",

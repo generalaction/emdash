@@ -80,6 +80,19 @@ export {
   type UseAsyncActionOptions,
 } from './hooks/use-async-action';
 
+// ── Toast (imperative namespace + hook + app-mounted Toaster) ────────────────
+export {
+  Toaster,
+  toast,
+  useToast,
+  type ToastAction,
+  type ToastId,
+  type ToastOptions,
+  type ToastPromiseMessages,
+  type ToastTone,
+  type ToasterProps,
+} from './toast';
+
 // ── Theme / provider ──────────────────────────────────────────────────────────
 export {
   ThemeProvider,
