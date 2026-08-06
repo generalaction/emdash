@@ -8,6 +8,7 @@ import {
   conversationRegistryTable as conversationRows,
   liveConversations,
 } from '@core/features/conversations/api/node/registry';
+import { projectIsBeingDeleted } from '@core/features/projects/api/node/project-deletion';
 import {
   killTaskSessions,
   type TaskSessionCleanup,
@@ -24,6 +25,7 @@ import {
 } from '@core/features/workspaces/api/node/registry';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import type { MutationError } from '@core/primitives/wire/api/mutations';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import {
@@ -57,8 +59,7 @@ export type DeleteTaskInput = {
   deleteConversations?: boolean;
 };
 
-export type TaskDeletionError = { type: string; message: string };
-export type TaskDeletionResult = Result<void, TaskDeletionError>;
+export type TaskDeletionResult = Result<void, MutationError>;
 
 export type TaskDeletionDependencies = {
   db: AppDb;
@@ -85,7 +86,7 @@ export async function deleteTask(
   if (!task) {
     return err({ type: 'task-not-found', message: `Task ${input.taskId} was not found` });
   }
-  if (!projectIsActive(db, task.projectId)) {
+  if (projectIsBeingDeleted(db, task.projectId)) {
     return err({ type: 'project-deleting', message: 'Project is being deleted.' });
   }
   const workspace = task.workspaceId
@@ -205,17 +206,6 @@ export async function purgeTaskLocalState(
     project_id: task.projectId ?? undefined,
     task_id: task.id,
   });
-}
-
-function projectIsActive(db: AppDb, projectId: string): boolean {
-  return (
-    db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-      .limit(1)
-      .get() !== undefined
-  );
 }
 
 function workspaceIsUntracked(db: AppDb, workspaceId: string): boolean {

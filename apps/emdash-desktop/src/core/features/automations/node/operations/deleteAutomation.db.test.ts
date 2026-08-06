@@ -3,17 +3,23 @@ import type { Logger } from '@emdash/shared/logger';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { listAutomations } from '@core/features/automations/node/repo';
 import { automationRuns, automations } from '@core/services/app-db/node/schema';
-import { deleteAutomation, type AutomationDeletionDependencies } from './deleteAutomation';
+import {
+  deleteAutomation,
+  sweepAutomationDeletionTombstones,
+  type AutomationDeletionDependencies,
+} from './deleteAutomation';
 
 type AutomationsClient = HostRuntimesClient['automations'];
 
 /**
  * Automation deletion as a plain function (operation-log retirement spec §3): host
  * cleanup first — cancel active runs, remove the deployment — then the desktop rows
- * purge. An unreachable host is an accepted loss (no automations sweep kind): the rows
- * still delete. Nothing submits to the operations kernel. Ported from the retired
- * delete-automation-definition tests.
+ * purge. An unreachable host never discards the intent (ADR 0006): the automation row
+ * keeps its `deletedAt` tombstone and the sweep converges the host-artifact half once
+ * the host is reachable again. Nothing submits to the operations kernel. Ported from
+ * the retired delete-automation-definition tests.
  */
 describe('deleteAutomation', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -94,7 +100,7 @@ describe('deleteAutomation', () => {
     ).toHaveLength(0);
   });
 
-  it('purges the desktop rows anyway when the host is unreachable — accepted loss', async () => {
+  it('tombstones the deletion when the host is unreachable — intent survives, hidden from lists', async () => {
     await seedAutomation();
     const dependencies = makeDependencies(async () => {
       throw new Error('host unreachable');
@@ -103,9 +109,70 @@ describe('deleteAutomation', () => {
     const result = await deleteAutomation(dependencies, 'automation-1');
 
     expect(result.success).toBe(true);
+    // The row stays as the durable tombstone (deletedAt set) instead of purging: the
+    // deployment and its runs still exist host-side and must be cleaned up later.
+    const [row] = await fixture.db
+      .select()
+      .from(automations)
+      .where(eq(automations.id, 'automation-1'));
+    expect(row?.deletedAt).not.toBeNull();
+    // The caller-facing surface treats it as deleted already.
+    expect(await listAutomations(fixture.db)).toHaveLength(0);
+  });
+
+  it('suppresses an offline delete double-fire: second call is a plain not-found', async () => {
+    await seedAutomation();
+    const dependencies = makeDependencies(async () => {
+      throw new Error('host unreachable');
+    });
+
+    const first = await deleteAutomation(dependencies, 'automation-1');
+    const second = await deleteAutomation(dependencies, 'automation-1');
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(false);
+    if (!second.success) expect(second.error.type).toBe('automation-not-found');
+  });
+
+  it('sweep converges a tombstoned deletion once the host is reachable', async () => {
+    await seedAutomation();
+    const offline = makeDependencies(async () => {
+      throw new Error('host unreachable');
+    });
+    await deleteAutomation(offline, 'automation-1');
+
+    const client = makeClient();
+    await sweepAutomationDeletionTombstones(
+      makeDependencies(async () => client as unknown as AutomationsClient)
+    );
+
+    expect(client.cancelRun).toHaveBeenCalledWith({ automationId: 'automation-1', runId: 'run-1' });
+    expect(client.remove).toHaveBeenCalledWith({ automationId: 'automation-1' });
     expect(
       await fixture.db.select().from(automations).where(eq(automations.id, 'automation-1'))
     ).toHaveLength(0);
+    expect(
+      await fixture.db
+        .select()
+        .from(automationRuns)
+        .where(eq(automationRuns.automationId, 'automation-1'))
+    ).toHaveLength(0);
+  });
+
+  it('sweep keeps the tombstone while the host stays unreachable', async () => {
+    await seedAutomation();
+    const offline = makeDependencies(async () => {
+      throw new Error('host unreachable');
+    });
+    await deleteAutomation(offline, 'automation-1');
+
+    await sweepAutomationDeletionTombstones(offline);
+
+    const [row] = await fixture.db
+      .select()
+      .from(automations)
+      .where(eq(automations.id, 'automation-1'));
+    expect(row?.deletedAt).not.toBeNull();
   });
 
   it('surfaces a reachable-host cleanup failure and leaves the rows intact', async () => {

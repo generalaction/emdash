@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { getProvisionedWorkspaceBranch } from '@core/features/workspaces/api/node/workspace-branch';
+import type { MutationError } from '@core/primitives/wire/api/mutations';
 import type { WorkspaceDeletionTombstone } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import type { WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -22,8 +23,6 @@ export type WorkspaceTombstoneOptions = WorkspaceDeletionTombstone['options'];
 
 export type TombstoneWriteOutcome = 'tombstoned' | 'duplicate';
 
-export type TombstoneWriteError = { type: string; message: string };
-
 /**
  * Marks one live mirror row with a durable deletion tombstone. The payload — frozen
  * options plus the target record's UUID — is compiled fully before any mutation, and
@@ -37,9 +36,9 @@ export function tombstoneWorkspaceRow(
     workspace: WorkspaceRow;
     options: WorkspaceTombstoneOptions;
     createdAt: number;
-    precondition?(tx: DrizzleTx): TombstoneWriteError | undefined;
+    precondition?(tx: DrizzleTx): MutationError | undefined;
   }
-): Result<{ outcome: TombstoneWriteOutcome }, TombstoneWriteError> {
+): Result<{ outcome: TombstoneWriteOutcome }, MutationError> {
   // Compile before mutation: authoring mistakes must not leave a partial tombstone.
   const tombstone: WorkspaceDeletionTombstone = {
     version: '1',
@@ -50,7 +49,7 @@ export function tombstoneWorkspaceRow(
   const registry = createWorkspaceRegistry(db, {
     now: () => new Date(input.createdAt).toISOString(),
   });
-  let failure: TombstoneWriteError | undefined;
+  let failure: MutationError | undefined;
   let changes = 0;
   db.transaction((tx) => {
     failure = input.precondition?.(tx);

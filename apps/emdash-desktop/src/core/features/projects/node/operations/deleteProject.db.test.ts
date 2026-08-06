@@ -223,6 +223,36 @@ describe('deleteProject', () => {
     expect(poked).toHaveBeenCalled();
   });
 
+  it('keeps a live tombstone when the removal verb fails on a reachable host', async () => {
+    await seedProject();
+    const { registry, runtimes } = makeRuntimes();
+    registry.deleteWorktree.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'remove-failed', message: 'locked worktree' },
+    } as never);
+    const { dependencies } = makeDependencies(runtimes);
+    const poked = vi.fn();
+    const unsubscribe = reconcileSweepTriggers.subscribe(poked);
+
+    const result = await deleteProject(dependencies, 'project-1');
+    unsubscribe();
+
+    // The project row still deletes; the failed host-artifact half never discards its
+    // intent (spec §9): the provenance worktree keeps a live tombstone for the sweep's
+    // normal transient/terminal retry handling instead of untracking and stranding.
+    expect(result.success).toBe(true);
+    expect(
+      await fixture.db.select().from(projects).where(eq(projects.id, 'project-1'))
+    ).toHaveLength(0);
+    const workspaceRegistry = createWorkspaceRegistry(fixture.db);
+    expect(workspaceRegistry.getLive('workspace-1')?.deletionTombstone).toMatchObject({
+      targetRecordId: 'workspace-1',
+    });
+    expect(workspaceRegistry.getLive('workspace-2')).toBeUndefined();
+    expect(workspaceRegistry.getLive('repo-root')).toBeUndefined();
+    expect(poked).toHaveBeenCalled();
+  });
+
   it('returns project-not-found for an unknown id', async () => {
     const { runtimes } = makeRuntimes();
     const { dependencies } = makeDependencies(runtimes);

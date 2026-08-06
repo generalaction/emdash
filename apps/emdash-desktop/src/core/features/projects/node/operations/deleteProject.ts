@@ -20,6 +20,7 @@ import {
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
+import type { MutationError } from '@core/primitives/wire/api/mutations';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -35,8 +36,7 @@ import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/cl
  * operations kernel.
  */
 
-export type ProjectDeletionError = { type: string; message: string };
-export type ProjectDeletionResult = Result<void, ProjectDeletionError>;
+export type ProjectDeletionResult = Result<void, MutationError>;
 
 export type ProjectDeletionDependencies = {
   db: AppDb;

@@ -11,12 +11,14 @@ import {
   conversationRegistryTable as conversationRows,
   liveConversations,
 } from '@core/features/conversations/api/node/registry';
+import { projectIsBeingDeleted } from '@core/features/projects/api/node/project-deletion';
 import { operationHostRef } from '@core/features/workspaces/api/node/operation-host-ref';
 import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import { tombstoneWorkspaceRow } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
+import type { MutationAck, MutationError } from '@core/primitives/wire/api/mutations';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -33,8 +35,7 @@ import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reco
  * annotation; host-side both remove the worktree with `deleteBranch: false`.
  */
 
-export type WorkspaceRemovalError = { type: string; message: string };
-export type WorkspaceRemovalResult = Result<Record<string, never>, WorkspaceRemovalError>;
+export type WorkspaceRemovalResult = Result<MutationAck, MutationError>;
 
 type DeleteVerbError = { type: string; message?: string };
 
@@ -282,9 +283,10 @@ function tombstoneUnreachableRemoval(
  * `deleteWorktree` verb as single deletes — reachable host removes now, unreachable
  * host gets a durable deletion tombstone for the reconcile sweep (ADR 0006). Adopted
  * rows and the repository row untrack only — emdash never removes artifacts it did
- * not create as part of a bulk delete. Best-effort by design: the project is going
- * away regardless, so a failed verb on a reachable host still untracks the row and
- * strands the artifact (recoverable from the machines surface).
+ * not create as part of a bulk delete. Deletion intent is never discarded (spec §9):
+ * a failed verb on a reachable host also keeps the tombstone alive, so the sweep
+ * retries it under the normal transient/terminal handling while the project row
+ * itself still deletes.
  */
 export async function removeProjectWorkspace(
   db: AppDb,
@@ -315,9 +317,9 @@ export async function removeProjectWorkspace(
   const removed = await client.data.workspaceRegistry
     .deleteWorktree({ id: workspace.id, deleteBranch: false })
     .catch(() => ({ success: false as const, error: { type: 'remove-failed' as const } }));
-  if (!removed.success && removed.error.type === 'host-unreachable') return tombstone();
+  if (!removed.success) return tombstone();
   registry.untrack([workspace.id], new Date(createdAt).toISOString());
-  return removed.success ? 'removed' : 'untracked';
+  return 'removed';
 }
 
 /**
@@ -408,11 +410,11 @@ function untrackWorkspaceInline(
     requireUnused: boolean;
     createdAt: number;
   }
-): Result<Record<string, never>, { type: string; message: string }> {
+): WorkspaceRemovalResult {
   const registry = createWorkspaceRegistry(db, {
     now: () => new Date(input.createdAt).toISOString(),
   });
-  let failure: { type: string; message: string } | undefined;
+  let failure: MutationError | undefined;
   db.transaction((tx) => {
     failure = workspacePrecondition(tx, {
       workspaceId: input.workspaceId,
@@ -447,8 +449,8 @@ function getProjectRemovalRow(db: AppDb, projectId: string, options: { liveOnly?
 function workspacePreconditionOutsideTx(
   db: AppDb,
   input: { projectId?: string; workspaceId?: string; requireUnused: boolean }
-): { type: string; message: string } | undefined {
-  let failure: { type: string; message: string } | undefined;
+): MutationError | undefined {
+  let failure: MutationError | undefined;
   db.transaction((tx) => {
     failure = workspacePrecondition(tx, input);
   });
@@ -458,8 +460,8 @@ function workspacePreconditionOutsideTx(
 function workspacePrecondition(
   tx: DrizzleTx,
   input: { projectId?: string; workspaceId?: string; requireUnused: boolean }
-) {
-  if (input.projectId && projectIsDeletedInTransaction(tx, input.projectId)) {
+): MutationError | undefined {
+  if (input.projectId && projectIsBeingDeleted(tx, input.projectId)) {
     return { type: 'project-deleting', message: 'Project is being deleted.' };
   }
   if (
@@ -483,16 +485,5 @@ function workspaceHasLiveTaskInTransaction(tx: DrizzleTx, workspaceId: string): 
       .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
       .limit(1)
       .get() !== undefined
-  );
-}
-
-function projectIsDeletedInTransaction(tx: DrizzleTx, projectId: string): boolean {
-  return (
-    tx
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
-      .limit(1)
-      .get() === undefined
   );
 }

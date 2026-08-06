@@ -18,6 +18,7 @@ import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import { projectHostRef } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { buildAutomationDeployment } from '../../node/deployment-builder';
+import { sweepAutomationDeletionTombstones } from '../../node/operations/deleteAutomation';
 import {
   getAutomation,
   insertAutomation,
@@ -198,6 +199,15 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       }
     );
     await this.migrateDefinitions(LOCAL_HOST_REF, client);
+    // Deletion intent left behind by offline deletes (ADR 0006): retry the host
+    // cleanup for tombstoned automations now that a runtime is up. Unreachable hosts
+    // keep their tombstones for the next initialization.
+    await sweepAutomationDeletionTombstones({
+      db: this.dependencies.db,
+      logger: log,
+      resolveClient: async (projectId) =>
+        (await resolveAutomationRuntimeClient(this.dependencies.runtime, projectId)).automations,
+    });
   }
 
   private async migrateDefinitions(host: HostRef, client: HostRuntimesClient): Promise<void> {

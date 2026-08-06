@@ -51,12 +51,14 @@ export async function automationExists(db: AppDb, id: string): Promise<boolean> 
   return row !== undefined;
 }
 
-export async function listTombstonedAutomationIds(db: AppDb): Promise<string[]> {
-  const rows = await db
-    .select({ id: automations.id })
+/** Rows carrying a pending deletion tombstone (`deletedAt`) — durable host-cleanup intent. */
+export async function listTombstonedAutomations(
+  db: AppDb
+): Promise<{ id: string; projectId: string | null }[]> {
+  return db
+    .select({ id: automations.id, projectId: automations.projectId })
     .from(automations)
     .where(isNotNull(automations.deletedAt));
-  return rows.map((row) => row.id);
 }
 
 export async function projectExists(db: AppDb, projectId: string): Promise<boolean> {

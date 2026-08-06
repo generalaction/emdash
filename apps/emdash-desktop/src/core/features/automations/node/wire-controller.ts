@@ -2,10 +2,7 @@ import { err, ok } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { createController, type Controller } from '@emdash/wire';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
-import {
-  deleteAutomation,
-  type AutomationDeletionError,
-} from '@core/features/automations/node/operations/deleteAutomation';
+import { deleteAutomation } from '@core/features/automations/node/operations/deleteAutomation';
 import { adoptRun } from '@core/features/automations/node/run-adoption';
 import {
   resolveAutomationRuntimeClient,
@@ -14,6 +11,7 @@ import {
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { AutomationDefinitionError } from '@core/primitives/automations/api';
 import type { Project } from '@core/primitives/projects/api';
+import type { MutationError } from '@core/primitives/wire/api/mutations';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { automationsContract } from '../api';
 
@@ -69,7 +67,7 @@ export function createAutomationsWireController(options: {
 }
 
 function toAutomationDefinitionError(
-  error: AutomationDeletionError,
+  error: MutationError,
   automationId: string
 ): AutomationDefinitionError {
   return error.type === 'automation-not-found'
