@@ -3,10 +3,11 @@ import { copyPrUrl } from './pr-url-copy';
 
 const mocks = vi.hoisted(() => ({
   clipboardWriteText: vi.fn(),
-  toast: vi.fn(),
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
-vi.mock('@core/primitives/ui/browser/use-toast', () => ({
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   toast: mocks.toast,
 }));
 
@@ -30,7 +31,7 @@ describe('copyPrUrl', () => {
     expect(mocks.clipboardWriteText).toHaveBeenCalledWith(
       'https://github.com/emdash/emdash/pull/123'
     );
-    expect(mocks.toast).toHaveBeenCalledWith({ title: 'PR URL copied' });
+    expect(mocks.toast).toHaveBeenCalledWith('PR URL copied');
   });
 
   it('reports when the clipboard service returns a failure', async () => {
@@ -41,10 +42,8 @@ describe('copyPrUrl', () => {
 
     await expect(copyPrUrl('https://github.com/emdash/emdash/pull/123')).resolves.toBe(false);
 
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Copy failed',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Copy failed', {
       description: 'The PR URL could not be copied to the clipboard.',
-      variant: 'destructive',
     });
   });
 
@@ -53,10 +52,8 @@ describe('copyPrUrl', () => {
 
     await expect(copyPrUrl('https://github.com/emdash/emdash/pull/123')).resolves.toBe(false);
 
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Copy failed',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Copy failed', {
       description: 'The PR URL could not be copied to the clipboard.',
-      variant: 'destructive',
     });
   });
 });

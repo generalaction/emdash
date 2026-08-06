@@ -1,6 +1,6 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { Check, Loader2, MoreHorizontal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { toast } from 'sonner';
 import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { AgentPayload, InstallOption, SelectedSource } from '@core/primitives/agents/api';
 import { resolveActiveInstallation, sourceKey } from '@core/primitives/agents/api';

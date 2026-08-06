@@ -1,9 +1,8 @@
-import { Button, Spinner } from '@emdash/ui/react/primitives';
+import { Button, Spinner, toast } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceRow,
@@ -41,22 +40,16 @@ export function WorkspaceRemovalAttentionPanel({
       const registry = await getWorkspaceRegistryWireClient();
       if (action === 'retry') {
         await registry.retryWorkspaceRemoval({ workspaceId });
-        toast({
-          title: 'Removal retrying',
-          description: 'The removal runs again in the background.',
-        });
+        toast('Removal retrying', { description: 'The removal runs again in the background.' });
       } else {
         await registry.abandonWorkspaceRemoval({ workspaceId });
-        toast({
-          title: 'Workspace untracked',
+        toast('Workspace untracked', {
           description: 'Emdash dropped the pending removal without deleting files on the host.',
         });
       }
     } catch (error) {
-      toast({
-        title: action === 'retry' ? 'Could not retry removal' : 'Could not untrack workspace',
+      toast.error(action === 'retry' ? 'Could not retry removal' : 'Could not untrack workspace', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     } finally {
       setPendingAction(null);

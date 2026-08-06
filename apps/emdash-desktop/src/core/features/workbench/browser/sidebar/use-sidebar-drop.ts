@@ -1,8 +1,8 @@
+import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useRef, useState } from 'react';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -58,18 +58,14 @@ export function useSidebarDrop() {
               path: filePath,
             });
             if (status.error) {
-              toast({
-                title: 'Cannot add project',
+              toast.error('Cannot add project', {
                 description: `Could not inspect ${basenameFromAnyPath(filePath)}: ${status.error.message}`,
-                variant: 'destructive',
               });
               return null;
             }
             if (!status.isDirectory) {
-              toast({
-                title: 'Cannot add project',
+              toast.error('Cannot add project', {
                 description: 'Drop a folder to add it as a project.',
-                variant: 'destructive',
               });
               return null;
             }
@@ -85,10 +81,8 @@ export function useSidebarDrop() {
             );
           } catch (err) {
             log.error('Failed to add dropped project:', err);
-            toast({
-              title: 'Cannot add project',
+            toast.error('Cannot add project', {
               description: `Failed to add ${basenameFromAnyPath(filePath)} as a project.`,
-              variant: 'destructive',
             });
             return null;
           }
@@ -104,10 +98,7 @@ export function useSidebarDrop() {
         }
 
         if (projectIds.length > 1) {
-          toast({
-            title: 'Projects added',
-            description: `${projectIds.length} projects added.`,
-          });
+          toast('Projects added', { description: `${projectIds.length} projects added.` });
         }
       });
     },

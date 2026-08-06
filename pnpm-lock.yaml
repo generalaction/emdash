@@ -306,9 +306,6 @@ importers:
       s3mini:
         specifier: ^0.9.4
         version: 0.9.5
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.1

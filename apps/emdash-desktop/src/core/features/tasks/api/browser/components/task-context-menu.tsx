@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { Archive, Copy, MessageSquare, Pencil, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
 import React from 'react';
 import {
@@ -7,7 +8,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@core/primitives/ui/browser/context-menu';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 
 interface TaskContextMenuProps {
   children: React.ReactNode;
@@ -45,12 +45,10 @@ export function TaskContextMenu({
 
     try {
       await navigator.clipboard.writeText(branchName);
-      toast({ title: 'Branch name copied' });
+      toast('Branch name copied');
     } catch {
-      toast({
-        title: 'Copy failed',
+      toast.error('Copy failed', {
         description: 'The branch name could not be copied to the clipboard.',
-        variant: 'destructive',
       });
     }
   };

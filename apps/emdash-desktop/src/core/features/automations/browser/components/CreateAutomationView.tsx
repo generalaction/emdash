@@ -1,4 +1,4 @@
-import { Button, Label } from '@emdash/ui/react/primitives';
+import { Button, Label, useToast } from '@emdash/ui/react/primitives';
 import { CheckCircle2, ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -14,7 +14,6 @@ import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { Field } from '@core/primitives/ui/browser/field';
 import { SheetFooter } from '@core/primitives/ui/browser/sheet';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
@@ -94,8 +93,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
         taskConfig,
         projectId: effectiveProjectId,
       });
-      toast({
-        title: 'Automation created',
+      toast('Automation created', {
         description: `"${saved.name}" is ready to go.`,
         icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
       });

@@ -1,8 +1,7 @@
-import { Button, Resizable, useResizablePanelRef } from '@emdash/ui/react/primitives';
+import { Button, Resizable, toast, useResizablePanelRef } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import {
   getTaskManagerStore,
   getTaskStore,

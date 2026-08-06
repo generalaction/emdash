@@ -1,5 +1,5 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Button, Resizable } from '@emdash/ui/react/primitives';
+import { Button, Resizable, useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GitBranchPlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -20,7 +20,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { InitializeRepositoryError } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { GitStatusSection } from '../../../../browser/diff-view/changes-panel/git-status-section';
 import {
   SECTION_HEADER_HEIGHT,
@@ -71,10 +70,8 @@ export const ChangesPanel = observer(function ChangesPanel() {
     },
     onSuccess: async (result) => {
       if (!result.success) {
-        toast({
-          title: 'Failed to initialize Git repository',
+        toast.error('Failed to initialize Git repository', {
           description: initializeRepositoryErrorMessage(result.error),
-          variant: 'destructive',
         });
         return;
       }
@@ -85,13 +82,11 @@ export const ChangesPanel = observer(function ChangesPanel() {
         queryClient.invalidateQueries({ queryKey: ['projectPathStatus'] }),
         queryClient.invalidateQueries({ queryKey: noRepositoryQueryKey }),
       ]);
-      toast({ title: 'Git repository initialized' });
+      toast('Git repository initialized');
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to initialize Git repository',
+      toast.error('Failed to initialize Git repository', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     },
   });

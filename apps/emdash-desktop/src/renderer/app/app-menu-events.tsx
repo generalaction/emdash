@@ -1,7 +1,7 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { useEffect } from 'react';
 import { useRegisterNotificationOpenHandlers } from '@core/features/workbench/contributions/browser/notification-open-handlers';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
@@ -59,7 +59,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
               : event.kind === 'image'
                 ? 'Image URL copied'
                 : 'Link copied';
-          toast({ title });
+          toast(title);
         },
         onGap: () => {},
       });

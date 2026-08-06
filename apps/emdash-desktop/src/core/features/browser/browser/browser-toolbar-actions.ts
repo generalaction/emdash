@@ -1,10 +1,10 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { openModal } from '@core/manifests/browser/modal-api';
 import {
   normalizeBrowserUrl,
   type BrowserDataClearKind,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
@@ -29,9 +29,9 @@ export async function captureBrowserScreenshot(session: BrowserSessionSnapshot):
     browserId: session.browserId,
   });
   if (result.success) {
-    toast({ title: 'Screenshot copied to clipboard' });
+    toast('Screenshot copied to clipboard');
   } else {
-    toast({ title: 'Could not capture screenshot', variant: 'destructive' });
+    toast.error('Could not capture screenshot');
   }
 }
 
@@ -48,18 +48,14 @@ export function clearBrowserData(
         return;
       }
 
-      toast({
-        title: 'Could not clear browser data',
+      toast.error('Could not clear browser data', {
         description: 'Try again, or reload the browser view manually.',
-        variant: 'destructive',
       });
     })
     .catch((error: unknown) => {
       console.error('Failed to clear browser data', error);
-      toast({
-        title: 'Could not clear browser data',
+      toast.error('Could not clear browser data', {
         description: error instanceof Error ? error.message : 'The browser data request failed.',
-        variant: 'destructive',
       });
     });
 }

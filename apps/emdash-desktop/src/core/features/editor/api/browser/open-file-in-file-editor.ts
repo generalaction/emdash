@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toast } from '@emdash/ui/react/primitives';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { editorFilePath } from '@core/features/editor/api/browser/files';
 import {

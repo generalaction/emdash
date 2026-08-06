@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, useToast } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -105,21 +104,14 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
         setCopied(true);
 
         if (!isAutomatic) {
-          toast({
-            title: '✓ Code copied',
-            description: 'Paste it in GitHub to authorize',
-          });
+          toast('✓ Code copied', { description: 'Paste it in GitHub to authorize' });
         }
 
         setTimeout(() => setCopied(false), 2000);
       } catch (err) {
         log.error('Failed to copy:', err);
         if (!isAutomatic) {
-          toast({
-            title: 'Copy failed',
-            description: 'Please copy the code manually',
-            variant: 'destructive',
-          });
+          toast.error('Copy failed', { description: 'Please copy the code manually' });
         }
       }
     },
@@ -169,10 +161,8 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
           } else if (event.type === 'auth-error') {
             setError(event.message || event.error);
             onError?.(event.error);
-            toast({
-              title: 'Authentication Failed',
+            toast.error('Authentication Failed', {
               description: event.message || 'An error occurred',
-              variant: 'destructive',
             });
           }
         },

@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
@@ -19,7 +19,6 @@ import {
   useChordRecorder,
 } from '@core/primitives/keybindings/browser';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 
 const groupsByCommandId = new Map<string, string[]>();
 for (const scope of SCOPE_CATALOG) {
@@ -82,11 +81,10 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
         const conflictingTitle =
           COMMAND_CATALOG.byId(rejected.id)?.title ??
           (rejected.id === SYSTEM_HIDE_ENTRY.id ? 'Hide Emdash' : rejected.id);
-        toast({
-          title: rejected.severity === 'reserved' ? 'Shortcut is reserved' : 'Shortcut conflict',
-          description: `Conflicts with "${conflictingTitle}". Choose a different shortcut.`,
-          variant: 'destructive',
-        });
+        toast.error(
+          rejected.severity === 'reserved' ? 'Shortcut is reserved' : 'Shortcut conflict',
+          { description: `Conflicts with "${conflictingTitle}". Choose a different shortcut.` }
+        );
         setEditingKey(null);
         return;
       }
@@ -94,8 +92,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
       update({ [editingKey]: candidate });
       const shadowing = conflicts.find((conflict) => conflict.severity === 'shadowing');
       const label = keyboardLayoutService.displayLabel(candidate, platform).join(' + ');
-      toast({
-        title: 'Shortcut updated',
+      toast('Shortcut updated', {
         description: shadowing
           ? `${editingEntry.command.title} is now ${label}. It shadows ${
               COMMAND_CATALOG.byId(shadowing.id)?.title ?? shadowing.id
@@ -176,8 +173,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                         className="text-muted-foreground hover:text-foreground"
                                         onClick={() => {
                                           resetField(key);
-                                          toast({
-                                            title: 'Shortcut reset',
+                                          toast('Shortcut reset', {
                                             description: `${entry.command.title} reset to default.`,
                                           });
                                         }}
@@ -200,8 +196,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                         className="text-muted-foreground hover:text-foreground"
                                         onClick={() => {
                                           update({ [key]: null });
-                                          toast({
-                                            title: 'Shortcut removed',
+                                          toast('Shortcut removed', {
                                             description: `${entry.command.title} no longer has a key binding.`,
                                           });
                                         }}

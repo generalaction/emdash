@@ -6,7 +6,7 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import { Spinner, Tooltip } from '@emdash/ui/react/primitives';
+import { Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
@@ -14,7 +14,6 @@ import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/br
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import type {
   ProjectWorkspaceGitStats,
   ProjectWorkspacePathIssue,
@@ -164,8 +163,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
     const deletableRows = group.workspaces.filter((row) => row.row.canDelete);
     if (deletableRows.length === 0) {
       const pendingCount = group.workspaces.filter((row) => row.pendingRemoval).length;
-      toast({
-        title: pendingCount > 0 ? 'Removal already pending' : 'No deletable workspaces',
+      toast(pendingCount > 0 ? 'Removal already pending' : 'No deletable workspaces', {
         description:
           pendingCount > 0
             ? 'These workspaces are already being removed.'
@@ -195,21 +193,17 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
       const failed = result.results.filter((row) => !row.success);
 
       if (failed.length > 0) {
-        toast({
-          title: `${result.results.length - failed.length} deleted, ${failed.length} failed`,
+        toast.error(`${result.results.length - failed.length} deleted, ${failed.length} failed`, {
           description: failed[0]?.message,
-          variant: 'destructive',
         });
       } else {
-        toast({ title: `Deleted ${deletableRows.length} workspaces` });
+        toast(`Deleted ${deletableRows.length} workspaces`);
         closeDetail();
       }
       // No cache invalidation: the mirror live model streams the deletions.
     } catch (error) {
-      toast({
-        title: 'Could not delete workspaces',
+      toast.error('Could not delete workspaces', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     }
   }, [closeDetail, group, openConfirm]);

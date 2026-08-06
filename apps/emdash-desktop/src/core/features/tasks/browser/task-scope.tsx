@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { useLayoutEffect, type ReactNode } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
 import type { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
@@ -19,7 +20,6 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   disabled,
   enabled,
@@ -227,8 +227,8 @@ const taskScopeImplementation = {
       if (!normalized.ok) return;
       void navigator.clipboard
         .writeText(normalized.url)
-        .then(() => toast({ title: 'Browser URL copied' }))
-        .catch(() => toast({ title: 'Could not copy browser URL', variant: 'destructive' }));
+        .then(() => toast('Browser URL copied'))
+        .catch(() => toast.error('Could not copy browser URL'));
     },
   }),
   'task.gitFetch': (params) => ({
@@ -316,7 +316,7 @@ const taskScopeImplementation = {
     execute: () => {
       void getTaskManagerStore(params.projectId)
         ?.archiveTask(params.taskId)
-        .catch(() => toast({ title: 'Could not archive task', variant: 'destructive' }));
+        .catch(() => toast.error('Could not archive task'));
     },
   }),
   'task.convertAutomation': (params) => ({

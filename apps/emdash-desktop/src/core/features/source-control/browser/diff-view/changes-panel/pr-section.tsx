@@ -1,5 +1,5 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -15,7 +15,6 @@ import {
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
@@ -111,17 +110,11 @@ export const PullRequestsSection = observer(function PullRequestsSection({
       if (!result.success) {
         const message = pullRequestErrorMessage(result.error);
         setSyncError(message);
-        toast({
-          title: 'Failed to refresh pull requests',
-          description: message,
-          variant: 'destructive',
-        });
+        toast.error('Failed to refresh pull requests', { description: message });
       }
     } catch (error) {
-      toast({
-        title: 'Failed to refresh pull requests',
+      toast.error('Failed to refresh pull requests', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     } finally {
       setIsRefreshing(false);

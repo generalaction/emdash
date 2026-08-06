@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -16,7 +16,6 @@ import {
   SelectTrigger,
 } from '@core/primitives/ui/browser/select';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
@@ -60,17 +59,13 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           sshConnectionId,
         });
         if (!res?.success) {
-          toast({
-            title: `Open in ${label} failed`,
+          toast.error(`Open in ${label} failed`, {
             description: res?.error || 'Application not available.',
-            variant: 'destructive',
           });
         }
       } catch (e: unknown) {
-        toast({
-          title: `Open in ${label} failed`,
+        toast.error(`Open in ${label} failed`, {
           description: e instanceof Error ? e.message : String(e),
-          variant: 'destructive',
         });
       }
     },

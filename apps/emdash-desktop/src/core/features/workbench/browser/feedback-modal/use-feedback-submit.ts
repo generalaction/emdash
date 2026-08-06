@@ -1,5 +1,5 @@
+import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useState } from 'react';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { log } from '@renderer/utils/logger';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
@@ -187,15 +187,11 @@ export function useFeedbackSubmit({
         }
 
         onSuccess();
-        toast({ title: 'Feedback sent', description: 'Thanks for your feedback!' });
+        toast('Feedback sent', { description: 'Thanks for your feedback!' });
       } catch (error) {
         log.error('Failed to submit feedback:', error);
         setErrorMessage('Unable to send feedback. Please try again.');
-        toast({
-          title: 'Failed to send feedback',
-          description: 'Please try again.',
-          variant: 'destructive',
-        });
+        toast.error('Failed to send feedback', { description: 'Please try again.' });
       } finally {
         setSubmitting(false);
       }

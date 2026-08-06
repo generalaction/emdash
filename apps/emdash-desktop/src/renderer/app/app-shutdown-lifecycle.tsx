@@ -1,11 +1,10 @@
-import { Spinner } from '@emdash/ui/react/primitives';
+import { Spinner, toast } from '@emdash/ui/react/primitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import type { ActiveSessionSummary } from '@core/features/workbench/api';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useMementoClient } from '@core/primitives/mementos/react';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 
@@ -29,10 +28,8 @@ export function AppShutdownLifecycle() {
           if (outcome.data === 'save-all') {
             const saved = await modelRegistry.saveAllDirtyBuffers();
             if (!saved) {
-              toast({
-                title: 'Could not save all files',
+              toast.error('Could not save all files', {
                 description: 'Resolve any file conflicts and try quitting again.',
-                variant: 'destructive',
               });
               return false;
             }
@@ -41,10 +38,8 @@ export function AppShutdownLifecycle() {
           }
         } catch (error) {
           log.error('Failed to resolve unsaved files before quit:', error);
-          toast({
-            title: 'Could not resolve unsaved files',
+          toast.error('Could not resolve unsaved files', {
             description: 'Your changes were kept. Try quitting again.',
-            variant: 'destructive',
           });
           return false;
         }

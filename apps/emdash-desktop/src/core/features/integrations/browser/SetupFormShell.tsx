@@ -1,10 +1,9 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, useToast } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { DialogContentArea, DialogFooter } from '@core/primitives/ui/browser/dialog';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import type { IntegrationFormInput } from './types';
 
 export type SetupFormProps = {
@@ -44,10 +43,7 @@ export function SetupFormShell({
         return;
       }
 
-      toast({
-        title: 'Integration connected',
-        description: 'Integration set up successfully.',
-      });
+      toast('Integration connected', { description: 'Integration set up successfully.' });
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to connect.');

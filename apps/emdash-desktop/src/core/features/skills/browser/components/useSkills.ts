@@ -4,9 +4,9 @@ import {
   type CatalogIndex,
   type CatalogSkill,
 } from '@emdash/core/primitives/skills/api';
+import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { log } from '@renderer/utils/logger';
@@ -74,11 +74,7 @@ export function useSkills({
       return skillId;
     },
     onError: (error) => {
-      toast({
-        title: 'Install failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Install failed', { description: error.message });
     },
     onSuccess: (skillId) => {
       const skill = queryClient
@@ -86,10 +82,7 @@ export function useSkills({
         ?.skills.find((s) => s.id === skillId);
 
       captureTelemetry('skill_installed', { source: skill?.source });
-      toast({
-        title: 'Skill installed',
-        description: `${skillId} is now available across your agents`,
-      });
+      toast('Skill installed', { description: `${skillId} is now available across your agents` });
       void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
       queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
     },
@@ -121,16 +114,12 @@ export function useSkills({
       return skillId;
     },
     onError: (error) => {
-      toast({
-        title: 'Uninstall failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Uninstall failed', { description: error.message });
     },
     onSuccess: () => {
       captureTelemetry('skill_uninstalled');
 
-      toast({ title: 'Skill removed', description: 'Skill has been uninstalled' });
+      toast('Skill removed', { description: 'Skill has been uninstalled' });
       void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
       queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
     },

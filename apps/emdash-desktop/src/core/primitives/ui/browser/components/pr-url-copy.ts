@@ -1,4 +1,4 @@
-import { toast } from '@core/primitives/ui/browser/use-toast';
+import { toast } from '@emdash/ui/react/primitives';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 export async function copyPrUrl(url: string): Promise<boolean> {
@@ -9,7 +9,7 @@ export async function copyPrUrl(url: string): Promise<boolean> {
       return false;
     }
 
-    toast({ title: 'PR URL copied' });
+    toast('PR URL copied');
     return true;
   } catch {
     showCopyFailure();
@@ -18,9 +18,5 @@ export async function copyPrUrl(url: string): Promise<boolean> {
 }
 
 function showCopyFailure(): void {
-  toast({
-    title: 'Copy failed',
-    description: 'The PR URL could not be copied to the clipboard.',
-    variant: 'destructive',
-  });
+  toast.error('Copy failed', { description: 'The PR URL could not be copied to the clipboard.' });
 }

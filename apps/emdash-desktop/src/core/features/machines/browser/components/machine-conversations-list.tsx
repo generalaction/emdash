@@ -1,5 +1,5 @@
 import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
-import { Button, Spinner } from '@emdash/ui/react/primitives';
+import { Button, Spinner, toast } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   joinMachineConversationRows,
   type MachineConversationItem,
@@ -144,10 +143,8 @@ export function MachineConversationsList({
       });
       await refresh();
     } catch (error) {
-      toast({
-        title: 'Could not link conversation',
+      toast.error('Could not link conversation', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     } finally {
       setBusyId(null);
@@ -167,10 +164,8 @@ export function MachineConversationsList({
       await deleteMachineConversation(item.conversation.id);
       await refresh();
     } catch (error) {
-      toast({
-        title: 'Could not delete conversation',
+      toast.error('Could not delete conversation', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     } finally {
       setBusyId(null);

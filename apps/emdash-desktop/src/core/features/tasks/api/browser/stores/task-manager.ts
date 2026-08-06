@@ -1,9 +1,9 @@
 import { err, isDeepEqual, ok, type Result as SharedResult } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { toast } from '@emdash/ui/react/primitives';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
-import { toast } from 'sonner';
 import { match } from 'ts-pattern';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectViewDef } from '@core/features/projects/contributions/views';

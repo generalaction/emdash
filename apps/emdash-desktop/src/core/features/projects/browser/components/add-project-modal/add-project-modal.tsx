@@ -1,4 +1,4 @@
-import { SelectableCard } from '@emdash/ui/react/primitives';
+import { SelectableCard, toast } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { DownloadIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -29,7 +29,6 @@ import {
 } from '@core/primitives/ui/browser/dialog';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -99,8 +98,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       migrateProjectConfig: (request) => settingsStore.migrateProjectConfig(request),
     });
     if (outcome.success) {
-      toast({
-        title: `${outcome.data.migration.label} config imported`,
+      toast(`${outcome.data.migration.label} config imported`, {
         description: `${outcome.data.migration.files.join(', ')} was imported successfully.`,
       });
     }
@@ -270,11 +268,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       log.error(error);
       modal.setCloseGuard(false);
       setSubmitState('idle');
-      toast({
-        title: 'Failed to check project',
-        description: String(error),
-        variant: 'destructive',
-      });
+      toast.error('Failed to check project', { description: String(error) });
     }
   };
 

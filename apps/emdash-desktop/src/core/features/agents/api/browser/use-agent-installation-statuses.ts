@@ -5,6 +5,7 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { Result } from '@emdash/shared';
+import { toast } from '@emdash/ui/react/primitives';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getAgentsClient, unwrapAgentsResult } from '@core/features/agents/api/browser/client';
@@ -25,7 +26,6 @@ import {
   type DependencyOperationFailure,
   useDependencyOperationFailures,
 } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { agentsContract } from '../contract';
 import { getAgentOperationErrorMessage } from './components/agent-selector/agent-install';
@@ -75,7 +75,7 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
       const failureMap = op === 'install' ? installFailureMap : updateFailureMap;
       if (result.success) {
         failureMap.clearFailure(variables.id);
-        toast({ title: `${name} successfully ${op === 'install' ? 'installed' : 'updated'}` });
+        toast(`${name} successfully ${op === 'install' ? 'installed' : 'updated'}`);
         return;
       }
 
@@ -85,18 +85,15 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
           error: permissionError,
           method: variables.method,
         });
-        toast({
-          title: 'Permission denied',
+        toast('Permission denied', {
           description: `See the ${op} panel for retry and recovery options.`,
         });
         return;
       }
 
       failureMap.clearFailure(variables.id);
-      toast({
-        title: `Failed to ${op} ${name}`,
+      toast.error(`Failed to ${op} ${name}`, {
         description: getAgentOperationErrorMessage(result.error),
-        variant: 'destructive',
       });
     },
     [installFailureMap, invalidate, nameOf, updateFailureMap]
@@ -121,7 +118,7 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     },
     onSuccess: (result, variables) => handleOperationResult('install', result, variables),
     onError: (_, variables) => {
-      toast({ title: `Failed to install ${nameOf(variables.id)}`, variant: 'destructive' });
+      toast.error(`Failed to install ${nameOf(variables.id)}`);
     },
   });
 
@@ -144,7 +141,7 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     },
     onSuccess: (result, variables) => handleOperationResult('update', result, variables),
     onError: (_, variables) => {
-      toast({ title: `Failed to update ${nameOf(variables.id)}`, variant: 'destructive' });
+      toast.error(`Failed to update ${nameOf(variables.id)}`);
     },
   });
 

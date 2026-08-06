@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
@@ -8,7 +9,6 @@ import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import { applyHistoryEntry } from '@core/primitives/ui/browser/components/nav-buttons';
 import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
@@ -57,11 +57,7 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       execute: () => {
         void toggleAppTheme().then((result) => {
           if (result.success) return;
-          toast({
-            title: 'Theme not changed',
-            description: result.error.message,
-            variant: 'destructive',
-          });
+          toast.error('Theme not changed', { description: result.error.message });
         });
       },
     }),

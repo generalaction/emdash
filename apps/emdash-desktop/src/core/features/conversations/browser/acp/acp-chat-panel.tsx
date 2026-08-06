@@ -9,7 +9,7 @@ import type {
   MentionItem,
   PromptEditorRef,
 } from '@emdash/ui/react/components';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, toast } from '@emdash/ui/react/primitives';
 import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -43,7 +43,6 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import {
   issueMentionToken,
@@ -390,10 +389,8 @@ const ComposerForStore = observer(function ComposerForStore({
           .filter((file) => toAttachmentMimeType(file) === null)
           .map((file) => file.name || 'unnamed image')
           .join(', ');
-        toast({
-          title: 'Unsupported image format',
+        toast.error('Unsupported image format', {
           description: `${unsupportedNames} could not be attached. Use PNG, JPEG, GIF, or WebP.`,
-          variant: 'destructive',
         });
       }
 

@@ -6,6 +6,7 @@ import {
   Heading,
   SelectableCard,
   SeparatedList,
+  toast,
 } from '@emdash/ui/react/primitives';
 import {
   Activity,
@@ -28,7 +29,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { isServerUsable } from '@core/services/remote-machine/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -158,10 +158,8 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
       setIsRenaming(false);
     } catch (error) {
       setName(machine.name);
-      toast({
-        title: 'Failed to rename machine',
+      toast.error('Failed to rename machine', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     }
   };
@@ -170,11 +168,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     try {
       await machinesStore.connect(machine.id);
     } catch (error) {
-      toast({
-        title: 'Failed to connect to machine',
-        description: String(error),
-        variant: 'destructive',
-      });
+      toast.error('Failed to connect to machine', { description: String(error) });
     }
   };
 
@@ -182,11 +176,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     try {
       await machinesStore.disconnect(machine.id);
     } catch (error) {
-      toast({
-        title: 'Failed to disconnect from machine',
-        description: String(error),
-        variant: 'destructive',
-      });
+      toast.error('Failed to disconnect from machine', { description: String(error) });
     }
   };
 
@@ -221,11 +211,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
       await machinesStore.deleteConnection(machine.id);
       closeDetail();
     } catch (error) {
-      toast({
-        title: 'Failed to delete SSH connection',
-        description: String(error),
-        variant: 'destructive',
-      });
+      toast.error('Failed to delete SSH connection', { description: String(error) });
     } finally {
       setDeleting(false);
     }

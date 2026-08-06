@@ -11,14 +11,15 @@ const mocks = vi.hoisted(() => ({
   },
   openExternal: vi.fn(),
   openModal: vi.fn(),
-  toast: vi.fn(),
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
 vi.mock('@core/features/workbench/api/browser/task-composition-selectors', () => ({
   getTaskComposition: mocks.getTaskComposition,
 }));
 
-vi.mock('@core/primitives/ui/browser/use-toast', () => ({
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   toast: mocks.toast,
 }));
 
@@ -74,7 +75,7 @@ describe('confirmOpenExternalLink', () => {
     await expect(args.onCopy()).resolves.toBe(true);
 
     expect(mocks.clipboardWriteText).toHaveBeenCalledWith('https://example.com/docs');
-    expect(mocks.toast).toHaveBeenCalledWith({ title: 'Link copied' });
+    expect(mocks.toast).toHaveBeenCalledWith('Link copied');
   });
 
   it('reports when the native clipboard write fails', async () => {
@@ -83,10 +84,8 @@ describe('confirmOpenExternalLink', () => {
     confirmOpenExternalLink('https://example.com/docs');
     await expect(getModalArgs().onCopy()).resolves.toBe(false);
 
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Copy failed',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Copy failed', {
       description: 'The link could not be copied to the clipboard.',
-      variant: 'destructive',
     });
   });
 
@@ -96,10 +95,8 @@ describe('confirmOpenExternalLink', () => {
     confirmOpenExternalLink('https://example.com/docs');
 
     await expect(getModalArgs().onCopy()).resolves.toBe(false);
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Copy failed',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Copy failed', {
       description: 'The link could not be copied to the clipboard.',
-      variant: 'destructive',
     });
   });
 

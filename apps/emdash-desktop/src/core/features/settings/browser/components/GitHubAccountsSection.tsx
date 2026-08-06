@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
 import {
   GitHubCredentialSourceBadge,
@@ -7,7 +7,6 @@ import {
 import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useGitHubAccounts,
   useRemoveGitHubAccount,
@@ -75,15 +74,10 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
   const setDefaultAccount = async (account: GitHubAccountSummary) => {
     const result = await setDefaultMutation.mutateAsync(account.accountId);
     if (!result.success) {
-      toast({
-        title: 'Unable to update default account',
-        description: result.error,
-        variant: 'destructive',
-      });
+      toast.error('Unable to update default account', { description: result.error });
       return;
     }
-    toast({
-      title: 'Default GitHub account updated',
+    toast('Default GitHub account updated', {
       description: `New projects will use @${account.login} by default.`,
     });
   };
@@ -91,17 +85,10 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
   const removeAccount = async (account: GitHubAccountSummary) => {
     const result = await removeMutation.mutateAsync(account.accountId);
     if (!result.success) {
-      toast({
-        title: 'Unable to remove GitHub account',
-        description: result.error,
-        variant: 'destructive',
-      });
+      toast.error('Unable to remove GitHub account', { description: result.error });
       return;
     }
-    toast({
-      title: 'GitHub account removed',
-      description: `Removed @${account.login}.`,
-    });
+    toast('GitHub account removed', { description: `Removed @${account.login}.` });
   };
 
   const confirmRemove = async (account: GitHubAccountSummary) => {

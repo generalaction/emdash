@@ -11,7 +11,7 @@ import {
   ListView,
   PageLayout,
 } from '@emdash/ui/react/patterns';
-import { Button, Checkbox, Spinner, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -25,7 +25,6 @@ import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceActionResult,
@@ -495,12 +494,10 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
         // Row removal streams in via the live model; only disk usage needs a re-measure.
         await store.measure();
       } catch (error) {
-        toast({
-          title:
-            kind === 'archive' ? 'Could not archive workspaces' : 'Could not delete workspaces',
-          description: error instanceof Error ? error.message : String(error),
-          variant: 'destructive',
-        });
+        toast.error(
+          kind === 'archive' ? 'Could not archive workspaces' : 'Could not delete workspaces',
+          { description: error instanceof Error ? error.message : String(error) }
+        );
       } finally {
         setPendingAction(null);
       }
@@ -728,20 +725,17 @@ async function archiveProjectWorkspaces(
 function showActionResult(kind: 'archive' | 'delete', result: ProjectWorkspaceActionSummary): void {
   if (result.failedCount > 0) {
     const firstFailure = result.results.find((item) => !item.success);
-    toast({
-      title: `${result.succeededCount} succeeded, ${result.failedCount} failed`,
+    toast.error(`${result.succeededCount} succeeded, ${result.failedCount} failed`, {
       description: firstFailure && !firstFailure.success ? firstFailure.message : undefined,
-      variant: 'destructive',
     });
     return;
   }
 
-  toast({
-    title:
-      kind === 'archive'
-        ? `Queued archive for ${workspaceCount(result.succeededCount)}`
-        : `Deleted ${workspaceCount(result.succeededCount)}`,
-  });
+  toast(
+    kind === 'archive'
+      ? `Queued archive for ${workspaceCount(result.succeededCount)}`
+      : `Deleted ${workspaceCount(result.succeededCount)}`
+  );
 }
 
 function unselectableReason(row: ProjectWorkspaceRow): string {

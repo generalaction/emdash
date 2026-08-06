@@ -1,7 +1,7 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';

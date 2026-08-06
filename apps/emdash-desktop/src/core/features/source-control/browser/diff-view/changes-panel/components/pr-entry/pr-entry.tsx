@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -10,7 +11,6 @@ import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-ico
 import { PrUrlCopyButton } from '@core/primitives/ui/browser/components/pr-url-copy-button';
 import { type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrChecksList } from './checks-list';
@@ -70,13 +70,10 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         bypassRequirements,
       });
       if (!result.success) {
-        toast({
-          title: bypassRequirements
-            ? 'Failed to merge without waiting'
-            : 'Failed to merge pull request',
-          description: result.error,
-          variant: 'destructive',
-        });
+        toast.error(
+          bypassRequirements ? 'Failed to merge without waiting' : 'Failed to merge pull request',
+          { description: result.error }
+        );
       }
     } finally {
       setIsMerging(false);
@@ -165,10 +162,8 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
             prStore
               .markReadyForReview(pr.url)
               .catch(() => {
-                toast({
-                  title: 'Failed to mark pull request ready',
+                toast.error('Failed to mark pull request ready', {
                   description: 'Refresh PR status and try again.',
-                  variant: 'destructive',
                 });
               })
               .finally(() => setIsMarkingReady(false));

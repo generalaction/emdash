@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, useToast } from '@emdash/ui/react/primitives';
 import {
   AlertCircle,
   ArrowRight,
@@ -18,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useAccountLinkProvider,
   useAccountSession,
@@ -74,18 +73,19 @@ export function GithubConnectModal() {
       const providerAccountStatus =
         'providerAccountStatus' in result ? result.providerAccountStatus : undefined;
 
-      toast({
-        title:
-          providerAccountStatus === 'updated'
-            ? 'GitHub account already connected'
-            : 'Connected to GitHub',
-        description:
-          providerAccountStatus === 'updated' && providerAccount
-            ? `@${providerAccount.login} was already connected.`
-            : providerAccount
-              ? `Linked @${providerAccount.login}.`
-              : 'GitHub is connected.',
-      });
+      toast(
+        providerAccountStatus === 'updated'
+          ? 'GitHub account already connected'
+          : 'Connected to GitHub',
+        {
+          description:
+            providerAccountStatus === 'updated' && providerAccount
+              ? `@${providerAccount.login} was already connected.`
+              : providerAccount
+                ? `Linked @${providerAccount.login}.`
+                : 'GitHub is connected.',
+        }
+      );
       modal.complete();
     } finally {
       setOauthLoading(false);
@@ -113,8 +113,7 @@ export function GithubConnectModal() {
         return;
       }
 
-      toast({
-        title: 'GitHub CLI accounts imported',
+      toast('GitHub CLI accounts imported', {
         description:
           result.importedAccountIds.length === 1
             ? '1 account is available in Emdash.'

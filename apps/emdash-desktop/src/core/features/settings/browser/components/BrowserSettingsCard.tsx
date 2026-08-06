@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, toast } from '@emdash/ui/react/primitives';
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -32,7 +32,6 @@ import {
   SelectValue,
 } from '@core/primitives/ui/browser/select';
 import { Switch } from '@core/primitives/ui/browser/switch';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { SettingRow } from './SettingRow';
 
@@ -95,21 +94,15 @@ export function BrowserSettingsCard() {
     try {
       const result = await (await getDesktopWireClient()).browser.clearBrowsingData({ kind });
       if (!result.success) {
-        toast({
-          title: 'Could not clear browsing data',
+        toast.error('Could not clear browsing data', {
           description: 'Try again, or reload the browser view manually.',
-          variant: 'destructive',
         });
         return;
       }
       reloadAllBrowserSessions();
-      toast({ title: `${label} cleared` });
+      toast(`${label} cleared`);
     } catch (error) {
-      toast({
-        title: 'Could not clear browsing data',
-        description: errorMessage(error),
-        variant: 'destructive',
-      });
+      toast.error('Could not clear browsing data', { description: errorMessage(error) });
     } finally {
       setIsClearingBrowsingData(false);
     }
@@ -466,20 +459,14 @@ async function clearProfileStorageAndReload(profileId: string): Promise<void> {
   try {
     const result = await (await getDesktopWireClient()).browser.clearProfileStorage({ profileId });
     if (!result.success) {
-      toast({
-        title: 'Could not clear browser storage',
+      toast.error('Could not clear browser storage', {
         description: 'The browser profile no longer exists or could not be cleared.',
-        variant: 'destructive',
       });
       return;
     }
     reloadBrowserSessionsForProfile(profileId);
   } catch (error) {
-    toast({
-      title: 'Could not clear browser storage',
-      description: errorMessage(error),
-      variant: 'destructive',
-    });
+    toast.error('Could not clear browser storage', { description: errorMessage(error) });
   }
 }
 
@@ -502,10 +489,8 @@ async function deleteProfileAfterStorageClear({
       profileId: deletedProfileId,
     });
     if (!clearResult.success) {
-      toast({
-        title: 'Could not delete browser profile',
+      toast.error('Could not delete browser profile', {
         description: 'The profile storage could not be cleared, so the profile was kept.',
-        variant: 'destructive',
       });
       return;
     }
@@ -522,12 +507,10 @@ async function deleteProfileAfterStorageClear({
     );
   } catch (error) {
     if (storageCleared) reloadBrowserSessionsForProfile(deletedProfileId);
-    toast({
-      title: 'Could not delete browser profile',
+    toast.error('Could not delete browser profile', {
       description: storageCleared
         ? `Storage was cleared, but the profile is still listed. ${errorMessage(error)}`
         : errorMessage(error),
-      variant: 'destructive',
     });
   }
 }

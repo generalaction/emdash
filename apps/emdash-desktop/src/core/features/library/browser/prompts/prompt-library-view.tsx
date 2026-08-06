@@ -1,6 +1,6 @@
 import { EmptyState } from '@emdash/ui/react/components';
 import { PageLayout } from '@emdash/ui/react/patterns';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, toast } from '@emdash/ui/react/primitives';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
@@ -9,7 +9,6 @@ import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 
 type PromptListItem = {
   id: string;
@@ -102,7 +101,7 @@ export function PromptLibraryView() {
       ? promptLibrary.map((item) => (item.id === prompt.id ? prompt : item))
       : [...promptLibrary, prompt];
     updatePromptLibrary(nextPrompts, {
-      onSuccess: () => toast({ title: successTitle }),
+      onSuccess: () => toast(successTitle),
     });
   };
 
@@ -132,7 +131,7 @@ export function PromptLibraryView() {
       updatePromptLibrary(
         promptLibrary.filter((item) => item.id !== prompt.id),
         {
-          onSuccess: () => toast({ title: 'Prompt deleted' }),
+          onSuccess: () => toast('Prompt deleted'),
         }
       );
     });

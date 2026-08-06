@@ -1,8 +1,8 @@
+import { toast } from '@emdash/ui/react/primitives';
+import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { toast } from 'sonner';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { DesktopUpdateEvent } from '@core/features/updates/api';
-import { createUpdateToastActionLabel } from '@core/primitives/ui/browser/components/update-toast-action-label';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 
@@ -249,12 +249,13 @@ export class UpdateStore {
     toast('Update Available', {
       description: `Version ${version} is available to download and install.`,
       duration: 10_000,
-      classNames: {
-        actionButton:
-          'group/action cursor-pointer transition-all duration-150 hover:bg-primary/85 active:scale-[0.97]',
-      },
       action: {
-        label: createUpdateToastActionLabel(),
+        label: (
+          <span className="flex items-center gap-1.5">
+            Update
+            <ArrowUpRight className="size-3.5" />
+          </span>
+        ),
         onClick: () => {
           appState.navigation.navigate(settingsViewDef({ tab: 'general' }));
           if (this.state.status === 'available') {

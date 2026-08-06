@@ -1,6 +1,6 @@
 import { AgentStatus } from '@emdash/ui/react/components';
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
-import { Button, Checkbox, MicroLabel, Spinner } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, MicroLabel, Spinner, toast } from '@emdash/ui/react/primitives';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -37,7 +37,6 @@ import {
   ContextMenuTrigger,
 } from '@core/primitives/ui/browser/context-menu';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getAcpChatResourceManager } from '../../browser/acp/acp-chat-resource-manager';
 import { ConversationAgentIcon } from '../../browser/conversation-agent-icon';
 import { ConversationSelectionControl } from '../../browser/conversation-selection-control';
@@ -161,10 +160,8 @@ const ConversationRow = observer(function ConversationRow({
             await conversations.killSession(conversationId);
             closeConversationTab();
           } catch (error) {
-            toast({
-              title: 'Failed to kill session',
+            toast.error('Failed to kill session', {
               description: error instanceof Error ? error.message : String(error),
-              variant: 'destructive',
             });
           }
         })();
@@ -175,10 +172,8 @@ const ConversationRow = observer(function ConversationRow({
   const handleExport = (kind: 'parsed' | 'raw') => {
     const store = getAcpChatResourceManager(taskId, projectId).get(conversationId);
     if (!store) {
-      toast({
-        title: 'Failed to export transcript',
+      toast.error('Failed to export transcript', {
         description: 'Open the chat before exporting it.',
-        variant: 'destructive',
       });
       return;
     }
@@ -485,13 +480,11 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
 
         if (result.failures.length > 0) {
           const firstError = result.failures[0]!.error;
-          toast({
-            title: `${result.succeededIds.length} deleted, ${result.failures.length} failed`,
+          toast.error(`${result.succeededIds.length} deleted, ${result.failures.length} failed`, {
             description: firstError instanceof Error ? firstError.message : String(firstError),
-            variant: 'destructive',
           });
         } else if (result.succeededIds.length > 1) {
-          toast({ title: `${result.succeededIds.length} conversations deleted` });
+          toast(`${result.succeededIds.length} conversations deleted`);
         }
       } finally {
         setDeleting(false);

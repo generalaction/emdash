@@ -1,5 +1,5 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
