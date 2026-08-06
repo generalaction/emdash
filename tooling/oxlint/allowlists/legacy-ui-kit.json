@@ -71,7 +71,6 @@
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/create-pr-modal.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/pr-entry.tsx",
     "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/comments/comment-card.tsx",
-    "apps/emdash-desktop/src/core/features/source-control/browser/diff-view/main-panel/diff-file-renderer.tsx",
     "apps/emdash-desktop/src/core/features/tasks/api/browser/task-config/initial-conversation-section.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/add-remote-modal.tsx",
     "apps/emdash-desktop/src/core/features/tasks/browser/components/issue-selector/issue-selector.test.ts",
@@ -115,7 +114,6 @@
     "apps/emdash-desktop/src/core/primitives/ui/browser/components/remote-select-content.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/components/titlebar/Titlebar.tsx",
     "apps/emdash-desktop/src/core/primitives/ui/browser/editable-name-field.tsx",
-    "apps/emdash-desktop/src/core/primitives/ui/browser/zoomable-content-dialog.tsx",
     "apps/emdash-desktop/src/core/primitives/workbench-shell/browser/tabs/tab-bar/tab-context-menu.tsx",
     "apps/emdash-desktop/src/renderer/App.tsx",
     "apps/emdash-desktop/src/renderer/app/welcome.tsx",
@@ -124,8 +122,6 @@
     "apps/emdash-desktop/src/renderer/lib/modal/modal-renderer.tsx",
     "apps/emdash-desktop/src/renderer/main.tsx",
     "apps/emdash-desktop/src/renderer/tests/agent-icon-variant.test.ts",
-    "apps/emdash-desktop/src/renderer/tests/browser/settings-search-shortcuts.test.tsx",
-    "apps/emdash-desktop/src/renderer/tests/markdown-renderer.test.ts",
-    "apps/emdash-desktop/src/renderer/tests/mermaid-diagram-preview.test.ts"
+    "apps/emdash-desktop/src/renderer/tests/browser/settings-search-shortcuts.test.tsx"
   ]
 }

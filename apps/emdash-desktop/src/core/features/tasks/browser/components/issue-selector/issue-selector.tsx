@@ -1,3 +1,4 @@
+import { InlineMarkdown } from '@emdash/ui/react/components';
 import { Button, Combobox, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -11,7 +12,6 @@ import { useIntegrationsContext } from '@core/features/integrations/api/browser/
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { InlineMarkdown } from '@core/primitives/ui/browser/components/inline-markdown';
 import {
   IssueStatusIndicator,
   toIssueStatus,

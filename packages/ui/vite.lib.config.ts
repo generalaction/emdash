@@ -54,16 +54,24 @@ export default defineConfig({
     rollupOptions: {
       external: [
         '@emdash/chat-ui',
+        '@emdash/theme/shiki-themes',
         '@tanstack/react-form',
         '@tanstack/react-store',
         '@tanstack/react-virtual',
+        'beautiful-mermaid',
         'mobx',
         'mobx-react-lite',
         'react',
         'react-dom',
+        'react-markdown',
         'react-resizable-panels',
         'react-zoom-pan-pinch',
         'react/jsx-runtime',
+        'rehype-katex',
+        'rehype-raw',
+        'rehype-sanitize',
+        'remark-gfm',
+        'remark-math',
         'sonner',
         '@base-ui/react',
         'lucide-react',
@@ -76,6 +84,8 @@ export default defineConfig({
         '@tiptap/starter-kit',
         '@tiptap/suggestion',
         /^@fontsource/,
+        /^@shikijs\//,
+        /^shiki(\/|$)/,
       ],
       output: {
         // Rename the bundled stylesheet so consumers import '@emdash/ui/style.css'.

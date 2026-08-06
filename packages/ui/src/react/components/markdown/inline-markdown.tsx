@@ -1,5 +1,3 @@
-import { cn } from '@core/primitives/styling/browser/cn';
-
 function stripMarkdown(text: string): string {
   return text
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
@@ -17,10 +15,15 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+export interface InlineMarkdownProps {
+  content: string;
+  className?: string;
+}
+
 /**
  * Renders markdown as stripped plain text — no syntax characters, no line breaks.
  * Intended for compact single-line previews like issue descriptions.
  */
-export function InlineMarkdown({ content, className }: { content: string; className?: string }) {
-  return <div className={cn(className)}>{stripMarkdown(content)}</div>;
+export function InlineMarkdown({ content, className }: InlineMarkdownProps) {
+  return <div className={className}>{stripMarkdown(content)}</div>;
 }
