@@ -8,13 +8,15 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getProject: vi.fn(),
   select: vi.fn(),
-  hasClaimConflict: vi.fn(),
   hostIsReachable: vi.fn(),
   resolveWorktreeRoot: vi.fn(),
+  findWorkspaceTombstoneConflict: vi.fn(),
   registryRows: [] as unknown[],
 }));
+vi.mock('@core/features/workspaces/api/node/registry/workspace-tombstones', () => ({
+  findWorkspaceTombstoneConflict: mocks.findWorkspaceTombstoneConflict,
+}));
 const operations = {
-  hasClaimConflict: mocks.hasClaimConflict,
   hostIsReachable: mocks.hostIsReachable,
 } as never;
 const db = { transaction: mocks.transaction, select: mocks.select } as never;
@@ -99,11 +101,14 @@ function fakeTx(captured: unknown[]) {
     insert: () => ({
       values: (vals: unknown) => {
         captured.push(vals);
+        const returning = () => ({
+          all: () => [makeTaskRow(vals as Partial<TaskRow>)],
+          get: () => vals,
+        });
         return {
-          returning: () => ({
-            all: () => [makeTaskRow(vals as Partial<TaskRow>)],
-            get: () => vals,
-          }),
+          returning,
+          // The conversation registry registers via an id-conflict upsert.
+          onConflictDoUpdate: () => ({ returning }),
           run: () => {},
         };
       },
@@ -170,7 +175,7 @@ describe('createTask', () => {
         getPushRemote: vi.fn(async () => 'origin'),
       },
     });
-    mocks.hasClaimConflict.mockResolvedValue(false);
+    mocks.findWorkspaceTombstoneConflict.mockReturnValue(undefined);
     mocks.hostIsReachable.mockReturnValue(true);
     mocks.resolveWorktreeRoot.mockResolvedValue({ success: true, data: '/worktrees' });
     mocks.registryRows.length = 0;
@@ -192,6 +197,76 @@ describe('createTask', () => {
     });
     expect(result).toEqual({ success: false, error: { type: 'project-not-found' } });
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  describe('tombstone-aware creation admission (ADR 0006)', () => {
+    it('refuses a repository-instance target carrying a pending tombstone', async () => {
+      mocks.findWorkspaceTombstoneConflict.mockReturnValue({
+        type: 'workspace-tombstone-pending',
+        workspaceId: 'ws-repo-1',
+        message: 'This workspace is pending deletion on its host.',
+      });
+
+      const result = await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+        },
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'workspace-tombstone-pending',
+          workspaceId: 'ws-repo-1',
+          message: 'This workspace is pending deletion on its host.',
+        },
+      });
+      expect(mocks.findWorkspaceTombstoneConflict).toHaveBeenCalledWith(db, {
+        kind: 'workspace',
+        workspaceId: 'ws-repo-1',
+      });
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
+
+    it('checks the branch as a placement target for new worktrees', async () => {
+      makeProjectRemote();
+      mocks.findWorkspaceTombstoneConflict.mockReturnValue({
+        type: 'workspace-tombstone-pending',
+        workspaceId: 'ws-old',
+        message: 'A deletion is still pending for branch "feature/x".',
+      });
+
+      const result = await createTask(db, projects, operations, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/x',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.type).toBe('workspace-tombstone-pending');
+      expect(mocks.findWorkspaceTombstoneConflict).toHaveBeenCalledWith(db, {
+        kind: 'placement',
+        location: 'remote',
+        sshConnectionId: 'conn-1',
+        branch: 'feature/x',
+      });
+      expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
   });
 
   it('executes all writes inside a single db.transaction call', async () => {

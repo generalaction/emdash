@@ -6,7 +6,11 @@ import {
   conversationRegistryTable as conversationRows,
 } from '@core/features/conversations/api/node/registry';
 import { MachinesService } from '@core/features/machines/api/node/machines-service';
-import { workspaceRegistryTable as workspaces } from '@core/features/workspaces/api/node/registry';
+import {
+  createWorkspaceRegistry,
+  workspaceRegistryTable as workspaces,
+} from '@core/features/workspaces/api/node/registry';
+import { tombstoneWorkspaceRow } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, sshConnections, tasks } from '@core/services/app-db/node/schema';
 
@@ -144,18 +148,59 @@ describe('MachinesService', () => {
       .select()
       .from(sshConnections)
       .where(eq(sshConnections.id, 'ssh-1'));
-    const [workspace] = await fixture.db
-      .select({ sshConnectionId: workspaces.sshConnectionId })
+    const remainingWorkspaces = await fixture.db
+      .select()
       .from(workspaces)
       .where(eq(workspaces.id, 'workspace-root-1'));
 
     expect(remainingConnections).toHaveLength(0);
-    expect(workspace?.sshConnectionId).toBeNull();
+    // Forget-host purges the host's mirror rows (ADR 0006), not just untracks them.
+    expect(remainingWorkspaces).toHaveLength(0);
     expect(credentialDeleteSawConnectionRows).toBe(0);
     expect(dropConnection).toHaveBeenCalledWith('ssh-1');
     expect(deleteAllCredentials).toHaveBeenCalledWith('ssh-1');
     expect(removeRuntimeState).toHaveBeenCalledWith('ssh-1');
     expect(events).toEqual([{ type: 'deleted', connectionId: 'ssh-1' }]);
+  });
+
+  it('purges the host workspace mirror rows, pending deletion tombstones included', async () => {
+    await insertSshConnection(fixture.db);
+    const registry = createWorkspaceRegistry(fixture.db);
+    const tombstoned = registry.register({
+      id: 'workspace-tombstoned',
+      type: 'project-ssh',
+      kind: 'worktree',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+      path: '/repo/.worktrees/pending',
+    });
+    tombstoneWorkspaceRow(fixture.db, {
+      workspace: tombstoned,
+      options: { deleteBranch: true, deleteConversations: false },
+      createdAt: 1,
+    });
+    registry.register({
+      id: 'workspace-untracked',
+      type: 'project-ssh',
+      kind: 'worktree',
+      location: 'remote',
+      sshConnectionId: 'ssh-1',
+      path: '/repo/.worktrees/gone',
+    });
+    registry.untrack(['workspace-untracked'], '2026-01-01T00:00:00.000Z');
+    // A local row is another host's mirror — forget must not touch it.
+    registry.register({
+      id: 'workspace-local',
+      type: 'local',
+      kind: 'worktree',
+      location: 'local',
+      path: '/local/.worktrees/keep',
+    });
+
+    await service.deleteMachine('ssh-1');
+
+    const remaining = await fixture.db.select({ id: workspaces.id }).from(workspaces);
+    expect(remaining.map((row) => row.id)).toEqual(['workspace-local']);
   });
 
   it('applies the conversation mirror rules when forgetting a host', async () => {

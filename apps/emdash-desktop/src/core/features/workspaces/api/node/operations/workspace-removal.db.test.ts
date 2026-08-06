@@ -1,5 +1,6 @@
 import { ok } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostDeleteConversationOperation } from '@core/features/conversations/api/node/host-delete-conversation-operation';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
@@ -13,8 +14,9 @@ import { deleteWorkspaceThroughRegistry } from './workspace-removal';
 
 /**
  * Workspace removal through the registry verbs (ADR 0005): one fail-fast host RPC,
- * then the mirror row untracks. Conversation coupling stays spec §7.1: archive
- * semantics by default, explicit per-record deletes on opt-in.
+ * then the mirror row untracks. An unreachable host tombstones the row instead of
+ * refusing (ADR 0006) — durable intent, no queue. Conversation coupling stays spec
+ * §7.1: archive semantics by default, explicit per-record deletes on opt-in.
  */
 describe('deleteWorkspaceThroughRegistry', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -98,6 +100,12 @@ describe('deleteWorkspaceThroughRegistry', () => {
     });
     expect(registry.deleteWorkspace).not.toHaveBeenCalled();
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
+    // Reachable-host removals never tombstone: the verb call is the whole story.
+    const [row] = await fixture.db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, 'workspace-1'));
+    expect(row?.deletionTombstone).toBeNull();
   });
 
   it('routes directory rows through the deleteWorkspace verb', async () => {
@@ -112,29 +120,103 @@ describe('deleteWorkspaceThroughRegistry', () => {
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
   });
 
-  it('fails fast with host-unreachable and leaves everything intact', async () => {
-    await seedWorktree();
-    seedConversationAtPath('conv-stay', '/repo/.worktrees/example');
-    const operations = submitter();
-    const runtimes = {
-      client: vi.fn(async () => ({
-        success: false as const,
-        error: { type: 'host-unreachable' as const, message: 'ssh down' },
-      })),
-    };
+  describe('unreachable host (ADR 0006): tombstone instead of refusal', () => {
+    function unreachableRuntimes() {
+      return {
+        client: vi.fn(async () => ({
+          success: false as const,
+          error: { type: 'host-unreachable' as const, message: 'ssh down' },
+        })),
+      };
+    }
 
-    const result = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
-      deleteConversations: true,
+    it('tombstones the row with frozen options and returns success; nothing queues', async () => {
+      await seedWorktree();
+      seedConversationAtPath('conv-stay', '/repo/.worktrees/example');
+      const operations = submitter();
+
+      const result = await deleteWorkspaceThroughRegistry(
+        operations,
+        unreachableRuntimes(),
+        'workspace-1',
+        { deleteBranch: true, deleteConversations: true }
+      );
+
+      expect(result).toEqual({ success: true, data: {} });
+      // Nothing queued anywhere: the tombstoned row is the durable intent.
+      expect(operations.submit).not.toHaveBeenCalled();
+      const row = createWorkspaceRegistry(fixture.db).getLive('workspace-1');
+      // The row stays live — the visible pending state — with the options and the
+      // target record UUID frozen at delete time.
+      expect(row).toBeDefined();
+      expect(row?.deletionTombstone).toMatchObject({
+        targetRecordId: 'workspace-1',
+        options: { deleteBranch: true, deleteConversations: true },
+      });
+      // The conversation cascade rides the frozen option, not an immediate delete.
+      expect(createConversationRegistry(fixture.db).getLive('conv-stay')).toBeDefined();
     });
 
-    expect(result).toEqual({
-      success: false,
-      error: { type: 'host-unreachable', message: 'ssh down' },
+    it('suppresses a delete double-fire: one tombstone, both calls succeed', async () => {
+      await seedWorktree();
+      const operations = submitter();
+      const runtimes = unreachableRuntimes();
+
+      const first = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
+        deleteBranch: true,
+      });
+      const second = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
+        deleteBranch: false,
+      });
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      expect(
+        createWorkspaceRegistry(fixture.db).getLive('workspace-1')?.deletionTombstone
+      ).toMatchObject({ options: { deleteBranch: true, deleteConversations: false } });
     });
-    // Nothing queued, nothing untracked — the row stays registered host-side.
-    expect(operations.submit).not.toHaveBeenCalled();
-    expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeDefined();
-    expect(createConversationRegistry(fixture.db).getLive('conv-stay')).toBeDefined();
+
+    it('tombstones when the verb itself reports host-unreachable', async () => {
+      await seedWorktree();
+      const { registry, runtimes } = makeRuntimes();
+      registry.deleteWorktree.mockResolvedValueOnce({
+        success: false,
+        error: { type: 'host-unreachable', message: 'went away mid-call' },
+      } as never);
+
+      const result = await deleteWorkspaceThroughRegistry(submitter(), runtimes, 'workspace-1');
+
+      expect(result.success).toBe(true);
+      expect(
+        createWorkspaceRegistry(fixture.db).getLive('workspace-1')?.deletionTombstone
+      ).toMatchObject({ targetRecordId: 'workspace-1' });
+    });
+
+    it('still refuses while a live task references the workspace — no tombstone', async () => {
+      await seedWorktree();
+      fixture.sqlite
+        .prepare(`INSERT INTO projects (id, name) VALUES ('project-1', 'Project')`)
+        .run();
+      await fixture.db.insert(tasks).values({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Task',
+        status: 'in_progress',
+        workspaceId: 'workspace-1',
+      });
+
+      const result = await deleteWorkspaceThroughRegistry(
+        submitter(),
+        unreachableRuntimes(),
+        'workspace-1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.type).toBe('workspace-in-use');
+      expect(
+        createWorkspaceRegistry(fixture.db).getLive('workspace-1')?.deletionTombstone
+      ).toBeNull();
+    });
   });
 
   it('surfaces a failed verb without untracking', async () => {

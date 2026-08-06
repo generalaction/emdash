@@ -75,9 +75,12 @@ function createAppDb(): Database.Database {
       observed_status TEXT,
       observed_git TEXT,
       last_create_outcome TEXT,
+      last_removal_attempt TEXT,
+      script_outcomes TEXT,
       runtime_overlay TEXT,
       last_activated_at INTEGER,
       observed_at INTEGER,
+      deletion_tombstone TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       untracked_at TEXT

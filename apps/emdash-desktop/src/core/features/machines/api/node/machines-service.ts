@@ -7,7 +7,6 @@ import {
 } from '@core/features/conversations/api/node/registry';
 import {
   createWorkspaceRegistry,
-  liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
@@ -222,8 +221,10 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       throw new Error(`SSH connection is used by ${projectNames}`);
     }
 
-    // Forget-host cascade: cancel every queued outbox entry targeting this
-    // host and untrack its registry rows. Untrack never deletes host state.
+    // Forget-host cascade: cancel every queued outbox entry targeting this host and
+    // purge its workspace mirror rows — pending deletion tombstones included
+    // (ADR 0006: forget means forget). Nothing host-side is touched; re-adding the
+    // host reconverges from its own registry.
     await this.operations
       ?.cancelPendingForHost(formatHostRef(hostRef('remote', id)))
       .catch((error: unknown) => {
@@ -235,10 +236,16 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
     const registryIds = this.deps.db
       .select({ id: workspaces.id })
       .from(workspaces)
-      .where(and(eq(workspaces.sshConnectionId, id), liveWorkspaces()))
+      .where(eq(workspaces.sshConnectionId, id))
       .all()
       .map(({ id: workspaceId }) => workspaceId);
-    createWorkspaceRegistry(this.deps.db).untrack(registryIds, new Date(this.now()).toISOString());
+    if (registryIds.length > 0) {
+      const workspaceRegistry = createWorkspaceRegistry(this.deps.db);
+      this.deps.db.transaction((tx) => {
+        workspaceRegistry.untrack(registryIds, new Date(this.now()).toISOString(), undefined, tx);
+        workspaceRegistry.purge(registryIds, tx);
+      });
+    }
 
     // Conversation mirror rules (spec §7.3): task-linked cached records stay visible as
     // stale observations; unlinked mirror rows drop with the mirror. The host's own index

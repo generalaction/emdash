@@ -21,6 +21,7 @@ import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
+import { tombstoneWorkspaceRow } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
@@ -29,10 +30,12 @@ import type { OperationSubmitter } from '@core/services/operations/api/node';
 /**
  * Workspace removal through the host registry verbs (ADR 0005): one fail-fast
  * `deleteWorktree`/`deleteWorkspace` RPC against a reachable host, then the mirror
- * row is untracked. Against an unreachable host the call fails with
- * `host-unreachable` and nothing changes — removals are never queued. Archive
- * differs from delete only in the desktop annotation; host-side both remove the
- * worktree with `deleteBranch: false`.
+ * row is untracked. Against an unreachable host the deletion no longer refuses
+ * (ADR 0006): the mirror row is marked with a durable tombstone — frozen options plus
+ * the target record UUID — and the caller sees success. Nothing queues anywhere; the
+ * tombstoned row stays visible as the pending state and the reconcile sweep executes
+ * it once the host is reachable. Archive differs from delete only in the desktop
+ * annotation; host-side both remove the worktree with `deleteBranch: false`.
  */
 
 export type WorkspaceRemovalError = { type: string; message: string };
@@ -204,11 +207,13 @@ async function removeWorkspaceThroughRegistry(
   if (precondition) return err(precondition);
 
   // The host record is removed first, fail-fast: only a confirmed host-side removal
-  // untracks the mirror row, so a failed or unreachable call leaves everything intact.
+  // untracks the mirror row, so a failed call leaves everything intact. An unreachable
+  // host diverts to the tombstone path instead of refusing (ADR 0006).
   if (params.workspace?.kind === 'worktree' || params.workspace?.kind === 'directory') {
+    const workspace = params.workspace;
     const client = await runtimes.client(params.host);
     if (!client.success) {
-      return err({ type: 'host-unreachable', message: client.error.message });
+      return tombstoneUnreachableRemoval(operations.db, workspace, params, createdAt);
     }
     const verb = client.data.workspaceRegistry;
     const removed =
@@ -216,6 +221,9 @@ async function removeWorkspaceThroughRegistry(
         ? await verb.deleteWorktree({ id: workspaceId, deleteBranch: params.deleteBranch ?? false })
         : await verb.deleteWorkspace({ id: workspaceId });
     if (!removed.success) {
+      if (removed.error.type === 'host-unreachable') {
+        return tombstoneUnreachableRemoval(operations.db, workspace, params, createdAt);
+      }
       return err({
         type: 'delete-failed',
         message: describeDeleteVerbError(removed.error),
@@ -231,6 +239,44 @@ async function removeWorkspaceThroughRegistry(
   });
   if (!untracked.success) return untracked;
   await submitConversationDeletions(operations, params.projectId, conversationDeletions);
+  appDbPokes.workspaces.poke({ projectId: params.projectId });
+  return ok({});
+}
+
+/**
+ * The offline path (ADR 0006): the mirror row is marked with a durable tombstone
+ * freezing the deletion options and the target record's UUID, and the caller sees
+ * success — the row stays live as the visible pending state. Nothing queues anywhere;
+ * conversation deletions ride the frozen `deleteConversations` option and are compiled
+ * at sweep time. A duplicate write (zero rows updated) also returns success, so a UI
+ * double-fire never surfaces an error or overwrites the first click's options.
+ */
+function tombstoneUnreachableRemoval(
+  db: AppDb,
+  workspace: WorkspaceRow,
+  params: {
+    projectId: string | undefined;
+    requireUnused: boolean;
+    deleteBranch?: boolean;
+    deleteConversations?: boolean;
+  },
+  createdAt: number
+): WorkspaceRemovalResult {
+  const written = tombstoneWorkspaceRow(db, {
+    workspace,
+    options: {
+      deleteBranch: params.deleteBranch ?? false,
+      deleteConversations: params.deleteConversations ?? false,
+    },
+    createdAt,
+    precondition: (tx) =>
+      workspacePrecondition(tx, {
+        projectId: params.projectId,
+        workspaceId: workspace.id,
+        requireUnused: params.requireUnused,
+      }),
+  });
+  if (!written.success) return err(written.error);
   appDbPokes.workspaces.poke({ projectId: params.projectId });
   return ok({});
 }

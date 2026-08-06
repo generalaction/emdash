@@ -21,8 +21,11 @@ import { sshConnectionMetadata } from '@core/primitives/ssh/api';
 import { workspaceConfig } from '@core/primitives/workspaces/api';
 import {
   workspaceCreateOutcome,
+  workspaceDeletionTombstone,
   workspaceObservedGit,
+  workspaceRemovalAttempt,
   workspaceRuntimeOverlay,
+  workspaceScriptOutcomes,
 } from '@core/primitives/workspaces/api';
 import type { WorkspaceKind } from '@core/primitives/workspaces/api';
 import { notificationPayload } from '@root/src/core/services/notifications/api';
@@ -206,11 +209,21 @@ export const workspaces = sqliteTable(
     // delivery. Timestamps are epoch-ms as delivered.
     observedGit: versionedJsonColumn(workspaceObservedGit)('observed_git'),
     lastCreateOutcome: versionedJsonColumn(workspaceCreateOutcome)('last_create_outcome'),
+    /** Last failed removal attempt (ADR 0006); null while no delete has failed. */
+    lastRemovalAttempt: versionedJsonColumn(workspaceRemovalAttempt)('last_removal_attempt'),
+    /** Durable per-script (prepare/setup/run) last outcomes; survive daemon restarts. */
+    scriptOutcomes: versionedJsonColumn(workspaceScriptOutcomes)('script_outcomes'),
     /** Persisted overlay for one renderer read path; a daemon-restart delivery clears it. */
     runtimeOverlay: versionedJsonColumn(workspaceRuntimeOverlay)('runtime_overlay'),
     lastActivatedAt: integer('last_activated_at'),
     /** Epoch-ms host observation stamp for the registry sync path. */
     observedAt: integer('observed_at'),
+    /**
+     * Durable deletion intent (ADR 0006): frozen options + the target record UUID,
+     * written atomically at delete time against an unreachable host. Null = no pending
+     * deletion. The row stays live (visible) until the reconcile sweep converges.
+     */
+    deletionTombstone: versionedJsonColumn(workspaceDeletionTombstone)('deletion_tombstone'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

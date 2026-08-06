@@ -137,7 +137,9 @@ export type CreateTaskError =
   | { type: 'branch-not-found'; branch: string }
   | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'provision-failed'; message: string }
-  | { type: 'provision-timeout'; timeoutMs: number; step?: string };
+  | { type: 'provision-timeout'; timeoutMs: number; step?: string }
+  /** Creation admission refusal (ADR 0006): the target carries a pending deletion tombstone. */
+  | { type: 'workspace-tombstone-pending'; workspaceId: string; message: string };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';

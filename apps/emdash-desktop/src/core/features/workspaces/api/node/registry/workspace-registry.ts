@@ -19,6 +19,8 @@ type WorkspaceObservation = Readonly<{
   sshConnectionId?: string | null;
   observedGit?: WorkspaceRow['observedGit'];
   lastCreateOutcome?: WorkspaceRow['lastCreateOutcome'];
+  lastRemovalAttempt?: WorkspaceRow['lastRemovalAttempt'];
+  scriptOutcomes?: WorkspaceRow['scriptOutcomes'];
   runtimeOverlay?: WorkspaceRow['runtimeOverlay'];
   lastActivatedAt?: number | null;
   observedAt?: number | null;
@@ -116,6 +118,24 @@ export class WorkspaceRegistry {
       .update(workspaces)
       .set({ ...annotation, updatedAt: this.now() })
       .where(eq(workspaces.id, id))
+      .run().changes;
+  }
+
+  /**
+   * Marks one live row with a durable deletion tombstone (ADR 0006). Atomic and
+   * first-writer-wins: the guard on a null `deletionTombstone` makes zero rows updated
+   * mean "already tombstoned" (or no longer live), so a UI double-fire never overwrites
+   * the frozen options. The row stays live — the visible pending state.
+   */
+  tombstone(
+    id: string,
+    tombstone: NonNullable<WorkspaceRow['deletionTombstone']>,
+    tx?: DrizzleTx
+  ): number {
+    return this.source(tx)
+      .update(workspaces)
+      .set({ deletionTombstone: tombstone, updatedAt: this.now() })
+      .where(and(eq(workspaces.id, id), liveWorkspaces(), isNull(workspaces.deletionTombstone)))
       .run().changes;
   }
 

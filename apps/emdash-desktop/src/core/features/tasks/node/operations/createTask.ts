@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { formatHostRef, type HostRef } from '@emdash/core/primitives/host/api';
-import type { ResourceClaim } from '@emdash/core/primitives/kernel/api';
 import type { CreateConversationInput } from '@emdash/core/runtimes/conversations/api';
 import { compileWorktreePayload } from '@emdash/core/services/workspace-host-actions/api';
 import { err, ok, type Result } from '@emdash/shared';
@@ -31,12 +30,9 @@ import {
   type RegistryWorktreeSpec,
   type WorkspaceCreations,
 } from '@core/features/workspaces/api/node/registry-verbs';
+import { findWorkspaceTombstoneConflict } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
-import {
-  branchKernelClaim,
-  workspaceKernelResource,
-} from '@core/primitives/operations/api/resources';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -98,24 +94,26 @@ export async function prepareCreateTask(
       : workspaceConfig.git.kind === 'pr-branch'
         ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
         : undefined;
-  const claimResources: ResourceClaim[] = [];
-  if (wsTarget.kind === 'repository-instance') {
-    claimResources.push(
-      ...workspaceKernelResource.mutates({
-        projectId: params.projectId,
-        workspaceId: wsTarget.workspaceId,
-      })
-    );
-  }
-  if (branchName !== undefined) {
-    claimResources.push(...branchKernelClaim(params.projectId, branchName));
-  }
-  const claimConflict = await operations.hasClaimConflict(claimResources);
-  if (claimConflict) {
-    return err({
-      type: 'provision-failed',
-      message: 'A previous cleanup for this workspace is waiting for review or connectivity.',
-    });
+  // Tombstone-aware creation admission (ADR 0006, spec §4): a pending deletion
+  // tombstone on the target workspace or its branch refuses creation — a data check
+  // against the mirror, the successor to the retired claim-conflict preflight.
+  // Recreating waits for sweep convergence or the user's untrack. Placement never
+  // picks a tombstone-pending path either: tombstoned rows stay live, so the path
+  // allocator below already skips them.
+  const isRemoteHost = project.host.type === 'remote';
+  const tombstoneConflict = findWorkspaceTombstoneConflict(
+    db,
+    wsTarget.kind === 'repository-instance'
+      ? { kind: 'workspace', workspaceId: wsTarget.workspaceId }
+      : {
+          kind: 'placement',
+          location: isRemoteHost ? 'remote' : 'local',
+          sshConnectionId: isRemoteHost ? project.host.id : null,
+          branch: branchName ?? undefined,
+        }
+  );
+  if (tombstoneConflict) {
+    return err(tombstoneConflict);
   }
 
   // Creation is UX-gated on host availability (spec §6.3, one rule for every target
