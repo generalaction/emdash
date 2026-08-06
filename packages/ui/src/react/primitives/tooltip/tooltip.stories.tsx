@@ -28,7 +28,7 @@ export const Placements: Story = {
         <Tooltip.Root key={side}>
           <Tooltip.Trigger
             render={
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="xs">
                 {side}
               </Button>
             }
@@ -47,7 +47,7 @@ export const Aligned: Story = {
         <Tooltip.Root key={align}>
           <Tooltip.Trigger
             render={
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="xs">
                 {align}
               </Button>
             }
@@ -93,7 +93,7 @@ export const WithProviderDelay: Story = {
           <Tooltip.Root key={label}>
             <Tooltip.Trigger
               render={
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="xs">
                   {label}
                 </Button>
               }

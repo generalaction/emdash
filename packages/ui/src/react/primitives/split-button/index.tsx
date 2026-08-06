@@ -68,7 +68,7 @@ export function SplitButton({
   onSelectedChange,
   onAction,
   disabled = false,
-  size = 'sm',
+  size = 'xs',
   variant = 'primary',
   tone = 'neutral',
   className,

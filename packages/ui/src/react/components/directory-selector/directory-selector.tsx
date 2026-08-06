@@ -89,7 +89,7 @@ export function DirectorySelector({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="xs"
             icon
             disabled={!canGoBack}
             aria-label="Go back"
@@ -100,7 +100,7 @@ export function DirectorySelector({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="xs"
             icon
             disabled={!canGoForward}
             aria-label="Go forward"
@@ -185,7 +185,7 @@ export function DirectorySelector({
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
+                size="xs"
                 disabled={isCreatingFolder}
                 onClick={() => setIsCreatingFolder(true)}
               >
@@ -195,7 +195,7 @@ export function DirectorySelector({
             )}
             <div className={styles.footerActionsRight}>
               {onCancel && (
-                <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
+                <Button type="button" variant="secondary" size="xs" onClick={onCancel}>
                   Cancel
                 </Button>
               )}
@@ -203,7 +203,7 @@ export function DirectorySelector({
                 <Button
                   type="button"
                   variant="primary"
-                  size="sm"
+                  size="xs"
                   disabled={!selectedPath}
                   onClick={() => {
                     if (selectedPath) onConfirm(selectedPath);

@@ -397,7 +397,7 @@ function ComposerPlayground(args: PlaygroundArgs) {
     <Box className={cx(s.mxAuto, s.maxW2xl)} width="full">
       <Box marginBottom="3" display="flex" alignItems="center" gap="3">
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           tone="destructive"
           disabled={!noticeVisible}

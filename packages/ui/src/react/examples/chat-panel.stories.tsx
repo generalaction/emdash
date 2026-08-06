@@ -341,7 +341,7 @@ function LiveChatPanel({
         >
           <Button
             variant="primary"
-            size="sm"
+            size="xs"
             icon
             aria-label="Scroll to bottom"
             onClick={() => viewRef.current?.scrollToBottom({ behavior: 'smooth' })}

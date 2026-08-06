@@ -17,7 +17,7 @@ export const Bare: Story = {
   render: () => (
     <Box display="flex" flexWrap="wrap" alignItems="center" gap="3">
       <TriggerButton>Choose an option</TriggerButton>
-      <TriggerButton size="sm">Small trigger</TriggerButton>
+      <TriggerButton size="xs">Small trigger</TriggerButton>
       <TriggerButton showChevron={false}>No chevron</TriggerButton>
     </Box>
   ),

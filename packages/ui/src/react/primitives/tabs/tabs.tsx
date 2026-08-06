@@ -28,7 +28,7 @@ export interface TabsTabProps extends TabsPrimitive.Tab.Props {
 }
 
 const TabsTab = React.forwardRef<HTMLButtonElement, TabsTabProps>(function TabsTab(
-  { className, size = 'sm', tone = 'neutral', ...props },
+  { className, size = 'xs', tone = 'neutral', ...props },
   ref
 ) {
   return (

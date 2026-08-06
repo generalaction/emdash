@@ -21,7 +21,7 @@ export const Standalone: Story = {
       <Toggle aria-label="Italic">
         <ItalicIcon />
       </Toggle>
-      <Toggle size="sm" aria-label="Bold sm">
+      <Toggle size="xs" aria-label="Bold xs">
         <BoldIcon />
       </Toggle>
     </Box>

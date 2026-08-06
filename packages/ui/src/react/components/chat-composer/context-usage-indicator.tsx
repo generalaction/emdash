@@ -74,7 +74,7 @@ export function ContextUsageIndicator({
         render={
           <Button
             variant="ghost"
-            size="sm"
+            size="xs"
             icon
             disabled={disabled}
             aria-label={`Context window: ${pct}% used`}

@@ -45,7 +45,7 @@ export function ExpandableImage({
       <Button
         type="button"
         variant="secondary"
-        size="sm"
+        size="xs"
         icon
         aria-label="Expand image"
         title="Expand image"

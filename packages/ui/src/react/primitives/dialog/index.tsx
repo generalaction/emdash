@@ -76,7 +76,7 @@ function DialogHeader({
           render={
             <Button
               variant="ghost"
-              size="sm"
+              size="xs"
               icon
               aria-label="Close"
               className={styles.closeButtonOverride}

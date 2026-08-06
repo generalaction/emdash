@@ -94,7 +94,7 @@ function ToolbarButton({
     <Button
       type="button"
       variant="ghost"
-      size="sm"
+      size="xs"
       icon
       aria-label={label}
       title={label}

@@ -48,8 +48,8 @@ const controlBase = style({
 globalStyle(`${controlBase} svg`, { pointerEvents: 'none', flexShrink: 0 });
 globalStyle(`${controlBase} svg:not([class*='size-'])`, { width: '1rem', height: '1rem' });
 
-// Pre-create sm size style for its svg override
-const smSizeBase = style({
+// Pre-create xs size style for its svg override
+const xsSizeBase = style({
   height: '1.5rem',
   gap: '0.25rem',
   paddingLeft: '0.5rem',
@@ -57,7 +57,7 @@ const smSizeBase = style({
   fontSize: tokenVars.textXs,
   borderRadius: tokenVars.radiusMd,
 });
-globalStyle(`${smSizeBase} svg:not([class*='size-'])`, { width: '0.75rem', height: '0.75rem' });
+globalStyle(`${xsSizeBase} svg:not([class*='size-'])`, { width: '0.75rem', height: '0.75rem' });
 
 export const controlVariants = recipe({
   base: controlBase,
@@ -161,6 +161,7 @@ export const controlVariants = recipe({
       success: {},
     },
 
+    // Four-step control scale: xs 24px / sm 28px / base 32px / lg 40px.
     size: {
       base: {
         height: '2rem',
@@ -168,7 +169,20 @@ export const controlVariants = recipe({
         paddingLeft: '0.625rem',
         paddingRight: '0.625rem',
       },
-      sm: smSizeBase,
+      xs: xsSizeBase,
+      sm: {
+        height: '1.75rem',
+        gap: '0.25rem',
+        paddingLeft: '0.625rem',
+        paddingRight: '0.625rem',
+        borderRadius: tokenVars.radiusMd,
+      },
+      lg: {
+        height: '2.5rem',
+        gap: '0.375rem',
+        paddingLeft: '0.625rem',
+        paddingRight: '0.625rem',
+      },
       link: {
         height: 'auto',
         gap: '0.25rem',
@@ -311,10 +325,20 @@ export const controlVariants = recipe({
       variants: { icon: true, size: 'base' },
       style: { width: '2rem', height: '2rem', paddingLeft: 0, paddingRight: 0 },
     },
-    // icon + sm → 1.5rem square
+    // icon + xs → 1.5rem square
+    {
+      variants: { icon: true, size: 'xs' },
+      style: { width: '1.5rem', height: '1.5rem', paddingLeft: 0, paddingRight: 0 },
+    },
+    // icon + sm → 1.75rem square
     {
       variants: { icon: true, size: 'sm' },
-      style: { width: '1.5rem', height: '1.5rem', paddingLeft: 0, paddingRight: 0 },
+      style: { width: '1.75rem', height: '1.75rem', paddingLeft: 0, paddingRight: 0 },
+    },
+    // icon + lg → 2.5rem square
+    {
+      variants: { icon: true, size: 'lg' },
+      style: { width: '2.5rem', height: '2.5rem', paddingLeft: 0, paddingRight: 0 },
     },
     // kbd + base → align the trailing shortcut and keep the text-to-kbd gap
     // equal to the right padding so the Kbd sits in a balanced right-side slot.
@@ -322,10 +346,18 @@ export const controlVariants = recipe({
       variants: { kbd: true, size: 'base' },
       style: { gap: tokenVars.space2, paddingRight: tokenVars.space1_5 },
     },
-    // kbd + sm → smaller right-side slot for the smaller button.
+    {
+      variants: { kbd: true, size: 'lg' },
+      style: { gap: tokenVars.space2, paddingRight: tokenVars.space1_5 },
+    },
+    // kbd + xs / sm → smaller right-side slot for the smaller buttons.
+    {
+      variants: { kbd: true, size: 'xs' },
+      style: { gap: '6px', paddingRight: '2.5px' },
+    },
     {
       variants: { kbd: true, size: 'sm' },
-      style: { gap: '6px', paddingRight: '2.5px' },
+      style: { gap: '6px', paddingRight: tokenVars.space1 },
     },
   ],
 

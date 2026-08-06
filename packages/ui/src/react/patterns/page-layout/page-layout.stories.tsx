@@ -100,7 +100,7 @@ function LibraryDemo() {
                   placeholder="Search…"
                   style={{ flex: 1 }}
                 />
-                <Button size="sm">
+                <Button size="xs">
                   <PlusIcon size={14} />
                   New Prompt
                 </Button>
@@ -231,7 +231,7 @@ function AutomationsDemo() {
                     placeholder="Search automations…"
                     style={{ flex: 1 }}
                   />
-                  <Button size="sm" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <Button size="xs" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
                     <PlusIcon style={{ width: '0.875rem', height: '0.875rem' }} />
                     New Automation
                   </Button>
@@ -465,7 +465,7 @@ function SidebarWithFooterDemo() {
                 >
                   Emdash UI v1.0.0
                 </div>
-                <Button size="sm" variant="ghost" style={{ justifyContent: 'flex-start' }}>
+                <Button size="xs" variant="ghost" style={{ justifyContent: 'flex-start' }}>
                   Manage sidebar
                 </Button>
               </div>

@@ -23,7 +23,7 @@ export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTree
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="xs"
           icon
           aria-label="New file"
           onClick={() => startDraft('file')}
@@ -33,7 +33,7 @@ export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTree
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="xs"
           icon
           aria-label="New folder"
           onClick={() => startDraft('directory')}
@@ -43,7 +43,7 @@ export function FileTreeHeader({ targetPath, startDraft, collapseAll }: FileTree
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="xs"
           icon
           aria-label="Collapse all"
           onClick={collapseAll}

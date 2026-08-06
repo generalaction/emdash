@@ -106,7 +106,7 @@ export function PermissionBand({
         selectedId={selectedId}
         onSelectedChange={setSelectedId}
         onAction={onResolve}
-        size="sm"
+        size="xs"
         variant="secondary"
         className={styles.bandAction}
         menuClassName={composerThemeScope}

@@ -47,7 +47,7 @@ const ToggleGroupItem = React.forwardRef<
   HTMLButtonElement,
   TogglePrimitive.Props & Pick<ControlVariantProps, 'size' | 'tone'> & { icon?: boolean }
 >(function ToggleGroupItem(
-  { className, size = 'sm', tone = 'neutral', icon = false, ...props },
+  { className, size = 'xs', tone = 'neutral', icon = false, ...props },
   ref
 ) {
   return (

@@ -60,7 +60,7 @@ function InputGroupButton({
   return (
     <Button
       type={type}
-      size="sm"
+      size="xs"
       icon
       className={cx(styles.inputGroupButton, className)}
       {...props}
