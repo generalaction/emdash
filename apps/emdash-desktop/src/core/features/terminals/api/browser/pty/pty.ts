@@ -12,7 +12,13 @@ import { log } from '@renderer/utils/logger';
 import { decodeOsc52ClipboardData } from '../../../browser/pty/pty-clipboard';
 import { ensureXtermHost } from '../../../browser/pty/xterm-host';
 
-const SCROLLBACK_LINES = 100_000;
+/**
+ * Task-terminal scrollback. The main side retains only 1 MB of output per PTY
+ * session for replay, so deep scrollback never survives a restart anyway; 10k
+ * lines is an order of magnitude beyond realistic scroll review and cuts the
+ * dominant per-terminal memory cost ~10× versus the previous 100k.
+ */
+const SCROLLBACK_LINES = 10_000;
 
 export const TERMINAL_PADDING_PX = 8;
 export const TERMINAL_LINE_HEIGHT = 1.2;
@@ -215,7 +221,7 @@ export class FrontendPty {
       this.terminal.resize(targetDims.cols, targetDims.rows);
     }
     mountTarget.appendChild(this.ownedContainer);
-    // Force a Canvas2D repaint after reparenting in the DOM.
+    // Force a repaint after reparenting in the DOM.
     const t = this.terminal;
     requestAnimationFrame(() => {
       try {
@@ -229,6 +235,11 @@ export class FrontendPty {
    * Move ownedContainer back to the off-screen host (tab deactivated /
    * TerminalPane unmounting).  Must be called after all ResizeObservers on
    * the visible mount target have been disconnected.
+   *
+   * While parked, xterm's render service pauses itself: the host sits outside
+   * the viewport, so the core IntersectionObserver reports zero intersection
+   * and refreshes are skipped until the terminal is mounted again. The text
+   * buffer stays intact for an instant, pixel-faithful restore.
    */
   unmount(): void {
     ensureXtermHost().appendChild(this.ownedContainer);

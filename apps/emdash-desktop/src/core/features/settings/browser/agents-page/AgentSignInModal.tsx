@@ -167,7 +167,8 @@ function createLoginTerminal(): Terminal {
   const terminal = new Terminal({
     cols: 120,
     rows: 32,
-    scrollback: 100_000,
+    // Short-lived login flow: a screenful of context is plenty.
+    scrollback: 1_000,
     fontFamily: buildTerminalFontFamily(),
     fontSize: TERMINAL_FONT_SIZE_DEFAULT,
     lineHeight: TERMINAL_LINE_HEIGHT,
