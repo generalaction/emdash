@@ -2,8 +2,12 @@
 
 ## Toolchain
 
-- Node: `24.14.0` from `.nvmrc`
-- Package manager: `pnpm@10.28.2`
+- Only prerequisite: any `pnpm` on PATH. The root `package.json` pins
+  `packageManager: pnpm@10.28.2` and `devEngines.runtime` node `24.14.0` with
+  `onFail: "download"`, so `pnpm install` provisions the pinned pnpm and Node
+  itself (no nvm or corepack needed).
+- Optional: the committed `mise.toml` pins node + pnpm for mise users; `.nvmrc`
+  remains as a compatibility hint.
 - Workspace layout: pnpm monorepo; the Electron app lives in `apps/emdash-desktop/`
 
 ## Core Commands

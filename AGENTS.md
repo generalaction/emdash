@@ -45,8 +45,12 @@ Inside `apps/emdash-desktop/`:
 
 ## Build & Development Commands
 
-Use Node `24.14.0` from `.nvmrc` and `pnpm@10.28.2`. Root scripts are powered by Nx
-and run package targets in dependency order with local caching where configured.
+The only prerequisite is any `pnpm` on PATH: the root `package.json` pins
+`packageManager: pnpm@10.28.2` and `devEngines.runtime` node `24.14.0` with
+`onFail: "download"`, so pnpm provisions the pinned toolchain itself (no nvm or
+corepack). The committed `mise.toml` is an optional convenience for mise users.
+Root scripts are powered by Nx and run package targets in dependency order with
+local caching where configured.
 
 Install dependencies from the repo root:
 

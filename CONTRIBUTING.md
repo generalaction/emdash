@@ -9,20 +9,24 @@ and the conventions contributors should follow before opening a PR.
 ### Prerequisites
 
 - Git
-- Node.js `24.14.0` from `.nvmrc`
-- `pnpm@10.28.2`
+- Any reasonably recent `pnpm` (install via Homebrew, `npm install -g pnpm`, or
+  `curl -fsSL https://get.pnpm.io/install.sh | sh -`)
 - Optional, but useful for integration work:
   - GitHub CLI (`gh`)
   - At least one supported coding agent CLI
-  - Docker, when working on SSH development infrastructure
+  - Docker, when working on remote development infrastructure
 
-Use the pinned toolchain where possible:
+That is the whole toolchain requirement. `package.json` pins both the package
+manager (`packageManager: pnpm@10.28.2`) and the Node runtime
+(`devEngines.runtime` with `onFail: "download"`), so any pnpm on PATH swaps
+itself to the pinned version and provisions the pinned Node — checksummed in
+`pnpm-lock.yaml` — when it runs in this repo. You do not need nvm, corepack, or
+a preinstalled Node of the right version.
 
-```bash
-nvm use
-corepack enable
-pnpm --version
-```
+If you use [mise](https://mise.jdx.dev) for toolchain auto-switching, the
+committed `mise.toml` pins node and pnpm for you; it is optional and required
+by nothing. `.nvmrc` remains as a compatibility hint for other version
+managers.
 
 ### Get The Source
 
@@ -40,6 +44,10 @@ From the repo root:
 ```bash
 pnpm install
 ```
+
+This single command provisions the pinned pnpm and Node if needed, installs
+dependencies, and prepares the native modules — after it succeeds the machine
+is ready for every dev flow.
 
 This repository is a pnpm workspace. The Electron app is in
 `apps/emdash-desktop/`, and shared workspace packages live in `packages/`.

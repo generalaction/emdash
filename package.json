@@ -23,6 +23,13 @@
     "node": ">=24.0.0",
     "pnpm": ">=10.28.0"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.14.0",
+      "onFail": "download"
+    }
+  },
   "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "onlyBuiltDependencies": [
