@@ -8,11 +8,19 @@ import type {
 import {
   hostDependencyErrorSchema,
   hostDependencyOperationProgressSchema,
+  hostDependencySnapshotSchema,
   installMethodSchema,
 } from '@emdash/core/services/host-dependencies/api';
 import type { Result } from '@emdash/shared';
 import { resultSchema } from '@emdash/shared';
-import { defineContract, liveJob, procedure } from '@emdash/wire/api';
+import {
+  defineContract,
+  liveJob,
+  liveModel,
+  liveState,
+  mutation,
+  procedure,
+} from '@emdash/wire/api';
 import { z } from 'zod';
 import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
 
@@ -73,9 +81,18 @@ export const machinesContract = defineContract({
     input: hostInput,
     output: resourceUsageSampleSchema,
   }),
-  getMachineSystemDependencies: procedure({
-    input: hostInput,
-    output: z.array(z.custom<MachineSystemDependencyStatus>()),
+  systemDependencies: liveModel({
+    key: hostInput,
+    states: {
+      current: liveState({ data: hostDependencySnapshotSchema }),
+    },
+    mutations: {
+      refresh: mutation({
+        input: z.void(),
+        data: hostDependencySnapshotSchema,
+        error: hostDependencyErrorSchema,
+      }),
+    },
   }),
   installSystemDependencies: liveJob({
     input: hostInput.extend({ dependencies: z.array(systemDependencyInstallInput).min(1) }),

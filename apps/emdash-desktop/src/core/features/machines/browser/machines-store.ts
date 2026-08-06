@@ -17,17 +17,13 @@ import { machinesContract } from '../api';
 import type {
   InstallMachineSystemDependenciesInput,
   InstallMachineSystemDependenciesResult,
-  MachineSystemDependencyStatus,
 } from '../api';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
   Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
 type SshClient = ContractClient<typeof sshContract>;
 type MachinesClient = ContractClient<typeof machinesContract>;
-export type SystemDependenciesStore = Pick<
-  MachinesStore,
-  'getSystemDependencies' | 'installSystemDependencies'
->;
+export type SystemDependenciesStore = Pick<MachinesStore, 'installSystemDependencies'>;
 
 export type MachinesStoreOptions = {
   onConnectionReady?: (connectionId: string) => void;
@@ -200,10 +196,6 @@ export class MachinesStore {
     return await (await this.getSshClient()).testConnection(config);
   }
 
-  async getSystemDependencies(machineId?: string): Promise<MachineSystemDependencyStatus[]> {
-    return await (await this.getMachinesClient()).getMachineSystemDependencies({ machineId });
-  }
-
   async installSystemDependencies(
     input: InstallMachineSystemDependenciesInput
   ): Promise<InstallMachineSystemDependenciesResult> {
@@ -303,8 +295,6 @@ export class MachinesStore {
 
 export function createSystemDependenciesStore(): SystemDependenciesStore {
   return {
-    getSystemDependencies: async (machineId?: string) =>
-      await (await getDesktopWireClient()).machines.getMachineSystemDependencies({ machineId }),
     installSystemDependencies: async (input: InstallMachineSystemDependenciesInput) =>
       await runSystemDependencyInstall((await getDesktopWireClient()).machines, input),
   };

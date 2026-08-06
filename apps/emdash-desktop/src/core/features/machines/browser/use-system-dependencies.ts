@@ -1,5 +1,6 @@
 import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
-import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
+import { err } from '@emdash/shared';
+import { useMutation, useMutationState } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import type {
   InstallMachineSystemDependenciesResult,
@@ -10,9 +11,7 @@ import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencie
 import { useDependencyOperationFailures } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import type { SystemDependenciesStore } from './machines-store';
-
-const systemDependencyQueryKey = (machineId: string | undefined) =>
-  ['machines', machineId, 'system-dependencies'] as const;
+import { useSystemDependencySnapshot } from './use-system-dependency-snapshot';
 
 const systemDependencyInstallKey = (machineId: string | undefined) =>
   ['machines', machineId, 'system-dependencies', 'install'] as const;
@@ -41,30 +40,21 @@ export function useSystemDependencies(
   enabled: boolean,
   machinesStore: SystemDependenciesStore
 ) {
-  const queryClient = useQueryClient();
+  const { snapshot, data, error, isLoading, refresh } = useSystemDependencySnapshot(
+    machineId,
+    enabled
+  );
   const failureMap = useDependencyOperationFailures();
-  const queryKey = systemDependencyQueryKey(machineId);
   const installKey = systemDependencyInstallKey(machineId);
   const batchInstallKey = systemDependencyBatchInstallKey(machineId);
 
-  const query = useQuery<MachineSystemDependencyStatus[]>({
-    queryKey,
-    enabled,
-    staleTime: 30_000,
-    queryFn: async () => await machinesStore.getSystemDependencies(machineId),
-  });
-
   const nameById = useMemo(() => {
     const names = new Map<string, string>();
-    for (const dependency of query.data ?? []) names.set(dependency.id, dependency.name);
+    for (const dependency of data ?? []) names.set(dependency.id, dependency.name);
     return names;
-  }, [query.data]);
+  }, [data]);
 
   const nameOf = useCallback((id: string) => nameById.get(id) ?? id, [nameById]);
-
-  const invalidate = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey });
-  }, [queryClient, queryKey]);
 
   const reportInstallResult = useCallback(
     (result: InstallMachineSystemDependencyResult, variables: InstallVariables) => {
@@ -106,21 +96,13 @@ export function useSystemDependencies(
         machineId,
         dependencies: [{ id, method, elevate }],
       });
-      return (
-        results[id] ?? {
-          success: false,
-          error: { type: 'io', message: `Install result missing for dependency: ${id}` },
-        }
-      );
+      return resultForId(results, id);
     },
-    onSuccess: (result, variables) => {
-      invalidate();
-      reportInstallResult(result, variables);
-    },
-    onError: (error, variables) => {
+    onSuccess: reportInstallResult,
+    onError: (installError, variables) => {
       toast({
         title: `Failed to install ${nameOf(variables.id)}`,
-        description: error.message,
+        description: installError.message,
         variant: 'destructive',
       });
     },
@@ -135,25 +117,14 @@ export function useSystemDependencies(
     mutationFn: async ({ dependencies }) =>
       await machinesStore.installSystemDependencies({ machineId, dependencies }),
     onSuccess: (results, variables) => {
-      invalidate();
       for (const dependency of variables.dependencies) {
-        const result = results[dependency.id];
-        if (result) {
-          reportInstallResult(result, dependency);
-          continue;
-        }
-        failureMap.clearFailure(dependency.id);
-        toast({
-          title: `Failed to install ${nameOf(dependency.id)}`,
-          description: 'The host did not return an install result.',
-          variant: 'destructive',
-        });
+        reportInstallResult(resultForId(results, dependency.id), dependency);
       }
     },
-    onError: (error) => {
+    onError: (installError) => {
       toast({
         title: 'Failed to install system dependencies',
-        description: error.message,
+        description: installError.message,
         variant: 'destructive',
       });
     },
@@ -201,8 +172,11 @@ export function useSystemDependencies(
   );
 
   return {
-    ...query,
-    refresh: query.refetch,
+    snapshot,
+    data,
+    error,
+    isLoading,
+    refresh,
     install,
     installAll,
     installFailures: failureMap.failures,
@@ -210,4 +184,13 @@ export function useSystemDependencies(
     installingIds,
     isInstalling: installMutation.isPending || batchInstallMutation.isPending,
   };
+}
+
+function resultForId(
+  results: InstallMachineSystemDependenciesResult,
+  id: string
+): InstallMachineSystemDependencyResult {
+  return (
+    results[id] ?? err({ type: 'io', message: `Install result missing for dependency: ${id}` })
+  );
 }

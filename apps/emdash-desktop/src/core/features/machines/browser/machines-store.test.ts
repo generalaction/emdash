@@ -1,3 +1,4 @@
+import type { HostDependencySnapshot } from '@emdash/core/services/host-dependencies/api';
 import { ok } from '@emdash/shared';
 import { deferred, type Deferred } from '@emdash/shared/testing';
 import { cell, expose, peek, produce } from '@emdash/wire';
@@ -300,6 +301,21 @@ function setup(
         )
       )
   );
+  const systemDependenciesSnapshot = cell<HostDependencySnapshot>({
+    hostId: 'test-host',
+    generation: 0,
+    hostElevation: null,
+    dependencies: {},
+  });
+  const systemDependencies = expose(
+    machinesContract.systemDependencies,
+    { current: systemDependenciesSnapshot },
+    {
+      mutations: {
+        refresh: async () => ok(peek(systemDependenciesSnapshot)),
+      },
+    }
+  );
   const sshWire = createTestWire(sshContract, {
     connections,
     connect: async ({ connectionId }) => {
@@ -343,7 +359,7 @@ function setup(
     getMachines: async () => options.saved ?? [],
     getMachineUsage: async () => ({}),
     getMachineMetrics: async () => null as never,
-    getMachineSystemDependencies: async () => [],
+    systemDependencies,
     installSystemDependencies: {
       run: installSystemDependencies,
       toError: (error) => ({
