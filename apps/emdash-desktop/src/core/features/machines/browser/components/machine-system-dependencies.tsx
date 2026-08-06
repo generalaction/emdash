@@ -4,6 +4,8 @@ import { Box, Button, Field, Heading } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 import type { MachineSystemDependencyStatus } from '@core/features/machines/api';
+import { SudoRetryPanel } from '@core/primitives/agents/browser/SudoRetryPanel';
+import type { DependencyOperationFailure } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
 import type { SystemDependenciesStore } from '../machines-store';
 import { useSystemDependencies } from '../use-system-dependencies';
 
@@ -16,8 +18,17 @@ export function MachineSystemDependenciesCard({
   machineId,
   machinesStore,
 }: MachineSystemDependenciesCardProps) {
-  const { data, error, install, installAll, installingIds, isInstalling, isLoading } =
-    useSystemDependencies(machineId, true, machinesStore);
+  const {
+    data,
+    error,
+    install,
+    installAll,
+    installFailures,
+    dismissInstallFailure,
+    installingIds,
+    isInstalling,
+    isLoading,
+  } = useSystemDependencies(machineId, true, machinesStore);
 
   const dependencies = useMemo(
     () => [...(data ?? [])].sort((left, right) => left.name.localeCompare(right.name)),
@@ -76,13 +87,17 @@ export function MachineSystemDependenciesCard({
               title="Required"
               dependencies={requiredDependencies}
               installingIds={installingIds}
+              installFailures={installFailures}
               onInstall={install}
+              onDismissFailure={dismissInstallFailure}
             />
             <DependencySection
               title="Recommended"
               dependencies={recommendedDependencies}
               installingIds={installingIds}
+              installFailures={installFailures}
               onInstall={install}
+              onDismissFailure={dismissInstallFailure}
             />
           </div>
         )}
@@ -95,12 +110,16 @@ function DependencySection({
   title,
   dependencies,
   installingIds,
+  installFailures,
   onInstall,
+  onDismissFailure,
 }: {
   title: string;
   dependencies: MachineSystemDependencyStatus[];
   installingIds: Set<string>;
-  onInstall: (dependencyId: string, method?: InstallMethod) => void;
+  installFailures: Record<string, DependencyOperationFailure>;
+  onInstall: (dependencyId: string, method?: InstallMethod, elevate?: boolean) => void;
+  onDismissFailure: (dependencyId: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -119,12 +138,15 @@ function DependencySection({
                 key={dependency.id}
                 dependency={dependency}
                 installing={installingIds.has(dependency.id)}
+                failure={installFailures[dependency.id] ?? null}
                 onInstall={() => {
                   const option =
                     dependency.installOptions.find((candidate) => candidate.recommended) ??
                     dependency.installOptions[0];
                   onInstall(dependency.id, option?.method);
                 }}
+                onRetry={(method) => onInstall(dependency.id, method, true)}
+                onDismissFailure={() => onDismissFailure(dependency.id)}
               />
             ))}
           </div>
@@ -137,35 +159,52 @@ function DependencySection({
 function SystemDependencyRow({
   dependency,
   installing,
+  failure,
   onInstall,
+  onRetry,
+  onDismissFailure,
 }: {
   dependency: MachineSystemDependencyStatus;
   installing: boolean;
+  failure: DependencyOperationFailure | null;
   onInstall: () => void;
+  onRetry: (method?: InstallMethod) => void;
+  onDismissFailure: () => void;
 }) {
   const available = dependency.status === 'available';
   const canInstall = !available && dependency.installOptions.length > 0;
 
   return (
-    <div className="flex h-10 min-w-0 items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs">{dependency.name}</div>
+    <div className="space-y-2 py-1.5">
+      <div className="flex h-10 min-w-0 items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs">{dependency.name}</div>
+        </div>
+        {available ? (
+          <CheckCircle2 className="size-4 shrink-0 text-foreground-success" />
+        ) : canInstall ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={installing}
+            onClick={onInstall}
+          >
+            {installing ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
+          </Button>
+        ) : (
+          <span className="shrink-0 text-xs text-foreground-muted">Not found</span>
+        )}
       </div>
-      {available ? (
-        <CheckCircle2 className="size-4 shrink-0 text-foreground-success" />
-      ) : canInstall ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={installing}
-          onClick={onInstall}
-        >
-          {installing ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
-        </Button>
-      ) : (
-        <span className="shrink-0 text-xs text-foreground-muted">Not found</span>
-      )}
+      {failure ? (
+        <SudoRetryPanel
+          error={failure.error}
+          dependencyName={dependency.name}
+          isRetrying={installing}
+          onRetry={() => onRetry(failure.method)}
+          onDismiss={onDismissFailure}
+        />
+      ) : null}
     </div>
   );
 }

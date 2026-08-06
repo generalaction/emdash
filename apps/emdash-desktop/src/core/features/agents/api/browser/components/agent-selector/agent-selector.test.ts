@@ -1,7 +1,8 @@
 import { asAgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
 import type { AgentCapabilities } from '@core/primitives/agents/api';
-import { getAgentInstallActionState, getAgentInstallErrorMessage } from './agent-install';
+import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
+import { getAgentInstallActionState } from './agent-install';
 import {
   buildAgentGroups,
   canInstallAgentOption,
@@ -154,8 +155,9 @@ describe('buildAgentGroups', () => {
 
   it('maps permission install errors to friendly copy', () => {
     expect(
-      getAgentInstallErrorMessage({
+      getHostDependencyErrorMessage({
         type: 'permission-denied',
+        id: 'codex',
         message: 'User does not have sufficient permissions.',
         output: 'permission denied',
         exitCode: 243,
@@ -165,7 +167,7 @@ describe('buildAgentGroups', () => {
 
   it('maps missing installer errors to friendly copy', () => {
     expect(
-      getAgentInstallErrorMessage({
+      getHostDependencyErrorMessage({
         type: 'installer-missing',
         id: 'codex',
         tool: 'npm',

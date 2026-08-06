@@ -46,13 +46,13 @@ export function createMachinesWireController(
       const snapshot = await refreshSystemDependencies(runtime);
       return mapSystemDependencySnapshot(snapshot);
     },
-    installMachineSystemDependency: async ({ machineId, id, method }) => {
+    installMachineSystemDependency: async ({ machineId, id, method, elevate }) => {
       if (!systemDependencyIds.has(id)) return err({ type: 'unknown-dependency', id });
       const runtime = await resolveMachineRuntime(runtimes, machineId);
       const result = await runRuntimeLiveJob(
         hostDependenciesContract.runInstallCommand,
         runtime.hostDependencies.runInstallCommand,
-        { id, method }
+        { id, method, elevate }
       );
       if (!result.success) return err(result.error);
       return ok(mapSystemDependencyView(result.data));

@@ -33,6 +33,7 @@ export type InstallSectionProps = {
   installDocs?: string | null;
   /** @deprecated No-op; override options are always visible in the source menu. */
   hideOverrideOptions?: boolean;
+  compact?: boolean;
 };
 
 function isOverrideRef(
@@ -73,6 +74,7 @@ export const InstallSection = observer(function InstallSection({
   installOptions,
   installDocs,
   hideOverrideOptions,
+  compact,
 }: InstallSectionProps) {
   return (
     <LocalInstallSection
@@ -82,6 +84,7 @@ export const InstallSection = observer(function InstallSection({
       installOptions={installOptions}
       installDocs={installDocs}
       hideOverrideOptions={hideOverrideOptions}
+      compact={compact}
     />
   );
 });
@@ -93,6 +96,7 @@ const LocalInstallSection = observer(function LocalInstallSection({
   installOptions,
   installDocs: _installDocs,
   hideOverrideOptions: _hideOverrideOptions,
+  compact = false,
 }: InstallSectionProps) {
   const vm = useAgentInstallationStatus(
     agentId,
@@ -202,7 +206,11 @@ const LocalInstallSection = observer(function LocalInstallSection({
       />
 
       {state === 'found' && (
-        <DependencyInstallationUpdateCard agentId={agentId} agentPayload={agentPayload} />
+        <DependencyInstallationUpdateCard
+          agentId={agentId}
+          agentPayload={agentPayload}
+          compact={compact}
+        />
       )}
 
       {state !== 'found' && !isOverrideRef(selectedSource) && (
@@ -211,6 +219,8 @@ const LocalInstallSection = observer(function LocalInstallSection({
           installOptions={effectiveInstallOptions}
           isInstalling={vm.isInstalling}
           installingMethod={vm.installingMethod}
+          dependencyName={agentPayload?.name ?? agentId}
+          compact={compact}
         />
       )}
 

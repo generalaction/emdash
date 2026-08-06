@@ -1,14 +1,12 @@
-import { formatCommandOutputTail } from '@emdash/core/primitives/host-dependencies/api';
-import type {
-  HostDependencyError,
-  InstallMethod,
-} from '@emdash/core/services/host-dependencies/api';
+import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import type {
   InstallMachineSystemDependencyResult,
   MachineSystemDependencyStatus,
 } from '@core/features/machines/api';
+import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
+import { useDependencyOperationFailures } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import type { SystemDependenciesStore } from './machines-store';
 
@@ -21,6 +19,7 @@ const systemDependencyInstallKey = (machineId: string | undefined) =>
 type InstallVariables = {
   id: string;
   method?: InstallMethod;
+  elevate?: boolean;
 };
 
 const selectInstallVariables = (mutation: { state: { variables?: unknown } }) =>
@@ -32,6 +31,7 @@ export function useSystemDependencies(
   machinesStore: SystemDependenciesStore
 ) {
   const queryClient = useQueryClient();
+  const failureMap = useDependencyOperationFailures();
   const queryKey = systemDependencyQueryKey(machineId);
   const installKey = systemDependencyInstallKey(machineId);
 
@@ -60,19 +60,34 @@ export function useSystemDependencies(
     InstallVariables
   >({
     mutationKey: installKey,
-    mutationFn: async ({ id, method }) =>
+    mutationFn: async ({ id, method, elevate }) =>
       await machinesStore.installSystemDependency({
         machineId,
         id,
         method,
+        elevate,
       }),
     onSuccess: (result, variables) => {
       invalidate();
       const name = nameOf(variables.id);
       if (result.success) {
+        failureMap.clearFailure(variables.id);
         toast({ title: `${name} successfully installed` });
         return;
       }
+      if (result.error.type === 'permission-denied') {
+        const permissionError = result.error;
+        failureMap.setFailure(variables.id, {
+          error: permissionError,
+          method: variables.method,
+        });
+        toast({
+          title: 'Permission denied',
+          description: 'See the install panel for retry and recovery options.',
+        });
+        return;
+      }
+      failureMap.clearFailure(variables.id);
       toast({
         title: `Failed to install ${name}`,
         description: getHostDependencyErrorMessage(result.error),
@@ -102,7 +117,8 @@ export function useSystemDependencies(
   }, [pendingInstalls]);
 
   const install = useCallback(
-    (id: string, method?: InstallMethod) => installMutation.mutateAsync({ id, method }),
+    (id: string, method?: InstallMethod, elevate?: boolean) =>
+      installMutation.mutateAsync({ id, method, elevate }),
     [installMutation]
   );
 
@@ -124,36 +140,9 @@ export function useSystemDependencies(
     refresh: query.refetch,
     install,
     installAll,
+    installFailures: failureMap.failures,
+    dismissInstallFailure: failureMap.clearFailure,
     installingIds,
     isInstalling: installMutation.isPending,
   };
-}
-
-export function getHostDependencyErrorMessage(error: HostDependencyError): string {
-  switch (error.type) {
-    case 'unknown-dependency':
-      return `Unknown dependency: ${error.id}`;
-    case 'missing':
-      return `Dependency is missing: ${error.id}`;
-    case 'stale-selection':
-      return `Selected path no longer exists: ${error.path}`;
-    case 'invalid-selection':
-      return error.message;
-    case 'no-install-command':
-      return `No install command is available for ${error.id}.`;
-    case 'not-detected-after-install':
-      return `Installed ${error.id}, but the binary was not detected on PATH.`;
-    case 'no-update-command':
-      return `No update command is available for ${error.id}.`;
-    case 'installer-missing':
-      return `Installer is missing: ${error.tool}.`;
-    case 'permission-denied':
-      return error.message;
-    case 'command-failed': {
-      const tail = formatCommandOutputTail(error.output);
-      return tail ? `${error.message}\n${tail}` : error.message;
-    }
-    case 'io':
-      return error.message;
-  }
 }

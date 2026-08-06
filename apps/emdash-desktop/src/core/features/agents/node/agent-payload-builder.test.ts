@@ -18,6 +18,7 @@ describe('toAgentInstallationStatus', () => {
           method: 'curl',
           command: 'curl -fsSL https://example.test/install.sh | bash',
           recommended: true,
+          elevation: 'never',
         },
       ],
       selection: null,

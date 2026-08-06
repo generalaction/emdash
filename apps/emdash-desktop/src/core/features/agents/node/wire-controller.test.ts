@@ -139,11 +139,16 @@ describe('createAgentsWireController', () => {
     });
 
     await expect(
-      controller.call('install', { host: remoteHost, id: 'claude', method: 'curl' })
+      controller.call('install', {
+        host: remoteHost,
+        id: 'claude',
+        method: 'curl',
+        elevate: true,
+      })
     ).resolves.toEqual(ok({ success: true, data: {} }));
 
     expect(client).toHaveBeenCalledWith(remoteHost);
-    expect(install).toHaveBeenCalledWith('claude', 'ssh-1', 'curl', hostDependencies);
+    expect(install).toHaveBeenCalledWith('claude', 'ssh-1', 'curl', true, hostDependencies);
   });
 
   it('forwards login output without copying', async () => {

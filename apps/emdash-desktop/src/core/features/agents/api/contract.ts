@@ -8,12 +8,17 @@ import {
 } from '@emdash/core/runtimes/agent-config/api';
 import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
+import type { Result } from '@emdash/shared';
 import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire';
 import { z } from 'zod';
 import type {
   AgentInstallationStatus,
+  AgentInstallError,
   AgentPayload,
   AgentSettings,
+  AgentUninstallError,
+  AgentUpdateError,
+  InstallMethod,
 } from '@core/primitives/agents/api';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 
@@ -43,18 +48,24 @@ export const agentsContract = defineContract({
     error: runtimeResolveErrorSchema,
   }),
   install: fallible({
-    input: agentInputSchema.extend({ method: z.unknown().optional() }),
-    data: z.unknown(),
+    input: agentInputSchema.extend({
+      method: z.custom<InstallMethod>().optional(),
+      elevate: z.boolean().optional(),
+    }),
+    data: z.custom<Result<AgentInstallationStatus, AgentInstallError>>(),
     error: runtimeResolveErrorSchema,
   }),
   update: fallible({
-    input: agentInputSchema.extend({ method: z.unknown().optional() }),
-    data: z.unknown(),
+    input: agentInputSchema.extend({
+      method: z.custom<InstallMethod>().optional(),
+      elevate: z.boolean().optional(),
+    }),
+    data: z.custom<Result<AgentInstallationStatus, AgentUpdateError>>(),
     error: runtimeResolveErrorSchema,
   }),
   uninstall: fallible({
-    input: agentInputSchema.extend({ method: z.unknown().optional() }),
-    data: z.unknown(),
+    input: agentInputSchema.extend({ method: z.custom<InstallMethod>().optional() }),
+    data: z.custom<Result<AgentInstallationStatus, AgentUninstallError>>(),
     error: runtimeResolveErrorSchema,
   }),
   getDefaultSettings: fallible({

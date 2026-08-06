@@ -37,18 +37,25 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
           runtime.hostDependencies
         )
       ),
-    install: ({ host, id, method }) =>
+    install: ({ host, id, method, elevate }) =>
       withHostRuntime(options.runtimes, host, (runtime) =>
         agentOperations.install(
           id as AgentProviderId,
           sshConnectionIdOf(host),
           method,
+          elevate,
           runtime.hostDependencies
         )
       ),
-    update: ({ host, id, method }) =>
-      withHostRuntime(options.runtimes, host, () =>
-        agentOperations.update(id as AgentProviderId, sshConnectionIdOf(host), method)
+    update: ({ host, id, method, elevate }) =>
+      withHostRuntime(options.runtimes, host, (runtime) =>
+        agentOperations.update(
+          id as AgentProviderId,
+          sshConnectionIdOf(host),
+          method,
+          elevate,
+          runtime.hostDependencies
+        )
       ),
     uninstall: ({ host, id, method }) =>
       withHostRuntime(options.runtimes, host, () =>

@@ -99,6 +99,7 @@ describe('createMachinesWireController system dependencies', () => {
     expect(runRuntimeLiveJob).toHaveBeenCalledWith(expect.anything(), runInstallCommand, {
       id: 'git',
       method: 'homebrew',
+      elevate: undefined,
     });
   });
 
@@ -131,7 +132,7 @@ function hostDependencySnapshot(views: HostDependencyView[]): HostDependencySnap
   return {
     hostId: 'test-host',
     generation: 1,
-    canElevate: null,
+    hostElevation: null,
     dependencies: Object.fromEntries(views.map((view) => [view.definition.id, view])),
   };
 }

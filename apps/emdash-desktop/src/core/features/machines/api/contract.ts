@@ -34,6 +34,7 @@ export type InstallMachineSystemDependencyInput = {
   machineId?: string;
   id: string;
   method?: InstallMethod;
+  elevate?: boolean;
 };
 
 export type InstallMachineSystemDependencyResult = Result<
@@ -62,6 +63,7 @@ export const machinesContract = defineContract({
     input: hostInput.extend({
       id: z.string().min(1),
       method: installMethodSchema.optional(),
+      elevate: z.boolean().optional(),
     }),
     output: resultSchema(z.custom<MachineSystemDependencyStatus>(), hostDependencyErrorSchema),
   }),
