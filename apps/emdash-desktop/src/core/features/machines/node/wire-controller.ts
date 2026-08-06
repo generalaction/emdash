@@ -46,45 +46,42 @@ export function createMachinesWireController(
       const snapshot = await refreshSystemDependencies(runtime);
       return mapSystemDependencySnapshot(snapshot);
     },
-    installMachineSystemDependency: async ({ machineId, id, method, elevate }) => {
-      if (!systemDependencyIds.has(id)) return err({ type: 'unknown-dependency', id });
-      const runtime = await resolveMachineRuntime(runtimes, machineId);
-      const result = await runRuntimeLiveJob(
-        hostDependenciesContract.runInstallCommand,
-        runtime.hostDependencies.runInstallCommand,
-        { id, method, elevate }
-      );
-      if (!result.success) return err(result.error);
-      return ok(mapSystemDependencyView(result.data));
-    },
-    installMachineSystemDependencies: async ({ machineId, dependencies }) => {
-      const mapped: InstallMachineSystemDependenciesResult = {};
-      const requests = dependencies.filter(({ id }) => {
-        if (systemDependencyIds.has(id)) return true;
-        mapped[id] = err({ type: 'unknown-dependency', id });
-        return false;
-      });
-      if (requests.length === 0) return mapped;
+    installSystemDependencies: {
+      run: async ({ machineId, dependencies }, context) => {
+        const mapped: InstallMachineSystemDependenciesResult = {};
+        const requests = dependencies.filter(({ id }) => {
+          if (systemDependencyIds.has(id)) return true;
+          mapped[id] = err({ type: 'unknown-dependency', id });
+          return false;
+        });
+        if (requests.length === 0) return ok(mapped);
 
-      const runtime = await resolveMachineRuntime(runtimes, machineId);
-      const result = await runRuntimeLiveJob(
-        hostDependenciesContract.runInstallBatch,
-        runtime.hostDependencies.runInstallBatch,
-        { requests }
-      );
-      if (!result.success) {
-        for (const { id } of requests) mapped[id] = err(result.error);
-        return mapped;
-      }
-      for (const { id } of requests) {
-        const entry = result.data[id];
-        mapped[id] = !entry
-          ? err({ type: 'io', message: `Install result missing for dependency: ${id}` })
-          : entry.success
-            ? ok(mapSystemDependencyView(entry.data))
-            : err(entry.error);
-      }
-      return mapped;
+        const runtime = await resolveMachineRuntime(runtimes, machineId);
+        const result = await runRuntimeLiveJob(
+          hostDependenciesContract.runInstallBatch,
+          runtime.hostDependencies.runInstallBatch,
+          { requests },
+          context.progress,
+          { signal: context.signal }
+        );
+        if (!result.success) {
+          for (const { id } of requests) mapped[id] = err(result.error);
+          return ok(mapped);
+        }
+        for (const { id } of requests) {
+          const entry = result.data[id];
+          mapped[id] = !entry
+            ? err({ type: 'io', message: `Install result missing for dependency: ${id}` })
+            : entry.success
+              ? ok(mapSystemDependencyView(entry.data))
+              : err(entry.error);
+        }
+        return ok(mapped);
+      },
+      toError: (error) => ({
+        type: 'io',
+        message: error instanceof Error ? error.message : String(error),
+      }),
     },
     saveMachine: (input) => service.saveMachine(input),
     deleteMachine: ({ id }) => service.deleteMachine(id),

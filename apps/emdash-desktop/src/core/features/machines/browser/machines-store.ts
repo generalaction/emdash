@@ -2,6 +2,7 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady, type ContractClient } from '@emdash/wire';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
+import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
 import type {
   ConnectionState,
   ConnectionTestResult,
@@ -9,15 +10,14 @@ import type {
   SshConfigHost,
   SshHealthState,
 } from '@core/primitives/ssh/api';
+import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { machinesContract } from '../api';
 import type {
   InstallMachineSystemDependenciesInput,
   InstallMachineSystemDependenciesResult,
-  InstallMachineSystemDependencyInput,
-  InstallMachineSystemDependencyResult,
   MachineSystemDependencyStatus,
-  machinesContract,
 } from '../api';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
@@ -26,7 +26,7 @@ type SshClient = ContractClient<typeof sshContract>;
 type MachinesClient = ContractClient<typeof machinesContract>;
 export type SystemDependenciesStore = Pick<
   MachinesStore,
-  'getSystemDependencies' | 'installSystemDependencies' | 'installSystemDependency'
+  'getSystemDependencies' | 'installSystemDependencies'
 >;
 
 export type MachinesStoreOptions = {
@@ -204,16 +204,10 @@ export class MachinesStore {
     return await (await this.getMachinesClient()).getMachineSystemDependencies({ machineId });
   }
 
-  async installSystemDependency(
-    input: InstallMachineSystemDependencyInput
-  ): Promise<InstallMachineSystemDependencyResult> {
-    return await (await this.getMachinesClient()).installMachineSystemDependency(input);
-  }
-
   async installSystemDependencies(
     input: InstallMachineSystemDependenciesInput
   ): Promise<InstallMachineSystemDependenciesResult> {
-    return await (await this.getMachinesClient()).installMachineSystemDependencies(input);
+    return await runSystemDependencyInstall(await this.getMachinesClient(), input);
   }
 
   private get runtime(): SshConnectionsRuntime {
@@ -311,9 +305,20 @@ export function createSystemDependenciesStore(): SystemDependenciesStore {
   return {
     getSystemDependencies: async (machineId?: string) =>
       await (await getDesktopWireClient()).machines.getMachineSystemDependencies({ machineId }),
-    installSystemDependency: async (input: InstallMachineSystemDependencyInput) =>
-      await (await getDesktopWireClient()).machines.installMachineSystemDependency(input),
     installSystemDependencies: async (input: InstallMachineSystemDependenciesInput) =>
-      await (await getDesktopWireClient()).machines.installMachineSystemDependencies(input),
+      await runSystemDependencyInstall((await getDesktopWireClient()).machines, input),
   };
+}
+
+async function runSystemDependencyInstall(
+  client: MachinesClient,
+  input: InstallMachineSystemDependenciesInput
+): Promise<InstallMachineSystemDependenciesResult> {
+  const result = await runDesktopLiveJob(
+    machinesContract.installSystemDependencies,
+    client.installSystemDependencies,
+    input
+  );
+  if (!result.success) throw new Error(getHostDependencyErrorMessage(result.error));
+  return result.data;
 }

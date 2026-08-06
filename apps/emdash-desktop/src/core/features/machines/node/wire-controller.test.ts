@@ -8,7 +8,11 @@ import {
 } from '@emdash/core/services/host-dependencies/node';
 import { runtimeHostUnavailable } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
+import { deferred } from '@emdash/shared/testing';
+import { createLiveJobReplica, LiveJobCancelledError } from '@emdash/wire';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
+import { machinesContract, type InstallMachineSystemDependenciesInput } from '../api';
 import type { MachinesService } from '../api/node/machines-service';
 import { createMachinesWireController } from './wire-controller';
 
@@ -72,21 +76,20 @@ describe('createMachinesWireController system dependencies', () => {
     expect(refresh).toHaveBeenCalledWith('refresh', { key: undefined, input: {} });
   });
 
-  it('installs a classified system dependency through the machine runtime', async () => {
+  it('installs a classified system dependency through the machine runtime batch job', async () => {
     const view = hostDependencyView(GIT_DEPENDENCY_DESCRIPTOR, { resolvedPath: '/usr/bin/git' });
-    runRuntimeLiveJob.mockResolvedValueOnce(ok(view));
-    const runInstallCommand = {};
-    const client = vi.fn(async () => ok({ hostDependencies: { runInstallCommand } }));
+    runRuntimeLiveJob.mockResolvedValueOnce(ok({ git: ok(view) }));
+    const runInstallBatch = {};
+    const client = vi.fn(async () => ok({ hostDependencies: { runInstallBatch } }));
     const controller = createMachinesWireController(createService(), { client } as never);
 
     await expect(
-      controller.call('installMachineSystemDependency', {
+      runInstallJob(controller, {
         machineId: 'ssh-1',
-        id: 'git',
-        method: 'homebrew',
+        dependencies: [{ id: 'git', method: 'homebrew' }],
       })
-    ).resolves.toEqual(
-      ok({
+    ).resolves.toEqual({
+      git: ok({
         id: 'git',
         name: 'Git',
         tier: 'required',
@@ -94,25 +97,29 @@ describe('createMachinesWireController system dependencies', () => {
         path: '/usr/bin/git',
         installDocs: 'https://git-scm.com/downloads',
         installOptions: GIT_DEPENDENCY_DESCRIPTOR.installCommands?.macos ?? [],
-      })
-    );
-    expect(runRuntimeLiveJob).toHaveBeenCalledWith(expect.anything(), runInstallCommand, {
-      id: 'git',
-      method: 'homebrew',
-      elevate: undefined,
+      }),
     });
+    expect(runRuntimeLiveJob).toHaveBeenCalledWith(
+      expect.anything(),
+      runInstallBatch,
+      { requests: [{ id: 'git', method: 'homebrew' }] },
+      expect.any(Function),
+      { signal: expect.any(AbortSignal) }
+    );
   });
 
   it('rejects non-system dependency installation ids', async () => {
-    const client = vi.fn(async () => ok({ hostDependencies: { runInstallCommand: {} } }));
+    const client = vi.fn(async () => ok({ hostDependencies: { runInstallBatch: {} } }));
     const controller = createMachinesWireController(createService(), { client } as never);
 
     await expect(
-      controller.call('installMachineSystemDependency', {
+      runInstallJob(controller, {
         machineId: 'ssh-1',
-        id: 'fake-agent',
+        dependencies: [{ id: 'fake-agent' }],
       })
-    ).resolves.toEqual(err({ type: 'unknown-dependency', id: 'fake-agent' }));
+    ).resolves.toEqual({
+      'fake-agent': err({ type: 'unknown-dependency', id: 'fake-agent' }),
+    });
     expect(client).not.toHaveBeenCalled();
   });
 
@@ -136,7 +143,7 @@ describe('createMachinesWireController system dependencies', () => {
     const controller = createMachinesWireController(createService(), { client } as never);
 
     await expect(
-      controller.call('installMachineSystemDependencies', {
+      runInstallJob(controller, {
         machineId: 'ssh-1',
         dependencies: [{ id: 'git' }, { id: 'node', method: 'apt' }],
       })
@@ -157,9 +164,44 @@ describe('createMachinesWireController system dependencies', () => {
         exitCode: 100,
       }),
     });
-    expect(runRuntimeLiveJob).toHaveBeenCalledWith(expect.anything(), runInstallBatch, {
-      requests: [{ id: 'git' }, { id: 'node', method: 'apt' }],
-    });
+    expect(runRuntimeLiveJob).toHaveBeenCalledWith(
+      expect.anything(),
+      runInstallBatch,
+      { requests: [{ id: 'git' }, { id: 'node', method: 'apt' }] },
+      expect.any(Function),
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it('forwards live job cancellation to the runtime batch job', async () => {
+    const receivedSignal = deferred<AbortSignal>();
+    runRuntimeLiveJob.mockImplementationOnce(
+      async (_definition, _handle, _input, _progress, options: { signal: AbortSignal }) => {
+        receivedSignal.resolve(options.signal);
+        await new Promise<void>((resolve) =>
+          options.signal.addEventListener('abort', () => resolve(), { once: true })
+        );
+        return err({ type: 'io', message: 'cancelled' });
+      }
+    );
+    const client = vi.fn(async () => ok({ hostDependencies: { runInstallBatch: {} } }));
+    const controller = createMachinesWireController(createService(), { client } as never);
+    const wire = createTestWire(machinesContract, controller);
+    const jobs = createLiveJobReplica(
+      machinesContract.installSystemDependencies,
+      wire.client.installSystemDependencies
+    );
+    const lease = await jobs.start({ dependencies: [{ id: 'git' }] });
+    const job = await lease.ready();
+    const signal = await receivedSignal.promise;
+
+    await job.cancel();
+
+    expect(signal.aborted).toBe(true);
+    await expect(job.result).rejects.toBeInstanceOf(LiveJobCancelledError);
+    await lease.release();
+    await jobs.dispose();
+    await wire.dispose();
   });
 
   it('throws runtime resolve errors for unavailable machine runtimes', async () => {
@@ -219,4 +261,24 @@ function createService(): MachinesService {
     deleteMachine: vi.fn(),
     renameMachine: vi.fn(),
   } as never;
+}
+
+async function runInstallJob(
+  controller: ReturnType<typeof createMachinesWireController>,
+  input: InstallMachineSystemDependenciesInput
+) {
+  const wire = createTestWire(machinesContract, controller);
+  const jobs = createLiveJobReplica(
+    machinesContract.installSystemDependencies,
+    wire.client.installSystemDependencies
+  );
+  const lease = await jobs.start(input);
+  try {
+    const job = await lease.ready();
+    return await job.result;
+  } finally {
+    await lease.release();
+    await jobs.dispose();
+    await wire.dispose();
+  }
 }

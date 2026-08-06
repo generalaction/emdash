@@ -101,13 +101,18 @@ export function useSystemDependencies(
     InstallVariables
   >({
     mutationKey: installKey,
-    mutationFn: async ({ id, method, elevate }) =>
-      await machinesStore.installSystemDependency({
+    mutationFn: async ({ id, method, elevate }) => {
+      const results = await machinesStore.installSystemDependencies({
         machineId,
-        id,
-        method,
-        elevate,
-      }),
+        dependencies: [{ id, method, elevate }],
+      });
+      return (
+        results[id] ?? {
+          success: false,
+          error: { type: 'io', message: `Install result missing for dependency: ${id}` },
+        }
+      );
+    },
     onSuccess: (result, variables) => {
       invalidate();
       reportInstallResult(result, variables);
