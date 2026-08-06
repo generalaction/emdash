@@ -245,6 +245,41 @@ describe('ConversationRegistry', () => {
     expect(registry.annotate('conv', { agentStatusSeen: 0 })).toBe(1);
   });
 
+  it('tombstones a live row atomically; the row stays live as the pending state', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'conv');
+
+    const changed = registry.tombstone('conv', {
+      version: '1',
+      targetRecordId: 'conv',
+      tombstonedAt: 1_700_000_000_000,
+    });
+
+    expect(changed).toBe(1);
+    expect(registry.getLive('conv')?.deletionTombstone).toMatchObject({
+      targetRecordId: 'conv',
+      tombstonedAt: 1_700_000_000_000,
+    });
+  });
+
+  it('tombstone is first-writer-wins: duplicates and untracked rows write zero rows', () => {
+    const registry = createConversationRegistry(fixture.db);
+    registerLinked(registry, 'conv');
+    registry.tombstone('conv', { version: '1', targetRecordId: 'conv', tombstonedAt: 1 });
+
+    // A double-fire never overwrites the first write's stamp.
+    expect(
+      registry.tombstone('conv', { version: '1', targetRecordId: 'conv', tombstonedAt: 2 })
+    ).toBe(0);
+    expect(registry.getLive('conv')?.deletionTombstone).toMatchObject({ tombstonedAt: 1 });
+
+    registerLinked(registry, 'gone');
+    registry.untrack(['gone'], '2026-01-05T00:00:00.000Z');
+    expect(
+      registry.tombstone('gone', { version: '1', targetRecordId: 'gone', tombstonedAt: 1 })
+    ).toBe(0);
+  });
+
   it('purges only rows that are already untracked', () => {
     const registry = createConversationRegistry(fixture.db);
     registerLinked(registry, 'tracked');

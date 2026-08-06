@@ -171,6 +171,26 @@ export class ConversationRegistry {
       .run().changes;
   }
 
+  /**
+   * Marks one live row with a durable deletion tombstone (ADR 0006). Atomic and
+   * first-writer-wins: the guard on a null `deletionTombstone` makes zero rows updated
+   * mean "already tombstoned" (or no longer live), so a UI double-fire never overwrites
+   * the first write. The row stays live — the visible pending state.
+   */
+  tombstone(
+    id: string,
+    tombstone: NonNullable<ConversationRow['deletionTombstone']>,
+    tx?: DrizzleTx
+  ): number {
+    return this.source(tx)
+      .update(conversations)
+      .set({ deletionTombstone: tombstone, updatedAt: this.now() })
+      .where(
+        and(eq(conversations.id, id), liveConversations(), isNull(conversations.deletionTombstone))
+      )
+      .run().changes;
+  }
+
   untrack(ids: readonly string[], untrackedAt: string, tx?: DrizzleTx): number {
     if (ids.length === 0) return 0;
     return this.source(tx)

@@ -14,7 +14,10 @@ import {
   automationTriggerConfig,
   storedAutomationTaskConfig,
 } from '@core/primitives/automations/api/config';
-import { conversationConfig } from '@core/primitives/conversations/api';
+import {
+  conversationConfig,
+  conversationDeletionTombstone,
+} from '@core/primitives/conversations/api';
 import { linkedIssue } from '@core/primitives/linked-issues/api';
 import { providerAccountMeta } from '@core/primitives/provider-accounts/api';
 import { sshConnectionMetadata } from '@core/primitives/ssh/api';
@@ -452,6 +455,12 @@ export const conversations = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
+    /**
+     * Durable deletion intent (ADR 0006): the target record UUID + write stamp,
+     * written atomically at delete time against an unreachable host. Null = no pending
+     * deletion. The row stays live (visible) until the reconcile sweep converges.
+     */
+    deletionTombstone: versionedJsonColumn(conversationDeletionTombstone)('deletion_tombstone'),
     untrackedAt: text('untracked_at'),
   },
   (table) => ({

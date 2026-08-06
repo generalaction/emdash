@@ -33,6 +33,8 @@ export interface ApplyConversationSnapshotResult {
   refreshed: number;
   markedMissing: number;
   untracked: number;
+  /** Tombstoned rows whose host record this delivery confirmed gone (ADR 0006). */
+  purgedTombstones: number;
 }
 
 /**
@@ -68,6 +70,7 @@ function applyConversationSnapshotTx(
     refreshed: 0,
     markedMissing: 0,
     untracked: 0,
+    purgedTombstones: 0,
   };
 
   const seen = new Set<string>();
@@ -95,6 +98,15 @@ function applyConversationSnapshotTx(
 
   for (const row of hostRows) {
     if (seen.has(row.id)) continue;
+    // Purge-on-mirror-confirmed-gone (ADR 0006): the delivery is the host's full
+    // index, so a live tombstoned row absent from it has converged — the pending
+    // deletion completed (or the record never existed). The untrack is the purge;
+    // annotation never keeps a row the user already deleted visible as missing.
+    if (row.deletionTombstone !== null) {
+      registry.untrack([row.id], now, tx);
+      counts.purgedTombstones += 1;
+      continue;
+    }
     if (isAnnotatedConversation(row)) {
       // Task-linked records stay visible in their task as missing until the user acts.
       registry.refresh(row.id, { observedStatus: 'missing', lastObservedAt: observedAt }, tx);

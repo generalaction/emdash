@@ -6,8 +6,8 @@ import { listHostConversations } from './list-host-conversations';
 
 /**
  * The machine-page read (spec §8): all cached conversation observations of one host —
- * task-linked and orphaned alike — with link names resolved, plus tombstoned rows whose
- * delete operation is still in flight shown as removal-pending.
+ * task-linked and orphaned alike — with link names resolved, plus live rows carrying a
+ * deletion tombstone shown as removal-pending (ADR 0006).
  */
 describe('listHostConversations', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
@@ -47,8 +47,6 @@ describe('listHostConversations', () => {
     });
   }
 
-  const noActiveOperations = async () => [];
-
   it('lists linked and orphaned rows of the host with link names resolved', async () => {
     const { projectId, taskId } = seedProjectAndTask('a');
     seedConversation('conv-linked', { projectId, taskId });
@@ -60,7 +58,7 @@ describe('listHostConversations', () => {
       .run();
     seedConversation('conv-remote', { location: 'remote', sshConnectionId: 'conn-1' });
 
-    const rows = await listHostConversations(fixture.db, noActiveOperations, {
+    const rows = await listHostConversations(fixture.db, {
       location: 'local',
       sshConnectionId: null,
     });
@@ -95,26 +93,30 @@ describe('listHostConversations', () => {
       .run();
     seedConversation('conv-remote', { location: 'remote', sshConnectionId: 'conn-1' });
 
-    const remote = await listHostConversations(fixture.db, noActiveOperations, {
+    const remote = await listHostConversations(fixture.db, {
       location: 'remote',
       sshConnectionId: 'conn-1',
     });
     expect(remote.map((row) => row.id)).toEqual(['conv-remote']);
   });
 
-  it('shows tombstoned rows as removal-pending only while their delete operation is live', async () => {
+  it('shows live tombstoned rows as removal-pending; untracked rows leave the surface', async () => {
     seedConversation('conv-pending');
     seedConversation('conv-settled');
     const registry = createConversationRegistry(fixture.db);
-    registry.untrack(['conv-pending', 'conv-settled'], '2026-01-01T00:00:00.000Z');
+    registry.tombstone('conv-pending', {
+      version: '1',
+      targetRecordId: 'conv-pending',
+      tombstonedAt: Date.parse('2026-01-01T00:00:00.000Z'),
+    });
+    registry.untrack(['conv-settled'], '2026-01-01T00:00:00.000Z');
 
-    const rows = await listHostConversations(
-      fixture.db,
-      async () => [{ conversationId: 'conv-pending', otherField: 'ignored' }],
-      { location: 'local', sshConnectionId: null }
-    );
+    const rows = await listHostConversations(fixture.db, {
+      location: 'local',
+      sshConnectionId: null,
+    });
 
-    // The settled tombstone left the surface; the in-flight one is presented as pending.
+    // The settled removal left the surface; the pending deletion stays visible.
     expect(rows.map((row) => row.id)).toEqual(['conv-pending']);
     expect(rows[0]).toMatchObject({ pendingRemoval: true });
   });

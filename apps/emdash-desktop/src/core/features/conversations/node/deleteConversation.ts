@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
-import { enqueueConversationDeletion } from '@core/features/conversations/api/node/operations/conversation-removal';
+import type { ConversationRemovalBroker } from '@core/features/conversations/api/node/operations/conversation-removal';
 import {
   conversationRegistryTable as conversations,
   liveConversations,
@@ -8,24 +8,28 @@ import {
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
+import { removeConversationOrTombstone } from './remove-conversation';
 
 /**
- * User-initiated conversation deletion, host-resident shape (spec §4.3): enqueues the
- * durable `host-delete-conversation` outbox verb — which kills any live session as part of
- * the verb and deletes the index record — with the registry row untracked as the tombstone.
- * A delete issued while the host sleeps executes on reconnect.
+ * User-initiated conversation deletion, task-scoped (conversation spec §4.3 as amended
+ * for the reconcile sweep): a reachable host removes in the foreground — killing any
+ * live session is part of the verb, then the index row deletes — and an unreachable
+ * host gets a durable deletion tombstone swept on reconnect (ADR 0006).
  */
 export async function deleteConversation(
   db: AppDb,
-  operations: OperationSubmitter,
+  runtimes: ConversationRemovalBroker,
   projectId: string,
   taskId: string,
   conversationId: string,
   telemetry: Pick<TelemetryService, 'capture'>
 ): Promise<void> {
   const [convRow] = await db
-    .select({ id: conversations.id })
+    .select({
+      id: conversations.id,
+      location: conversations.location,
+      sshConnectionId: conversations.sshConnectionId,
+    })
     .from(conversations)
     .where(
       and(
@@ -36,13 +40,10 @@ export async function deleteConversation(
       )
     )
     .limit(1);
-  // Idempotent toward the caller: an already-deleted (or already-pending) row is a no-op.
+  // Idempotent toward the caller: an already-deleted row is a no-op.
   if (!convRow) return;
 
-  const enqueued = await enqueueConversationDeletion(operations, conversationId);
-  if (!enqueued.success) {
-    throw new Error(`Failed to enqueue conversation deletion: ${enqueued.error.message}`);
-  }
+  await removeConversationOrTombstone(db, runtimes, convRow);
 
   conversationEvents._emit('conversation:deleted', conversationId);
   appDbPokes.conversations.poke({ projectId, taskId });

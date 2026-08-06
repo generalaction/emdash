@@ -92,7 +92,7 @@ export type HostConversationRow = {
   lastObservedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Tombstoned locally with a live `host-delete-conversation` outbox entry in flight. */
+  /** Live row carrying a deletion tombstone: removal pending until the sweep converges. */
   pendingRemoval: boolean;
 };
 

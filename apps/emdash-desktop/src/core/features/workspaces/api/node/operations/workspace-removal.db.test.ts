@@ -1,15 +1,12 @@
-import { ok } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostDeleteConversationOperation } from '@core/features/conversations/api/node/host-delete-conversation-operation';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import {
   createWorkspaceRegistry,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import { tasks } from '@core/services/app-db/node/schema';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
 import { deleteWorkspaceThroughRegistry } from './workspace-removal';
 
 /**
@@ -60,10 +57,6 @@ describe('deleteWorkspaceThroughRegistry', () => {
     });
   }
 
-  function submitter(): OperationSubmitter & { submit: ReturnType<typeof vi.fn> } {
-    return { db: fixture.db, submit: vi.fn(async () => ok({ operationId: 'op-1' })) };
-  }
-
   function makeRuntimes() {
     const registry = {
       deleteWorktree: vi.fn(async (_input: { id: string; deleteBranch: boolean }) => ({
@@ -87,9 +80,8 @@ describe('deleteWorkspaceThroughRegistry', () => {
   it('calls the deleteWorktree verb and untracks the mirror row on success', async () => {
     await seedWorktree();
     const { registry, runtimes } = makeRuntimes();
-    const operations = submitter();
 
-    const result = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
+    const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1', {
       deleteBranch: true,
     });
 
@@ -112,7 +104,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
     await seedWorktree('directory');
     const { registry, runtimes } = makeRuntimes();
 
-    const result = await deleteWorkspaceThroughRegistry(submitter(), runtimes, 'workspace-1');
+    const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
     expect(result.success).toBe(true);
     expect(registry.deleteWorkspace).toHaveBeenCalledWith({ id: 'workspace-1' });
@@ -133,18 +125,17 @@ describe('deleteWorkspaceThroughRegistry', () => {
     it('tombstones the row with frozen options and returns success; nothing queues', async () => {
       await seedWorktree();
       seedConversationAtPath('conv-stay', '/repo/.worktrees/example');
-      const operations = submitter();
 
       const result = await deleteWorkspaceThroughRegistry(
-        operations,
+        fixture.db,
         unreachableRuntimes(),
         'workspace-1',
         { deleteBranch: true, deleteConversations: true }
       );
 
       expect(result).toEqual({ success: true, data: {} });
-      // Nothing queued anywhere: the tombstoned row is the durable intent.
-      expect(operations.submit).not.toHaveBeenCalled();
+      // Nothing queues anywhere: the removal path takes no operation submitter at all;
+      // the tombstoned row is the durable intent.
       const row = createWorkspaceRegistry(fixture.db).getLive('workspace-1');
       // The row stays live — the visible pending state — with the options and the
       // target record UUID frozen at delete time.
@@ -159,13 +150,12 @@ describe('deleteWorkspaceThroughRegistry', () => {
 
     it('suppresses a delete double-fire: one tombstone, both calls succeed', async () => {
       await seedWorktree();
-      const operations = submitter();
       const runtimes = unreachableRuntimes();
 
-      const first = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
+      const first = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1', {
         deleteBranch: true,
       });
-      const second = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
+      const second = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1', {
         deleteBranch: false,
       });
 
@@ -184,7 +174,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
         error: { type: 'host-unreachable', message: 'went away mid-call' },
       } as never);
 
-      const result = await deleteWorkspaceThroughRegistry(submitter(), runtimes, 'workspace-1');
+      const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
       expect(result.success).toBe(true);
       expect(
@@ -206,7 +196,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
       });
 
       const result = await deleteWorkspaceThroughRegistry(
-        submitter(),
+        fixture.db,
         unreachableRuntimes(),
         'workspace-1'
       );
@@ -227,7 +217,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
       error: { type: 'remove-failed', message: 'locked worktree' },
     } as never);
 
-    const result = await deleteWorkspaceThroughRegistry(submitter(), runtimes, 'workspace-1');
+    const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
     expect(result).toEqual({
       success: false,
@@ -248,7 +238,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
     });
     const { registry, runtimes } = makeRuntimes();
 
-    const result = await deleteWorkspaceThroughRegistry(submitter(), runtimes, 'workspace-1');
+    const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.type).toBe('workspace-in-use');
@@ -260,44 +250,35 @@ describe('deleteWorkspaceThroughRegistry', () => {
     await seedWorktree();
     seedConversationAtPath('conv-keep', '/repo/.worktrees/example');
     const { runtimes } = makeRuntimes();
-    const operations = submitter();
 
-    const result = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1');
+    const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
     expect(result.success).toBe(true);
-    expect(
-      operations.submit.mock.calls.filter(
-        ([definition]) => definition === hostDeleteConversationOperation
-      )
-    ).toHaveLength(0);
+    // Nothing submits anywhere and nothing tombstones: pure archive semantics.
     // The record survives with a dangling path — resumable if the path is recreated.
     expect(createConversationRegistry(fixture.db).getLive('conv-keep')).toMatchObject({
       workspacePath: '/repo/.worktrees/example',
+      deletionTombstone: null,
     });
   });
 
-  it('opt-in submits explicit per-record deletes for same-path, same-host records', async () => {
+  it('opt-in tombstones same-path, same-host records for the conversations sweep kind', async () => {
     await seedWorktree();
     seedConversationAtPath('conv-here', '/repo/.worktrees/example');
     seedConversationAtPath('conv-elsewhere', '/repo/.worktrees/other');
     const { runtimes } = makeRuntimes();
-    const operations = submitter();
 
-    const result = await deleteWorkspaceThroughRegistry(operations, runtimes, 'workspace-1', {
+    const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1', {
       deleteConversations: true,
     });
 
     expect(result.success).toBe(true);
-    const conversationSubmits = operations.submit.mock.calls.filter(
-      ([definition]) => definition === hostDeleteConversationOperation
-    );
-    expect(conversationSubmits).toHaveLength(1);
-    expect(conversationSubmits[0]![1]).toMatchObject({
-      conversationId: 'conv-here',
-      hostRef: 'local:local',
-    });
+    // Nothing queues anywhere (ADR 0006): the tombstoned rows are the durable intent,
+    // converged by the conversations reconcile-sweep kind.
     const registry = createConversationRegistry(fixture.db);
-    expect(registry.getLive('conv-here')).toBeUndefined();
-    expect(registry.getLive('conv-elsewhere')).toBeDefined();
+    expect(registry.getLive('conv-here')?.deletionTombstone).toMatchObject({
+      targetRecordId: 'conv-here',
+    });
+    expect(registry.getLive('conv-elsewhere')?.deletionTombstone).toBeNull();
   });
 });

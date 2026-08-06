@@ -6,13 +6,8 @@ import {
 } from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { and, eq, isNull } from 'drizzle-orm';
+import { tombstoneConversationForRemoval } from '@core/features/conversations/api/node/operations/conversation-removal';
 import {
-  hostDeleteConversationOperation,
-  type HostDeleteConversationInput,
-} from '@core/features/conversations/api/node/host-delete-conversation-operation';
-import { compileConversationDeletionInput } from '@core/features/conversations/api/node/operations/conversation-removal';
-import {
-  createConversationRegistry,
   conversationRegistryTable as conversationRows,
   liveConversations,
 } from '@core/features/conversations/api/node/registry';
@@ -25,7 +20,6 @@ import { tombstoneWorkspaceRow } from '@core/features/workspaces/api/node/regist
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
 import { reconcileSweepTriggers } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
 
 /**
@@ -73,25 +67,21 @@ export type ArchiveWorkspaceInput = {
 };
 
 export async function deleteWorkspaceThroughRegistry(
-  operations: OperationSubmitter,
+  db: AppDb,
   runtimes: WorkspaceRemovalBroker,
   workspaceId: string,
   options: { deleteBranch?: boolean; deleteConversations?: boolean } = {}
 ): Promise<WorkspaceRemovalResult> {
-  const workspace = createWorkspaceRegistry(operations.db).getLive(workspaceId);
+  const workspace = createWorkspaceRegistry(db).getLive(workspaceId);
   if (!workspace) {
     return err({ type: 'workspace-not-found', message: `Workspace ${workspaceId} was not found` });
   }
   if (workspace.kind === 'repository') {
     return err({ type: 'root-refused', message: 'Repository root cannot be deleted.' });
   }
-  const [task] = await operations.db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.workspaceId, workspaceId))
-    .limit(1);
-  const [project] = task ? await getProjectRemovalRow(operations.db, task.projectId) : [];
-  return removeWorkspaceThroughRegistry(operations, runtimes, {
+  const [task] = await db.select().from(tasks).where(eq(tasks.workspaceId, workspaceId)).limit(1);
+  const [project] = task ? await getProjectRemovalRow(db, task.projectId) : [];
+  return removeWorkspaceThroughRegistry(db, runtimes, {
     workspace,
     workspacePath: workspace.path ?? undefined,
     projectId: project?.id,
@@ -109,50 +99,50 @@ export async function deleteWorkspaceThroughRegistry(
 }
 
 export async function deleteWorkspacePathThroughRegistry(
-  operations: OperationSubmitter,
+  db: AppDb,
   runtimes: WorkspaceRemovalBroker,
   input: ArchiveWorkspaceInput,
   options: { deleteConversations?: boolean } = {}
 ): Promise<WorkspaceRemovalResult> {
-  return removeWorkspacePathThroughRegistry(operations, runtimes, input, {
+  return removeWorkspacePathThroughRegistry(db, runtimes, input, {
     requireUnused: true,
     deleteConversations: options.deleteConversations ?? false,
   });
 }
 
 export async function archiveWorkspaceThroughRegistry(
-  operations: OperationSubmitter,
+  db: AppDb,
   runtimes: WorkspaceRemovalBroker,
   input: ArchiveWorkspaceInput
 ): Promise<WorkspaceRemovalResult> {
-  return removeWorkspacePathThroughRegistry(operations, runtimes, input, { requireUnused: false });
+  return removeWorkspacePathThroughRegistry(db, runtimes, input, { requireUnused: false });
 }
 
 async function removeWorkspacePathThroughRegistry(
-  operations: OperationSubmitter,
+  db: AppDb,
   runtimes: WorkspaceRemovalBroker,
   input: ArchiveWorkspaceInput,
   options: { requireUnused: boolean; deleteConversations?: boolean }
 ): Promise<WorkspaceRemovalResult> {
-  const [project] = await getProjectRemovalRow(operations.db, input.projectId, {
+  const [project] = await getProjectRemovalRow(db, input.projectId, {
     liveOnly: true,
   });
   if (!project) {
     return err({ type: 'project-not-found', message: `Project ${input.projectId} was not found` });
   }
-  const registry = createWorkspaceRegistry(operations.db);
+  const registry = createWorkspaceRegistry(db);
   // Rows discovered by scan may arrive without a registry id; the mirror row for the
   // same path (kept complete by registry sync) carries the host record's identity.
   const workspace = input.workspaceId
     ? registry.getLive(input.workspaceId)
-    : findLiveWorkspaceByPath(operations.db, input.workspacePath);
+    : findLiveWorkspaceByPath(db, input.workspacePath);
   if (input.workspaceId && !workspace) {
     return err({
       type: 'workspace-not-found',
       message: `Workspace ${input.workspaceId} was not found`,
     });
   }
-  return removeWorkspaceThroughRegistry(operations, runtimes, {
+  return removeWorkspaceThroughRegistry(db, runtimes, {
     workspace,
     workspacePath: input.workspacePath,
     projectId: project.id,
@@ -169,7 +159,7 @@ async function removeWorkspacePathThroughRegistry(
 }
 
 async function removeWorkspaceThroughRegistry(
-  operations: OperationSubmitter,
+  db: AppDb,
   runtimes: WorkspaceRemovalBroker,
   params: {
     workspace: WorkspaceRow | undefined;
@@ -183,24 +173,11 @@ async function removeWorkspaceThroughRegistry(
 ): Promise<WorkspaceRemovalResult> {
   const createdAt = Date.now();
   const workspaceId = params.workspace?.id;
-  const serializedHost = formatHostRef(params.host);
-  // Opt-in only (spec §7.1): removal defaults to archive semantics — records survive with
-  // dangling paths and stay resumable if the path is recreated. The delete verbs never
-  // touch conversation records; the coupling is these explicit per-record requests,
-  // snapshot-compiled before the untrack.
-  const conversationDeletions = params.deleteConversations
-    ? snapshotWorkspaceConversationDeletions(operations.db, {
-        workspacePath: params.workspacePath,
-        hostRef: serializedHost,
-        createdAt,
-      })
-    : [];
-  const conversationIds = conversationDeletions.map((deletion) => deletion.conversationId);
 
   if (!workspaceId) {
     return err({ type: 'workspace-not-found', message: 'Workspace was not found.' });
   }
-  const precondition = workspacePreconditionOutsideTx(operations.db, {
+  const precondition = workspacePreconditionOutsideTx(db, {
     projectId: params.projectId,
     workspaceId,
     requireUnused: params.requireUnused,
@@ -214,7 +191,7 @@ async function removeWorkspaceThroughRegistry(
     const workspace = params.workspace;
     const client = await runtimes.client(params.host);
     if (!client.success) {
-      return tombstoneUnreachableRemoval(operations.db, workspace, params, createdAt, params.host);
+      return tombstoneUnreachableRemoval(db, workspace, params, createdAt, params.host);
     }
     const verb = client.data.workspaceRegistry;
     const removed =
@@ -223,13 +200,7 @@ async function removeWorkspaceThroughRegistry(
         : await verb.deleteWorkspace({ id: workspaceId });
     if (!removed.success) {
       if (removed.error.type === 'host-unreachable') {
-        return tombstoneUnreachableRemoval(
-          operations.db,
-          workspace,
-          params,
-          createdAt,
-          params.host
-        );
+        return tombstoneUnreachableRemoval(db, workspace, params, createdAt, params.host);
       }
       return err({
         type: 'delete-failed',
@@ -238,14 +209,26 @@ async function removeWorkspaceThroughRegistry(
     }
   }
 
-  const untracked = untrackWorkspaceInline(operations.db, {
+  const untracked = untrackWorkspaceInline(db, {
     workspaceId,
     requireUnused: params.requireUnused,
     createdAt,
-    conversationIds,
   });
   if (!untracked.success) return untracked;
-  await submitConversationDeletions(operations, params.projectId, conversationDeletions);
+  // Opt-in only (spec §7.1): removal defaults to archive semantics — records survive with
+  // dangling paths and stay resumable if the path is recreated. The delete verbs never
+  // touch conversation records; the coupling is these explicit per-record tombstones,
+  // converged by the conversations reconcile-sweep kind (ADR 0006).
+  if (params.deleteConversations) {
+    tombstoneWorkspaceConversationDeletions(db, {
+      workspacePath: params.workspacePath,
+      host: params.host,
+      createdAt,
+    });
+    // The host is reachable (the delete verb just succeeded): sweep the freshly
+    // written conversation tombstones now instead of waiting for the backstop.
+    reconcileSweepTriggers.poke(params.host);
+  }
   appDbPokes.workspaces.poke({ projectId: params.projectId });
   return ok({});
 }
@@ -294,27 +277,80 @@ function tombstoneUnreachableRemoval(
 }
 
 /**
- * Sweep-time conversation cascade for a tombstone's frozen `deleteConversations`
- * option (spec §7.1): compiles per-record delete requests for the workspace's cached
- * same-path, same-host conversation records, untracks their mirror rows, and submits
- * the host deletions — the same shape the reachable-host removal path uses. A later
- * slice replaces this with conversation deletion tombstones of their own.
+ * The project-delete cascade's per-row workspace removal (spec §7.3): provenance
+ * worktrees (rows emdash created, `config != NULL`) go through the same fail-fast
+ * `deleteWorktree` verb as single deletes — reachable host removes now, unreachable
+ * host gets a durable deletion tombstone for the reconcile sweep (ADR 0006). Adopted
+ * rows and the repository row untrack only — emdash never removes artifacts it did
+ * not create as part of a bulk delete. Best-effort by design: the project is going
+ * away regardless, so a failed verb on a reachable host still untracks the row and
+ * strands the artifact (recoverable from the machines surface).
  */
-export async function cascadeTombstonedConversationDeletions(
-  operations: OperationSubmitter,
+export async function removeProjectWorkspace(
+  db: AppDb,
+  runtimes: WorkspaceRemovalBroker,
+  params: { workspace: WorkspaceRow; host: HostRef; createdAt: number }
+): Promise<'removed' | 'tombstoned' | 'untracked'> {
+  const { workspace, host, createdAt } = params;
+  const registry = createWorkspaceRegistry(db, {
+    now: () => new Date(createdAt).toISOString(),
+  });
+  const isProvenanceWorktree =
+    workspace.kind === 'worktree' && workspace.path !== null && workspace.config !== null;
+  if (!isProvenanceWorktree) {
+    registry.untrack([workspace.id], new Date(createdAt).toISOString());
+    return 'untracked';
+  }
+  const tombstone = () => {
+    const written = tombstoneWorkspaceRow(db, {
+      workspace,
+      options: { deleteBranch: false, deleteConversations: false },
+      createdAt,
+    });
+    if (written.success) reconcileSweepTriggers.poke(host);
+    return 'tombstoned' as const;
+  };
+  const client = await runtimes.client(host);
+  if (!client.success) return tombstone();
+  const removed = await client.data.workspaceRegistry
+    .deleteWorktree({ id: workspace.id, deleteBranch: false })
+    .catch(() => ({ success: false as const, error: { type: 'remove-failed' as const } }));
+  if (!removed.success && removed.error.type === 'host-unreachable') return tombstone();
+  registry.untrack([workspace.id], new Date(createdAt).toISOString());
+  return removed.success ? 'removed' : 'untracked';
+}
+
+/**
+ * The `deleteConversations` cascade (spec §7.1), tombstone-writing shape (ADR 0006):
+ * marks the workspace's cached same-path, same-host conversation records with their
+ * own durable deletion tombstones — one atomic transaction, duplicates suppressed —
+ * and lets the conversations reconcile-sweep kind converge them on sweeps of the same
+ * host. Both removal paths share it: the reachable-host delete flow after its verb
+ * succeeds, and the workspaces sweep kind executing a frozen offline tombstone.
+ * Same-host ordering (worktree before conversations or the reverse) is a heuristic
+ * only — conversation removal tolerates the workspace already being gone.
+ */
+export function tombstoneWorkspaceConversationDeletions(
+  db: AppDb,
   params: { workspacePath: string | undefined; host: HostRef; createdAt: number }
-): Promise<void> {
-  const deletions = snapshotWorkspaceConversationDeletions(operations.db, {
+): number {
+  const conversationIds = snapshotWorkspaceConversationIds(db, {
     workspacePath: params.workspacePath,
     hostRef: formatHostRef(params.host),
-    createdAt: params.createdAt,
   });
-  if (deletions.length === 0) return;
-  createConversationRegistry(operations.db).untrack(
-    deletions.map((deletion) => deletion.conversationId),
-    new Date(params.createdAt).toISOString()
-  );
-  await submitConversationDeletions(operations, undefined, deletions);
+  if (conversationIds.length === 0) return 0;
+  let written = 0;
+  db.transaction((tx) => {
+    for (const conversationId of conversationIds) {
+      const { outcome } = tombstoneConversationForRemoval(tx, {
+        conversationId,
+        createdAt: params.createdAt,
+      });
+      if (outcome === 'tombstoned') written += 1;
+    }
+  });
+  if (written > 0) appDbPokes.conversations.poke({});
+  return written;
 }
 
 function describeDeleteVerbError(error: DeleteVerbError): string {
@@ -339,14 +375,13 @@ function findLiveWorkspaceByPath(db: AppDb, workspacePath: string): WorkspaceRow
 }
 
 /**
- * Snapshot-compiles per-record delete requests for the workspace's cached conversation
- * records: same observed path, same host. Compiled before the untrack so identity rides
- * the operation inputs.
+ * Snapshot-compiles the cascade's targets: the workspace's cached conversation records
+ * with the same observed path on the same host.
  */
-function snapshotWorkspaceConversationDeletions(
+function snapshotWorkspaceConversationIds(
   db: AppDb,
-  params: { workspacePath: string | undefined; hostRef: SerializedHostRef; createdAt: number }
-): HostDeleteConversationInput[] {
+  params: { workspacePath: string | undefined; hostRef: SerializedHostRef }
+): string[] {
   if (!params.workspacePath) return [];
   const rows = db
     .select()
@@ -363,20 +398,7 @@ function snapshotWorkspaceConversationDeletions(
         return false;
       }
     })
-    .map((row) => compileConversationDeletionInput(row, params.createdAt));
-}
-
-async function submitConversationDeletions(
-  operations: OperationSubmitter,
-  projectId: string | undefined,
-  deletions: readonly HostDeleteConversationInput[]
-): Promise<void> {
-  for (const deletion of deletions) {
-    await operations.submit(hostDeleteConversationOperation, deletion);
-  }
-  if (deletions.length > 0) {
-    appDbPokes.conversations.poke({ projectId });
-  }
+    .map((row) => row.id);
 }
 
 function untrackWorkspaceInline(
@@ -385,7 +407,6 @@ function untrackWorkspaceInline(
     workspaceId: string;
     requireUnused: boolean;
     createdAt: number;
-    conversationIds?: readonly string[];
   }
 ): Result<Record<string, never>, { type: string; message: string }> {
   const registry = createWorkspaceRegistry(db, {
@@ -399,13 +420,6 @@ function untrackWorkspaceInline(
     });
     if (failure) return;
     registry.untrack([input.workspaceId], new Date(input.createdAt).toISOString(), undefined, tx);
-    if (input.conversationIds?.length) {
-      createConversationRegistry(db).untrack(
-        input.conversationIds,
-        new Date(input.createdAt).toISOString(),
-        tx
-      );
-    }
   });
   return failure ? err(failure) : ok({});
 }

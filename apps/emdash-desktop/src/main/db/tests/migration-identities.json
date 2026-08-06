@@ -262,5 +262,11 @@
     "tag": "0043_breezy_kitty_pryde",
     "when": 1785976358223,
     "hash": "1f51e6907b776d4ed50421fd0b4c26828be45fc6cfe70d2ecd3688c5d7877630"
+  },
+  {
+    "idx": 44,
+    "tag": "0044_plain_sinister_six",
+    "when": 1785979984293,
+    "hash": "d258a65fc2a5bead8a38231497f72f6572ad48f6cea05b7957548afacba71b03"
   }
 ]

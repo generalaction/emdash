@@ -11,6 +11,7 @@ import { ProviderTokenDispatcher } from '@core/features/account/node/services/pr
 import { getPluginMetadata } from '@core/features/agents/api/node/plugin-registry';
 import { AutomationsService } from '@core/features/automations/api/node/automations-service';
 import { buildAutomationDeployment } from '@core/features/automations/node/deployment-builder';
+import { createConversationDeletionSweepKind } from '@core/features/conversations/node/sweep/conversation-deletion-sweep';
 import { ConversationBackfillService } from '@core/features/conversations/node/sync/conversation-backfill';
 import { ConversationSyncService } from '@core/features/conversations/node/sync/conversation-sync-service';
 import { TuiConversationProvider } from '@core/features/conversations/node/tui-conversation-provider';
@@ -556,7 +557,6 @@ export async function bootServices(
       unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
     },
     deleteAutomation: { runtimes },
-    deleteConversation: { runtimes },
     deleteProject: {
       automations: automationsService,
       getMementosRuntimeClient,
@@ -603,6 +603,10 @@ export async function bootServices(
   reconcileSweep.registerKind(
     createWorkspaceDeletionSweepKind({ operations: operations.engine, runtimes })
   );
+  // Conversations sweep after workspaces: the same-host ordering heuristic lets a
+  // workspace cascade's freshly written conversation tombstones converge in the same
+  // pass; correctness never depends on the order (ADR 0006).
+  reconcileSweep.registerKind(createConversationDeletionSweepKind({ db, runtimes }));
   void localWorkspaceRegistryReady.then(() => reconcileSweep.attachHost(LOCAL_HOST_REF));
   // Tombstoned-while-reachable trigger: the tombstone write path pokes this channel.
   appScope.add(

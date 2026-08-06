@@ -342,8 +342,6 @@ export const desktopNodeControllers = {
         workspaceIdentity,
         withCompensation: compensation,
         hostIsReachable: (hostRef) => operations.hostIsReachable(hostRef),
-        operations,
-        activeOperationInputs: (name) => operations.activeOperationInputs(name),
       }),
   },
   previewServers: {

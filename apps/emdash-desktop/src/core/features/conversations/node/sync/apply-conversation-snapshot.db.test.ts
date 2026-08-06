@@ -62,7 +62,13 @@ describe('applyConversationSnapshot', () => {
       observedAt: '2026-01-03T00:00:00.000Z',
     });
 
-    expect(result).toEqual({ adopted: 2, refreshed: 0, markedMissing: 0, untracked: 0 });
+    expect(result).toEqual({
+      adopted: 2,
+      refreshed: 0,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
 
     const registry = createConversationRegistry(fixture.db);
     expect(registry.getLive('conv-1')).toMatchObject({
@@ -92,7 +98,13 @@ describe('applyConversationSnapshot', () => {
         'conv-2': hostRecord({ id: 'conv-2', type: 'pty', title: 'Second' }),
       },
     });
-    expect(replay).toEqual({ adopted: 0, refreshed: 2, markedMissing: 0, untracked: 0 });
+    expect(replay).toEqual({
+      adopted: 0,
+      refreshed: 2,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
   });
 
   it('lets host-first creation claim a row already adopted by live sync', async () => {
@@ -158,7 +170,13 @@ describe('applyConversationSnapshot', () => {
       observedAt: '2026-01-06T00:00:00.000Z',
     });
 
-    expect(result).toEqual({ adopted: 0, refreshed: 1, markedMissing: 0, untracked: 0 });
+    expect(result).toEqual({
+      adopted: 0,
+      refreshed: 1,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
     expect(registry.getLive('conv-1')).toMatchObject({
       // Host wins wholesale — the cache is not the authority.
       title: 'Host renamed this',
@@ -197,13 +215,80 @@ describe('applyConversationSnapshot', () => {
       observedAt: '2026-01-07T00:00:00.000Z',
     });
 
-    expect(result).toEqual({ adopted: 0, refreshed: 0, markedMissing: 1, untracked: 1 });
+    expect(result).toEqual({
+      adopted: 0,
+      refreshed: 0,
+      markedMissing: 1,
+      untracked: 1,
+      purgedTombstones: 0,
+    });
     expect(registry.getLive('linked-gone')).toMatchObject({
       observedStatus: 'missing',
       lastObservedAt: '2026-01-07T00:00:00.000Z',
       taskId: 'task-1',
     });
     expect(registry.getLive('mirror-gone')).toBeUndefined();
+  });
+
+  it('purges tombstoned rows once a delivery confirms the record gone — annotation notwithstanding', async () => {
+    seedTask('project-1', 'task-1');
+    const registry = createConversationRegistry(fixture.db);
+    registry.register({
+      id: 'tombstoned-linked',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      title: 'Pending deletion',
+      location: 'local',
+    });
+    registry.tombstone('tombstoned-linked', {
+      version: '1',
+      targetRecordId: 'tombstoned-linked',
+      tombstonedAt: Date.parse('2026-01-06T00:00:00.000Z'),
+    });
+
+    const result = await applyConversationSnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: {},
+      observedAt: '2026-01-07T00:00:00.000Z',
+    });
+
+    // Task-linked would normally go visible-missing; a pending deletion purges instead.
+    expect(result).toEqual({
+      adopted: 0,
+      refreshed: 0,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 1,
+    });
+    expect(registry.getLive('tombstoned-linked')).toBeUndefined();
+  });
+
+  it('keeps a tombstoned row pending while the delivery still carries the record', async () => {
+    const registry = createConversationRegistry(fixture.db);
+    registry.adopt({
+      id: 'tombstoned-alive',
+      title: 'Pending deletion',
+      location: 'local',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedStatus: 'present',
+    });
+    registry.tombstone('tombstoned-alive', {
+      version: '1',
+      targetRecordId: 'tombstoned-alive',
+      tombstonedAt: Date.parse('2026-01-06T00:00:00.000Z'),
+    });
+
+    const result = await applyConversationSnapshot({
+      db: fixture.db,
+      host: LOCAL_HOST,
+      records: { 'tombstoned-alive': hostRecord({ id: 'tombstoned-alive' }) },
+    });
+
+    expect(result).toMatchObject({ refreshed: 1, purgedTombstones: 0 });
+    expect(registry.getLive('tombstoned-alive')?.deletionTombstone).toMatchObject({
+      targetRecordId: 'tombstoned-alive',
+    });
   });
 
   it('scopes the sweep to the snapshot host; other hosts are untouched', async () => {
@@ -229,7 +314,13 @@ describe('applyConversationSnapshot', () => {
       records: {},
     });
 
-    expect(result).toEqual({ adopted: 0, refreshed: 0, markedMissing: 0, untracked: 0 });
+    expect(result).toEqual({
+      adopted: 0,
+      refreshed: 0,
+      markedMissing: 0,
+      untracked: 0,
+      purgedTombstones: 0,
+    });
     expect(registry.getLive('remote-conv')).toMatchObject({ observedStatus: 'present' });
   });
 

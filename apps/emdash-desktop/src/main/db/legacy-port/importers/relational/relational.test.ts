@@ -119,6 +119,7 @@ function createAppDb(): {
       origin TEXT DEFAULT 'registered' NOT NULL,
       location TEXT,
       ssh_connection_id TEXT,
+      deletion_tombstone TEXT,
       untracked_at TEXT
     );
   `);

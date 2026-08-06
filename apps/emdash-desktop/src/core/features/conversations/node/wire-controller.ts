@@ -11,14 +11,12 @@ import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import { createConversationOperations } from '@core/features/conversations/node/controller';
 import type { CompensationRunner } from '@core/features/conversations/node/createConversation';
-import type { ActiveOperationInputsReader } from '@core/features/conversations/node/list-host-conversations';
 import { setConversationModeId } from '@core/features/conversations/node/set-mode-id';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { tasks } from '@core/services/app-db/node/schema';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
 import { forwardLiveModel } from '@core/services/runtime-clients/node/forward-live-model';
 import { conversationsContract } from '../api';
 import {
@@ -65,8 +63,6 @@ export type CreateConversationsWireControllerOptions = Readonly<{
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   withCompensation: CompensationRunner;
   hostIsReachable: (hostRef: SerializedHostRef) => boolean;
-  operations: OperationSubmitter;
-  activeOperationInputs: ActiveOperationInputsReader;
 }>;
 
 export function createConversationsWireController(
@@ -91,8 +87,6 @@ export function createConversationsWireController(
     runtimes: options.runtimes,
     hostIsReachable: options.hostIsReachable,
     workspaceIdentity: options.workspaceIdentity,
-    operations: options.operations,
-    activeOperationInputs: options.activeOperationInputs,
   });
   const target = (conversationId: string) => resolveTarget(conversationId);
   const run = <T, E>(

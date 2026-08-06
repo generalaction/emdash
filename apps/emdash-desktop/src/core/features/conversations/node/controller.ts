@@ -4,7 +4,6 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
 import type {
   CompensationRunner,
   ConversationWorkspaceIdentityResolver,
@@ -18,7 +17,7 @@ import { getConversationsForProject } from './getConversationsForProject';
 import { getConversationsForTask } from './getConversationsForTask';
 import { hydrateConversation } from './hydrateConversation';
 import { linkConversationToTask } from './link-conversation-to-task';
-import { listHostConversations, type ActiveOperationInputsReader } from './list-host-conversations';
+import { listHostConversations } from './list-host-conversations';
 import { markConversationSeen } from './markConversationSeen';
 import { renameConversation } from './renameConversation';
 
@@ -31,8 +30,6 @@ export function createConversationOperations(dependencies: {
   runtimes: ConversationsRuntimeBroker;
   hostIsReachable: (hostRef: SerializedHostRef) => boolean;
   workspaceIdentity: ConversationWorkspaceIdentityResolver;
-  operations: OperationSubmitter;
-  activeOperationInputs: ActiveOperationInputsReader;
 }) {
   const { db, telemetry, withCompensation } = dependencies;
   return {
@@ -48,7 +45,7 @@ export function createConversationOperations(dependencies: {
         workspaceIdentity: dependencies.workspaceIdentity,
       }),
     deleteConversation: (projectId: string, taskId: string, conversationId: string) =>
-      deleteConversation(db, dependencies.operations, projectId, taskId, conversationId, telemetry),
+      deleteConversation(db, dependencies.runtimes, projectId, taskId, conversationId, telemetry),
     hydrateConversation: (projectId: string, taskId: string, conversationId: string) =>
       hydrateConversation(
         db,
@@ -74,11 +71,11 @@ export function createConversationOperations(dependencies: {
       getConversationsForTask(db, projectId, taskId),
     getConversationsForProject: (projectId: string) => getConversationsForProject(db, projectId),
     markConversationSeen: (conversationId: string) => markConversationSeen(db, conversationId),
-    listHostConversations: (scope: Parameters<typeof listHostConversations>[2]) =>
-      listHostConversations(db, dependencies.activeOperationInputs, scope),
+    listHostConversations: (scope: Parameters<typeof listHostConversations>[1]) =>
+      listHostConversations(db, scope),
     linkConversationToTask: (input: Parameters<typeof linkConversationToTask>[1]) =>
       linkConversationToTask(db, input),
     deleteHostConversation: (conversationId: string) =>
-      deleteHostConversation(dependencies.operations, conversationId, telemetry),
+      deleteHostConversation(db, dependencies.runtimes, conversationId, telemetry),
   };
 }

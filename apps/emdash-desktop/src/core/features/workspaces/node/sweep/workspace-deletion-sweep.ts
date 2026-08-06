@@ -1,7 +1,7 @@
 import { isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import {
-  cascadeTombstonedConversationDeletions,
+  tombstoneWorkspaceConversationDeletions,
   type WorkspaceRemovalBroker,
 } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
@@ -9,7 +9,6 @@ import {
   liveWorkspaces,
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
-import { appDbPokes } from '@core/services/app-db/node/pokes';
 import type { OperationSubmitter } from '@core/services/operations/api/node';
 import type {
   ReconcileSweepKind,
@@ -76,15 +75,17 @@ export function createWorkspaceDeletionSweepKind(options: {
         return removed.error.type === 'host-unreachable' ? 'unreachable' : 'failed';
       }
       // The frozen opt-in cascade, compiled at sweep time (spec §7.1) — same shape as
-      // the reachable-host delete path. The workspace tombstone itself still waits
-      // for mirror confirmation; only the RPC's positive success runs the cascade.
+      // the reachable-host delete path: conversation deletion tombstones, converged by
+      // the conversations kind on sweeps of this host (registered after this kind, so
+      // the same pass usually picks them up — a heuristic; the backstop is the
+      // guarantee). The workspace tombstone itself still waits for mirror
+      // confirmation; only the RPC's positive success runs the cascade.
       if (tombstone.options.deleteConversations) {
-        await cascadeTombstonedConversationDeletions(operations, {
+        tombstoneWorkspaceConversationDeletions(operations.db, {
           workspacePath: row.path ?? undefined,
           host,
           createdAt: Date.now(),
         });
-        appDbPokes.conversations.poke({});
       }
       return 'ok';
     },

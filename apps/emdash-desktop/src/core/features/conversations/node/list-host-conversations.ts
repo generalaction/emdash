@@ -1,5 +1,4 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { z } from 'zod';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type {
   HostConversationRow,
@@ -8,31 +7,20 @@ import type {
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks } from '@core/services/app-db/node/schema';
 
-export type ActiveOperationInputsReader = (operationName: string) => Promise<readonly unknown[]>;
-
-const deleteInputWithConversationId = z.object({ conversationId: z.string() });
-
 /**
  * The machine page's discovery and cleanup read (spec §8): every cached conversation
- * observation of one host — task-linked and orphaned alike — plus tombstoned rows whose
- * `host-delete-conversation` outbox entry is still in flight (removal-pending rows).
+ * observation of one host — task-linked and orphaned alike. Live rows carrying a
+ * deletion tombstone surface as removal-pending (ADR 0006): the visible pending state
+ * until the reconcile sweep converges and the sync delivery purges the row.
  */
 export async function listHostConversations(
   db: AppDb,
-  activeOperationInputs: ActiveOperationInputsReader,
   scope: HostConversationScope
 ): Promise<HostConversationRow[]> {
   const hostIdentity =
     scope.sshConnectionId === null
       ? isNull(conversations.sshConnectionId)
       : eq(conversations.sshConnectionId, scope.sshConnectionId);
-
-  const pendingDeletionIds = new Set(
-    (await activeOperationInputs('host-delete-conversation'))
-      .map((input) => deleteInputWithConversationId.safeParse(input))
-      .filter((parsed) => parsed.success)
-      .map((parsed) => parsed.data.conversationId)
-  );
 
   const rows = db
     .select({
@@ -48,11 +36,9 @@ export async function listHostConversations(
 
   const result: HostConversationRow[] = [];
   for (const { conversation, projectName, taskName } of rows) {
-    const live = conversation.untrackedAt === null;
-    const pendingRemoval = !live && pendingDeletionIds.has(conversation.id);
-    // Untracked rows without a live delete operation are settled removals (or forget-host
-    // leftovers awaiting purge) — not part of the host's conversations surface.
-    if (!live && !pendingRemoval) continue;
+    // Untracked rows are settled removals (or forget-host leftovers awaiting purge) —
+    // not part of the host's conversations surface.
+    if (conversation.untrackedAt !== null) continue;
     result.push({
       id: conversation.id,
       title: conversation.title,
@@ -68,7 +54,7 @@ export async function listHostConversations(
       lastObservedAt: conversation.lastObservedAt,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
-      pendingRemoval,
+      pendingRemoval: conversation.deletionTombstone !== null,
     });
   }
   return result;

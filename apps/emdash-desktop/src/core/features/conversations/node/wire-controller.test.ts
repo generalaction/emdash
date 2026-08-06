@@ -197,8 +197,6 @@ function setupController(options: {
     taskSessions: { getTask: vi.fn() },
     withCompensation: async ({ action }) => action(),
     hostIsReachable: () => true,
-    operations: {} as never,
-    activeOperationInputs: async () => [],
     resolveTarget: async () => target,
     hooks,
   });

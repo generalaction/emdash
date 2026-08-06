@@ -309,6 +309,13 @@
       "when": 1785976358223,
       "tag": "0043_breezy_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1785979984293,
+      "tag": "0044_plain_sinister_six",
+      "breakpoints": true
     }
   ]
 }

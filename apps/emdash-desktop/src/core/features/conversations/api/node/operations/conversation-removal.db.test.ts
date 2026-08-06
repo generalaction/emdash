@@ -1,17 +1,15 @@
-import { err, ok } from '@emdash/shared';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { err, ok, type Result } from '@emdash/shared';
 import { openFixture } from '@tooling/utils/db';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostDeleteConversationOperation } from '@core/features/conversations/api/node/host-delete-conversation-operation';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
-import type { OperationSubmitter } from '@core/services/operations/api/node';
-import { enqueueConversationDeletion } from './conversation-removal';
+import {
+  executeConversationRemoval,
+  tombstoneConversationForRemoval,
+  type ConversationRemovalBroker,
+} from './conversation-removal';
 
-/**
- * Enqueue-side of the delete verb (spec §4.3): untrack is the tombstone, the outbox entry
- * carries a snapshot-compiled input, and a failed submit reverts the tombstone. Records
- * leave the index only through this explicit request (`conv.explicit-delete`).
- */
-describe('enqueueConversationDeletion', () => {
+describe('tombstoneConversationForRemoval', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
 
   beforeEach(async () => {
@@ -22,87 +20,164 @@ describe('enqueueConversationDeletion', () => {
     fixture.close();
   });
 
-  function seedConversation(id: string, options: { sshConnectionId?: string } = {}): void {
-    if (options.sshConnectionId) {
-      fixture.sqlite
-        .prepare(
-          `INSERT INTO ssh_connections (id, name, host, username) VALUES (?, ?, 'example.test', 'user')`
-        )
-        .run(options.sshConnectionId, options.sshConnectionId);
-    }
-    fixture.sqlite
-      .prepare(`INSERT INTO projects (id, name) VALUES (?, ?)`)
-      .run(`project-${id}`, `project-${id}`);
-    fixture.sqlite
-      .prepare(`INSERT INTO tasks (id, project_id, name, status) VALUES (?, ?, ?, 'running')`)
-      .run(`task-${id}`, `project-${id}`, `task-${id}`);
-    createConversationRegistry(fixture.db).register({
+  function seedConversation(id: string): void {
+    createConversationRegistry(fixture.db).adopt({
       id,
-      projectId: `project-${id}`,
-      taskId: `task-${id}`,
       title: `Conversation ${id}`,
       provider: 'claude',
       type: 'acp',
-      location: options.sshConnectionId ? 'remote' : 'local',
-      sshConnectionId: options.sshConnectionId ?? null,
-      isInitialConversation: true,
+      location: 'local',
+      lastObservedAt: '2026-01-01T00:00:00.000Z',
+      observedStatus: 'present',
     });
   }
 
-  function submitter(submit: OperationSubmitter['submit']): OperationSubmitter {
-    return { db: fixture.db, submit };
-  }
+  it('writes the frozen tombstone atomically; the row stays live as the pending state', () => {
+    seedConversation('conv-1');
 
-  it('untracks the row and submits a snapshot-compiled delete verb', async () => {
-    seedConversation('conv-1', { sshConnectionId: 'conn-1' });
-    const submit = vi.fn(async () => ok({ operationId: 'op-1' }));
-
-    const result = await enqueueConversationDeletion(submitter(submit), 'conv-1');
-
-    expect(result.success).toBe(true);
-    expect(submit).toHaveBeenCalledWith(
-      hostDeleteConversationOperation,
-      expect.objectContaining({
-        version: '1',
-        source: 'user',
-        conversationId: 'conv-1',
-        hostRef: 'remote:conn-1',
-        projectId: 'project-conv-1',
-        taskId: 'task-conv-1',
-        entityName: 'Conversation conv-1',
-        hostOperationId: expect.any(String),
-      })
+    const written = fixture.db.transaction((tx) =>
+      tombstoneConversationForRemoval(tx, { conversationId: 'conv-1', createdAt: 1_000 })
     );
-    // Tombstoned: gone from live reads while the outbox entry is pending.
-    expect(createConversationRegistry(fixture.db).getLive('conv-1')).toBeUndefined();
+
+    expect(written.outcome).toBe('tombstoned');
+    const row = createConversationRegistry(fixture.db).getLive('conv-1');
+    expect(row?.deletionTombstone).toEqual({
+      version: '1',
+      targetRecordId: 'conv-1',
+      tombstonedAt: 1_000,
+    });
   });
 
-  it('reverts the tombstone when the submit is refused', async () => {
+  it('suppresses duplicates without overwriting the first write', () => {
     seedConversation('conv-2');
-    const submit = vi.fn(async () =>
-      err({ type: 'operation-conflict', message: 'conflicting operation' })
+    fixture.db.transaction((tx) =>
+      tombstoneConversationForRemoval(tx, { conversationId: 'conv-2', createdAt: 1_000 })
     );
 
-    const result = await enqueueConversationDeletion(submitter(submit), 'conv-2');
+    const second = fixture.db.transaction((tx) =>
+      tombstoneConversationForRemoval(tx, { conversationId: 'conv-2', createdAt: 2_000 })
+    );
 
-    expect(result.success).toBe(false);
-    expect(createConversationRegistry(fixture.db).getLive('conv-2')).toBeDefined();
+    expect(second.outcome).toBe('duplicate');
+    expect(
+      createConversationRegistry(fixture.db).getLive('conv-2')?.deletionTombstone
+    ).toMatchObject({ tombstonedAt: 1_000 });
   });
 
-  it('reports not-found for absent or already-pending conversations', async () => {
-    const submit = vi.fn();
-    const missing = await enqueueConversationDeletion(submitter(submit), 'conv-absent');
-    expect(missing).toEqual(
-      err({
-        type: 'conversation-not-found',
-        message: 'Conversation conv-absent was not found',
-      })
+  it('treats absent and untracked rows as duplicates (nothing to mark)', () => {
+    const absent = fixture.db.transaction((tx) =>
+      tombstoneConversationForRemoval(tx, { conversationId: 'conv-missing', createdAt: 1_000 })
     );
+    expect(absent.outcome).toBe('duplicate');
 
     seedConversation('conv-3');
     createConversationRegistry(fixture.db).untrack(['conv-3'], '2026-01-01T00:00:00.000Z');
-    const pending = await enqueueConversationDeletion(submitter(submit), 'conv-3');
-    expect(pending.success).toBe(false);
-    expect(submit).not.toHaveBeenCalled();
+    const untracked = fixture.db.transaction((tx) =>
+      tombstoneConversationForRemoval(tx, { conversationId: 'conv-3', createdAt: 1_000 })
+    );
+    expect(untracked.outcome).toBe('duplicate');
+  });
+});
+
+describe('executeConversationRemoval', () => {
+  type SessionKillMock = Mock<(input: { conversationId: string }) => Promise<unknown>>;
+  type IndexDeleteMock = Mock<
+    (input: { id: string }) => Promise<Result<void, { type: string; message?: string }>>
+  >;
+
+  function fakeBroker(overrides: {
+    reachable?: boolean;
+    killAcp?: SessionKillMock;
+    deleteTui?: SessionKillMock;
+    deleteRecord?: IndexDeleteMock;
+  }) {
+    const calls: string[] = [];
+    const killAcp: SessionKillMock =
+      overrides.killAcp ??
+      vi.fn(async () => {
+        calls.push('acp.killSession');
+        return ok(undefined);
+      });
+    const deleteTui: SessionKillMock =
+      overrides.deleteTui ??
+      vi.fn(async () => {
+        calls.push('tuiAgents.deleteSession');
+        return ok(undefined);
+      });
+    const deleteRecord: IndexDeleteMock =
+      overrides.deleteRecord ??
+      vi.fn(async () => {
+        calls.push('conversations.delete');
+        return ok(undefined);
+      });
+    const broker: ConversationRemovalBroker = {
+      client: async () =>
+        (overrides.reachable ?? true)
+          ? ok({
+              acp: { killSession: killAcp },
+              tuiAgents: { deleteSession: deleteTui },
+              conversations: { delete: deleteRecord },
+            })
+          : err({ type: 'ssh-connection-failed', message: 'down' }),
+    };
+    return { broker, calls, killAcp, deleteTui, deleteRecord };
+  }
+
+  it('kills both session surfaces before deleting the index record', async () => {
+    const host = fakeBroker({});
+
+    const outcome = await executeConversationRemoval(host.broker, LOCAL_HOST_REF, 'conv-1');
+
+    expect(outcome).toBe('ok');
+    // Session kill is part of the verb (spec §4.3) — strictly ordered before the delete.
+    expect(host.calls).toEqual([
+      'acp.killSession',
+      'tuiAgents.deleteSession',
+      'conversations.delete',
+    ]);
+    expect(host.killAcp).toHaveBeenCalledWith({ conversationId: 'conv-1' });
+    expect(host.deleteTui).toHaveBeenCalledWith({ conversationId: 'conv-1' });
+    expect(host.deleteRecord).toHaveBeenCalledWith({ id: 'conv-1' });
+  });
+
+  it('deletes the record even when session kills fail', async () => {
+    const host = fakeBroker({
+      killAcp: vi.fn(async () => {
+        throw new Error('acp runtime crashed');
+      }),
+      deleteTui: vi.fn(async () => {
+        throw new Error('tui runtime crashed');
+      }),
+    });
+
+    const outcome = await executeConversationRemoval(host.broker, LOCAL_HOST_REF, 'conv-1');
+
+    expect(outcome).toBe('ok');
+    expect(host.deleteRecord).toHaveBeenCalledWith({ id: 'conv-1' });
+  });
+
+  it('reports unreachable when the broker cannot resolve the host', async () => {
+    const host = fakeBroker({ reachable: false });
+
+    const outcome = await executeConversationRemoval(host.broker, LOCAL_HOST_REF, 'conv-1');
+
+    expect(outcome).toBe('unreachable');
+    expect(host.deleteRecord).not.toHaveBeenCalled();
+  });
+
+  it('classifies a mid-call unreachability error as unreachable, others as failed', async () => {
+    const dropped = fakeBroker({
+      deleteRecord: vi.fn(async () => err({ type: 'host-unreachable', message: 'gone' })),
+    });
+    await expect(
+      executeConversationRemoval(dropped.broker, LOCAL_HOST_REF, 'conv-1')
+    ).resolves.toBe('unreachable');
+
+    const failed = fakeBroker({
+      deleteRecord: vi.fn(async () => err({ type: 'index-io-error', message: 'disk' })),
+    });
+    await expect(executeConversationRemoval(failed.broker, LOCAL_HOST_REF, 'conv-1')).resolves.toBe(
+      'failed'
+    );
   });
 });

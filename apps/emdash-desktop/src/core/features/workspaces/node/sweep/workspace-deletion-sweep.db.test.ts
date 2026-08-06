@@ -3,7 +3,6 @@ import { ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostDeleteConversationOperation } from '@core/features/conversations/api/node/host-delete-conversation-operation';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
 import { createWorkspaceRegistry } from '@core/features/workspaces/api/node/registry';
 import type { OperationSubmitter } from '@core/services/operations/api/node';
@@ -142,7 +141,7 @@ describe('workspace deletion sweep (integration)', () => {
     expect(hostVerbs.deleteWorktree).not.toHaveBeenCalled();
   });
 
-  it('runs the frozen conversation cascade on removal success', async () => {
+  it('writes conversation tombstones for the frozen cascade on removal success', async () => {
     seedTombstonedWorktree('wt-conv', { deleteConversations: true });
     const conversations = createConversationRegistry(fixture.db);
     conversations.adopt({
@@ -169,13 +168,13 @@ describe('workspace deletion sweep (integration)', () => {
 
     await service.sweepHost(LOCAL_HOST_REF);
 
-    const conversationSubmits = submit.mock.calls.filter(
-      ([definition]) => definition === hostDeleteConversationOperation
-    );
-    expect(conversationSubmits).toHaveLength(1);
-    expect(conversationSubmits[0]![1]).toMatchObject({ conversationId: 'conv-here' });
-    expect(conversations.getLive('conv-here')).toBeUndefined();
-    expect(conversations.getLive('conv-elsewhere')).toBeDefined();
+    // Nothing queues anywhere (ADR 0006): the cascade writes durable conversation
+    // tombstones and the conversations kind converges them on sweeps of this host.
+    expect(submit).not.toHaveBeenCalled();
+    expect(conversations.getLive('conv-here')?.deletionTombstone).toMatchObject({
+      targetRecordId: 'conv-here',
+    });
+    expect(conversations.getLive('conv-elsewhere')?.deletionTombstone).toBeNull();
   });
 
   it('a terminal removal failure stops auto-retry, derivable purely from mirror metadata', async () => {
