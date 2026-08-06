@@ -5,6 +5,7 @@ import type { ThemeId } from '../src/react/primitives/theme-provider';
 // Third-party CSS loaded globally so all stories can rely on them without
 // individual imports. Vite handles these in the Storybook build.
 import 'devicon/devicon.min.css';
+import 'katex/dist/katex.min.css';
 import '@emdash/chat-ui/style.css';
 import '../src/react/chat-ui/chat-theme.css';
 // Opt-in element-defaults (body bg/fg, scrollbars, selection) using --em-* tokens.

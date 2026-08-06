@@ -96,6 +96,9 @@ export {
 export { ContainedImage, type ContainedImageProps } from './image-viewer/contained-image';
 export { ExpandableImage, type ExpandableImageProps } from './image-viewer/expandable-image';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';
+export { Markdown, type MarkdownProps, type MarkdownVariant } from './markdown/markdown';
+export { InlineMarkdown, type InlineMarkdownProps } from './markdown/inline-markdown';
+export { MermaidBlock, type MermaidBlockProps } from './markdown/mermaid-block';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
 export {
   AgentStatus,
