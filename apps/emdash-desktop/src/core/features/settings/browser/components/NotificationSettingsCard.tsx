@@ -4,8 +4,8 @@ import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Select,
   SelectContent,

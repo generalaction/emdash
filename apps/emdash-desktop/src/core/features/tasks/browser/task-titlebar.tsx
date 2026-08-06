@@ -34,9 +34,9 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Badge } from '@core/primitives/ui/browser/badge';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/styling/browser/cn';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
 import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
 import { MicroLabel } from '@core/primitives/ui/browser/label';

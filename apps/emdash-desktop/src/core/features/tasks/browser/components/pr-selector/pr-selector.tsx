@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxContent,

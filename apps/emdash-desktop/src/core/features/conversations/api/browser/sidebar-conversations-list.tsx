@@ -25,9 +25,9 @@ import {
 import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-registry';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { cn } from '@core/primitives/styling/browser/cn';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import {

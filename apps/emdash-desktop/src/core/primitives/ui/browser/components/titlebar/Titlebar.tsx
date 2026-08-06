@@ -1,8 +1,8 @@
 import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { NavButtons } from '@core/primitives/ui/browser/components/nav-buttons';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';

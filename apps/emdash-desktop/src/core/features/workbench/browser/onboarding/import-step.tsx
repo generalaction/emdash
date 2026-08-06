@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,

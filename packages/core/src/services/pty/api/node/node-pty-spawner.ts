@@ -1,3 +1,4 @@
+import { recordSpawn } from '@emdash/shared/perf';
 import {
   normalizeSignal,
   PosixPtyTerminator,
@@ -6,7 +7,6 @@ import {
   type PtySpawner,
   type PtySpawnSpec,
 } from '@services/pty/api';
-import { recordSpawn } from '@emdash/shared/perf';
 import * as nodePty from 'node-pty';
 
 const MIN_COLS = 2;

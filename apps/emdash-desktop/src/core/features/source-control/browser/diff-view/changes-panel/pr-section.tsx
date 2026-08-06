@@ -11,8 +11,8 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';

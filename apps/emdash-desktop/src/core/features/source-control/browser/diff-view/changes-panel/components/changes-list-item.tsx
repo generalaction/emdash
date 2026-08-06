@@ -3,8 +3,8 @@ import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'l
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import { splitPath } from '@core/features/tasks/api/browser/utils';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { displayPathForChange } from './changes-tree-utils';
 

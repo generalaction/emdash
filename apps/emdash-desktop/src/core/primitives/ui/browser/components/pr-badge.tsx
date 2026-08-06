@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrUrlCopyButton } from '@core/primitives/ui/browser/components/pr-url-copy-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';

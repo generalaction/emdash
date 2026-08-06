@@ -3,8 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,

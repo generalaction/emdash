@@ -20,9 +20,9 @@ import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/c
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { cn } from '@core/primitives/styling/browser/cn';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';

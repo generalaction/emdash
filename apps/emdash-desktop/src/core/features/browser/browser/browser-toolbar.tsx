@@ -30,8 +30,8 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,

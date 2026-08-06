@@ -12,9 +12,9 @@ import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-sto
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { type Task } from '@core/primitives/tasks/api';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { cn } from '@core/primitives/styling/browser/cn';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
