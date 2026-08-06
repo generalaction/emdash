@@ -199,9 +199,16 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       }
     );
     await this.migrateDefinitions(LOCAL_HOST_REF, client);
-    // Deletion intent left behind by offline deletes (ADR 0006): retry the host
-    // cleanup for tombstoned automations now that a runtime is up. Unreachable hosts
-    // keep their tombstones for the next initialization.
+    await this.sweepDeletionTombstones();
+  }
+
+  /**
+   * Deletion intent left behind by offline deletes (ADR 0006): retry the host cleanup
+   * for tombstoned automations. Runs at initialization (a runtime is up) and on host
+   * reconnect (boot wiring rides the same SSH signal as the reconcile sweep attach).
+   * Unreachable hosts keep their tombstones for the next pass; never throws.
+   */
+  async sweepDeletionTombstones(): Promise<void> {
     await sweepAutomationDeletionTombstones({
       db: this.dependencies.db,
       logger: log,

@@ -621,6 +621,9 @@ export async function bootServices(
         .backfillHost(host)
         .then(() => workspaceRegistrySync.attachHost(host))
         .then(() => reconcileSweep.attachHost(host));
+      // Automation deletion tombstones have no sweep kind (no mirror row to key on);
+      // their retry rides the same reconnect signal directly (ADR 0006).
+      void automationsService.sweepDeletionTombstones();
     } else if (event.type === 'disconnected' || event.type === 'reconnect-failed') {
       conversationSync.detachHost(hostRef('remote', event.connectionId));
       workspaceRegistrySync.detachHost(hostRef('remote', event.connectionId));
