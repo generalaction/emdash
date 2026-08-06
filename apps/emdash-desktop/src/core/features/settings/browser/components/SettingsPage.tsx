@@ -151,7 +151,7 @@ export const SettingsPage = observer(function SettingsPage({
   );
 
   return (
-    <SettingsSearchProvider query={searchQuery}>
+    <SettingsSearchProvider query={searchQuery} setQuery={setSearchQuery}>
       <PageLayout
         sidebar={
           <PageLayout.SidebarMenu

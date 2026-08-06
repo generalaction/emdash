@@ -1,3 +1,4 @@
+import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
 import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
 import React from 'react';
@@ -57,24 +58,38 @@ function EmptyMcpState() {
   );
 }
 
-export function AgentMcpSection({ agentId }: { agentId: string }) {
-  const { servers, isLoading, removeServer, removingServerName } = useAgentMcps(agentId);
+export function useManageMcpSettingsNavigation(): () => void {
   const { navigate } = useNavigate();
+  return () => navigate(settingsViewDef({ tab: 'mcp' }));
+}
+
+export function AgentMcpSection({
+  agentId,
+  host = LOCAL_HOST_REF,
+  onManage,
+}: {
+  agentId: string;
+  host?: HostRef;
+  onManage?: () => void;
+}) {
+  const { servers, isLoading, removeServer, removingServerName } = useAgentMcps(agentId, host);
 
   return (
     <Field>
       <div className="flex items-center justify-between">
         <Label>MCP Servers</Label>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 gap-1 px-2 text-xs"
-          onClick={() => navigate(settingsViewDef({ tab: 'mcp' }))}
-        >
-          <ExternalLink className="size-3" aria-hidden="true" />
-          Manage in Settings
-        </Button>
+        {onManage && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 px-2 text-xs"
+            onClick={onManage}
+          >
+            <ExternalLink className="size-3" aria-hidden="true" />
+            Manage in Settings
+          </Button>
+        )}
       </div>
       <div>
         {isLoading ? (

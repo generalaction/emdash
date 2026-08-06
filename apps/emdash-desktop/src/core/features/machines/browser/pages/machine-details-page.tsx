@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
-import { McpServersListForHost } from '@core/features/mcp/api/browser/components/McpServersList';
-import { CliAgentsList } from '@core/features/settings/api/browser/agents-page/CliAgentsList';
-import { SkillsListForHost } from '@core/features/skills/api/browser/components/SkillsList';
+import { McpPanel } from '@core/features/mcp/api/browser/components/McpPanel';
+import { AgentsPanel } from '@core/features/settings/api/browser/agents-page/AgentsPanel';
+import { SkillsPanel } from '@core/features/skills/api/browser/components/SkillsPanel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/ui/browser/cn';
@@ -74,18 +74,6 @@ function MachineDetailsCard({
       {children}
     </SelectableCard>
   );
-}
-
-function MachineMcpSection({ connectionId }: { connectionId: string }) {
-  const host = useMemo(() => hostRefFromConnectionId(connectionId), [connectionId]);
-
-  return <McpServersListForHost host={host} />;
-}
-
-function MachineSkillsSection({ connectionId }: { connectionId: string }) {
-  const host = useMemo(() => hostRefFromConnectionId(connectionId), [connectionId]);
-
-  return <SkillsListForHost host={host} />;
 }
 
 /**
@@ -399,21 +387,20 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
         />
       )}
 
-      {section === 'agents' && (
-        <SettingsCard>
-          {serverUsable ? (
-            <CliAgentsList connectionId={machine.id} />
-          ) : (
+      {section === 'agents' &&
+        (serverUsable ? (
+          <AgentsPanel connectionId={machine.id} onManageMcp={() => setSection('mcp')} />
+        ) : (
+          <SettingsCard>
             <div className="p-4 text-sm text-foreground-muted">
               Agent detection is available when the workspace server is healthy.
             </div>
-          )}
-        </SettingsCard>
-      )}
+          </SettingsCard>
+        ))}
 
       {section === 'mcp' &&
         (serverUsable ? (
-          <MachineMcpSection connectionId={machine.id} />
+          <McpPanel host={hostRefFromConnectionId(machine.id)} />
         ) : (
           <SettingsCard>
             <div className="p-4 text-sm text-foreground-muted">
@@ -424,7 +411,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
 
       {section === 'skills' &&
         (serverUsable ? (
-          <MachineSkillsSection connectionId={machine.id} />
+          <SkillsPanel host={hostRefFromConnectionId(machine.id)} />
         ) : (
           <SettingsCard>
             <div className="p-4 text-sm text-foreground-muted">
