@@ -1,11 +1,14 @@
-import { parseHostRef, sshConnectionIdOf } from '@emdash/core/primitives/host/api';
+import {
+  parseHostRef,
+  sshConnectionIdOf,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import { makeTmuxSessionName } from '@emdash/core/services/pty/api';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { conversations, terminals, type WorkspaceRow } from '@core/services/app-db/node/schema';
-import type { LifecycleOperationParams } from '@core/services/operations/node';
 import type {
   AcpRuntimeClient,
   TerminalsRuntimeClient,
@@ -17,6 +20,13 @@ export type LifecycleSessionTargets = {
   tuiConversationIds: string[];
   terminalSessionIds: string[];
   tmuxSessionNames: string[];
+};
+
+/** The task being deleted plus the host its sessions live on — all this module needs. */
+export type LifecycleSessionScope = {
+  taskId?: string | null;
+  projectId?: string | null;
+  hostRef: SerializedHostRef;
 };
 
 export type LifecycleSessionContext = {
@@ -38,14 +48,14 @@ type SessionTargetSets = {
 };
 
 /**
- * Resolves the task-scoped sessions a delete-task operation should stop.
+ * Resolves the task-scoped sessions a task deletion should stop.
  * Path-scoped session cleanup is the workspace host's job (the removeWorktree
  * verb kills sessions under the worktree path).
  */
 export async function resolveLifecycleSessionTargets(
   _dependencies: SessionCleanupDependencies,
   db: AppDb,
-  operation: LifecycleOperationParams,
+  operation: LifecycleSessionScope,
   _context: LifecycleSessionContext
 ): Promise<LifecycleSessionTargets> {
   const targets: SessionTargetSets = {
@@ -103,7 +113,7 @@ export async function resolveLifecycleSessionTargets(
 export async function killLifecycleAcpSessions(
   dependencies: SessionCleanupDependencies,
   _db: AppDb,
-  _operation: LifecycleOperationParams,
+  _operation: LifecycleSessionScope,
   targets: LifecycleSessionTargets
 ): Promise<void> {
   if (targets.acpConversationIds.length === 0) return;
@@ -119,7 +129,7 @@ export async function killLifecycleAcpSessions(
 export async function killLifecycleTerminalSessions(
   dependencies: SessionCleanupDependencies,
   _db: AppDb,
-  operation: LifecycleOperationParams,
+  operation: LifecycleSessionScope,
   context: LifecycleSessionContext,
   targets: LifecycleSessionTargets
 ): Promise<void> {

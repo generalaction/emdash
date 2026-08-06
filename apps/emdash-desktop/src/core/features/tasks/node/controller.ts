@@ -26,10 +26,10 @@ export function createTaskOperations(dependencies: {
       return taskService.getDeletePreflight(operations, taskIds);
     },
     async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions) {
-      return taskService.deleteTask(operations, projectId, taskId, options);
+      return taskService.deleteTask(projectId, taskId, options);
     },
     async deleteTasks(projectId: string, taskIds: string[], options?: DeleteTaskOptions) {
-      return taskService.deleteTasks(operations, projectId, taskIds, options);
+      return taskService.deleteTasks(projectId, taskIds, options);
     },
     async getProjectWorkspaces(projectId: string) {
       return getProjectWorkspaces(

@@ -11,7 +11,7 @@ import type {
 import type { OperationsEngine } from '@core/services/operations/node';
 import type { CreateProjectDependencies } from './operations/create-project';
 import { createProject, inspectProjectPath } from './operations/create-project';
-import { deleteProject } from './operations/deleteProject';
+import { deleteProject, type ProjectDeletionDependencies } from './operations/deleteProject';
 import { ensureDefaultRepositoriesRoot } from './operations/ensure-default-repositories-root';
 import { getProjects } from './operations/getProjects';
 import { initializeRepository } from './operations/initialize-repository';
@@ -23,12 +23,13 @@ import { countProjectsUsingGithubAccount } from './settings/count-projects-using
 export type ProjectOperationDependencies = Omit<CreateProjectDependencies, 'projects'> & {
   operations: OperationsEngine;
   placement: WorkspacePlacementResolver;
+  projectDeletion: ProjectDeletionDependencies;
   projectSettings: ProjectSettingsService;
   projects: Pick<ProjectSessionManager, 'closeProject' | 'openProject'>;
 };
 
 export function createProjectOperations(dependencies: ProjectOperationDependencies) {
-  const { db, operations, placement, projectSettings, projects, runtimes } = dependencies;
+  const { db, placement, projectDeletion, projectSettings, projects, runtimes } = dependencies;
   return {
     createProject: (params: Parameters<typeof createProject>[1]) =>
       createProject(dependencies, params),
@@ -41,7 +42,12 @@ export function createProjectOperations(dependencies: ProjectOperationDependenci
     ensureDefaultRepositoriesRoot: (host: HostRef) =>
       ensureDefaultRepositoriesRoot(dependencies, host),
     getProjects: () => getProjects(db),
-    deleteProject: (projectId: string) => deleteProject(operations, runtimes, projectId),
+    deleteProject: async (projectId: string) => {
+      const result = await deleteProject(projectDeletion, projectId);
+      if (!result.success && result.error.type !== 'project-not-found') {
+        throw new Error(result.error.message);
+      }
+    },
     getProjectSettingsPage: (projectId: string) =>
       projectSettings.getProjectSettingsPage(projectId),
     updateProjectSettings: (projectId: string, settings: ProjectSettings) =>

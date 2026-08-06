@@ -1,6 +1,1 @@
-export {
-  enqueueTombstoned,
-  type OperationMutation,
-  type OperationSubmitter,
-  type TombstoneEnqueueSpec,
-} from './enqueue-tombstoned';
+export { type OperationMutation, type OperationSubmitter } from './enqueue-tombstoned';

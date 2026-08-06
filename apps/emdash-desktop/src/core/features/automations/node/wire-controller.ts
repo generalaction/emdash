@@ -1,8 +1,11 @@
-import type { OperationMutationError } from '@emdash/core/primitives/operations/api';
 import { err, ok } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import { createController, type Controller } from '@emdash/wire';
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
-import { enqueueDeleteAutomation } from '@core/features/automations/node/operations/delete-automation-definition';
+import {
+  deleteAutomation,
+  type AutomationDeletionError,
+} from '@core/features/automations/node/operations/deleteAutomation';
 import { adoptRun } from '@core/features/automations/node/run-adoption';
 import {
   resolveAutomationRuntimeClient,
@@ -12,13 +15,12 @@ import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { AutomationDefinitionError } from '@core/primitives/automations/api';
 import type { Project } from '@core/primitives/projects/api';
 import type { AppDb } from '@core/services/app-db/node/db';
-import type { OperationsEngine } from '@core/services/operations/node';
 import { automationsContract } from '../api';
 
 export function createAutomationsWireController(options: {
   db: AppDb;
   getProjectById(projectId: string): Promise<Project | undefined>;
-  operations: OperationsEngine;
+  logger: Logger;
   runtime: AutomationRuntimeDependencies;
   service: AutomationsService;
   taskService: Pick<TaskService, 'notifyTaskCreated'>;
@@ -30,8 +32,17 @@ export function createAutomationsWireController(options: {
     list: ({ projectId }) => automationsService.list(projectId),
     create: (input) => automationsService.create(input),
     update: ({ id, patch }) => automationsService.update(id, patch),
+    // Plain deletion (no kernel submit): host cleanup then desktop row purge.
     delete: async ({ automationId }) => {
-      const result = await enqueueDeleteAutomation(options.operations, automationId);
+      const result = await deleteAutomation(
+        {
+          db: options.db,
+          logger: options.logger,
+          resolveClient: async (projectId) =>
+            (await resolveClient(projectId ?? undefined)).automations,
+        },
+        automationId
+      );
       if (!result.success) return err(toAutomationDefinitionError(result.error, automationId));
       automationsService.notifyDeleted(automationId);
       return ok(undefined);
@@ -58,7 +69,7 @@ export function createAutomationsWireController(options: {
 }
 
 function toAutomationDefinitionError(
-  error: OperationMutationError,
+  error: AutomationDeletionError,
   automationId: string
 ): AutomationDefinitionError {
   return error.type === 'automation-not-found'

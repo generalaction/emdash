@@ -54,9 +54,8 @@ export function createWorkspacesWireController(
       removeAndReprovision: (input) =>
         options.reprovisionWorkspace(input.workspaceId, { removeFirst: true }),
       delete: (input) =>
-        deleteWorkspaceThroughRegistry(options.operations, options.runtimes, input.workspaceId),
-      archive: (input) =>
-        archiveWorkspaceThroughRegistry(options.operations, options.runtimes, input),
+        deleteWorkspaceThroughRegistry(options.db, options.runtimes, input.workspaceId),
+      archive: (input) => archiveWorkspaceThroughRegistry(options.db, options.runtimes, input),
     },
     async dispose() {},
   };

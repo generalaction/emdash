@@ -51,14 +51,15 @@ import {
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
+import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
 import {
   getProjectById,
   getProjectByPath,
 } from '@core/features/projects/node/operations/getProjects';
 import { createSearchService } from '@core/features/search/node/search-service';
 import { TaskService } from '@core/features/tasks/api/node/task-service';
+import type { TaskSessionCleanup } from '@core/features/tasks/api/node/task-session-cleanup';
 import { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import type { DeleteTaskOperationDependencies } from '@core/features/tasks/node/operations/delete-task-definition';
 import { installAutomationTelemetry } from '@core/features/telemetry/node/automation-telemetry';
 import { installTaskTelemetry } from '@core/features/telemetry/node/task-telemetry';
 import { desktopHostEvents } from '@core/features/workbench/node/event-host';
@@ -76,7 +77,6 @@ import type { TaskProviderOpts } from '@core/features/workspaces/api/node/worksp
 import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node/sweep/workspace-deletion-sweep';
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
-import { createOperationDefinitions } from '@core/manifests/node/operation-definitions';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
@@ -149,6 +149,7 @@ export type ServicesBundle = {
   readonly operations: Awaited<ReturnType<typeof createOperationsEngine>>['engine'];
   readonly disposeOperations: () => Promise<void>;
   readonly promptLibrary: ReturnType<typeof createPromptLibraryService>;
+  readonly projectDeletion: ProjectDeletionDependencies;
   readonly projects: ProjectSessionManager;
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ReturnType<typeof createProviderOverrideSettings>;
@@ -272,6 +273,20 @@ export async function bootServices(
       tuiConversationDependencies
     );
   const workspaceCreations = new WorkspaceCreations();
+  const sessionCleanupDependencies: SessionCleanupDependencies = {
+    getAcpRuntimeClient: async () => clients.acp,
+    getProjectTerminals: (projectId: string) => projectManager.getProject(projectId)?.terminals,
+    getTerminalsRuntimeClient,
+    getTuiAgentsRuntimeClient,
+  };
+  const lifecycleSessions: TaskSessionCleanup = {
+    resolve: (database, scope, context) =>
+      resolveLifecycleSessionTargets(sessionCleanupDependencies, database, scope, context),
+    killAcp: (database, scope, targets) =>
+      killLifecycleAcpSessions(sessionCleanupDependencies, database, scope, targets),
+    killTerminals: (database, scope, context, targets) =>
+      killLifecycleTerminalSessions(sessionCleanupDependencies, database, scope, context, targets),
+  };
   const taskService = new TaskService({
     db,
     projects: projectManager,
@@ -282,6 +297,16 @@ export async function bootServices(
     createConversationProvider,
     workspaceIdentity,
     creations: workspaceCreations,
+    // Plain task deletion (spec §3): no kernel submit; the host-artifact half rides
+    // the workspace removal verbs and the reconcile-sweep tombstones.
+    deletion: {
+      db,
+      runtimes,
+      sessionCleanup: lifecycleSessions,
+      getMementosRuntimeClient,
+      telemetry: telemetryService,
+      unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
+    },
   });
   const searchService = createSearchService({
     db,
@@ -491,28 +516,18 @@ export async function bootServices(
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
-  const sessionCleanupDependencies: SessionCleanupDependencies = {
-    getAcpRuntimeClient: async () => clients.acp,
-    getProjectTerminals: (projectId: string) => projectManager.getProject(projectId)?.terminals,
-    getTerminalsRuntimeClient,
-    getTuiAgentsRuntimeClient,
-  };
-  const lifecycleContext = {
+  // Plain project deletion (spec §3): the cascade reuses the task session cleanup and
+  // the workspace removal verbs; nothing submits to the operations kernel.
+  const projectDeletion: ProjectDeletionDependencies = {
+    db,
+    runtimes,
+    automations: automationsService,
+    getMementosRuntimeClient,
+    logger: log,
     projects: projectManager,
-  };
-  const lifecycleSessions: DeleteTaskOperationDependencies['sessionCleanup'] = {
-    resolve: (database, operation, context) =>
-      resolveLifecycleSessionTargets(sessionCleanupDependencies, database, operation, context),
-    killAcp: (database, operation, targets) =>
-      killLifecycleAcpSessions(sessionCleanupDependencies, database, operation, targets),
-    killTerminals: (database, operation, operationContext, targets) =>
-      killLifecycleTerminalSessions(
-        sessionCleanupDependencies,
-        database,
-        operation,
-        operationContext,
-        targets
-      ),
+    pullRequests: pullRequestsRegistration,
+    sessionCleanup: lifecycleSessions,
+    telemetry: telemetryService,
   };
   const desktopClientId = await getDesktopClientId();
   // Push-based mirror of each host's workspace registry (ADR 0005).
@@ -546,26 +561,6 @@ export async function bootServices(
   void conversationBackfill
     .backfillHost(LOCAL_HOST_REF)
     .then(() => conversationSync.attachHost(LOCAL_HOST_REF));
-  const operationDefinitions = createOperationDefinitions({
-    db,
-    initiatedBy: desktopClientId,
-    deleteTask: {
-      getMementosRuntimeClient,
-      lifecycleContext,
-      sessionCleanup: lifecycleSessions,
-      telemetry: telemetryService,
-      unregisterFileSearchRoot: fileSearchRuntime.unregisterRoot,
-    },
-    deleteAutomation: { runtimes },
-    deleteProject: {
-      automations: automationsService,
-      getMementosRuntimeClient,
-      logger: log,
-      projects: projectManager,
-      pullRequests: pullRequestsRegistration,
-      telemetry: telemetryService,
-    },
-  });
   const operations = await createOperationsEngine({
     scope: appScope,
     db,
@@ -587,8 +582,11 @@ export async function bootServices(
         });
       },
     },
-    definitions: operationDefinitions.definitions,
-    conflictPolicies: operationDefinitions.conflictPolicies,
+    // Deletion flows are plain functions now (spec §3); no desktop-authored kernel
+    // definitions remain. The engine survives for host reachability + wire plumbing
+    // until ticket 08 retires it.
+    definitions: [],
+    conflictPolicies: [],
   });
   appScope.add(() => operations.dispose());
   infrastructure.ssh.machines.setOperations(operations.engine);
@@ -661,6 +659,7 @@ export async function bootServices(
     operations: operations.engine,
     disposeOperations: () => operations.dispose(),
     promptLibrary: promptLibraryService,
+    projectDeletion,
     projects: projectManager,
     projectSettings: projectSettingsService,
     providerSettings: providerOverrideSettings,

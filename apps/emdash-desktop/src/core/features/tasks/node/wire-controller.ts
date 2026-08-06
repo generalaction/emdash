@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared';
+import { err, ok } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Contract, ContractImpl } from '@emdash/wire';
 import { expose, family, query } from '@emdash/wire/state';
@@ -6,7 +6,6 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { tasksWireContract } from '@core/features/tasks/api';
 import type { TaskService } from '@core/features/tasks/api/node/task-service';
 import type { TaskSessionManager } from '@core/features/tasks/api/node/task-session-manager';
-import { enqueueDeleteTask } from '@core/features/tasks/node/operations/delete-task-definition';
 import type { WorkspaceRemovalBroker } from '@core/features/workspaces/api/node/operations/workspace-removal';
 import {
   liveWorkspaces,
@@ -36,7 +35,6 @@ export function createTasksWireController(options: {
   taskSessions: Pick<TaskSessionManager, 'getTask'>;
   telemetry: TelemetryService;
 }): TasksWireController {
-  const { operations } = options;
   const taskOperations = createTaskOperations(options);
   const taskListFamily = family(
     ({ projectId }: { projectId: string }, scope) =>
@@ -165,7 +163,12 @@ export function createTasksWireController(options: {
       generateTaskName: (input) => taskOperations.generateTaskName(input),
       taskList: taskListProvider,
       taskStats: taskStatsProvider,
-      delete: (input) => enqueueDeleteTask(operations, options.runtimes, input),
+      // Plain deletion (no kernel submit); the contract's mutation-result shape stays
+      // for wire compatibility, with no operation id to report.
+      delete: async (input) => {
+        const result = await options.service.delete(input);
+        return result.success ? ok({}) : err(result.error);
+      },
     },
     async dispose() {
       await taskListProvider.dispose();

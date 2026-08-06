@@ -49,7 +49,12 @@ import { tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
 import type { OperationsEngine } from '@core/services/operations/node';
 import { archiveTask } from '../../node/operations/archiveTask';
 import { createTask } from '../../node/operations/createTask';
-import { deleteTask } from '../../node/operations/deleteTask';
+import {
+  deleteTask,
+  type DeleteTaskInput,
+  type TaskDeletionDependencies,
+  type TaskDeletionResult,
+} from '../../node/operations/deleteTask';
 import { getDeletePreflight } from '../../node/operations/getDeletePreflight';
 import { getTasks } from '../../node/operations/getTasks';
 import { renameTask } from '../../node/operations/renameTask';
@@ -89,6 +94,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       createConversationProvider(options: TaskProviderOpts): ConversationProvider;
       workspaceIdentity: WorkspaceIdentityService;
       creations: WorkspaceCreations;
+      deletion: TaskDeletionDependencies;
     }
   ) {}
 
@@ -464,13 +470,31 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     );
   }
 
-  async deleteTask(
-    operations: OperationsEngine,
-    projectId: string,
-    taskId: string,
-    options?: DeleteTaskOptions
-  ): Promise<void> {
-    await deleteTask(operations, this.dependencies.runtimes, projectId, taskId, options);
+  /**
+   * The wire `delete` mutation's entry point: the plain task deletion (no kernel
+   * submit), surfacing the Result unchanged so duplicate/absence stays non-throwing.
+   */
+  async delete(input: DeleteTaskInput): Promise<TaskDeletionResult> {
+    const [row] = await this.dependencies.db
+      .select({ projectId: tasks.projectId })
+      .from(tasks)
+      .where(eq(tasks.id, input.taskId))
+      .limit(1);
+    const result = await deleteTask(this.dependencies.deletion, input);
+    if (result.success && row) this.notifyTaskDeleted(input.taskId, row.projectId);
+    return result;
+  }
+
+  async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions): Promise<void> {
+    const result = await deleteTask(this.dependencies.deletion, {
+      taskId,
+      deleteWorktree: options?.deleteWorktree,
+      deleteBranch: options?.deleteBranch,
+      deleteConversations: options?.deleteConversations,
+    });
+    if (!result.success && result.error.type !== 'task-not-found') {
+      throw new Error(result.error.message);
+    }
     this.notifyTaskDeleted(taskId, projectId);
   }
 
@@ -479,7 +503,6 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   async deleteTasks(
-    operations: OperationsEngine,
     projectId: string,
     taskIds: string[],
     options?: DeleteTaskOptions
@@ -487,10 +510,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     // Notify per deletion: one failure must not suppress taskDeleted for the
     // already-removed tasks, or the renderer rollback would resurrect them.
     const results = await Promise.allSettled(
-      taskIds.map(async (id) => {
-        await deleteTask(operations, this.dependencies.runtimes, projectId, id, options);
-        this.notifyTaskDeleted(id, projectId);
-      })
+      taskIds.map((id) => this.deleteTask(projectId, id, options))
     );
     const failure = results.find(
       (result): result is PromiseRejectedResult => result.status === 'rejected'

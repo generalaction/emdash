@@ -25,7 +25,7 @@ import {
   createProjectFromRemote,
   unknownToProjectCreationError,
 } from './operations/create-project-from-remote';
-import { enqueueDeleteProject } from './operations/delete-project-definition';
+import { deleteProject } from './operations/deleteProject';
 
 type CreationKey = { projectId: string };
 type ContractDefinitionsOf<TContract> = TContract extends Contract<infer Defs> ? Defs : never;
@@ -45,7 +45,6 @@ export type ProjectsWireController = {
 export function createProjectsWireController(
   dependencies: ProjectOperationDependencies
 ): ProjectsWireController {
-  const { operations } = dependencies;
   const projectOperations = createProjectOperations(dependencies);
   const projectList = createProjectListProvider(projectOperations);
   const creation = createCreationProvider();
@@ -92,7 +91,12 @@ export function createProjectsWireController(
         run: (input, ctx) => runCreateProjectFromRemote(dependencies, creation, input, ctx),
         toError: unknownToProjectCreationError,
       },
-      delete: (input) => enqueueDeleteProject(operations, dependencies.runtimes, input.projectId),
+      // Plain deletion (no kernel submit); the contract's mutation-result shape stays
+      // for wire compatibility, with no operation id to report.
+      delete: async (input) => {
+        const result = await deleteProject(dependencies.projectDeletion, input.projectId);
+        return result.success ? ok({}) : err(result.error);
+      },
     },
     async dispose() {
       await creation.dispose();

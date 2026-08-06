@@ -39,6 +39,7 @@ import { createMcpWireController } from '@core/features/mcp/node/wire-controller
 import { createPreviewServersWireController } from '@core/features/preview-servers/node/wire-controller';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { ProjectSettingsService } from '@core/features/projects/api/node/settings/project-settings-service';
+import type { ProjectDeletionDependencies } from '@core/features/projects/node/operations/deleteProject';
 import { createProjectsWireController } from '@core/features/projects/node/wire-controller';
 import { createRepositoryWireController } from '@core/features/repository/node/wire-controller';
 import type { SearchService } from '@core/features/search/node/search-service';
@@ -112,6 +113,7 @@ export type DesktopControllerContext = {
   readonly logger: Logger;
   readonly notifications: NotificationService;
   readonly operations: OperationsEngine;
+  readonly projectDeletion: ProjectDeletionDependencies;
   readonly promptLibrary: PromptLibraryService;
   readonly projects: ProjectSessionManager;
   readonly projectSettings: ProjectSettingsService;
@@ -189,10 +191,9 @@ export const desktopNodeControllers = {
       createProjectSettingsWireController({ projects, runtimes, workspaceIdentity }),
   },
   projectWorkspaces: {
-    create: ({ db, operations, runtimes, scope, taskService, taskSessions }) => {
+    create: ({ db, runtimes, scope, taskService, taskSessions }) => {
       const controller = createProjectWorkspacesWireController({
         db,
-        operations,
         runtimes,
         taskService,
         taskSessions,
@@ -287,13 +288,23 @@ export const desktopNodeControllers = {
       createWorkspaceRegistryWireController({ db, runtimes, sweep: reconcileSweep }),
   },
   projects: {
-    create: ({ db, operations, projects, projectSettings, runtimes, scope, workspacePlacement }) =>
+    create: ({
+      db,
+      operations,
+      projectDeletion,
+      projects,
+      projectSettings,
+      runtimes,
+      scope,
+      workspacePlacement,
+    }) =>
       controllerFromImpl(
         desktopDomainContracts.projects,
         createProjectsWireController({
           db,
           operations,
           placement: workspacePlacement,
+          projectDeletion,
           projects,
           projectSettings,
           runtimes,
@@ -302,11 +313,11 @@ export const desktopNodeControllers = {
       ),
   },
   automations: {
-    create: ({ automations, db, operations, projects, runtimes, taskService }) =>
+    create: ({ automations, db, logger, projects, runtimes, taskService }) =>
       createAutomationsWireController({
         db,
         getProjectById: async (projectId) => projects.getProject(projectId)?.project,
-        operations,
+        logger,
         runtime: {
           runtimes,
           getProjectById: async (projectId) => projects.getProject(projectId)?.project,

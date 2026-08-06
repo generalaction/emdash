@@ -1,7 +1,3 @@
-import {
-  worktreeKernelResource,
-  type WorktreeResourceRef,
-} from '@emdash/core/primitives/kernel-resources/api';
 import { defineResource, type ResourceClaim } from '@emdash/core/primitives/kernel/api';
 import { operationClaimResourceKey } from '@emdash/core/primitives/operations/api';
 
@@ -69,84 +65,10 @@ export const branchKernelResource = defineResource<'branch', BranchResourceRef>(
   parent: (ref) => ({ def: projectKernelResource, ref: { projectId: ref.projectId } }),
 });
 
-export interface DeleteTaskClaimInput {
-  projectId: string;
-  taskId: string;
-  workspaceId?: string | null;
-  branch?: BranchResourceRef;
-  worktree?: WorktreeResourceRef;
-  workspaceShared: boolean;
-}
-
-export interface WorkspaceClaimInput {
-  projectId?: string;
-  workspaceId?: string;
-  branch?: BranchResourceRef;
-  worktree?: WorktreeResourceRef;
-}
-
-export function deleteTaskKernelClaims(input: DeleteTaskClaimInput): ResourceClaim[] {
-  const claims = taskKernelResource.mutates({
-    projectId: input.projectId,
-    taskId: input.taskId,
-  });
-  if (input.workspaceShared) {
-    return claims;
-  }
-  if (input.workspaceId) {
-    claims.push(
-      ...workspaceKernelResource.mutates({
-        projectId: input.projectId,
-        workspaceId: input.workspaceId,
-      })
-    );
-  }
-  if (input.branch) {
-    claims.push(...branchKernelResource.mutates(input.branch));
-  }
-  if (input.worktree) {
-    claims.push(...worktreeKernelResource.mutates(input.worktree));
-  }
-  return dedupeClaims(claims);
-}
-
-export function workspaceKernelClaims(input: WorkspaceClaimInput): ResourceClaim[] {
-  const claims: ResourceClaim[] = [];
-  if (input.projectId && input.workspaceId) {
-    claims.push(
-      ...workspaceKernelResource.mutates({
-        projectId: input.projectId,
-        workspaceId: input.workspaceId,
-      })
-    );
-  }
-  if (input.branch) {
-    claims.push(...branchKernelResource.mutates(input.branch));
-  }
-  if (input.worktree) {
-    claims.push(...worktreeKernelResource.mutates(input.worktree));
-  }
-  return dedupeClaims(claims);
-}
-
 export function projectClaimKey(projectId: string): string {
   return projectKernelResource.key({ projectId });
 }
 
 export function branchKernelClaim(projectId: string, branchName: string): ResourceClaim[] {
   return branchKernelResource.mutates({ projectId, branchName });
-}
-
-function dedupeClaims(claims: readonly ResourceClaim[]): ResourceClaim[] {
-  const seen = new Set<string>();
-  const result: ResourceClaim[] = [];
-  for (const claim of claims) {
-    const key = `${claim.resource}\u0000${claim.key}\u0000${claim.mode}\u0000${claim.implicit}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    result.push({ ...claim });
-  }
-  return result;
 }

@@ -8,7 +8,7 @@ import type {
   ProjectWorkspaceActionSummary,
   ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
-import type { OperationsEngine } from '@core/services/operations/node';
+import type { AppDb } from '@core/services/app-db/node/db';
 import {
   getProjectWorkspaceProject,
   listProjectWorkspaces,
@@ -17,7 +17,6 @@ import {
 
 export async function deleteProjectWorkspaces(
   dependencies: ListProjectWorkspacesDependencies & {
-    operations: OperationsEngine;
     taskService: Pick<TaskService, 'deleteTask'>;
   },
   input: {
@@ -65,7 +64,7 @@ export async function deleteProjectWorkspaces(
 
 async function deleteProjectWorkspaceRow(
   dependencies: {
-    operations: OperationsEngine;
+    db: AppDb;
     runtimes: WorkspaceRemovalBroker;
     taskService: Pick<TaskService, 'deleteTask'>;
   },
@@ -97,7 +96,7 @@ async function deleteProjectWorkspaceRow(
   try {
     if (row.tasks.length > 0) {
       for (const task of row.tasks) {
-        await dependencies.taskService.deleteTask(dependencies.operations, projectId, task.taskId, {
+        await dependencies.taskService.deleteTask(projectId, task.taskId, {
           deleteWorktree: true,
           deleteBranch: false,
           // The workspace-removal dialog's choice is the visible intent here; the
@@ -113,7 +112,7 @@ async function deleteProjectWorkspaceRow(
     }
 
     const result = await deleteWorkspacePathThroughRegistry(
-      dependencies.operations,
+      dependencies.db,
       dependencies.runtimes,
       {
         projectId,
