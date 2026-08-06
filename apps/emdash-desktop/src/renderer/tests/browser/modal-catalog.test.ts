@@ -1,3 +1,4 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { Result } from '@emdash/shared';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { openModal } from '@core/manifests/browser/modal-api';
@@ -41,6 +42,10 @@ function openUnsavedChangesForTypeTest() {
   });
 }
 
+function openRemoteCreateSkillForTypeTest(host: HostRef) {
+  return openModal('createSkillModal', { host });
+}
+
 describe('modalCatalog', () => {
   it('contains every modal exactly once', () => {
     const catalogIds = modalCatalog.defs.map((definition) => definition.id).sort();
@@ -51,6 +56,9 @@ describe('modalCatalog', () => {
   it('infers caller props and outcomes from modal ids', () => {
     expectTypeOf<ReturnType<typeof openUnsavedChangesForTypeTest>>().toEqualTypeOf<
       Promise<Result<'save' | 'discard', ModalDismissed>>
+    >();
+    expectTypeOf<ReturnType<typeof openRemoteCreateSkillForTypeTest>>().toEqualTypeOf<
+      Promise<Result<void, ModalDismissed>>
     >();
   });
 });
