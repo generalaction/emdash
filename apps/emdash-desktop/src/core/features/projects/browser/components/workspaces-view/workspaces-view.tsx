@@ -14,9 +14,10 @@ import { observe, remote } from '@emdash/wire';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { projectWorkspacesContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
+import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { Button } from '@core/primitives/ui/browser/button';
@@ -33,15 +34,14 @@ import {
   TooltipTrigger,
 } from '@core/primitives/ui/browser/tooltip';
 import { toast } from '@core/primitives/ui/browser/use-toast';
-import type {
-  ProjectWorkspaceActionResult,
-  ProjectWorkspaceActionSummary,
-  ProjectWorkspacePathState,
-  ProjectWorkspaceRow,
-  ProjectWorkspaceUsageResult,
+import {
+  workspaceRemovalNeedsAttention,
+  type ProjectWorkspaceActionResult,
+  type ProjectWorkspaceActionSummary,
+  type ProjectWorkspacePathState,
+  type ProjectWorkspaceRow,
+  type ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import { OperationTreesPanel } from '@core/services/operations/browser/operation-trees-panel';
-import { useOperationTrees } from '@core/services/operations/browser/use-operation-trees';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { formatBytes } from '@renderer/utils/formatBytes';
 
@@ -239,11 +239,6 @@ export const WorkspacesView = observer(function WorkspacesView({
 }) {
   const store = useMemo(() => new ProjectWorkspacesStore(projectId), [projectId]);
   const view = useMemo(() => createProjectWorkspacesListView(store), [store]);
-  const getOperationsClient = useCallback(
-    async () => (await getDesktopWireClient()).operations,
-    []
-  );
-  const operationTrees = useOperationTrees(projectId, getOperationsClient);
 
   useEffect(() => {
     return () => store.dispose();
@@ -255,7 +250,7 @@ export const WorkspacesView = observer(function WorkspacesView({
         <div className="relative flex h-full min-h-0 w-full flex-col">
           <WorkspacesHeader store={store} view={view} />
           <WorkspaceWarnings warnings={store.warnings} />
-          <OperationTreesPanel {...operationTrees} className="mx-4 mt-4" />
+          <WorkspaceRemovalAttentionPanel rows={store.rows} className="mx-4 mt-4" />
           <ListView.Body className="min-h-0 flex-1">
             {store.status === 'loading' && store.rows.length === 0 ? (
               <WorkspacesLoadingState />
@@ -654,7 +649,8 @@ function WorkspaceBadges({ row }: { row: ProjectWorkspaceRow }) {
     row.hasActiveSessions ? 'Active' : null,
     row.pathState !== 'measured' ? pathStateLabel(row.pathState) : null,
   ].filter((badge): badge is string => !!badge);
-  if (badges.length === 0) return null;
+  const removalBadge = removalBadgeFor(row);
+  if (badges.length === 0 && !removalBadge) return null;
   return (
     <span className="flex shrink-0 items-center gap-1">
       {badges.map((badge) => (
@@ -665,6 +661,31 @@ function WorkspaceBadges({ row }: { row: ProjectWorkspaceRow }) {
           {badge}
         </span>
       ))}
+      {removalBadge}
+    </span>
+  );
+}
+
+/** Tombstoned rows render as their own pending-deletion state (ADR 0006). */
+function removalBadgeFor(row: ProjectWorkspaceRow): ReactNode {
+  if (!row.pendingRemoval) return null;
+  if (workspaceRemovalNeedsAttention(row)) {
+    return (
+      <Tooltip>
+        <TooltipTrigger>
+          <span className="rounded-full border border-border-destructive px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-destructive uppercase">
+            Removal failed
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-70 text-xs">
+          {row.lastRemovalAttempt?.message ?? 'The removal stopped after a failure.'}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <span className="animate-pulse rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
+      Removing…
     </span>
   );
 }
@@ -737,6 +758,7 @@ function showActionResult(kind: 'archive' | 'delete', result: ProjectWorkspaceAc
 }
 
 function unselectableReason(row: ProjectWorkspaceRow): string {
+  if (row.pendingRemoval) return 'This workspace is already being removed.';
   if (row.kind === 'root' && !row.canCleanArtifacts) return 'Repository root cannot be deleted.';
   if (row.pathState === 'remote') return 'Remote workspace cleanup is not supported.';
   if (row.pathState === 'missing') return 'Workspace path is missing.';

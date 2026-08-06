@@ -1,4 +1,3 @@
-import type { OperationDisplayState } from '@emdash/core/primitives/operations/api';
 import {
   ColumnList,
   ColumnListCell,
@@ -9,9 +8,11 @@ import {
 } from '@emdash/ui/react/components';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
+import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
+import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
 import {
   Tooltip,
@@ -26,17 +27,21 @@ import type {
   ProjectWorkspaceRow,
   ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
-import {
-  OperationTreesPanel,
-  relativeQueuedTime,
-} from '@core/services/operations/browser/operation-trees-panel';
 import { GitStatsCell } from '../components/git-stats-cell';
 import { RepositoryHeader } from '../components/local-workspace-header';
 import { basename, formatBytes } from '../components/workspace-format';
 import { deleteMachineProjectWorkspaces } from '../use-machine-workspaces';
 import { useWorkspaceRows, type WorkspacesScope } from '../use-workspace-rows';
-import type { JoinedWorkspaceRow, WorkspaceOperationLink } from '../workspace-rows';
+import type { JoinedWorkspaceRow } from '../workspace-rows';
 import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
+
+/** One durable script failure (mirror `scriptOutcomes`) or a live overlay notice. */
+type WorkspaceScriptIssue = {
+  script: string;
+  outcome: 'failed' | 'timed-out';
+  at: number;
+  message?: string;
+};
 
 type WorkspaceDetailListItem = {
   id: string;
@@ -51,7 +56,10 @@ type WorkspaceDetailListItem = {
   activeTaskCount: number;
   loadingGitStats: boolean;
   loadingUsage: boolean;
-  operation?: WorkspaceOperationLink;
+  pendingRemoval: boolean;
+  removalNeedsAttention: boolean;
+  statusMessage?: string;
+  scriptIssues: WorkspaceScriptIssue[];
   pathIssue?: ProjectWorkspacePathIssue;
 };
 
@@ -70,7 +78,10 @@ const DETAIL_COLUMNS: ColumnListColumn<WorkspaceDetailListItem>[] = [
           <span className="inline-flex min-w-0 items-center gap-2">
             <span className="truncate">{item.name}</span>
             {item.pathIssue && <PathIssueChip issue={item.pathIssue} path={item.path} />}
-            {item.operation && <OperationChip operation={item.operation} />}
+            <RemovalChip item={item} />
+            {item.scriptIssues.map((issue) => (
+              <ScriptIssueChip key={issue.script} issue={issue} />
+            ))}
           </span>
         }
         secondary={item.path}
@@ -139,15 +150,11 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 } & SettingsPageDetailProps) {
   const openConfirm = useOpenModal('confirmActionModal');
   const workspaceRows = useWorkspaceRows({ scope, projectId: detailId, enabled: connected });
-  const { workspaceQuery, group, rows, operationTrees, usageQuery } = workspaceRows;
+  const { workspaceQuery, group, rows, usageQuery } = workspaceRows;
   const rowStatuses = rows.map((row) => row.status);
   const aggregateStatus = aggregateWorkspaceStatus(rowStatuses) satisfies WorkspaceIconStatus;
   const rootJoined = rows.find((joined) => joined.row.kind === 'root') ?? rows[0];
   const rootRow = rootJoined?.row;
-  const busyPaths = useMemo(
-    () => new Set(rows.filter((row) => row.operationBusy).map((row) => row.row.path)),
-    [rows]
-  );
   const worktreeItems = rows
     .filter((row) => row !== rootJoined)
     .map((joined) =>
@@ -159,15 +166,16 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
 
   const handleDelete = useCallback(async () => {
     if (!group) return;
-    const allDeletableRows = group.workspaces.filter((row) => row.row.canDelete);
-    const deletableRows = allDeletableRows.filter((row) => !busyPaths.has(row.row.path));
+    // Tombstoned rows already fold into `canDelete: false` — no second delete.
+    const deletableRows = group.workspaces.filter((row) => row.row.canDelete);
     if (deletableRows.length === 0) {
-      const blockedByOperations = allDeletableRows.length > 0;
+      const pendingCount = group.workspaces.filter((row) => row.pendingRemoval).length;
       toast({
-        title: blockedByOperations ? 'Cleanup already in progress' : 'No deletable workspaces',
-        description: blockedByOperations
-          ? 'Cleanup already in progress for these workspaces.'
-          : 'Repository roots cannot be deleted from this view.',
+        title: pendingCount > 0 ? 'Removal already pending' : 'No deletable workspaces',
+        description:
+          pendingCount > 0
+            ? 'These workspaces are already being removed.'
+            : 'Repository roots cannot be deleted from this view.',
       });
       return;
     }
@@ -210,7 +218,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
         variant: 'destructive',
       });
     }
-  }, [busyPaths, closeDetail, group, openConfirm]);
+  }, [closeDetail, group, openConfirm]);
 
   if (!connected) return <DetailOfflineState machineName={machineName} />;
   if (workspaceQuery.isLoading) return <DetailLoadingState />;
@@ -231,14 +239,11 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
             (usageQuery.isLoading || usageQuery.isFetching) && rootRow.pathState === 'measured'
           }
           loadingGitStats={false}
-          operationTrees={operationTrees.trees}
           warnings={group.warnings}
           onDelete={() => void handleDelete()}
         />
 
-        {operationTrees.trees.length > 0 && (
-          <OperationTreesPanel {...operationTrees} className="mx-0" />
-        )}
+        <WorkspaceRemovalAttentionPanel rows={rows.map((joined) => joined.row)} />
 
         <WorkspaceSection label="Worktrees">
           <ColumnList
@@ -285,9 +290,40 @@ function buildWorktreeItem({
     activeTaskCount: activeTaskCount(row),
     loadingUsage: loadingUsage && row.pathState === 'measured',
     loadingGitStats: false,
-    operation: joined.operation,
+    pendingRemoval: joined.pendingRemoval,
+    removalNeedsAttention: joined.removalNeedsAttention,
+    statusMessage: joined.statusMessage,
+    scriptIssues: workspaceScriptIssues(row),
     ...(row.pathIssue ? { pathIssue: row.pathIssue } : {}),
   };
+}
+
+/**
+ * One chip per script: the durable last outcome (mirror `scriptOutcomes`, survives
+ * daemon restarts) is the fact of record; a live overlay notice only adds a chip for
+ * a script without a durable failure yet — never a duplicate of the same failure.
+ */
+function workspaceScriptIssues(row: ProjectWorkspaceRow): WorkspaceScriptIssue[] {
+  const issues: WorkspaceScriptIssue[] = [];
+  const outcomes = row.scriptOutcomes;
+  for (const script of ['prepare', 'setup', 'run'] as const) {
+    const outcome = outcomes?.[script];
+    if (outcome && outcome.outcome !== 'succeeded') {
+      issues.push({ script, outcome: outcome.outcome, at: outcome.at, message: outcome.message });
+    }
+  }
+  const covered = new Set(issues.map((issue) => issue.script));
+  for (const notice of row.runtimeOverlay?.notices ?? []) {
+    if (notice.kind !== 'script-failed' || covered.has(notice.script)) continue;
+    covered.add(notice.script);
+    issues.push({
+      script: notice.script,
+      outcome: 'failed',
+      at: notice.at,
+      message: notice.message,
+    });
+  }
+  return issues;
 }
 
 function PathIssueChip({ issue, path }: { issue: ProjectWorkspacePathIssue; path: string }) {
@@ -315,61 +351,50 @@ function pathIssueMessage(issue: ProjectWorkspacePathIssue, path: string): strin
   return `Directory not found at ${path}.`;
 }
 
-function OperationChip({ operation }: { operation: WorkspaceOperationLink }) {
+/** Pending-deletion treatment: the tombstoned row is its own visible state (ADR 0006). */
+function RemovalChip({ item }: { item: WorkspaceDetailListItem }) {
+  if (!item.pendingRemoval) return null;
+  const chipBase = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
+  if (item.removalNeedsAttention) {
+    return (
+      <Tooltip>
+        <TooltipTrigger>
+          <span className={`${chipBase} border-border-destructive text-foreground-destructive`}>
+            Removal failed
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-70 text-xs">
+          {item.statusMessage ?? 'The removal stopped after a failure that needs your decision.'}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <span className={`${chipBase} animate-pulse border-border-warning text-foreground-warning`}>
+      Removing…
+    </span>
+  );
+}
+
+function ScriptIssueChip({ issue }: { issue: WorkspaceScriptIssue }) {
   return (
     <Tooltip>
       <TooltipTrigger>
-        <span className={operationChipClass(operation.node)}>
-          {operationChipLabel(operation.node)}
+        <span className="shrink-0 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
+          {scriptIssueLabel(issue)}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-70 text-xs">{operationTooltip(operation)}</TooltipContent>
+      <TooltipContent className="max-w-80 text-xs">
+        {scriptIssueLabel(issue)} <RelativeTime value={issue.at} />
+        {issue.message ? `: ${issue.message}` : ''}
+      </TooltipContent>
     </Tooltip>
   );
 }
 
-function operationChipLabel(operation: OperationDisplayState): string {
-  switch (operation.status) {
-    case 'queued':
-      return 'Queued';
-    case 'running':
-      return 'In progress';
-    case 'waiting':
-    case 'waiting-children':
-      return 'Waiting';
-    case 'succeeded':
-      return 'Done';
-    case 'blocked-host-offline':
-    case 'awaiting-confirmation':
-    case 'failed':
-      return 'Needs attention';
-  }
-}
-
-function operationChipClass(operation: OperationDisplayState): string {
-  const base = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
-  switch (operation.status) {
-    case 'running':
-      return `${base} animate-pulse border-border-warning text-foreground-warning`;
-    case 'queued':
-      return `${base} border-border text-foreground-muted`;
-    case 'waiting':
-    case 'waiting-children':
-    case 'succeeded':
-      return `${base} border-border text-foreground-muted`;
-    case 'blocked-host-offline':
-    case 'awaiting-confirmation':
-      return `${base} border-border-warning text-foreground-warning`;
-    case 'failed':
-      return `${base} border-border-destructive text-foreground-destructive`;
-  }
-}
-
-function operationTooltip(operation: WorkspaceOperationLink): string {
-  const rootName = operation.root.entityName ?? operation.root.entityId;
-  return `Part of ${operation.root.displayName} "${rootName}", ${relativeQueuedTime(
-    operation.root.createdAt
-  )}`;
+function scriptIssueLabel(issue: WorkspaceScriptIssue): string {
+  const script = issue.script[0]!.toUpperCase() + issue.script.slice(1);
+  return `${script} ${issue.outcome === 'timed-out' ? 'timed out' : 'failed'}`;
 }
 
 function activeTaskCount(row: ProjectWorkspaceRow): number {

@@ -1,82 +1,73 @@
-import type { OperationDisplayState, OperationTree } from '@emdash/core/primitives/operations/api';
-import type {
-  MeasureProjectWorkspacesResult,
-  ProjectWorkspaceGitStats,
-  ProjectWorkspaceRow,
-  ProjectWorkspaceUsage,
+import {
+  workspaceRemovalNeedsAttention,
+  type MeasureProjectWorkspacesResult,
+  type ProjectWorkspaceGitStats,
+  type ProjectWorkspaceRow,
+  type ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
 import type { WorkspaceRuntimeStatus } from './workspace-runtime-status';
-
-export type WorkspaceOperationLink = {
-  node: OperationDisplayState;
-  root: OperationDisplayState;
-};
 
 export type JoinedWorkspaceRow = {
   row: ProjectWorkspaceRow;
   key: string;
   status: WorkspaceRuntimeStatus;
-  operationErrorMessage?: string;
+  /** Tombstone presence (ADR 0006): the row itself is the visible pending deletion. */
+  pendingRemoval: boolean;
+  /** Terminal removal failure: auto-retry stopped; Retry / Untrack-anyway apply. */
+  removalNeedsAttention: boolean;
+  /** One-line detail for error states (failed removal or failed create). */
+  statusMessage?: string;
   usage?: ProjectWorkspaceUsage;
   gitStats?: ProjectWorkspaceGitStats;
-  operation?: WorkspaceOperationLink;
-  operationBusy: boolean;
 };
 
 export type WorkspaceRowSources = {
   rows: readonly ProjectWorkspaceRow[];
   usageResults?: MeasureProjectWorkspacesResult['results'];
-  operationTrees: readonly OperationTree[];
 };
 
 export function joinWorkspaceRows(sources: WorkspaceRowSources): JoinedWorkspaceRow[] {
   const usageByPath = successfulResultsByPath(sources.usageResults, (result) => result.usage);
-  const operationByPath = desktopOperationByPath(sources.operationTrees);
 
   return sources.rows.map((row) => {
-    const operation = operationByPath.get(row.path);
+    const removalNeedsAttention = workspaceRemovalNeedsAttention(row);
     return {
       row,
       key: row.workspaceId ?? row.path,
-      status: workspaceRowStatus(row, operation),
-      operationErrorMessage: operation?.node.status === 'failed' ? operation.node.error : undefined,
+      status: workspaceRowStatus(row, removalNeedsAttention),
+      pendingRemoval: row.pendingRemoval,
+      removalNeedsAttention,
+      statusMessage: rowStatusMessage(row, removalNeedsAttention),
       usage: usageByPath.get(row.path),
       // Mirror-derived; `added` includes untracked files' lines.
       gitStats: row.gitStats ?? undefined,
-      operation,
-      operationBusy: operation !== undefined && !isSettledOperation(operation.node),
     };
   });
 }
 
 /**
- * Session activity is the baseline; a live kernel operation touching the
- * workspace path refines it into setting-up / tearing-down / error.
+ * Session activity is the baseline; the mirror's deletion tombstone and outcome
+ * fields refine it into tearing-down / setting-up / error (spec §2, §6).
  */
 function workspaceRowStatus(
   row: ProjectWorkspaceRow,
-  operation: WorkspaceOperationLink | undefined
+  removalNeedsAttention: boolean
 ): WorkspaceRuntimeStatus {
-  const fallback = row.hasActiveSessions ? 'active' : 'idle';
-  if (!operation) return fallback;
-  const node = operation.node;
-  if (node.status === 'failed') return 'error';
-  if (isSettledOperation(node)) return fallback;
-  return isRemovalOperation(node) ? 'tearing-down' : 'setting-up';
+  if (removalNeedsAttention) return 'error';
+  if (row.pendingRemoval) return 'tearing-down';
+  if (row.lastCreateOutcome?.status === 'failed') return 'error';
+  if (row.runtimeOverlay?.creation) return 'setting-up';
+  return row.hasActiveSessions ? 'active' : 'idle';
 }
 
-function isSettledOperation(node: OperationDisplayState): boolean {
-  return node.status === 'succeeded';
-}
-
-function isRemovalOperation(node: OperationDisplayState): boolean {
-  // Covers host-remove-worktree plus the delete-task / delete-project /
-  // archive-task desktop operations that carry a workspacePath.
-  return (
-    node.operationKind.includes('remove') ||
-    node.operationKind.includes('delete') ||
-    node.operationKind.includes('archive')
-  );
+function rowStatusMessage(
+  row: ProjectWorkspaceRow,
+  removalNeedsAttention: boolean
+): string | undefined {
+  if (removalNeedsAttention) return row.lastRemovalAttempt?.message;
+  if (row.pendingRemoval) return undefined;
+  if (row.lastCreateOutcome?.status === 'failed') return row.lastCreateOutcome.message;
+  return undefined;
 }
 
 function successfulResultsByPath<TValue, TResult extends { path: string; success: boolean }>(
@@ -89,16 +80,4 @@ function successfulResultsByPath<TValue, TResult extends { path: string; success
       byPath.set(result.path, value(result as Extract<TResult, { success: true }>));
   }
   return byPath;
-}
-
-function desktopOperationByPath(
-  trees: readonly OperationTree[]
-): Map<string, WorkspaceOperationLink> {
-  const links = new Map<string, WorkspaceOperationLink>();
-  for (const tree of trees) {
-    for (const node of [tree.root, ...tree.children]) {
-      if (node.workspacePath) links.set(node.workspacePath, { node, root: tree.root });
-    }
-  }
-  return links;
 }

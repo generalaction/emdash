@@ -90,7 +90,3 @@ export async function deleteMachineProjectWorkspaces({
     deleteConversations,
   });
 }
-
-export async function getMachineOperationsClient() {
-  return (await getDesktopWireClient()).operations;
-}

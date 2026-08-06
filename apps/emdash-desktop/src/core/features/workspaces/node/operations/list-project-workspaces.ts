@@ -15,7 +15,15 @@ import type {
   ProjectWorkspaceTask,
   ProjectWorkspacesResult,
 } from '@core/primitives/workspaces/api';
-import type { WorkspaceConfig, WorkspaceObservedGit } from '@core/primitives/workspaces/api';
+import type {
+  WorkspaceConfig,
+  WorkspaceCreateOutcome,
+  WorkspaceDeletionTombstone,
+  WorkspaceObservedGit,
+  WorkspaceRemovalAttempt,
+  WorkspaceRuntimeOverlay,
+  WorkspaceScriptOutcomes,
+} from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks } from '@core/services/app-db/node/schema';
 
@@ -45,6 +53,11 @@ type WorkspaceRow = {
   observedStatus: 'present' | 'missing' | null;
   observedGit: WorkspaceObservedGit | null;
   observedAt: number | null;
+  deletionTombstone: WorkspaceDeletionTombstone | null;
+  lastRemovalAttempt: WorkspaceRemovalAttempt | null;
+  lastCreateOutcome: WorkspaceCreateOutcome | null;
+  scriptOutcomes: WorkspaceScriptOutcomes | null;
+  runtimeOverlay: WorkspaceRuntimeOverlay | null;
 };
 
 type TaskRow = {
@@ -185,6 +198,8 @@ function buildCandidateRow(
   );
 
   const observedAt = candidate.workspace?.observedAt;
+  // A tombstoned row is already a pending deletion (ADR 0006): no second delete.
+  const pendingRemoval = (candidate.workspace?.deletionTombstone ?? null) !== null;
   const base: ProjectWorkspaceRow = {
     kind: candidate.kind,
     projectId: project.id,
@@ -196,11 +211,16 @@ function buildCandidateRow(
     gitStats: mirrorGitStats(candidate.workspace?.observedGit ?? null),
     pathState: 'no-path',
     canCleanArtifacts: false,
-    canDelete: candidate.kind !== 'root' && !remote,
+    canDelete: candidate.kind !== 'root' && !remote && !pendingRemoval,
     hasActiveSessions,
     lastActivityAt,
     observedStatus: candidate.workspace?.observedStatus ?? undefined,
     lastObservedAt: observedAt ? new Date(observedAt).toISOString() : undefined,
+    pendingRemoval,
+    lastRemovalAttempt: candidate.workspace?.lastRemovalAttempt ?? undefined,
+    lastCreateOutcome: candidate.workspace?.lastCreateOutcome ?? undefined,
+    scriptOutcomes: candidate.workspace?.scriptOutcomes ?? undefined,
+    runtimeOverlay: candidate.workspace?.runtimeOverlay ?? undefined,
     errors: [],
   };
 
@@ -213,14 +233,13 @@ function buildCandidateRow(
         kind: candidate.prunable ? 'prunable' : 'path-gone',
         ...(candidate.prunable ? { reason: 'Git reports this worktree as prunable.' } : {}),
       },
-      canDelete: candidate.kind !== 'root' && !remote,
     };
   }
 
   return {
     ...base,
     pathState: 'measured',
-    canCleanArtifacts: !remote,
+    canCleanArtifacts: !remote && !pendingRemoval,
   };
 }
 
@@ -293,6 +312,11 @@ async function getWorkspaceRows(
       observedStatus: workspaces.observedStatus,
       observedGit: workspaces.observedGit,
       observedAt: workspaces.observedAt,
+      deletionTombstone: workspaces.deletionTombstone,
+      lastRemovalAttempt: workspaces.lastRemovalAttempt,
+      lastCreateOutcome: workspaces.lastCreateOutcome,
+      scriptOutcomes: workspaces.scriptOutcomes,
+      runtimeOverlay: workspaces.runtimeOverlay,
     })
     .from(workspaces)
     .where(and(scope, isNotNull(workspaces.path), liveWorkspaces()))) as WorkspaceRow[];

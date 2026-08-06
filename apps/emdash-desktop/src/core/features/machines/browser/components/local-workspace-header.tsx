@@ -1,14 +1,13 @@
-import type { OperationTree } from '@emdash/core/primitives/operations/api';
 import { WorkspaceIcon, type WorkspaceIconStatus } from '@emdash/ui/react/components';
 import { Button, DropdownMenu } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon, EllipsisIcon, Trash2Icon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
-import type {
-  ProjectWorkspaceGitStats,
-  ProjectWorkspaceRow,
-  ProjectWorkspaceUsage,
+import {
+  workspaceRemovalNeedsAttention,
+  type ProjectWorkspaceGitStats,
+  type ProjectWorkspaceRow,
+  type ProjectWorkspaceUsage,
 } from '@core/primitives/workspaces/api';
-import { worstRollupStatus } from '@core/services/operations/browser/operation-trees-panel';
 import { GitStatsCell } from './git-stats-cell';
 import { basename, formatBytes } from './workspace-format';
 
@@ -21,7 +20,6 @@ export function RepositoryHeader({
   gitStats,
   loadingUsage,
   loadingGitStats,
-  operationTrees,
   warnings,
   onDelete,
 }: {
@@ -33,14 +31,13 @@ export function RepositoryHeader({
   gitStats: ProjectWorkspaceGitStats | undefined;
   loadingUsage: boolean;
   loadingGitStats: boolean;
-  operationTrees: readonly OperationTree[];
   warnings: readonly string[];
   onDelete(): void;
 }) {
   const healthStatus = status;
   const issueRows = pathIssueRows(rows);
   const issueSummary = pathIssueSummary(issueRows);
-  const rollupStatus = worstRollupStatus(operationTrees);
+  const removals = removalSummary(rows);
 
   return (
     <section className="rounded-lg border border-border bg-background-secondary/40 px-4 py-3">
@@ -56,10 +53,8 @@ export function RepositoryHeader({
                 </span>
               )}
               {issueSummary && <PathIssueSummaryPill rows={issueRows} summary={issueSummary} />}
-              {rollupStatus && (
-                <span className={operationPillClass(rollupStatus)}>
-                  {operationPillLabel(rollupStatus, operationTrees.length)}
-                </span>
+              {removals && (
+                <span className={removalPillClass(removals)}>{removalPillLabel(removals)}</span>
               )}
             </div>
             <div className="mt-0.5 truncate text-xs text-foreground-muted">{rootRow.path}</div>
@@ -210,39 +205,30 @@ function runtimeStatusPillClass(status: WorkspaceIconStatus): string {
   }
 }
 
-function operationPillLabel(status: ReturnType<typeof worstRollupStatus>, count: number): string {
-  const suffix = count === 1 ? 'operation' : 'operations';
-  switch (status) {
-    case 'failed':
-      return `${count} ${suffix} failed`;
-    case 'awaiting-confirmation':
-      return `${count} ${suffix} need attention`;
-    case 'blocked-host-offline':
-      return 'Host offline';
-    case 'running':
-      return `${count} ${suffix} running`;
-    case 'queued':
-      return `${count} ${suffix} queued`;
-    case 'waiting':
-      return `${count} ${suffix} waiting`;
-    case undefined:
-      return '';
-  }
+type RemovalSummary = { pending: number; needsAttention: number };
+
+/** Pending deletions are tombstoned mirror rows (ADR 0006) — no operation records. */
+function removalSummary(rows: readonly ProjectWorkspaceRow[]): RemovalSummary | undefined {
+  const pendingRows = rows.filter((row) => row.pendingRemoval);
+  if (pendingRows.length === 0) return undefined;
+  return {
+    pending: pendingRows.length,
+    needsAttention: pendingRows.filter((row) => workspaceRemovalNeedsAttention(row)).length,
+  };
 }
 
-function operationPillClass(status: ReturnType<typeof worstRollupStatus>): string {
-  const base = 'rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase';
-  switch (status) {
-    case 'failed':
-      return `${base} border-border-destructive text-foreground-destructive`;
-    case 'awaiting-confirmation':
-    case 'blocked-host-offline':
-    case 'waiting':
-      return `${base} border-border-warning text-foreground-warning`;
-    case 'queued':
-    case 'running':
-      return `${base} border-border text-foreground-muted`;
-    case undefined:
-      return base;
+function removalPillLabel(removals: RemovalSummary): string {
+  if (removals.needsAttention > 0) {
+    const noun = removals.needsAttention === 1 ? 'removal needs' : 'removals need';
+    return `${removals.needsAttention} ${noun} attention`;
   }
+  const noun = removals.pending === 1 ? 'removal' : 'removals';
+  return `${removals.pending} ${noun} pending`;
+}
+
+function removalPillClass(removals: RemovalSummary): string {
+  const base = 'rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase';
+  return removals.needsAttention > 0
+    ? `${base} border-border-destructive text-foreground-destructive`
+    : `${base} animate-pulse border-border-warning text-foreground-warning`;
 }

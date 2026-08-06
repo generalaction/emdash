@@ -1,7 +1,5 @@
 import { useMemo } from 'react';
-import { useOperationTrees } from '@core/services/operations/browser/use-operation-trees';
 import {
-  getMachineOperationsClient,
   useProjectWorkspaceUsage,
   useWorkspaceGroups,
   type WorkspacesScope,
@@ -41,15 +39,13 @@ export function useWorkspaceRows({ scope, projectId, enabled }: WorkspaceRowsOpt
     measuredPaths,
     enabled && !!projectId && sourceRows.length > 0
   );
-  const operationTrees = useOperationTrees(projectId ?? '', getMachineOperationsClient);
   const joinedRows = useMemo(
     () =>
       joinWorkspaceRows({
         rows: sourceRows,
         usageResults: usageQuery.data?.results,
-        operationTrees: operationTrees.trees,
       }),
-    [sourceRows, usageQuery.data?.results, operationTrees.trees]
+    [sourceRows, usageQuery.data?.results]
   );
   const rowsBySource = useMemo(
     () => new Map(joinedRows.map((row) => [sourceKey(row), row])),
@@ -76,7 +72,6 @@ export function useWorkspaceRows({ scope, projectId, enabled }: WorkspaceRowsOpt
     groups,
     group,
     rows: joinedRows,
-    operationTrees,
     usageQuery,
   };
 }

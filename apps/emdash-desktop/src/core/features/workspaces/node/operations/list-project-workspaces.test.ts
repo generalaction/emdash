@@ -27,6 +27,11 @@ vi.mock('@core/features/workspaces/api/node/registry', () => ({
     observedStatus: 'workspaces.observedStatus',
     observedGit: 'workspaces.observedGit',
     observedAt: 'workspaces.observedAt',
+    deletionTombstone: 'workspaces.deletionTombstone',
+    lastRemovalAttempt: 'workspaces.lastRemovalAttempt',
+    lastCreateOutcome: 'workspaces.lastCreateOutcome',
+    scriptOutcomes: 'workspaces.scriptOutcomes',
+    runtimeOverlay: 'workspaces.runtimeOverlay',
   },
 }));
 
@@ -167,6 +172,84 @@ describe('listProjectWorkspaces', () => {
     });
   });
 
+  it('serves tombstoned rows as pending removals with the last failed attempt', async () => {
+    select
+      .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
+      .mockReturnValueOnce(taskRows([]))
+      .mockReturnValueOnce(
+        workspaceRows([
+          mirrorRow({ id: 'project-1-repository-workspace', kind: 'repository', path: '/repo' }),
+          mirrorRow({
+            id: 'doomed',
+            path: '/repo/doomed',
+            config: { version: '2' },
+            deletionTombstone: {
+              version: '1',
+              targetRecordId: 'doomed',
+              tombstonedAt: OBSERVED_AT,
+              options: { deleteBranch: false, deleteConversations: false },
+            },
+            lastRemovalAttempt: {
+              version: '1',
+              stage: 'remove',
+              class: 'terminal',
+              message: 'worktree is locked',
+              at: OBSERVED_AT,
+            },
+          }),
+        ])
+      );
+
+    const result = await list({ client: vi.fn() });
+
+    expect(result.rows.find((row) => row.workspaceId === 'doomed')).toMatchObject({
+      pendingRemoval: true,
+      canDelete: false,
+      lastRemovalAttempt: { class: 'terminal', message: 'worktree is locked' },
+    });
+    expect(result.rows.find((row) => row.kind === 'root')).toMatchObject({
+      pendingRemoval: false,
+      lastRemovalAttempt: undefined,
+    });
+  });
+
+  it('passes durable script outcomes and the runtime overlay through to rows', async () => {
+    const scriptOutcomes = {
+      version: '1',
+      prepare: null,
+      setup: { outcome: 'failed', at: OBSERVED_AT, message: 'pnpm install failed' },
+      run: null,
+    };
+    const runtimeOverlay = {
+      version: '1',
+      creation: { stage: 'add-worktree', startedAt: OBSERVED_AT },
+      notices: [],
+      activation: null,
+    };
+    select
+      .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
+      .mockReturnValueOnce(taskRows([]))
+      .mockReturnValueOnce(
+        workspaceRows([
+          mirrorRow({ id: 'project-1-repository-workspace', kind: 'repository', path: '/repo' }),
+          mirrorRow({
+            id: 'workspace-1',
+            path: '/repo/feature',
+            config: { version: '2' },
+            scriptOutcomes,
+            runtimeOverlay,
+          }),
+        ])
+      );
+
+    const result = await list({ client: vi.fn() });
+
+    expect(result.rows.find((row) => row.workspaceId === 'workspace-1')).toMatchObject({
+      scriptOutcomes: { setup: { outcome: 'failed', message: 'pnpm install failed' } },
+      runtimeOverlay: { creation: { stage: 'add-worktree' } },
+    });
+  });
+
   it('projects prunable worktrees from the git observation', async () => {
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
@@ -223,6 +306,11 @@ function mirrorRow(overrides: Record<string, unknown>) {
     observedStatus: 'present',
     observedGit: null,
     observedAt: OBSERVED_AT,
+    deletionTombstone: null,
+    lastRemovalAttempt: null,
+    lastCreateOutcome: null,
+    scriptOutcomes: null,
+    runtimeOverlay: null,
     ...overrides,
   };
 }

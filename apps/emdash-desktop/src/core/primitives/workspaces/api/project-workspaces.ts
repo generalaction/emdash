@@ -1,4 +1,10 @@
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
+import type {
+  WorkspaceCreateOutcome,
+  WorkspaceRemovalAttempt,
+  WorkspaceRuntimeOverlay,
+  WorkspaceScriptOutcomes,
+} from './workspace-registry-observations';
 
 export type ProjectWorkspacePathState =
   | 'measured'
@@ -47,8 +53,29 @@ export type ProjectWorkspaceRow = {
   observedStatus?: 'present' | 'missing';
   /** ISO stamp of the host observation the row was read from; staleness is displayed. */
   lastObservedAt?: string;
+  /** Deletion tombstone presence (ADR 0006): a visible pending deletion until the sweep converges. */
+  pendingRemoval: boolean;
+  /** Host-written last failed removal attempt; a `terminal` class stops auto-retry. */
+  lastRemovalAttempt?: WorkspaceRemovalAttempt;
+  /** Durable outcome of the last create run on the workspace record. */
+  lastCreateOutcome?: WorkspaceCreateOutcome;
+  /** Durable per-script (prepare/setup/run) last outcomes; survive daemon restarts. */
+  scriptOutcomes?: WorkspaceScriptOutcomes;
+  /** Live host runtime overlay (creation stage, script notices); cleared on daemon restart. */
+  runtimeOverlay?: WorkspaceRuntimeOverlay;
   errors: { path: string; message: string }[];
 };
+
+/**
+ * Needs-attention derives purely from tombstone presence plus a terminal-class last
+ * removal attempt (ADR 0006): auto-retry has stopped and the user decides between
+ * Retry and Untrack-anyway.
+ */
+export function workspaceRemovalNeedsAttention(
+  row: Pick<ProjectWorkspaceRow, 'pendingRemoval' | 'lastRemovalAttempt'>
+): boolean {
+  return row.pendingRemoval && row.lastRemovalAttempt?.class === 'terminal';
+}
 
 export type ProjectWorkspacesResult = {
   scannedAt: string;

@@ -40,6 +40,7 @@ describe('measureProjectWorkspaces', () => {
       canCleanArtifacts: false,
       canDelete: false,
       hasActiveSessions: false,
+      pendingRemoval: false,
       errors: [],
     };
     mocks.getProject.mockResolvedValue({
