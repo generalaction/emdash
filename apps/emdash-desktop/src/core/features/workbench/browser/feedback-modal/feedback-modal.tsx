@@ -1,11 +1,10 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Spinner, Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -15,7 +14,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';

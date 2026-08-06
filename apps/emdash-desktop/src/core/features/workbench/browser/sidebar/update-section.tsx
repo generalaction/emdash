@@ -1,7 +1,8 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, MicroLabel } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
+import { observer } from 'mobx-react-lite';
+import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 

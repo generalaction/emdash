@@ -1,10 +1,9 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
-import { Input, Select } from '@emdash/ui/react/primitives';
+import { Input, Select, Separator } from '@emdash/ui/react/primitives';
 import { useId } from 'react';
 import { GithubAuthDisclaimer } from '@core/features/integrations/api/browser/components/github-auth-disclaimer';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';

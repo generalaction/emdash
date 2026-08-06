@@ -1,5 +1,5 @@
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, MicroLabel, Spinner } from '@emdash/ui/react/primitives';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -27,7 +27,6 @@ import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-r
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import {
@@ -37,9 +36,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@core/primitives/ui/browser/context-menu';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getAcpChatResourceManager } from '../../browser/acp/acp-chat-resource-manager';
 import { ConversationAgentIcon } from '../../browser/conversation-agent-icon';
@@ -367,7 +364,7 @@ const ConversationSelectionBar = observer(function ConversationSelectionBar({
           disabled={deleting}
           onClick={() => onDelete([...selection.selectedIds])}
         >
-          {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+          {deleting ? <Spinner size="sm" /> : <Trash2 className="size-3.5" />}
           Delete
         </Button>
         <Button

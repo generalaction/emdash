@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Separator } from '@emdash/ui/react/primitives';
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
@@ -19,7 +19,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
@@ -71,10 +70,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
       </DropdownMenu>
       {remoteUrl && (
         <>
-          <Separator
-            orientation="vertical"
-            className="h-4 data-[orientation=vertical]:self-center"
-          />
+          <Separator orientation="vertical" className="h-4 self-center!" />
           <Button
             variant="ghost"
             className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"

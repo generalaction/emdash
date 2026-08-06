@@ -3,13 +3,12 @@ import {
   type WorkspaceIconStatus,
   type WorkspacesListItem,
 } from '@emdash/ui/react/components';
-import { Button, SearchInput } from '@emdash/ui/react/primitives';
+import { Button, SearchInput, Spinner } from '@emdash/ui/react/primitives';
 import { PlusIcon, WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import {
   useWorkspaceRows,
   type WorkspaceRowsGroup,
@@ -133,7 +132,7 @@ function maxTimestamp(values: readonly (string | undefined)[]): string | undefin
 function WorkspacesLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspaces
     </div>
   );

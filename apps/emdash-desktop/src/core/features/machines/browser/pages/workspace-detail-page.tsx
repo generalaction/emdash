@@ -6,7 +6,7 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Spinner, Tooltip } from '@emdash/ui/react/primitives';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
@@ -14,7 +14,6 @@ import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/br
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import type {
   ProjectWorkspaceGitStats,
@@ -420,7 +419,7 @@ function DetailOfflineState({ machineName }: { machineName?: string }) {
 function DetailLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspace
     </div>
   );

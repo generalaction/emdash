@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Separator } from '@emdash/ui/react/primitives';
 import { Fragment } from 'react';
 import type {
   ProjectConfigMigration,
@@ -7,7 +7,6 @@ import type {
 } from '@core/primitives/project-settings/api';
 import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';

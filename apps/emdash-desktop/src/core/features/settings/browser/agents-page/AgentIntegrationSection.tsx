@@ -1,12 +1,11 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Label, Tooltip } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Clock3, ExternalLink, Info, Loader2 } from 'lucide-react';
 import { useAgentHooksStatus } from '@core/features/agents/api/browser/use-agent-hooks-status';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { AgentPayload } from '@core/primitives/agents/api';
 import { Field } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 const HOME_PREFIX_RE = /^\/(?:Users|home)\/[^/]+/;

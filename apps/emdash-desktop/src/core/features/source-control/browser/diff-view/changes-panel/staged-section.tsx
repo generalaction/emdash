@@ -1,5 +1,6 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { Button } from '@emdash/ui/react/primitives';
+import { EmptyState } from '@emdash/ui/react/components';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
@@ -13,7 +14,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { activeDiffEntry } from '../pane-selectors';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';

@@ -1,5 +1,5 @@
+import { Checkbox } from '@emdash/ui/react/primitives';
 import { useRef, type ReactNode } from 'react';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 export function ConversationSelectionControl({

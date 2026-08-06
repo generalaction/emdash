@@ -1,9 +1,8 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,
@@ -121,7 +120,7 @@ function RemovalActionButton({
 }) {
   return (
     <Button variant="secondary" size="sm" disabled={disabled} onClick={onClick}>
-      {pending && <Spinner className="size-3.5" />}
+      {pending && <Spinner size="sm" />}
       {label}
     </Button>
   );

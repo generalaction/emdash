@@ -1,4 +1,5 @@
 import { Button } from '@emdash/ui/react/primitives';
+import { EmptyState } from '@emdash/ui/react/components';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
@@ -19,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 
 export interface LinkConversationModalProps {

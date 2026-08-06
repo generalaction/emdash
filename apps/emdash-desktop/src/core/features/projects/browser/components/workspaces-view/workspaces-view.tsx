@@ -11,7 +11,7 @@ import {
   ListView,
   PageLayout,
 } from '@emdash/ui/react/patterns';
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Spinner, Tooltip } from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -23,10 +23,8 @@ import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/br
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,
@@ -562,11 +560,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           disabled={archivableRows.length === 0 || pendingAction !== null}
           onClick={confirmArchive}
         >
-          {pendingAction === 'archive' ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Archive className="size-4" />
-          )}
+          {pendingAction === 'archive' ? <Spinner size="sm" /> : <Archive className="size-4" />}
           Archive
         </Button>
         <Button
@@ -575,11 +569,7 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           disabled={deletableRows.length === 0 || pendingAction !== null}
           onClick={confirmDelete}
         >
-          {pendingAction === 'delete' ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Trash2 className="size-4" />
-          )}
+          {pendingAction === 'delete' ? <Spinner size="sm" /> : <Trash2 className="size-4" />}
           Delete
         </Button>
         <Button
@@ -623,7 +613,7 @@ function WorkspaceWarnings({ warnings }: { warnings: string[] }) {
 function WorkspacesLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspaces
     </div>
   );

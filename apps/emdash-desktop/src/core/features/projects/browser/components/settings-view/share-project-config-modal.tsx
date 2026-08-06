@@ -1,5 +1,5 @@
 import { err, type Result } from '@emdash/shared';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Checkbox } from '@emdash/ui/react/primitives';
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -12,7 +12,6 @@ import type {
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,

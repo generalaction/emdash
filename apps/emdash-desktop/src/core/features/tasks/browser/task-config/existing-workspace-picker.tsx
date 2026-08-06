@@ -1,4 +1,5 @@
 import { Tooltip } from '@emdash/ui/react/primitives';
+import { EmptyState } from '@emdash/ui/react/components';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
@@ -11,7 +12,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@core/primitives/ui/browser/combobox';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 

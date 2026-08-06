@@ -1,7 +1,7 @@
+import { MicroLabel } from '@emdash/ui/react/primitives';
 import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 

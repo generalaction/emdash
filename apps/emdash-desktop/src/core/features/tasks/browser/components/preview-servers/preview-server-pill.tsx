@@ -1,3 +1,4 @@
+import { MicroLabel } from '@emdash/ui/react/primitives';
 import {
   ChevronDown,
   Clipboard,
@@ -22,7 +23,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   formatPreviewServerLabel,

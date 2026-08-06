@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Badge, Button, MicroLabel, Separator, Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowDown,
   ArrowUp,
@@ -36,12 +36,9 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Badge } from '@core/primitives/ui/browser/badge';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
 import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { Toggle } from '@core/primitives/ui/browser/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
@@ -209,9 +206,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                             ) : (
                               <span className="flex items-center gap-1">
                                 Pull
-                                <Badge variant="secondary" className="shrink-0">
-                                  {behindCount}
-                                </Badge>
+                                <Badge>{behindCount}</Badge>
                               </span>
                             )}
                           </Button>
@@ -239,9 +234,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                             ) : (
                               <span className="flex items-center gap-1">
                                 Push
-                                <Badge variant="secondary" className="shrink-0">
-                                  {aheadCount}
-                                </Badge>
+                                <Badge>{aheadCount}</Badge>
                               </span>
                             )}
                           </Button>

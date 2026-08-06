@@ -1,8 +1,8 @@
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog';
+import { MicroLabel } from '@emdash/ui/react/primitives';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { MicroLabel } from './label';
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;

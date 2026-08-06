@@ -1,5 +1,5 @@
 import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Separator } from '@emdash/ui/react/primitives';
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -21,7 +21,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@core/primitives/ui/browser/select';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';

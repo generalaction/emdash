@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { EmptyState } from '@emdash/ui/react/components';
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -13,7 +14,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';

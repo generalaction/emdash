@@ -1,3 +1,4 @@
+import { Checkbox } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { StackedAgentLogos } from '@core/features/agents/api/browser/components/stacked-agent-logos';
@@ -12,9 +13,8 @@ import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-sto
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { type Task } from '@core/primitives/tasks/api';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { type Task } from '@core/primitives/tasks/api';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';

@@ -1,11 +1,16 @@
 // ── Single-component primitives (named exports) ───────────────────────────────
 export { Box } from './box';
+export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from './badge';
 export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs';
 export { Button, type ButtonProps } from './button';
+export { Checkbox, type CheckboxProps } from './checkbox';
 export { DirectoryField, type DirectoryFieldProps } from './directory-field';
 export { Icon, type IconName, type IconProps, type IconSize } from './icon';
 export { Input, type InputProps } from './input';
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from './kbd';
+export { Label, MicroLabel, type LabelProps } from './label';
+export { Separator, type SeparatorProps } from './separator';
+export { Spinner, type SpinnerProps, type SpinnerSize } from './spinner';
 export { Textarea, type TextareaProps } from './textarea';
 export { Switch, type SwitchProps } from './switch';
 export { SearchInput, type SearchInputProps } from './search-input';

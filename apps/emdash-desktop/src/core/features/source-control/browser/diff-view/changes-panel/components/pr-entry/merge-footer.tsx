@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Checkbox } from '@emdash/ui/react/primitives';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,7 +9,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
 

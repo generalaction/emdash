@@ -1,5 +1,5 @@
 import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   joinMachineConversationRows,
@@ -269,7 +268,7 @@ function ConversationActionsCell({ row }: { row: ConversationListRow }) {
           />
         }
       >
-        {busy ? <Spinner className="size-3.5" /> : <EllipsisIcon className="size-3.5" />}
+        {busy ? <Spinner size="sm" /> : <EllipsisIcon className="size-3.5" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={onLink}>
@@ -311,7 +310,7 @@ function Pill({
 function ConversationsLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading conversations
     </div>
   );

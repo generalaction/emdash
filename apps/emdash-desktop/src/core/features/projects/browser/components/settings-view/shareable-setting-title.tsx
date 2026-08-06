@@ -1,10 +1,9 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Badge, Button, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw } from 'lucide-react';
 import type {
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { Badge } from '@core/primitives/ui/browser/badge';
 import { FieldTitle } from '@core/primitives/ui/browser/field';
 
 type Props = {
@@ -28,10 +27,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
           <Tooltip.Provider delay={150}>
             <Tooltip.Root>
               <Tooltip.Trigger className="inline-flex h-4.5 items-center">
-                <Badge
-                  variant="outline"
-                  className="h-4.5 rounded-xs border-border-warning bg-background-warning leading-none text-foreground-warning"
-                >
+                <Badge variant="outline" tone="warning">
                   Overriding
                 </Badge>
               </Tooltip.Trigger>

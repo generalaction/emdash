@@ -1,8 +1,8 @@
+import { Separator } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import type { TabHost } from '@core/primitives/workbench-shell/browser/tabs/core/tab-host';
 import type {
   ResolvedTab,
