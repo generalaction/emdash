@@ -1,5 +1,4 @@
 import { compose, deduplicate } from '@emdash/shared/requests';
-import { z } from 'zod';
 import {
   createController,
   client,
@@ -8,7 +7,8 @@ import {
   memoryTransportPair,
   procedure,
   serve,
-} from '../../src/rpc';
+} from '@emdash/wire/rpc';
+import { z } from 'zod';
 
 const api = defineContract({
   expensiveStats: procedure({

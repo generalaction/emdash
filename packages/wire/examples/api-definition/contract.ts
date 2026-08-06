@@ -1,6 +1,13 @@
 import { ok } from '@emdash/shared';
+import {
+  defineContract,
+  liveModel,
+  liveState,
+  liveLog,
+  mutation,
+  procedure,
+} from '@emdash/wire/rpc';
 import { z } from 'zod';
-import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from '../../src/rpc';
 
 export const sessionKeySchema = z.object({ sessionId: z.string() });
 export const noteSchema = z.object({ id: z.string(), text: z.string() });

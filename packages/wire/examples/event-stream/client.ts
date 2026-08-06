@@ -1,5 +1,4 @@
-import { z } from 'zod';
-import { createEventStreamHost } from '../../src/live';
+import { createEventStreamHost } from '@emdash/wire/live';
 import {
   client,
   connect,
@@ -8,7 +7,8 @@ import {
   eventStream,
   memoryTransportPair,
   serve,
-} from '../../src/rpc';
+} from '@emdash/wire/rpc';
+import { z } from 'zod';
 
 const api = defineContract({
   fileEvents: eventStream({

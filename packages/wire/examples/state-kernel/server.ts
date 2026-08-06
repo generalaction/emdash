@@ -1,5 +1,4 @@
 import { ok } from '@emdash/shared';
-import { z } from 'zod';
 import {
   createController,
   defineContract,
@@ -7,8 +6,9 @@ import {
   liveState,
   mutation,
   type Controller,
-} from '../../src/rpc';
-import { cell, expose, family, type ExposeOptions } from '../../src/state';
+} from '@emdash/wire/rpc';
+import { cell, expose, family, type ExposeOptions } from '@emdash/wire/state';
+import { z } from 'zod';
 
 export const api = defineContract({
   counter: liveModel({

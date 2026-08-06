@@ -11,7 +11,16 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@emdash/wire/rpc": ["./src/rpc/index.ts"],
+      "@emdash/wire/live": ["./src/live/index.ts"],
+      "@emdash/wire/state": ["./src/state/index.ts"],
+      "@emdash/wire/mobx": ["./src/live/mobx/index.ts"],
+      "@emdash/wire/testing": ["./src/testing/index.ts"],
+      "@emdash/wire/worker": ["./src/worker/index.ts"],
+      "@emdash/wire/worker/node": ["./src/worker/node/index.ts"]
+    }
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]
