@@ -5,6 +5,7 @@ import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
 import type { AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
 import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
 import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
+import { workspaceCreationAdmissionContract } from '@emdash/core/runtimes/automations/api';
 import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
 import type { ConversationsContract } from '@emdash/core/runtimes/conversations/api';
 import { conversationsComponent } from '@emdash/core/runtimes/conversations/node';
@@ -35,8 +36,9 @@ import {
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
+import { ok } from '@emdash/shared/result';
 import type { ValidatePolicy } from '@emdash/wire';
-import type { ContractClient } from '@emdash/wire/api';
+import { createController, type ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { workspaceServerRuntimePaths } from '../runtime/paths';
@@ -268,6 +270,12 @@ export async function createWorkspaceServerRuntimeHost(
     dependencies: {
       workspaceHost,
       workspaceRegistry,
+      // Deletion tombstones are client-plane data (ADR 0006): the workspace server
+      // has no desktop mirror to consult, so host-resident runs admit
+      // unconditionally; identity-keyed sweeps keep recreation safe regardless.
+      creationAdmission: createController(workspaceCreationAdmissionContract, {
+        checkWorktreeCreation: async () => ok(undefined),
+      }),
       acpSessions: acp,
       tuiSessions: tuiAgents,
       conversationIndex: conversations,

@@ -30,7 +30,10 @@ import {
   type RegistryWorktreeSpec,
   type WorkspaceCreations,
 } from '@core/features/workspaces/api/node/registry-verbs';
-import { findWorkspaceTombstoneConflict } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
+import {
+  findWorkspaceTombstoneConflict,
+  type WorkspaceTombstoneConflict,
+} from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
 import type {
@@ -97,9 +100,9 @@ export async function prepareCreateTask(
   // Tombstone-aware creation admission (ADR 0006, spec §4): a pending deletion
   // tombstone on the target workspace or its branch refuses creation — a data check
   // against the mirror, the successor to the retired claim-conflict preflight.
-  // Recreating waits for sweep convergence or the user's untrack. Placement never
-  // picks a tombstone-pending path either: tombstoned rows stay live, so the path
-  // allocator below already skips them.
+  // Recreating waits for sweep convergence or the user's untrack. The requested
+  // worktree path gets the symmetric check inside the allocator below, which refuses
+  // tombstone-pending paths instead of suffixing past them.
   const isRemoteHost = project.host.type === 'remote';
   const tombstoneConflict = findWorkspaceTombstoneConflict(
     db,
@@ -166,12 +169,15 @@ export async function prepareCreateTask(
       preservePatterns: settings.preservePatterns,
     });
     const registry = createWorkspaceRegistry(db);
-    const workspacePath = allocateRegistryPath(
+    const allocated = allocateRegistryPath(
+      db,
       registry,
       location,
       sshConnectionId,
       compiled.worktreePath
     );
+    if (!allocated.success) return allocated;
+    const workspacePath = allocated.data;
     conversationWorkspacePath = workspacePath;
     const gitSpec = compileRegistryGitSpec(workspaceConfig.git);
     if (!gitSpec.success) {
@@ -405,14 +411,28 @@ export async function createTask(
   return ok(finalizeCreateTask(prepared.data, taskRow, convRow));
 }
 
+/**
+ * Picks the first free registry path, suffixing past genuine live-row collisions
+ * (`path-2`, `path-3`, …). A candidate held by a pending deletion tombstone refuses
+ * instead (ADR 0006, spec §4): recreating there waits for sweep convergence or the
+ * user's Untrack-anyway — never a silent rename around the hold.
+ */
 function allocateRegistryPath(
+  db: AppDb,
   registry: WorkspaceRegistry,
   location: NonNullable<WorkspaceInsert['location']>,
   sshConnectionId: string | null,
   basePath: string
-): string {
+): Result<string, WorkspaceTombstoneConflict> {
   for (let suffix = 1; ; suffix += 1) {
     const candidate = suffix === 1 ? basePath : `${basePath}-${suffix}`;
-    if (!registry.findLiveByPath(location, sshConnectionId, candidate)) return candidate;
+    const tombstoned = findWorkspaceTombstoneConflict(db, {
+      kind: 'placement',
+      location,
+      sshConnectionId,
+      path: candidate,
+    });
+    if (tombstoned) return err(tombstoned);
+    if (!registry.findLiveByPath(location, sshConnectionId, candidate)) return ok(candidate);
   }
 }

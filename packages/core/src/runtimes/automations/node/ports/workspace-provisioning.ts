@@ -15,6 +15,7 @@ import type {
   WorkspaceRegistryContract,
 } from '@runtimes/workspace-registry/api';
 import { compileWorktreePayload } from '@services/workspace-host-actions/api';
+import type { WorkspaceCreationAdmissionContract } from '../../api/creation-admission';
 import type { AutomationWorkspaceConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
 
@@ -45,9 +46,14 @@ export interface AutomationWorkspacePort {
  * so a replayed run falls under the verb's replay semantics (succeeded → no-op,
  * failed/interrupted → re-execute) instead of double-creating. Aborting the run
  * cancels the in-flight RPC through the wire's cancellation signal.
+ *
+ * Creation admission (ADR 0006, spec §4) runs first: a compiled path or branch
+ * carrying a pending deletion tombstone refuses before anything touches the
+ * registry, and the typed refusal becomes the run's failure.
  */
 export function createWorkspacePortFromDependency(
-  client: ContractClient<WorkspaceRegistryContract>
+  client: ContractClient<WorkspaceRegistryContract>,
+  admission: ContractClient<WorkspaceCreationAdmissionContract>
 ): AutomationWorkspacePort {
   return {
     async provision(input) {
@@ -58,6 +64,13 @@ export function createWorkspacePortFromDependency(
 
       try {
         const compiled = compileCreateWorktree(input.workspace, input.generatedName);
+        const admitted = await admission.checkWorktreeCreation(
+          { path: compiled.worktreePath, branch: compiled.branchName },
+          { signal: input.signal }
+        );
+        if (!admitted.success) {
+          return err({ code: admitted.error.type, message: admitted.error.message });
+        }
         const repository = await registerRepository(client, compiled.repositoryPath, input.signal);
         if (!repository.success) return repository;
 

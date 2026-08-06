@@ -1,5 +1,11 @@
 export { automationsContract, type AutomationsContract } from './contract';
 export {
+  workspaceCreationAdmissionContract,
+  workspaceCreationRefusalSchema,
+  type WorkspaceCreationAdmissionContract,
+  type WorkspaceCreationRefusal,
+} from './creation-admission';
+export {
   automationAcpAgentConfigSchema,
   automationAgentConfigSchema,
   automationDeploymentSchema,

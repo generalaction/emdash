@@ -265,6 +265,78 @@ describe('createTask', () => {
       expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
       expect(mocks.transaction).not.toHaveBeenCalled();
     });
+
+    it('refuses a worktree path carrying a pending tombstone instead of suffixing', async () => {
+      const conflict = {
+        type: 'workspace-tombstone-pending' as const,
+        workspaceId: 'ws-held',
+        message: 'A deletion is still pending at /worktrees/repo/feature-test.',
+      };
+      mocks.findWorkspaceTombstoneConflict.mockImplementation(
+        (_db: unknown, target: { path?: string }) =>
+          target.path !== undefined ? conflict : undefined
+      );
+
+      const result = await createTask(db, projects, hostIsReachable, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/test',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(result).toEqual({ success: false, error: conflict });
+      expect(mocks.findWorkspaceTombstoneConflict).toHaveBeenCalledWith(db, {
+        kind: 'placement',
+        location: 'local',
+        sshConnectionId: null,
+        path: expect.stringMatching(/^\/worktrees\/repo-[a-f0-9]{8}\/feature-test$/u),
+      });
+      // No silent side-step: nothing is allocated, registered, or committed.
+      expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
+
+    it('suffixes past a genuine live-row collision but refuses a tombstone-pending candidate', async () => {
+      // The base path is occupied by a live, non-tombstoned row; the suffixed
+      // candidate is held by a pending deletion tombstone.
+      mocks.registryRows.push({ id: 'existing' });
+      const conflict = {
+        type: 'workspace-tombstone-pending' as const,
+        workspaceId: 'ws-held',
+        message: 'A deletion is still pending at /worktrees/repo/feature-test-2.',
+      };
+      mocks.findWorkspaceTombstoneConflict.mockImplementation(
+        (_db: unknown, target: { path?: string }) =>
+          target.path?.endsWith('-2') ? conflict : undefined
+      );
+
+      const result = await createTask(db, projects, hostIsReachable, {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1', name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/test',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      expect(result).toEqual({ success: false, error: conflict });
+      expect(workspaceRegistry.createWorktree).not.toHaveBeenCalled();
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
   });
 
   it('executes all writes inside a single db.transaction call', async () => {

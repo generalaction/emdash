@@ -37,6 +37,7 @@ import type { ContractClient } from '@emdash/wire/api';
 import { createWireWorkerHost, type WireWorker } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';
 import { app } from 'electron';
+import { createAutomationCreationAdmissionController } from '@core/features/automations/node/creation-admission';
 import { automationRuntimePaths } from '@core/features/automations/node/runtime-paths';
 import { GitHubApiAuthService } from '@core/features/github/api/node/services/github-api-auth-service';
 import { githubApiBaseUrlForHost } from '@core/features/github/api/node/services/github-api-base-url';
@@ -50,6 +51,7 @@ import { resolveFileSearchDatabasePath } from '@main/core/file-search/database-p
 import { providerAccountRegistry } from '@main/core/provider-accounts/provider-account-registry-instance';
 import { sessionIntentFilePaths } from '@main/core/runtime/session-intent-stores';
 import { getGitExecutable } from '@main/core/utils/exec';
+import { getAppDb } from '@main/db/instance';
 import { desktopKeyValueStore } from '@main/db/kv';
 import { resolveDatabasePath } from '@main/db/path';
 import { log } from '@main/lib/logger';
@@ -368,6 +370,9 @@ async function startDesktopWorkersWithHost(
       dependencies: {
         workspaceHost,
         workspaceRegistry,
+        // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
+        // live in the app db, so the main process answers for the worker.
+        creationAdmission: createAutomationCreationAdmissionController(getAppDb),
         acpSessions: acp,
         tuiSessions: tuiAgents.client,
         conversationIndex: conversationsClient,

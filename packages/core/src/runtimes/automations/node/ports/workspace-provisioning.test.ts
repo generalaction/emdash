@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import { cell, expose } from '@emdash/wire';
+import type { ContractClient } from '@emdash/wire/api';
 import { createTestWire } from '@emdash/wire/testing';
 import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { hostFileRef, parseAbsolute } from '@primitives/path/api';
@@ -15,6 +16,10 @@ import {
   type WorkspaceRecords,
 } from '@runtimes/workspace-registry/api';
 import { describe, expect, it } from 'vitest';
+import type {
+  WorkspaceCreationAdmissionContract,
+  WorkspaceCreationRefusal,
+} from '../../api/creation-admission';
 import { createWorkspacePortFromDependency } from './workspace-provisioning';
 
 const directory = absolute('/tmp/workspace');
@@ -35,10 +40,23 @@ const worktreeConfig = {
 const repoHash = createHash('sha256').update('/Users/jona/repo').digest('hex').slice(0, 8);
 const expectedWorktreePath = `/Users/jona/worktrees/repo-${repoHash}/emdash-abc`;
 
+/** Admission stub recording checks; refuses when a refusal is supplied. */
+function admissionStub(refusal?: WorkspaceCreationRefusal) {
+  const calls: Array<{ path: string; branch: string }> = [];
+  const client: ContractClient<WorkspaceCreationAdmissionContract> = {
+    checkWorktreeCreation: async (input) => {
+      calls.push(input);
+      return refusal ? err(refusal) : ok(undefined);
+    },
+  };
+  return { client, calls };
+}
+
 describe('createWorkspacePortFromDependency', () => {
   it('returns a directory workspace without calling the registry', async () => {
     const wire = registryWire();
-    const port = createWorkspacePortFromDependency(wire.client);
+    const admission = admissionStub();
+    const port = createWorkspacePortFromDependency(wire.client, admission.client);
 
     try {
       await expect(
@@ -51,14 +69,71 @@ describe('createWorkspacePortFromDependency', () => {
       ).resolves.toEqual(ok({ workspace: directory, branchName: null }));
       expect(wire.calls.createWorkspace).toHaveLength(0);
       expect(wire.calls.createWorktree).toHaveLength(0);
+      // Nothing is created at a path or branch, so nothing is admitted either.
+      expect(admission.calls).toHaveLength(0);
     } finally {
       await wire.dispose();
     }
   });
 
+  describe('creation admission (ADR 0006)', () => {
+    it('checks the compiled worktree path and branch before touching the registry', async () => {
+      const wire = registryWire();
+      const admission = admissionStub();
+      const port = createWorkspacePortFromDependency(wire.client, admission.client);
+
+      try {
+        const result = await port.provision({
+          workspace: worktreeConfig,
+          generatedName: 'emdash-abc',
+          runId: 'run-admit',
+          signal: new AbortController().signal,
+        });
+
+        expect(result.success).toBe(true);
+        expect(admission.calls).toEqual([{ path: expectedWorktreePath, branch: 'emdash-abc' }]);
+      } finally {
+        await wire.dispose();
+      }
+    });
+
+    it('refuses a tombstone-pending path or branch as the run failure, registry untouched', async () => {
+      const wire = registryWire();
+      const admission = admissionStub({
+        type: 'workspace-tombstone-pending',
+        workspaceId: 'ws-held',
+        message: 'A deletion is still pending at the requested path.',
+      });
+      const port = createWorkspacePortFromDependency(wire.client, admission.client);
+
+      try {
+        await expect(
+          port.provision({
+            workspace: worktreeConfig,
+            generatedName: 'emdash-abc',
+            runId: 'run-refused',
+            signal: new AbortController().signal,
+          })
+        ).resolves.toEqual({
+          success: false,
+          error: {
+            code: 'workspace-tombstone-pending',
+            message: 'A deletion is still pending at the requested path.',
+          },
+        });
+        // The refusal happens before any registry mutation — no repository
+        // registration and no createWorktree.
+        expect(wire.calls.createWorkspace).toHaveLength(0);
+        expect(wire.calls.createWorktree).toHaveLength(0);
+      } finally {
+        await wire.dispose();
+      }
+    });
+  });
+
   it('registers the repository and awaits createWorktree with the compiled payload', async () => {
     const wire = registryWire();
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       const result = await port.provision({
@@ -100,7 +175,7 @@ describe('createWorkspacePortFromDependency', () => {
           record: stubRecord('repo-existing', input.path, 'repository'),
         }),
     });
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       const result = await port.provision({
@@ -119,7 +194,7 @@ describe('createWorkspacePortFromDependency', () => {
 
   it('requests a branch push when the workspace configures a push remote', async () => {
     const wire = registryWire();
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       const result = await port.provision({
@@ -141,7 +216,7 @@ describe('createWorkspacePortFromDependency', () => {
 
   it('uses the configured branch as its own base ref for use-branch workspaces', async () => {
     const wire = registryWire();
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       const result = await port.provision({
@@ -173,7 +248,7 @@ describe('createWorkspacePortFromDependency', () => {
           message: 'fatal: branch exists',
         }),
     });
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       await expect(
@@ -196,7 +271,7 @@ describe('createWorkspacePortFromDependency', () => {
     const wire = registryWire({
       createWorkspace: (input) => err({ type: 'path-not-found' as const, path: input.path }),
     });
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       await expect(
@@ -218,7 +293,7 @@ describe('createWorkspacePortFromDependency', () => {
 
   it('does not call the registry for an already-aborted run', async () => {
     const wire = registryWire();
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
     const controller = new AbortController();
     controller.abort();
 
@@ -261,7 +336,7 @@ describe('createWorkspacePortFromDependency', () => {
           controller.abort();
         }),
     });
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
 
     try {
       await expect(
@@ -293,7 +368,7 @@ describe('createWorkspacePortFromDependency', () => {
         return ok(stubRecord(input.id, input.path, 'worktree'));
       },
     });
-    const port = createWorkspacePortFromDependency(wire.client);
+    const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
     const provision = () =>
       port.provision({
         workspace: worktreeConfig,
