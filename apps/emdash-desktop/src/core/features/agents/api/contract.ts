@@ -10,14 +10,7 @@ import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/p
 import { hostDependencyOperationProgressSchema } from '@emdash/core/services/host-dependencies/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
-import {
-  defineContract,
-  fallible,
-  liveJob,
-  liveLog,
-  liveModel,
-  liveState,
-} from '@emdash/wire/rpc';
+import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type {
   AgentInstallationStatus,

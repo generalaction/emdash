@@ -1,5 +1,5 @@
 import type { HostDependencySnapshot } from '@emdash/core/services/host-dependencies/api';
-import { remote, type RemoteModel } from '@emdash/wire';
+import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useMemo } from 'react';
 import { machinesContract, type MachineSystemDependencyStatus } from '@core/features/machines/api';
 import { getMachinesPageWireClient } from '@core/features/machines/api/browser/client';

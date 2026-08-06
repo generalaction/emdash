@@ -1,14 +1,8 @@
 import { err, isDeepEqual, ok, type Result, type Serializable } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import {
-  expose,
-  peek,
-  query,
-  revisionOf,
-  type LeasedLiveModelProvider,
-  type Query,
-} from '@emdash/wire';
+import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
+import { expose, peek, query, revisionOf, type Query } from '@emdash/wire/state';
 import type { IExecutionContext } from '@primitives/exec/api';
 import {
   hostDependencySelectionSchema,

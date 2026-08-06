@@ -1,5 +1,6 @@
 import { deferred } from '@emdash/shared/testing';
-import { flushStateTurn, type LiveSource } from '@emdash/wire';
+import type { LiveSource } from '@emdash/wire/rpc';
+import { flushStateTurn } from '@emdash/wire/state';
 import type { IExecutionContext } from '@primitives/exec/api';
 import type {
   HostDependencyDefinition,

@@ -6,11 +6,11 @@ import {
 } from '@emdash/core/primitives/host/api';
 import { tuiAgentsContract, type TuiAgentState } from '@emdash/core/runtimes/tui-agents/api';
 import {
-  createTuiAgentStatesLiveHost,
-  createTuiSessionsLiveHost,
+  createTuiAgentStatesLiveModel,
+  createTuiSessionsLiveModel,
 } from '@emdash/core/runtimes/tui-agents/node';
 import { ok } from '@emdash/shared';
-import { defineContract } from '@emdash/wire';
+import { defineContract } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import type { WireWorkerState } from '@emdash/wire/worker';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -139,8 +139,8 @@ function createBridge(runtimes: Map<string, ReturnType<typeof createRuntime>>) {
 }
 
 function createRuntime(states: Record<string, TuiAgentState>) {
-  const agentStates = createTuiAgentStatesLiveHost();
-  const sessions = createTuiSessionsLiveHost();
+  const agentStates = createTuiAgentStatesLiveModel();
+  const sessions = createTuiSessionsLiveModel();
   agentStates.model.states.list.set(states);
   const wire = createTestWire(sessionsContract, { agentStates, sessions });
   return { agentStates, sessions, wire };

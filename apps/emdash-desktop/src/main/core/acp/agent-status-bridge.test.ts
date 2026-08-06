@@ -7,7 +7,7 @@ import {
 import { acpApiContract, type SessionSummary } from '@emdash/core/runtimes/acp/api';
 import { createAcpSessionsLiveHost } from '@emdash/core/runtimes/acp/node';
 import { ok } from '@emdash/shared';
-import { defineContract } from '@emdash/wire';
+import { defineContract } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import type { WireWorkerState } from '@emdash/wire/worker';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

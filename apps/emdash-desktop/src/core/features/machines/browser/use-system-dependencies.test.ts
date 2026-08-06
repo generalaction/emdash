@@ -6,7 +6,7 @@ import {
 import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
-import { expose, flushStateTurn, peek, query } from '@emdash/wire';
+import { expose, flushStateTurn, peek, query } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { JSDOM } from 'jsdom';

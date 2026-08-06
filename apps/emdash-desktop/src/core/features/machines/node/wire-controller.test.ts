@@ -10,8 +10,8 @@ import {
 import { runtimeHostUnavailable } from '@emdash/core/services/runtime-broker/api';
 import { err, ok } from '@emdash/shared';
 import { deferred } from '@emdash/shared/testing';
-import { createLiveJobReplica, LiveJobCancelledError, type LiveSource } from '@emdash/wire';
-import { encodeTopic } from '@emdash/wire/api';
+import { createLiveJobReplicaCache, LiveJobCancelledError } from '@emdash/wire/live';
+import { encodeTopic, type LiveSource } from '@emdash/wire/rpc';
 import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { machinesContract, type InstallMachineSystemDependenciesInput } from '../api';
@@ -224,7 +224,7 @@ describe('createMachinesWireController system dependencies', () => {
     const client = vi.fn(async () => ok({ hostDependencies: { runInstallBatch: {} } }));
     const controller = createMachinesWireController(createService(), { client } as never);
     const wire = createTestWire(machinesContract, controller);
-    const jobs = createLiveJobReplica(
+    const jobs = createLiveJobReplicaCache(
       machinesContract.installSystemDependencies,
       wire.client.installSystemDependencies
     );
@@ -309,7 +309,7 @@ async function runInstallJob(
   input: InstallMachineSystemDependenciesInput
 ) {
   const wire = createTestWire(machinesContract, controller);
-  const jobs = createLiveJobReplica(
+  const jobs = createLiveJobReplicaCache(
     machinesContract.installSystemDependencies,
     wire.client.installSystemDependencies
   );

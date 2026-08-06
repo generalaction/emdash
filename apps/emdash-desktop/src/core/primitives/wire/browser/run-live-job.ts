@@ -1,14 +1,13 @@
 import { err, ok, type Result } from '@emdash/shared';
+import { createLiveJobReplicaCache, LiveJobFailedError } from '@emdash/wire/live';
 import {
-  createLiveJobReplica,
-  LiveJobFailedError,
   type JobError,
   type JobInput,
   type JobProgress,
   type JobResult,
   type LiveJobClientHandle,
   type LiveJobEndpointDef,
-} from '@emdash/wire';
+} from '@emdash/wire/rpc';
 
 export async function runDesktopLiveJob<Def extends LiveJobEndpointDef>(
   definition: Def,
@@ -17,7 +16,7 @@ export async function runDesktopLiveJob<Def extends LiveJobEndpointDef>(
   onProgress?: (progress: JobProgress<Def>) => void,
   options: { signal?: AbortSignal } = {}
 ): Promise<Result<JobResult<Def>, JobError<Def>>> {
-  const jobs = createLiveJobReplica(definition, handle);
+  const jobs = createLiveJobReplicaCache(definition, handle);
   const lease = await jobs.start(input);
   try {
     const job = await lease.ready();
