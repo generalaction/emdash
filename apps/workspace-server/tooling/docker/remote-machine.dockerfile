@@ -9,11 +9,16 @@ RUN apt-get update \
     git \
     openssh-server \
     procps \
+    sudo \
     tmux \
   && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/bash devuser \
-  && echo 'devuser:devpass' | chpasswd
+  && echo 'devuser:devpass' | chpasswd \
+  && usermod --append --groups sudo devuser \
+  && printf '%s\n' 'devuser ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/devuser \
+  && chmod 0440 /etc/sudoers.d/devuser \
+  && visudo --check --file=/etc/sudoers.d/devuser
 
 RUN install -d -m 0755 /run/sshd \
   && ssh-keygen -A \
