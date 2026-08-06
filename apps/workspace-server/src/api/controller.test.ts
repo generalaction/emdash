@@ -271,6 +271,7 @@ describe('createWorkspaceWireController', () => {
 
     const result = await controller.call('initialize', {
       protocolVersion: `${major}.0.0`,
+      client: { id: 'client-test', appVersion: '1.2.3' },
     });
 
     expect(result).toEqual({
@@ -293,6 +294,7 @@ describe('createWorkspaceWireController', () => {
 
     const result = await controller.call('initialize', {
       protocolVersion: '0.9.0',
+      client: { id: 'client-test', appVersion: '1.2.3' },
     });
 
     expect(result).toMatchObject({
@@ -313,6 +315,7 @@ describe('createWorkspaceWireController', () => {
 
     const result = await controller.call('initialize', {
       protocolVersion: futureVersion,
+      client: { id: 'client-test', appVersion: '1.2.3' },
     });
 
     expect(result).toMatchObject({

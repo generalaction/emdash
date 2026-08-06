@@ -26,6 +26,11 @@ export default defineConfig({
         '../../packages/shared/src/logger/node/index.ts'
       ),
       '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
+      '@emdash/shared/perf/node': resolve(
+        __dirname,
+        '../../packages/shared/src/perf/node/index.ts'
+      ),
+      '@emdash/shared/perf': resolve(__dirname, '../../packages/shared/src/perf/index.ts'),
       '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
       '@emdash/shared/requests': resolve(__dirname, '../../packages/shared/src/requests/index.ts'),
       '@emdash/shared/scheduling': resolve(

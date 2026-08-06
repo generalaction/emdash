@@ -122,7 +122,13 @@ export const provider = registerPluginBehavior(plugin, {
       }),
   },
   plugins: createFileDropPlugin({
-    resolveConfigRoot: envConfigRoot('PI_CODING_AGENT_DIR', '.omp/agent'),
+    // OMP's documented hierarchy: PI_CODING_AGENT_DIR points at the agent dir
+    // directly; otherwise PI_CONFIG_DIR overrides the `.omp` config dir and
+    // the `agent` subdirectory is appended.
+    resolveConfigRoot: (context) =>
+      context.env.PI_CODING_AGENT_DIR
+        ? envConfigRoot('PI_CODING_AGENT_DIR', '.omp/agent')(context)
+        : `${envConfigRoot('PI_CONFIG_DIR', '.omp')(context)}/agent`,
     relativePath: OH_MY_PI_EXTENSION_PATH,
     content: OH_MY_PI_EXTENSION_CONTENT,
   }),

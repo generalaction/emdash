@@ -10,6 +10,8 @@ describe('@emdash/core/runtimes/git/node public exports', () => {
       'createGitProcedures',
       'gitComponent',
       'gitComponentConfigSchema',
+      'gitRuntimeEnv',
+      'gitWorkerSpec',
     ]);
   });
 });
