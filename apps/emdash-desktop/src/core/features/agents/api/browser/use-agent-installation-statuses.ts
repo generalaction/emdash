@@ -1,5 +1,8 @@
 import { hostRefKey, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
+import {
+  isRuntimeResolveError,
+  type RuntimeResolveError,
+} from '@emdash/core/services/runtime-broker/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import type { Result } from '@emdash/shared';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +26,8 @@ import {
   useDependencyOperationFailures,
 } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
 import { toast } from '@core/primitives/ui/browser/use-toast';
+import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
+import { agentsContract } from '../contract';
 import { getAgentOperationErrorMessage } from './components/agent-selector/agent-install';
 
 function statusQueryKey(host: HostRef) {
@@ -103,8 +108,17 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     OpVars
   >({
     mutationKey: opKey('install', host),
-    mutationFn: async ({ id, method, elevate }) =>
-      unwrapAgentsResult((await getAgentsClient()).install({ host, id, method, elevate })),
+    mutationFn: async ({ id, method, elevate }) => {
+      const client = await getAgentsClient();
+      const result = await runDesktopLiveJob(agentsContract.install, client.install, {
+        host,
+        id,
+        method,
+        elevate,
+      });
+      if (!result.success && isRuntimeResolveError(result.error)) throw result.error;
+      return result as Result<AgentInstallationStatus, AgentInstallError>;
+    },
     onSuccess: (result, variables) => handleOperationResult('install', result, variables),
     onError: (_, variables) => {
       toast({ title: `Failed to install ${nameOf(variables.id)}`, variant: 'destructive' });
@@ -117,8 +131,17 @@ export function useAgentInstallationStatuses(host: HostRef = LOCAL_HOST_REF) {
     OpVars
   >({
     mutationKey: opKey('update', host),
-    mutationFn: async ({ id, method, elevate }) =>
-      unwrapAgentsResult((await getAgentsClient()).update({ host, id, method, elevate })),
+    mutationFn: async ({ id, method, elevate }) => {
+      const client = await getAgentsClient();
+      const result = await runDesktopLiveJob(agentsContract.update, client.update, {
+        host,
+        id,
+        method,
+        elevate,
+      });
+      if (!result.success && isRuntimeResolveError(result.error)) throw result.error;
+      return result as Result<AgentInstallationStatus, AgentUpdateError>;
+    },
     onSuccess: (result, variables) => handleOperationResult('update', result, variables),
     onError: (_, variables) => {
       toast({ title: `Failed to update ${nameOf(variables.id)}`, variant: 'destructive' });

@@ -37,26 +37,36 @@ export function createAgentsWireController(options: CreateAgentsWireControllerOp
           runtime.hostDependencies
         )
       ),
-    install: ({ host, id, method, elevate }) =>
-      withHostRuntime(options.runtimes, host, (runtime) =>
-        agentOperations.install(
+    install: {
+      run: async ({ host, id, method, elevate }, context) => {
+        const runtime = await options.runtimes.client(host);
+        if (!runtime.success) return err(runtime.error);
+        return await agentOperations.install(
           id as AgentProviderId,
           sshConnectionIdOf(host),
           method,
           elevate,
-          runtime.hostDependencies
-        )
-      ),
-    update: ({ host, id, method, elevate }) =>
-      withHostRuntime(options.runtimes, host, (runtime) =>
-        agentOperations.update(
+          runtime.data.hostDependencies,
+          context
+        );
+      },
+      toError: toAgentOperationError,
+    },
+    update: {
+      run: async ({ host, id, method, elevate }, context) => {
+        const runtime = await options.runtimes.client(host);
+        if (!runtime.success) return err(runtime.error);
+        return await agentOperations.update(
           id as AgentProviderId,
           sshConnectionIdOf(host),
           method,
           elevate,
-          runtime.hostDependencies
-        )
-      ),
+          runtime.data.hostDependencies,
+          context
+        );
+      },
+      toError: toAgentOperationError,
+    },
     uninstall: ({ host, id, method }) =>
       withHostRuntime(options.runtimes, host, () =>
         agentOperations.uninstall(id as AgentProviderId, sshConnectionIdOf(host), method)
@@ -176,4 +186,12 @@ function withoutHost<T extends { host: HostRef }>(input: T): Omit<T, 'host'> {
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {
   return meta.signal ? { signal: meta.signal } : {};
+}
+
+function toAgentOperationError(error: unknown) {
+  return {
+    type: 'command-failed' as const,
+    message: error instanceof Error ? error.message : String(error),
+    output: '',
+  };
 }

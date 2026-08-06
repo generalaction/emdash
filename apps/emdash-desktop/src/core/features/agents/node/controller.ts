@@ -21,6 +21,10 @@ import {
 } from './agent-payload-builder';
 
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
+export type AgentOperationContext = {
+  signal?: AbortSignal;
+  progress?: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
+};
 
 export function createAgentOperations(dependencies: {
   ensureAgentDependenciesProbed(manager: HostDependenciesClient): Promise<void>;
@@ -76,19 +80,24 @@ export function createAgentOperations(dependencies: {
       connectionId?: string,
       method?: InstallMethod,
       elevate?: boolean,
-      manager?: HostDependenciesClient
+      manager?: HostDependenciesClient,
+      context: AgentOperationContext = {}
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
       const result = method
         ? await runRuntimeLiveJob(
             hostDependenciesContract.runInstallCommand,
             mgr.runInstallCommand,
-            { id, method, elevate, commandKind: 'update' }
+            { id, method, elevate, commandKind: 'update' },
+            context.progress,
+            { signal: context.signal }
           )
         : await runRuntimeLiveJob(
             hostDependenciesContract.runSelfUpdateCommand,
             mgr.runSelfUpdateCommand,
-            { id }
+            { id },
+            context.progress,
+            { signal: context.signal }
           );
       if (result.success) {
         return {
@@ -104,13 +113,16 @@ export function createAgentOperations(dependencies: {
       connectionId?: string,
       method?: InstallMethod,
       elevate?: boolean,
-      manager?: HostDependenciesClient
+      manager?: HostDependenciesClient,
+      context: AgentOperationContext = {}
     ) => {
       const mgr = await resolveDependencyManager(getDependencyManager, connectionId, manager);
       const result = await runRuntimeLiveJob(
         hostDependenciesContract.runInstallCommand,
         mgr.runInstallCommand,
-        { id, method, elevate }
+        { id, method, elevate },
+        context.progress,
+        { signal: context.signal }
       );
       if (result.success) {
         return {

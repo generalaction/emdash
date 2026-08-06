@@ -1,7 +1,9 @@
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok } from '@emdash/shared';
-import type { LiveSource } from '@emdash/wire';
+import { deferred } from '@emdash/shared/testing';
+import { createLiveJobReplica, LiveJobCancelledError, type LiveSource } from '@emdash/wire';
 import { encodeTopic } from '@emdash/wire/api';
+import { createTestWire } from '@emdash/wire/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { agentsContract } from '../api';
 import { createAgentsWireController } from './wire-controller';
@@ -131,24 +133,71 @@ describe('createAgentsWireController', () => {
 
   it('passes the active host dependency client to install operations', async () => {
     const hostDependencies = {};
-    const install = vi.fn(async () => ({ success: true as const, data: {} }));
+    const status = { id: 'claude' };
+    const install = vi.fn(async () => ok(status));
     const client = vi.fn(async () => ok({ hostDependencies }));
     const controller = createAgentsWireController({
       operations: { install } as never,
       runtimes: { client } as never,
     });
+    const wire = createTestWire(agentsContract, controller);
+    const jobs = createLiveJobReplica(agentsContract.install, wire.client.install);
+    const lease = await jobs.start({
+      host: remoteHost,
+      id: 'claude',
+      method: 'curl',
+      elevate: true,
+    });
+    const job = await lease.ready();
 
-    await expect(
-      controller.call('install', {
-        host: remoteHost,
-        id: 'claude',
-        method: 'curl',
-        elevate: true,
-      })
-    ).resolves.toEqual(ok({ success: true, data: {} }));
+    await expect(job.result).resolves.toEqual(status);
 
     expect(client).toHaveBeenCalledWith(remoteHost);
-    expect(install).toHaveBeenCalledWith('claude', 'ssh-1', 'curl', true, hostDependencies);
+    expect(install).toHaveBeenCalledWith(
+      'claude',
+      'ssh-1',
+      'curl',
+      true,
+      hostDependencies,
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        progress: expect.any(Function),
+      })
+    );
+
+    await lease.release();
+    await jobs.dispose();
+    await wire.dispose();
+  });
+
+  it('forwards live job cancellation to agent install operations', async () => {
+    const receivedSignal = deferred<AbortSignal>();
+    const install = vi.fn(async (_id, _connectionId, _method, _elevate, _manager, context) => {
+      receivedSignal.resolve(context.signal);
+      await new Promise<void>((resolve) =>
+        context.signal.addEventListener('abort', () => resolve(), { once: true })
+      );
+      return err({ type: 'command-failed', message: 'cancelled', output: '' });
+    });
+    const controller = createAgentsWireController({
+      operations: { install } as never,
+      runtimes: {
+        client: async () => ok({ hostDependencies: {} }),
+      } as never,
+    });
+    const wire = createTestWire(agentsContract, controller);
+    const jobs = createLiveJobReplica(agentsContract.install, wire.client.install);
+    const lease = await jobs.start({ host: remoteHost, id: 'claude' });
+    const job = await lease.ready();
+    const signal = await receivedSignal.promise;
+
+    await job.cancel();
+
+    expect(signal.aborted).toBe(true);
+    await expect(job.result).rejects.toBeInstanceOf(LiveJobCancelledError);
+    await lease.release();
+    await jobs.dispose();
+    await wire.dispose();
   });
 
   it('forwards login output without copying', async () => {

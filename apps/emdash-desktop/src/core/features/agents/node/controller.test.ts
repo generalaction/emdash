@@ -30,7 +30,9 @@ describe('createAgentOperations update routing', () => {
         method: 'npm',
         elevate: true,
         commandKind: 'update',
-      }
+      },
+      undefined,
+      { signal: undefined }
     );
   });
 
@@ -44,7 +46,30 @@ describe('createAgentOperations update routing', () => {
     expect(runRuntimeLiveJob).toHaveBeenCalledWith(
       hostDependenciesContract.runSelfUpdateCommand,
       runSelfUpdateCommand,
-      { id: 'claude' }
+      { id: 'claude' },
+      undefined,
+      { signal: undefined }
+    );
+  });
+
+  it('forwards cancellation and progress context to the runtime job', async () => {
+    const runInstallCommand = {};
+    const manager = { runInstallCommand };
+    const operations = createOperations();
+    const signal = new AbortController().signal;
+    const progress = vi.fn();
+
+    await operations.install('codex', undefined, 'npm', false, manager as never, {
+      signal,
+      progress,
+    });
+
+    expect(runRuntimeLiveJob).toHaveBeenCalledWith(
+      hostDependenciesContract.runInstallCommand,
+      runInstallCommand,
+      { id: 'codex', method: 'npm', elevate: false },
+      progress,
+      { signal }
     );
   });
 });
