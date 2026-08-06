@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Collapsible,
   CollapsibleContent,

@@ -18,7 +18,7 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { InitializeRepositoryError } from '@core/primitives/projects/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import {
   ResizableHandle,

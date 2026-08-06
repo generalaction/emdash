@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useChordKeydown } from '@core/primitives/keybindings/browser';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
   ComboboxCollection,

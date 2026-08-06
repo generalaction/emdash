@@ -5,7 +5,7 @@ import {
   GitPullRequestDraft,
 } from 'lucide-react';
 import { type ReactNode } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { type PullRequest } from '@root/src/core/services/pull-requests/api';
 

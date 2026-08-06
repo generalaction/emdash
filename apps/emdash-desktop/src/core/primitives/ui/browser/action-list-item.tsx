@@ -1,5 +1,5 @@
 import { type LucideIcon } from 'lucide-react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 
 export function ActionListItem({

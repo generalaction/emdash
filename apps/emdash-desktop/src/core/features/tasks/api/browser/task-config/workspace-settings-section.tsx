@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import { useTaskState } from '@core/features/tasks/api/browser/task-config/task-state-context';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Collapsible,
   CollapsibleContent,

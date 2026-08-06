@@ -26,7 +26,7 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
 import {
   ContextMenu,

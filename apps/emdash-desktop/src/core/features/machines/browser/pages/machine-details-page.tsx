@@ -21,7 +21,7 @@ import { AgentsPanel } from '@core/features/settings/api/browser/agents-page/Age
 import { SkillsPanel } from '@core/features/skills/api/browser/components/SkillsPanel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import { isServerUsable } from '@core/services/remote-machine/api';

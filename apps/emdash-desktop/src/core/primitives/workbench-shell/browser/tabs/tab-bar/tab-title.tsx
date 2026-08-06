@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { usePaneContext } from '../../tabs/pane-context';
 
 export const TabTitle = observer(function TabTitle({

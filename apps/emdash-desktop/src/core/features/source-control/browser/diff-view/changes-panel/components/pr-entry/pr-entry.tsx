@@ -3,7 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';

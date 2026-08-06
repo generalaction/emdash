@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 export function ListPopoverCard({
   children,

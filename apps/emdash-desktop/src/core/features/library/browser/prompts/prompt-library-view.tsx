@@ -4,7 +4,7 @@ import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
 import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';

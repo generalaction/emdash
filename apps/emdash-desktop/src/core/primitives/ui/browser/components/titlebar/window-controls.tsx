@@ -1,7 +1,7 @@
 import { Copy, Minus, Square, X } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 const isLinux = detectPlatformContext().os === 'linux';

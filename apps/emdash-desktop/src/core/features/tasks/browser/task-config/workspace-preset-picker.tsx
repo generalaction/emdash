@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import React from 'react';
 import { useTaskConfig } from '@core/features/tasks/api/browser/task-config/task-config-context';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
   ComboboxContent,

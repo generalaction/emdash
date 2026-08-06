@@ -8,7 +8,7 @@ import {
   type TreeRow,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { ChangeStatusAffordance } from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
 

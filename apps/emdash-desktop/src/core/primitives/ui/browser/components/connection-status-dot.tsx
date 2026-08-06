@@ -1,5 +1,5 @@
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 export function ConnectionStatusDot({ state }: { state: ConnectionState | null }) {
   if (!state) return null;

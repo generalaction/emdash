@@ -5,7 +5,7 @@ import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 
 interface SyncToAgentsSectionProps {

@@ -6,7 +6,7 @@ import {
   CommandRow,
 } from '@core/primitives/agents/browser/install-command-row';
 import { SudoRetryPanel } from '@core/primitives/agents/browser/SudoRetryPanel';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 export type InstallDependencyCardProps = {
   vm: HostDependencyInstallation;

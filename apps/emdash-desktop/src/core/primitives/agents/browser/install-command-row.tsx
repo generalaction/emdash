@@ -1,7 +1,7 @@
 import { Check, Copy } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import type { InstallMethod } from '@core/primitives/agents/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 export function humanizeMethod(method: InstallMethod): string {
   const labels: Record<InstallMethod, string> = {

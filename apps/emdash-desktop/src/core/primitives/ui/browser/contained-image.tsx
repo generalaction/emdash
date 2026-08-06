@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 type ContainedImageProps = React.ComponentPropsWithoutRef<'img'>;
 

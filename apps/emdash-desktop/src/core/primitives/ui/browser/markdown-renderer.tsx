@@ -14,7 +14,7 @@ import {
   useOpenExternalLink,
 } from '@core/primitives/external-links/browser';
 import { useTheme } from '@core/primitives/theme/browser';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { ExpandableImage } from './expandable-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
 import { MermaidDiagram } from './mermaid-diagram';

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { useDefaultLayout } from 'react-resizable-panels';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   ResizableHandle,
   ResizablePanel,

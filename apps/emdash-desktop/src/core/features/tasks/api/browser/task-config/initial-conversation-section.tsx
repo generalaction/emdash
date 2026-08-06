@@ -29,7 +29,7 @@ import {
   parseIssueMentionToken,
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Field, FieldDescription, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';

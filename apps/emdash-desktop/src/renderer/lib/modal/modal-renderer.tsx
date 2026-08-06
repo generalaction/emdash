@@ -12,7 +12,7 @@ import {
   type ModalSize,
 } from '@core/primitives/modals/react';
 import { modalStore, type ModalStackEntry } from '@core/primitives/modals/react/modal-store';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Dialog, DialogOverlay, DialogPortal } from '@core/primitives/ui/browser/dialog';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';

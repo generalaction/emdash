@@ -2,7 +2,7 @@ import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
 import { Badge } from '@core/primitives/ui/browser/badge';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
   ComboboxContent,

@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { MicroLabel } from '@core/primitives/ui/browser/label';
 
 export function CardGrid({ children, className, ...props }: ComponentProps<'div'>) {

@@ -14,7 +14,7 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServer } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   DropdownMenu,
   DropdownMenuContent,

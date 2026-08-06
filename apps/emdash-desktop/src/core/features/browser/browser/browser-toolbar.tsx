@@ -31,7 +31,7 @@ import {
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Textarea, type TextareaProps } from '@core/primitives/ui/browser/textarea';
 
 export function useTextareaAutoFocus(

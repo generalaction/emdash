@@ -1,6 +1,6 @@
 import type { AgentIconAsset } from '@core/primitives/agents/api';
 import { useTheme } from '@core/primitives/theme/browser';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { pickIconVariant } from './agent-icon-variant';
 
 type PluginIconProps = {

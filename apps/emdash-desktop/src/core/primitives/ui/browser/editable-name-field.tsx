@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Input } from '@core/primitives/ui/browser/input';
 
 interface EditableNameFieldProps {

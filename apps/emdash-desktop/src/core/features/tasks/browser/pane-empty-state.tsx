@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { useWorkspaceId } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';

@@ -4,7 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
   ComboboxCollection,

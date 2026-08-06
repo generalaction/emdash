@@ -1,5 +1,5 @@
 import type { AgentStatus } from '@core/primitives/agents/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { CLISpinner } from '@core/primitives/ui/browser/components/cliSpinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 

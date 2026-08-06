@@ -3,7 +3,7 @@ import React, { type RefObject } from 'react';
 import type { TerminalSearchStatus } from '@core/features/terminals/api/browser/pty/use-terminal-search';
 import { terminalSearchScope } from '@core/features/workbench/contributions/scopes';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Input } from '@core/primitives/ui/browser/input';
 import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';

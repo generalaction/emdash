@@ -14,7 +14,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { ShowHide } from '@core/primitives/ui/browser/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';

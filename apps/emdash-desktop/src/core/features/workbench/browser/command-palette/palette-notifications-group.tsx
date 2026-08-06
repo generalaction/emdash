@@ -11,7 +11,7 @@ import { taskManagerStoreToken } from '@core/features/tasks/contributions/browse
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteTaskItem } from './palette-task-item';

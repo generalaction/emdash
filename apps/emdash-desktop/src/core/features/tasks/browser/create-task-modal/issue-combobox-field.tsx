@@ -7,7 +7,7 @@ import {
   SelectedIssueValue,
 } from '@core/features/tasks/browser/components/issue-selector/issue-selector';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 interface IssueComboboxFieldProps {
   value: LinkedIssue | null;

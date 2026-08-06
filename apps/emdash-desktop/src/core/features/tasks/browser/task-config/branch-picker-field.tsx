@@ -2,7 +2,7 @@ import { ChevronDown, GitBranch } from 'lucide-react';
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
 import type { BranchSelectionState } from '@core/features/tasks/browser/create-task-modal/use-branch-selection';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Collapsible,
   CollapsibleContent,

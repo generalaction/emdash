@@ -1,4 +1,4 @@
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 export function PrNumberBadge({ number, className }: { number: number; className?: string }) {
   return (

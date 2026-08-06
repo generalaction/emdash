@@ -9,7 +9,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { activeDiffEntry } from '../../../pane-selectors';

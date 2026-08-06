@@ -1,5 +1,5 @@
 import { ChevronDown, Info } from 'lucide-react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Collapsible,
   CollapsibleContent,

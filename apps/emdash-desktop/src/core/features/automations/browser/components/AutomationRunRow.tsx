@@ -10,7 +10,7 @@ import {
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { formatAutomationError } from '../automation-run-format';
 import { useAutomationRun } from '../use-automations';

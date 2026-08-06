@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react';
 import * as React from 'react';
 import { isTextInputFocusTarget, useChordKeydown } from '@core/primitives/keybindings/browser';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 

@@ -4,7 +4,7 @@ import {
   SelectedPrValue,
 } from '@core/features/tasks/browser/components/pr-selector/pr-selector';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 interface PrComboboxFieldProps {

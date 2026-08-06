@@ -2,7 +2,7 @@ import type { AgentProviderId } from '@emdash/plugins/agents';
 import { Download, Loader2 } from 'lucide-react';
 import type React from 'react';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Tooltip,
   TooltipContent,

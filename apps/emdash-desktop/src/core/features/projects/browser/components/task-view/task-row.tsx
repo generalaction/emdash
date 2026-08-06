@@ -14,7 +14,7 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { type Task } from '@core/primitives/tasks/api';
 import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';

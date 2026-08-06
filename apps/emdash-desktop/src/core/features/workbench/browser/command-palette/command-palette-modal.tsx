@@ -17,7 +17,7 @@ import { defineModal } from '@core/primitives/modals/react';
 import type { PaletteItemDef } from '@core/primitives/palette/api';
 import { getPaletteRenderer } from '@core/primitives/palette/browser';
 import type { SearchItem } from '@core/primitives/search/api';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import type { BoundCommand } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';

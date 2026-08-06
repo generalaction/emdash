@@ -2,7 +2,7 @@ import { formatCommandOutputTail } from '@emdash/core/primitives/host-dependenci
 import type { PermissionDeniedError } from '@emdash/core/primitives/host-dependencies/api';
 import { Loader2, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { CommandActionButton, CommandRow } from './install-command-row';
 
 export type SudoRetryPanelProps = {

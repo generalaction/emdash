@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import * as ResizablePrimitive from 'react-resizable-panels';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 function ResizablePanelGroup({ className, ...props }: ResizablePrimitive.GroupProps) {
   return (

@@ -2,7 +2,7 @@ import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { NavButtons } from '@core/primitives/ui/browser/components/nav-buttons';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
@@ -18,7 +18,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
   return (
     <header
       className={cn(
-        'flex h-10 shrink-0 items-center bg-background-secondary border-b border-border [-webkit-app-region:drag] dark:bg-background',
+        'flex h-10 shrink-0 items-center bg-background-secondary border-b border-border [-webkit-app-region:drag]',
         // macOS traffic lights sit at the top-left, so clear room only there.
         !isLeftOpen && isMac && 'pl-18',
         // Linux draws its own controls flush to the right corner (no native

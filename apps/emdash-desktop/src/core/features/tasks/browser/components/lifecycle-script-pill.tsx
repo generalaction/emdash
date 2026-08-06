@@ -5,7 +5,7 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Spinner } from '@core/primitives/ui/browser/spinner';
 
 export const LifecycleScriptPill = observer(function LifecycleScriptPill() {

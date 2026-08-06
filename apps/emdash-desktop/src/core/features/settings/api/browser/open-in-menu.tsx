@@ -6,7 +6,7 @@ import {
   isValidOpenInAppId,
   type OpenInAppId,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
 import {
   Select,

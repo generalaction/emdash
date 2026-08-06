@@ -10,7 +10,7 @@ import { TaskList } from '@core/features/projects/browser/components/task-view/t
 import { WorkspacesView } from '@core/features/projects/browser/components/workspaces-view/workspaces-view';
 import type { ProjectView } from '@core/features/projects/browser/stores/project-view';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 
 const projectViewItems: Array<{ id: ProjectView; label: string }> = [

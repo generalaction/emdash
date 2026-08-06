@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { MermaidDiagramDialog } from './mermaid-diagram-dialog';
 import { MermaidDiagramPreview } from './mermaid-diagram-preview';
 import { createMermaidRenderId, renderMermaidDiagram } from './mermaid-renderer';

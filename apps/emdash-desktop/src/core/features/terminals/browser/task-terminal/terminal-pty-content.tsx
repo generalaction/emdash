@@ -6,7 +6,7 @@ import { PtyPane } from '@core/features/terminals/api/browser/pty/pty-pane';
 import { type PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { TerminalSearchOverlay } from '@core/features/terminals/api/browser/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@core/features/terminals/api/browser/pty/use-terminal-search';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   createPaneDimensionSink,
   PaneDimensionProvider,

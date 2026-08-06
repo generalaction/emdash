@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
   ComboboxCollection,

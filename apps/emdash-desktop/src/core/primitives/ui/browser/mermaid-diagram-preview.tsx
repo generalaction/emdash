@@ -1,7 +1,7 @@
 import { Expand } from 'lucide-react';
 import type React from 'react';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 interface MermaidDiagramPreviewProps {

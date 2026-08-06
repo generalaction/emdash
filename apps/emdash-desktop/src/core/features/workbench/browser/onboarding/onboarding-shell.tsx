@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { ImportStep } from './import-step';
 import { SignInStep } from './sign-in-step';
 

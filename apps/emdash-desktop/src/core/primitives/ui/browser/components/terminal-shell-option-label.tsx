@@ -2,7 +2,7 @@ import type { TerminalShellAvailability } from '@emdash/core/primitives/terminal
 import { Terminal } from 'lucide-react';
 import fishIcon from '@/assets/images/shells/fish.svg?raw';
 import { Badge } from '@core/primitives/ui/browser/badge';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 const SHELL_DEVICON_CLASS: Partial<Record<string, string>> = {
   bash: 'devicon-bash-plain',

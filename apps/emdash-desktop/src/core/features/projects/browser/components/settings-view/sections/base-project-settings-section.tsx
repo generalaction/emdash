@@ -8,7 +8,7 @@ import {
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { Project } from '@core/primitives/projects/api';
 import { Button } from '@core/primitives/ui/browser/button';
-import { cn } from '@core/primitives/ui/browser/cn';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
