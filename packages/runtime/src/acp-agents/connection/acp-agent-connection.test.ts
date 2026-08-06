@@ -51,7 +51,7 @@ describe('createAcpAgentConnection()', () => {
 
   it('returns err(spawn_failed) when spawn throws', async () => {
     const { host, behavior, scope } = makeCtx();
-    host.spawn = vi.fn().mockRejectedValue(new Error('spawn-error'));
+    host.spawn.mockRejectedValueOnce(new Error('spawn-error'));
     const result = await createAcpAgentConnection({ host, behavior }, connArgs(scope));
 
     expect(isErr(result)).toBe(true);

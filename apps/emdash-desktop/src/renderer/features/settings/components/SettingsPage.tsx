@@ -9,6 +9,7 @@ import { SettingsSearchProvider } from '../search/settings-search-context';
 import { SETTINGS_TABS, type SettingsPageTab } from '../settings-tabs';
 import { AccountTab } from './AccountTab';
 import { BrowserSettingsCard } from './BrowserSettingsCard';
+import { ExperimentalSettingsCard } from './ExperimentalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -129,6 +130,19 @@ function InterfaceSettingsPage() {
   );
 }
 
+function ExperimentalSettingsPage() {
+  return (
+    <div className="space-y-8 pb-4">
+      <PageHeader
+        sticky
+        title="Experimental"
+        description="Try features that are still in progress."
+      />
+      <ExperimentalSettingsCard />
+    </div>
+  );
+}
+
 function StorageTabPage() {
   return (
     <div className="space-y-8">
@@ -165,6 +179,7 @@ const TAB_CONTENT: Record<Exclude<SettingsPageTab, 'docs'>, React.ComponentType>
   repository: RepositorySettingsPage,
   storage: StorageTabPage,
   interface: InterfaceSettingsPage,
+  experimental: ExperimentalSettingsPage,
 };
 
 const DOCS_TAB = { id: 'docs', label: 'Docs', isExternal: true } as const;

@@ -68,6 +68,7 @@ export default defineConfig({
     root: 'src/main',
     envDir: resolve('.'),
     build: {
+      externalizeDeps: { exclude: ['glob'] },
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),

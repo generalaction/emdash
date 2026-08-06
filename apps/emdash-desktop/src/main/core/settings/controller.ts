@@ -1,11 +1,12 @@
 import { applyNativeTheme } from '@main/app/window';
 import { setBrowserCorsRelaxationSettings } from '@main/core/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
+import { loopService } from '@main/core/loops/loop-service';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 
-async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
+export async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void> {
   if (key === 'theme') applyNativeTheme(await appSettingsService.get('theme'));
   if (key === 'resourceMonitor') await reconcileResourceSampler();
   if (key === 'keyboard') {
@@ -14,6 +15,10 @@ async function reconcileSettingsRuntimeState(key: AppSettingsKey): Promise<void>
   }
   if (key === 'browser') {
     setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
+  }
+  if (key === 'experiments') {
+    const { loops } = await appSettingsService.get('experiments');
+    await loopService.reconcileEnabledState(loops);
   }
 }
 

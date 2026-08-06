@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { Result } from '@emdash/shared';
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { match } from 'ts-pattern';
@@ -14,6 +15,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import type { LoopWithPhases } from '@shared/core/loops/loops';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -26,6 +28,7 @@ import {
 import type {
   CreateTaskError,
   CreateTaskParams,
+  CreateTaskSuccess,
   CreateTaskWarning,
   DeleteTaskOptions,
   ProvisionWorkspaceError,
@@ -115,6 +118,18 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
 }
 
 function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function messageFromLoopTaskCreateError(error: unknown): string {
+  if (error && typeof error === 'object') {
+    if ('type' in error) {
+      return formatCreateTaskError(error as CreateTaskError);
+    }
+    if ('message' in error && typeof error.message === 'string' && error.message.trim()) {
+      return error.message;
+    }
+  }
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -341,7 +356,54 @@ export class TaskManagerStore {
     return this._loadPromise;
   }
 
-  async createTask(params: CreateTaskParams) {
+  async createTask(params: CreateTaskParams): Promise<void> {
+    await this._createTask(
+      params,
+      () =>
+        rpc.tasks.createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params) as Promise<
+          Result<CreateTaskSuccess, unknown>
+        >,
+      (error) =>
+        formatCreateTaskError(error as CreateTaskError, {
+          isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
+        })
+    );
+  }
+
+  async createTaskWithLoop(
+    params: Parameters<typeof rpc.loops.createTaskWithLoop>[0]
+  ): Promise<LoopWithPhases> {
+    const result = await this._createTask(
+      params.task,
+      async () => {
+        const response = await rpc.loops.createTaskWithLoop(
+          JSON.parse(JSON.stringify(toJS(params))) as typeof params
+        );
+        if (!response.success) return response;
+        return {
+          success: true as const,
+          data: { ...response.data.task, loop: response.data.loop },
+        };
+      },
+      messageFromLoopTaskCreateError
+    );
+    return result.loop;
+  }
+
+  private async _createTask<T extends CreateTaskSuccess>(
+    params: CreateTaskParams,
+    request: () => Promise<Result<T, unknown>>,
+    formatError: (error: unknown) => string
+  ): Promise<T> {
+    const clearOptimisticInitialConversationWorking = () => {
+      const { initialConversation } = params.taskConfig;
+      if (!initialConversation?.initialPrompt?.trim()) return;
+      conversationRegistry
+        .acquire(params.id, this.projectId)
+        .conversations.get(initialConversation.id)
+        ?.clearWorking();
+    };
+
     runInAction(() => {
       const { taskConfig } = params;
       this.tasks.set(
@@ -380,24 +442,22 @@ export class TaskManagerStore {
       terminalRegistry.acquire(params.id, this.projectId);
     });
 
-    const result = await rpc.tasks
-      .createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
-      .catch((e: unknown) => {
-        const message = e instanceof Error ? e.message : String(e);
-        runInAction(() => {
-          const current = this.tasks.get(params.id);
-          if (current && isUnregistered(current)) {
-            current.phase = 'create-error';
-            current.errorMessage = message;
-          }
-        });
-        throw e;
+    const result = await request().catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e);
+      clearOptimisticInitialConversationWorking();
+      runInAction(() => {
+        const current = this.tasks.get(params.id);
+        if (current && isUnregistered(current)) {
+          current.phase = 'create-error';
+          current.errorMessage = message;
+        }
       });
+      throw e;
+    });
 
     if (!result.success) {
-      const message = formatCreateTaskError(result.error, {
-        isSshProject: getProjectSshConnectionId(this.projectId) !== undefined,
-      });
+      const message = formatError(result.error);
+      clearOptimisticInitialConversationWorking();
       runInAction(() => {
         const current = this.tasks.get(params.id);
         if (current && isUnregistered(current)) {
@@ -431,6 +491,7 @@ export class TaskManagerStore {
     }
 
     await this.provisionTask(params.id);
+    return result.data;
   }
 
   async provisionTask(taskId: string): Promise<void> {

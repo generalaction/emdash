@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 
 const spawnMock = vi.hoisted(() => vi.fn());
@@ -24,9 +24,56 @@ describe('LocalExecutionContext', () => {
     spawnMock.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('merges an explicit environment overlay through the external-tool environment', async () => {
+    vi.stubEnv('APPIMAGE', '/tmp/emdash.AppImage');
+    vi.stubEnv('APPDIR', '/tmp/.mount_emdash');
+    execFileMock.mockImplementation((_command, _args, _options, callback) => {
+      callback(null, '', '');
+    });
+    const ctx = new LocalExecutionContext({ root: '/repo' });
+
+    await ctx.exec('node', ['script.js'], {
+      env: {
+        EMDASH_TASK_ID: 'task-1',
+        EMDASH_TASK_PATH: '/repo',
+      },
+      maxBuffer: 1234,
+      timeout: 5678,
+    });
+
+    const options = execFileMock.mock.calls[0]?.[2];
+    expect(options.cwd).toBe('/repo');
+    expect(options.maxBuffer).toBe(1234);
+    expect(options.timeout).toBe(5678);
+    expect(options.env.EMDASH_TASK_ID).toBe('task-1');
+    expect(options.env.EMDASH_TASK_PATH).toBe('/repo');
+    expect(options.env).not.toHaveProperty('APPIMAGE');
+    expect(options.env).not.toHaveProperty('APPDIR');
+  });
+
+  it('keeps non-interactive Git variables when merging an environment overlay', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, callback) => {
+      callback(null, '', '');
+    });
+    const ctx = new LocalExecutionContext({ root: '/repo' });
+
+    await ctx.exec('git', ['status'], { env: { EMDASH_TASK_ID: 'task-1' } });
+
+    const env = execFileMock.mock.calls[0]?.[2]?.env;
+    expect(env.EMDASH_TASK_ID).toBe('task-1');
+    expect(env.GIT_ASKPASS).toBe('');
+    expect(env.GIT_TERMINAL_PROMPT).toBe('0');
+    expect(env.GCM_INTERACTIVE).toBe('never');
+    expect(env.SSH_ASKPASS).toBe('');
+  });
+
   it('resolves logical git command for buffered local execution', async () => {
     execFileMock.mockImplementation((_command, _args, _options, callback) => {
-      callback(null, { stdout: '', stderr: '' });
+      callback(null, '', '');
     });
     const ctx = new LocalExecutionContext({ root: '/repo' });
 

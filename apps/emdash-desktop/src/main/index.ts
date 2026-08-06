@@ -29,6 +29,7 @@ import { localDependencyManager } from './core/dependencies/dependency-managers'
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
 import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
+import { loopService } from './core/loops/loop-service';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { providerAccountRegistry } from './core/provider-accounts/provider-account-registry-instance';
@@ -150,6 +151,7 @@ void app.whenReady().then(async () => {
   appService.initialize();
   await appSettingsService.initialize();
   applyNativeTheme(await appSettingsService.get('theme'));
+  await loopService.initialize((await appSettingsService.get('experiments')).loops);
   browserWebContentsRegistry.setKeyboardSettings(await appSettingsService.get('keyboard'));
   setBrowserCorsRelaxationSettings(await appSettingsService.get('browser'));
   await promptLibraryService.initialize();
@@ -182,6 +184,11 @@ void app.whenReady().then(async () => {
   );
 
   registerRPCRouter(rpcRouter, app.isPackaged ? ipcMain : withRpcLogging(ipcMain));
+  if (import.meta.env.MODE === 'loops-electron' && process.env.EMDASH_LOOPS_ELECTRON_TEST === '1') {
+    const { registerLoopsElectronTestBridge } =
+      await import('@root/tooling/loops-electron/main-bridge');
+    registerLoopsElectronTestBridge();
+  }
 
   void reconcileResourceSampler();
 

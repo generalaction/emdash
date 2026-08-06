@@ -14,6 +14,7 @@ import { gitWorktreeController } from './core/git/worktree/controller';
 import { githubController } from './core/github/controller';
 import { integrationsController } from './core/integrations/controller';
 import { issueController } from './core/issues/controller';
+import { loopsController } from './core/loops/controller';
 import { mcpController } from './core/mcp/controller';
 import { previewServersController } from './core/preview-servers/controller';
 import { projectSetupController } from './core/project-setup/controller';
@@ -53,6 +54,7 @@ export const rpcRouter = createRPCRouter({
   github: githubController,
   integrations: integrationsController,
   issues: issueController,
+  loops: loopsController,
   promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,

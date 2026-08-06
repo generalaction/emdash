@@ -113,6 +113,9 @@ importers:
       ts-pattern:
         specifier: ^5.9.0
         version: 5.9.0
+      whatwg-url:
+        specifier: 5.0.0
+        version: 5.0.0
       zod:
         specifier: ^4.3.6
         version: 4.4.3
@@ -270,6 +273,9 @@ importers:
       oxlint-tsgolint:
         specifier: ^0.23.0
         version: 0.23.0
+      playwright:
+        specifier: ^1.60.0
+        version: 1.60.0
       postcss:
         specifier: ^8.4.32
         version: 8.5.15

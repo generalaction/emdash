@@ -1,15 +1,11 @@
 import type { Client } from '@agentclientprotocol/sdk';
 import type { AcpProcessHost } from '@emdash/core/acp';
 import { acpErr } from '@emdash/core/acp';
-import type {
-  AcpAgentApi,
-  AgentHostError,
-  AgentPluginHost,
-  IAcpBehavior,
-} from '@emdash/core/agents/plugins';
+import type { AcpAgentApi, AgentHostError, IAcpBehavior } from '@emdash/core/agents/plugins';
 import { isErr, toSerializedError } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { createManagedSource, type ManagedSource, type Scope } from '@emdash/wire/util';
+import type { AcpAgentHost } from '../runtime/types';
 import {
   createAcpAgentConnection,
   type AcpConnectionError,
@@ -35,7 +31,7 @@ export type PooledAcpProcess = AcpConnectionEntry;
 
 export interface CreateAcpConnectionSourceDeps {
   host: AcpConnectionProcessHost;
-  agentHost: AgentPluginHost;
+  agentHost: AcpAgentHost;
   logger: Logger;
   onClosed: (key: string, exitCode: number | null) => void;
 }

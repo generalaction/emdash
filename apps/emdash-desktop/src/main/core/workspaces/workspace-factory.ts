@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -20,13 +21,21 @@ import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-prov
 import { runLifecycleScriptWithPolicy } from '@main/core/terminals/lifecycle-script-coordinator';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
-import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
+import {
+  LifecycleScriptService,
+  type LifecyclePreviewStartupError,
+  type RequiredLifecycleStartup,
+} from '@main/core/workspaces/workspace-lifecycle-service';
+import type {
+  WorkspaceAcquireControl,
+  WorkspaceFactoryResult,
+} from '@main/core/workspaces/workspace-registry';
 import { handleGitWorktreeUpdate } from '@main/core/workspaces/workspace-worktree-update';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { fileChangesChannel, fileTreeProjectionChannel } from '@shared/core/fs/fsEvents';
 import { gitWorktreeUpdateChannel } from '@shared/core/git/events';
+import { previewServerUrl } from '@shared/core/preview-servers/types';
 import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -37,7 +46,7 @@ export type WorkspaceType =
   | { kind: 'local' }
   | { kind: 'ssh'; proxy: SshClientProxy; connectionId: string };
 
-type WorkspaceFactoryContext = {
+export type WorkspaceFactoryContext = {
   task: Pick<Task, 'id' | 'name'>;
   workDir: string;
   projectId: string;
@@ -58,6 +67,14 @@ type WorkspaceFactoryContext = {
     onDestroy?: (ws: Workspace) => Promise<void>;
     onDetach?: (ws: Workspace) => Promise<void>;
   };
+  strictStartup?: {
+    requirePreview: boolean;
+    signal?: AbortSignal;
+    deadlineAt?: number;
+    previewTimeoutMs?: number;
+    previewPollIntervalMs?: number;
+    runStartupGraceMs?: number;
+  };
 };
 
 /**
@@ -69,299 +86,705 @@ export function createWorkspaceFactory(
   workspaceId: string,
   type: WorkspaceType,
   context: WorkspaceFactoryContext
-): () => Promise<WorkspaceFactoryResult> {
-  return async () => {
+): (control?: WorkspaceAcquireControl) => Promise<WorkspaceFactoryResult> {
+  return async (acquisitionControl) => {
     const workDir = context.workDir;
+    const control: WorkspaceAcquireControl = acquisitionControl
+      ? {
+          signal: acquisitionControl.signal,
+          deadlineAt: context.strictStartup?.deadlineAt ?? acquisitionControl.deadlineAt,
+        }
+      : {
+          signal: context.strictStartup?.signal,
+          deadlineAt: context.strictStartup?.deadlineAt,
+        };
+    throwIfWorkspaceFactoryStopped(control);
 
     const ctx =
       type.kind === 'ssh'
         ? new SshExecutionContext(type.proxy, { connectionId: type.connectionId })
         : new LocalExecutionContext();
 
-    const runtime = await acquireWorkspaceRuntime(context.workspaceRuntime, workDir);
-    const { gitWorktree, fileTree, filesRuntime } = runtime;
-    const openedFileSystem = filesRuntime.fileSystem();
-    if (!openedFileSystem.success) {
-      await runtime.release();
-      throw new Error(`Failed to open file system: ${openedFileSystem.error.message}`);
-    }
-    const fileSystem = openedFileSystem.data;
-    const configPath = filesRuntime.path.join(workDir, '.emdash.json');
+    const runtime = await acquireWorkspaceRuntime(context.workspaceRuntime, workDir, control);
+    let lifecycleService: LifecycleScriptService | undefined;
+    let fileTreeProjector: FileTreeProjector | undefined;
+    try {
+      const { gitWorktree, fileTree, filesRuntime } = runtime;
+      throwIfWorkspaceFactoryStopped(control);
+      const openedFileSystem = filesRuntime.fileSystem();
+      if (!openedFileSystem.success) {
+        throw new Error(`Failed to open file system: ${openedFileSystem.error.message}`);
+      }
+      const fileSystem = openedFileSystem.data;
+      const configPath = filesRuntime.path.join(workDir, '.emdash.json');
 
-    // Settings (shared)
-    const projectSettings = await context.settings.get();
-    const defaultBranch = await context.settings.getDefaultBranch();
-    const bootstrapTaskEnvVars = getTaskEnvVars({
-      taskId: context.task.id,
-      taskName: context.task.name,
-      taskPath: workDir,
-      projectPath: context.projectPath,
-      defaultBranch,
-      portSeed: workDir,
-    });
-    const tmuxEnabled = projectSettings.tmux ?? false;
-    const taskLevelSettings = await getEffectiveTaskSettings({
-      projectSettings: context.settings,
-      taskFs: fileSystem,
-      taskConfigPath: configPath,
-    });
-    const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
-    const scripts = taskLevelSettings.scripts;
+      // Settings (shared)
+      const projectSettings = await awaitWithWorkspaceFactoryReadQuiescence(
+        context.settings.get(),
+        control
+      );
+      const defaultBranch = await awaitWithWorkspaceFactoryReadQuiescence(
+        context.settings.getDefaultBranch(),
+        control
+      );
+      const bootstrapTaskEnvVars = getTaskEnvVars({
+        taskId: context.task.id,
+        taskName: context.task.name,
+        taskPath: workDir,
+        projectPath: context.projectPath,
+        defaultBranch,
+        portSeed: workDir,
+      });
+      const tmuxEnabled = projectSettings.tmux ?? false;
+      const taskLevelSettings = await awaitWithWorkspaceFactoryReadQuiescence(
+        getEffectiveTaskSettings({
+          projectSettings: context.settings,
+          taskFs: fileSystem,
+          taskConfigPath: configPath,
+        }),
+        control
+      );
+      const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
+      const scripts = taskLevelSettings.scripts;
 
-    // Transport-specific workspace terminal provider (used only by lifecycle scripts)
-    const workspaceTerminals =
-      type.kind === 'ssh'
-        ? new SshTerminalProvider({
-            projectId: context.projectId,
-            workspaceId,
-            scopeId: workspaceId,
-            taskPath: workDir,
-            tmux: tmuxEnabled,
-            shellSetup,
-            ctx,
-            proxy: type.proxy,
-            connectionId: type.connectionId,
-            taskEnvVars: bootstrapTaskEnvVars,
-          })
-        : new LocalTerminalProvider({
-            projectId: context.projectId,
-            workspaceId,
-            scopeId: workspaceId,
-            taskPath: workDir,
-            tmux: tmuxEnabled,
-            shellSetup,
-            ctx,
-            taskEnvVars: bootstrapTaskEnvVars,
-          });
+      // Transport-specific workspace terminal provider (used only by lifecycle scripts)
+      const workspaceTerminals =
+        type.kind === 'ssh'
+          ? new SshTerminalProvider({
+              projectId: context.projectId,
+              workspaceId,
+              scopeId: workspaceId,
+              taskPath: workDir,
+              tmux: tmuxEnabled,
+              shellSetup,
+              ctx,
+              proxy: type.proxy,
+              connectionId: type.connectionId,
+              taskEnvVars: bootstrapTaskEnvVars,
+            })
+          : new LocalTerminalProvider({
+              projectId: context.projectId,
+              workspaceId,
+              scopeId: workspaceId,
+              taskPath: workDir,
+              tmux: tmuxEnabled,
+              shellSetup,
+              ctx,
+              taskEnvVars: bootstrapTaskEnvVars,
+            });
 
-    const lifecycleService = new LifecycleScriptService({
-      projectId: context.projectId,
-      workspaceId,
-      terminals: workspaceTerminals,
-    });
-
-    const gitRepository =
-      context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
-
-    const ownsFetchService = !context.gitRepositoryFetchService;
-    const gitRepositoryFetchService =
-      context.gitRepositoryFetchService ??
-      new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
-    let unsubscribeGitUpdates: (() => void) | undefined;
-    let unsubscribeFileChanges: (() => void) | undefined;
-
-    const fileTreeProjector = new FileTreeProjector(fileTree, (update) =>
-      events.emit(fileTreeProjectionChannel, {
+      const createdLifecycleService = new LifecycleScriptService({
         projectId: context.projectId,
         workspaceId,
-        subscriptionId: update.subscriptionId,
-        version: update.version,
-        scopes: update.scopes,
-      })
-    );
+        terminals: workspaceTerminals,
+      });
+      lifecycleService = createdLifecycleService;
 
-    const workspace: Workspace = {
-      id: workspaceId,
-      path: workDir,
-      configPath,
-      fileSystem,
-      fileTree,
-      fileTreeProjector,
-      gitWorktree,
-      settings: context.settings,
-      lifecycleService,
-      gitRepository,
-      gitRepositoryFetchService,
-      dispose: async () => {
-        unsubscribeGitUpdates?.();
-        unsubscribeGitUpdates = undefined;
-        fileTreeProjector.dispose();
-        unsubscribeFileChanges?.();
-        unsubscribeFileChanges = undefined;
-        await runtime.release();
-      },
-    };
+      const gitRepository =
+        context.gitRepository ?? new GitRepositoryService(gitWorktree.repository, context.settings);
 
-    const { logPrefix } = context;
+      const ownsFetchService = !context.gitRepositoryFetchService;
+      const gitRepositoryFetchService =
+        context.gitRepositoryFetchService ??
+        new GitRepositoryFetchService(gitRepository, () => gitRepository.getBaseRemote());
+      let unsubscribeGitUpdates: (() => void) | undefined;
+      let unsubscribeFileChanges: (() => void) | undefined;
 
-    return {
-      workspace,
-      sshFilesRuntime: type.kind === 'ssh' ? filesRuntime : undefined,
+      const createdFileTreeProjector = new FileTreeProjector(fileTree, (update) =>
+        events.emit(fileTreeProjectionChannel, {
+          projectId: context.projectId,
+          workspaceId,
+          subscriptionId: update.subscriptionId,
+          version: update.version,
+          scopes: update.scopes,
+        })
+      );
+      fileTreeProjector = createdFileTreeProjector;
+      const disposeWorkspace = createRetryableWorkspaceFactoryCleanup([
+        async () => {
+          unsubscribeGitUpdates?.();
+          unsubscribeGitUpdates = undefined;
+        },
+        async () => createdFileTreeProjector.dispose(),
+        async () => {
+          unsubscribeFileChanges?.();
+          unsubscribeFileChanges = undefined;
+        },
+        () => runtime.release(),
+      ]);
 
-      onCreateSideEffect: (ws) => {
-        void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
-          rootPath: ws.path,
-          enumerate: (root, options) => {
-            const fs = filesRuntime.fileSystem();
-            return fs.success ? fs.data.enumerate(root, options) : fs;
-          },
-        });
-        unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
-          handleGitWorktreeUpdate(workspaceId, update, (emitted) => {
-            events.emit(gitWorktreeUpdateChannel, {
-              projectId: context.projectId,
-              workspaceId,
-              update: emitted,
-            });
-          })
-        );
-        const fileChanges = filesRuntime.watchChanges(workDir, (update) => {
-          if (type.kind === 'ssh') {
-            invalidateLegacySshGitWorktreeStatus(ws.gitWorktree);
-          }
-          events.emit(fileChangesChannel, {
-            projectId: context.projectId,
-            workspaceId,
-            update,
+      const workspace: Workspace = {
+        id: workspaceId,
+        path: workDir,
+        configPath,
+        fileSystem,
+        fileTree,
+        fileTreeProjector: createdFileTreeProjector,
+        gitWorktree,
+        settings: context.settings,
+        lifecycleService: createdLifecycleService,
+        gitRepository,
+        gitRepositoryFetchService,
+        dispose: disposeWorkspace,
+      };
+
+      const { logPrefix } = context;
+      throwIfWorkspaceFactoryStopped(control);
+
+      return {
+        workspace,
+        sshFilesRuntime: type.kind === 'ssh' ? filesRuntime : undefined,
+
+        onCreateSideEffect: (ws) => {
+          void workspaceFileIndexService.onWorkspaceActivated(workspaceId, {
+            rootPath: ws.path,
+            enumerate: (root, options) => {
+              const fs = filesRuntime.fileSystem();
+              return fs.success ? fs.data.enumerate(root, options) : fs;
+            },
           });
-          workspaceFileIndexService.onWorkspaceFileChange(workspaceId, update);
-        });
-        if (fileChanges.success) {
-          unsubscribeFileChanges = fileChanges.data.unsubscribe;
-          void fileChanges.data.ready().then((result) => {
-            if (!result.success) {
-              log.warn('WorkspaceFactory: file change feed failed to become ready', {
+          unsubscribeGitUpdates = ws.gitWorktree.subscribe((update) =>
+            handleGitWorktreeUpdate(workspaceId, update, (emitted) => {
+              events.emit(gitWorktreeUpdateChannel, {
+                projectId: context.projectId,
                 workspaceId,
-                error: result.error,
+                update: emitted,
               });
+            })
+          );
+          const fileChanges = filesRuntime.watchChanges(workDir, (update) => {
+            if (type.kind === 'ssh') {
+              invalidateLegacySshGitWorktreeStatus(ws.gitWorktree);
             }
-          });
-        } else {
-          log.warn('WorkspaceFactory: failed to start file change feed', {
-            workspaceId,
-            error: fileChanges.error,
-          });
-        }
-
-        if (ownsFetchService) {
-          gitRepositoryFetchService.start();
-        }
-        void (async () => {
-          if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
-            const setupResult = await runLifecycleScriptWithPolicy({
-              workspace: ws,
+            events.emit(fileChangesChannel, {
               projectId: context.projectId,
-              taskId: context.task.id,
               workspaceId,
-              type: 'setup',
-              script: scripts.setup,
-              shellSetup,
-              origin: 'auto-setup',
-              policy: {
-                respawnAfterExit: true,
-                logFailure: true,
-                surfaceFailure: true,
-                continueOnFailure: true,
-              },
-              logPrefix,
+              update,
             });
-            if (setupResult.kind !== 'succeeded') return;
+            workspaceFileIndexService.onWorkspaceFileChange(workspaceId, update);
+          });
+          if (fileChanges.success) {
+            unsubscribeFileChanges = fileChanges.data.unsubscribe;
+            void fileChanges.data.ready().then((result) => {
+              if (!result.success) {
+                log.warn('WorkspaceFactory: file change feed failed to become ready', {
+                  workspaceId,
+                  error: result.error,
+                });
+              }
+            });
+          } else {
+            log.warn('WorkspaceFactory: failed to start file change feed', {
+              workspaceId,
+              error: fileChanges.error,
+            });
           }
 
-          if (scripts?.run && (projectSettings.autoRunRunScriptOnTaskCreation ?? false)) {
+          if (ownsFetchService) {
+            gitRepositoryFetchService.start();
+          }
+          dispatchWorkspaceLifecycleStartup({
+            strict: context.strictStartup !== undefined,
+            lifecycleService: createdLifecycleService,
+            required: {
+              setup: scripts?.setup
+                ? { type: 'setup', script: scripts.setup, shellSetup }
+                : undefined,
+              run: scripts?.run ? { type: 'run', script: scripts.run, shellSetup } : undefined,
+              signal: control.signal,
+              deadlineAt: control.deadlineAt,
+              runStartupGraceMs: context.strictStartup?.runStartupGraceMs,
+              waitForPreview: context.strictStartup?.requirePreview
+                ? ({ signal }) =>
+                    waitForWorkspacePreview({
+                      projectId: context.projectId,
+                      workspaceId,
+                      signal,
+                      timeoutMs: capWorkspaceFactoryTimeout(
+                        context.strictStartup?.previewTimeoutMs ?? 60_000,
+                        control.deadlineAt
+                      ),
+                      pollIntervalMs: context.strictStartup?.previewPollIntervalMs,
+                    })
+                : undefined,
+            },
+            startNormal: async () => {
+              if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
+                const setupResult = await runLifecycleScriptWithPolicy({
+                  workspace: ws,
+                  projectId: context.projectId,
+                  taskId: context.task.id,
+                  workspaceId,
+                  type: 'setup',
+                  script: scripts.setup,
+                  shellSetup,
+                  origin: 'auto-setup',
+                  policy: {
+                    respawnAfterExit: true,
+                    logFailure: true,
+                    surfaceFailure: true,
+                    continueOnFailure: true,
+                  },
+                  logPrefix,
+                });
+                if (setupResult.kind !== 'succeeded') return;
+              }
+
+              if (scripts?.run && (projectSettings.autoRunRunScriptOnTaskCreation ?? false)) {
+                await runLifecycleScriptWithPolicy({
+                  workspace: ws,
+                  projectId: context.projectId,
+                  taskId: context.task.id,
+                  workspaceId,
+                  type: 'run',
+                  script: scripts.run,
+                  shellSetup,
+                  origin: 'auto-run',
+                  policy: {
+                    respawnAfterExit: true,
+                    logFailure: true,
+                    surfaceFailure: true,
+                    continueOnFailure: true,
+                  },
+                  logPrefix,
+                });
+              }
+            },
+          });
+        },
+
+        onCreate: context.extraHooks?.onCreate,
+
+        onDestroy: async (ws) => {
+          await previewServerService.stopForWorkspace(context.projectId, workspaceId);
+          if (ownsFetchService) {
+            gitRepositoryFetchService.stop();
+          }
+          workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
+          const latestProjectSettings = await context.settings.get();
+          const latestTaskSettings = await getEffectiveTaskSettings({
+            projectSettings: context.settings,
+            taskFs: ws.fileSystem,
+            taskConfigPath: ws.configPath,
+          });
+          const latestShellSetup =
+            latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup;
+          const teardownScript = latestTaskSettings.scripts?.teardown;
+
+          if (teardownScript) {
             await runLifecycleScriptWithPolicy({
               workspace: ws,
               projectId: context.projectId,
               taskId: context.task.id,
               workspaceId,
-              type: 'run',
-              script: scripts.run,
-              shellSetup,
-              origin: 'auto-run',
+              type: 'teardown',
+              script: teardownScript,
+              shellSetup: latestShellSetup,
+              origin: 'workspace-destroy',
               policy: {
-                respawnAfterExit: true,
+                timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
                 logFailure: true,
-                surfaceFailure: true,
+                surfaceFailure: false,
                 continueOnFailure: true,
               },
               logPrefix,
             });
           }
-        })();
-      },
+          await context.extraHooks?.onDestroy?.(ws);
+        },
 
-      onCreate: context.extraHooks?.onCreate,
-
-      onDestroy: async (ws) => {
-        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        if (ownsFetchService) {
-          gitRepositoryFetchService.stop();
-        }
-        workspaceFileIndexService.onWorkspaceDeactivated(workspaceId);
-        const latestProjectSettings = await context.settings.get();
-        const latestTaskSettings = await getEffectiveTaskSettings({
-          projectSettings: context.settings,
-          taskFs: ws.fileSystem,
-          taskConfigPath: ws.configPath,
-        });
-        const latestShellSetup = latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup;
-        const teardownScript = latestTaskSettings.scripts?.teardown;
-
-        if (teardownScript) {
-          await runLifecycleScriptWithPolicy({
-            workspace: ws,
-            projectId: context.projectId,
-            taskId: context.task.id,
-            workspaceId,
-            type: 'teardown',
-            script: teardownScript,
-            shellSetup: latestShellSetup,
-            origin: 'workspace-destroy',
-            policy: {
-              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
-              logFailure: true,
-              surfaceFailure: false,
-              continueOnFailure: true,
-            },
-            logPrefix,
-          });
-        }
-        await context.extraHooks?.onDestroy?.(ws);
-      },
-
-      onDetach: async (ws) => {
-        await previewServerService.stopForWorkspace(context.projectId, workspaceId);
-        await context.extraHooks?.onDetach?.(ws);
-      },
-    };
+        onDetach: async (ws) => {
+          await previewServerService.stopForWorkspace(context.projectId, workspaceId);
+          await context.extraHooks?.onDetach?.(ws);
+        },
+      };
+    } catch (error) {
+      const createdFileTreeProjector = fileTreeProjector;
+      const createdLifecycleService = lifecycleService;
+      return failWorkspaceFactoryAfterCleanup(
+        error,
+        createRetryableWorkspaceFactoryCleanup([
+          ...(createdFileTreeProjector ? [async () => createdFileTreeProjector.dispose()] : []),
+          ...(createdLifecycleService ? [() => createdLifecycleService.dispose()] : []),
+          () => runtime.release(),
+        ])
+      );
+    }
   };
+}
+
+export function dispatchWorkspaceLifecycleStartup({
+  strict,
+  lifecycleService,
+  required,
+  startNormal,
+}: {
+  strict: boolean;
+  lifecycleService: Pick<LifecycleScriptService, 'startRequiredStartup'>;
+  required: RequiredLifecycleStartup;
+  startNormal(): Promise<void>;
+}): void {
+  if (strict) {
+    lifecycleService.startRequiredStartup(required);
+    return;
+  }
+  void startNormal();
+}
+
+export async function waitForWorkspacePreview({
+  projectId,
+  workspaceId,
+  signal,
+  timeoutMs = 60_000,
+  pollIntervalMs = 100,
+  previewServers = previewServerService,
+}: {
+  projectId: string;
+  workspaceId: string;
+  signal: AbortSignal;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  previewServers?: Pick<typeof previewServerService, 'listForWorkspace'>;
+}): Promise<Result<void, LifecyclePreviewStartupError>> {
+  const deadline = Date.now() + timeoutMs;
+  while (!signal.aborted) {
+    const previews = previewServers.listForWorkspace({ projectId, workspaceId });
+    if (previews.length > 1) {
+      return err({
+        type: 'preview-ambiguous',
+        stage: 'preview',
+        message: 'Multiple previews were detected; select one before clean-room verification.',
+      });
+    }
+    const preview = previews[0];
+    if (preview?.status.kind === 'failed') {
+      return err({
+        type: 'preview-failed',
+        stage: 'preview',
+        message: 'The required preview failed to start.',
+      });
+    }
+    if (preview?.status.kind === 'ready' && previewServerUrl(preview)) {
+      return ok();
+    }
+    if (Date.now() >= deadline) {
+      return err({
+        type: 'preview-timeout',
+        stage: 'preview',
+        message: 'Preview did not become ready before the timeout.',
+      });
+    }
+    try {
+      await abortableDelay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())), signal);
+    } catch {
+      break;
+    }
+  }
+  return err({
+    type: 'preview-failed',
+    stage: 'preview',
+    message: 'Preview readiness was cancelled.',
+  });
+}
+
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 async function acquireWorkspaceRuntime(
   workspaceRuntime: WorkspaceFactoryContext['workspaceRuntime'],
-  workDir: string
+  workDir: string,
+  control: WorkspaceAcquireControl
 ) {
-  const runtimeLease = await workspaceRuntime.manager.acquire(workspaceRuntime.machine);
+  const runtimeOperation = workspaceRuntime.manager.acquire(workspaceRuntime.machine);
+  let runtimeLease;
   try {
-    const worktreeLease = await runtimeLease.value.git.openWorktree(workDir);
+    runtimeLease = await awaitWithWorkspaceFactoryControl(runtimeOperation, control);
+  } catch (error) {
+    let lateRuntimeLease;
     try {
-      const openedFileTree = await runtimeLease.value.files.openTree(workDir);
-      if (!openedFileTree.success) {
-        throw new Error(`Failed to open file tree: ${JSON.stringify(openedFileTree.error)}`);
-      }
-      const fileTreeLease = openedFileTree.data;
-
-      let released = false;
-      return {
-        gitWorktree: worktreeLease.value,
-        fileTree: fileTreeLease.value,
-        filesRuntime: runtimeLease.value.files,
-        release: async () => {
-          if (released) return;
-          released = true;
-          await fileTreeLease.release();
-          await worktreeLease.release();
-          await runtimeLease.release();
-        },
-      };
-    } catch (error) {
-      await worktreeLease.release();
+      lateRuntimeLease = await runtimeOperation;
+    } catch {
       throw error;
     }
+    return failWorkspaceFactoryAfterCleanup(
+      error,
+      createRetryableWorkspaceFactoryCleanup([() => lateRuntimeLease.release()])
+    );
+  }
+
+  const openWorktree = () => runtimeLease.value.git.openWorktree(workDir);
+  let worktreeOperation: ReturnType<typeof openWorktree>;
+  try {
+    worktreeOperation = openWorktree();
   } catch (error) {
-    await runtimeLease.release();
+    return failWorkspaceFactoryAfterCleanup(
+      error,
+      createRetryableWorkspaceFactoryCleanup([() => runtimeLease.release()])
+    );
+  }
+  let worktreeLease;
+  try {
+    worktreeLease = await awaitWithWorkspaceFactoryControl(worktreeOperation, control);
+  } catch (error) {
+    let lateWorktreeLease;
+    try {
+      lateWorktreeLease = await worktreeOperation;
+    } catch {
+      return failWorkspaceFactoryAfterCleanup(
+        error,
+        createRetryableWorkspaceFactoryCleanup([() => runtimeLease.release()])
+      );
+    }
+    return failWorkspaceFactoryAfterCleanup(
+      error,
+      createRetryableWorkspaceFactoryCleanup([
+        () => lateWorktreeLease.release(),
+        () => runtimeLease.release(),
+      ])
+    );
+  }
+
+  const openFileTree = () => runtimeLease.value.files.openTree(workDir);
+  let fileTreeOperation: ReturnType<typeof openFileTree>;
+  try {
+    fileTreeOperation = openFileTree();
+  } catch (error) {
+    return failWorkspaceFactoryAfterCleanup(
+      error,
+      createRetryableWorkspaceFactoryCleanup([
+        () => worktreeLease.release(),
+        () => runtimeLease.release(),
+      ])
+    );
+  }
+  let openedFileTree;
+  try {
+    openedFileTree = await awaitWithWorkspaceFactoryControl(fileTreeOperation, control);
+  } catch (error) {
+    let lateFileTree;
+    try {
+      lateFileTree = await fileTreeOperation;
+    } catch {
+      return failWorkspaceFactoryAfterCleanup(
+        error,
+        createRetryableWorkspaceFactoryCleanup([
+          () => worktreeLease.release(),
+          () => runtimeLease.release(),
+        ])
+      );
+    }
+    return failWorkspaceFactoryAfterCleanup(
+      error,
+      createRetryableWorkspaceFactoryCleanup([
+        ...(lateFileTree.success ? [() => lateFileTree.data.release()] : []),
+        () => worktreeLease.release(),
+        () => runtimeLease.release(),
+      ])
+    );
+  }
+
+  if (!openedFileTree.success) {
+    return failWorkspaceFactoryAfterCleanup(
+      new Error(`Failed to open file tree: ${JSON.stringify(openedFileTree.error)}`),
+      createRetryableWorkspaceFactoryCleanup([
+        () => worktreeLease.release(),
+        () => runtimeLease.release(),
+      ])
+    );
+  }
+  const fileTreeLease = openedFileTree.data;
+  const completed = { fileTree: false, worktree: false, runtime: false };
+  let released = false;
+  let releaseOperation: Promise<void> | undefined;
+  return {
+    gitWorktree: worktreeLease.value,
+    fileTree: fileTreeLease.value,
+    filesRuntime: runtimeLease.value.files,
+    release: () => {
+      if (released) return Promise.resolve();
+      if (releaseOperation) return releaseOperation;
+      const current = runWorkspaceFactoryCleanup([
+        ...(!completed.fileTree
+          ? [
+              async () => {
+                await fileTreeLease.release();
+                completed.fileTree = true;
+              },
+            ]
+          : []),
+        ...(!completed.worktree
+          ? [
+              async () => {
+                await worktreeLease.release();
+                completed.worktree = true;
+              },
+            ]
+          : []),
+        ...(!completed.runtime
+          ? [
+              async () => {
+                await runtimeLease.release();
+                completed.runtime = true;
+              },
+            ]
+          : []),
+      ]).then(() => {
+        released = true;
+      });
+      releaseOperation = current;
+      void current.catch(() => {
+        if (releaseOperation === current) releaseOperation = undefined;
+      });
+      return current;
+    },
+  };
+}
+
+function workspaceFactoryStopped(control: WorkspaceAcquireControl): boolean {
+  return Boolean(
+    control.signal?.aborted ||
+    (control.deadlineAt !== undefined && control.deadlineAt <= Date.now())
+  );
+}
+
+function throwIfWorkspaceFactoryStopped(control: WorkspaceAcquireControl): void {
+  if (workspaceFactoryStopped(control)) {
+    throw new DOMException('Workspace factory operation was cancelled.', 'AbortError');
+  }
+}
+
+function awaitWithWorkspaceFactoryControl<T>(
+  operation: Promise<T>,
+  control: WorkspaceAcquireControl
+): Promise<T> {
+  if (workspaceFactoryStopped(control)) {
+    return Promise.reject(
+      new DOMException('Workspace factory operation was cancelled.', 'AbortError')
+    );
+  }
+  if (!control.signal && control.deadlineAt === undefined) return operation;
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      control.signal?.removeEventListener('abort', onAbort);
+      callback();
+    };
+    const onAbort = () =>
+      finish(() =>
+        reject(new DOMException('Workspace factory operation was cancelled.', 'AbortError'))
+      );
+    const remaining =
+      control.deadlineAt === undefined ? undefined : Math.max(0, control.deadlineAt - Date.now());
+    const timer = remaining === undefined ? undefined : setTimeout(onAbort, remaining);
+    timer?.unref?.();
+    control.signal?.addEventListener('abort', onAbort, { once: true });
+    if (control.signal?.aborted) onAbort();
+    operation.then(
+      (value) => {
+        if (workspaceFactoryStopped(control)) {
+          onAbort();
+          return;
+        }
+        finish(() => resolve(value));
+      },
+      (error) => finish(() => reject(error))
+    );
+  });
+}
+
+async function awaitWithWorkspaceFactoryReadQuiescence<T>(
+  operation: Promise<T>,
+  control: WorkspaceAcquireControl
+): Promise<T> {
+  try {
+    return await awaitWithWorkspaceFactoryControl(operation, control);
+  } catch (error) {
+    await operation.catch(() => {});
     throw error;
   }
+}
+
+async function runWorkspaceFactoryCleanup(operations: Array<() => Promise<void>>): Promise<void> {
+  let firstFailure: unknown;
+  for (const operation of operations) {
+    try {
+      await operation();
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  }
+  if (firstFailure !== undefined) throw firstFailure;
+}
+
+function createRetryableWorkspaceFactoryCleanup(
+  operations: Array<() => Promise<void>>
+): () => Promise<void> {
+  const completed = operations.map(() => false);
+  return () =>
+    runWorkspaceFactoryCleanup(
+      operations.flatMap((operation, index) =>
+        completed[index]
+          ? []
+          : [
+              async () => {
+                await operation();
+                completed[index] = true;
+              },
+            ]
+      )
+    );
+}
+
+class WorkspaceFactoryQuiescenceFailure extends Error {
+  readonly name = 'WorkspaceFactoryQuiescenceFailure';
+
+  constructor(
+    readonly operationFailure: unknown,
+    private readonly retryCleanup: () => Promise<void>
+  ) {
+    super('Workspace factory cleanup did not quiesce.');
+  }
+
+  quiesce(): Promise<void> {
+    return this.retryCleanup();
+  }
+}
+
+async function failWorkspaceFactoryAfterCleanup(
+  operationFailure: unknown,
+  cleanup: () => Promise<void>
+): Promise<never> {
+  try {
+    await cleanup();
+  } catch {
+    throw new WorkspaceFactoryQuiescenceFailure(operationFailure, cleanup);
+  }
+  throw operationFailure;
+}
+
+function capWorkspaceFactoryTimeout(timeoutMs: number, deadlineAt: number | undefined): number {
+  return deadlineAt === undefined
+    ? timeoutMs
+    : Math.max(1, Math.min(timeoutMs, deadlineAt - Date.now()));
 }
 
 type TaskProviderOpts = {

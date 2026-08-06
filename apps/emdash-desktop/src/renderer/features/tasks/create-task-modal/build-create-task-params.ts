@@ -1,4 +1,5 @@
 import { nextDefaultConversationTitle } from '@renderer/features/conversations/conversation-title-utils';
+import type { LoopPlanDraft } from '@renderer/features/loops/loop-plan-model';
 import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
 import { extractIssueMentionTargets } from '@shared/core/issues/issue-context';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
@@ -48,6 +49,46 @@ export function buildInitialConversation(
     autoApprove: state.autoApprove,
     model: state.model ?? undefined,
     type,
+  };
+}
+
+export function buildInitialConversationForTask(
+  state: InitialConversationState,
+  loopEnabled: boolean
+): NonNullable<TaskConfig['initialConversation']> | undefined {
+  return loopEnabled ? undefined : buildInitialConversation(state);
+}
+
+export type LoopTaskAuthoringInput = {
+  name: string;
+  model: string;
+  planSource: string;
+  validationCommands: string[];
+  terminalGates: { review: boolean; e2e: boolean };
+  browserPreview: { enabled: boolean };
+  workPhases: { name: string; goal: string }[];
+  acceptanceCriteria: string[];
+};
+
+export function buildLoopTaskAuthoringInput(
+  taskName: string,
+  draft: LoopPlanDraft,
+  model: string
+): LoopTaskAuthoringInput {
+  return {
+    name: `${taskName.trim()} Loop`,
+    model: model.trim(),
+    planSource: draft.planSource.trim(),
+    validationCommands: draft.validationCommands.map((command) => command.trim()).filter(Boolean),
+    terminalGates: { ...draft.terminalGates },
+    browserPreview: { enabled: draft.terminalGates.e2e },
+    workPhases: draft.workPhases.map((phase) => ({
+      name: phase.name.trim(),
+      goal: phase.goal.trim(),
+    })),
+    acceptanceCriteria: draft.acceptanceCriteria
+      .map((criterion) => criterion.trim())
+      .filter(Boolean),
   };
 }
 

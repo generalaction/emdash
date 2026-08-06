@@ -3,6 +3,13 @@ import type { LocalProject, SshProject } from '@shared/projects';
 import { createUnmountedProject, isUnregisteredProject } from './project';
 import { ProjectManagerStore } from './project-manager';
 
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {},
+}));
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 const mocks = vi.hoisted(() => ({
   cloneRepository: vi.fn(),
   createGithubRepository: vi.fn(),

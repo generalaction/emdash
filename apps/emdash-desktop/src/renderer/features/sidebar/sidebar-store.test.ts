@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SidebarStore } from './sidebar-store';
 
+vi.mock('@renderer/features/tasks/acp/acp-chat-store', () => ({
+  AcpChatStore: class {},
+}));
+vi.mock('@renderer/features/tasks/acp/acp-chat-panel', () => ({
+  AcpChatPanel: () => null,
+}));
+
 type SidebarProjectManager = ConstructorParameters<typeof SidebarStore>[0];
 
 vi.mock('@renderer/lib/ipc', () => ({

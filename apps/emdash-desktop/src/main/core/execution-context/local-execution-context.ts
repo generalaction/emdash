@@ -1,19 +1,42 @@
-import { execFile, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execFile, spawn, type ExecFileOptions } from 'node:child_process';
 import {
   getGitExecutable,
   isMissingGitExecutableError,
   missingGitExecutableError,
 } from '@main/core/utils/exec';
+import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
 import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
-const execFileAsync = promisify(execFile);
+function execFileAsync(
+  command: string,
+  args: string[],
+  options: ExecFileOptions
+): Promise<ExecResult> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { ...options, encoding: 'utf8' }, (error, stdout, stderr) => {
+      if (error) {
+        reject(Object.assign(error, { stderr, stdout }));
+        return;
+      }
+      resolve({ stderr, stdout });
+    });
+  });
+}
 
 function buildNonInteractiveGitEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...NON_INTERACTIVE_GIT_ENV,
+  };
+}
+
+function buildExecEnv(command: string, overlay: ExecOptions['env']): NodeJS.ProcessEnv | undefined {
+  if (!overlay) return command === 'git' ? buildNonInteractiveGitEnv() : undefined;
+  return {
+    ...buildExternalToolEnv(),
+    ...overlay,
+    ...(command === 'git' ? NON_INTERACTIVE_GIT_ENV : {}),
   };
 }
 
@@ -41,7 +64,7 @@ export class LocalExecutionContext implements IExecutionContext {
     const { timeout, maxBuffer } = opts;
     return execFileAsync(this.resolveCommand(command), args, {
       cwd: this.root || undefined,
-      env: command === 'git' ? buildNonInteractiveGitEnv() : undefined,
+      env: buildExecEnv(command, opts.env),
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),

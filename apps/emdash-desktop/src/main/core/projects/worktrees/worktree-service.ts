@@ -11,6 +11,7 @@ import {
 import type { IFilesRuntime } from '@main/core/runtime/types';
 import { log } from '@main/lib/logger';
 import { DEFAULT_REMOTE_NAME } from '@shared/core/git/types';
+import { shareableProjectSettingsSchema } from '@shared/core/project-settings/project-settings';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import {
   isSafePreservePattern,
@@ -23,12 +24,62 @@ export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: SerializedError }
   | { type: 'branch-not-found'; branch: string };
 
+export type CreateWorktreeAtCommitError =
+  | { type: 'invalid-commit'; commit: string }
+  | { type: 'commit-not-found'; commit: string }
+  | { type: 'branch-exists'; branch: string }
+  | { type: 'cancelled'; message: string }
+  | { type: 'deadline-exceeded'; message: string }
+  | { type: 'worktree-rollback-incomplete'; message: string }
+  | { type: 'worktree-setup-failed'; cause: SerializedError };
+
+export type CopyPreservedFilesError =
+  | { type: 'cancelled'; message: string }
+  | { type: 'deadline-exceeded'; message: string }
+  | { type: 'invalid-generated-worktree'; message: string }
+  | { type: 'preserve-config-unavailable'; message: string }
+  | { type: 'preserve-glob-failed'; pattern: string; message: string }
+  | { type: 'preserve-source-failed'; pattern: string; message: string }
+  | { type: 'preserve-copy-failed'; pattern: string; message: string };
+
+export type RemoveGeneratedWorktreeError = {
+  type: 'worktree-remove-failed';
+  message: string;
+};
+
+export type GeneratedWorktreeValidationError = {
+  type: 'invalid-generated-worktree';
+  message: string;
+};
+
+export type CreateWorktreeOperationControl = {
+  signal?: AbortSignal;
+  deadlineAt?: number;
+  expectedTargetPath?: string;
+};
+
+class WorktreeOperationStopped extends Error {
+  constructor(
+    readonly failure: Extract<
+      CreateWorktreeAtCommitError,
+      { type: 'cancelled' | 'deadline-exceeded' }
+    >,
+    readonly mutationInFlight = false
+  ) {
+    super(failure.message);
+  }
+}
+
+const WORKTREE_GIT_TIMEOUT_MS = 120_000;
+const FULL_COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+
 function fileErrorCause(error: { type?: string; message: string }): SerializedError {
   return { name: error.type ?? 'FileError', message: error.message };
 }
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
+  private readonly generatedOperations = new Map<string, Set<Promise<unknown>>>();
   private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
   private readonly ctx: IExecutionContext;
@@ -57,19 +108,21 @@ export class WorktreeService {
     return result as Promise<T>;
   }
 
-  private async isValidWorktree(worktreePath: string): Promise<boolean> {
+  private async isValidWorktree(
+    worktreePath: string,
+    control: CreateWorktreeOperationControl = {}
+  ): Promise<boolean> {
     // A linked worktree contains a .git FILE pointing to the main repo's worktrees
     // directory.
+    this.throwIfCreateStopped(control);
     const hasGitFile = await this.existsAbsolute(this.files.path.join(worktreePath, '.git'));
     if (!hasGitFile) return false;
 
     try {
-      const { stdout } = await this.ctx.exec('git', [
-        '-C',
-        worktreePath,
-        'rev-parse',
-        '--is-inside-work-tree',
-      ]);
+      const { stdout } = await this.gitForCreate(
+        ['-C', worktreePath, 'rev-parse', '--is-inside-work-tree'],
+        control
+      );
       return stdout.trim() === 'true';
     } catch {
       return false;
@@ -81,15 +134,182 @@ export class WorktreeService {
     return this.resolveWorktreePoolPath();
   }
 
+  async resolveGeneratedWorktreePath(
+    branchName: string
+  ): Promise<Result<string, GeneratedWorktreeValidationError>> {
+    try {
+      await this.ctx.exec('git', ['check-ref-format', '--branch', branchName], {
+        timeout: WORKTREE_GIT_TIMEOUT_MS,
+      });
+      const location = await this.resolveGeneratedLocation(branchName);
+      return location.success ? ok(location.data.targetPath) : location;
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  async attestGeneratedWorktree(
+    targetPath: string,
+    expectedBranchName?: string
+  ): Promise<Result<void, GeneratedWorktreeValidationError>> {
+    try {
+      const poolPath = await this.resolveWorktreePoolPath();
+      if (
+        !this.files.path.isAbsolute(targetPath) ||
+        !this.files.path.contains(poolPath, targetPath) ||
+        targetPath === poolPath
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      const branchName =
+        expectedBranchName ?? this.files.path.relative(poolPath, targetPath).replaceAll('\\', '/');
+      const resolved = await this.resolveGeneratedWorktreePath(branchName);
+      if (!resolved.success || resolved.data !== targetPath) return invalidGeneratedWorktree();
+      return this.attestGeneratedWorktreeAtLocation(targetPath, branchName, poolPath);
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  private async resolveGeneratedLocation(
+    branchName: string
+  ): Promise<Result<{ poolPath: string; targetPath: string }, GeneratedWorktreeValidationError>> {
+    try {
+      const poolPath = await this.resolveWorktreePoolPath();
+      const targetPath = this.files.path.join(poolPath, branchName);
+      if (
+        !this.files.path.isAbsolute(poolPath) ||
+        !this.files.path.isAbsolute(targetPath) ||
+        !this.files.path.contains(poolPath, targetPath) ||
+        targetPath === poolPath
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      return ok({ poolPath, targetPath });
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  private async attestGeneratedWorktreeAtLocation(
+    targetPath: string,
+    branchName: string,
+    poolPath: string,
+    expectedCommit?: string,
+    control: CreateWorktreeOperationControl = {}
+  ): Promise<Result<void, GeneratedWorktreeValidationError>> {
+    try {
+      const contained = await isRealPathContained(this.files, poolPath, targetPath, {
+        candidateMustExist: true,
+      });
+      if (
+        !contained.success ||
+        !contained.data ||
+        !(await this.isValidWorktree(targetPath, control))
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      const ref = `refs/heads/${branchName}`;
+      const symbolic = await this.gitForCreate(
+        ['-C', targetPath, 'symbolic-ref', '--quiet', 'HEAD'],
+        control
+      );
+      if (symbolic.stdout.trim() !== ref) return invalidGeneratedWorktree();
+      if (expectedCommit) {
+        const head = await this.gitForCreate(['-C', targetPath, 'rev-parse', 'HEAD'], control);
+        if (head.stdout.trim().toLowerCase() !== expectedCommit.toLowerCase()) {
+          return invalidGeneratedWorktree();
+        }
+      }
+      const mainCommonDir = await this.readCanonicalCommonDir(this.repoPath, control);
+      const targetCommonDir = await this.readCanonicalCommonDir(targetPath, control);
+      if (
+        !mainCommonDir ||
+        !targetCommonDir ||
+        !this.sameCanonicalPath(mainCommonDir, targetCommonDir)
+      ) {
+        return invalidGeneratedWorktree();
+      }
+      const canonicalTarget = await this.canonicalWorktreePath(targetPath);
+      if (!canonicalTarget) return invalidGeneratedWorktree();
+      const records = await this.listRegisteredWorktrees(control);
+      for (const record of records) {
+        if (
+          record.branch !== ref ||
+          (expectedCommit && record.head?.toLowerCase() !== expectedCommit.toLowerCase())
+        ) {
+          continue;
+        }
+        const canonicalRecordPath = await this.canonicalWorktreePath(record.path);
+        if (canonicalRecordPath && this.sameCanonicalPath(canonicalRecordPath, canonicalTarget)) {
+          return ok();
+        }
+      }
+      return invalidGeneratedWorktree();
+    } catch {
+      return invalidGeneratedWorktree();
+    }
+  }
+
+  private async readCanonicalCommonDir(
+    worktreePath: string,
+    control: CreateWorktreeOperationControl
+  ): Promise<string | undefined> {
+    try {
+      const result = await this.gitForCreate(
+        ['-C', worktreePath, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+        control
+      );
+      const output = result.stdout.trim();
+      const absolute = this.files.path.isAbsolute(output)
+        ? output
+        : this.files.path.join(worktreePath, output);
+      const real = await realPathAbsolute(this.files, absolute);
+      return real.success ? real.data : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async listRegisteredWorktrees(
+    control?: CreateWorktreeOperationControl
+  ): Promise<GitWorktreeRecord[]> {
+    const args = ['worktree', 'list', '--porcelain', '-z'];
+    const listed = control
+      ? await this.gitForCreate(args, control)
+      : await this.ctx.exec('git', args);
+    const parsed = parseGitWorktreePorcelainZ(listed.stdout);
+    if (!parsed.success) throw new Error(parsed.error.message);
+    return parsed.data;
+  }
+
+  private async canonicalWorktreePath(candidate: string): Promise<string | undefined> {
+    if (!this.files.path.isAbsolute(candidate)) return undefined;
+    const canonical = await realPathAbsolute(this.files, candidate);
+    return canonical.success ? canonical.data : undefined;
+  }
+
+  private sameCanonicalPath(left: string, right: string): boolean {
+    return this.files.path.relative(left, right) === '';
+  }
+
   private async ensureWorktreePoolDirExists(): Promise<Result<void, ServeWorktreeError>> {
-    const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
-    return result.success
-      ? ok()
-      : err({ type: 'worktree-setup-failed', cause: fileErrorCause(result.error) });
+    try {
+      const result = await ensureAbsoluteDir(this.files, await this.resolveWorktreePoolPath());
+      return result.success
+        ? ok()
+        : err({ type: 'worktree-setup-failed', cause: fileErrorCause(result.error) });
+    } catch (cause) {
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
   }
 
   private async removePathForReuse(targetPath: string): Promise<void> {
     const poolPath = await this.resolveWorktreePoolPath();
+    return this.removePathForReuseAtPool(poolPath, targetPath);
+  }
+
+  private async removePathForReuseAtPool(poolPath: string, targetPath: string): Promise<void> {
     const contained = await isRealPathContained(this.files, poolPath, targetPath, {
       candidateMustExist: true,
     });
@@ -147,14 +367,10 @@ export class WorktreeService {
 
   async findBranchAnywhere(branchName: string): Promise<string | undefined> {
     try {
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const branchLine = `branch refs/heads/${branchName}`;
-      for (const block of stdout.split('\n\n')) {
-        if (!block.split('\n').some((line) => line === branchLine)) {
-          continue;
-        }
-        const match = /^worktree (.+)$/m.exec(block);
-        const candidatePath = match?.[1];
+      const branchRef = `refs/heads/${branchName}`;
+      for (const record of await this.listRegisteredWorktrees()) {
+        if (record.branch !== branchRef) continue;
+        const candidatePath = await this.canonicalWorktreePath(record.path);
         if (!candidatePath) continue;
         if (await this.isValidWorktree(candidatePath)) {
           return candidatePath;
@@ -234,17 +450,15 @@ export class WorktreeService {
     try {
       const realPoolPath = await realPathAbsolute(this.files, worktreePoolPath);
       if (!realPoolPath.success) return undefined;
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const branchLine = `branch refs/heads/${branchName}`;
-      for (const block of stdout.split('\n\n')) {
-        if (block.split('\n').some((line) => line === branchLine)) {
-          const match = /^worktree (.+)$/m.exec(block);
-          const candidatePath = match?.[1];
-          if (!candidatePath || !this.files.path.contains(realPoolPath.data, candidatePath))
-            continue;
-          if (await this.isValidWorktree(candidatePath)) return candidatePath;
-          await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      const branchRef = `refs/heads/${branchName}`;
+      for (const record of await this.listRegisteredWorktrees()) {
+        if (record.branch !== branchRef) continue;
+        const candidatePath = await this.canonicalWorktreePath(record.path);
+        if (!candidatePath || !this.files.path.contains(realPoolPath.data, candidatePath)) {
+          continue;
         }
+        if (await this.isValidWorktree(candidatePath)) return candidatePath;
+        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       }
     } catch {}
     return undefined;
@@ -256,10 +470,267 @@ export class WorktreeService {
     options: { copyPreservedFiles?: boolean } = {}
   ): Promise<Result<string, ServeWorktreeError>> {
     const poolDir = await this.ensureWorktreePoolDirExists();
-    if (!poolDir.success) return poolDir;
+    if (!poolDir.success) {
+      return poolDir.error.type === 'worktree-setup-failed'
+        ? err(poolDir.error)
+        : err({
+            type: 'worktree-setup-failed',
+            cause: { name: 'WorktreePoolError', message: 'Worktree pool could not be prepared.' },
+          });
+    }
     return this.enqueueGitOp(() =>
       this.doCheckoutBranchWorktree(sourceBranch, branchName, options)
     );
+  }
+
+  async createWorktreeAtCommit(
+    commit: string,
+    branchName: string,
+    control: CreateWorktreeOperationControl = {}
+  ): Promise<Result<string, CreateWorktreeAtCommitError>> {
+    if (!FULL_COMMIT_PATTERN.test(commit)) {
+      return err({ type: 'invalid-commit', commit });
+    }
+
+    const stopped = worktreeOperationFailure(control);
+    if (stopped) return err(stopped);
+    try {
+      return await this.enqueueGitOp(() =>
+        this.doCreateWorktreeAtCommit(commit, branchName, control)
+      );
+    } catch (cause) {
+      const operationStopped = stoppedWorktreeFailure(cause, control);
+      return operationStopped ? err(operationStopped) : createSetupFailure(cause);
+    }
+  }
+
+  private async doCreateWorktreeAtCommit(
+    commit: string,
+    branchName: string,
+    control: CreateWorktreeOperationControl
+  ): Promise<Result<string, CreateWorktreeAtCommitError>> {
+    const stoppedBeforeLocation = worktreeOperationFailure(control);
+    if (stoppedBeforeLocation) return err(stoppedBeforeLocation);
+    let location;
+    try {
+      location = await awaitWithWorktreeControl(this.resolveGeneratedLocation(branchName), control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      return stopped ? err(stopped) : createSetupFailure(cause);
+    }
+    if (!location.success) return createSetupFailure(new Error(location.error.message));
+    const { poolPath, targetPath } = location.data;
+    if (control.expectedTargetPath && control.expectedTargetPath !== targetPath) {
+      return createSetupFailure(new Error('Generated worktree target changed before creation.'));
+    }
+    this.throwIfCreateStopped(control);
+    let poolDir;
+    try {
+      poolDir = await awaitWithWorktreeControl(ensureAbsoluteDir(this.files, poolPath), control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      return stopped ? err(stopped) : createSetupFailure(cause);
+    }
+    if (!poolDir.success) return createSetupFailure(fileErrorCause(poolDir.error));
+
+    try {
+      await this.gitForCreate(['cat-file', '-e', `${commit}^{commit}`], control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
+      return err({ type: 'commit-not-found', commit });
+    }
+
+    try {
+      await this.gitForCreate(['check-ref-format', '--branch', branchName], control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
+
+    try {
+      const ref = `refs/heads/${branchName}`;
+      const listed = await this.gitForCreate(['for-each-ref', '--format=%(refname)', ref], control);
+      if (listed.stdout.trim() === ref) return err({ type: 'branch-exists', branch: branchName });
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
+
+    this.throwIfCreateStopped(control);
+    if (await this.existsAbsolute(targetPath)) {
+      try {
+        this.throwIfCreateStopped(control);
+        const validWorktree = await this.isValidWorktree(targetPath, control);
+        this.throwIfCreateStopped(control);
+        if (validWorktree) {
+          return err({ type: 'branch-exists', branch: branchName });
+        }
+        await this.removePathForReuseAtPool(poolPath, targetPath);
+        this.throwIfCreateStopped(control);
+        await this.gitForCreate(['worktree', 'prune'], control).catch(() => {});
+      } catch (cause) {
+        const stopped = stoppedWorktreeFailure(cause, control);
+        if (stopped) return err(stopped);
+        return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+      }
+    }
+
+    let addReturned = false;
+    try {
+      this.throwIfCreateStopped(control);
+      const safeParent = await isRealPathContained(
+        this.files,
+        poolPath,
+        this.files.path.dirname(targetPath)
+      );
+      if (!safeParent.success || !safeParent.data) {
+        return createSetupFailure(new Error('Generated worktree parent escaped the pool.'));
+      }
+      this.throwIfCreateStopped(control);
+      const parentDir = await awaitWithWorktreeControl(
+        ensureAbsoluteDir(this.files, this.files.path.dirname(targetPath)),
+        control
+      );
+      this.throwIfCreateStopped(control);
+      if (!parentDir.success) {
+        return err({ type: 'worktree-setup-failed', cause: fileErrorCause(parentDir.error) });
+      }
+      await this.gitForCreate(['worktree', 'prune'], control).catch(() => {});
+      this.throwIfCreateStopped(control);
+      await this.gitMutationForCreate(
+        ['worktree', 'add', '-b', branchName, targetPath, commit],
+        targetPath,
+        control
+      );
+      addReturned = true;
+      this.throwIfCreateStopped(control);
+      const attested = await this.attestGeneratedWorktreeAtLocation(
+        targetPath,
+        branchName,
+        poolPath,
+        commit,
+        control
+      );
+      if (!attested.success) throw new Error(attested.error.message);
+      this.throwIfCreateStopped(control);
+      return ok(targetPath);
+    } catch (cause) {
+      if (!addReturned) {
+        if (cause instanceof WorktreeOperationStopped && cause.mutationInFlight) {
+          return err({
+            type: 'worktree-rollback-incomplete',
+            message: 'Generated worktree creation remained in flight after its deadline.',
+          });
+        }
+        const ambiguous = await this.hasGeneratedResources(targetPath, branchName);
+        if (ambiguous) {
+          return err({
+            type: 'worktree-rollback-incomplete',
+            message: 'Generated worktree ownership was ambiguous after creation failed.',
+          });
+        }
+        const stopped = stoppedWorktreeFailure(cause, control);
+        if (stopped) return err(stopped);
+        return createSetupFailure(cause);
+      }
+      const rollback = await this.rollbackGeneratedWorktree(
+        targetPath,
+        branchName,
+        commit,
+        poolPath
+      );
+      if (!rollback.success) {
+        return err({
+          type: 'worktree-rollback-incomplete',
+          message: 'Generated worktree creation failed and rollback was incomplete.',
+        });
+      }
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
+      return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+    }
+  }
+
+  private async rollbackGeneratedWorktree(
+    targetPath: string,
+    branchName: string,
+    ownedCommit: string,
+    poolPath: string
+  ): Promise<Result<void, { message: string }>> {
+    let failed = false;
+    if (!(await this.existsAbsolute(targetPath))) {
+      return err({ message: 'Generated worktree rollback ownership could not be proven.' });
+    }
+    const owned = await this.attestRollbackTarget(targetPath, branchName, ownedCommit, poolPath);
+    if (!owned) {
+      return err({ message: 'Generated worktree rollback ownership could not be proven.' });
+    }
+    try {
+      await this.removePathForReuseAtPool(poolPath, targetPath);
+    } catch {
+      return err({ message: 'Generated worktree rollback path could not be removed.' });
+    }
+    await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {
+      failed = true;
+    });
+    try {
+      const ref = `refs/heads/${branchName}`;
+      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(objectname)', ref]);
+      const currentHead = listed.stdout.trim();
+      if (currentHead) {
+        if (currentHead.toLowerCase() !== ownedCommit.toLowerCase()) {
+          failed = true;
+        } else {
+          await this.ctx.exec('git', ['update-ref', '-d', ref, ownedCommit]);
+        }
+      }
+    } catch {
+      failed = true;
+    }
+    return failed ? err({ message: 'Generated worktree rollback was incomplete.' }) : ok();
+  }
+
+  private async hasGeneratedResources(targetPath: string, branchName: string): Promise<boolean> {
+    try {
+      if (await this.existsAbsolute(targetPath)) return true;
+      const ref = `refs/heads/${branchName}`;
+      const listed = await this.ctx.exec('git', ['for-each-ref', '--format=%(objectname)', ref]);
+      return Boolean(listed.stdout.trim());
+    } catch {
+      return true;
+    }
+  }
+
+  private async attestRollbackTarget(
+    targetPath: string,
+    branchName: string,
+    ownedCommit: string,
+    poolPath: string
+  ): Promise<boolean> {
+    const attested = await this.attestGeneratedWorktreeAtLocation(
+      targetPath,
+      branchName,
+      poolPath,
+      ownedCommit
+    );
+    if (!attested.success) return false;
+    return this.isGeneratedWorktreeClean(targetPath);
+  }
+
+  private async isGeneratedWorktreeClean(targetPath: string): Promise<boolean> {
+    try {
+      const status = await this.ctx.exec(
+        'git',
+        ['-C', targetPath, 'status', '--porcelain', '--untracked-files=all', '--ignored=matching'],
+        { timeout: WORKTREE_GIT_TIMEOUT_MS }
+      );
+      return status.stdout.trim() === '';
+    } catch {
+      return false;
+    }
   }
 
   private async doCheckoutBranchWorktree(
@@ -438,6 +909,90 @@ export class WorktreeService {
     });
   }
 
+  async removeGeneratedWorktreeIfPresent(
+    worktreePath: string,
+    options: { expectedBranchName: string; expectedHead: string | null; requireClean?: boolean }
+  ): Promise<Result<{ removed: boolean }, RemoveGeneratedWorktreeError>> {
+    if (this.generatedOperations.get(worktreePath)?.size) {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree still has an in-flight owned operation.',
+      });
+    }
+    try {
+      const location = await this.resolveGeneratedLocation(options.expectedBranchName);
+      if (
+        !location.success ||
+        location.data.targetPath !== worktreePath ||
+        !this.files.path.isAbsolute(worktreePath)
+      ) {
+        return err({
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree path could not be validated.',
+        });
+      }
+      await this.ctx.exec('git', ['check-ref-format', '--branch', options.expectedBranchName], {
+        timeout: WORKTREE_GIT_TIMEOUT_MS,
+      });
+      const fs = openFileSystem(this.files);
+      if (!fs.success) {
+        return err({
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree filesystem could not be opened.',
+        });
+      }
+      const exists = await fs.data.exists(worktreePath);
+      if (!exists.success) {
+        return err({
+          type: 'worktree-remove-failed',
+          message: 'Generated worktree presence could not be verified.',
+        });
+      }
+      if (exists.data) {
+        if (!options.expectedHead || !FULL_COMMIT_PATTERN.test(options.expectedHead)) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree ownership could not be attested.',
+          });
+        }
+        const attested = await this.attestGeneratedWorktreeAtLocation(
+          worktreePath,
+          options.expectedBranchName,
+          location.data.poolPath,
+          options.expectedHead
+        );
+        if (!attested.success) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree ownership could not be attested.',
+          });
+        }
+        if (options.requireClean && !(await this.isGeneratedWorktreeClean(worktreePath))) {
+          return err({
+            type: 'worktree-remove-failed',
+            message: 'Generated worktree contains unowned filesystem changes.',
+          });
+        }
+        await this.removePathForReuseAtPool(location.data.poolPath, worktreePath);
+      }
+      await this.ctx.exec('git', ['worktree', 'prune'], { timeout: WORKTREE_GIT_TIMEOUT_MS });
+      return ok({ removed: exists.data });
+    } catch {
+      return err({
+        type: 'worktree-remove-failed',
+        message: 'Generated worktree could not be removed safely.',
+      });
+    }
+  }
+
+  async waitForGeneratedWorktreeOperations(worktreePath: string): Promise<void> {
+    while (true) {
+      const operations = Array.from(this.generatedOperations.get(worktreePath) ?? []);
+      if (operations.length === 0) return;
+      await Promise.allSettled(operations);
+    }
+  }
+
   private taskConfigFs(): IFileSystem | null {
     const opened = this.files.fileSystem();
     if (opened.success) return opened.data;
@@ -445,68 +1000,511 @@ export class WorktreeService {
     return null;
   }
 
-  private async isTrackedSourcePath(absPath: string): Promise<boolean> {
+  private async inspectTrackedSourcePath(
+    sourcePath: string,
+    absPath: string
+  ): Promise<Result<boolean, { message: string }>> {
     try {
-      const relPath = this.files.path.relative(this.repoPath, absPath);
-      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', relPath]);
-      return true;
+      const relPath = this.files.path.relative(sourcePath, absPath);
+      const result = await this.ctx.exec('git', [
+        '-C',
+        sourcePath,
+        'ls-files',
+        '--cached',
+        '-z',
+        '--',
+        relPath,
+      ]);
+      return ok(result.stdout.length > 0);
+    } catch {
+      return err({ message: 'Tracked status could not be verified.' });
+    }
+  }
+
+  private async copyPreservedFiles(targetPath: string): Promise<void> {
+    const result = await this.copyPreservedFilesToWorktree(targetPath, { strict: false });
+    if (!result.success) {
+      log.warn('WorktreeService: failed to copy preserved files', result.error);
+    }
+  }
+
+  async copyPreservedFilesToWorktree(
+    targetPath: string,
+    options: {
+      strict?: boolean;
+      generatedBranchName?: string;
+      sourcePath?: string;
+      signal?: AbortSignal;
+      deadlineAt?: number;
+    } = {}
+  ): Promise<Result<{ copied: string[] }, CopyPreservedFilesError>> {
+    const control = { signal: options.signal, deadlineAt: options.deadlineAt };
+    const operation = this.doCopyPreservedFilesToWorktree(targetPath, options).catch((cause) => {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) return err(stopped);
+      throw cause;
+    });
+    return this.trackGeneratedOperation(targetPath, operation);
+  }
+
+  private async doCopyPreservedFilesToWorktree(
+    targetPath: string,
+    options: {
+      strict?: boolean;
+      generatedBranchName?: string;
+      sourcePath?: string;
+      signal?: AbortSignal;
+      deadlineAt?: number;
+    }
+  ): Promise<Result<{ copied: string[] }, CopyPreservedFilesError>> {
+    const control = { signal: options.signal, deadlineAt: options.deadlineAt };
+    this.throwIfCreateStopped(control);
+    const strict = options.strict ?? true;
+    const sourcePath = options.sourcePath ?? this.repoPath;
+    if (strict) {
+      const attested = await awaitWithWorktreeQuiescence(
+        this.attestGeneratedWorktree(targetPath, options.generatedBranchName),
+        control
+      );
+      if (!attested.success) return err(attested.error);
+      const sourceAttested = await awaitWithWorktreeQuiescence(
+        this.attestRegisteredWorktree(sourcePath, control),
+        control
+      );
+      if (!sourceAttested) {
+        return err({
+          type: 'preserve-source-failed',
+          pattern: '<source-worktree>',
+          message: 'Required preserve source could not be validated.',
+        });
+      }
+    }
+    this.throwIfCreateStopped(control);
+    const taskFs = this.taskConfigFs();
+    if (!taskFs) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Required preserve settings could not be resolved.',
+      });
+    }
+
+    const taskConfigPath = this.files.path.join(targetPath, '.emdash.json');
+    if (strict) {
+      const validConfig = await awaitWithWorktreeQuiescence(
+        this.validateFeatureConfig(taskFs, taskConfigPath),
+        control
+      );
+      if (!validConfig.success) return validConfig;
+    }
+    let settings: Awaited<ReturnType<typeof getEffectiveTaskSettings>>;
+    try {
+      settings = await awaitWithWorktreeQuiescence(
+        getEffectiveTaskSettings({
+          projectSettings: this.projectSettings,
+          taskFs,
+          taskConfigPath,
+        }),
+        control
+      );
+    } catch (cause) {
+      if (stoppedWorktreeFailure(cause, control)) throw cause;
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Required preserve settings could not be resolved.',
+      });
+    }
+    const patterns = settings.preservePatterns ?? [];
+    const repoFs = this.files.fileSystem();
+    if (!repoFs.success) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Required preserve source could not be opened.',
+      });
+    }
+    const copied: string[] = [];
+    for (const pattern of patterns) {
+      this.throwIfCreateStopped(control);
+      if (!isSafePreservePattern(this.files.path, pattern)) {
+        continue;
+      }
+      const matches = repoFs.data.glob([pattern], { cwd: sourcePath, dot: true });
+      if (!matches.success) {
+        if (!strict) continue;
+        return err({
+          type: 'preserve-glob-failed',
+          pattern,
+          message: 'Required preserve pattern could not be matched.',
+        });
+      }
+      let matchedSource = false;
+      try {
+        const iterator = matches.data[Symbol.asyncIterator]();
+        while (true) {
+          const next = await awaitWithWorktreeQuiescence(iterator.next(), control);
+          if (next.done) break;
+          const absPath = next.value;
+          matchedSource = true;
+          const sourceContained = await awaitWithWorktreeQuiescence(
+            isRealPathContained(this.files, sourcePath, absPath, {
+              candidateMustExist: true,
+            }),
+            control
+          );
+          if (!sourceContained.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-source-failed',
+              pattern,
+              message: 'Required preserve source could not be validated.',
+            });
+          }
+          if (!sourceContained.data) continue;
+
+          const relPath = preservedRepoRelativePath(this.files.path, sourcePath, absPath);
+          if (!relPath) continue;
+          const tracked = await awaitWithWorktreeQuiescence(
+            this.inspectTrackedSourcePath(sourcePath, absPath),
+            control
+          );
+          if (!tracked.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-source-failed',
+              pattern,
+              message: 'Required preserve source tracking status could not be verified.',
+            });
+          }
+          if (tracked.data) continue;
+          const stat = await awaitWithWorktreeQuiescence(repoFs.data.stat(absPath), control);
+          if (!stat.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-source-failed',
+              pattern,
+              message: 'Required preserve source could not be read.',
+            });
+          }
+          if (stat.data.type !== 'file') continue;
+          const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
+          if (!destPath) continue;
+          const contained = await awaitWithWorktreeQuiescence(
+            isRealPathContained(this.files, targetPath, destPath),
+            control
+          );
+          if (!contained.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-copy-failed',
+              pattern,
+              message: 'Required preserve destination could not be validated.',
+            });
+          }
+          if (!contained.data) continue;
+          const copyResult = await awaitWithWorktreeQuiescence(
+            repoFs.data.copyFile(absPath, destPath),
+            control
+          );
+          if (!copyResult.success) {
+            if (!strict) continue;
+            return err({
+              type: 'preserve-copy-failed',
+              pattern,
+              message: 'Required preserve pattern could not be copied.',
+            });
+          }
+          copied.push(relPath);
+        }
+      } catch (cause) {
+        if (stoppedWorktreeFailure(cause, control)) throw cause;
+        if (!strict) continue;
+        return err({
+          type: 'preserve-source-failed',
+          pattern,
+          message: 'Required preserve source could not be enumerated.',
+        });
+      }
+      if (strict && !matchedSource) {
+        return err({
+          type: 'preserve-source-failed',
+          pattern,
+          message: 'Required preserve pattern did not match a source file.',
+        });
+      }
+    }
+    this.throwIfCreateStopped(control);
+    return ok({ copied });
+  }
+
+  private async attestRegisteredWorktree(
+    sourcePath: string,
+    control: CreateWorktreeOperationControl
+  ): Promise<boolean> {
+    try {
+      if (!this.files.path.isAbsolute(sourcePath)) return false;
+      const mainCommonDir = await this.readCanonicalCommonDir(this.repoPath, control);
+      const sourceCommonDir = await this.readCanonicalCommonDir(sourcePath, control);
+      if (
+        !mainCommonDir ||
+        !sourceCommonDir ||
+        !this.sameCanonicalPath(mainCommonDir, sourceCommonDir)
+      ) {
+        return false;
+      }
+      const canonicalSource = await this.canonicalWorktreePath(sourcePath);
+      if (!canonicalSource) return false;
+      const records = await this.listRegisteredWorktrees(control);
+      for (const record of records) {
+        const canonicalRecordPath = await this.canonicalWorktreePath(record.path);
+        if (canonicalRecordPath && this.sameCanonicalPath(canonicalRecordPath, canonicalSource)) {
+          return true;
+        }
+      }
+      return false;
     } catch {
       return false;
     }
   }
 
-  private async copyPreservedFiles(targetPath: string): Promise<void> {
-    const taskFs = this.taskConfigFs();
-    if (!taskFs) return;
+  private async validateFeatureConfig(
+    taskFs: Pick<IFileSystem, 'exists' | 'readText'>,
+    taskConfigPath: string
+  ): Promise<Result<void, CopyPreservedFilesError>> {
+    const exists = await taskFs.exists(taskConfigPath);
+    if (!exists.success) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Feature .emdash.json could not be read safely.',
+      });
+    }
+    if (!exists.data) return ok();
+    const content = await taskFs.readText(taskConfigPath);
+    if (!content.success || content.data.truncated) {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Feature .emdash.json could not be read safely.',
+      });
+    }
+    try {
+      shareableProjectSettingsSchema.parse(JSON.parse(content.data.content));
+      return ok();
+    } catch {
+      return err({
+        type: 'preserve-config-unavailable',
+        message: 'Feature .emdash.json could not be read safely.',
+      });
+    }
+  }
 
-    const settings = await getEffectiveTaskSettings({
-      projectSettings: this.projectSettings,
-      taskFs,
-      taskConfigPath: this.files.path.join(targetPath, '.emdash.json'),
-    });
-    const patterns = settings.preservePatterns ?? [];
-    const repoFs = this.files.fileSystem();
-    if (!repoFs.success) {
-      log.warn('WorktreeService: failed to open repo filesystem for preserved files', repoFs.error);
-      return;
+  private throwIfCreateStopped(control: CreateWorktreeOperationControl): void {
+    const stopped = worktreeOperationFailure(control);
+    if (stopped) throw new WorktreeOperationStopped(stopped);
+  }
+
+  private gitForCreate(args: string[], control: CreateWorktreeOperationControl) {
+    this.throwIfCreateStopped(control);
+    const timeout =
+      control.deadlineAt === undefined
+        ? WORKTREE_GIT_TIMEOUT_MS
+        : Math.max(1, Math.min(WORKTREE_GIT_TIMEOUT_MS, control.deadlineAt - Date.now()));
+    return awaitWithWorktreeControl(
+      this.ctx.exec('git', args, { timeout, signal: control.signal }),
+      control
+    );
+  }
+
+  private async gitMutationForCreate(
+    args: string[],
+    targetPath: string,
+    control: CreateWorktreeOperationControl
+  ) {
+    this.throwIfCreateStopped(control);
+    const timeout =
+      control.deadlineAt === undefined
+        ? WORKTREE_GIT_TIMEOUT_MS
+        : Math.max(1, Math.min(WORKTREE_GIT_TIMEOUT_MS, control.deadlineAt - Date.now()));
+    const operation = this.trackGeneratedOperation(
+      targetPath,
+      this.ctx.exec('git', args, { timeout, signal: control.signal })
+    );
+    try {
+      return await awaitWithWorktreeControl(operation, control);
+    } catch (cause) {
+      const stopped = stoppedWorktreeFailure(cause, control);
+      if (stopped) throw new WorktreeOperationStopped(stopped, true);
+      throw cause;
     }
-    for (const pattern of patterns) {
-      if (!isSafePreservePattern(this.files.path, pattern)) {
-        log.warn('WorktreeService: skipping unsafe preserve pattern', { pattern });
-        continue;
+  }
+
+  private trackGeneratedOperation<T>(targetPath: string, operation: Promise<T>): Promise<T> {
+    const operations = this.generatedOperations.get(targetPath) ?? new Set<Promise<unknown>>();
+    operations.add(operation);
+    this.generatedOperations.set(targetPath, operations);
+    const remove = () => {
+      operations.delete(operation);
+      if (operations.size === 0 && this.generatedOperations.get(targetPath) === operations) {
+        this.generatedOperations.delete(targetPath);
       }
-      const matches = repoFs.data.glob([pattern], { cwd: this.repoPath, dot: true });
-      if (!matches.success) {
-        log.warn('WorktreeService: failed to match preserve pattern', {
-          pattern,
-          error: matches.error,
-        });
-        continue;
+    };
+    void operation.then(remove, remove);
+    return operation;
+  }
+}
+
+type GitWorktreeRecord = {
+  path: string;
+  head?: string;
+  branch?: string;
+};
+
+function parseGitWorktreePorcelainZ(
+  output: string
+): Result<GitWorktreeRecord[], { message: string }> {
+  const records: GitWorktreeRecord[] = [];
+  let current: GitWorktreeRecord | undefined;
+
+  for (const field of output.split('\0')) {
+    if (field === '') {
+      if (current) {
+        records.push(current);
+        current = undefined;
       }
-      for await (const absPath of matches.data) {
-        const relPath = preservedRepoRelativePath(this.files.path, this.repoPath, absPath);
-        if (!relPath || (await this.isTrackedSourcePath(absPath))) continue;
-        const stat = await repoFs.data.stat(absPath);
-        if (!stat.success || stat.data.type !== 'file') continue;
-        const destPath = preservedDestinationPath(this.files.path, targetPath, relPath);
-        if (!destPath) continue;
-        const contained = await isRealPathContained(this.files, targetPath, destPath);
-        if (!contained.success || !contained.data) {
-          log.warn('WorktreeService: skipping preserved file with out-of-worktree destination', {
-            destPath,
-          });
-          continue;
-        }
-        const copied = await repoFs.data.copyFile(absPath, destPath);
-        if (!copied.success) {
-          log.warn('WorktreeService: failed to copy preserved file', {
-            sourcePath: absPath,
-            destPath,
-            error: copied.error,
-          });
-        }
-      }
+      continue;
     }
+    if (field.startsWith('worktree ')) {
+      const worktreePath = field.slice('worktree '.length);
+      if (current || !worktreePath) return invalidWorktreeList();
+      current = { path: worktreePath };
+      continue;
+    }
+    if (!current) return invalidWorktreeList();
+    if (field.startsWith('HEAD ')) {
+      const head = field.slice('HEAD '.length);
+      if (current.head || !FULL_COMMIT_PATTERN.test(head)) return invalidWorktreeList();
+      current.head = head;
+      continue;
+    }
+    if (field.startsWith('branch ')) {
+      const branch = field.slice('branch '.length);
+      if (current.branch || !branch.startsWith('refs/heads/')) return invalidWorktreeList();
+      current.branch = branch;
+      continue;
+    }
+    if (
+      field === 'bare' ||
+      field === 'detached' ||
+      field === 'locked' ||
+      field.startsWith('locked ') ||
+      field === 'prunable' ||
+      field.startsWith('prunable ')
+    ) {
+      continue;
+    }
+    return invalidWorktreeList();
+  }
+  if (current) return invalidWorktreeList();
+  return ok(records);
+}
+
+function invalidWorktreeList(): Result<never, { message: string }> {
+  return err({ message: 'Git worktree registration data could not be parsed safely.' });
+}
+
+function invalidGeneratedWorktree(): Result<never, GeneratedWorktreeValidationError> {
+  return err({
+    type: 'invalid-generated-worktree',
+    message: 'Generated worktree identity could not be validated.',
+  });
+}
+
+function createSetupFailure(cause: unknown): Result<never, CreateWorktreeAtCommitError> {
+  return err({ type: 'worktree-setup-failed', cause: toSerializedError(cause) });
+}
+
+function worktreeOperationFailure(
+  control: CreateWorktreeOperationControl
+): Extract<CreateWorktreeAtCommitError, { type: 'cancelled' | 'deadline-exceeded' }> | undefined {
+  if (control.signal?.aborted) {
+    return { type: 'cancelled', message: 'Generated worktree creation was cancelled.' };
+  }
+  if (control.deadlineAt !== undefined && control.deadlineAt <= Date.now()) {
+    return {
+      type: 'deadline-exceeded',
+      message: 'Generated worktree creation deadline was exceeded.',
+    };
+  }
+  return undefined;
+}
+
+function stoppedWorktreeFailure(
+  cause: unknown,
+  control: CreateWorktreeOperationControl
+): Extract<CreateWorktreeAtCommitError, { type: 'cancelled' | 'deadline-exceeded' }> | undefined {
+  if (cause instanceof WorktreeOperationStopped) return cause.failure;
+  return worktreeOperationFailure(control);
+}
+
+function awaitWithWorktreeControl<T>(
+  operation: Promise<T>,
+  control: CreateWorktreeOperationControl
+): Promise<T> {
+  const stopped = worktreeOperationFailure(control);
+  if (stopped) return Promise.reject(new WorktreeOperationStopped(stopped));
+  if (!control.signal && control.deadlineAt === undefined) return operation;
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      control.signal?.removeEventListener('abort', onAbort);
+      callback();
+    };
+    const onAbort = () => {
+      const failure = worktreeOperationFailure(control) ?? {
+        type: 'cancelled' as const,
+        message: 'Generated worktree creation was cancelled.',
+      };
+      finish(() => reject(new WorktreeOperationStopped(failure)));
+    };
+    const remaining =
+      control.deadlineAt === undefined ? undefined : Math.max(0, control.deadlineAt - Date.now());
+    const timer =
+      remaining === undefined
+        ? undefined
+        : setTimeout(() => {
+            finish(() =>
+              reject(
+                new WorktreeOperationStopped({
+                  type: 'deadline-exceeded',
+                  message: 'Generated worktree creation deadline was exceeded.',
+                })
+              )
+            );
+          }, remaining);
+    control.signal?.addEventListener('abort', onAbort, { once: true });
+    if (control.signal?.aborted) onAbort();
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (cause) => finish(() => reject(cause))
+    );
+  });
+}
+
+async function awaitWithWorktreeQuiescence<T>(
+  operation: Promise<T>,
+  control: CreateWorktreeOperationControl
+): Promise<T> {
+  try {
+    const value = await awaitWithWorktreeControl(operation, control);
+    const stopped = worktreeOperationFailure(control);
+    if (stopped) throw new WorktreeOperationStopped(stopped);
+    return value;
+  } catch (cause) {
+    const stopped = stoppedWorktreeFailure(cause, control);
+    if (!stopped) throw cause;
+    await operation.catch(() => {});
+    throw new WorktreeOperationStopped(stopped);
   }
 }
 

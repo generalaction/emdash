@@ -1,0 +1,567 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { err, ok } from '@main/lib/result';
+import { loopPhaseUpdatedChannel, loopUpdatedChannel } from '@shared/core/loops/loopEvents';
+import type { Loop, LoopWithPhases } from '@shared/core/loops/loops';
+import { getLoopSessionDriver } from './drivers/driver-registry';
+import { LoopService } from './loop-service';
+import { createTaskWithLoop } from './operations/create-task-with-loop';
+import {
+  getLoop,
+  pauseRunningLoopsForBoot,
+  updateLoop,
+  updatePhase,
+} from './operations/loop-operations';
+import { commitSessionAttempt } from './operations/session-progress';
+
+const emitMock = vi.hoisted(() => vi.fn());
+const pauseRunningLoopsForBootMock = vi.hoisted(() => vi.fn());
+const resolveTaskWorkspaceTargetMock = vi.hoisted(() => vi.fn());
+const resolveLoopExecutionTargetMock = vi.hoisted(() => vi.fn());
+const getTasksMock = vi.hoisted(() => vi.fn());
+const getPluginMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@main/lib/events', () => ({
+  events: { emit: emitMock },
+}));
+
+vi.mock('@main/core/agents/plugin-registry', () => ({ getPlugin: getPluginMock }));
+
+vi.mock('./operations/loop-operations', () => ({
+  createLoop: vi.fn(),
+  deleteLoop: vi.fn(),
+  getLoop: vi.fn(),
+  getLoopsForProject: vi.fn(),
+  pauseRunningLoopsForBoot: pauseRunningLoopsForBootMock,
+  resetPhaseForRetry: vi.fn(),
+  updateLoop: vi.fn(),
+  updatePhase: vi.fn(),
+}));
+
+vi.mock('./operations/create-task-with-loop', () => ({
+  createTaskWithLoop: vi.fn(),
+}));
+
+vi.mock('./operations/session-progress', () => ({ commitSessionAttempt: vi.fn() }));
+vi.mock('./operations/work-phase-progress', () => ({ commitWorkPhaseProgress: vi.fn() }));
+vi.mock('./operations/terminal-phase-progress', () => ({
+  commitTerminalPhaseFailure: vi.fn(),
+  commitTerminalPhaseSuccess: vi.fn(),
+}));
+
+vi.mock('@main/core/tasks/task-service', () => ({
+  taskService: { notifyTaskCreated: vi.fn() },
+}));
+
+vi.mock('./drivers/driver-registry', () => ({
+  getLoopSessionDriver: vi.fn(),
+}));
+
+vi.mock('@main/core/workspaces/resolve-task-workspace-target', () => ({
+  resolveTaskWorkspaceTarget: resolveTaskWorkspaceTargetMock,
+}));
+
+vi.mock('./runtime/loop-execution-target', () => ({
+  resolveLoopExecutionTarget: resolveLoopExecutionTargetMock,
+}));
+
+vi.mock('@main/core/tasks/operations/getTasks', () => ({ getTasks: getTasksMock }));
+
+vi.mock('@main/core/projects/project-manager', () => ({
+  projectManager: {
+    getProject: vi.fn(() => ({
+      repoPath: '/project',
+      settings: { get: vi.fn(async () => ({ defaultBranch: 'main' })) },
+    })),
+  },
+}));
+
+const loop: Loop = {
+  id: 'loop-1',
+  projectId: 'project-1',
+  taskId: 'task-1',
+  name: 'Loop',
+  slug: 'loop',
+  status: 'paused',
+  currentPhaseIndex: 0,
+  config: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+describe('LoopService boot recovery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('marks running loops paused on initialize and emits loop updates', async () => {
+    vi.mocked(pauseRunningLoopsForBoot).mockResolvedValue([loop]);
+
+    await new LoopService().initialize(true);
+
+    expect(pauseRunningLoopsForBoot).toHaveBeenCalledOnce();
+    expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop });
+  });
+});
+
+describe('LoopService atomic task creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getPluginMock.mockReturnValue({
+      capabilities: {
+        models: {
+          kind: 'selectable',
+          modelOptions: { 'gpt-5.6-sol': { name: 'GPT-5.6 Sol' } },
+        },
+      },
+    });
+  });
+
+  it('publishes task and Loop events only after the atomic operation succeeds', async () => {
+    const task = { id: 'task-1', projectId: 'project-1' };
+    const createdLoop = {
+      ...loop,
+      phases: [
+        {
+          id: 'phase-1',
+          loopId: loop.id,
+          idx: 0,
+          name: 'Work',
+          goal: 'Implement it',
+          kind: 'work',
+          status: 'pending',
+          attempts: 0,
+          conversationId: null,
+          criteria: null,
+          state: null,
+          lastError: null,
+          createdAt: loop.createdAt,
+          updatedAt: loop.updatedAt,
+        },
+      ],
+    } satisfies LoopWithPhases;
+    vi.mocked(createTaskWithLoop).mockResolvedValue({
+      success: true,
+      data: { task: { task: task as never }, loop: createdLoop },
+    });
+
+    const taskParams = { id: 'task-1', projectId: 'project-1' };
+    const params = {
+      task: taskParams,
+      loop: { model: 'gpt-5.6-sol' },
+    } as never;
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const result = await service.createTaskWithLoop(params);
+
+    expect(result.success).toBe(true);
+    const { taskService } = await import('@main/core/tasks/task-service');
+    expect(taskService.notifyTaskCreated).toHaveBeenCalledWith(task, taskParams);
+    expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop: createdLoop });
+    expect(emitMock).toHaveBeenCalledWith(loopPhaseUpdatedChannel, {
+      loopId: loop.id,
+      phase: createdLoop.phases[0],
+    });
+  });
+
+  it('rejects a model that is not present in the Codex catalog before creating anything', async () => {
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const result = await service.createTaskWithLoop({
+      task: { id: 'task-1', projectId: 'project-1' },
+      loop: { model: 'invented-model' },
+    } as never);
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        kind: 'invalid-state',
+        message: "Codex model 'invented-model' is not available",
+      },
+    });
+    expect(createTaskWithLoop).not.toHaveBeenCalled();
+  });
+
+  it('rejects inherited object properties as model ids', async () => {
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const result = await service.createTaskWithLoop({
+      task: { id: 'task-1', projectId: 'project-1' },
+      loop: { model: 'constructor' },
+    } as never);
+
+    expect(result.success).toBe(false);
+    expect(createTaskWithLoop).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoopService start and resume workspace resolution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveTaskWorkspaceTargetMock.mockResolvedValue({
+      success: true,
+      data: { workspaceId: 'workspace-1', path: '/tmp/worktree', machine: { kind: 'local' } },
+    });
+    getTasksMock.mockResolvedValue([{ id: 'task-1', name: 'Task' }]);
+    resolveLoopExecutionTargetMock.mockResolvedValue({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: { EMDASH_TASK_ID: 'task-1' },
+        executionContext: {},
+        dispose: vi.fn(),
+      },
+    });
+    vi.mocked(getLoop).mockResolvedValue({ ...loop, phases: [] } satisfies LoopWithPhases);
+    vi.mocked(updateLoop).mockImplementation(async (_loopId, patch) => ok({ ...loop, ...patch }));
+  });
+
+  it('starts a loop using a resolved workspace path even when no workspace is mounted', async () => {
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const result = await service.startLoop('loop-1');
+
+    expect(resolveLoopExecutionTargetMock).toHaveBeenCalledWith('task-1', {
+      taskName: 'Task',
+      projectPath: '/project',
+      defaultBranch: 'main',
+    });
+    expect(updateLoop).toHaveBeenCalledWith('loop-1', { status: 'running' });
+    expect(result.success).toBe(true);
+  });
+
+  it('returns a clear workspace error when the resolved worktree path is unavailable', async () => {
+    resolveLoopExecutionTargetMock.mockResolvedValueOnce({
+      success: false,
+      error: {
+        kind: 'workspace-unavailable',
+        message: 'Workspace path no longer exists: /tmp/missing-worktree',
+      },
+    });
+
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const result = await service.startLoop('loop-1');
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.kind).toBe('workspace-unavailable');
+      expect(result.error.message).toBe('Workspace path no longer exists: /tmp/missing-worktree');
+    }
+  });
+
+  it('reserves a loop before target resolution so concurrent starts cannot race', async () => {
+    let resolveTarget!: (value: Awaited<ReturnType<typeof resolveLoopExecutionTargetMock>>) => void;
+    resolveLoopExecutionTargetMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTarget = resolve;
+      })
+    );
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const first = service.startLoop('loop-1');
+    await vi.waitFor(() => expect(resolveLoopExecutionTargetMock).toHaveBeenCalledOnce());
+    const second = await service.startLoop('loop-1');
+
+    expect(second).toEqual({
+      success: false,
+      error: { kind: 'conflict', message: 'Loop is already running' },
+    });
+    resolveTarget({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose: vi.fn(),
+      },
+    });
+    await first;
+  });
+
+  it('cancels an in-flight start before disabling the experiment settles', async () => {
+    let resolveTarget!: (value: Awaited<ReturnType<typeof resolveLoopExecutionTargetMock>>) => void;
+    const dispose = vi.fn();
+    resolveLoopExecutionTargetMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTarget = resolve;
+      })
+    );
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+    const start = service.startLoop('loop-1');
+    await vi.waitFor(() => expect(resolveLoopExecutionTargetMock).toHaveBeenCalledOnce());
+    const disable = service.reconcileEnabledState(false);
+    resolveTarget({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose,
+      },
+    });
+
+    const result = await start;
+    await disable;
+    expect(result.success).toBe(false);
+    expect(updateLoop).not.toHaveBeenCalledWith('loop-1', { status: 'running' });
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed within a bound when an in-flight start never settles during opt-out', async () => {
+    let resolveTarget!: (value: Awaited<ReturnType<typeof resolveLoopExecutionTargetMock>>) => void;
+    resolveLoopExecutionTargetMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTarget = resolve;
+      })
+    );
+    const service = new LoopService({ stopSettlementTimeoutMs: 5 });
+    await service.reconcileEnabledState(true);
+    const start = service.startLoop('loop-1');
+    await vi.waitFor(() => expect(resolveLoopExecutionTargetMock).toHaveBeenCalledOnce());
+
+    await service.reconcileEnabledState(false);
+
+    expect(updateLoop).toHaveBeenCalledWith('loop-1', { status: 'failed' });
+    resolveTarget({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose: vi.fn(),
+      },
+    });
+    await start;
+  });
+
+  it('reports cancellation failure instead of claiming a paused run is quiescent', async () => {
+    const phase = {
+      id: 'phase-1',
+      loopId: loop.id,
+      idx: 0,
+      name: 'Work',
+      goal: 'Implement it',
+      kind: 'work' as const,
+      status: 'pending' as const,
+      attempts: 0,
+      conversationId: null,
+      criteria: null,
+      state: null,
+      lastError: null,
+      createdAt: loop.createdAt,
+      updatedAt: loop.updatedAt,
+    };
+    const runningLoop = { ...loop, status: 'running' as const, phases: [phase] };
+    const prompt =
+      Promise.withResolvers<
+        Awaited<ReturnType<ReturnType<typeof getLoopSessionDriver>['sendPrompt']>>
+      >();
+    const driver = {
+      kind: 'acp' as const,
+      startPhaseSession: vi.fn(async () => ok({ conversationId: 'conversation-1', title: 'work' })),
+      startVerificationSession: vi.fn(),
+      sendPrompt: vi.fn(() => prompt.promise),
+      cancelPrompt: vi.fn(async () =>
+        err({ kind: 'cancel-failed' as const, message: 'agent refused cancellation' })
+      ),
+    };
+    vi.mocked(getLoop)
+      .mockResolvedValueOnce({ ...loop, phases: [phase] })
+      .mockResolvedValue(runningLoop);
+    vi.mocked(updatePhase).mockImplementation(async (_phaseId, patch) =>
+      ok({ ...phase, ...patch })
+    );
+    vi.mocked(getLoopSessionDriver).mockReturnValue(driver);
+    const service = new LoopService({ stopSettlementTimeoutMs: 5 });
+    await service.reconcileEnabledState(true);
+    await service.startLoop(loop.id);
+    await vi.waitFor(() => expect(driver.sendPrompt).toHaveBeenCalledOnce());
+
+    const result = await service.pauseLoop(loop.id);
+
+    expect(result).toEqual({
+      success: false,
+      error: { kind: 'run-failed', message: 'Loop pause failed: agent refused cancellation' },
+    });
+    expect(updateLoop).toHaveBeenCalledWith(loop.id, { status: 'failed' });
+    prompt.resolve(err({ kind: 'prompt-failed', message: 'cancelled after failure' }));
+  });
+
+  it('does not overwrite a failed interruption commit with paused', async () => {
+    const baseCommit = '1'.repeat(40);
+    const phase = {
+      id: 'phase-1',
+      loopId: loop.id,
+      idx: 0,
+      name: 'Work',
+      goal: 'Implement it',
+      kind: 'work' as const,
+      status: 'pending' as const,
+      attempts: 0,
+      conversationId: null,
+      criteria: null,
+      state: {
+        version: '2' as const,
+        checkpointCommit: null,
+        handoff: null,
+        retryHandoffs: [],
+        result: null,
+      },
+      lastError: null,
+      createdAt: loop.createdAt,
+      updatedAt: loop.updatedAt,
+    };
+    const v2Loop = {
+      ...loop,
+      config: {
+        version: '2' as const,
+        provider: 'codex' as const,
+        model: 'gpt-5.6-sol',
+        validationCommands: ['pnpm test'],
+        planSource: '# Plan',
+        terminalGates: { review: false, e2e: false },
+        browserPreview: { enabled: false },
+        reviewEnabled: false,
+        verifiers: [],
+      },
+      isPrimary: true,
+      state: {
+        version: '2' as const,
+        baseCommit,
+        expectedFeatureHead: baseCommit,
+        checkpointCommit: baseCommit,
+        e2eAttemptsConsumed: 0,
+        sessionAttempts: [],
+        verification: null,
+      },
+      phases: [phase],
+    } satisfies LoopWithPhases;
+    const pendingSession =
+      Promise.withResolvers<
+        Awaited<ReturnType<ReturnType<typeof getLoopSessionDriver>['startPhaseSession']>>
+      >();
+    const driver = {
+      kind: 'acp' as const,
+      startPhaseSession: vi.fn(() => pendingSession.promise),
+      startVerificationSession: vi.fn(),
+      sendPrompt: vi.fn(),
+      cancelPrompt: vi.fn(async () => ok(undefined)),
+    };
+    vi.mocked(getLoop)
+      .mockResolvedValueOnce(v2Loop)
+      .mockResolvedValue({ ...v2Loop, status: 'running' });
+    vi.mocked(getLoopSessionDriver).mockReturnValue(driver);
+    vi.mocked(commitSessionAttempt).mockImplementation(async (input) =>
+      input.next.status === 'interrupted'
+        ? err({ kind: 'db-error', message: 'interruption write failed' })
+        : ok({ ...input.expected, sessionAttempts: [input.next] })
+    );
+    resolveLoopExecutionTargetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {
+          root: '/tmp/worktree',
+          supportsLocalSpawn: true,
+          exec: vi.fn(async () => ({ stdout: `${baseCommit}\n`, stderr: '' })),
+          execStreaming: vi.fn(),
+          dispose: vi.fn(),
+        },
+        dispose: vi.fn(),
+      },
+    });
+    const service = new LoopService({ stopSettlementTimeoutMs: 100 });
+    await service.reconcileEnabledState(true);
+    await service.startLoop(loop.id);
+    await vi.waitFor(() => expect(driver.startPhaseSession).toHaveBeenCalledOnce());
+
+    const paused = service.pauseLoop(loop.id);
+    pendingSession.resolve(ok({ conversationId: 'late-session', title: 'late' }));
+    const result = await paused;
+
+    expect(result).toEqual({
+      success: false,
+      error: { kind: 'run-failed', message: 'Loop pause failed: interruption write failed' },
+    });
+    expect(updateLoop).not.toHaveBeenCalledWith(loop.id, { status: 'paused' });
+  });
+
+  it('disposes the execution target when the running transition fails', async () => {
+    const dispose = vi.fn();
+    resolveLoopExecutionTargetMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        workspaceId: 'workspace-1',
+        path: '/tmp/worktree',
+        machine: { kind: 'local' },
+        taskEnv: {},
+        executionContext: {},
+        dispose,
+      },
+    });
+    vi.mocked(updateLoop).mockResolvedValueOnce(
+      err({ kind: 'db-error', message: 'running transition failed' })
+    );
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    const result = await service.startLoop('loop-1');
+
+    expect(result.success).toBe(false);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+});
+
+describe('LoopService experiment enforcement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pauseRunningLoopsForBootMock.mockResolvedValue([]);
+  });
+
+  it('rejects starts while the default-off feature is disabled', async () => {
+    const result = await new LoopService().startLoop('loop-1');
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        kind: 'feature-disabled',
+        message: 'ACP Loops are disabled in Experimental Settings',
+      },
+    });
+    expect(getLoop).not.toHaveBeenCalled();
+  });
+
+  it('does not expose persisted Loop reads while the feature is disabled', async () => {
+    const result = await new LoopService().getLoop('loop-1');
+
+    expect(result.success).toBe(false);
+    expect(getLoop).not.toHaveBeenCalled();
+  });
+
+  it('pauses persisted running loops immediately when disabled live', async () => {
+    const running = { ...loop, status: 'running' as const };
+    pauseRunningLoopsForBootMock.mockResolvedValueOnce([running]);
+    const service = new LoopService();
+    await service.reconcileEnabledState(true);
+
+    await service.reconcileEnabledState(false);
+
+    expect(pauseRunningLoopsForBootMock).toHaveBeenCalledOnce();
+    expect(emitMock).toHaveBeenCalledWith(loopUpdatedChannel, { loop: running });
+  });
+});

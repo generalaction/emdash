@@ -18,7 +18,6 @@ import {
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { SshFileSystem } from '@main/core/runtime/legacy/ssh-legacy-fs';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { quoteShellArg } from '@main/utils/shellEscape';
 
 // ---------------------------------------------------------------------------
 // SshChannelHandle: wraps an SSH ClientChannel as an AcpProcessHandle
@@ -193,20 +192,14 @@ export class LegacySshAcpProcessHost implements AcpProcessHost {
     cwd: string;
   }): Promise<AcpProcessHandle> {
     const profile = await this.proxy.getRemoteShellProfile();
-
-    // Build "KEY=value KEY2=value2 command arg1 arg2" prefix for env vars.
-    const envPrefix = Object.entries(spec.env)
-      .map(([k, v]) => `${k}=${quoteShellArg(v)}`)
-      .join(' ');
-
-    const argsStr = spec.args.map(quoteShellArg).join(' ');
-    const innerCmd = envPrefix
-      ? `${envPrefix} ${spec.command} ${argsStr}`.trimEnd()
-      : `${spec.command} ${argsStr}`.trimEnd();
-
-    // buildSshCommand wraps the inner command with the remote shell profile
-    // (sourcing ~/.bashrc etc.) and a `cd <cwd> &&` prefix.
-    const fullCmd = buildSshCommand(spec.cwd, innerCmd, [], profile);
+    const fullCmd = buildSshCommand(
+      spec.cwd,
+      spec.command,
+      spec.args,
+      profile,
+      undefined,
+      spec.env
+    );
 
     return new Promise<AcpProcessHandle>((resolve, reject) => {
       this.proxy.exec(fullCmd, (err, channel) => {
@@ -226,17 +219,14 @@ export class LegacySshAcpProcessHost implements AcpProcessHost {
     cwd: string;
   }): Promise<AcpTerminalProcess> {
     const profile = await this.proxy.getRemoteShellProfile();
-
-    const envPrefix = Object.entries(spec.env)
-      .map(([k, v]) => `${k}=${quoteShellArg(v)}`)
-      .join(' ');
-
-    const argsStr = spec.args.map(quoteShellArg).join(' ');
-    const innerCmd = envPrefix
-      ? `${envPrefix} ${spec.command} ${argsStr}`.trimEnd()
-      : `${spec.command} ${argsStr}`.trimEnd();
-
-    const fullCmd = buildSshCommand(spec.cwd, innerCmd, [], profile);
+    const fullCmd = buildSshCommand(
+      spec.cwd,
+      spec.command,
+      spec.args,
+      profile,
+      undefined,
+      spec.env
+    );
 
     return new Promise<AcpTerminalProcess>((resolve, reject) => {
       this.proxy.exec(fullCmd, (err, channel) => {

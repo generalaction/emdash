@@ -1,7 +1,12 @@
 import { asAgentProviderId, type AgentProviderId } from '@emdash/plugins/agents/types';
 import { describe, expect, it } from 'vitest';
+import { createDefaultLoopPlanDraft } from '@renderer/features/loops/loop-plan-model';
 import type { InitialConversationState } from '@renderer/features/tasks/task-config/initial-conversation-section';
-import { buildInitialConversation } from './build-create-task-params';
+import {
+  buildInitialConversation,
+  buildInitialConversationForTask,
+  buildLoopTaskAuthoringInput,
+} from './build-create-task-params';
 
 const agent = asAgentProviderId;
 
@@ -64,5 +69,35 @@ describe('buildInitialConversation', () => {
         hiddenContext: 'Pinned issue context\n\nMention issue context',
       },
     ]);
+  });
+
+  it('suppresses the ordinary initial conversation for Loop tasks', () => {
+    const state = makeInitialConversationState(agent('codex'), true);
+    expect(buildInitialConversationForTask(state, true)).toBeUndefined();
+    expect(buildInitialConversationForTask(state, false)?.provider).toBe('codex');
+  });
+
+  it('builds the explicit v2 authoring contract without inferring project commands', () => {
+    const draft = {
+      ...createDefaultLoopPlanDraft(),
+      enabled: true,
+      goal: 'Ship it',
+      planSource: '## Build',
+      validationCommands: [' pnpm test ', ''],
+      acceptanceCriteria: [' The page renders ', ''],
+      workPhases: [{ id: 'work-1', kind: 'work' as const, name: ' Build ', goal: ' Ship it ' }],
+      terminalGates: { review: true, e2e: true },
+    };
+
+    expect(buildLoopTaskAuthoringInput(' Feature ', draft, ' gpt-5.6-sol ')).toEqual({
+      name: 'Feature Loop',
+      model: 'gpt-5.6-sol',
+      planSource: '## Build',
+      validationCommands: ['pnpm test'],
+      terminalGates: { review: true, e2e: true },
+      browserPreview: { enabled: true },
+      workPhases: [{ name: 'Build', goal: 'Ship it' }],
+      acceptanceCriteria: ['The page renders'],
+    });
   });
 });
