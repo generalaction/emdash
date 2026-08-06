@@ -25,13 +25,11 @@ import {
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
 
-export const popupSurface = style({
+const popupSurfaceBase = style({
   position: 'relative',
   zIndex: 50,
   transformOrigin: 'var(--transform-origin)',
   borderRadius: tokenVars.radiusMd,
-  backgroundColor: vars.surface,
-  color: vars.foreground,
   outline: 'none',
   selectors: {
     '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
@@ -46,6 +44,27 @@ export const popupSurface = style({
     '&[data-closed]': { animation: `${kfPopupOut} 100ms both` },
   },
 });
+
+export const popupSurface = style([
+  popupSurfaceBase,
+  {
+    backgroundColor: vars.surface,
+    color: vars.foreground,
+  },
+]);
+
+/**
+ * Inverted (neutral pill) tone for high-contrast popups such as tooltips —
+ * same structure and animations as `popupSurface`, but painted with the
+ * theme's inverted neutral slots.
+ */
+export const popupSurfaceInverted = style([
+  popupSurfaceBase,
+  {
+    backgroundColor: vars.backgroundNeutral,
+    color: vars.foregroundNeutral,
+  },
+]);
 
 /**
  * Shadow tokens for popup containers.

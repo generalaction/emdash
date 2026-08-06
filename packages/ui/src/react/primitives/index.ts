@@ -27,6 +27,7 @@ export { RadioGroup } from './radio-group';
 export { Dialog, type DialogSize } from './dialog';
 export { Sheet, type SheetSide } from './sheet';
 export { Popover } from './popover';
+export { Tooltip } from './tooltip';
 export { DropdownMenu } from './dropdown-menu';
 export { ContextMenu } from './context-menu';
 export { Combobox, useComboboxAnchor } from './combobox/combobox';
