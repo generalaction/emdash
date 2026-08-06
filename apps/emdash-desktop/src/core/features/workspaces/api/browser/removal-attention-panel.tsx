@@ -13,6 +13,12 @@ import { getWorkspaceRegistryWireClient } from './client';
 
 type RemovalAction = 'retry' | 'untrack';
 
+type AttentionRow = ProjectWorkspaceRow & { workspaceId: string };
+
+function needsRemovalAttention(row: ProjectWorkspaceRow): row is AttentionRow {
+  return row.workspaceId !== null && workspaceRemovalNeedsAttention(row);
+}
+
 /**
  * Needs-attention cards for pending deletions stopped by a terminal removal failure
  * (ADR 0006): one card per tombstoned row whose `lastRemovalAttempt` is terminal, with
@@ -27,9 +33,7 @@ export function WorkspaceRemovalAttentionPanel({
   className?: string;
 }) {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const attentionRows = rows.filter(
-    (row) => row.workspaceId !== null && workspaceRemovalNeedsAttention(row)
-  );
+  const attentionRows = rows.filter(needsRemovalAttention);
   if (attentionRows.length === 0) return null;
 
   const runAction = async (action: RemovalAction, workspaceId: string): Promise<void> => {
@@ -89,13 +93,13 @@ export function WorkspaceRemovalAttentionPanel({
               label="Retry"
               pending={pendingAction === `retry:${row.workspaceId}`}
               disabled={pendingAction !== null}
-              onClick={() => void runAction('retry', row.workspaceId!)}
+              onClick={() => void runAction('retry', row.workspaceId)}
             />
             <RemovalActionButton
               label="Untrack anyway"
               pending={pendingAction === `untrack:${row.workspaceId}`}
               disabled={pendingAction !== null}
-              onClick={() => void runAction('untrack', row.workspaceId!)}
+              onClick={() => void runAction('untrack', row.workspaceId)}
             />
           </div>
         </div>

@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import { formatAbsolute, type HostAbsolutePath } from '@primitives/path/api';
+import { defaultGitExecFactory, type GitExecFactory } from '@services/exec/node/git-exec';
 import { measureAbsolutePathUsage } from '@services/fs-usage/node';
 import type { WorkspaceHostError, WorkspaceHostUsage } from '../api';
-import { defaultGitExecFactory, type GitExecFactory } from './git-exec';
 
 export type MeasureWorkspaceUsageOptions = {
   workspacePath: HostAbsolutePath;

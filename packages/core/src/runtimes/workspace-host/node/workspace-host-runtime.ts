@@ -4,6 +4,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { cell, expose, type Cell, type LeasedLiveModelProvider } from '@emdash/wire';
 import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
+import type { GitExecFactory } from '@services/exec/node/git-exec';
 import {
   workspaceHostContract,
   type WorkspaceHostError,
@@ -16,7 +17,6 @@ import {
   type WorkspaceHostRunScriptResult,
   type WorkspaceHostUsage,
 } from '../api';
-import type { GitExecFactory } from './git-exec';
 import { measureWorkspaceUsage } from './measure-usage';
 import { WorkspaceInitManager, type WorkspaceNotice } from './session-init/workspace-init-manager';
 

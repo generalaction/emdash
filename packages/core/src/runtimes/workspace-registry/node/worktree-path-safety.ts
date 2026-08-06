@@ -2,11 +2,7 @@ import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { BoundExec } from '@services/exec/api';
-import { createRegistryGitExec } from './scan/observe-git';
-
-export type GitExecFactory = (cwd: string) => BoundExec;
-
-const defaultGitExecFactory: GitExecFactory = (cwd) => createRegistryGitExec(cwd);
+import { defaultGitExecFactory, type GitExecFactory } from '@services/exec/node/git-exec';
 
 export type WorktreePathMutation = 'create' | 'remove';
 
