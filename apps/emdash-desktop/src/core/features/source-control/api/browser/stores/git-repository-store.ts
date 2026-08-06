@@ -14,7 +14,6 @@ import type { ProjectSettingsStore } from '@core/features/projects/api/browser/s
 import {
   getSourceControlClient,
   repositorySelector,
-  runSourceControlJob,
 } from '@core/features/source-control/api/browser/client';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import type { ConfiguredRemotes } from '@core/primitives/git/api';
@@ -25,6 +24,7 @@ import {
 } from '@core/primitives/git/api';
 import type { ProviderRepository, ProviderRepositoryResult } from '@core/primitives/repository/api';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
+import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { sourceControlContract } from '../..';
 
@@ -265,7 +265,7 @@ export class GitRepositoryStore {
 
   async fetchRemote() {
     const client = await getSourceControlClient();
-    return runSourceControlJob(sourceControlContract.repository.fetch, client.repository.fetch, {
+    return runDesktopLiveJob(sourceControlContract.repository.fetch, client.repository.fetch, {
       ...repositorySelector(this.projectId),
       remote: this.baseRemote.name,
     });
@@ -280,7 +280,7 @@ export class GitRepositoryStore {
 
   async publishBranch(branchName: string, _workspaceId?: string) {
     const client = await getSourceControlClient();
-    return runSourceControlJob(
+    return runDesktopLiveJob(
       sourceControlContract.repository.publishBranch,
       client.repository.publishBranch,
       {
@@ -293,7 +293,7 @@ export class GitRepositoryStore {
 
   async fetchPrForReview(options: FetchPrForReviewOptions) {
     const client = await getSourceControlClient();
-    return runSourceControlJob(
+    return runDesktopLiveJob(
       sourceControlContract.repository.fetchPrForReview,
       client.repository.fetchPrForReview,
       { ...repositorySelector(this.projectId), options }
