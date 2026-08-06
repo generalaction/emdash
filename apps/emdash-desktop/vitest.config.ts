@@ -156,21 +156,28 @@ export default defineConfig({
           include: ['scripts/**/*.test.ts'],
         },
       },
-      {
-        // Renderer terminal tests that need a real browser environment
-        // (real CSS layout, ResizeObserver, requestAnimationFrame, WebGL).
-        extends: true,
-        test: {
-          name: 'browser',
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            instances: [{ browser: 'chromium' }],
-          },
-          include: ['src/renderer/tests/browser/**/*.test.{ts,tsx}'],
-        },
-      },
+      // The browser project is omitted entirely when EMDASH_TEST_SKIP_BROWSER
+      // is set: CI runs without it until Playwright browser provisioning is
+      // proven stable there (see .github/workflows/code-consistency-check.yml).
+      ...(process.env.EMDASH_TEST_SKIP_BROWSER
+        ? []
+        : [
+            {
+              // Renderer terminal tests that need a real browser environment
+              // (real CSS layout, ResizeObserver, requestAnimationFrame, WebGL).
+              extends: true as const,
+              test: {
+                name: 'browser',
+                browser: {
+                  enabled: true,
+                  provider: playwright(),
+                  headless: true,
+                  instances: [{ browser: 'chromium' }],
+                },
+                include: ['src/renderer/tests/browser/**/*.test.{ts,tsx}'],
+              },
+            },
+          ]),
     ],
   },
 });

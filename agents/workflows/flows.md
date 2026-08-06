@@ -97,6 +97,10 @@ schema work: `EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev`.
   equivalent to running them by hand.
 - App Vitest projects: `node`, `main-db`, `fixtures`, `migrations`, `scripts`,
   `browser`. The browser project needs Playwright browsers — run the doctor.
+- CI (`code-consistency-check.yml`) gates `format:check`, `typecheck`, `lint`,
+  and `test` via `nx affected`. The Playwright-backed `browser` projects (app
+  and chat-ui) are skipped there via `EMDASH_TEST_SKIP_BROWSER=1` until
+  browser provisioning is proven stable in CI.
 - The remote WSS test requires Docker and the workspace-server stack
   (`pnpm run run:docker-remote` from `apps/workspace-server/`) and sets
   `EMDASH_TEST_REMOTE_WSS=1` itself. Run the doctor first; it reports Docker
@@ -146,6 +150,7 @@ doctor lists any that are active.
 | `EMDASH_DISABLE_NATIVE_DB=1` | Run without the native better-sqlite3 (also skips its rebuild) |
 | `EMDASH_DISABLE_PTY=1` | Run without PTY support |
 | `EMDASH_DISABLE_CLONE_CACHE=1` | Disable the worktree clone cache |
+| `EMDASH_TEST_SKIP_BROWSER=1` | Omit the Playwright-backed `browser` Vitest projects (CI sets this) |
 | `EMDASH_FORCE_BOOT_FAILURE=1` | Force the boot-failure path for recovery testing |
 | `TELEMETRY_ENABLED=false` | Disable telemetry |
 | `CODEX_SANDBOX_MODE`, `CODEX_APPROVAL_POLICY` | Override Codex provider sandbox/approval behavior |
