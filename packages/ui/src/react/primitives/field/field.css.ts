@@ -3,6 +3,7 @@ import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
+import { labelBase } from '../label/label.css';
 
 export const field = recipe({
   base: {
@@ -53,15 +54,9 @@ export const fieldControlSlot = style({
   width: '100%',
 });
 
-export const fieldLabel = style({
-  fontSize: tokenVars.textBase,
-  fontWeight: 400,
-  lineHeight: 1,
-  color: vars.foreground,
-  selectors: {
-    '&[data-disabled]': { cursor: 'not-allowed', opacity: 0.7 },
-  },
-});
+// Label typography is owned by the standalone Label primitive; Field.Label
+// composes the same base so the two never drift.
+export const fieldLabel = style([labelBase]);
 
 export const fieldDescription = style({
   fontSize: tokenVars.textSm,

@@ -100,6 +100,7 @@ export {
   type MachineStatusKind,
   type MachineStatusProps,
 } from './machine-status/machine-status';
+export { EmptyState, type EmptyStateProps } from './empty-state/empty-state';
 export { Pill, type PillProps, type PillVariant } from './pill/pill';
 export {
   ScriptStatus,
