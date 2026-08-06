@@ -41,9 +41,11 @@ import {
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
+  createUntrackedLinesCache,
   listRepositoryWorktrees,
   observeWorkspaceGit,
   observeWorkspaceGitRefs,
+  type UntrackedLinesCache,
   type WorktreeListing,
 } from './scan/observe-git';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
@@ -86,6 +88,8 @@ export class WorkspaceRegistryRuntime {
   private readonly repositoryClaims = new KeyedMutex();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
+  /** Per-record untracked line-count caches; evicted when the record vanishes. */
+  private readonly untrackedCaches = new Map<string, UntrackedLinesCache>();
   private readonly killSessions: SessionKiller;
   private readonly activationManager: WorkspaceActivationManager;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
@@ -652,7 +656,9 @@ export class WorkspaceRegistryRuntime {
       gitAdminName,
       observedStatus: 'present',
       lastCreateOutcome: { status: 'succeeded', at: now },
-      git: await observeWorkspaceGit(result.finalPath),
+      git: await observeWorkspaceGit(result.finalPath, undefined, {
+        untrackedCache: this.untrackedCacheFor(record.id),
+      }),
       updatedAt: now,
       lastObservedAt: now,
     };
@@ -681,6 +687,7 @@ export class WorkspaceRegistryRuntime {
     const deleted = this.store.delete(input.id);
     if (deleted) {
       this.overlays.delete(input.id);
+      this.untrackedCaches.delete(input.id);
       this.recordsCell.update((previous) => {
         const next = { ...previous };
         delete next[input.id];
@@ -804,7 +811,9 @@ export class WorkspaceRegistryRuntime {
             path: canonicalPath,
             gitAdminName: listing.adminName ?? child.gitAdminName,
             observedStatus: 'present',
-            git: await observeWorkspaceGit(canonicalPath, listing),
+            git: await observeWorkspaceGit(canonicalPath, listing, {
+              untrackedCache: this.untrackedCacheFor(child.id),
+            }),
           },
           now
         );
@@ -812,8 +821,9 @@ export class WorkspaceRegistryRuntime {
       }
 
       // Host-discovered worktree of a registered repository: adopt under a host-minted id.
+      const adoptedId = crypto.randomUUID();
       const adopted: DurableWorkspaceRecord = {
-        id: crypto.randomUUID(),
+        id: adoptedId,
         kind: 'worktree',
         path: canonicalPath,
         parentId: repository.id,
@@ -824,7 +834,9 @@ export class WorkspaceRegistryRuntime {
         lastCreateOutcome: null,
         lastRemovalAttempt: null,
         scriptOutcomes: null,
-        git: await observeWorkspaceGit(canonicalPath, listing),
+        git: await observeWorkspaceGit(canonicalPath, listing, {
+          untrackedCache: this.untrackedCacheFor(adoptedId),
+        }),
         lastActivatedAt: null,
         createdAt: now,
         updatedAt: now,
@@ -842,7 +854,13 @@ export class WorkspaceRegistryRuntime {
         // On disk but no longer listed by the repository (e.g. pruned admin data):
         // observe it directly rather than asserting it gone.
         this.saveRecord(
-          { ...child, observedStatus: 'present', git: await observeWorkspaceGit(child.path) },
+          {
+            ...child,
+            observedStatus: 'present',
+            git: await observeWorkspaceGit(child.path, undefined, {
+              untrackedCache: this.untrackedCacheFor(child.id),
+            }),
+          },
           now
         );
       } else {
@@ -854,7 +872,9 @@ export class WorkspaceRegistryRuntime {
       {
         ...repository,
         observedStatus: 'present',
-        git: await observeWorkspaceGit(repository.path),
+        git: await observeWorkspaceGit(repository.path, undefined, {
+          untrackedCache: this.untrackedCacheFor(repository.id),
+        }),
       },
       now
     );
@@ -880,17 +900,32 @@ export class WorkspaceRegistryRuntime {
       this.recordVanished(record, now);
       return;
     }
-    const git = record.kind === 'directory' ? null : await observeWorkspaceGit(record.path);
+    const git =
+      record.kind === 'directory'
+        ? null
+        : await observeWorkspaceGit(record.path, undefined, {
+            untrackedCache: this.untrackedCacheFor(record.id),
+          });
     this.saveRecord({ ...record, observedStatus: 'present', git }, now);
   }
 
   /** Adopted records follow the disk; registered records survive as 'missing'. */
   private recordVanished(record: DurableWorkspaceRecord, now: number): void {
+    this.untrackedCaches.delete(record.id);
     if (record.origin === 'adopted') {
       this.deleteWorkspaceLocked({ id: record.id });
       return;
     }
     this.saveRecord({ ...record, observedStatus: 'missing', git: null }, now);
+  }
+
+  private untrackedCacheFor(id: string): UntrackedLinesCache {
+    let cache = this.untrackedCaches.get(id);
+    if (!cache) {
+      cache = createUntrackedLinesCache();
+      this.untrackedCaches.set(id, cache);
+    }
+    return cache;
   }
 
   /** Persists a scan result, stamping observation time and bumping updatedAt on change. */

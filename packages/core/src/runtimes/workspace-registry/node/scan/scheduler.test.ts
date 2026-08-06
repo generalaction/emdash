@@ -1,7 +1,13 @@
 import path from 'node:path';
 import type { IWatchService, WatchEvent, WatchOptions } from '@services/fs-watch/api';
 import { describe, expect, it } from 'vitest';
-import { WorkspaceScanScheduler, type ScanRequest, type ScanTarget } from './scheduler';
+import {
+  DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS,
+  DEFAULT_SCAN_DEBOUNCE_MS,
+  WorkspaceScanScheduler,
+  type ScanRequest,
+  type ScanTarget,
+} from './scheduler';
 
 // Unit tests at the scheduler's public seam: fs events (via a fake watch service) and
 // scan targets go in; coalesced scan requests come out. The scheduler never writes the
@@ -120,6 +126,40 @@ describe('WorkspaceScanScheduler', () => {
     } finally {
       await scheduler.dispose();
     }
+  });
+
+  it('ignores FETCH_HEAD and ORIG_HEAD writes (no-change fetch churn triggers nothing)', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wt = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1');
+    const { watcher, requests, scheduler } = createHarness([repo, wt], { debounceMs: 5 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [
+        { kind: 'update', path: path.join(gitDir, 'FETCH_HEAD') },
+        { kind: 'update', path: path.join(gitDir, 'ORIG_HEAD') },
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requests).toHaveLength(0);
+
+      // A fetch that actually moved refs still fans out via packed-refs / refs/remotes.
+      watcher.emit(gitDir, [
+        { kind: 'update', path: path.join(gitDir, 'FETCH_HEAD') },
+        { kind: 'update', path: path.join(gitDir, 'packed-refs') },
+      ]);
+      await eventually(() => {
+        expect(requests).toEqual([
+          { kind: 'workspace', id: 'repo-1', mode: 'refs' },
+          { kind: 'workspace', id: 'wt-1', mode: 'refs' },
+        ]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('defaults the active debounce to 1 s and the idle debounce to 2 s', () => {
+    expect(DEFAULT_SCAN_DEBOUNCE_MS).toBe(2_000);
+    expect(DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS).toBe(1_000);
   });
 
   it('worktree admin changes trigger repository reconciliation (adoption path)', async () => {

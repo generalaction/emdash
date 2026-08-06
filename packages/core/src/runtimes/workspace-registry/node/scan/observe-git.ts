@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { createBoundExec, type BoundExec } from '@services/exec/api';
 import type { WorkspaceGitObservations } from '../../api/schemas';
@@ -17,6 +17,27 @@ const EXEC_TIMEOUT_MS = 30_000;
 const STATUS_MAX_BUFFER = 4 * 1024 * 1024;
 const UNTRACKED_FILE_MAX_BYTES = 5 * 1024 * 1024;
 const UNTRACKED_FILES_MAX = 5_000;
+/**
+ * Per-scan cap on bytes read for untracked line counting. First contact with a
+ * huge untracked tree degrades the untracked component to null (the same
+ * degrade semantics as UNTRACKED_FILES_MAX) instead of dominating the scan;
+ * later scans serve unchanged files from the stat-keyed cache for free.
+ */
+const UNTRACKED_SCAN_BYTE_BUDGET = 32 * 1024 * 1024;
+
+export type UntrackedLineEntry = { size: number; mtimeMs: number; lines: number };
+/** Stat-keyed line-count cache for one workspace's untracked files. */
+export type UntrackedLinesCache = Map<string, UntrackedLineEntry>;
+
+export function createUntrackedLinesCache(): UntrackedLinesCache {
+  return new Map();
+}
+
+export type ObserveWorkspaceGitOptions = {
+  /** Per-workspace cache; the scan runtime owns it and evicts it with the record. */
+  untrackedCache?: UntrackedLinesCache;
+  untrackedByteBudget?: number;
+};
 
 export function createRegistryGitExec(cwd: string): BoundExec {
   return createBoundExec({ file: 'git', cwd, env: GIT_ENV });
@@ -81,7 +102,8 @@ export async function listRepositoryWorktrees(repoPath: string): Promise<Worktre
  */
 export async function observeWorkspaceGit(
   workspacePath: string,
-  listing?: Pick<WorktreeListing, 'locked' | 'prunable'>
+  listing?: Pick<WorktreeListing, 'locked' | 'prunable'>,
+  options: ObserveWorkspaceGitOptions = {}
 ): Promise<WorkspaceGitObservations | null> {
   const exec = createRegistryGitExec(workspacePath);
   try {
@@ -90,7 +112,7 @@ export async function observeWorkspaceGit(
       readStatus(exec),
       readDivergence(exec),
     ]);
-    const untrackedAdded = await countUntrackedLines(workspacePath, status.untracked);
+    const untrackedAdded = await countUntrackedLines(workspacePath, status.untracked, options);
     const tracked = await readTrackedDiffStats(exec);
     const diffStats =
       tracked === null && untrackedAdded === null
@@ -206,21 +228,52 @@ function parseNumstatValue(value: string | undefined): number {
  * Counts untracked files' lines the way numstat counts additions. Binary and oversized
  * files are skipped (numstat reports '-' for binary); pathological trees degrade to null
  * rather than blocking the scan.
+ *
+ * Each scan does one stat per file; only files whose (size, mtime) changed are re-read,
+ * bounded by a per-scan byte budget. Exceeding the budget degrades the whole untracked
+ * component to null — never a partial count.
  */
 async function countUntrackedLines(
   workspacePath: string,
-  untracked: string[]
+  untracked: string[],
+  options: ObserveWorkspaceGitOptions
 ): Promise<number | null> {
   if (untracked.length > UNTRACKED_FILES_MAX) return null;
+  const cache = options.untrackedCache;
+  const budget = options.untrackedByteBudget ?? UNTRACKED_SCAN_BYTE_BUDGET;
   let added = 0;
+  let bytesRead = 0;
   for (const relativePath of untracked) {
     try {
+      const info = await stat(join(workspacePath, relativePath));
+      if (!info.isFile()) continue;
+
+      const hit = cache?.get(relativePath);
+      if (hit && hit.size === info.size && hit.mtimeMs === info.mtimeMs) {
+        added += hit.lines;
+        continue;
+      }
+
+      if (info.size > UNTRACKED_FILE_MAX_BYTES) {
+        cache?.set(relativePath, { size: info.size, mtimeMs: info.mtimeMs, lines: 0 });
+        continue;
+      }
+      if (bytesRead + info.size > budget) return null;
+
       const content = await readFile(join(workspacePath, relativePath));
-      if (content.byteLength > UNTRACKED_FILE_MAX_BYTES) continue;
-      if (content.subarray(0, 8_000).includes(0)) continue; // binary heuristic, like git's
-      added += countLines(content);
+      bytesRead += content.byteLength;
+      // Binary heuristic, like git's: NUL in the first 8 kB counts as zero lines.
+      const lines = content.subarray(0, 8_000).includes(0) ? 0 : countLines(content);
+      cache?.set(relativePath, { size: info.size, mtimeMs: info.mtimeMs, lines });
+      added += lines;
     } catch {
       // Vanished mid-scan or unreadable: skip the file, keep the scan.
+    }
+  }
+  if (cache) {
+    const current = new Set(untracked);
+    for (const key of cache.keys()) {
+      if (!current.has(key)) cache.delete(key);
     }
   }
   return added;

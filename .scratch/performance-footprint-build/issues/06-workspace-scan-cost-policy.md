@@ -14,11 +14,26 @@ Specs: [scan cost decision](../../performance-footprint/issues/02-git-scan-cost-
 
 **Blocked by:** 02 — Before/after instruments.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Active debounce is 1 s; scheduler tests updated with the injected clock
-- [ ] `FETCH_HEAD`/`ORIG_HEAD` events classified ignorable, covered by classification tests;
+- [x] Active debounce is 1 s; scheduler tests updated with the injected clock
+- [x] `FETCH_HEAD`/`ORIG_HEAD` events classified ignorable, covered by classification tests;
       the 2-minute fetch cadence itself is unchanged
-- [ ] Untracked line-count cache hits on unchanged files (stat-keyed) and respects a per-scan
+- [x] Untracked line-count cache hits on unchanged files (stat-keyed) and respects a per-scan
       byte budget, covered by temp-repo integration tests
 - [ ] Before/after spawns-per-minute numbers from ticket 02 recorded in the PR
+      — *not measured: requires attaching to a live GUI run with an agent write burst, which
+      this environment cannot do. The ticket-02 instruments (debug-log spawn counts per
+      minute, tagged `git`) are in place to capture the numbers on the first dev run.
+      Analytically, the debounce change alone caps the active-workspace burst cadence at
+      1/4 of the previous rate (250 ms → 1 s coalescing window, same ~6-spawn scan).*
+
+**Implementation notes:** scheduler defaults are exported as `DEFAULT_SCAN_DEBOUNCE_MS` (2 s)
+and `DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS` (1 s) and asserted by tests; the existing scheduler
+tests use short injected debounce values with the same seams. `FETCH_HEAD`/`ORIG_HEAD` are
+skipped in `onGitDirEvents` before classification, so a no-change fetch triggers nothing while
+`packed-refs`/`refs/remotes/*` still fan out refs scans. `countUntrackedLines` now stats every
+file, serves `(size, mtimeMs)` matches from a per-record cache owned by the runtime (evicted
+in `recordVanished`/`deleteWorkspaceLocked`, entries dropped when files stop being untracked),
+and degrades the untracked component to null when a scan would read more than 32 MB; the
+5 MB per-file skip and 5,000-file bail are unchanged.

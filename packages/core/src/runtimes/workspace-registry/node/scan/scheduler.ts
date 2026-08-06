@@ -34,8 +34,13 @@ export type WorkspaceScanSchedulerOptions = {
   pollIntervalMs?: number;
 };
 
-const DEFAULT_DEBOUNCE_MS = 2_000;
-const DEFAULT_ACTIVE_DEBOUNCE_MS = 250;
+export const DEFAULT_SCAN_DEBOUNCE_MS = 2_000;
+/**
+ * Active workspaces coalesce on 1 s: task-card badges trailing a write burst
+ * by ≤1 s + scan time is imperceptible, and the steady-state subprocess load
+ * during agent write bursts drops to roughly a quarter of the previous 250 ms.
+ */
+export const DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS = 1_000;
 const DEFAULT_POLL_INTERVAL_MS = 5 * 60_000;
 
 type PendingScan = {
@@ -75,8 +80,8 @@ export class WorkspaceScanScheduler {
     this.isActive = options.isActive;
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
-    this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-    this.activeDebounceMs = options.activeDebounceMs ?? DEFAULT_ACTIVE_DEBOUNCE_MS;
+    this.debounceMs = options.debounceMs ?? DEFAULT_SCAN_DEBOUNCE_MS;
+    this.activeDebounceMs = options.activeDebounceMs ?? DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   }
 
@@ -144,12 +149,18 @@ export class WorkspaceScanScheduler {
     for (const event of events) {
       const rel = path.relative(gitDir, event.path).replace(/\\/g, '/');
       if (rel.startsWith('..')) continue;
+      if (rel === 'FETCH_HEAD' || rel === 'ORIG_HEAD') {
+        // Rewritten on every fetch/reset even when nothing changed — ignoring them
+        // stops the 2-minute background fetch from fanning refs scans across every
+        // worktree. A real ref update still arrives via refs/remotes/* or packed-refs.
+        continue;
+      }
       if (rel.startsWith('worktrees/') || rel === 'worktrees') {
         worktrees = true;
       } else if (rel === 'index') {
         full = true;
       } else {
-        // refs/, HEAD, packed-refs, FETCH_HEAD, config, logs — all cheap-path triggers.
+        // refs/, HEAD, packed-refs, config, logs — all cheap-path triggers.
         refs = true;
       }
     }
