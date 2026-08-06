@@ -2,8 +2,8 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 

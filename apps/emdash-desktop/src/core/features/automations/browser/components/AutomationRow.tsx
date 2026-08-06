@@ -25,8 +25,8 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import type { Automation } from '@core/primitives/automations/api';
 import type { AutomationRunStatus } from '@core/primitives/automations/api';
-import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
 import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { formatRunTriggerKindLabel } from '../automation-run-format';

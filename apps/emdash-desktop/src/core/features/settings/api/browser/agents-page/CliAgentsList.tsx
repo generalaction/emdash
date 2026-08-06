@@ -1,9 +1,8 @@
+import { Label, Separator } from '@emdash/ui/react/primitives';
 import React, { useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import type { AgentPayload } from '@core/primitives/agents/api';
-import { Label } from '@core/primitives/ui/browser/label';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { AgentDetailSheet } from './AgentDetailSheet';
 import { AgentRow } from './AgentRow';
 

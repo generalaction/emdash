@@ -1,5 +1,5 @@
-import { Box } from '@react/primitives/box';
 import { Badge, type BadgeTone, type BadgeVariant } from '@react/primitives/badge';
+import { Box } from '@react/primitives/box';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { GitBranchIcon } from 'lucide-react';
 
@@ -47,10 +47,7 @@ export const WithIcon: Story = {
 
 export const PolymorphicRender: Story = {
   render: () => (
-    <Badge
-      tone="info"
-      render={<a href="#docs" />}
-    >
+    <Badge tone="info" render={<a href="#docs" />}>
       Rendered as anchor
     </Badge>
   ),

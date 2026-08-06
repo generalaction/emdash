@@ -1,3 +1,4 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { Terminal } from 'lucide-react';
 import { computed, makeObservable, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
@@ -8,7 +9,6 @@ import type {
   TerminalStore,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import type {
   ResolvedTab,
   TabBarItemProps,
@@ -151,7 +151,6 @@ const TerminalTabContent = observer(function TerminalTabContent({ host, ctx }: T
       autoFocus={activeTerminal !== null && host.resolvedActiveTabId === activeTab?.tabId}
       emptyState={
         <EmptyState
-          icon={<Terminal className="text-muted-foreground h-5 w-5" />}
           label={terminalManager?.isLoaded ? 'Terminal unavailable' : 'Loading terminal'}
           description={
             terminalManager?.isLoaded

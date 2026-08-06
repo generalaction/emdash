@@ -1,8 +1,8 @@
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
+import { svgContainer, svgSmSize } from '@styles/effects/svg-helpers.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
-import { svgContainer, svgSmSize } from '@styles/effects/svg-helpers.css';
 
 export const badge = recipe({
   base: [

@@ -1,9 +1,9 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
+import { labelBase } from '../label/label.css';
 import { vars } from '@theme/core/contract/contract.css';
 import { tokenVars } from '@theme/tokens.css';
-import { labelBase } from '../label/label.css';
 
 export const field = recipe({
   base: {

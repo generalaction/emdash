@@ -9,8 +9,8 @@ import { IntegrationIcon } from '@core/features/integrations/api/browser/integra
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Combobox,
   ComboboxContent,

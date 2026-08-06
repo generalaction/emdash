@@ -1,6 +1,6 @@
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox';
-import { CheckIcon } from 'lucide-react';
 import { cx } from '@styles/utilities/cx';
+import { CheckIcon } from 'lucide-react';
 import * as React from 'react';
 import * as styles from './checkbox.css';
 

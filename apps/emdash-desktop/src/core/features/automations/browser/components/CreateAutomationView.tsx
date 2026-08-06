@@ -1,3 +1,4 @@
+import { Label } from '@emdash/ui/react/primitives';
 import { CheckCircle2, ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -13,7 +14,6 @@ import {
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { Field } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
 import { SheetFooter } from '@core/primitives/ui/browser/sheet';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';

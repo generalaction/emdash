@@ -1,9 +1,9 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,

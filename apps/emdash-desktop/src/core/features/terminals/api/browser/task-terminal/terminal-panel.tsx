@@ -1,5 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
-import { ScrollText, Terminal } from 'lucide-react';
+import { EmptyState } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
@@ -13,7 +13,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { Button } from '@core/primitives/ui/browser/button';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { useTerminalShellAvailability } from '@renderer/lib/hooks/use-terminal-shell-availability';
@@ -177,7 +176,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const terminalEmptyState = (
     <EmptyState
-      icon={<Terminal className="text-muted-foreground h-5 w-5" />}
       label={activeTerminalIsOpenInMain ? 'Terminal open in main pane' : 'No terminals yet'}
       description={
         activeTerminalIsOpenInMain
@@ -202,7 +200,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const scriptsEmptyState = (
     <EmptyState
-      icon={<ScrollText className="text-muted-foreground h-5 w-5" />}
       label="No scripts configured"
       description="Add setup, run, or teardown scripts to your project configuration."
     />

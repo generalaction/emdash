@@ -1,10 +1,11 @@
 import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
+import { Spinner } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   joinMachineConversationRows,

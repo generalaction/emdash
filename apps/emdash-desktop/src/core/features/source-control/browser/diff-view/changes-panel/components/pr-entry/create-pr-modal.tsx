@@ -1,4 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
+import { Separator } from '@emdash/ui/react/primitives';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
@@ -24,7 +25,6 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { SplitButton } from '@core/primitives/ui/browser/split-button';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';

@@ -1,3 +1,4 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -10,10 +11,9 @@ import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-sel
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import {
   Select,

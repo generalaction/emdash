@@ -1,13 +1,13 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
 import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 

@@ -6,6 +6,7 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
+import { Spinner } from '@emdash/ui/react/primitives';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
@@ -13,7 +14,6 @@ import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/br
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import {
   Tooltip,
   TooltipContent,

@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
-import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 
 export function useTaskGitDiffStats(task: TaskStore): {

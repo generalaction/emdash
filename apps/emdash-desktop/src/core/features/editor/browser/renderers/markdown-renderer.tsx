@@ -1,3 +1,4 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
 import { readEditorImage } from '@core/features/editor/api/browser/files';
@@ -10,7 +11,6 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 

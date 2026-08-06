@@ -1,10 +1,11 @@
+import { Label } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -12,7 +13,6 @@ import {
 } from '@core/primitives/ui/browser/collapsible';
 import { Field } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
 import {
   Tooltip,
   TooltipContent,

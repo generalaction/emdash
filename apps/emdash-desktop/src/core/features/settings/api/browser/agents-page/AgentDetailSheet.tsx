@@ -1,9 +1,9 @@
+import { Label } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentSettings } from '@core/features/agents/api/browser/use-agent-settings';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { Field } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
 import { Sheet, SheetContent, SheetHeader } from '@core/primitives/ui/browser/sheet';
 import {
   AgentHooksSection,

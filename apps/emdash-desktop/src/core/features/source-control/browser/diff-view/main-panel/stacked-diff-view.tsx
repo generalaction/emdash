@@ -1,3 +1,4 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
@@ -15,7 +16,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { ShowHide } from '@core/primitives/ui/browser/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { StackedDiffPanelStore, type DiffSlotStore } from '../stores/stacked-diff-panel-store';

@@ -1,7 +1,7 @@
+import { Badge } from '@emdash/ui/react/primitives';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
-import { Badge } from '@core/primitives/ui/browser/badge';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Combobox,
@@ -165,12 +165,7 @@ export function BranchSelector({
               disabled={localCount === 0}
             >
               Local
-              <Badge
-                variant="secondary"
-                className="group-data-pressed:bg-background-quaternary-3 shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1"
-              >
-                {localCount}
-              </Badge>
+              <Badge>{localCount}</Badge>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="remote"
@@ -178,9 +173,7 @@ export function BranchSelector({
               disabled={remoteCount === 0}
             >
               Remote
-              <Badge variant="secondary" className="shrink-0 bg-background-2 transition-colors">
-                {remoteCount}
-              </Badge>
+              <Badge>{remoteCount}</Badge>
             </ToggleGroupItem>
           </ToggleGroup>
         )}

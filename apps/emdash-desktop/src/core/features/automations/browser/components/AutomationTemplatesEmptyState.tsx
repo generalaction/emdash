@@ -1,4 +1,4 @@
-import { Label } from '@core/primitives/ui/browser/label';
+import { Label } from '@emdash/ui/react/primitives';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { AutomationTemplateCard } from './AutomationTemplateCard';
 

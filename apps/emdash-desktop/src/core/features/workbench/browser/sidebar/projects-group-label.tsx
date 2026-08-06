@@ -1,3 +1,4 @@
+import { MicroLabel } from '@emdash/ui/react/primitives';
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
@@ -11,7 +12,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { sidebarStore } from '@renderer/lib/stores/app-state';

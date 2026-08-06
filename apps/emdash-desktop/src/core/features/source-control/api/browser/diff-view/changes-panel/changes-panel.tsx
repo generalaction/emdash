@@ -1,3 +1,4 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GitBranchPlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -17,9 +18,8 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { InitializeRepositoryError } from '@core/primitives/projects/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
+import { Button } from '@core/primitives/ui/browser/button';
 import {
   ResizableHandle,
   ResizablePanel,

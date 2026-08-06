@@ -1,4 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import { Label } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Clock3, ExternalLink, Info, Loader2 } from 'lucide-react';
 import { useAgentHooksStatus } from '@core/features/agents/api/browser/use-agent-hooks-status';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -6,7 +7,6 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { AgentPayload } from '@core/primitives/agents/api';
 import { Button } from '@core/primitives/ui/browser/button';
 import { Field } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
 import {
   Tooltip,
   TooltipContent,

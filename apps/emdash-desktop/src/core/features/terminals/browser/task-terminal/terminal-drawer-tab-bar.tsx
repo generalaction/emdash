@@ -16,8 +16,8 @@ import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
 import {
   DropdownMenu,

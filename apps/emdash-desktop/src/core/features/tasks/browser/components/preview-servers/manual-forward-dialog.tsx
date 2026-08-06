@@ -1,3 +1,4 @@
+import { Label } from '@emdash/ui/react/primitives';
 import { useState, type FormEvent } from 'react';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
@@ -11,7 +12,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
 
 function parsePort(value: string): number | undefined {
   const trimmed = value.trim();

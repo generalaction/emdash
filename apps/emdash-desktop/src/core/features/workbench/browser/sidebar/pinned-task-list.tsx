@@ -1,5 +1,5 @@
+import { MicroLabel } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { SidebarGroup, SidebarMenu } from './sidebar-primitives';
 import { SidebarTaskItem } from './task-item';

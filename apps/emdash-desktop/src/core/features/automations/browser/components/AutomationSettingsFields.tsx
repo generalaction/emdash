@@ -1,3 +1,4 @@
+import { Label } from '@emdash/ui/react/primitives';
 import { ProjectSelector } from '@core/features/tasks/api/browser/create-task-modal/project-selector';
 import { ConversationField } from '@core/features/tasks/api/browser/task-config/conversation-field';
 import { TaskConfigProvider } from '@core/features/tasks/api/browser/task-config/task-config-context';
@@ -5,7 +6,6 @@ import { TaskConfigPanel } from '@core/features/tasks/api/browser/task-config/ta
 import { TaskStateProvider } from '@core/features/tasks/api/browser/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-config/workspace-settings-section';
 import { Field, FieldError, FieldGroup } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import type { AutomationFormState } from '../useAutomationFormState';
 

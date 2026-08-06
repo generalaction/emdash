@@ -1,5 +1,6 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
+import { Label } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -14,7 +15,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { getSkillsClient } from '../client';

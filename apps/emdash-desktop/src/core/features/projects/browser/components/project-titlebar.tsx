@@ -1,3 +1,4 @@
+import { Separator } from '@emdash/ui/react/primitives';
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
@@ -19,7 +20,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@core/primitives/ui/browser/dropdown-menu';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 

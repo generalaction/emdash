@@ -10,6 +10,7 @@ import {
   defineSort,
   ListView,
 } from '@emdash/ui/react/patterns';
+import { Checkbox, Spinner } from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -20,13 +21,11 @@ import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/c
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import {
   Tooltip,
   TooltipContent,
