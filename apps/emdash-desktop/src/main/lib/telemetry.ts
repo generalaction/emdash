@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Disposable } from '@emdash/shared/concurrency';
+import { SPAWN_PURPOSES } from '@emdash/shared/perf';
 import type {
   TelemetryEnvelope,
   TelemetryEvent,
@@ -167,16 +168,7 @@ class DesktopTelemetryService implements Disposable, TelemetryServicePort {
       'loop_delay_p95_ms',
       'loop_delay_max_ms',
       'interval_ms',
-      'spawns_git',
-      'spawns_fetch',
-      'spawns_tmux',
-      'spawns_probe',
-      'spawns_pty',
-      'spawns_agent',
-      'spawns_worker',
-      'spawns_shell',
-      'spawns_ssh',
-      'spawns_other',
+      ...SPAWN_PURPOSES.map((purpose) => `spawns_${purpose}`),
       'app_process_count',
       'app_total_rss_mb',
       'renderer_rss_mb',

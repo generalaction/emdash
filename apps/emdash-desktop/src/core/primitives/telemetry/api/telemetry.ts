@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { SpawnPurpose } from '@emdash/shared/perf';
 import type {
   AutomationRunStatus,
   AutomationRunTriggerKind,
@@ -8,6 +9,11 @@ import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type { PullRequestMergeStrategy } from '@root/src/core/services/pull-requests/api';
 
 type EmptyProps = Record<string, never>;
+
+/** One `spawns_<purpose>` counter per spawn purpose, derived from SPAWN_PURPOSES. */
+type SpawnCountProps = {
+  [P in SpawnPurpose as `spawns_${P}`]?: number;
+};
 
 export type FocusView = 'home' | 'project' | 'task' | 'settings' | 'automations';
 export type FocusMainPanel = 'agents' | 'editor' | 'diff' | 'browser' | 'terminal';
@@ -164,21 +170,11 @@ export type TelemetryEventProperties = {
     loop_delay_p95_ms?: number;
     loop_delay_max_ms?: number;
     interval_ms?: number;
-    spawns_git?: number;
-    spawns_fetch?: number;
-    spawns_tmux?: number;
-    spawns_probe?: number;
-    spawns_pty?: number;
-    spawns_agent?: number;
-    spawns_worker?: number;
-    spawns_shell?: number;
-    spawns_ssh?: number;
-    spawns_other?: number;
     app_process_count?: number;
     app_total_rss_mb?: number;
     renderer_rss_mb?: number;
     gpu_rss_mb?: number;
-  };
+  } & SpawnCountProps;
   /** Sampled-session renderer responsiveness vitals (long tasks + INP). */
   perf_renderer_vitals: {
     long_tasks: number;

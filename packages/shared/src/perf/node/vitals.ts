@@ -2,7 +2,7 @@ import { monitorEventLoopDelay, performance, type IntervalHistogram } from 'node
 import v8 from 'node:v8';
 import { systemClock, type Clock } from '../../scheduling';
 import type { TimerHandle } from '../../scheduling/timer-handle';
-import { snapshotSpawnCounts, type SpawnPurpose } from '../spawn-metrics';
+import { snapshotSpawnCounts, SPAWN_PURPOSES } from '../spawn-metrics';
 
 /**
  * Numbers-only per-process performance vitals. Every value is a finite number
@@ -11,19 +11,6 @@ import { snapshotSpawnCounts, type SpawnPurpose } from '../spawn-metrics';
  * lines, no free-form strings.
  */
 export type ProcessVitals = Readonly<Record<string, number>>;
-
-const SPAWN_PURPOSES: readonly SpawnPurpose[] = [
-  'git',
-  'fetch',
-  'tmux',
-  'probe',
-  'pty',
-  'agent',
-  'worker',
-  'shell',
-  'ssh',
-  'other',
-];
 
 export const PERF_VITALS_ALLOWED_KEYS: readonly string[] = [
   'rss_mb',

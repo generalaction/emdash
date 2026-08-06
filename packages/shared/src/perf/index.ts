@@ -9,6 +9,7 @@ export {
   resetSpawnCounts,
   setSpawnObserver,
   snapshotSpawnCounts,
+  SPAWN_PURPOSES,
   type SpawnObserver,
   type SpawnPurpose,
 } from './spawn-metrics';

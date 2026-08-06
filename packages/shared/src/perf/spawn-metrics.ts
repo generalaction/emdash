@@ -8,17 +8,25 @@
  * separate (see dev-instruments.ts) and only runs when debug logging is enabled.
  */
 
-export type SpawnPurpose =
-  | 'git'
-  | 'fetch'
-  | 'tmux'
-  | 'probe'
-  | 'pty'
-  | 'agent'
-  | 'worker'
-  | 'shell'
-  | 'ssh'
-  | 'other';
+/**
+ * Single source of truth for the purpose key set — the `SpawnPurpose` union,
+ * the vitals iteration order, and the `spawns_*` telemetry field names are all
+ * derived from this array.
+ */
+export const SPAWN_PURPOSES = [
+  'git',
+  'fetch',
+  'tmux',
+  'probe',
+  'pty',
+  'agent',
+  'worker',
+  'shell',
+  'ssh',
+  'other',
+] as const;
+
+export type SpawnPurpose = (typeof SPAWN_PURPOSES)[number];
 
 export type SpawnObserver = (purpose: SpawnPurpose, command: string | undefined) => void;
 
