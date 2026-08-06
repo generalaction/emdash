@@ -14,7 +14,10 @@ for (const step of steps) {
     shell: process.platform === 'win32',
   });
   if (result.status !== 0) {
-    console.error(`\ncheck: failed at "pnpm run ${step}".`);
+    console.error(
+      `\ncheck: failed at "pnpm run ${step}".` +
+        '\nIf the failure looks environmental, run `pnpm run doctor` to rule out your setup.'
+    );
     process.exit(typeof result.status === 'number' ? result.status : 1);
   }
 }

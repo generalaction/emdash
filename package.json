@@ -12,6 +12,7 @@
     "typecheck": "nx run-many -t typecheck --all",
     "affected": "nx affected -t lint typecheck test",
     "check": "node tooling/scripts/check.mjs",
+    "doctor": "pnpm --dir apps/emdash-desktop run doctor",
     "generate:boundary-allowlists": "node tooling/scripts/generate-boundary-allowlists.mjs",
     "graph": "nx graph"
   },
