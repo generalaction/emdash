@@ -159,7 +159,7 @@ export function buildRecordingClient(
       if (!terminal) {
         throw new Error(`RecordingClient: terminal not found: ${params.terminalId}`);
       }
-      const snap = terminal.snapshot();
+      const snap = terminal.outputSnapshot();
       return {
         output: snap.output,
         truncated: snap.truncated,
