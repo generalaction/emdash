@@ -1,16 +1,7 @@
-import { Button, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 
@@ -21,9 +12,9 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
     <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
       <MicroLabel className="font-medium text-foreground-tertiary-passive">Projects</MicroLabel>
       <div className="flex items-center gap-1">
-        <DropdownMenu>
+        <DropdownMenu.Root>
           <Tooltip.Root>
-            <DropdownMenuTrigger
+            <DropdownMenu.Trigger
               render={
                 <Tooltip.Trigger
                   render={
@@ -36,26 +27,26 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
             />
             <Tooltip.Content>Sort by</Tooltip.Content>
           </Tooltip.Root>
-          <DropdownMenuContent className="min-w-48">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
-                <DropdownMenuRadioItem
+          <DropdownMenu.Content className="min-w-48">
+            <DropdownMenu.Group>
+              <DropdownMenu.Label>Sort by</DropdownMenu.Label>
+              <DropdownMenu.RadioGroup value={sidebarStore.taskSortBy}>
+                <DropdownMenu.RadioItem
                   value="created-at"
                   onClick={() => sidebarStore.applySort('created-at')}
                 >
                   Created at
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem
+                </DropdownMenu.RadioItem>
+                <DropdownMenu.RadioItem
                   value="updated-at"
                   onClick={() => sidebarStore.applySort('updated-at')}
                 >
                   Last used
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                </DropdownMenu.RadioItem>
+              </DropdownMenu.RadioGroup>
+            </DropdownMenu.Group>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
         <Tooltip.Root>
           <Tooltip.Trigger
             render={

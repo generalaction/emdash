@@ -1,4 +1,4 @@
-import { MicroLabel } from '@emdash/ui/react/primitives';
+import { DropdownMenu, MicroLabel } from '@emdash/ui/react/primitives';
 import {
   ChevronDown,
   Clipboard,
@@ -16,13 +16,6 @@ import {
 import type { PreviewServer } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   formatPreviewServerLabel,
@@ -45,8 +38,8 @@ export const PreviewServerPill = observer(function PreviewServerPill({
     : `${previewServerStatusLabel(server)} for ${formatPreviewServerLabel(server)}`;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
         render={
           <button
             type="button"
@@ -66,8 +59,8 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         )}
         <span>{formatPreviewServerLabel(server)}</span>
         <ChevronDown className="size-3 shrink-0" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" className="min-w-56">
         <div className="px-2 py-1.5">
           <MicroLabel className="mb-1 flex items-center">Preview</MicroLabel>
           <div className="truncate text-xs text-foreground-muted" title={url ?? undefined}>
@@ -84,8 +77,8 @@ export const PreviewServerPill = observer(function PreviewServerPill({
             <div className="mt-1 text-xs text-foreground-destructive">{server.status.message}</div>
           ) : null}
         </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item
           disabled={!canOpen}
           onClick={() => {
             if (canOpen && url) {
@@ -96,33 +89,33 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         >
           <Globe className="size-3.5" />
           Open in Emdash Browser
-        </DropdownMenuItem>
-        <DropdownMenuItem
+        </DropdownMenu.Item>
+        <DropdownMenu.Item
           disabled={!canOpen}
           onClick={() => canOpen && url && void rpc.app.openExternal(url)}
         >
           <ExternalLink className="size-3.5" />
           Open in System Browser
-        </DropdownMenuItem>
-        <DropdownMenuItem
+        </DropdownMenu.Item>
+        <DropdownMenu.Item
           disabled={!hasUrl}
           onClick={() => url && void rpc.app.clipboardWriteText(url)}
         >
           <Clipboard className="size-3.5" />
           Copy URL
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        </DropdownMenu.Item>
+        <DropdownMenu.Separator />
         {server.kind === 'forwarded' ? (
-          <DropdownMenuItem onClick={() => void previews.restart(server.id)}>
+          <DropdownMenu.Item onClick={() => void previews.restart(server.id)}>
             <RefreshCcw className="size-3.5" />
             Restart Forward
-          </DropdownMenuItem>
+          </DropdownMenu.Item>
         ) : null}
-        <DropdownMenuItem variant="destructive" onClick={() => void previews.stop(server.id)}>
+        <DropdownMenu.Item variant="destructive" onClick={() => void previews.stop(server.id)}>
           <Square className="size-3.5" />
           Stop
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 });

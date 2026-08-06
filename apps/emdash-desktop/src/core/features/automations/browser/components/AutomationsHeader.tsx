@@ -1,7 +1,7 @@
 import { PageLayout } from '@emdash/ui/react/patterns';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, SearchInput } from '@emdash/ui/react/primitives';
 import { Plus } from 'lucide-react';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 
 interface AutomationsHeaderProps {
   search: string;
@@ -16,6 +16,7 @@ export function AutomationsHeader({
   createPending,
   onNewAutomation,
 }: AutomationsHeaderProps) {
+  const searchRef = useSearchFocusHotkeys();
   return (
     <PageLayout.Header
       title={'Automations'}
@@ -23,6 +24,7 @@ export function AutomationsHeader({
       actions={
         <div className="flex items-center justify-between gap-2">
           <SearchInput
+            ref={searchRef}
             placeholder={'Search automations...'}
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}

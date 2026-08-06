@@ -1,5 +1,5 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
-import { Separator } from '@emdash/ui/react/primitives';
+import { Combobox, Separator, SplitButton } from '@emdash/ui/react/primitives';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
@@ -12,7 +12,6 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { Alert, AlertDescription, AlertTitle } from '@core/primitives/ui/browser/alert';
-import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
 import { BranchDisplay } from '@core/primitives/ui/browser/components/branch-display';
 import { RemoteSelectContent } from '@core/primitives/ui/browser/components/remote-select-content';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
@@ -25,7 +24,6 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
-import { SplitButton } from '@core/primitives/ui/browser/split-button';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { log } from '@renderer/utils/logger';
@@ -56,6 +54,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<GitBranchRef | undefined>();
   const [selectedTargetRemoteName, setSelectedTargetRemoteName] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
+  const [createActionId, setCreateActionId] = useState('push-and-create');
   const [error, setError] = useState<string | null>(null);
   const repo = getGitRepositoryStore(projectId);
   const defaultBranch = repo?.defaultBranch;
@@ -197,7 +196,7 @@ export const CreatePrModal = observer(function CreatePrModal({
             remoteName={targetRemote?.remote.name}
             branchLabelRemote="short"
             trigger={
-              <ComboboxTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border p-2 text-left outline-none">
+              <Combobox.Trigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border p-2 text-left outline-none">
                 <div className="flex flex-col gap-0.5 text-left text-sm">
                   <span className="text-xs text-foreground-passive">Base Branch</span>
                   <span className="flex items-center gap-1">
@@ -206,11 +205,11 @@ export const CreatePrModal = observer(function CreatePrModal({
                       strokeWidth={2}
                       className="size-3.5 shrink-0 text-foreground-muted"
                     />
-                    <ComboboxValue placeholder="Select a base branch" />
+                    <Combobox.Value placeholder="Select a base branch" />
                   </span>
                 </div>
                 <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-              </ComboboxTrigger>
+              </Combobox.Trigger>
             }
           />
         </div>
@@ -251,19 +250,21 @@ export const CreatePrModal = observer(function CreatePrModal({
             loading={isCreating}
             loadingLabel="Creating..."
             disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim()}
-            actions={[
+            options={[
               {
-                value: 'push-and-create',
+                id: 'push-and-create',
                 label: draft ? 'Push & Create Draft' : 'Push & Create PR',
-                action: () => void doCreate(true),
               },
               {
-                value: 'create-only',
+                id: 'create-only',
                 label: draft ? 'Create Draft' : 'Create PR',
                 description: 'Skip push and open a PR from the current remote state',
-                action: () => void doCreate(false),
               },
             ]}
+            selectedId={createActionId}
+            onSelectedChange={setCreateActionId}
+            commitOnSelect={false}
+            onAction={(id) => void doCreate(id === 'push-and-create')}
           />
         ) : (
           <ConfirmButton

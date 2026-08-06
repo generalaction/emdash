@@ -1,16 +1,9 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives';
 import { Ellipsis, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { useAutomationTargetAvailability, useRunAutomationNow } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
@@ -83,17 +76,17 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             />
           </div>
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger render={<Button variant="ghost" size="sm" />}>
                 <Ellipsis className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="bottom" align="end">
-                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content side="bottom" align="end">
+                <DropdownMenu.Item variant="destructive" onClick={() => onDelete?.(automation)}>
                   <Trash2 />
                   Delete automation
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
             <Switch
               checked={automation.enabled}
               disabled={!canEdit}
@@ -113,7 +106,18 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           runtimeAvailable={canEdit}
         />
         <div className="flex items-center gap-2 py-2">
-          <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
+          <Tabs.Root
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as AutomationTab)}
+          >
+            <Tabs.List>
+              {AUTOMATION_TABS.map(({ value, label }) => (
+                <Tabs.Tab key={value} value={value}>
+                  {label}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs.Root>
           {activeTab === 'runs' && (
             <div className="ml-auto flex items-center gap-1">
               <Tooltip.Root>

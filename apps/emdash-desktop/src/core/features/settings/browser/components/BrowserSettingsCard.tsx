@@ -1,4 +1,4 @@
-import { Button, toast } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, toast } from '@emdash/ui/react/primitives';
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -16,13 +16,6 @@ import {
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { Input } from '@core/primitives/ui/browser/input';
 import {
   Select,
@@ -237,8 +230,8 @@ export function BrowserSettingsCard() {
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {profile.name}
                   </span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger
                       render={
                         <Button
                           type="button"
@@ -251,31 +244,31 @@ export function BrowserSettingsCard() {
                       }
                     >
                       <Ellipsis className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content
                       align="end"
                       className="min-w-40"
                       finalFocus={renameInputRef}
                     >
-                      <DropdownMenuItem onClick={() => setEditingProfileId(profile.id)}>
+                      <DropdownMenu.Item onClick={() => setEditingProfileId(profile.id)}>
                         <Pencil className="size-4" />
                         Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => clearProfileStorage(profile)}>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item onClick={() => clearProfileStorage(profile)}>
                         <Eraser className="size-4" />
                         Clear storage
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item
                         variant="destructive"
                         disabled={profiles.length <= 1}
                         onClick={() => deleteProfile(profile)}
                       >
                         <Trash2 className="size-4" />
                         Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
                 </>
               )}
             </div>

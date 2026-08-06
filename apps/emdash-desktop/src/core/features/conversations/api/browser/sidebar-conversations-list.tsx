@@ -1,6 +1,14 @@
 import { AgentStatus, ListPopoverCard } from '@emdash/ui/react/components';
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
-import { Button, Checkbox, MicroLabel, Spinner, toast } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  Checkbox,
+  ContextMenu,
+  MicroLabel,
+  RelativeTime,
+  Spinner,
+  toast,
+} from '@emdash/ui/react/primitives';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -28,14 +36,6 @@ import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-r
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { getAcpChatResourceManager } from '../../browser/acp/acp-chat-resource-manager';
 import { ConversationAgentIcon } from '../../browser/conversation-agent-icon';
 import { ConversationSelectionControl } from '../../browser/conversation-selection-control';
@@ -180,8 +180,8 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>
         <div
           role="button"
           tabIndex={0}
@@ -249,41 +249,41 @@ const ConversationRow = observer(function ConversationRow({
             )}
           </ConversationSelectionControl>
         </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent finalFocus={false}>
-        <ContextMenuItem onClick={handleRename}>
+      </ContextMenu.Trigger>
+      <ContextMenu.Content finalFocus={false}>
+        <ContextMenu.Item onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
-        </ContextMenuItem>
+        </ContextMenu.Item>
         {conversation.data.type === 'acp' && (
           <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => handleExport('parsed')}>
+            <ContextMenu.Separator />
+            <ContextMenu.Item onClick={() => handleExport('parsed')}>
               <Download className="size-4" />
               Export transcript
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => handleExport('raw')}>
+            </ContextMenu.Item>
+            <ContextMenu.Item onClick={() => handleExport('raw')}>
               <Download className="size-4" />
               Export raw ACP log
-            </ContextMenuItem>
+            </ContextMenu.Item>
           </>
         )}
         {isSessionActive && (
           <>
-            <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" onClick={handleKillSession}>
+            <ContextMenu.Separator />
+            <ContextMenu.Item variant="destructive" onClick={handleKillSession}>
               <Square className="size-4" />
               Kill session
-            </ContextMenuItem>
+            </ContextMenu.Item>
           </>
         )}
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" disabled={deleting} onClick={handleDelete}>
+        <ContextMenu.Separator />
+        <ContextMenu.Item variant="destructive" disabled={deleting} onClick={handleDelete}>
           <Trash2 className="size-4" />
           Delete
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        </ContextMenu.Item>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 });
 

@@ -1,18 +1,8 @@
+import { Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useChordKeydown } from '@core/primitives/keybindings/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from '@core/primitives/ui/browser/combobox';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { buildContextActionText, type ContextAction } from '../context-bar/context-actions';
@@ -160,7 +150,7 @@ export function AddContextPopover({
   };
 
   return (
-    <Combobox
+    <Combobox.Root
       items={[{ value: 'items', items: filteredActions }]}
       value={null}
       onInputValueChange={(value) => setQuery(value ?? '')}
@@ -173,7 +163,7 @@ export function AddContextPopover({
       // but the runtime accepts the string literal
       autoHighlight={'always' as unknown as boolean}
     >
-      <ComboboxTrigger
+      <Combobox.Trigger
         disabled={disabled}
         onContextMenuCapture={() => blockComboboxOpenForContextMenu()}
         onPointerDownCapture={(event) => {
@@ -211,9 +201,9 @@ export function AddContextPopover({
             <Shortcut hotkey={ADD_CONTEXT_HOTKEY} variant="keycaps" />
           </>
         )}
-      </ComboboxTrigger>
+      </Combobox.Trigger>
 
-      <ComboboxContent
+      <Combobox.Content
         side={side}
         align="center"
         className="flex min-h-[200px] max-w-[92vw] min-w-[440px] flex-col"
@@ -224,34 +214,34 @@ export function AddContextPopover({
           }
         }}
       >
-        <ComboboxInput showTrigger={false} placeholder="Search..." />
-        <ComboboxList className="flex-1">
+        <Combobox.Input showTrigger={false} placeholder="Search..." />
+        <Combobox.List className="flex-1">
           {(group: { value: string; items: ContextAction[] }) => (
-            <ComboboxGroup items={group.items}>
-              <ComboboxCollection>
+            <Combobox.Group items={group.items}>
+              <Combobox.Collection>
                 {(action: ContextAction) => (
-                  <ComboboxItem
+                  <Combobox.Item
                     key={action.id}
                     value={action}
                     className="items-start data-highlighted:bg-background-2!"
                   >
                     <ActionItemRow action={action} />
-                  </ComboboxItem>
+                  </Combobox.Item>
                 )}
-              </ComboboxCollection>
-            </ComboboxGroup>
+              </Combobox.Collection>
+            </Combobox.Group>
           )}
-        </ComboboxList>
-        <ComboboxEmpty className="flex flex-1 items-center justify-center">
+        </Combobox.List>
+        <Combobox.Empty className="flex flex-1 items-center justify-center">
           {emptyMessage}
-        </ComboboxEmpty>
+        </Combobox.Empty>
         <div className="flex items-center justify-end border-t px-2 py-1.5">
           <span className="flex items-center gap-1">
             <p className="text-xs text-foreground-passive">Add to input</p>
             <Shortcut hotkey="Enter" variant="keycaps" />
           </span>
         </div>
-      </ComboboxContent>
-    </Combobox>
+      </Combobox.Content>
+    </Combobox.Root>
   );
 }

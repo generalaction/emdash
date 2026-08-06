@@ -1,9 +1,8 @@
 import { AgentStatus, BrailleSpinner } from '@emdash/ui/react/components';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { getSortInstant, sortKindFor } from './sidebar-store';

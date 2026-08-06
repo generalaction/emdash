@@ -1,5 +1,5 @@
 import { AgentStatus } from '@emdash/ui/react/components';
-import { Checkbox } from '@emdash/ui/react/primitives';
+import { Checkbox, RelativeTime } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { StackedAgentLogos } from '@core/features/agents/api/browser/components/stacked-agent-logos';
@@ -17,7 +17,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { type Task } from '@core/primitives/tasks/api';
 import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 

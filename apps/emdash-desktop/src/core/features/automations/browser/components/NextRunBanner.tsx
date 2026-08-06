@@ -1,5 +1,5 @@
+import { AbsoluteTime } from '@emdash/ui/react/primitives';
 import { Clock } from 'lucide-react';
-import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
 import { useScheduledAutomationRun } from '../use-automations';
 
 interface NextRunBannerProps {

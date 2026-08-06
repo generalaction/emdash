@@ -1,5 +1,5 @@
 import { EmptyState, ListPopoverCard } from '@emdash/ui/react/components';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, SearchInput, ToggleGroup } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -12,8 +12,8 @@ import { deleteSelectedTasks } from '@core/features/tasks/api/browser/delete-sel
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import {
   Select,
   SelectContent,
@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from '@core/primitives/ui/browser/select';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
@@ -186,6 +185,7 @@ export const TaskList = observer(function TaskList() {
   const taskManager = getTaskManagerStore(projectId);
   const projectView = getProjectViewStore(projectId);
   const openCreateTaskModal = useOpenModal('taskModal');
+  const searchRef = useSearchFocusHotkeys();
 
   const taskView = projectView?.taskView ?? null;
   const implementation = {
@@ -250,18 +250,21 @@ export const TaskList = observer(function TaskList() {
       >
         <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <ToggleGroup
+            <ToggleGroup.Root
               multiple={false}
               value={[taskView.tab]}
               onValueChange={([value]) => {
                 if (value) taskView.setTab(value as 'active' | 'archived');
               }}
             >
-              <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
-              <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
-            </ToggleGroup>
+              <ToggleGroup.Item value="active">Active ({activeTasks.length})</ToggleGroup.Item>
+              <ToggleGroup.Item value="archived">
+                Archived ({archivedTasks.length})
+              </ToggleGroup.Item>
+            </ToggleGroup.Root>
             <div className="flex items-center gap-2">
               <SearchInput
+                ref={searchRef}
                 placeholder="Search tasks…"
                 value={taskView.searchQuery}
                 onChange={(e) => taskView.setSearchQuery(e.target.value)}

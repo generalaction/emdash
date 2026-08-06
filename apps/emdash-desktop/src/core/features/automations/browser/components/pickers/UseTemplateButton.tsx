@@ -1,13 +1,6 @@
+import { DropdownMenu } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import type { BuiltinAutomationTemplate } from '../../automation-template';
 import { emptyStateAutomationTemplates } from '../../builtin-catalog';
 
@@ -19,8 +12,8 @@ interface UseTemplateButtonProps {
 
 export function UseTemplateButton({ open, onOpenChange, onSelect }: UseTemplateButtonProps) {
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger
+    <DropdownMenu.Root open={open} onOpenChange={onOpenChange}>
+      <DropdownMenu.Trigger
         render={
           <button
             className={cn(
@@ -33,23 +26,23 @@ export function UseTemplateButton({ open, onOpenChange, onSelect }: UseTemplateB
       >
         <span>Use template</span>
         <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1 text-[11px] tracking-wider uppercase">
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" className="w-80">
+        <DropdownMenu.Group>
+          <DropdownMenu.Label className="px-2 py-1 text-[11px] tracking-wider uppercase">
             Templates
-          </DropdownMenuLabel>
+          </DropdownMenu.Label>
           {emptyStateAutomationTemplates.map((template) => (
-            <DropdownMenuItem
+            <DropdownMenu.Item
               key={template.id}
               onClick={() => onSelect(template)}
               className="flex-col items-start gap-0.5 py-1.5"
             >
               <span className="text-sm font-medium text-foreground">{template.name}</span>
-            </DropdownMenuItem>
+            </DropdownMenu.Item>
           ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenu.Group>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 }

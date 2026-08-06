@@ -1,4 +1,10 @@
-import { Button } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  ContextMenu,
+  Popover,
+  SearchInput,
+  ToggleGroup,
+} from '@emdash/ui/react/primitives';
 import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
@@ -11,15 +17,8 @@ import {
 } from '@core/features/projects/browser/components/pr-view/usePrViewState';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import {
   Select,
   SelectContent,
@@ -27,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@core/primitives/ui/browser/select';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import type { PullRequestSort } from '@root/src/core/services/pull-requests/api';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
@@ -52,8 +50,8 @@ function FilterButton({
   children: React.ReactNode;
 }) {
   return (
-    <Popover>
-      <PopoverTrigger
+    <Popover.Root>
+      <Popover.Trigger
         disabled={disabled}
         className={
           'flex items-center gap-1 text-sm hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40' +
@@ -62,11 +60,11 @@ function FilterButton({
       >
         {label}
         <ChevronDownIcon className="size-3.5" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 gap-0 p-2">
+      </Popover.Trigger>
+      <Popover.Content align="start" className="w-56 gap-0 p-2">
         {children}
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   );
 }
 
@@ -270,31 +268,33 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
     selectedLabelItems,
     hasPills,
   } = usePrViewState(repositoryUrl);
+  const searchRef = useSearchFocusHotkeys();
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
       {/* ── Header controls ── */}
       <div className="flex flex-col gap-4 border-b border-border pb-2">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-          <ToggleGroup
+          <ToggleGroup.Root
             value={[statusFilter]}
             onValueChange={(values) => {
               const next = values.find((v) => v !== statusFilter) ?? statusFilter;
               handleStatusChange(next as StatusFilter);
             }}
           >
-            <ToggleGroupItem value="open">Open</ToggleGroupItem>
-            <ToggleGroupItem value="not-open">Closed</ToggleGroupItem>
-          </ToggleGroup>
+            <ToggleGroup.Item value="open">Open</ToggleGroup.Item>
+            <ToggleGroup.Item value="not-open">Closed</ToggleGroup.Item>
+          </ToggleGroup.Root>
 
           <div className="flex items-center gap-2">
             <SearchInput
+              ref={searchRef}
               placeholder="Search by title, branch, or number..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <ContextMenu>
-              <ContextMenuTrigger>
+            <ContextMenu.Root>
+              <ContextMenu.Trigger>
                 <Button variant="secondary" icon onClick={handleRefresh} disabled={syncing}>
                   <motion.div
                     animate={syncing ? { rotate: 360 } : {}}
@@ -303,14 +303,14 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
                     <RefreshCw className="size-3.5" />
                   </motion.div>
                 </Button>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onClick={handleForceFullSync} disabled={syncing}>
+              </ContextMenu.Trigger>
+              <ContextMenu.Content>
+                <ContextMenu.Item onClick={handleForceFullSync} disabled={syncing}>
                   <RefreshCw className="size-4" />
                   Force full sync
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
+                </ContextMenu.Item>
+              </ContextMenu.Content>
+            </ContextMenu.Root>
           </div>
         </div>
 

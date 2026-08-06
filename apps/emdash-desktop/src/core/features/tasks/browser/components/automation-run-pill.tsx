@@ -1,12 +1,10 @@
-import { Button, MicroLabel, Separator } from '@emdash/ui/react/primitives';
+import { Button, MicroLabel, Popover, RelativeTime, Separator } from '@emdash/ui/react/primitives';
 import { Clock } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { registeredTaskData } from '@core/primitives/task-state/browser/task-state';
-import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 
 type AutomationRunPillProps = {
   taskStore: TaskStore;
@@ -35,8 +33,8 @@ export const AutomationRunPill = observer(function AutomationRunPill({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
         className={cn(
           'ml-1 flex items-center gap-1.5 rounded-lg px-2 py-1 bg-background-1',
           'text-xs text-foreground-muted hover:border-border-muted hover:text-foreground',
@@ -48,8 +46,8 @@ export const AutomationRunPill = observer(function AutomationRunPill({
         {timestamp != null && (
           <RelativeTime value={timestamp} compact className="text-foreground-passive" />
         )}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-72 flex-col gap-3 p-4">
+      </Popover.Trigger>
+      <Popover.Content align="start" className="flex w-72 flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
           <MicroLabel className="text-foreground-passive">Automation</MicroLabel>
           <span className="text-sm tracking-tight">{automationName}</span>
@@ -84,7 +82,7 @@ export const AutomationRunPill = observer(function AutomationRunPill({
             </div>
           </>
         )}
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   );
 });

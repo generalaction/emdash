@@ -1,4 +1,4 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { ContextMenu, Tooltip } from '@emdash/ui/react/primitives';
 import {
   CableIcon,
   ChevronRight,
@@ -29,13 +29,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import {
   useNavigate,
@@ -129,8 +122,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>
         <SidebarMenuRow
           className={cn('group/row h-8 justify-between flex px-1')}
           data-active={isProjectActive || undefined}
@@ -215,11 +208,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             </Tooltip.Content>
           </Tooltip.Root>
         </SidebarMenuRow>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
+      </ContextMenu.Trigger>
+      <ContextMenu.Content>
         {sshConnectionId && (
           <>
-            <ContextMenuItem
+            <ContextMenu.Item
               disabled={!canReconnect}
               onClick={() => {
                 void appState.machines.connect(sshConnectionId).catch(() => {});
@@ -227,8 +220,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <RotateCcw className="size-4" />
               Reconnect
-            </ContextMenuItem>
-            <ContextMenuItem
+            </ContextMenu.Item>
+            <ContextMenu.Item
               onClick={() => {
                 void openChangeConnectionModal({
                   projectId,
@@ -238,11 +231,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <CableIcon className="size-4" />
               Change SSH Connection
-            </ContextMenuItem>
-            <ContextMenuSeparator />
+            </ContextMenu.Item>
+            <ContextMenu.Separator />
           </>
         )}
-        <ContextMenuItem
+        <ContextMenu.Item
           variant="destructive"
           onClick={() => {
             void confirmDeleteProject({
@@ -253,9 +246,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         >
           <Trash2 className="size-4" />
           Remove Project
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        </ContextMenu.Item>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 });
 

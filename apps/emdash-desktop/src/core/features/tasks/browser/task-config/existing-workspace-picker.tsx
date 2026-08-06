@@ -1,17 +1,9 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Combobox, Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from '@core/primitives/ui/browser/combobox';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
@@ -115,7 +107,7 @@ export function ExistingWorkspacePicker({
   }
 
   return (
-    <Combobox
+    <Combobox.Root
       value={selected}
       onValueChange={(ws: ProjectWorkspace | null) => {
         if (ws) onSelect(ws.id);
@@ -125,38 +117,38 @@ export function ExistingWorkspacePicker({
       }}
       isItemEqualToValue={(a: ProjectWorkspace, b: ProjectWorkspace) => a.id === b.id}
     >
-      <ComboboxTrigger className="data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 text-sm transition-colors outline-none hover:bg-background-2">
+      <Combobox.Trigger className="data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 text-sm transition-colors outline-none hover:bg-background-2">
         {selected ? (
           <WorkspaceItemContent ws={selected} />
         ) : (
           <span className="text-foreground-muted">Select a workspace…</span>
         )}
         <ChevronsUpDown className="size-4 shrink-0 text-foreground-passive" />
-      </ComboboxTrigger>
-      <ComboboxContent>
-        <ComboboxInput
+      </Combobox.Trigger>
+      <Combobox.Content>
+        <Combobox.Input
           value={query}
           onChange={(e) => setQuery((e.target as HTMLInputElement).value)}
           placeholder="Search workspaces…"
           showTrigger={false}
         />
-        <ComboboxList className="max-h-52 overflow-y-auto p-1!">
+        <Combobox.List className="max-h-52 overflow-y-auto p-1!">
           {filtered.map((ws) => (
-            <ComboboxItem
+            <Combobox.Item
               key={ws.id}
               value={ws}
               showCheck={false}
               className="items-start py-2 pr-3"
             >
               <WorkspaceItemContent ws={ws} />
-            </ComboboxItem>
+            </Combobox.Item>
           ))}
           {filtered.length === 0 && (
             <EmptyState label="No workspaces found" className="border-none bg-transparent" />
           )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+        </Combobox.List>
+      </Combobox.Content>
+    </Combobox.Root>
   );
 }
 

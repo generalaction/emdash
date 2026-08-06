@@ -1,8 +1,7 @@
-import { Button, Spinner, toast } from '@emdash/ui/react/primitives';
+import { Button, RelativeTime, Spinner, toast } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceRow,

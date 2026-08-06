@@ -1,12 +1,6 @@
+import { ContextMenu } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
 import { BoundShortcut, Shortcut } from '@core/primitives/ui/browser/shortcut';
 import type { TabHost } from '@core/primitives/workbench-shell/browser/tabs/core/tab-host';
 import type {
@@ -73,25 +67,25 @@ export const TabContextMenu = observer(function TabContextMenu({
   const visibleKind = kindCommands.filter((c) => c.isAvailable?.() !== false);
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger className="flex h-full">{children}</ContextMenuTrigger>
-      <ContextMenuContent finalFocus={false}>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger className="flex h-full">{children}</ContextMenu.Trigger>
+      <ContextMenu.Content finalFocus={false}>
         {visibleEngine.map((cmd) => (
-          <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
+          <ContextMenu.Item key={cmd.id} onClick={() => void cmd.run()}>
             {cmd.icon ? <cmd.icon className="size-4" /> : null}
             {cmd.label}
             <CmdShortcut shortcut={cmd.shortcut} />
-          </ContextMenuItem>
+          </ContextMenu.Item>
         ))}
-        {visibleKind.length > 0 && visibleEngine.length > 0 && <ContextMenuSeparator />}
+        {visibleKind.length > 0 && visibleEngine.length > 0 && <ContextMenu.Separator />}
         {visibleKind.map((cmd) => (
-          <ContextMenuItem key={cmd.id} onClick={() => void cmd.run()}>
+          <ContextMenu.Item key={cmd.id} onClick={() => void cmd.run()}>
             {cmd.icon ? <cmd.icon className="size-4" /> : null}
             {cmd.label}
             <CmdShortcut shortcut={cmd.shortcut} />
-          </ContextMenuItem>
+          </ContextMenu.Item>
         ))}
-      </ContextMenuContent>
-    </ContextMenu>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 });

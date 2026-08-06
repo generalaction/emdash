@@ -6,14 +6,13 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
-import { Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
+import { RelativeTime, Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import type {
   ProjectWorkspaceGitStats,
   ProjectWorkspacePathIssue,

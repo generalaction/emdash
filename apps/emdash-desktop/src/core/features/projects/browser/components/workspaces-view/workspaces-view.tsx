@@ -12,7 +12,14 @@ import {
   ListView,
   PageLayout,
 } from '@emdash/ui/react/patterns';
-import { Button, Checkbox, Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  Checkbox,
+  SearchInput,
+  Spinner,
+  toast,
+  Tooltip,
+} from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -22,9 +29,9 @@ import { projectWorkspacesContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceActionResult,
@@ -274,6 +281,7 @@ const WorkspacesHeader = observer(function WorkspacesHeader({
   view: ProjectWorkspacesListView;
 }) {
   const search = view.useSearch();
+  const searchRef = useSearchFocusHotkeys();
   const filter = view.useFilter();
   const loading = store.status === 'loading' || store.measuring;
 
@@ -283,13 +291,15 @@ const WorkspacesHeader = observer(function WorkspacesHeader({
       description="Review repository workspaces, linked tasks, and reclaimable artifacts."
       actions={
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <SearchInput
-            containerClassName="min-w-64 flex-1"
-            className="h-8"
-            placeholder="Search workspaces, branches, tasks..."
-            value={search.query}
-            onChange={(event) => search.setQuery(event.target.value)}
-          />
+          <div className="min-w-64 flex-1">
+            <SearchInput
+              ref={searchRef}
+              className="h-8"
+              placeholder="Search workspaces, branches, tasks..."
+              value={search.query}
+              onChange={(event) => search.setQuery(event.target.value)}
+            />
+          </div>
           <div className="flex items-center gap-3">
             {(['all', 'used', 'unused'] as const).map((usage) => (
               <ListView.FilterButton

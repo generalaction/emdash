@@ -1,12 +1,7 @@
+import { Collapsible, Tabs } from '@emdash/ui/react/primitives';
 import { ChevronRight } from 'lucide-react';
 import { useTaskState } from '@core/features/tasks/api/browser/task-config/task-state-context';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@core/primitives/ui/browser/collapsible';
-import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
 import { CheckoutPrPanel } from '../../../browser/task-config/checkout-pr-panel';
 import { useProjectWorkspaces } from '../../../browser/task-config/existing-workspace-picker';
@@ -57,14 +52,15 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
         hasExistingWorkspaces={existingWorkspaces.length > 0}
         worktreesDisabledReason={worktreesDisabledReason}
       />
-      <Collapsible
+      <Collapsible.Root
         key={presetId}
         defaultOpen={hasSettings && defaultOpen}
         disabled={!hasSettings}
         className="group flex flex-col gap-1.5"
       >
         <div className="flex h-9 items-center justify-between">
-          <CollapsibleTrigger
+          <Collapsible.Trigger
+            hideChevron
             className={cn(
               'flex w-full items-center gap-2 text-sm outline-none',
               !hasSettings && 'cursor-not-allowed opacity-40'
@@ -74,27 +70,27 @@ export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettin
               <span className="text-foreground-muted">Settings</span>
               <ChevronRight className="ml-auto size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-90" />
             </span>
-          </CollapsibleTrigger>
+          </Collapsible.Trigger>
           {presetId === 'new-worktree' && (
-            <PanelTabs
-              compact
+            <Tabs.Root
               className="ml-auto"
               value={createBranchAndWorktree ? 'create' : 'checkout'}
-              onChange={(v: 'checkout' | 'create') => setCreateBranchAndWorktree(v === 'create')}
-              tabs={[
-                { value: 'checkout', label: 'Checkout branch' },
-                { value: 'create', label: 'Create new branch' },
-              ]}
-            />
+              onValueChange={(v) => setCreateBranchAndWorktree(v === 'create')}
+            >
+              <Tabs.List>
+                <Tabs.Tab value="checkout">Checkout branch</Tabs.Tab>
+                <Tabs.Tab value="create">Create new branch</Tabs.Tab>
+              </Tabs.List>
+            </Tabs.Root>
           )}
         </div>
 
         {hasSettings && (
-          <CollapsibleContent className="flex flex-col gap-3">
+          <Collapsible.Panel className="flex flex-col gap-3">
             <Panel workspaceConfig={workspaceConfig} projectId={projectId} isUnborn={isUnborn} />
-          </CollapsibleContent>
+          </Collapsible.Panel>
         )}
-      </Collapsible>
+      </Collapsible.Root>
     </div>
   );
 }

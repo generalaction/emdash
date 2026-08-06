@@ -1,14 +1,13 @@
 import { EmptyState } from '@emdash/ui/react/components';
 import { ListView, PageLayout } from '@emdash/ui/react/patterns';
-import { Button, toast } from '@emdash/ui/react/primitives';
+import { Button, SearchInput, toast } from '@emdash/ui/react/primitives';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
-
 type PromptListItem = {
   id: string;
   title: string;
@@ -85,6 +84,7 @@ export function PromptLibraryView() {
   const openPromptModal = useOpenModal('promptModal');
   const openConfirm = useOpenModal('confirmActionModal');
   const [search, setSearch] = useState('');
+  const searchRef = useSearchFocusHotkeys();
 
   const promptLibrary = useMemo(() => promptLibraryValue ?? [], [promptLibraryValue]);
   const isDisabled = isPromptLibraryLoading || isPromptLibrarySaving;
@@ -145,6 +145,7 @@ export function PromptLibraryView() {
         actions={
           <div className="flex w-full justify-between gap-2">
             <SearchInput
+              ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search prompts..."

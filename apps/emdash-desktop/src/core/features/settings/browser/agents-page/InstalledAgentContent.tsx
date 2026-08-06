@@ -1,15 +1,10 @@
-import { Button, Label, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Collapsible, Label, Tooltip } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@core/primitives/ui/browser/collapsible';
 import { Field } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
@@ -116,8 +111,9 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
+        <Collapsible.Trigger
+          hideChevron
           type="button"
           className="flex w-full items-center justify-between rounded-md py-2 text-sm font-medium text-foreground-muted hover:text-foreground"
         >
@@ -142,9 +138,9 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
               Reset to defaults
             </Button>
           )}
-        </CollapsibleTrigger>
+        </Collapsible.Trigger>
 
-        <CollapsibleContent className="space-y-4 rounded-lg border p-3">
+        <Collapsible.Panel className="space-y-4 rounded-lg border p-3">
           {/* Additional parameters */}
           <form.Field name="extraArgs">
             {(field) => (
@@ -247,8 +243,8 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
               Custom configuration is applied
             </div>
           )}
-        </CollapsibleContent>
-      </Collapsible>
+        </Collapsible.Panel>
+      </Collapsible.Root>
     </div>
   );
 });

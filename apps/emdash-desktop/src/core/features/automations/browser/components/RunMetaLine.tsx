@@ -1,9 +1,9 @@
+import { AbsoluteTime } from '@emdash/ui/react/primitives';
 import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
 } from '@core/features/automations/api/automation-run';
-import { AbsoluteTime } from '@core/primitives/ui/browser/absolute-time';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 import { RunStatusBadge } from './RunStatusBadge';
 

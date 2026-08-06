@@ -3,12 +3,11 @@ import {
   type WorkspaceIconStatus,
   type WorkspacesListItem,
 } from '@emdash/ui/react/components';
-import { Button, SearchInput, Spinner } from '@emdash/ui/react/primitives';
+import { Button, RelativeTime, SearchInput, Spinner } from '@emdash/ui/react/primitives';
 import { PlusIcon, WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import {
   useWorkspaceRows,
   type WorkspaceRowsGroup,

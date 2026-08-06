@@ -1,5 +1,6 @@
 import type { Commit, GitChange, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { EmptyState } from '@emdash/ui/react/components';
+import { RelativeTime } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -11,7 +12,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { activeDiffEntry } from '../../../pane-selectors';
 import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';
 import { ChangesListItem } from '../changes-list-item';

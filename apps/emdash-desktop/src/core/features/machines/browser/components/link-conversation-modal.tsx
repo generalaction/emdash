@@ -1,19 +1,11 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Button, ModalLayout } from '@emdash/ui/react/primitives';
+import { Button, Combobox, ModalLayout } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { getMachinesPageWireClient } from '@core/features/machines/api/browser/client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from '@core/primitives/ui/browser/combobox';
 import {
   DialogContentArea,
   DialogFooter,
@@ -88,7 +80,7 @@ function OptionCombobox({
     : options;
 
   return (
-    <Combobox
+    <Combobox.Root
       value={value}
       onValueChange={onChange}
       onOpenChange={(open) => {
@@ -97,33 +89,33 @@ function OptionCombobox({
       isItemEqualToValue={(a: PickerOption, b: PickerOption) => a.id === b.id}
       disabled={disabled}
     >
-      <ComboboxTrigger className="data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 text-sm transition-colors outline-none hover:bg-background-2 disabled:opacity-50">
+      <Combobox.Trigger className="data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 text-sm transition-colors outline-none hover:bg-background-2 disabled:opacity-50">
         {value ? (
           <span className="truncate">{value.name}</span>
         ) : (
           <span className="text-foreground-muted">{placeholder}</span>
         )}
         <ChevronsUpDown className="size-4 shrink-0 text-foreground-passive" />
-      </ComboboxTrigger>
-      <ComboboxContent>
-        <ComboboxInput
+      </Combobox.Trigger>
+      <Combobox.Content>
+        <Combobox.Input
           value={query}
           onChange={(event) => setQuery((event.target as HTMLInputElement).value)}
           placeholder="Search…"
           showTrigger={false}
         />
-        <ComboboxList className="max-h-52 overflow-y-auto p-1!">
+        <Combobox.List className="max-h-52 overflow-y-auto p-1!">
           {filtered.map((option) => (
-            <ComboboxItem key={option.id} value={option} showCheck={false} className="py-2 pr-3">
+            <Combobox.Item key={option.id} value={option} showCheck={false} className="py-2 pr-3">
               <span className="truncate text-sm">{option.name}</span>
-            </ComboboxItem>
+            </Combobox.Item>
           ))}
           {filtered.length === 0 && (
             <EmptyState label="No matches" className="border-none bg-transparent" />
           )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+        </Combobox.List>
+      </Combobox.Content>
+    </Combobox.Root>
   );
 }
 

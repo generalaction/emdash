@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,18 +32,6 @@ import {
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { Input } from '@core/primitives/ui/browser/input';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -236,8 +224,8 @@ export function BrowserToolbar({
           )}
         />
       </ToolbarIconButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
           render={
             <Button
               type="button"
@@ -249,48 +237,50 @@ export function BrowserToolbar({
           }
         >
           <Ellipsis className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-56">
-          <DropdownMenuItem disabled={!canOpenExternal} onClick={openExternal}>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end" className="min-w-56">
+          <DropdownMenu.Item disabled={!canOpenExternal} onClick={openExternal}>
             Open externally
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!adapter} onClick={() => onForceReload?.()}>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item disabled={!adapter} onClick={() => onForceReload?.()}>
             Force reload
-          </DropdownMenuItem>
+          </DropdownMenu.Item>
           {import.meta.env.DEV && (
-            <DropdownMenuItem onClick={openDevTools}>Open DevTools</DropdownMenuItem>
+            <DropdownMenu.Item onClick={openDevTools}>Open DevTools</DropdownMenu.Item>
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Browser profile</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="min-w-44">
-              <DropdownMenuRadioGroup
+          <DropdownMenu.Separator />
+          <DropdownMenu.Sub>
+            <DropdownMenu.SubTrigger>Browser profile</DropdownMenu.SubTrigger>
+            <DropdownMenu.SubContent className="min-w-44">
+              <DropdownMenu.RadioGroup
                 value={session.profileId}
                 onValueChange={(value) => switchProfile(String(value))}
               >
                 {profiles.map((profile) => (
-                  <DropdownMenuRadioItem
+                  <DropdownMenu.RadioItem
                     key={profile.id}
                     value={profile.id}
                     className={PROFILE_RADIO_ITEM_CLASS}
                   >
                     {profile.name}
-                  </DropdownMenuRadioItem>
+                  </DropdownMenu.RadioItem>
                 ))}
-                <DropdownMenuRadioItem
+                <DropdownMenu.RadioItem
                   value={BROWSER_ISOLATED_PROFILE_ID}
                   className={PROFILE_RADIO_ITEM_CLASS}
                 >
                   Isolated per task
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigateToView(settingsViewDef({ tab: 'browser' }))}>
+                </DropdownMenu.RadioItem>
+              </DropdownMenu.RadioGroup>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                onClick={() => navigateToView(settingsViewDef({ tab: 'browser' }))}
+              >
                 Manage profiles…
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
+              </DropdownMenu.Item>
+            </DropdownMenu.SubContent>
+          </DropdownMenu.Sub>
+          <DropdownMenu.Separator />
           <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
             <span>Zoom</span>
             <div className="flex items-center gap-1">
@@ -334,22 +324,22 @@ export function BrowserToolbar({
               </Button>
             </div>
           </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
+          <DropdownMenu.Separator />
+          <DropdownMenu.Item
             disabled={!adapter}
             onClick={() => clearBrowserData(session, 'cookies', () => adapter?.reload())}
           >
             Clear cookies
-          </DropdownMenuItem>
-          <DropdownMenuItem
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
             disabled={!adapter}
             onClick={() => clearBrowserData(session, 'cache', () => adapter?.reloadIgnoringCache())}
           >
             Clear cache
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={confirmClearStorage}>Clear browser storage</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item onClick={confirmClearStorage}>Clear browser storage</DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </div>
   );
 }

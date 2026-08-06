@@ -1,20 +1,10 @@
 import { ListPopoverCard } from '@emdash/ui/react/components';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Combobox } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-} from '@core/primitives/ui/browser/combobox';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
 import {
   Select,
@@ -187,7 +177,7 @@ export function PrSelector({
 
   return (
     <div className={cn('max-w-full min-w-0 overflow-hidden')}>
-      <Combobox
+      <Combobox.Root
         autoHighlight
         items={prs}
         filter={null}
@@ -205,28 +195,28 @@ export function PrSelector({
         }}
         disabled={disabled}
       >
-        <ComboboxTrigger
+        <Combobox.Trigger
           render={
             <button className="flex w-full min-w-0 text-left outline-none">
-              <ComboboxValue placeholder={placeholderContent}>
+              <Combobox.Value placeholder={placeholderContent}>
                 {value ? selectedContent : null}
-              </ComboboxValue>
+              </Combobox.Value>
             </button>
           }
         />
-        <ComboboxContent
+        <Combobox.Content
           side="bottom"
           className="min-w-(--anchor-width) pb-1"
           collisionAvoidance={{ side: 'shift' }}
         >
-          <ComboboxInput
+          <Combobox.Input
             rightAddon={statusAddon}
             showClear={!!value}
             showTrigger={false}
             placeholder="Search pull requests…"
             disabled={disabled}
           />
-          <ComboboxEmpty>
+          <Combobox.Empty>
             {isGitHubAuthError ? (
               <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-2">
@@ -244,14 +234,14 @@ export function PrSelector({
                   (statusFilter === 'open' ? 'No open pull requests' : 'No closed pull requests')}
               </span>
             )}
-          </ComboboxEmpty>
-          <ComboboxList>
+          </Combobox.Empty>
+          <Combobox.List>
             {(pr: PullRequest) => (
-              <ComboboxItem key={pr.url} value={pr} className="pr-2" showCheck={false}>
+              <Combobox.Item key={pr.url} value={pr} className="pr-2" showCheck={false}>
                 <PrRow pr={pr} />
-              </ComboboxItem>
+              </Combobox.Item>
             )}
-          </ComboboxList>
+          </Combobox.List>
           {errorMessage && prs.length > 0 && (
             <ListPopoverCard status="destructive" className="text-foreground-destructive">
               <AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />
@@ -265,8 +255,8 @@ export function PrSelector({
               {isGitHubAuthError && connectGitHubButton}
             </ListPopoverCard>
           )}
-        </ComboboxContent>
-      </Combobox>
+        </Combobox.Content>
+      </Combobox.Root>
     </div>
   );
 }

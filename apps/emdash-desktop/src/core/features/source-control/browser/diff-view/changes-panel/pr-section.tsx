@@ -1,5 +1,5 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
+import { Button, SplitButton, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -14,7 +14,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
@@ -95,10 +94,11 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         }
       : undefined;
 
-  const prActions: SplitButtonAction[] = [
-    { value: 'create-pr', label: 'Create PR', action: () => onCreatePr?.() },
-    { value: 'create-draft-pr', label: 'Create draft PR', action: () => onCreateDraftPr?.() },
+  const prActions = [
+    { id: 'create-pr', label: 'Create PR', action: () => onCreatePr?.() },
+    { id: 'create-draft-pr', label: 'Create draft PR', action: () => onCreateDraftPr?.() },
   ];
+  const [selectedPrActionId, setSelectedPrActionId] = useState<string | undefined>(undefined);
 
   const handleRefresh = async () => {
     if (!repositoryUrl) return;
@@ -151,9 +151,13 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             <Tooltip.Root>
               <Tooltip.Trigger>
                 <SplitButton
-                  variant="outline"
+                  variant="secondary"
                   size="xs"
-                  actions={prActions}
+                  options={prActions.map(({ id, label }) => ({ id, label }))}
+                  selectedId={selectedPrActionId}
+                  onSelectedChange={setSelectedPrActionId}
+                  commitOnSelect={false}
+                  onAction={(id) => prActions.find((a) => a.id === id)?.action()}
                   disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
                   icon={<Plus className="size-3" />}
                 />

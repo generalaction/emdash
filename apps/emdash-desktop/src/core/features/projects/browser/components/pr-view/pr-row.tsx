@@ -1,11 +1,10 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';

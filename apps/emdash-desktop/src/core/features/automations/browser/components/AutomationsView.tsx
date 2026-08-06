@@ -1,9 +1,8 @@
-import { toast } from '@emdash/ui/react/primitives';
+import { Sheet, toast } from '@emdash/ui/react/primitives';
 import { useMemo, useState } from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
-import { Sheet, SheetContent } from '@core/primitives/ui/browser/sheet';
 import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
@@ -118,12 +117,12 @@ export function AutomationsView() {
           </div>
         </div>
       </div>
-      <Sheet
+      <Sheet.Root
         open={liveAutomation !== null || creating}
         onOpenChange={(open) => !open && closeSheet()}
         onOpenChangeComplete={handleSheetOpenChangeComplete}
       >
-        <SheetContent showCloseButton={false} className="[-webkit-app-region:no-drag]">
+        <Sheet.Content className="[-webkit-app-region:no-drag]">
           {creating && (
             <CreateAutomationView
               onClose={closeSheet}
@@ -139,8 +138,8 @@ export function AutomationsView() {
               onToggleEnabled={handleToggleEnabled}
             />
           )}
-        </SheetContent>
-      </Sheet>
+        </Sheet.Content>
+      </Sheet.Root>
     </div>
   );
 }

@@ -1,19 +1,13 @@
-import { Button, Label, useToast } from '@emdash/ui/react/primitives';
+import { Button, Collapsible, Label, Sheet, useToast } from '@emdash/ui/react/primitives';
 import { CheckCircle2, ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@core/primitives/ui/browser/collapsible';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { Field } from '@core/primitives/ui/browser/field';
-import { SheetFooter } from '@core/primitives/ui/browser/sheet';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
@@ -138,7 +132,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
           )}
         </div>
       </div>
-      <Collapsible
+      <Collapsible.Root
         open={!templatesCollapsed}
         onOpenChange={(open) => setTemplatesCollapsed(!open)}
         className="group border-t border-border bg-background"
@@ -146,23 +140,24 @@ export const CreateAutomationView = observer(function CreateAutomationView({
         <div className="flex w-full items-center justify-between gap-3 p-4 py-3">
           <Label>Use a template</Label>
 
-          <CollapsibleTrigger
+          <Collapsible.Trigger
+            hideChevron
             render={
               <Button variant="ghost" size="xs" icon>
                 <ChevronDown className="size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-180" />
               </Button>
             }
-          ></CollapsibleTrigger>
+          ></Collapsible.Trigger>
         </div>
-        <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
+        <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
           <AutomationTemplateRail
             templates={emptyStateAutomationTemplates}
             onSelect={handleTemplateSelect}
             compact
           />
-        </CollapsibleContent>
-      </Collapsible>
-      <SheetFooter className="flex flex-row items-center justify-end gap-2">
+        </Collapsible.Panel>
+      </Collapsible.Root>
+      <Sheet.Footer className="flex flex-row items-center justify-end gap-2">
         <Button variant="secondary" size="sm" onClick={onClose}>
           Cancel
         </Button>
@@ -176,7 +171,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
         >
           {isPending ? 'Saving…' : 'Create'}
         </ConfirmButton>
-      </SheetFooter>
+      </Sheet.Footer>
     </div>
   );
 });

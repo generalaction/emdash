@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Combobox, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
@@ -11,16 +11,6 @@ import { useIntegrationsContext } from '@core/features/integrations/api/browser/
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-} from '@core/primitives/ui/browser/combobox';
 import { InlineMarkdown } from '@core/primitives/ui/browser/components/inline-markdown';
 import {
   IssueStatusIndicator,
@@ -248,7 +238,7 @@ export const IssueSelector = observer(function IssueSelector({
   return (
     <div className="max-w-full min-w-0 overflow-hidden">
       {hasAnyIntegration ? (
-        <Combobox
+        <Combobox.Root
           autoHighlight
           items={issues}
           filter={null}
@@ -267,21 +257,21 @@ export const IssueSelector = observer(function IssueSelector({
             setComboboxOpen(open);
           }}
         >
-          <ComboboxTrigger
+          <Combobox.Trigger
             render={
               <button className="flex w-full min-w-0 text-left outline-none">
-                <ComboboxValue placeholder={placeholderContent}>
+                <Combobox.Value placeholder={placeholderContent}>
                   {value ? selectedContent : null}
-                </ComboboxValue>
+                </Combobox.Value>
               </button>
             }
           />
-          <ComboboxContent
+          <Combobox.Content
             side="bottom"
             className="min-w-(--anchor-width) pb-1"
             collisionAvoidance={{ side: 'shift' }}
           >
-            <ComboboxInput
+            <Combobox.Input
               leftAddon={leftAddon}
               rightAddon={
                 isProviderLoading ? (
@@ -296,28 +286,28 @@ export const IssueSelector = observer(function IssueSelector({
               }...`}
               disabled={!hasAnyIntegration}
             />
-            <ComboboxEmpty>
+            <Combobox.Empty>
               <span className={cn(error && 'text-foreground-error')}>
                 {error ?? 'No issues found'}
               </span>
-            </ComboboxEmpty>
-            <ComboboxList>
+            </Combobox.Empty>
+            <Combobox.List>
               {(issue: LinkedIssue) => {
                 const linkedTo = linkedIssueMap.get(issue.url);
                 return (
-                  <ComboboxItem
+                  <Combobox.Item
                     key={issue.identifier}
                     value={issue}
                     className="pr-2"
                     showCheck={false}
                   >
                     <IssueRow issue={issue} linkedTo={linkedTo} />
-                  </ComboboxItem>
+                  </Combobox.Item>
                 );
               }}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+            </Combobox.List>
+          </Combobox.Content>
+        </Combobox.Root>
       ) : (
         <ConnectIssueIntegrationPlaceholder />
       )}

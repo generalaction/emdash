@@ -1,8 +1,8 @@
+import { ToggleGroup } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
 import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 
 interface FileContentToolbarProps {
   tab: FileTabResource;
@@ -22,21 +22,20 @@ export const FileContentToolbar = observer(function FileContentToolbar({
         {displayPath}
       </span>
       {canToggle && (
-        <ToggleGroup
-          size="sm"
+        <ToggleGroup.Root
           multiple={false}
           value={[tab.viewMode]}
           onValueChange={([value]) => {
             if (value === 'preview' || value === 'source') tab.setViewMode(value);
           }}
         >
-          <ToggleGroupItem value="source" className="text-xs">
+          <ToggleGroup.Item size="sm" value="source" className="text-xs">
             Raw
-          </ToggleGroupItem>
-          <ToggleGroupItem value="preview" className="text-xs">
+          </ToggleGroup.Item>
+          <ToggleGroup.Item size="sm" value="preview" className="text-xs">
             Preview
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </ToggleGroup.Item>
+        </ToggleGroup.Root>
       )}
     </div>
   );

@@ -4,7 +4,7 @@ import type {
   TerminalShellId,
 } from '@emdash/core/primitives/terminal-shell/api';
 import { ScriptStatus, type ScriptStatusKind } from '@emdash/ui/react/components';
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives';
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -19,13 +19,6 @@ import {
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
-import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 
 export type TerminalDrawerMode = 'terminals' | 'scripts';
@@ -188,15 +181,12 @@ export const TerminalDrawerTabBar = observer(function TerminalDrawerTabBar({
         )}
       </div>
       <div className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-      <PanelTabs
-        compact
-        value={mode}
-        onChange={onModeChange}
-        tabs={[
-          { value: 'terminals', label: 'Terminals' },
-          { value: 'scripts', label: 'Scripts' },
-        ]}
-      />
+      <Tabs.Root value={mode} onValueChange={(value) => onModeChange(value as typeof mode)}>
+        <Tabs.List>
+          <Tabs.Tab value="terminals">Terminals</Tabs.Tab>
+          <Tabs.Tab value="scripts">Scripts</Tabs.Tab>
+        </Tabs.List>
+      </Tabs.Root>
     </div>
   );
 });
@@ -233,8 +223,8 @@ export function NewTerminalButton({
           New terminal <BoundShortcut command="task.newTerminal" variant="keycaps" />
         </Tooltip.Content>
       </Tooltip.Root>
-      <DropdownMenu onOpenChange={(open) => open && onShellMenuOpen()}>
-        <DropdownMenuTrigger
+      <DropdownMenu.Root onOpenChange={(open) => open && onShellMenuOpen()}>
+        <DropdownMenu.Trigger
           render={
             <Button
               variant="ghost"
@@ -246,34 +236,34 @@ export function NewTerminalButton({
           }
         >
           <ChevronDown className="size-3" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end" className="w-48">
           {shellMenuState.kind === 'loading' ? (
-            <DropdownMenuItem disabled>
+            <DropdownMenu.Item disabled>
               <LoaderCircle className="animate-spin" />
               Loading shells…
-            </DropdownMenuItem>
+            </DropdownMenu.Item>
           ) : shellMenuState.kind === 'error' ? (
-            <DropdownMenuItem title={shellMenuState.message} onClick={onRetryShellAvailability}>
+            <DropdownMenu.Item title={shellMenuState.message} onClick={onRetryShellAvailability}>
               <RefreshCw />
               Failed to load shells
-            </DropdownMenuItem>
+            </DropdownMenu.Item>
           ) : shellMenuState.availability.length === 0 ? (
-            <DropdownMenuItem disabled>No shells found</DropdownMenuItem>
+            <DropdownMenu.Item disabled>No shells found</DropdownMenu.Item>
           ) : (
             shellMenuState.availability.map((entry) => (
-              <DropdownMenuItem
+              <DropdownMenu.Item
                 key={entry.id}
                 disabled={!entry.available}
                 title={entry.reason}
                 onClick={() => onAddTerminal(entry.id)}
               >
                 <TerminalShellOptionLabel entry={entry} />
-              </DropdownMenuItem>
+              </DropdownMenu.Item>
             ))
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </div>
   );
 }

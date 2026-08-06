@@ -1,7 +1,6 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Popover, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowUp, ChevronDown, ChevronUp, FileSearch } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@core/primitives/ui/browser/popover';
 import type { ContextAction, PromptContextAction } from '../context-bar/context-actions';
 
 const EXPAND_TEXT_LENGTH = 140;
@@ -53,24 +52,24 @@ export function PromptActionsMenu({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={setOpen}>
       <Tooltip.Root>
         <Tooltip.Trigger
           render={
-            <PopoverTrigger
+            <Popover.Trigger
               disabled={disabled}
               className="relative flex h-7 max-w-full items-center gap-1.5 self-center rounded-md border border-border bg-background-1 px-2 text-xs font-normal text-foreground hover:bg-background-1/80 disabled:pointer-events-none disabled:opacity-50"
             >
               <FileSearch className="size-3.5 shrink-0" />
               <span className="max-w-72 truncate">Prompts</span>
               <ChevronDown className="size-3 shrink-0" />
-            </PopoverTrigger>
+            </Popover.Trigger>
           }
         />
         <Tooltip.Content>{disabled ? disabledTooltip : actionTooltip}</Tooltip.Content>
       </Tooltip.Root>
 
-      <PopoverContent
+      <Popover.Content
         align="start"
         className="max-h-[min(var(--available-height),420px,80vh)] w-[min(420px,92vw)] gap-0 p-0"
       >
@@ -136,7 +135,7 @@ export function PromptActionsMenu({
             );
           })}
         </div>
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   );
 }

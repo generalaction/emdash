@@ -1,7 +1,7 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, SearchInput } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import React from 'react';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 
 type SkillsToolbarProps = {
   searchQuery: string;
@@ -18,9 +18,11 @@ export function SkillsToolbar({
   isRefreshing,
   onCreateSkill,
 }: SkillsToolbarProps) {
+  const searchRef = useSearchFocusHotkeys();
   return (
     <div className="flex w-full items-center justify-between gap-2">
       <SearchInput
+        ref={searchRef}
         placeholder="Search skills..."
         value={searchQuery}
         onChange={(event) => onSearchQueryChange(event.target.value)}

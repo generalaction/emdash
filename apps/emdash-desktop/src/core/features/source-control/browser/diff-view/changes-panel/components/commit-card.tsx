@@ -1,4 +1,4 @@
-import { toast } from '@emdash/ui/react/primitives';
+import { SplitButton, toast } from '@emdash/ui/react/primitives';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -15,7 +15,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Input } from '@core/primitives/ui/browser/input';
-import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 
 type CommitPhase =
@@ -139,13 +138,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     });
   };
 
-  const actions: SplitButtonAction[] = [
-    { value: 'commit', label: 'Commit', action: () => void doCommit() },
-    { value: 'commit-push', label: 'Commit & Push', action: () => void doCommitAndPush() },
+  const actions = [
+    { id: 'commit', label: 'Commit', action: () => void doCommit() },
+    { id: 'commit-push', label: 'Commit & Push', action: () => void doCommitAndPush() },
     ...(canCreatePr
       ? [
           {
-            value: 'commit-pr',
+            id: 'commit-pr',
             label: 'Commit & Create PR',
             action: () => void doCommitAndCreatePr(),
           },
@@ -176,14 +175,16 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       />
       {phase === 'idle' && (
         <SplitButton
-          actions={actions}
+          options={actions.map(({ id, label }) => ({ id, label }))}
           size="sm"
-          className="w-full"
+          fullWidth
           disabled={!commitMessage.trim()}
-          defaultValue={effectiveAction}
-          onValueChange={(value) =>
-            diffView.setCommitAction(value as 'commit' | 'commit-push' | 'commit-pr')
+          selectedId={effectiveAction}
+          onSelectedChange={(id) =>
+            diffView.setCommitAction(id as 'commit' | 'commit-push' | 'commit-pr')
           }
+          commitOnSelect={false}
+          onAction={(id) => actions.find((a) => a.id === id)?.action()}
         />
       )}
       {phase === 'committing' && (

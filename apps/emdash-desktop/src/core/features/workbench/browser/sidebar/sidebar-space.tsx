@@ -1,8 +1,7 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Toggle, Tooltip } from '@emdash/ui/react/primitives';
 import { PanelLeft } from 'lucide-react';
 import { NavButtons } from '@core/primitives/ui/browser/components/nav-buttons';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Toggle } from '@core/primitives/ui/browser/toggle';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 
 export function SidebarSpace() {
@@ -13,9 +12,9 @@ export function SidebarSpace() {
       <Tooltip.Root>
         <Tooltip.Trigger>
           <Toggle
-            className="size-7 border-none bg-background-tertiary-3 [-webkit-app-region:no-drag] hover:bg-background-tertiary-3 data-pressed:bg-background-tertiary-2"
-            variant="outline"
+            className="size-7 bg-background-tertiary-3 [-webkit-app-region:no-drag] hover:bg-background-tertiary-3 data-pressed:bg-background-tertiary-2"
             size="sm"
+            icon
             pressed={isLeftOpen}
             onPressedChange={() => setCollapsed('left', isLeftOpen)}
           >
