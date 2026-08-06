@@ -1,5 +1,6 @@
 import { spawn as spawnProcess } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
+import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import {
   ExecError,
   type BoundExec,
@@ -55,6 +56,7 @@ class ProcessBoundExec implements BoundExec {
   }
 
   spawn(args: string[], options: ExecSpawnOptions = {}): ChildProcessWithoutNullStreams {
+    recordSpawn(classifySpawnPurpose(this.file, args), this.file);
     return spawnProcess(this.file, args, {
       cwd: options.cwd ?? this.cwd,
       env: composeEnv(this.env, options.env),
@@ -74,6 +76,7 @@ class ProcessBoundExec implements BoundExec {
         env: composeEnv(this.env, options.env),
         detached: process.platform !== 'win32',
       };
+      recordSpawn(classifySpawnPurpose(this.file, args), this.file);
       const child = spawnProcess(this.file, args, spawnOptions);
       const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
       let stderr = '';

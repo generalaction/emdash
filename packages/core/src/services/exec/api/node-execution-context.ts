@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type {
   ExecContextOptions,
   ExecStreamingResult,
@@ -31,6 +32,7 @@ export class NodeExecutionContext implements IExecutionContext {
   private readonly env: NodeJS.ProcessEnv | undefined;
 
   exec(command: string, args: string[] = [], opts: ExecContextOptions = {}): Promise<ExecResult> {
+    recordSpawn(classifySpawnPurpose(command, args), command);
     return execFileAsync(command, args, {
       cwd: this.root || undefined,
       env: this.env,
@@ -53,6 +55,7 @@ export class NodeExecutionContext implements IExecutionContext {
         return;
       }
 
+      recordSpawn(classifySpawnPurpose(command, args), command);
       const child = spawn(command, args, {
         cwd: this.root || undefined,
         env: this.env,

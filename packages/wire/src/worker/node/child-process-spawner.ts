@@ -1,5 +1,6 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import type { Unsubscribe } from '@emdash/shared';
+import { recordSpawn } from '@emdash/shared/perf';
 import type { Scope } from '@emdash/shared/concurrency';
 import { listen, type EventEmitterLike } from '../events';
 import type { ProcessExit, WorkerProcess, WorkerProcessSpawner, WorkerProcessSpec } from '../types';
@@ -13,6 +14,7 @@ export function childProcessSpawner(): WorkerProcessSpawner {
 }
 
 function spawnChildProcess(spec: WorkerProcessSpec): WorkerProcess {
+  recordSpawn('worker', spec.entry);
   const child = fork(spec.entry, [...(spec.args ?? [])], {
     cwd: spec.cwd,
     env: { ...process.env, ...spec.env },

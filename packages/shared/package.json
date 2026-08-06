@@ -73,6 +73,10 @@
       "types": "./dist/markdown.d.mts",
       "default": "./dist/markdown.mjs"
     },
+    "./perf": {
+      "types": "./dist/perf.d.mts",
+      "default": "./dist/perf.mjs"
+    },
     "./plugins": {
       "types": "./dist/plugins.d.mts",
       "default": "./dist/plugins.mjs"

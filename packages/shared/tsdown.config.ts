@@ -17,6 +17,7 @@ export default defineConfig({
     'logger-pino': 'src/logger/pino/index.ts',
     'logger-transport': 'src/logger/transport/index.ts',
     markdown: 'src/markdown/index.ts',
+    perf: 'src/perf/index.ts',
     plugins: 'src/plugins/index.ts',
   },
   format: ['esm'],

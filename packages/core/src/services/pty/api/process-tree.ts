@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
+import { recordSpawn } from '@emdash/shared/perf';
 
 export interface PidPpidPair {
   pid: number;
@@ -103,6 +104,7 @@ function snapshotLocalProcesses(
   logger: Logger = noopLogger
 ): Promise<ProcessInfo[]> {
   return new Promise((resolve) => {
+    recordSpawn('other', 'ps');
     execFile(
       'ps',
       args,

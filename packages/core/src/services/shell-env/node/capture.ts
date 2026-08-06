@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
+import { recordSpawn } from '@emdash/shared/perf';
 import { err, ok, type Result } from '@emdash/shared/result';
 import { SHELL_ENV_CAPTURE_GUARD, type ShellEnvCapture, type ShellEnvCaptureError } from './types';
 
@@ -50,6 +51,7 @@ export async function captureShellEnv(
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
   };
+  recordSpawn('shell', shell);
   const result = spawnSync(shell, ['-ilc', 'env'], shellEnvProbeOptions);
 
   if (result.error) {

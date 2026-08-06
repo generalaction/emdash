@@ -1,11 +1,14 @@
 import { systemPreferences } from 'electron';
 import { githubEvents } from '@core/features/github/node';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
+import { startMainDevPerfInstruments } from '@main/lib/dev-perf';
 import { log } from '@main/lib/logger';
 import { runInBackground } from '../../core/background';
 import type { ServicesBundle } from './services';
 
 export function bootBackground(services: ServicesBundle, runtimes: DesktopRuntimes): void {
+  startMainDevPerfInstruments();
+
   runInBackground('dependency-probe', async () => {
     await runtimes.clients.hostDependencies.snapshot.mutate('refresh', {
       key: undefined,

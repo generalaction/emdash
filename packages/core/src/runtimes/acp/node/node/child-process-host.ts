@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { recordSpawn } from '@emdash/shared/perf';
 import type {
   AcpFs,
   AcpProcessHandle,
@@ -96,6 +97,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpProcessHandle> {
+    recordSpawn('agent', spec.command);
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
       env: spec.env,
@@ -113,6 +115,7 @@ export class ChildAcpProcessHost implements AcpRuntimeProcessHost {
     env: Record<string, string>;
     cwd: string;
   }): Promise<AcpTerminalProcess> {
+    recordSpawn('agent', spec.command);
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
       env: spec.env,

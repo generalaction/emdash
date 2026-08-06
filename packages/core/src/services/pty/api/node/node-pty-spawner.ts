@@ -6,6 +6,7 @@ import {
   type PtySpawner,
   type PtySpawnSpec,
 } from '@services/pty/api';
+import { recordSpawn } from '@emdash/shared/perf';
 import * as nodePty from 'node-pty';
 
 const MIN_COLS = 2;
@@ -26,6 +27,7 @@ type NodePtyLike = {
 export class NodePtySpawner implements PtySpawner {
   async spawn(spec: PtySpawnSpec): Promise<PtyProcess> {
     try {
+      recordSpawn('pty', spec.command);
       const proc = nodePty.spawn(spec.command, spec.args, {
         name: 'xterm-256color',
         cols: spec.cols,

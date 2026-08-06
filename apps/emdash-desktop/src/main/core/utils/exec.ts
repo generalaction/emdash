@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { classifySpawnPurpose, recordSpawn } from '@emdash/shared/perf';
 import type { CommandRunner } from '@core/primitives/command-runner/api/command-runner';
 
 const execFileAsync = promisify(execFile);
@@ -13,6 +14,7 @@ export type {
 } from '@core/primitives/command-runner/api/command-runner';
 
 export const runLocalCommand: CommandRunner = async (command, args = [], opts = {}) => {
+  recordSpawn(classifySpawnPurpose(command, args), command);
   const { stdout, stderr } = await execFileAsync(command, args, {
     timeout: opts.timeout,
   });
