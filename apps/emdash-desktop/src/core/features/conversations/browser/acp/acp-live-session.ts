@@ -20,8 +20,7 @@ import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/a
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
-import { ReplicaLog } from '@emdash/wire/live';
-import { createMobxLogStore } from '@emdash/wire/mobx';
+import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
 import { type BlobSource } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { z } from 'zod';
@@ -32,6 +31,19 @@ export interface LiveValueSource<T> {
   getSnapshot(): T;
   subscribe(cb: () => void): Unsubscribe;
 }
+
+/**
+ * Line-structured live terminal output. `lines()` returns the store's
+ * identity-stable array (mutated in place); `version()` bumps once per
+ * frame-coalesced flush; `truncated()` is true when output was dropped
+ * upstream (agent ring buffer) or by the client store's byte cap.
+ */
+export type AcpTerminalOutput = {
+  lines(): readonly string[];
+  truncated(): boolean;
+  version(): number;
+  onFlush(listener: () => void): Unsubscribe;
+};
 
 type RemoteValueState<T> = {
   readonly ready: Promise<void>;
@@ -72,7 +84,10 @@ export class AcpLiveSession {
   readonly terminals: RemoteValueState<TerminalState[]>;
   readonly mcpServers: RemoteValueState<Array<z.infer<typeof sessionMcpServerSchema>>>;
   private readonly scope = createScope({ label: 'acp-live-session' });
-  private readonly terminalLogs = new Map<string, ReplicaLog>();
+  private readonly terminalLogs = new Map<
+    string,
+    { replica: ReplicaLog; output: AcpTerminalOutput }
+  >();
   private disposed = false;
 
   private constructor(
@@ -251,26 +266,31 @@ export class AcpLiveSession {
     });
   }
 
-  async terminalOutput(terminalId: string): Promise<ReplicaLog> {
+  async terminalOutput(terminalId: string): Promise<AcpTerminalOutput> {
     const existing = this.terminalLogs.get(terminalId);
-    if (existing) return existing;
-    const binding = new ReplicaLog(
+    if (existing) return existing.output;
+    const store = createLineLogStore();
+    const replica = new ReplicaLog(
       this.client.terminalOutput.handle({ conversationId: this.conversationId, terminalId }),
-      {
-        store: createMobxLogStore(),
-      }
+      { store }
     );
-    this.terminalLogs.set(terminalId, binding);
-    await binding.ready;
-    if (this.disposed) void binding.dispose();
-    return binding;
+    const output: AcpTerminalOutput = {
+      lines: () => store.lines(),
+      truncated: () => store.truncated(),
+      version: () => store.version(),
+      onFlush: (listener) => store.onFlush(listener),
+    };
+    this.terminalLogs.set(terminalId, { replica, output });
+    await replica.ready;
+    if (this.disposed) void replica.dispose();
+    return output;
   }
 
   dispose(): void {
     this.disposed = true;
     void this.scope.dispose();
-    for (const binding of this.terminalLogs.values()) {
-      void binding.dispose();
+    for (const { replica } of this.terminalLogs.values()) {
+      void replica.dispose();
     }
     this.terminalLogs.clear();
   }

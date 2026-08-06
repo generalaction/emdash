@@ -1,6 +1,6 @@
 import { startDevPerfInstruments, type DevPerfInstruments } from '@emdash/shared/perf';
 import { app } from 'electron';
-import { log } from './logger';
+import { log } from '@main/lib/logger';
 
 /**
  * Main-process dev performance instruments: per-minute spawn counts plus the

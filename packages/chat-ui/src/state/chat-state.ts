@@ -40,6 +40,7 @@ import type {
   AcpPermissionRequest,
   ChatImageAttachment,
   PlanState,
+  TerminalOutputSnapshot,
   TranscriptTurn,
 } from '../model';
 import { createTranscript } from './transcript';
@@ -79,8 +80,7 @@ export type ChatSessionState = {
   setPermissions(permissions: readonly AcpPermissionRequest[]): void;
   setPlan(plan: PlanState | null): void;
   setPendingPrompt(prompt: PendingPrompt | null): void;
-  setTerminalOutput(terminalId: string, text: string | null): void;
-  setTerminalOutputs(outputs: ReadonlyMap<string, string>): void;
+  setTerminalOutput(terminalId: string, snapshot: TerminalOutputSnapshot | null): void;
 };
 
 export type ChatSessionSnapshot = {
@@ -88,7 +88,7 @@ export type ChatSessionSnapshot = {
   readonly plan: PlanState | null;
   readonly pendingToolCallIds: Set<string>;
   readonly pendingPrompt: PendingPrompt | null;
-  terminalOutputText(terminalId: string): string | null;
+  terminalOutput(terminalId: string): TerminalOutputSnapshot | null;
 };
 
 export type PendingPrompt = {
@@ -106,7 +106,6 @@ export type ConnectSessionSource = {
   activeTurn: LiveReadable<TranscriptTurn | null>;
   plan: LiveReadable<PlanState | null>;
   sessionState: LiveReadable<{ pendingPermissions: readonly AcpPermissionRequest[] }>;
-  terminalOutputs?: LiveReadable<ReadonlyMap<string, string>>;
 };
 
 export type ConnectSessionOptions = {
@@ -262,9 +261,9 @@ function createSessionState(): ChatSessionState {
   const [permissions, setPermissions] = createSignal<readonly AcpPermissionRequest[]>([]);
   const [plan, setPlan] = createSignal<PlanState | null>(null);
   const [pendingPrompt, setPendingPrompt] = createSignal<PendingPrompt | null>(null);
-  const [terminalOutputs, setTerminalOutputs] = createSignal<ReadonlyMap<string, string>>(
-    new Map()
-  );
+  const [terminalOutputs, setTerminalOutputs] = createSignal<
+    ReadonlyMap<string, TerminalOutputSnapshot>
+  >(new Map());
   const pendingToolCallIds = createMemo(() => {
     const ids = new Set<string>();
     for (const request of permissions()) {
@@ -286,7 +285,7 @@ function createSessionState(): ChatSessionState {
     get pendingPrompt() {
       return pendingPrompt();
     },
-    terminalOutputText(terminalId) {
+    terminalOutput(terminalId) {
       return terminalOutputs().get(terminalId) ?? null;
     },
   };
@@ -296,18 +295,17 @@ function createSessionState(): ChatSessionState {
     setPermissions: (next) => setPermissions([...next]),
     setPlan,
     setPendingPrompt,
-    setTerminalOutput(terminalId, text) {
+    setTerminalOutput(terminalId, snapshot) {
       setTerminalOutputs((previous) => {
         const next = new Map(previous);
-        if (text === null) {
+        if (snapshot === null) {
           next.delete(terminalId);
         } else {
-          next.set(terminalId, text);
+          next.set(terminalId, snapshot);
         }
         return next;
       });
     },
-    setTerminalOutputs: (next) => setTerminalOutputs(new Map(next)),
   };
 }
 
@@ -334,21 +332,14 @@ export function connectSession(
     if (!turn && hadActiveTurn) options.onTurnCommitted?.();
     hadActiveTurn = turn !== null;
   };
-  const syncTerminalOutputs = (): void => {
-    if (!source.terminalOutputs) return;
-    state.session.setTerminalOutputs(source.terminalOutputs.getSnapshot() ?? new Map());
-  };
-
   syncSessionState();
   syncPlan();
   syncActiveTurn();
-  syncTerminalOutputs();
 
   const unsubs = [
     source.sessionState.subscribe(syncSessionState),
     source.plan.subscribe(syncPlan),
     source.activeTurn.subscribe(syncActiveTurn),
-    ...(source.terminalOutputs ? [source.terminalOutputs.subscribe(syncTerminalOutputs)] : []),
   ];
   return () => {
     for (const unsub of unsubs) unsub();

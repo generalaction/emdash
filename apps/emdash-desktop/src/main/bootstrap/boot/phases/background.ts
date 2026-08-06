@@ -1,8 +1,8 @@
 import { systemPreferences } from 'electron';
 import { githubEvents } from '@core/features/github/node';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
-import { startMainDevPerfInstruments } from '@main/lib/dev-perf';
 import { log } from '@main/lib/logger';
+import { startMainDevPerfInstruments } from './dev-perf';
 import { runInBackground } from '../../core/background';
 import type { ServicesBundle } from './services';
 

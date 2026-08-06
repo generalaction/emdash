@@ -75,6 +75,7 @@ export type {
   ToolNode,
   AcpPermissionRequest,
   PlanState,
+  TerminalOutputSnapshot,
 } from './model';
 
 // ── Transcript API ────────────────────────────────────────────────────────────

@@ -10,10 +10,23 @@ Spec: [terminal output decision, parts 3–4](../../performance-footprint/issues
 
 **Blocked by:** 04 — Terminal output, client store.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Execute presenter/def consume the line array; no code path joins the full text per update
-- [ ] Width measurement work per update is proportional to new lines only
-- [ ] A single truncation indicator appears when either truncation flag is set
-- [ ] Existing execute row tests updated; the chat-ui perf harness shows per-chunk cost no
+- [x] Execute presenter/def consume the line array; no code path joins the full text per update
+- [x] Width measurement work per update is proportional to new lines only
+- [x] A single truncation indicator appears when either truncation flag is set
+- [x] Existing execute row tests updated; the chat-ui perf harness shows per-chunk cost no
       longer scales with total accumulated output
+
+**Implementation notes:** chat state now carries `TerminalOutputSnapshot` (lines array +
+collapsed truncated flag + per-flush version) instead of joined text; `SegmentCtx` exposes
+`terminalOutput()` and the old `terminalOutputText` path was removed end to end (the dead
+`ConnectSessionSource.terminalOutputs` map sync went with it). `execute-lines.ts` owns the
+incremental display-line memo (unchanged rows keep object identity so the keyed <For> does not
+recreate DOM rows) and `maxOutputLineWidth` (running-max width; committed lines measured once,
+only the growing tail re-measured). The renderer binding pushes one snapshot per
+frame-coalesced store flush and ORs the agent-side `TerminalState.truncated` metadata flag
+into the display-side flag; the row renders a single italic "… earlier output truncated"
+line. Perf coverage: `src/tests/perf/execute-stream.perf.test.tsx` streams 6000 lines through
+presenter+measure and asserts late/early per-chunk cost ratio stays < 4 (measured ~1x
+locally; the pre-change path grows linearly).

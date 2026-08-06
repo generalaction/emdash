@@ -605,8 +605,8 @@ export class AcpChatStore {
   }
 
   private _bindTerminalOutputs(session: AcpLiveSession): () => void {
-    return bindSessionTerminalOutputs(session, (terminalId, text) =>
-      this.chatState.session.setTerminalOutput(terminalId, text)
+    return bindSessionTerminalOutputs(session, (terminalId, snapshot) =>
+      this.chatState.session.setTerminalOutput(terminalId, snapshot)
     );
   }
 

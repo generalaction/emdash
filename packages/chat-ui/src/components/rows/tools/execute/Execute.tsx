@@ -19,15 +19,17 @@ import { cancelIdle, scheduleIdle } from '@components/engine/dom-utils';
 import { applyTokensToElement, type CodeToken } from '@core/highlight/apply-tokens';
 import { For, Show, createEffect, onCleanup } from 'solid-js';
 import type { ChatExecute } from '@/model';
-import { executeBody, executeLine, executeOutputLine, executeSpacerLine } from './execute.css';
+import type { ExecuteDisplayLine } from './execute-lines';
+import {
+  executeBody,
+  executeLine,
+  executeOutputLine,
+  executeSpacerLine,
+  executeTruncatedLine,
+} from './execute.css';
 import { fadeOverlayBottom } from '@styles/effects.css';
 
 // ── ExecuteBody ───────────────────────────────────────────────────────────────
-
-export type ExecuteDisplayLine = {
-  kind: 'command' | 'spacer' | 'output';
-  text: string;
-};
 
 export type ExecuteBodyProps = {
   item: ChatExecute;
@@ -118,6 +120,7 @@ export function ExecuteBody(props: ExecuteBodyProps) {
             classList={{
               [executeOutputLine]: line.kind === 'output',
               [executeSpacerLine]: line.kind === 'spacer',
+              [executeTruncatedLine]: line.kind === 'truncated',
             }}
             style={{
               height: `${props.codeLineH}px`,

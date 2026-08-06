@@ -154,8 +154,16 @@ export type ChatExecute = {
   command: string;
   /** Optional provider-supplied purpose shown as the execute card title. */
   inputSummary?: string;
-  /** Static tool output, or live terminal output when available. */
-  outputText?: string;
+  /**
+   * Tool output as retained lines. For live terminal output this is the
+   * client store's identity-stable array (mutated in place across flushes);
+   * for static tool output it is a memoized split of the final text.
+   */
+  outputLines?: readonly string[];
+  /** True when earlier output was dropped upstream (agent ring or client cap). */
+  outputTruncated?: boolean;
+  /** Bumped per live-output flush; lets consumers detect changes despite the stable array identity. */
+  outputVersion?: number;
   status: ToolStatus;
   awaitingPermission?: boolean;
   /** Optional failure message shown in the error icon's native tooltip. */
@@ -164,9 +172,25 @@ export type ChatExecute = {
   startedAt: number;
   /** Frozen duration once status flips to 'done'. Absent when data is unavailable. */
   durationMs?: number;
+  /** ACP terminal id backing live output, when the command runs in a terminal. */
   terminalId?: string;
   /** Id of the parent tool call (for hierarchical rendering). */
   parentId?: string;
+};
+
+/**
+ * Live terminal output as held by the client-side line log store.
+ *
+ * `lines` is identity-stable across flushes (the store mutates it in place);
+ * `version` is bumped once per flush so consumers can detect changes without
+ * comparing content. `truncated` collapses at presentation: it is true when
+ * output was dropped anywhere upstream (agent-side ring buffer or the client
+ * store's byte cap) — the UI never distinguishes the two.
+ */
+export type TerminalOutputSnapshot = {
+  readonly lines: readonly string[];
+  readonly truncated: boolean;
+  readonly version: number;
 };
 
 /**

@@ -489,8 +489,7 @@ export function ChatRoot(props: ChatRootProps) {
     active,
     plan: () => state().session.state.plan,
     pendingToolCallIds: () => state().session.state.pendingToolCallIds,
-    terminalOutputText: (terminalId: string) =>
-      state().session.state.terminalOutputText(terminalId),
+    terminalOutput: (terminalId: string) => state().session.state.terminalOutput(terminalId),
   });
 
   let committedUnitsArr: ReturnType<typeof flattenTier> = [];
