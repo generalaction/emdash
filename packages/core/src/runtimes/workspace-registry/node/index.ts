@@ -8,3 +8,4 @@ export {
 } from './inspect-path';
 export { workspaceRegistryStore, type WorkspaceRegistryDb } from './persistence/store';
 export { WorkspaceRegistryRuntime, type WorkspaceRegistryRuntimeOptions } from './runtime';
+export { workspaceRegistryWorkerSpec, type WorkspaceRegistryWorkerSpecInput } from './worker-spec';

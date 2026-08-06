@@ -6,3 +6,4 @@ export type { StartTuiSessionInput, TuiAgentsProcedures } from './api/procedures
 export { createTuiAgentsComponent, tuiAgentsComponentConfigSchema } from './component';
 export * from './state/live-models';
 export type { TuiAgentError } from '@runtimes/tui-agents/api';
+export { tuiAgentsWorkerSpec, type TuiAgentsWorkerSpecInput } from './worker-spec';

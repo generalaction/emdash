@@ -25,3 +25,4 @@ export function createNativeWatchService(
 }
 
 export { fsWatchComponent, fsWatchComponentConfigSchema } from './component';
+export { fsWatchWorkerSpec, type FsWatchWorkerSpecInput } from './worker-spec';

@@ -1,31 +1,31 @@
 import { join } from 'node:path';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
-import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
+import { acpWorkerSpec } from '@emdash/core/runtimes/acp/node';
 import type { AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
-import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
+import { agentConfigWorkerSpec } from '@emdash/core/runtimes/agent-config/node';
 import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
-import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
+import { automationsWorkerSpec } from '@emdash/core/runtimes/automations/node';
 import type { ConversationsContract } from '@emdash/core/runtimes/conversations/api';
-import { conversationsComponent } from '@emdash/core/runtimes/conversations/node';
+import { conversationsWorkerSpec } from '@emdash/core/runtimes/conversations/node';
 import type { FileSearchContract } from '@emdash/core/runtimes/file-search/api';
-import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
+import { fileSearchWorkerSpec } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
-import { filesComponent } from '@emdash/core/runtimes/files/node';
+import { filesWorkerSpec } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
-import { gitComponent, NON_INTERACTIVE_GIT_ENV } from '@emdash/core/runtimes/git/node';
+import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
-import { resourceUsageComponent } from '@emdash/core/runtimes/resource-usage/node';
+import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
-import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
+import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
-import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
+import { tuiAgentsWorkerSpec } from '@emdash/core/runtimes/tui-agents/node';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
-import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
+import { workspaceHostWorkerSpec } from '@emdash/core/runtimes/workspace-host/node';
 import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
-import { workspaceRegistryComponent } from '@emdash/core/runtimes/workspace-registry/node';
+import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
-import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
+import { fsWatchWorkerSpec } from '@emdash/core/services/fs-watch/node';
 import {
   CORE_DEPENDENCIES,
   createHostDependenciesComponent,
@@ -108,15 +108,6 @@ export type StartDesktopWorkersDeps = {
   getFilesSettings(): Promise<{ watcherExclude: string[] }>;
 };
 
-const GIT_RUNTIME_ENV = {
-  ...process.env,
-  ...NON_INTERACTIVE_GIT_ENV,
-  LC_ALL: 'C',
-  LANG: 'C',
-  LANGUAGE: 'C',
-};
-const SESSION_IDLE_MS = 60 * 60_000;
-
 export async function startDesktopWorkers(
   deps: StartDesktopWorkersDeps
 ): Promise<DesktopWorkersHandle> {
@@ -154,58 +145,44 @@ async function startDesktopWorkersWithHost(
       ],
     },
   });
-  const fsWatchWorker = host.create(fsWatchComponent, {
-    name: 'fs-watch',
-    executable: desktopWorkerPath('fs-watch'),
-    env: process.env,
-    dependencies: {},
-    config: {},
-  });
-  // The conversations index depends on nothing and spawns first (spec §3.4); the session
-  // runtimes report into it, so their spawns chain on its readiness. Default supervision
-  // (restart on failure) is deliberate: a durable index should come back.
-  const conversationsWorker = host.create(conversationsComponent, {
-    name: 'conversations',
-    executable: desktopWorkerPath('conversations'),
-    env: process.env,
-    dependencies: {},
-    config: {
+  const fsWatchWorker = host.create(
+    ...fsWatchWorkerSpec({ executable: desktopWorkerPath('fs-watch'), env: process.env })
+  );
+  const conversationsWorker = host.create(
+    ...conversationsWorkerSpec({
+      executable: desktopWorkerPath('conversations'),
+      env: process.env,
       databasePath: join(app.getPath('userData'), 'conversations.db'),
-    },
-    shutdownGraceMs: 3_000,
-  });
+    })
+  );
   const conversationsReady = conversationsWorker.ready();
   const acpStart = conversationsReady.then(async (conversations) => {
-    const worker = host.create(createAcpComponent({ pluginRegistry, logger: log }), {
-      name: 'acp',
-      executable: desktopWorkerPath('acp'),
-      env: process.env,
-      dependencies: {
-        hostDependencies: hostDependencies.client.resolver,
-        conversations,
-      },
-      config: {
+    const worker = host.create(
+      ...acpWorkerSpec({
+        pluginRegistry,
+        logger: log,
+        executable: desktopWorkerPath('acp'),
+        env: process.env,
+        dependencies: {
+          hostDependencies: hostDependencies.client.resolver,
+          conversations,
+        },
         attachmentsDir: join(app.getPath('userData'), 'acp-attachments'),
         intentsFilePath: sessionIntentFilePaths().acp,
-        lifecycle: {
-          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-          connectionIdleTtlMs: 120_000,
-        },
-      },
-    });
+      })
+    );
     return { client: await worker.ready(), worker };
   });
   const agentConfigWorker = host.create(
-    createAgentConfigComponent({ pluginRegistry, logger: log }),
-    {
-      name: 'agent-config',
+    ...agentConfigWorkerSpec({
+      pluginRegistry,
+      logger: log,
       executable: desktopWorkerPath('agent-config'),
       env: process.env,
       dependencies: {
         hostDependencies: hostDependencies.client.resolver,
       },
-      config: {},
-    }
+    })
   );
   const mementosWorker = host.create(mementosComponent, {
     name: 'mementos',
@@ -232,25 +209,22 @@ async function startDesktopWorkersWithHost(
       incrementalIntervalMs: 5 * 60_000,
     },
   });
-  const terminalsWorker = host.create(terminalsComponent, {
-    name: 'terminals',
-    executable: desktopWorkerPath('terminals'),
-    env: process.env,
-    dependencies: {},
-    config: {
+  const terminalsWorker = host.create(
+    ...terminalsWorkerSpec({
+      executable: desktopWorkerPath('terminals'),
+      env: process.env,
       lifecycle: {
         terminal: { kind: 'always' },
         backgroundScript: { kind: 'always' },
       },
-    },
-  });
-  const resourceUsageWorker = host.create(resourceUsageComponent, {
-    name: 'resource-usage',
-    executable: desktopWorkerPath('resource-usage'),
-    env: process.env,
-    dependencies: {},
-    config: {},
-  });
+    })
+  );
+  const resourceUsageWorker = host.create(
+    ...resourceUsageWorkerSpec({
+      executable: desktopWorkerPath('resource-usage'),
+      env: process.env,
+    })
+  );
 
   const watcherReady = fsWatchWorker.ready();
   const acpReady = acpStart.then((result) => result.client);
@@ -261,97 +235,87 @@ async function startDesktopWorkersWithHost(
   const terminalsReady = terminalsWorker.ready();
   const filesReady = watcherReady.then(async (watcher) => {
     const filesSettings = await deps.getFilesSettings();
-    const worker = host.create(filesComponent, {
-      name: 'files',
-      executable: desktopWorkerPath('files'),
-      env: process.env,
-      dependencies: { watcher },
-      config: { watchIgnore: filesSettings.watcherExclude },
-    });
+    const worker = host.create(
+      ...filesWorkerSpec({
+        executable: desktopWorkerPath('files'),
+        env: process.env,
+        dependencies: { watcher },
+        watchIgnore: filesSettings.watcherExclude,
+      })
+    );
     return await worker.ready();
   });
   const fileSearchReady = watcherReady.then(async (watcher) => {
-    const worker = host.create(fileSearchComponent, {
-      name: 'file-search',
-      executable: desktopWorkerPath('file-search'),
-      env: process.env,
-      dependencies: { watcher },
-      config: { databasePath: resolveFileSearchDatabasePath() },
-    });
+    const worker = host.create(
+      ...fileSearchWorkerSpec({
+        executable: desktopWorkerPath('file-search'),
+        env: process.env,
+        dependencies: { watcher },
+        databasePath: resolveFileSearchDatabasePath(),
+      })
+    );
     return await worker.ready();
   });
   const gitReady = watcherReady.then(async (watcher) => {
-    const worker = host.create(gitComponent, {
-      name: 'git',
-      executable: desktopWorkerPath('git'),
-      env: GIT_RUNTIME_ENV,
-      dependencies: {
-        watcher,
-        hostDependencies: hostDependencies.client.resolver,
-      },
-      config: {
-        executable: getGitExecutable(),
-        env: GIT_RUNTIME_ENV,
-      },
-    });
+    const worker = host.create(
+      ...gitWorkerSpec({
+        executable: desktopWorkerPath('git'),
+        env: process.env,
+        dependencies: {
+          watcher,
+          hostDependencies: hostDependencies.client.resolver,
+        },
+        gitExecutable: getGitExecutable(),
+      })
+    );
     return await worker.ready();
   });
   const tuiAgentsReady = conversationsReady.then(async (conversations) => {
-    const worker = host.create(createTuiAgentsComponent({ pluginRegistry, logger: log }), {
-      name: 'tui-agents',
-      executable: desktopWorkerPath('tui-agents'),
-      env: process.env,
-      dependencies: {
-        hostDependencies: hostDependencies.client.resolver,
-        conversations,
-      },
-      config: {
-        intentsFilePath: sessionIntentFilePaths().tuiAgents,
-        lifecycle: {
-          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+    const worker = host.create(
+      ...tuiAgentsWorkerSpec({
+        pluginRegistry,
+        logger: log,
+        executable: desktopWorkerPath('tui-agents'),
+        env: process.env,
+        dependencies: {
+          hostDependencies: hostDependencies.client.resolver,
+          conversations,
         },
-      },
-    });
+        intentsFilePath: sessionIntentFilePaths().tuiAgents,
+      })
+    );
     return { client: await worker.ready(), worker };
   });
-  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
-  // its freshness scheduler; the session runtimes are deactivateWorkspace's kill-sessions
-  // plane. Default supervision (restart on failure) is deliberate: a durable index should
-  // come back; its runtime overlay is ephemeral by design.
   const workspaceRegistryReady = Promise.all([
     watcherReady,
     acpReady,
     terminalsReady,
     tuiAgentsReady,
   ]).then(async ([watcher, acp, terminals, tuiAgents]) => {
-    const worker = host.create(workspaceRegistryComponent, {
-      name: 'workspace-registry',
-      executable: desktopWorkerPath('workspace-registry'),
-      env: process.env,
-      dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client },
-      config: {
+    const worker = host.create(
+      ...workspaceRegistryWorkerSpec({
+        executable: desktopWorkerPath('workspace-registry'),
+        env: process.env,
+        dependencies: { watcher, acp, terminals, tuiAgents: tuiAgents.client },
         databasePath: join(app.getPath('userData'), 'workspace-registry.db'),
-      },
-      shutdownGraceMs: 3_000,
-    });
+      })
+    );
     return await worker.ready();
   });
   const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
     async ([acp, terminals, tuiAgents]) => {
-      const worker = host.create(workspaceHostComponent, {
-        name: 'workspace-host',
-        executable: desktopWorkerPath('workspace-host'),
-        env: process.env,
-        dependencies: {
-          acp,
-          terminals,
-          tuiAgents: tuiAgents.client,
-        },
-        config: {
+      const worker = host.create(
+        ...workspaceHostWorkerSpec({
+          executable: desktopWorkerPath('workspace-host'),
+          env: process.env,
+          dependencies: {
+            acp,
+            terminals,
+            tuiAgents: tuiAgents.client,
+          },
           stateDirectory: join(app.getPath('userData'), 'workspace-host'),
-        },
-        supervision: { restart: 'never' },
-      });
+        })
+      );
       return await worker.ready();
     }
   );
@@ -363,23 +327,23 @@ async function startDesktopWorkersWithHost(
     conversationsReady,
   ]).then(async ([workspaceHost, workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
     const paths = automationRuntimePaths(resolveDatabasePath());
-    const worker = host.create(createAutomationsComponent(), {
-      name: 'automations',
-      executable: desktopWorkerPath('automations'),
-      env: process.env,
-      dependencies: {
-        workspaceHost,
-        workspaceRegistry,
-        // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
-        // live in the app db, so the main process answers for the worker.
-        creationAdmission: createAutomationCreationAdmissionController(getAppDb),
-        acpSessions: acp,
-        tuiSessions: tuiAgents.client,
-        conversationIndex: conversationsClient,
-      },
-      config: { dbFile: paths.dbFile },
-      shutdownGraceMs: 3_000,
-    });
+    const worker = host.create(
+      ...automationsWorkerSpec({
+        executable: desktopWorkerPath('automations'),
+        env: process.env,
+        dependencies: {
+          workspaceHost,
+          workspaceRegistry,
+          // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
+          // live in the app db, so the main process answers for the worker.
+          creationAdmission: createAutomationCreationAdmissionController(getAppDb),
+          acpSessions: acp,
+          tuiSessions: tuiAgents.client,
+          conversationIndex: conversationsClient,
+        },
+        dbFile: paths.dbFile,
+      })
+    );
     return { client: await worker.ready(), worker };
   });
 

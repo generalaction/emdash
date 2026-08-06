@@ -5,3 +5,4 @@ export {
   ResourceUsageRuntime,
   type CpuSnapshot,
 } from './resource-usage-runtime';
+export { resourceUsageWorkerSpec, type ResourceUsageWorkerSpecInput } from './worker-spec';

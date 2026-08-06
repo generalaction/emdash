@@ -13,3 +13,4 @@ export {
 } from './component';
 export { FileSearchRuntime, type FileSearchRuntimeOptions } from './file-search-runtime';
 export { fileSearchStore, type FileSearchDb } from './storage/store';
+export { fileSearchWorkerSpec, type FileSearchWorkerSpecInput } from './worker-spec';

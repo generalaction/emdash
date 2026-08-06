@@ -9,3 +9,4 @@ export type {
   AgentConfigRuntimeDeps,
   AgentConfigSpawnContext,
 } from '@runtimes/agent-config/node/runtime/types';
+export { agentConfigWorkerSpec, type AgentConfigWorkerSpecInput } from './worker-spec';

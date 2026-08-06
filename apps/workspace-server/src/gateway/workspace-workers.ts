@@ -1,33 +1,33 @@
 import { mkdir } from 'node:fs/promises';
 import { createJsonFileKeyValueStore } from '@emdash/core/primitives/kv/node';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
-import { createAcpComponent } from '@emdash/core/runtimes/acp/node';
+import { acpWorkerSpec } from '@emdash/core/runtimes/acp/node';
 import type { AgentConfigContract } from '@emdash/core/runtimes/agent-config/api';
-import { createAgentConfigComponent } from '@emdash/core/runtimes/agent-config/node';
+import { agentConfigWorkerSpec } from '@emdash/core/runtimes/agent-config/node';
 import type { AutomationsContract } from '@emdash/core/runtimes/automations/api';
 import { workspaceCreationAdmissionContract } from '@emdash/core/runtimes/automations/api';
-import { createAutomationsComponent } from '@emdash/core/runtimes/automations/node';
+import { automationsWorkerSpec } from '@emdash/core/runtimes/automations/node';
 import type { ConversationsContract } from '@emdash/core/runtimes/conversations/api';
-import { conversationsComponent } from '@emdash/core/runtimes/conversations/node';
+import { conversationsWorkerSpec } from '@emdash/core/runtimes/conversations/node';
 import type { FileSearchContract } from '@emdash/core/runtimes/file-search/api';
-import { fileSearchComponent } from '@emdash/core/runtimes/file-search/node';
+import { fileSearchWorkerSpec } from '@emdash/core/runtimes/file-search/node';
 import type { FilesContract } from '@emdash/core/runtimes/files/api';
-import { filesComponent } from '@emdash/core/runtimes/files/node';
+import { filesWorkerSpec } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
-import { gitComponent, NON_INTERACTIVE_GIT_ENV } from '@emdash/core/runtimes/git/node';
+import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
-import { resourceUsageComponent } from '@emdash/core/runtimes/resource-usage/node';
+import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
-import { terminalsComponent } from '@emdash/core/runtimes/terminals/node';
+import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
-import { createTuiAgentsComponent } from '@emdash/core/runtimes/tui-agents/node';
+import { tuiAgentsWorkerSpec } from '@emdash/core/runtimes/tui-agents/node';
 import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
-import { workspaceHostComponent } from '@emdash/core/runtimes/workspace-host/node';
+import { workspaceHostWorkerSpec } from '@emdash/core/runtimes/workspace-host/node';
 import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
-import { workspaceRegistryComponent } from '@emdash/core/runtimes/workspace-registry/node';
+import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
 import { NodeExecutionContext } from '@emdash/core/services/exec/api';
-import { fsWatchComponent } from '@emdash/core/services/fs-watch/node';
+import { fsWatchWorkerSpec } from '@emdash/core/services/fs-watch/node';
 import {
   CORE_DEPENDENCIES,
   createHostDependenciesComponent,
@@ -73,20 +73,12 @@ export type CreateWorkspaceServerRuntimeHostOptions = {
   logger?: Logger;
 };
 
-const SESSION_IDLE_MS = 60 * 60_000;
 const DETACHED_TERMINAL_GRACE_MS = 5 * 60_000;
 
 export async function createWorkspaceServerRuntimeHost(
   options: CreateWorkspaceServerRuntimeHostOptions
 ): Promise<WorkspaceServerRuntimeHost> {
   const env = options.env ?? process.env;
-  const GIT_RUNTIME_ENV = {
-    ...env,
-    ...NON_INTERACTIVE_GIT_ENV,
-    LC_ALL: 'C',
-    LANG: 'C',
-    LANGUAGE: 'C',
-  };
   const paths = workspaceServerRuntimePaths(options.socketPath);
   await Promise.all([
     mkdir(paths.stateDirectory, { recursive: true }),
@@ -114,87 +106,70 @@ export async function createWorkspaceServerRuntimeHost(
     validate: options.validate,
   });
 
-  // The conversations index depends on nothing and spawns first (spec §3.4); the session
-  // runtimes report into it, so their spawns chain on its readiness. Default supervision
-  // (restart on failure) is deliberate: a durable index should come back.
-  const conversationsPromise = workerHost.spawn(conversationsComponent, {
-    name: 'conversations',
-    executable: workspaceWorkerPath('conversations'),
-    env,
-    dependencies: {},
-    config: { databasePath: paths.conversationsDatabase },
-    shutdownGraceMs: 3_000,
-  });
-  const watcherPromise = workerHost.spawn(fsWatchComponent, {
-    name: 'fs-watch',
-    executable: workspaceWorkerPath('fs-watch'),
-    env,
-    dependencies: {},
-    config: {},
-  });
-  const terminalsPromise = workerHost.spawn(terminalsComponent, {
-    name: 'terminals',
-    executable: workspaceWorkerPath('terminals'),
-    env,
-    dependencies: {},
-    config: {
+  const conversationsPromise = workerHost.spawn(
+    ...conversationsWorkerSpec({
+      executable: workspaceWorkerPath('conversations'),
+      env,
+      databasePath: paths.conversationsDatabase,
+    })
+  );
+  const watcherPromise = workerHost.spawn(
+    ...fsWatchWorkerSpec({ executable: workspaceWorkerPath('fs-watch'), env })
+  );
+  const terminalsPromise = workerHost.spawn(
+    ...terminalsWorkerSpec({
+      executable: workspaceWorkerPath('terminals'),
+      env,
       lifecycle: {
         terminal: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
         backgroundScript: { kind: 'while-attached', graceMs: DETACHED_TERMINAL_GRACE_MS },
       },
-    },
-  });
-  const resourceUsagePromise = workerHost.spawn(resourceUsageComponent, {
-    name: 'resource-usage',
-    executable: workspaceWorkerPath('resource-usage'),
-    env,
-    dependencies: {},
-    config: {},
-  });
+    })
+  );
+  const resourceUsagePromise = workerHost.spawn(
+    ...resourceUsageWorkerSpec({
+      executable: workspaceWorkerPath('resource-usage'),
+      env,
+    })
+  );
   const acpPromise = conversationsPromise.then((conversations) =>
-    workerHost.spawn(createAcpComponent({ pluginRegistry, env }), {
-      name: 'acp',
-      executable: workspaceWorkerPath('acp'),
+    workerHost.spawn(
+      ...acpWorkerSpec({
+        pluginRegistry,
+        executable: workspaceWorkerPath('acp'),
+        env,
+        dependencies: {
+          hostDependencies: hostDependencies.client.resolver,
+          conversations,
+        },
+        attachmentsDir: paths.attachmentsDirectory,
+        intentsFilePath: paths.acpIntentsFile,
+      })
+    )
+  );
+  const agentConfigPromise = workerHost.spawn(
+    ...agentConfigWorkerSpec({
+      pluginRegistry,
+      executable: workspaceWorkerPath('agent-config'),
       env,
       dependencies: {
         hostDependencies: hostDependencies.client.resolver,
-        conversations,
-      },
-      config: {
-        attachmentsDir: paths.attachmentsDirectory,
-        intentsFilePath: paths.acpIntentsFile,
-        lifecycle: {
-          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
-          connectionIdleTtlMs: 120_000,
-        },
       },
     })
   );
-  const agentConfigPromise = workerHost.spawn(createAgentConfigComponent({ pluginRegistry, env }), {
-    name: 'agent-config',
-    executable: workspaceWorkerPath('agent-config'),
-    env,
-    dependencies: {
-      hostDependencies: hostDependencies.client.resolver,
-    },
-    config: {},
-  });
   const tuiAgentsPromise = conversationsPromise.then((conversations) =>
-    workerHost.spawn(createTuiAgentsComponent({ pluginRegistry, env }), {
-      name: 'tui-agents',
-      executable: workspaceWorkerPath('tui-agents'),
-      env,
-      dependencies: {
-        hostDependencies: hostDependencies.client.resolver,
-        conversations,
-      },
-      config: {
-        intentsFilePath: paths.tuiAgentsIntentsFile,
-        lifecycle: {
-          session: { kind: 'idle-after', outputMs: SESSION_IDLE_MS },
+    workerHost.spawn(
+      ...tuiAgentsWorkerSpec({
+        pluginRegistry,
+        executable: workspaceWorkerPath('tui-agents'),
+        env,
+        dependencies: {
+          hostDependencies: hostDependencies.client.resolver,
+          conversations,
         },
-      },
-    })
+        intentsFilePath: paths.tuiAgentsIntentsFile,
+      })
+    )
   );
 
   const [conversations, watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] =
@@ -208,53 +183,48 @@ export async function createWorkspaceServerRuntimeHost(
       tuiAgentsPromise,
     ]);
 
-  const filesPromise = workerHost.spawn(filesComponent, {
-    name: 'files',
-    executable: workspaceWorkerPath('files'),
-    env,
-    dependencies: { watcher },
-    config: {},
-  });
-  const fileSearchPromise = workerHost.spawn(fileSearchComponent, {
-    name: 'file-search',
-    executable: workspaceWorkerPath('file-search'),
-    env,
-    dependencies: { watcher },
-    config: {
+  const filesPromise = workerHost.spawn(
+    ...filesWorkerSpec({
+      executable: workspaceWorkerPath('files'),
+      env,
+      dependencies: { watcher },
+    })
+  );
+  const fileSearchPromise = workerHost.spawn(
+    ...fileSearchWorkerSpec({
+      executable: workspaceWorkerPath('file-search'),
+      env,
+      dependencies: { watcher },
       databasePath: paths.fileSearchDatabase,
-      ...(env['EMDASH_WS_RIPGREP_PATH'] ? { ripgrepPath: env['EMDASH_WS_RIPGREP_PATH'] } : {}),
-    },
-  });
-  const gitPromise = workerHost.spawn(gitComponent, {
-    name: 'git',
-    executable: workspaceWorkerPath('git'),
-    env: GIT_RUNTIME_ENV,
-    dependencies: {
-      watcher,
-      hostDependencies: hostDependencies.client.resolver,
-    },
-    config: { env: GIT_RUNTIME_ENV },
-  });
-  const workspaceHostPromise = workerHost.spawn(workspaceHostComponent, {
-    name: 'workspace-host',
-    executable: workspaceWorkerPath('workspace-host'),
-    env,
-    dependencies: { acp, terminals, tuiAgents },
-    config: { stateDirectory: paths.workspaceHostStateDirectory },
-    supervision: { restart: 'never' },
-  });
-  // The workspace registry owns its database exclusively (ADR 0005); the watcher feeds
-  // its freshness scheduler; the session runtimes are deactivateWorkspace's kill-sessions
-  // plane. Default supervision (restart on failure) is deliberate: a durable index should
-  // come back; its runtime overlay is ephemeral by design.
-  const workspaceRegistryPromise = workerHost.spawn(workspaceRegistryComponent, {
-    name: 'workspace-registry',
-    executable: workspaceWorkerPath('workspace-registry'),
-    env,
-    dependencies: { watcher, acp, terminals, tuiAgents },
-    config: { databasePath: paths.workspaceRegistryDatabase },
-    shutdownGraceMs: 3_000,
-  });
+      ripgrepPath: env['EMDASH_WS_RIPGREP_PATH'],
+    })
+  );
+  const gitPromise = workerHost.spawn(
+    ...gitWorkerSpec({
+      executable: workspaceWorkerPath('git'),
+      env,
+      dependencies: {
+        watcher,
+        hostDependencies: hostDependencies.client.resolver,
+      },
+    })
+  );
+  const workspaceHostPromise = workerHost.spawn(
+    ...workspaceHostWorkerSpec({
+      executable: workspaceWorkerPath('workspace-host'),
+      env,
+      dependencies: { acp, terminals, tuiAgents },
+      stateDirectory: paths.workspaceHostStateDirectory,
+    })
+  );
+  const workspaceRegistryPromise = workerHost.spawn(
+    ...workspaceRegistryWorkerSpec({
+      executable: workspaceWorkerPath('workspace-registry'),
+      env,
+      dependencies: { watcher, acp, terminals, tuiAgents },
+      databasePath: paths.workspaceRegistryDatabase,
+    })
+  );
 
   const [files, fileSearch, git, workspaceHost, workspaceRegistry] = await Promise.all([
     filesPromise,
@@ -263,26 +233,26 @@ export async function createWorkspaceServerRuntimeHost(
     workspaceHostPromise,
     workspaceRegistryPromise,
   ]);
-  const automations = await workerHost.spawn(createAutomationsComponent(), {
-    name: 'automations',
-    executable: workspaceWorkerPath('automations'),
-    env,
-    dependencies: {
-      workspaceHost,
-      workspaceRegistry,
-      // Deletion tombstones are client-plane data (ADR 0006): the workspace server
-      // has no desktop mirror to consult, so host-resident runs admit
-      // unconditionally; identity-keyed sweeps keep recreation safe regardless.
-      creationAdmission: createController(workspaceCreationAdmissionContract, {
-        checkWorktreeCreation: async () => ok(undefined),
-      }),
-      acpSessions: acp,
-      tuiSessions: tuiAgents,
-      conversationIndex: conversations,
-    },
-    config: { dbFile: paths.automationsDatabase },
-    shutdownGraceMs: 3_000,
-  });
+  const automations = await workerHost.spawn(
+    ...automationsWorkerSpec({
+      executable: workspaceWorkerPath('automations'),
+      env,
+      dependencies: {
+        workspaceHost,
+        workspaceRegistry,
+        // Deletion tombstones are client-plane data (ADR 0006): the workspace server
+        // has no desktop mirror to consult, so host-resident runs admit
+        // unconditionally; identity-keyed sweeps keep recreation safe regardless.
+        creationAdmission: createController(workspaceCreationAdmissionContract, {
+          checkWorktreeCreation: async () => ok(undefined),
+        }),
+        acpSessions: acp,
+        tuiSessions: tuiAgents,
+        conversationIndex: conversations,
+      },
+      dbFile: paths.automationsDatabase,
+    })
+  );
 
   return {
     runtimes: {

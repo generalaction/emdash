@@ -34,3 +34,4 @@ export {
   type WorkspaceInitManagerOptions,
   type WorkspaceNotice,
 } from '@runtimes/workspace-host/node/session-init/workspace-init-manager';
+export { workspaceHostWorkerSpec, type WorkspaceHostWorkerSpecInput } from './worker-spec';
