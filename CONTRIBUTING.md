@@ -134,7 +134,6 @@ Individual project targets are addressable from the root without `cd`:
 ```bash
 nx package:mac @emdash/emdash-desktop
 nx db:reset @emdash/emdash-desktop
-nx storybook @emdash/ui
 nx build:theme @emdash/ui
 ```
 

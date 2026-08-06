@@ -60,6 +60,11 @@
       "dependsOn": [
         "^build"
       ]
+    },
+    "storybook": {
+      "dependsOn": [
+        "^build"
+      ]
     }
   },
   "analytics": false

@@ -78,7 +78,6 @@ nx test @emdash/shared
 nx typecheck @emdash/emdash-desktop
 nx package:mac @emdash/emdash-desktop
 nx db:reset @emdash/emdash-desktop
-nx storybook @emdash/ui
 nx build:theme @emdash/ui
 ```
 

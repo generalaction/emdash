@@ -52,77 +52,19 @@ corepack). The committed `mise.toml` is an optional convenience for mise users.
 Root scripts are powered by Nx and run package targets in dependency order with
 local caching where configured.
 
-Install dependencies from the repo root:
+Golden-path commands (see [Developer flows](agents/workflows/flows.md) for the
+full index — one blessed command per flow, database flows, Storybook,
+packaging, remote development, and escape hatches):
 
 ```bash
-pnpm install
+pnpm install        # complete setup from the repo root — nothing else needed
+pnpm run doctor     # report-only environment health check
+pnpm run dev        # full workspace dev (root); app-only from apps/emdash-desktop/
+pnpm run build      # build all workspace projects
+pnpm run check      # full merge gate: format, lint, typecheck, test
 ```
 
-Start the full workspace dev setup from the repo root:
-
-```bash
-pnpm run dev
-```
-
-Start only the Electron app from `apps/emdash-desktop/`:
-
-```bash
-cd apps/emdash-desktop
-pnpm run dev
-```
-
-Run main-process or renderer-only dev watches from `apps/emdash-desktop/`:
-
-```bash
-pnpm run dev:main
-pnpm run dev:renderer
-```
-
-Run with debug logging from `apps/emdash-desktop/`:
-
-```bash
-pnpm run dev:debug
-```
-
-Use an isolated development database for schema or migration work:
-
-```bash
-EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
-```
-
-Reset dev databases from `apps/emdash-desktop/`:
-
-```bash
-cd apps/emdash-desktop
-pnpm run db:reset
-```
-
-Build all workspace projects from the repo root:
-
-```bash
-pnpm run build
-```
-
-Build only the app targets from `apps/emdash-desktop/`:
-
-```bash
-cd apps/emdash-desktop
-pnpm run build
-pnpm run build:main
-pnpm run build:renderer
-```
-
-Package desktop artifacts locally from `apps/emdash-desktop/`:
-
-```bash
-cd apps/emdash-desktop
-pnpm run package
-pnpm run package:mac
-pnpm run package:linux
-pnpm run package:win
-```
-
-Run formatting, linting, type checks, and tests from the repo root:
+The four gate commands also run individually from the repo root:
 
 ```bash
 pnpm run format
@@ -131,42 +73,17 @@ pnpm run typecheck
 pnpm run test
 ```
 
+Use an isolated development database for schema or migration work:
+
+```bash
+EMDASH_DB_FILE=/tmp/emdash-scratch.db pnpm run dev
+```
+
 Run focused database validation from `apps/emdash-desktop/`:
 
 ```bash
 pnpm run db:fixtures
 pnpm run test:migrations
-```
-
-Run the Docker-backed remote development stack (the only remote-dev stack,
-defined in `apps/workspace-server/docker-compose.yaml`) from `apps/workspace-server/`:
-
-```bash
-cd apps/workspace-server
-pnpm run run:docker-remote
-```
-
-Run Storybook for shared UI packages:
-
-```bash
-pnpm --filter @emdash/ui run storybook
-pnpm --filter @emdash/chat-ui run storybook
-```
-
-Rebuild native Electron dependencies after native dependency changes from
-`apps/emdash-desktop/`:
-
-```bash
-cd apps/emdash-desktop
-pnpm run rebuild
-```
-
-Clean and reset app dependencies from `apps/emdash-desktop/`:
-
-```bash
-cd apps/emdash-desktop
-pnpm run clean
-pnpm run reset
 ```
 
 Deploy releases only when explicitly asked to do release work:
@@ -429,6 +346,7 @@ pnpm run test
 - [Main process architecture](agents/architecture/main-process.md)
 - [Renderer architecture](agents/architecture/renderer.md)
 - [Shared modules](agents/architecture/shared.md)
+- [Developer flows](agents/workflows/flows.md)
 - [Nx task orchestration and caching](agents/workflows/nx.md)
 - [Testing workflow](agents/workflows/testing.md)
 - [Worktrees workflow](agents/workflows/worktrees.md)

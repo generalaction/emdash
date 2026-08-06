@@ -22,7 +22,7 @@
   "scripts": {
     "build": "vite build --config vite.lib.config.ts",
     "dev": "vite build --config vite.lib.config.ts --watch",
-    "storybook": "storybook dev -p 6007",
+    "storybook": "node ../../tooling/scripts/ensure-packages-built.mjs && storybook dev -p 6007",
     "build-storybook": "storybook build",
     "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/chat-ui/src\"'",
     "format": "oxfmt",
