@@ -360,13 +360,14 @@ pnpm run rebuild
 
 This is especially relevant for `better-sqlite3` and `node-pty`.
 
-## Docker SSH Development
+## Remote Development Stack
 
-When working on Docker-backed SSH development infrastructure, start it from
-`apps/emdash-desktop/`:
+The workspace-server stack (`apps/workspace-server/docker-compose.yaml`) is the
+only Docker-backed remote-dev stack. When working on SSH/remote development
+infrastructure, start it from `apps/workspace-server/`:
 
 ```bash
-pnpm run run:docker-ssh
+pnpm run run:docker-remote
 ```
 
 Read `agents/workflows/remote-development.md` and `agents/risky-areas/ssh.md`

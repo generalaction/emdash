@@ -34,7 +34,6 @@ alias only exists in `vitest.config.ts`, not in `electron.vite.config.ts`.
 
 ```
 tooling/
-├── docker-ssh/         SSH test container (Docker)
 ├── fixtures/           committed SQLite snapshots (empty.db, baseline.db)
 ├── node-deps/          isolated better-sqlite3 compiled for system Node
 ├── seeds/              seed functions that populate fixtures

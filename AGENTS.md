@@ -134,11 +134,12 @@ pnpm run db:fixtures
 pnpm run test:migrations
 ```
 
-Run Docker-backed SSH development infrastructure from `apps/emdash-desktop/`:
+Run the Docker-backed remote development stack (the only remote-dev stack,
+defined in `apps/workspace-server/docker-compose.yaml`) from `apps/workspace-server/`:
 
 ```bash
-cd apps/emdash-desktop
-pnpm run run:docker-ssh
+cd apps/workspace-server
+pnpm run run:docker-remote
 ```
 
 Run Storybook for shared UI packages:

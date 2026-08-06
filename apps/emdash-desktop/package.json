@@ -40,7 +40,6 @@
     "package:win": "pnpm run build && electron-builder --win --publish never --config electron-builder.config.ts",
     "postinstall": "node --experimental-strip-types scripts/postinstall.ts",
     "rebuild": "electron-rebuild -f -v 40.7.0 --only=better-sqlite3,node-pty",
-    "run:docker-ssh": "docker compose up --build -d",
     "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
     "lint": "node ../../tooling/scripts/check-core-exports.mjs && node --test ../../tooling/oxlint/rules/*.test.js && oxlint .",

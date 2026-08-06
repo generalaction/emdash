@@ -134,7 +134,7 @@ Cached output directories per project:
 - `package`, `package:mac`, `package:linux`, `package:win` — electron-builder
   produces native platform artifacts and handles its own incremental logic.
 - `rebuild` — Electron native module rebuild depends on the local Electron ABI.
-- `run:docker-ssh`, `db:generate`, `db:reset` — side-effecting operations.
+- `db:generate`, `db:reset` — side-effecting operations.
 - `dev`, `format` — long-running or write-output operations.
 
 **Bust the cache when needed:**
