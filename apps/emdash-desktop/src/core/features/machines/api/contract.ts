@@ -7,6 +7,7 @@ import type {
 } from '@emdash/core/services/host-dependencies/api';
 import {
   hostDependencyErrorSchema,
+  hostDependencyOperationProgressSchema,
   installMethodSchema,
 } from '@emdash/core/services/host-dependencies/api';
 import type { Result } from '@emdash/shared';
@@ -78,7 +79,7 @@ export const machinesContract = defineContract({
   }),
   installSystemDependencies: liveJob({
     input: hostInput.extend({ dependencies: z.array(systemDependencyInstallInput).min(1) }),
-    progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
+    progress: hostDependencyOperationProgressSchema,
     result: z.record(z.string(), systemDependencyInstallResult),
     error: hostDependencyErrorSchema,
   }),

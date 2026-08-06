@@ -7,6 +7,7 @@ import {
   hooksStatusSchema,
 } from '@emdash/core/runtimes/agent-config/api';
 import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins';
+import { hostDependencyOperationProgressSchema } from '@emdash/core/services/host-dependencies/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
 import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire';
@@ -30,9 +31,6 @@ const agentsRefreshErrorSchema = z.union([
   agentConfigRefreshErrorSchema,
   runtimeResolveErrorSchema,
 ]);
-const agentOperationProgressSchema = z.object({
-  phase: z.enum(['resolving', 'running', 'refreshing']),
-});
 
 export const agentsContract = defineContract({
   list: fallible({
@@ -55,7 +53,7 @@ export const agentsContract = defineContract({
       method: z.custom<InstallMethod>().optional(),
       elevate: z.boolean().optional(),
     }),
-    progress: agentOperationProgressSchema,
+    progress: hostDependencyOperationProgressSchema,
     result: z.custom<AgentInstallationStatus>(),
     error: z.union([z.custom<AgentInstallError>(), runtimeResolveErrorSchema]),
   }),
@@ -64,7 +62,7 @@ export const agentsContract = defineContract({
       method: z.custom<InstallMethod>().optional(),
       elevate: z.boolean().optional(),
     }),
-    progress: agentOperationProgressSchema,
+    progress: hostDependencyOperationProgressSchema,
     result: z.custom<AgentInstallationStatus>(),
     error: z.union([z.custom<AgentUpdateError>(), runtimeResolveErrorSchema]),
   }),

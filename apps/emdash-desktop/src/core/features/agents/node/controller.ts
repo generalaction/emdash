@@ -1,5 +1,6 @@
 import type {
   DependencyId,
+  HostDependencyOperationProgress,
   HostDependencySnapshot,
 } from '@emdash/core/services/host-dependencies/node';
 import { hostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
@@ -23,7 +24,7 @@ import {
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
 export type AgentOperationContext = {
   signal?: AbortSignal;
-  progress?: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
+  progress?: (progress: HostDependencyOperationProgress) => void;
 };
 
 export function createAgentOperations(dependencies: {

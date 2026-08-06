@@ -25,6 +25,12 @@ export const hostDependencyInstallBatchResultSchema = z.record(
 export type HostDependencyInstallBatchResult = z.output<
   typeof hostDependencyInstallBatchResultSchema
 >;
+export const hostDependencyOperationProgressSchema = z.object({
+  phase: z.enum(['resolving', 'running', 'refreshing']),
+});
+export type HostDependencyOperationProgress = z.output<
+  typeof hostDependencyOperationProgressSchema
+>;
 
 export const hostDependencyResolverContract = defineContract({
   resolve: procedure({
@@ -55,7 +61,7 @@ export const hostDependenciesContract = defineContract({
   }),
   runSelfUpdateCommand: liveJob({
     input: depInput,
-    progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
+    progress: hostDependencyOperationProgressSchema,
     result: hostDependencyViewSchema,
     error: hostDependencyErrorSchema,
   }),
@@ -63,13 +69,13 @@ export const hostDependenciesContract = defineContract({
     input: hostDependencyInstallRequestSchema.extend({
       commandKind: z.enum(['install', 'update']).optional(),
     }),
-    progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
+    progress: hostDependencyOperationProgressSchema,
     result: hostDependencyViewSchema,
     error: hostDependencyErrorSchema,
   }),
   runInstallBatch: liveJob({
     input: z.object({ requests: z.array(hostDependencyInstallRequestSchema).min(1) }),
-    progress: z.object({ phase: z.enum(['resolving', 'running', 'refreshing']) }),
+    progress: hostDependencyOperationProgressSchema,
     result: hostDependencyInstallBatchResultSchema,
     error: hostDependencyErrorSchema,
   }),

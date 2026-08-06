@@ -29,6 +29,7 @@ import {
   hostDependenciesContract,
   type HostDependencyInstallBatchResult,
   type HostDependencyInstallRequest,
+  type HostDependencyOperationProgress,
 } from '@services/host-dependencies/api';
 import {
   APT_UPDATE_COMMAND,
@@ -66,7 +67,7 @@ const APT_UPDATE_TTL_MS = 10 * 60 * 1000;
 
 type InstallJobContext = {
   signal: AbortSignal;
-  progress: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
+  progress: (progress: HostDependencyOperationProgress) => void;
 };
 
 type SelectionDocument = {
@@ -202,10 +203,7 @@ export class HostDependenciesRuntime {
 
   async runSelfUpdateCommand(
     id: DependencyId,
-    ctx: {
-      signal: AbortSignal;
-      progress: (progress: { phase: 'resolving' | 'running' | 'refreshing' }) => void;
-    }
+    ctx: InstallJobContext
   ): Promise<HostDependencyViewResult> {
     const definition = this.definitions.get(id);
     if (!definition) return err({ type: 'unknown-dependency', id });
