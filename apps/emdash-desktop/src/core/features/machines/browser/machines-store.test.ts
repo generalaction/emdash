@@ -306,6 +306,16 @@ function setup(
       success: false as const,
       error: { type: 'unknown-dependency' as const, id },
     }),
+    installMachineSystemDependencies: async ({ dependencies }) =>
+      Object.fromEntries(
+        dependencies.map(({ id }) => [
+          id,
+          {
+            success: false as const,
+            error: { type: 'unknown-dependency' as const, id },
+          },
+        ])
+      ),
     saveMachine,
     deleteMachine,
     renameMachine,

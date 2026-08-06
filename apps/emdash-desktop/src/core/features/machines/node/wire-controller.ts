@@ -16,7 +16,7 @@ import { err, ok } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/api';
 import type { MachinesService } from '@core/features/machines/api/node/machines-service';
 import { runRuntimeLiveJob } from '@core/services/runtime-clients/node/live-job';
-import type { MachineSystemDependencyStatus } from '../api';
+import type { InstallMachineSystemDependenciesResult, MachineSystemDependencyStatus } from '../api';
 import { machinesContract } from '../api';
 
 const requiredCoreDependencyIds = new Set(
@@ -56,6 +56,35 @@ export function createMachinesWireController(
       );
       if (!result.success) return err(result.error);
       return ok(mapSystemDependencyView(result.data));
+    },
+    installMachineSystemDependencies: async ({ machineId, dependencies }) => {
+      const mapped: InstallMachineSystemDependenciesResult = {};
+      const requests = dependencies.filter(({ id }) => {
+        if (systemDependencyIds.has(id)) return true;
+        mapped[id] = err({ type: 'unknown-dependency', id });
+        return false;
+      });
+      if (requests.length === 0) return mapped;
+
+      const runtime = await resolveMachineRuntime(runtimes, machineId);
+      const result = await runRuntimeLiveJob(
+        hostDependenciesContract.runInstallBatch,
+        runtime.hostDependencies.runInstallBatch,
+        { requests }
+      );
+      if (!result.success) {
+        for (const { id } of requests) mapped[id] = err(result.error);
+        return mapped;
+      }
+      for (const { id } of requests) {
+        const entry = result.data[id];
+        mapped[id] = !entry
+          ? err({ type: 'io', message: `Install result missing for dependency: ${id}` })
+          : entry.success
+            ? ok(mapSystemDependencyView(entry.data))
+            : err(entry.error);
+      }
+      return mapped;
     },
     saveMachine: (input) => service.saveMachine(input),
     deleteMachine: ({ id }) => service.deleteMachine(id),

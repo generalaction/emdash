@@ -41,9 +41,26 @@ export type InstallMachineSystemDependencyResult = Result<
   MachineSystemDependencyStatus,
   HostDependencyError
 >;
+export type InstallMachineSystemDependenciesInput = {
+  machineId?: string;
+  dependencies: Array<Omit<InstallMachineSystemDependencyInput, 'machineId'>>;
+};
+export type InstallMachineSystemDependenciesResult = Record<
+  string,
+  InstallMachineSystemDependencyResult
+>;
 
 const voidInput = z.void();
 const hostInput = z.object({ machineId: z.string().min(1).optional() });
+const systemDependencyInstallInput = z.object({
+  id: z.string().min(1),
+  method: installMethodSchema.optional(),
+  elevate: z.boolean().optional(),
+});
+const systemDependencyInstallResult = resultSchema(
+  z.custom<MachineSystemDependencyStatus>(),
+  hostDependencyErrorSchema
+);
 
 export const machinesContract = defineContract({
   getMachines: procedure({ input: voidInput, output: z.array(z.custom<SshConfig>()) }),
@@ -60,12 +77,12 @@ export const machinesContract = defineContract({
     output: z.array(z.custom<MachineSystemDependencyStatus>()),
   }),
   installMachineSystemDependency: procedure({
-    input: hostInput.extend({
-      id: z.string().min(1),
-      method: installMethodSchema.optional(),
-      elevate: z.boolean().optional(),
-    }),
-    output: resultSchema(z.custom<MachineSystemDependencyStatus>(), hostDependencyErrorSchema),
+    input: hostInput.extend(systemDependencyInstallInput.shape),
+    output: systemDependencyInstallResult,
+  }),
+  installMachineSystemDependencies: procedure({
+    input: hostInput.extend({ dependencies: z.array(systemDependencyInstallInput).min(1) }),
+    output: z.record(z.string(), systemDependencyInstallResult),
   }),
   saveMachine: procedure({
     input: z.custom<SaveMachineInput>(),

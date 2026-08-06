@@ -12,6 +12,8 @@ import type {
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type {
+  InstallMachineSystemDependenciesInput,
+  InstallMachineSystemDependenciesResult,
   InstallMachineSystemDependencyInput,
   InstallMachineSystemDependencyResult,
   MachineSystemDependencyStatus,
@@ -24,7 +26,7 @@ type SshClient = ContractClient<typeof sshContract>;
 type MachinesClient = ContractClient<typeof machinesContract>;
 export type SystemDependenciesStore = Pick<
   MachinesStore,
-  'getSystemDependencies' | 'installSystemDependency'
+  'getSystemDependencies' | 'installSystemDependencies' | 'installSystemDependency'
 >;
 
 export type MachinesStoreOptions = {
@@ -208,6 +210,12 @@ export class MachinesStore {
     return await (await this.getMachinesClient()).installMachineSystemDependency(input);
   }
 
+  async installSystemDependencies(
+    input: InstallMachineSystemDependenciesInput
+  ): Promise<InstallMachineSystemDependenciesResult> {
+    return await (await this.getMachinesClient()).installMachineSystemDependencies(input);
+  }
+
   private get runtime(): SshConnectionsRuntime {
     return this.runtimeData;
   }
@@ -305,5 +313,7 @@ export function createSystemDependenciesStore(): SystemDependenciesStore {
       await (await getDesktopWireClient()).machines.getMachineSystemDependencies({ machineId }),
     installSystemDependency: async (input: InstallMachineSystemDependencyInput) =>
       await (await getDesktopWireClient()).machines.installMachineSystemDependency(input),
+    installSystemDependencies: async (input: InstallMachineSystemDependenciesInput) =>
+      await (await getDesktopWireClient()).machines.installMachineSystemDependencies(input),
   };
 }

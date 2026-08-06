@@ -116,6 +116,52 @@ describe('createMachinesWireController system dependencies', () => {
     expect(client).not.toHaveBeenCalled();
   });
 
+  it('maps batched install results per system dependency', async () => {
+    const gitView = hostDependencyView(GIT_DEPENDENCY_DESCRIPTOR, {
+      resolvedPath: '/usr/bin/git',
+    });
+    runRuntimeLiveJob.mockResolvedValueOnce(
+      ok({
+        git: ok(gitView),
+        node: err({
+          type: 'command-failed',
+          message: 'apt failed',
+          output: 'lock timeout',
+          exitCode: 100,
+        }),
+      })
+    );
+    const runInstallBatch = {};
+    const client = vi.fn(async () => ok({ hostDependencies: { runInstallBatch } }));
+    const controller = createMachinesWireController(createService(), { client } as never);
+
+    await expect(
+      controller.call('installMachineSystemDependencies', {
+        machineId: 'ssh-1',
+        dependencies: [{ id: 'git' }, { id: 'node', method: 'apt' }],
+      })
+    ).resolves.toEqual({
+      git: ok({
+        id: 'git',
+        name: 'Git',
+        tier: 'required',
+        status: 'available',
+        path: '/usr/bin/git',
+        installDocs: 'https://git-scm.com/downloads',
+        installOptions: GIT_DEPENDENCY_DESCRIPTOR.installCommands?.macos ?? [],
+      }),
+      node: err({
+        type: 'command-failed',
+        message: 'apt failed',
+        output: 'lock timeout',
+        exitCode: 100,
+      }),
+    });
+    expect(runRuntimeLiveJob).toHaveBeenCalledWith(expect.anything(), runInstallBatch, {
+      requests: [{ id: 'git' }, { id: 'node', method: 'apt' }],
+    });
+  });
+
   it('throws runtime resolve errors for unavailable machine runtimes', async () => {
     const runtimeError = runtimeHostUnavailable(remoteHost, 'unavailable');
     const controller = createMachinesWireController(createService(), {
