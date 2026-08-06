@@ -19,6 +19,7 @@ import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
 import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import { appSubject } from '@core/primitives/subjects/api';
+import '@fontsource-variable/inter/index.css';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
