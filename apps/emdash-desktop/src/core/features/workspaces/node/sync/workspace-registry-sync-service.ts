@@ -5,7 +5,7 @@ import {
 } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { observe, remote } from '@emdash/wire';
+import { observe, remote, whenReady } from '@emdash/wire';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   applyWorkspaceRegistrySnapshot,
@@ -52,10 +52,11 @@ export class WorkspaceRegistrySyncService {
       client.data.workspaceRegistry.records,
       { scope }
     );
+    const list = records(undefined).states.list;
     const hostIdentity = hostIdentityFor(host);
     let chain = Promise.resolve();
     observe(
-      records(undefined).states.list,
+      list,
       (snapshot) => {
         if (snapshot.status === 'loading') return;
         const parsed = workspaceRecordsSchema.parse(snapshot.value ?? {});
@@ -73,6 +74,9 @@ export class WorkspaceRegistrySyncService {
       },
       { scope }
     );
+    await whenReady(list, { scope });
+    await chain;
+    if (this.attachments.get(key) !== scope) await scope.dispose();
   }
 
   detachHost(host: HostRef): void {

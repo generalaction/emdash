@@ -1,16 +1,17 @@
+import { formatHostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   acpApiContract,
   sessionSummarySchema,
   type AcpApiContract,
   type SessionSummary,
 } from '@emdash/core/runtimes/acp/api';
+import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire';
 import type { WireWorker } from '@emdash/wire/worker';
 import { z } from 'zod';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
-import type { AcpRuntimeClient } from '@main/gateway/desktop-workers';
 import { log } from '@main/lib/logger';
 import {
   deriveAcpAgentStatusActions,
@@ -24,165 +25,187 @@ export type ConversationCreatedSubscription = (
   handler: (conversation: { id: string }) => void
 ) => Unsubscribe;
 
-type AcpAgentStatusRuntime = {
-  client: AcpRuntimeClient;
-  onStateChanged: WireWorker<AcpApiContract>['onStateChanged'];
+type AcpAgentStatusBridgeDependencies = {
+  runtimes: RuntimeBroker;
+  onLocalWorkerStateChanged: WireWorker<AcpApiContract>['onStateChanged'];
+  loadActiveConversationIds(host: HostRef): Promise<string[]>;
+  renameConversation: (conversationId: string, name: string) => Promise<unknown>;
 };
 
-type AcpSessionTitleDeps = {
-  renameConversation: (conversationId: string, name: string) => Promise<unknown>;
+type AcpHostAttachment = {
+  scope: Scope;
+  summaries: Map<string, SessionSummary>;
 };
 
 const sessionSummaryListSchema = z.record(z.string(), sessionSummarySchema);
 
-class AcpAgentStatusBridge {
-  private readonly summaries = new Map<string, SessionSummary>();
+export class AcpAgentStatusBridge {
+  private readonly attachments = new Map<string, AcpHostAttachment>();
   private workerStateUnsubscribe: Unsubscribe | null = null;
   private conversationCreatedUnsubscribe: Unsubscribe | null = null;
-  private attachScope: Scope | null = null;
-  private attaching = false;
-  private runtime: AcpAgentStatusRuntime | undefined;
-  private titleDeps: AcpSessionTitleDeps | undefined;
+  private dependencies: AcpAgentStatusBridgeDependencies | undefined;
+  private disposed = false;
 
   initialize(
     onConversationCreated: ConversationCreatedSubscription,
-    runtime: AcpAgentStatusRuntime,
-    deps: AcpSessionTitleDeps
+    dependencies: AcpAgentStatusBridgeDependencies
   ): void {
-    this.runtime = runtime;
-    this.titleDeps = deps;
+    this.disposed = false;
+    this.dependencies = dependencies;
     this.conversationCreatedUnsubscribe ??= onConversationCreated((conversation) =>
       this.cacheConversationSnapshot(conversation.id)
     );
-    void this.attach().catch((error) => {
-      log.warn('ACP agent status bridge failed to attach', { error: String(error) });
+    this.workerStateUnsubscribe ??= dependencies.onLocalWorkerStateChanged((state) => {
+      if (state.kind === 'failed' || state.kind === 'disposed') {
+        this.detachHost(LOCAL_HOST_REF);
+        void this.resetHost(LOCAL_HOST_REF).catch((error) => {
+          log.warn('ACP agent status bridge failed to reset local statuses after worker exit', {
+            error: String(error),
+          });
+        });
+      } else if (state.kind === 'ready') {
+        void this.attachHost(LOCAL_HOST_REF).catch((error) => {
+          log.warn('ACP agent status bridge failed to reattach after worker recovery', {
+            error: String(error),
+          });
+        });
+      }
     });
   }
 
+  async attachHost(host: HostRef): Promise<void> {
+    if (this.disposed) return;
+    this.detachHost(host);
+    const dependencies = this.dependencies;
+    if (!dependencies) throw new Error('ACP agent status bridge has not been initialized');
+    const client = await dependencies.runtimes.client(host);
+    if (!client.success || this.disposed) return;
+    const key = formatHostRef(host);
+    if (this.attachments.has(key)) return;
+
+    const scope = createScope({ label: `acp-agent-status-bridge:${key}` });
+    const attachment: AcpHostAttachment = { scope, summaries: new Map() };
+    this.attachments.set(key, attachment);
+    const sessions = remote(acpApiContract.sessions, client.data.acp.sessions, {
+      scope,
+      lingerMs: 15_000,
+    });
+    const list = sessions(undefined).states.list;
+    let first = true;
+    let applyChain = Promise.resolve();
+    observe(
+      list,
+      (snapshot) => {
+        if (snapshot.status === 'loading') return;
+        const summaries = sessionSummaryListSchema.parse(snapshot.value ?? {});
+        const bootstrap = first;
+        first = false;
+        applyChain = applyChain
+          .then(() => this.applySummaries(host, attachment, summaries, { bootstrap }))
+          .catch((error) => {
+            log.warn('ACP agent status bridge failed to apply summaries', {
+              host: key,
+              error: String(error),
+            });
+          });
+      },
+      { scope }
+    );
+    await whenReady(list, { scope });
+    await applyChain;
+    if (this.attachments.get(key) !== attachment) await scope.dispose();
+  }
+
+  detachHost(host: HostRef): void {
+    const key = formatHostRef(host);
+    const attachment = this.attachments.get(key);
+    if (!attachment) return;
+    this.attachments.delete(key);
+    attachment.summaries.clear();
+    void attachment.scope.dispose();
+  }
+
   dispose(): void {
+    this.disposed = true;
     this.conversationCreatedUnsubscribe?.();
     this.conversationCreatedUnsubscribe = null;
     this.workerStateUnsubscribe?.();
     this.workerStateUnsubscribe = null;
-    this.runtime = undefined;
-    this.titleDeps = undefined;
-    this.detach();
+    for (const attachment of this.attachments.values()) void attachment.scope.dispose();
+    this.attachments.clear();
+    this.dependencies = undefined;
   }
 
-  private async attach(): Promise<void> {
-    if (this.attaching) return;
-    this.attaching = true;
-    try {
-      this.detach();
-      const runtime = this.runtime;
-      if (!runtime) throw new Error('ACP agent status runtime has not been configured');
-      this.workerStateUnsubscribe = runtime.onStateChanged((state) => {
-        if (state.kind !== 'failed' && state.kind !== 'disposed') return;
-        void this.resetAll().catch((error) => {
-          log.warn('ACP agent status bridge failed to reset statuses on disconnect', {
-            error: String(error),
-          });
-        });
-        this.detach();
-      });
-      const scope = createScope({ label: 'acp-agent-status-bridge' });
-      this.attachScope = scope;
-      const sessions = remote(acpApiContract.sessions, runtime.client.sessions, {
-        scope,
-        lingerMs: 15_000,
-      });
-      const list = sessions(undefined).states.list;
-      let first = true;
-      let applyChain = Promise.resolve();
-      observe(
-        list,
-        (snapshot) => {
-          if (snapshot.status === 'loading') return;
-          const summaries = sessionSummaryListSchema.parse(snapshot.value ?? {});
-          const bootstrap = first;
-          first = false;
-          applyChain = applyChain
-            .then(() => this.applySummaries(summaries, { bootstrap }))
-            .catch((error) => {
-              log.warn('ACP agent status bridge failed to apply summaries', {
-                error: String(error),
-              });
-            });
-        },
-        { scope }
-      );
-      await whenReady(list, { scope });
-      await applyChain;
-      if (this.attachScope !== scope) {
-        await scope.dispose();
-        return;
-      }
-    } finally {
-      this.attaching = false;
-    }
-  }
-
-  private detach(): void {
-    this.workerStateUnsubscribe?.();
-    this.workerStateUnsubscribe = null;
-    const scope = this.attachScope;
-    this.attachScope = null;
-    if (scope) void scope.dispose();
-  }
-
-  private applySummaries(
+  private async applySummaries(
+    host: HostRef,
+    attachment: AcpHostAttachment,
     nextSummaries: SessionSummaryList,
     options: { bootstrap?: boolean } = {}
-  ): void {
+  ): Promise<void> {
     const bootstrap = options.bootstrap ?? false;
     const seen = new Set<string>();
     for (const summary of Object.values(nextSummaries)) {
       seen.add(summary.conversationId);
-      const previous = this.summaries.get(summary.conversationId);
+      const previous = attachment.summaries.get(summary.conversationId);
       const actions = bootstrap
         ? [projectAcpStatusSnapshot(summary)].filter(
             (action): action is AcpAgentStatusAction => action !== null
           )
         : deriveAcpAgentStatusActions(previous, summary);
-      this.applyActions(actions, { cache: bootstrap });
+      await this.applyActions(actions, { cache: bootstrap });
       if (!bootstrap) {
         const titleAction = deriveAcpSessionTitleAction(previous, summary);
         if (titleAction) this.applyTitleAction(titleAction);
       }
-      this.summaries.set(summary.conversationId, summary);
+      attachment.summaries.set(summary.conversationId, summary);
     }
 
-    for (const [conversationId, summary] of [...this.summaries]) {
+    for (const [conversationId, summary] of [...attachment.summaries]) {
       if (seen.has(conversationId)) continue;
-      this.applyActions(deriveAcpAgentStatusActions(summary, undefined));
-      this.summaries.delete(conversationId);
+      await this.applyActions(deriveAcpAgentStatusActions(summary, undefined));
+      attachment.summaries.delete(conversationId);
     }
+    if (bootstrap) await this.resetMissingHostStatuses(host, seen);
   }
 
-  private applyActions(actions: AcpAgentStatusAction[], options: { cache?: boolean } = {}): void {
-    for (const action of actions) {
-      const pending =
-        action.kind === 'event'
-          ? options.cache
-            ? agentStatusService.cacheSignal(action.event)
-            : agentStatusService.applySignal(action.event)
-          : agentStatusService.resetToIdle({ conversationId: action.conversationId });
-      void pending.catch((error) => this.logApplyError(action, error));
-    }
-  }
-
-  private async resetAll(): Promise<void> {
-    const summaries = [...this.summaries.values()];
-    this.summaries.clear();
+  private async applyActions(
+    actions: AcpAgentStatusAction[],
+    options: { cache?: boolean } = {}
+  ): Promise<void> {
     await Promise.all(
-      summaries.map((summary) =>
-        agentStatusService.resetToIdle({ conversationId: summary.conversationId })
+      actions.map(async (action) => {
+        try {
+          if (action.kind === 'event') {
+            await (options.cache
+              ? agentStatusService.cacheSignal(action.event)
+              : agentStatusService.applySignal(action.event));
+          } else {
+            await agentStatusService.resetToIdle({ conversationId: action.conversationId });
+          }
+        } catch (error) {
+          this.logApplyError(action, error);
+        }
+      })
+    );
+  }
+
+  private async resetMissingHostStatuses(host: HostRef, seen: ReadonlySet<string>): Promise<void> {
+    const dependencies = this.dependencies;
+    if (!dependencies) return;
+    const activeIds = await dependencies.loadActiveConversationIds(host);
+    await Promise.all(
+      activeIds.flatMap((conversationId) =>
+        seen.has(conversationId) ? [] : [agentStatusService.resetToIdle({ conversationId })]
       )
     );
   }
 
+  private async resetHost(host: HostRef): Promise<void> {
+    await this.resetMissingHostStatuses(host, new Set());
+  }
+
   private applyTitleAction(action: AcpSessionTitleAction): void {
-    const pending = this.titleDeps?.renameConversation(action.conversationId, action.title);
+    const pending = this.dependencies?.renameConversation(action.conversationId, action.title);
     if (!pending) {
       log.warn('ACP session title bridge missing rename dependency', {
         conversationId: action.conversationId,
@@ -198,10 +221,13 @@ class AcpAgentStatusBridge {
   }
 
   private cacheConversationSnapshot(conversationId: string): void {
-    const summary = this.summaries.get(conversationId);
-    if (!summary) return;
-    const action = projectAcpStatusSnapshot(summary);
-    if (action) this.applyActions([action], { cache: true });
+    for (const attachment of this.attachments.values()) {
+      const summary = attachment.summaries.get(conversationId);
+      if (!summary) continue;
+      const action = projectAcpStatusSnapshot(summary);
+      if (action) void this.applyActions([action], { cache: true });
+      return;
+    }
   }
 
   private logApplyError(action: AcpAgentStatusAction, error: unknown): void {

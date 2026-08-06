@@ -1,4 +1,4 @@
-import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { isLocalHostRef } from '@emdash/core/primitives/host/api';
 import { integrationPluginRegistry } from '@emdash/plugins/integrations';
 import { app } from 'electron';
 import { providerTokenRegistry } from '@core/features/account/api/node/provider-token-registry';
@@ -119,6 +119,7 @@ import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { createDesktopWorkspaceRuntimeAcquirer } from '@main/gateway/workspace-runtime';
 import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-profile-session';
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
+import { HostAttachmentRegistry } from '@main/host/host-attachment-registry';
 import { createSystemNotificationSink } from '@main/host/notifications/system-notification-sink';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
 import { installUpdateNotifications } from '@main/host/updates/update-notifications';
@@ -151,6 +152,7 @@ export type ServicesBundle = {
   };
   readonly issueProviders: ReturnType<typeof createIssueProviderRegistry>;
   readonly hostIsReachable: HostReachabilityProbe;
+  readonly hostAttachments: HostAttachmentRegistry;
   readonly notifications: ReturnType<typeof createNotificationService>;
   readonly promptLibrary: ReturnType<typeof createPromptLibraryService>;
   readonly projectDeletion: ProjectDeletionDependencies;
@@ -549,10 +551,6 @@ export async function bootServices(
     runtimes,
     onError: (context, error) => log.warn(context, { error }),
   });
-  // Backfill precedes attach so the first missing-sweep already sees pre-upgrade rows.
-  const localWorkspaceRegistryReady = workspaceRegistryBackfill
-    .backfillHost(LOCAL_HOST_REF)
-    .then(() => workspaceRegistrySync.attachHost(LOCAL_HOST_REF));
   const conversationSync = new ConversationSyncService({
     db,
     runtimes,
@@ -564,10 +562,6 @@ export async function bootServices(
     runtimes,
     onError: (context, error) => log.warn(context, { error }),
   });
-  // Backfill precedes attach so the first missing-sweep already sees pre-upgrade records.
-  void conversationBackfill
-    .backfillHost(LOCAL_HOST_REF)
-    .then(() => conversationSync.attachHost(LOCAL_HOST_REF));
   // The operations kernel is gone (ADR 0006 demolition): best-effort cleanup of the
   // orphaned SQLite store older builds left next to the app database.
   cleanupLegacyOperationsDatabases(log);
@@ -584,7 +578,41 @@ export async function bootServices(
   // workspace cascade's freshly written conversation tombstones converge in the same
   // pass; correctness never depends on the order (ADR 0006).
   reconcileSweep.registerKind(createConversationDeletionSweepKind({ db, runtimes }));
-  void localWorkspaceRegistryReady.then(() => reconcileSweep.attachHost(LOCAL_HOST_REF));
+  const hostAttachments = new HostAttachmentRegistry({
+    scope: appScope,
+    ssh: infrastructure.ssh.manager,
+    remoteMachine: infrastructure.remoteMachine,
+    logger: log,
+  });
+  // Registration order is the per-host convergence order. Backfills precede the
+  // authoritative live subscription, and workspace convergence precedes deletion sweeps.
+  hostAttachments.register({
+    label: 'conversation-sync',
+    async attach(host) {
+      await conversationBackfill.backfillHost(host);
+      await conversationSync.attachHost(host);
+    },
+    detach: (host) => conversationSync.detachHost(host),
+  });
+  hostAttachments.register({
+    label: 'workspace-registry-sync',
+    async attach(host) {
+      await workspaceRegistryBackfill.backfillHost(host);
+      await workspaceRegistrySync.attachHost(host);
+      reconcileSweep.attachHost(host);
+    },
+    detach(host) {
+      workspaceRegistrySync.detachHost(host);
+      reconcileSweep.detachHost(host);
+    },
+  });
+  hostAttachments.register({
+    label: 'automations-tombstone-sweep',
+    attach: async (host) => {
+      if (!isLocalHostRef(host)) await automationsService.sweepDeletionTombstones();
+    },
+    detach: () => {},
+  });
   // Tombstoned-while-reachable trigger: constructed here (composition root) and
   // installed on the module bridge the tombstone write paths poke.
   const reconcileSweepTriggers = createReconcileSweepTriggers();
@@ -610,36 +638,13 @@ export async function bootServices(
   void sessionHygieneSweep.runNow().catch((error) => {
     log.warn('session hygiene sweep failed', { error: String(error) });
   });
-  const handleConversationSyncSshEvent = (event: { type: string; connectionId?: string }) => {
-    if (!event.connectionId) return;
-    if (event.type === 'connected' || event.type === 'reconnected') {
-      const host = hostRef('remote', event.connectionId);
-      void conversationBackfill.backfillHost(host).then(() => conversationSync.attachHost(host));
-      // The unreachable→reachable sweep trigger rides the same signal as the sync
-      // attach, after it, so the first sweep sees a freshly converged mirror.
-      void workspaceRegistryBackfill
-        .backfillHost(host)
-        .then(() => workspaceRegistrySync.attachHost(host))
-        .then(() => reconcileSweep.attachHost(host));
-      // Automation deletion tombstones have no sweep kind (no mirror row to key on);
-      // their retry rides the same reconnect signal directly (ADR 0006).
-      void automationsService.sweepDeletionTombstones();
-    } else if (event.type === 'disconnected' || event.type === 'reconnect-failed') {
-      conversationSync.detachHost(hostRef('remote', event.connectionId));
-      workspaceRegistrySync.detachHost(hostRef('remote', event.connectionId));
-      reconcileSweep.detachHost(hostRef('remote', event.connectionId));
-    }
-  };
-  infrastructure.ssh.manager.on('connection-event', handleConversationSyncSshEvent);
-  appScope.add(() => {
-    infrastructure.ssh.manager.off('connection-event', handleConversationSyncSshEvent);
-  });
   registerProviderTokenHandlers();
   return {
     account: accountService,
     automations: automationsService,
     github: githubServices,
     hostIsReachable,
+    hostAttachments,
     issueProviders,
     notifications: notificationService,
     promptLibrary: promptLibraryService,

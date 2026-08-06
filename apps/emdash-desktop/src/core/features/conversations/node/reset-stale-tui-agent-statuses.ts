@@ -11,6 +11,7 @@ export async function resetStaleTuiAgentStatuses(db: AppDb): Promise<void> {
       .where(
         and(
           eq(conversations.type, 'pty'),
+          eq(conversations.location, 'local'),
           inArray(conversations.agentStatus, ['working', 'awaiting-input'])
         )
       );

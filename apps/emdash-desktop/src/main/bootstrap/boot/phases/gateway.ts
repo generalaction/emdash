@@ -1,5 +1,6 @@
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import { conversationWireEvents } from '@core/features/conversations/node/event-host';
+import { loadActiveAgentStatusConversationIds } from '@core/features/conversations/node/load-active-agent-status-conversation-ids';
 import { renameConversation } from '@core/features/conversations/node/renameConversation';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
 import { setAgentStatusConversationEventPublisher } from '@main/core/agent-status/agent-status-service';
@@ -37,10 +38,10 @@ export function installGateway(
   acpAgentStatusBridge.initialize(
     (handler) => conversationEvents.on('conversation:created', handler),
     {
-      client: runtimes.clients.acp,
-      onStateChanged: runtimes.workers.acp.onStateChanged.bind(runtimes.workers.acp),
-    },
-    {
+      runtimes: runtimes.broker,
+      onLocalWorkerStateChanged: runtimes.workers.acp.onStateChanged.bind(runtimes.workers.acp),
+      loadActiveConversationIds: (host) =>
+        loadActiveAgentStatusConversationIds(database.db, host, 'acp'),
       renameConversation: (conversationId, name) =>
         renameConversation(
           {
@@ -57,10 +58,27 @@ export function installGateway(
     conversationWireEvents.emit(undefined, event);
   setAgentStatusConversationEventPublisher(publishConversationEvent);
   tuiAgentStatusBridge.initialize({
-    client: runtimes.clients.tuiAgents,
-    onStateChanged: runtimes.workers.tuiAgents.onStateChanged.bind(runtimes.workers.tuiAgents),
-    publishConversationEvent,
+    runtimes: runtimes.broker,
+    onLocalWorkerStateChanged: runtimes.workers.tuiAgents.onStateChanged.bind(
+      runtimes.workers.tuiAgents
+    ),
+    loadActiveConversationIds: (host) =>
+      loadActiveAgentStatusConversationIds(database.db, host, 'pty'),
   });
+  appScope.add(
+    services.hostAttachments.register({
+      label: 'acp-agent-status',
+      attach: (host) => acpAgentStatusBridge.attachHost(host),
+      detach: (host) => acpAgentStatusBridge.detachHost(host),
+    })
+  );
+  appScope.add(
+    services.hostAttachments.register({
+      label: 'tui-agent-status',
+      attach: (host) => tuiAgentStatusBridge.attachHost(host),
+      detach: (host) => tuiAgentStatusBridge.detachHost(host),
+    })
+  );
 
   runInBackground('account-session', async () => {
     const result = await services.account.initialize();
