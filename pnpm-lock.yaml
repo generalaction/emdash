@@ -282,9 +282,6 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.17)(react@19.2.7)
-      react-resizable-panels:
-        specifier: ^4.7.3
-        version: 4.11.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-syntax-highlighter:
         specifier: ^15.6.6
         version: 15.6.6(react@19.2.7)
@@ -747,6 +744,9 @@ importers:
       lucide-react:
         specifier: ^0.564.0
         version: 0.564.0(react@19.2.7)
+      react-resizable-panels:
+        specifier: ^4.7.3
+        version: 4.11.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-zoom-pan-pinch:
         specifier: ^4.0.3
         version: 4.0.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

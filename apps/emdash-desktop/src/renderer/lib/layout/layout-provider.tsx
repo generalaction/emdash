@@ -1,3 +1,4 @@
+import { useResizablePanelRef, type ResizablePanelHandle } from '@emdash/ui/react/primitives';
 import {
   createContext,
   useCallback,
@@ -7,11 +8,10 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { usePanelRef, type PanelImperativeHandle } from 'react-resizable-panels';
 
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
-  leftPanelRef: RefObject<PanelImperativeHandle | null>;
+  leftPanelRef: RefObject<ResizablePanelHandle | null>;
   syncLeftOpenFromPanel: () => void;
   setCollapsed: (side: 'left', collapsed: boolean) => void;
   toggleLeft: () => void;
@@ -25,7 +25,7 @@ export interface WorkspaceLayoutContextValue {
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
 
 export function useWorkspaceLayoutService() {
-  const leftPanelRef = usePanelRef();
+  const leftPanelRef = useResizablePanelRef();
 
   const [isLeftOpen, setIsLeftOpen] = useState(true);
 

@@ -1,3 +1,4 @@
+import { Resizable } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GitBranchPlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -17,14 +18,9 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { InitializeRepositoryError } from '@core/primitives/projects/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { Button } from '@core/primitives/ui/browser/button';
 import { EmptyState } from '@core/primitives/ui/browser/empty-state';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@core/primitives/ui/browser/resizable';
 import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { GitStatusSection } from '../../../../browser/diff-view/changes-panel/git-status-section';
 import {
@@ -142,13 +138,13 @@ export const ChangesPanel = observer(function ChangesPanel() {
 
   return (
     <div ref={containerRef} className="flex h-full flex-col">
-      <ResizablePanelGroup
+      <Resizable.Group
         orientation="vertical"
         className="min-h-0 flex-1"
         id="changes-panel-group"
         disableCursor
       >
-        <ResizablePanel
+        <Resizable.Panel
           id="changes-unstaged"
           panelRef={unstagedRef}
           collapsible
@@ -159,9 +155,9 @@ export const ChangesPanel = observer(function ChangesPanel() {
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <UnstagedSection />
-        </ResizablePanel>
-        <ResizableHandle disabled={!expanded.unstaged || !expanded.staged} {...pointerHandlers} />
-        <ResizablePanel
+        </Resizable.Panel>
+        <Resizable.Handle disabled={!expanded.unstaged || !expanded.staged} {...pointerHandlers} />
+        <Resizable.Panel
           id="changes-staged"
           panelRef={stagedRef}
           collapsible
@@ -172,12 +168,12 @@ export const ChangesPanel = observer(function ChangesPanel() {
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <StagedSection />
-        </ResizablePanel>
-        <ResizableHandle
+        </Resizable.Panel>
+        <Resizable.Handle
           disabled={!expanded.staged || !expanded.pullRequests}
           {...pointerHandlers}
         />
-        <ResizablePanel
+        <Resizable.Panel
           id="changes-pr"
           panelRef={prRef}
           collapsible
@@ -191,8 +187,8 @@ export const ChangesPanel = observer(function ChangesPanel() {
             onToggleCollapsed={() => toggleExpanded('pullRequests')}
             collapsed={!expanded.pullRequests}
           />
-        </ResizablePanel>
-        <ResizablePanel
+        </Resizable.Panel>
+        <Resizable.Panel
           id="changes-spacer"
           panelRef={spacerRef}
           minSize="0%"
@@ -200,7 +196,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
           defaultSize="0%"
           className="border-t border-border"
         />
-      </ResizablePanelGroup>
+      </Resizable.Group>
       <GitStatusSection />
     </div>
   );

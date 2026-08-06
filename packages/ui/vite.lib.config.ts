@@ -60,6 +60,7 @@ export default defineConfig({
         'mobx-react-lite',
         'react',
         'react-dom',
+        'react-resizable-panels',
         'react-zoom-pan-pinch',
         'react/jsx-runtime',
         '@base-ui/react',

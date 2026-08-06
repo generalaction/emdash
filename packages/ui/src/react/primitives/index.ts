@@ -36,6 +36,15 @@ export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
 export { InputGroup, type InputGroupAddonAlign } from './input-group';
 export { Alert, type AlertProps } from './alert';
 export { Field, type FieldVariants } from './field';
+export {
+  Resizable,
+  useResizableDefaultLayout,
+  useResizablePanelRef,
+  type ResizableGroupProps,
+  type ResizableHandleProps,
+  type ResizablePanelHandle,
+  type ResizablePanelProps,
+} from './resizable';
 
 // ── Non-namespaced compound helpers (remain as named exports) ─────────────────
 export {
