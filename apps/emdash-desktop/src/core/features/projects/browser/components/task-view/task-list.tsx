@@ -1,4 +1,4 @@
-import { EmptyState } from '@emdash/ui/react/components';
+import { EmptyState, ListPopoverCard } from '@emdash/ui/react/components';
 import { Button } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
@@ -13,7 +13,6 @@ import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import {
   Select,

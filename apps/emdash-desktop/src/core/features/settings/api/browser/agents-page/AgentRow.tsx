@@ -1,7 +1,7 @@
+import { Pill } from '@emdash/ui/react/components';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { getAgentUpdateActionState } from '@core/features/agents/api/browser/components/agent-selector/agent-install';
 import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
-import { AgentUiBadge } from '@core/primitives/ui/browser/components/agent-ui-badge';
 import {
   InstalledBadge,
   UninstalledBadge,
@@ -37,7 +37,7 @@ export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: ()
           <span className="text-sm text-foreground">{agent.name}</span>
           <div className="flex items-center gap-1.5">
             <>
-              {showUiBadge && <AgentUiBadge />}
+              {showUiBadge && <Pill variant="info">Chat UI</Pill>}
               {updateState.render && <UpdateAvailableBadge />}
               {isInstalled ? <InstalledBadge /> : <UninstalledBadge />}
             </>

@@ -1,5 +1,6 @@
 import type { ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { Pill } from '@emdash/ui/react/components';
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
@@ -16,7 +17,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@core/primitives/ui/browser/combobox';
-import { AgentUiBadge } from '@core/primitives/ui/browser/components/agent-ui-badge';
 import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,
@@ -158,7 +158,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                             </span>
                           ) : null}
                         </span>
-                        {item.supportsAcp && <AgentUiBadge />}
+                        {item.supportsAcp && <Pill variant="info">Chat UI</Pill>}
                       </ComboboxItem>
                     );
                   }}

@@ -1,11 +1,11 @@
 import type { McpCatalogEntry, McpServer } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { CardGridItem } from '@emdash/ui/react/components';
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
-import { CardGridItem } from '@core/primitives/ui/browser/components/card-grid';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
 
 interface McpCardProps {
@@ -57,7 +57,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
           handleClick();
         }
       }}
-      className="relative"
+      className="group relative"
     >
       <McpServerIcon name={name} iconKey={catalogEntry?.key ?? server?.name} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

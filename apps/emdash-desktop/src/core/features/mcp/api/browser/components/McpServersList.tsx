@@ -1,7 +1,7 @@
+import { CardGridSection } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import React from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { CardGridSection } from '@core/primitives/ui/browser/components/card-grid';
 import { McpCard } from '../../../browser/components/McpCard';
 import { McpDrawer, type McpDrawerMode } from '../../../browser/components/McpDrawer';
 import type { UseMcpsResult } from '../../../browser/components/useMcps';

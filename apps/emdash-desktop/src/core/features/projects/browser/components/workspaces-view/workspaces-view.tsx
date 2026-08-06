@@ -1,4 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { ListPopoverCard } from '@emdash/ui/react/components';
 import {
   compareDates,
   compareNumbers,
@@ -23,7 +24,6 @@ import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/br
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { SearchInput } from '@core/primitives/ui/browser/search-input';
 import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
