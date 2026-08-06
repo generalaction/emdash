@@ -1,4 +1,4 @@
-export * from './api';
+export * from './rpc';
 export * from './observability';
 export {
   createEventStreamHost,
@@ -57,19 +57,6 @@ export {
   type GroupMutationEnvelope,
   type LiveModelProvider,
 } from './live/replica/provider';
-export type {
-  LiveLogSnapshotData,
-  LiveSource,
-  LiveSubscribeOptions,
-  LiveUpdate,
-} from './live/protocol';
-export type { BlobSource, WireFile } from './api/blob-channel';
-export {
-  createMutationId,
-  type LiveMutationInput,
-  type LiveMutationResult,
-  type LiveMutationSuccess,
-} from './live/mutations/types';
 export { expose, type ExposedMutationContext } from './state/bridge/expose';
 export { assignDraft } from './state/bridge/assign-draft';
 export { withMappedMutationErrors } from './state/bridge/mutation-error';

@@ -2,9 +2,10 @@ import { Emitter, type SerializedError, type Unsubscribe } from '@emdash/shared'
 import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
+import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { WireInstrumentation } from '../../observability';
 import type { LiveResyncFailurePolicy } from '../follower';
-import type { LiveCursor, LiveJobState, LiveSnapshot, LiveUpdate } from '../protocol';
+import type { LiveJobState } from '../protocol';
 import { LiveStateClient, type LiveChangeMeta } from '../state';
 
 export type LiveJobClientDeps<P, R, E> = {

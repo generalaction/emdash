@@ -1,11 +1,11 @@
 import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import type { LiveSnapshot, LiveUpdate } from '../api/channel';
 import type { WireResyncFailedEvent } from '../observability';
 import { backoffSchedule } from '../util/backoff';
 import { resyncMarkStale, resyncRetry } from './follower';
 import { LiveJobClient } from './job';
-import type { LiveSnapshot, LiveUpdate } from './protocol';
 import { liveJobStateSchema } from './protocol';
 import { LiveStateClient } from './state';
 

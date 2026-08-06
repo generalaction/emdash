@@ -2,7 +2,6 @@ import type { Scope } from '@emdash/shared/concurrency';
 import type { ContractClient } from '../api/client';
 import { isController, type Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
-import { forwardController } from '../api/forward';
 import { serve } from '../api/serve';
 import { assertExactRequirementKeys } from '../component/requirements';
 import type {
@@ -10,6 +9,7 @@ import type {
   WireComponentDefinition,
   WireComponentRequirements,
 } from '../component/types';
+import { forwardController } from '../rpc/forward';
 import {
   isWireComponentBootstrapRequest,
   workerProcessChannelTransport,

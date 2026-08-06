@@ -1,8 +1,9 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createController, type Controller } from '../api/controller';
+import type { Controller } from '../api/controller';
 import { defineContract, procedure } from '../api/define';
+import { createController } from '../rpc/controller';
 import { defineWireComponent } from './define';
 import { requireContract } from './requirements';
 

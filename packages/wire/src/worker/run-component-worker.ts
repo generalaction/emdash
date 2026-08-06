@@ -1,6 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { client } from '../api/client';
 import { connect } from '../api/connect';
 import type { ContractDefinitions } from '../api/define';
 import { serve } from '../api/serve';
@@ -13,6 +12,7 @@ import {
   componentControllerSymbol,
   type InternalWireComponentInstance,
 } from '../component/internal';
+import { client } from '../rpc/client';
 import {
   isWireComponentBootstrapResponse,
   parentPortChannelTransport,

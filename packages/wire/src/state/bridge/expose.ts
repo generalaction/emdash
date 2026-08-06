@@ -3,6 +3,12 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 import { stableStringify } from '@emdash/shared/util';
 import type {
+  LiveCursor,
+  LiveCursorEntry,
+  LiveMutationResult,
+  LiveSource,
+} from '../../api/channel';
+import type {
   LiveModelDef,
   LiveModelKey,
   LiveModelMutations,
@@ -12,8 +18,6 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { LiveMutationResult } from '../../live/mutations/types';
-import type { LiveCursor, LiveCursorEntry, LiveSource } from '../../live/protocol';
 import type { LeasedLiveModelProvider } from '../../live/replica/leased-provider';
 import { LiveState } from '../../live/state/server';
 import type { WireInstrumentation } from '../../observability';

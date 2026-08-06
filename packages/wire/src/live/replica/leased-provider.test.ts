@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
-  client,
   connect,
-  createController,
   defineContract,
   encodeTopic,
   liveModel,
@@ -11,6 +9,8 @@ import {
   memoryTransportPair,
   serve,
 } from '../../api';
+import { client } from '../../rpc/client';
+import { createController } from '../../rpc/controller';
 import { LiveState } from '../state';
 import type { LeasedLiveModelProvider } from './leased-provider';
 

@@ -1,5 +1,5 @@
 import { observable, runInAction } from 'mobx';
-import type { LiveLogSnapshotData } from '../../live/protocol';
+import type { LiveLogSnapshotData } from '../../api/channel';
 import type { LogStore } from '../../live/replica/log';
 
 export function createMobxLogStore(): LogStore {

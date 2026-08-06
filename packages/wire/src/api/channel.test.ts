@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { liveCursorEntrySchema, liveCursorSchema, liveUpdateSchema } from './schema';
+import { liveCursorEntrySchema, liveCursorSchema, liveUpdateSchema } from './channel';
 
 describe('live protocol schemas', () => {
   it('parses live cursors and cursor entries', () => {

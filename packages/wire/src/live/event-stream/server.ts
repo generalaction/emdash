@@ -1,12 +1,8 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import { stableStringify } from '@emdash/shared/util';
+import type { EventStreamSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { EventStreamEndpointDef, EventStreamEvent, EventStreamKey } from '../../api/define';
-import type {
-  EventStreamDelta,
-  EventStreamSnapshotData,
-  LiveSnapshot,
-  LiveUpdate,
-} from '../protocol';
+import type { EventStreamDelta } from '../protocol';
 
 export type EventStreamSourceOptions = {
   generation?: number;

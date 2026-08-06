@@ -1,5 +1,6 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
-import type { LiveLogDelta, LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../protocol';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
+import type { LiveLogDelta } from '../protocol';
 
 const DEFAULT_MAX_BUFFER_BYTES = 1024 * 1024;
 const encoder = new TextEncoder();

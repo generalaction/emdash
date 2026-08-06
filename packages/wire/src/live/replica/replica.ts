@@ -1,13 +1,12 @@
 import type { PendingLease } from '@emdash/shared';
 import { stableStringify } from '@emdash/shared/util';
+import type { LiveMutationResult, LiveSource } from '../../api/channel';
 import type {
   MutationCallOptions,
   LiveModelClientHandle,
   LiveClientHandle,
 } from '../../api/client';
 import type { LiveModelKey, LiveModelDef, MutationData, MutationError } from '../../api/define';
-import type { LiveMutationResult } from '../mutations';
-import type { LiveSource } from '../protocol';
 import type { LiveChangeMeta } from '../state';
 import {
   buildReplicaInstance,

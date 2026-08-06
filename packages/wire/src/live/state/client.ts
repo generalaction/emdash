@@ -1,9 +1,9 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type z from 'zod';
+import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { WireInstrumentation } from '../../observability';
 import { LiveFollower, type LiveResyncFailurePolicy } from '../follower';
-import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
 import { createPlainStore, createStateMaterializer, type StateStore } from '../replica/store';
 import { LiveStateWaiters } from './waiters';
 

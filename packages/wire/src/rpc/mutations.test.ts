@@ -2,16 +2,8 @@ import { ok } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelReplica } from '../live/replica';
-import type { WireInstrumentation } from '../observability';
-import { expose } from '../state/bridge/expose';
-import { cell, snapshot } from '../state/core';
-import { createTestWire } from '../testing';
-import { backoffSchedule } from '../util/backoff';
-import type { LiveModelClientHandle } from './client';
-import { client } from './client';
-import { connect } from './connect';
-import { createController } from './controller';
+import type { LiveModelClientHandle } from '../api/client';
+import { connect } from '../api/connect';
 import {
   defineContract,
   liveModel,
@@ -19,9 +11,21 @@ import {
   mutation,
   type LiveModelKey,
   type LiveModelDef,
-} from './define';
-import { serve } from './serve';
-import { memoryTransportPair, reconnectingTransport, type MemoryTransportPair } from './transports';
+} from '../api/define';
+import { serve } from '../api/serve';
+import {
+  memoryTransportPair,
+  reconnectingTransport,
+  type MemoryTransportPair,
+} from '../api/transports';
+import { createLiveModelReplica } from '../live/replica';
+import type { WireInstrumentation } from '../observability';
+import { expose } from '../state/bridge/expose';
+import { cell, snapshot } from '../state/core';
+import { createTestWire } from '../testing';
+import { backoffSchedule } from '../util/backoff';
+import { client } from './client';
+import { createController } from './controller';
 
 const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ count: z.number() });

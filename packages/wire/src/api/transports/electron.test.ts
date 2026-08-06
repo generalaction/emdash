@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  createController,
-  client,
-  connect,
-  defineContract,
-  liveModel,
-  liveState,
-  procedure,
-} from '..';
+import { connect, defineContract, liveModel, liveState, procedure } from '..';
+import { client } from '../../rpc/client';
+import { createController } from '../../rpc/controller';
 import { domPortTransport } from './dom-port';
 import { awaitWirePort, exposeWireToWindows, requestWirePort } from './electron';
 

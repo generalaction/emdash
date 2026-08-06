@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { LiveSource } from '../live/protocol';
+import type { LiveSource } from '../api/channel';
+import {
+  defineContract,
+  eventStream,
+  liveModel,
+  liveState,
+  liveLog,
+  procedure,
+} from '../api/define';
+import { WireError } from '../api/protocol';
+import { encodeTopic, splitTopic } from '../api/topics';
 import { createController } from './controller';
-import { defineContract, eventStream, liveModel, liveState, liveLog, procedure } from './define';
-import { WireError } from './protocol';
-import { encodeTopic, splitTopic } from './topics';
 
 const keySchema = z.object({ id: z.string() });
 const stateSchema = z.object({ count: z.number() });

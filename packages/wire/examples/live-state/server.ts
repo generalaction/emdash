@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { z } from 'zod';
-import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../src/live/protocol/index';
+import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../src/api/channel';
 import { LiveState } from '../../src/live/state/index';
 
 const taskSchema = z.object({

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { LiveSource, LiveUpdate } from '../live/protocol';
+import { createController } from '../rpc/controller';
+import type { LiveSource, LiveUpdate } from './channel';
 import { connect } from './connect';
-import { createController } from './controller';
 import { defineContract, liveModel, liveState } from './define';
 import { createWireSessionHub } from './sessions';
 import { encodeTopic } from './topics';

@@ -1,12 +1,10 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
-import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../protocol';
+import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import { type Patch, produceWithPatches } from './immer-setup';
 
 export type LiveStateProduceOptions = {
   mutationIds?: string[];
 };
-
-export type Mutator<T> = (draft: T) => void;
 
 /**
  * Transport-agnostic live model.

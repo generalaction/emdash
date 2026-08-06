@@ -1,12 +1,12 @@
 import { Emitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
 import { createResourceCache } from '@emdash/shared/concurrency';
 import { stableStringify } from '@emdash/shared/util';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveLogClientHandle } from '../../api/client';
 import type { LiveLogEndpointDef, LiveLogKey } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
 import { resyncRetry, type LiveResyncFailurePolicy } from '../follower';
 import { LiveLog, LiveLogClient, type LiveLogOptions } from '../log';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
 import { resourceCachedLiveSource } from './source';
 
 export interface LogSink {

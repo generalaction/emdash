@@ -1,7 +1,7 @@
 import { resultSchema } from '@emdash/shared';
 import { z } from 'zod';
-import { liveCursorEntrySchema } from '../live/protocol';
 import { isDownloadFileOpenResult, markDownloadFileOpen } from './blob-channel';
+import { liveCursorEntrySchema } from './channel';
 import type { CallMeta, Controller } from './controller';
 import type {
   Contract,

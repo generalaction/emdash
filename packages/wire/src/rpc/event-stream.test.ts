@@ -2,15 +2,15 @@ import type { Unsubscribe } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { connect } from '../api/connect';
+import { defineContract, eventStream } from '../api/define';
+import { serve } from '../api/serve';
+import { encodeTopic } from '../api/topics';
+import { memoryTransportPair, reconnectingTransport } from '../api/transports';
 import { createEventStreamHost } from '../live/event-stream';
 import { createTestWire } from '../testing';
 import { client } from './client';
-import { connect } from './connect';
 import { createController } from './controller';
-import { defineContract, eventStream } from './define';
-import { serve } from './serve';
-import { encodeTopic } from './topics';
-import { memoryTransportPair, reconnectingTransport } from './transports';
 
 const contract = defineContract({
   events: eventStream({

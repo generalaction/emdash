@@ -1,10 +1,12 @@
-import { client, type ContractClient } from './client';
-import { connect, type Connection } from './connect';
-import { createController, isController, type ContractImpl, type Controller } from './controller';
-import type { Contract, ContractDefinitions } from './define';
-import { serve } from './serve';
-import { memoryTransportPair, type MemoryTransportPair } from './transports';
-import type { ValidatePolicy } from './validation';
+import type { ContractClient } from '../api/client';
+import { connect, type Connection } from '../api/connect';
+import { isController, type Controller } from '../api/controller';
+import type { Contract, ContractDefinitions } from '../api/define';
+import { serve } from '../api/serve';
+import { memoryTransportPair, type MemoryTransportPair } from '../api/transports';
+import type { ValidatePolicy } from '../api/validation';
+import { client } from './client';
+import { createController, type ContractImpl } from './controller';
 
 export type InProcessWire<Defs extends ContractDefinitions> = {
   client: ContractClient<Defs>;

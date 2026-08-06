@@ -1,4 +1,5 @@
 import type { PendingLease } from '@emdash/shared';
+import type { LiveMutationResult, LiveSource } from '../../api/channel';
 import type {
   LiveModelKey,
   LiveModelMutations,
@@ -7,8 +8,6 @@ import type {
   MutationData,
   MutationError,
 } from '../../api/define';
-import type { LiveMutationResult } from '../mutations';
-import type { LiveSource } from '../protocol';
 import type { GroupMutationEnvelope } from './provider';
 
 export type LeasedLiveModelProvider<Group extends LiveModelDef = LiveModelDef> = {

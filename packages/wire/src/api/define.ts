@@ -1,8 +1,6 @@
 import { resultSchema, type Result } from '@emdash/shared';
 import { z } from 'zod';
-import type { LiveStateRef } from '../live/mutations/model-ref';
-import type { LiveMutationInput } from '../live/mutations/types';
-import type { Mutator } from '../live/state';
+import type { LiveMutationInput, Mutator } from './channel';
 import type { WireFileMeta } from './protocol';
 
 export const contractSymbol: unique symbol = Symbol('wire.contract');
@@ -20,8 +18,11 @@ export type LiveStateDef<
   Id extends string = string,
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
   DataSchema extends z.ZodTypeAny = z.ZodTypeAny,
-> = LiveStateRef<Id, KeySchema, DataSchema> & {
+> = {
   kind: 'liveState';
+  id: Id;
+  keySchema: KeySchema;
+  dataSchema: DataSchema;
 };
 
 export type LiveLogEndpointDef<

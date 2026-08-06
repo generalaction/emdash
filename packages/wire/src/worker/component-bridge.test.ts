@@ -1,11 +1,11 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { client } from '../api/client';
 import { connect } from '../api/connect';
-import { createController } from '../api/controller';
 import { defineContract, procedure } from '../api/define';
 import { defineWireComponent, requireContract } from '../component';
+import { client } from '../rpc/client';
+import { createController } from '../rpc/controller';
 import { FakeWorkerProcess } from '../testing';
 import { setupComponentWorkerGeneration } from './component-bridge';
 import { parentPortChannelTransport } from './component-protocol';

@@ -1,5 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { WireInstrumentation } from '../../observability';
 import {
   LiveFollower,
@@ -7,7 +8,7 @@ import {
   type LiveMaterializer,
   type LiveResyncFailurePolicy,
 } from '../follower';
-import type { LiveLogDelta, LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../protocol';
+import type { LiveLogDelta } from '../protocol';
 
 export type LiveLogClientDeps = {
   refetchSnapshot: () => Promise<LiveSnapshot<LiveLogSnapshotData>>;

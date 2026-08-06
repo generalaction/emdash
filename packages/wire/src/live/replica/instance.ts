@@ -1,4 +1,9 @@
 import type { Result } from '@emdash/shared';
+import {
+  createMutationId,
+  type LiveCursorEntry,
+  type LiveMutationSuccess,
+} from '../../api/channel';
 import type { MutationCallOptions } from '../../api/client';
 import type {
   LiveStateData,
@@ -12,8 +17,6 @@ import type {
   MutationInput,
 } from '../../api/define';
 import type { WireInstrumentation } from '../../observability';
-import { createMutationId, type LiveMutationSuccess } from '../mutations';
-import type { LiveCursorEntry } from '../protocol';
 import type { LiveChangeMeta } from '../state';
 import type { ReplicaState, ReplicaStateOptions } from './state';
 import type { StateStore } from './store';

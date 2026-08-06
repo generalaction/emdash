@@ -1,6 +1,6 @@
 import type { Unsubscribe } from '@emdash/shared';
+import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../src/api/channel';
 import { LiveLog } from '../../src/live/log/index';
-import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../src/live/protocol/index';
 
 const server = new LiveLog({ generation: 3000, maxBufferBytes: 12 });
 

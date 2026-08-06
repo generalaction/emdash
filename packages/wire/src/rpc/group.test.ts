@@ -1,12 +1,7 @@
 import { ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLiveModelReplica, type LiveModelReplicaOptions } from '../live/replica';
-import { expose, type ExposedMutationHandlers } from '../state/bridge/expose';
-import { cell } from '../state/core';
-import { createTestWire } from '../testing';
-import type { LiveModelClientHandle } from './client';
-import { createController } from './controller';
+import type { LiveModelClientHandle } from '../api/client';
 import {
   defineContract,
   liveModel,
@@ -14,8 +9,13 @@ import {
   mutation,
   type LiveModelKey,
   type LiveModelDef,
-} from './define';
-import { encodeTopic } from './topics';
+} from '../api/define';
+import { encodeTopic } from '../api/topics';
+import { createLiveModelReplica, type LiveModelReplicaOptions } from '../live/replica';
+import { expose, type ExposedMutationHandlers } from '../state/bridge/expose';
+import { cell } from '../state/core';
+import { createTestWire } from '../testing';
+import { createController } from './controller';
 
 const keySchema = z.object({ conversationId: z.string() });
 const stateSchema = z.object({ title: z.string() });

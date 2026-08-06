@@ -1,7 +1,7 @@
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
-import { createInProcessWire } from '../api/in-process-wire';
+import { createInProcessWire } from '../rpc/in-process-wire';
 import { componentControllerSymbol, type InternalWireComponentInstance } from './internal';
 
 export type CreateWireComponentInstanceOptions<Defs extends ContractDefinitions> = {

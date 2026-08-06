@@ -2,11 +2,7 @@ import { ok, type Unsubscribe } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createEventStreamHost } from '../live/event-stream';
-import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../live/protocol';
-import { expose } from '../state/bridge/expose';
-import { cell } from '../state/core';
-import { createTestWire } from '../testing';
+import type { LiveSource, LiveSubscribeOptions, LiveUpdate } from '../api/channel';
 import {
   defineContract,
   downloadFile,
@@ -17,9 +13,13 @@ import {
   liveState,
   mutation,
   uploadFile,
-} from './define';
+} from '../api/define';
+import { WireError } from '../api/protocol';
+import { createEventStreamHost } from '../live/event-stream';
+import { expose } from '../state/bridge/expose';
+import { cell } from '../state/core';
+import { createTestWire } from '../testing';
 import { forwardContractImpl, forwardController } from './forward';
-import { WireError } from './protocol';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();

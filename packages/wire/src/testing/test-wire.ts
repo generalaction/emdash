@@ -1,10 +1,11 @@
-import type { ContractImpl, Controller } from '../api/controller';
+import type { Controller } from '../api/controller';
 import type { Contract, ContractDefinitions } from '../api/define';
+import type { ContractImpl } from '../rpc/controller';
 import {
   createInProcessWire,
   type CreateInProcessWireOptions,
   type InProcessWire,
-} from '../api/in-process-wire';
+} from '../rpc/in-process-wire';
 
 export type TestWire<Defs extends ContractDefinitions> = InProcessWire<Defs>;
 

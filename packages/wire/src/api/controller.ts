@@ -1,30 +1,6 @@
 import type { PendingLease, Result, Unsubscribe } from '@emdash/shared';
-import { z } from 'zod';
-import { isEventStreamHost, type EventStreamHost } from '../live/event-stream';
-import { LiveJob, type LiveJobContext } from '../live/job';
-import { createMutationId } from '../live/mutations';
-import type { LiveSource } from '../live/protocol';
-import {
-  isLiveJobReplica,
-  isLeasedLiveModelProvider,
-  isLiveLogReplica,
-  isLiveModelProvider,
-  type LiveJobReplica,
-  type LeasedLiveModelProvider,
-  type LiveLogReplica,
-  type LiveModelProvider,
-} from '../live/replica';
 import { markDownloadFileOpen, type BlobSource, type WireFile } from './blob-channel';
-import {
-  isEventStreamClientHandle,
-  isLiveModelClientHandle,
-  isLiveJobClientHandle,
-  isLiveLogClientHandle,
-  type EventStreamClientHandle,
-  type LiveModelClientHandle,
-  type LiveJobClientHandle,
-  type LiveLogClientHandle,
-} from './client';
+import type { LiveSource } from './channel';
 import type {
   Contract,
   ContractDefinitions,
@@ -32,19 +8,8 @@ import type {
   DownloadFileError,
   DownloadFileInput,
   DownloadFileMeta,
-  EndpointDef,
-  EventStreamEndpointDef,
-  EventStreamKey,
   EndpointInput,
   EndpointOutput,
-  LiveLogKey,
-  LiveLogEndpointDef,
-  LiveJobEndpointDef,
-  JobInput,
-  JobProgress,
-  JobResult,
-  JobError,
-  LiveModelDef,
   ProcedureDef,
   UploadFileEndpointDef,
   UploadFileError,
@@ -52,6 +17,7 @@ import type {
   UploadFileResult,
 } from './define';
 import { isEndpointDef } from './define';
+import type { LiveEndpointKinds, LiveTopicBinding } from './endpoint-kinds';
 import type { WireFileMeta } from './protocol';
 import { WireError } from './protocol';
 import { splitTopic } from './topics';
@@ -84,14 +50,14 @@ export type ProcedureHandler<Def extends ProcedureDef = ProcedureDef> = (
   meta: CallMeta
 ) => Promise<EndpointOutput<Def>> | EndpointOutput<Def>;
 
-type DownloadFileImpl<Def extends DownloadFileEndpointDef> = (
+export type DownloadFileImpl<Def extends DownloadFileEndpointDef> = (
   input: DownloadFileInput<Def>,
   meta: CallMeta
 ) =>
   | Promise<Result<{ meta: DownloadFileMeta<Def>; source: BlobSource }, DownloadFileError<Def>>>
   | Result<{ meta: DownloadFileMeta<Def>; source: BlobSource }, DownloadFileError<Def>>;
 
-type UploadFileImpl<Def extends UploadFileEndpointDef> = (
+export type UploadFileImpl<Def extends UploadFileEndpointDef> = (
   input: UploadFileInput<Def>,
   file: WireFile,
   meta: CallMeta
@@ -99,69 +65,9 @@ type UploadFileImpl<Def extends UploadFileEndpointDef> = (
   | Promise<Result<UploadFileResult<Def>, UploadFileError<Def>>>
   | Result<UploadFileResult<Def>, UploadFileError<Def>>;
 
-type MaybeAsyncLiveSource = LiveSource | Promise<LiveSource | null | undefined> | null | undefined;
-
-type LiveLogImpl<Def extends LiveLogEndpointDef> = (key: LiveLogKey<Def>) => MaybeAsyncLiveSource;
-
-type LiveLogEntryImpl<Def extends LiveLogEndpointDef> =
-  | LiveLogImpl<Def>
-  | LiveLogClientHandle
-  | LiveLogReplica;
-
-type EventStreamImpl<Def extends EventStreamEndpointDef> = (
-  key: EventStreamKey<Def>
-) => MaybeAsyncLiveSource;
-
-type EventStreamEntryImpl<Def extends EventStreamEndpointDef> =
-  | EventStreamImpl<Def>
-  | EventStreamHost<Def>
-  | EventStreamClientHandle<Def>;
-
-type GroupImpl<Def extends LiveModelDef> =
-  | LiveModelClientHandle<Def>
-  | LiveModelProvider<Def>
-  | LeasedLiveModelProvider<Def>;
-
-type EndpointImpl<Def extends EndpointDef> = Def extends ProcedureDef
-  ? ProcedureHandler<Def>
-  : Def extends LiveLogEndpointDef
-    ? LiveLogEntryImpl<Def>
-    : Def extends EventStreamEndpointDef
-      ? EventStreamEntryImpl<Def>
-      : Def extends LiveModelDef
-        ? GroupImpl<Def>
-        : Def extends LiveJobEndpointDef
-          ? JobImpl<Def> | LiveJobClientHandle<Def> | LiveJobReplica<Def>
-          : Def extends DownloadFileEndpointDef
-            ? DownloadFileImpl<Def>
-            : Def extends UploadFileEndpointDef
-              ? UploadFileImpl<Def>
-              : never;
-
-type JobImpl<Def extends LiveJobEndpointDef> = {
-  run(
-    input: JobInput<Def>,
-    ctx: LiveJobContext<JobProgress<Def>>
-  ): Promise<Result<JobResult<Def>, JobError<Def>>> | Result<JobResult<Def>, JobError<Def>>;
-  toError?(error: unknown): JobError<Def>;
-};
-
-export type ContractImpl<Defs extends ContractDefinitions> = {
-  [Name in keyof Defs]?: Defs[Name] extends EndpointDef
-    ? EndpointImpl<Defs[Name]>
-    : Defs[Name] extends Contract<infer Nested>
-      ? ContractImpl<Nested>
-      : never;
-};
-
-type LiveEntry = {
-  resolve?(key: unknown): MaybeAsyncLiveSource;
-  acquire?(key: unknown): PendingLease<LiveSource>;
-};
-
-const jobKeySchema = z.object({ jobId: z.string() });
-
-export type CreateControllerOptions = {
+export type BuildControllerOptions = {
+  /** The single internal live endpoint-kind dispatch table. */
+  liveEndpoints: LiveEndpointKinds;
   /**
    * Contract validation policy. Defaults to the environment rule: `'full'`
    * (inputs + outputs) outside production, `'inputs'` in production.
@@ -169,25 +75,31 @@ export type CreateControllerOptions = {
   validate?: ValidatePolicy;
 };
 
-export function createController<Defs extends ContractDefinitions>(
+/**
+ * Core controller engine. Handles everything generic on the wire itself and
+ * delegates live endpoint kinds to the supplied dispatch table. The public
+ * `createController` wrapper injects the table.
+ */
+export function buildController<Defs extends ContractDefinitions>(
   contract: Contract<Defs>,
-  impl: ContractImpl<Defs>,
-  options: CreateControllerOptions = {}
+  impl: unknown,
+  options: BuildControllerOptions
 ): Controller {
   return applyValidation(
     contract,
-    buildController(contract, impl),
+    assembleController(contract, impl, options.liveEndpoints),
     options.validate ?? defaultValidatePolicy()
   );
 }
 
-function buildController<Defs extends ContractDefinitions>(
-  contract: Contract<Defs>,
-  impl: ContractImpl<Defs>
+function assembleController(
+  contract: ContractDefinitions,
+  impl: unknown,
+  liveEndpoints: LiveEndpointKinds
 ): Controller {
-  const liveEntries = new Map<string, LiveEntry>();
+  const liveEntries = new Map<string, LiveTopicBinding>();
   const procedureEntries = new Map<string, (input: unknown, meta: CallMeta) => Promise<unknown>>();
-  const jobServers: Array<{ dispose(): Promise<void> }> = [];
+  const disposables: Array<() => Promise<void>> = [];
 
   collectContractEntries(contract, impl as Record<string, unknown>, []);
 
@@ -248,163 +160,20 @@ function buildController<Defs extends ContractDefinitions>(
           });
           break;
         }
-        case 'liveLog': {
-          const impl = entryImpl as LiveLogEntryImpl<LiveLogEndpointDef> | undefined;
-          if (!impl) {
-            throw new WireError('MISSING_HANDLER', `Live log '${fullPath}' requires a resolver`);
-          }
-          if (isLiveLogReplica(impl) && impl.def.id !== def.id) {
-            throw new WireError(
-              'CONTRACT_MISMATCH',
-              `Live log replica for '${fullPath}' was created for '${impl.def.id}'`
-            );
-          }
-          liveEntries.set(def.id, {
-            resolve: createLiveLogResolver(impl),
-          });
-          break;
-        }
-        case 'eventStream': {
-          const impl = entryImpl as EventStreamEntryImpl<EventStreamEndpointDef> | undefined;
-          if (!impl) {
-            throw new WireError(
-              'MISSING_HANDLER',
-              `Event stream '${fullPath}' requires a resolver`
-            );
-          }
-          liveEntries.set(def.id, {
-            resolve: createEventStreamResolver(def, impl),
-          });
-          break;
-        }
-        case 'liveJob': {
-          const impl = entryImpl as
-            | JobImpl<LiveJobEndpointDef>
-            | LiveJobClientHandle
-            | LiveJobReplica
-            | undefined;
-          if (!impl) {
-            throw new WireError('MISSING_HANDLER', `Job '${fullPath}' requires a handler`);
-          }
-          if (isLiveJobClientHandle(impl)) {
-            procedureEntries.set(`${fullPath}.start`, (input) => impl.start(input as never));
-            procedureEntries.set(`${fullPath}.cancel`, async (input) => {
-              const parsed = jobKeySchema.parse(input);
-              await impl.cancel(parsed.jobId);
-              return undefined;
-            });
-            liveEntries.set(def.id, {
-              resolve: (key) => impl.handle((key as { jobId: string }).jobId).asLiveSource(),
-            });
-            break;
-          }
-          if (isLiveJobReplica(impl)) {
-            if (impl.def.id !== def.id) {
-              throw new WireError(
-                'CONTRACT_MISMATCH',
-                `Live job replica for '${fullPath}' was created for '${impl.def.id}'`
-              );
-            }
-            procedureEntries.set(`${fullPath}.start`, async (input) => {
-              const lease = await impl.start(input as never);
-              try {
-                const job = await lease.ready();
-                return { jobId: job.jobId };
-              } finally {
-                await lease.release();
-              }
-            });
-            procedureEntries.set(`${fullPath}.cancel`, async (input) => {
-              const parsed = jobKeySchema.parse(input);
-              await impl.cancel(parsed.jobId);
-              return undefined;
-            });
-            liveEntries.set(def.id, {
-              resolve: (key) => impl.resolve((key as { jobId: string }).jobId),
-            });
-            break;
-          }
-          const server = createLiveJob(impl);
-          jobServers.push(server);
-          procedureEntries.set(`${fullPath}.start`, async (input) => {
-            return server.start(input);
-          });
-          procedureEntries.set(`${fullPath}.cancel`, async (input) => {
-            const parsed = jobKeySchema.parse(input);
-            server.cancel(parsed.jobId);
-            return undefined;
-          });
-          liveEntries.set(def.id, {
-            resolve: (key) => server.source((key as { jobId: string }).jobId),
-          });
-          break;
-        }
+        case 'liveLog':
+        case 'eventStream':
+        case 'liveJob':
         case 'liveModel': {
-          const provider = createGroupProvider(def, entryImpl, fullPath);
-          for (const [stateName, state] of Object.entries(def.states)) {
-            liveEntries.set(
-              state.id,
-              provider.kind === 'leasedLiveModelProvider'
-                ? { acquire: (key) => provider.acquireState(key as never, stateName) }
-                : { resolve: (key) => provider.resolveState(key as never, stateName) }
-            );
+          const binding = liveEndpoints.bindEndpoint(def, entryImpl, fullPath);
+          for (const topic of binding.topics) liveEntries.set(topic.id, topic);
+          for (const procedure of binding.procedures ?? []) {
+            procedureEntries.set(procedure.path, procedure.handler);
           }
-          for (const mutationName of Object.keys(def.mutations)) {
-            procedureEntries.set(`${fullPath}.${mutationName}`, async (input) => {
-              const envelope = parseGroupMutationInput(input);
-              return await provider.runMutation(mutationName, envelope as never);
-            });
-          }
+          if (binding.dispose) disposables.push(binding.dispose);
           break;
         }
       }
     }
-  }
-
-  function createGroupProvider(
-    def: LiveModelDef,
-    entryImpl: unknown,
-    fullPath: string
-  ): LiveModelProvider | LeasedLiveModelProvider {
-    if (isLeasedLiveModelProvider(entryImpl)) {
-      if (entryImpl.contract.id !== def.id) {
-        throw new WireError(
-          'CONTRACT_MISMATCH',
-          `Leased live model provider for '${fullPath}' was created for '${entryImpl.contract.id}'`
-        );
-      }
-      return entryImpl;
-    }
-
-    if (isLiveModelProvider(entryImpl)) {
-      if (entryImpl.contract.id !== def.id) {
-        throw new WireError(
-          'CONTRACT_MISMATCH',
-          `Live model provider for '${fullPath}' was created for '${entryImpl.contract.id}'`
-        );
-      }
-      return entryImpl;
-    }
-
-    if (isLiveModelClientHandle(entryImpl)) {
-      if (entryImpl.def.id !== def.id) {
-        throw new WireError(
-          'CONTRACT_MISMATCH',
-          `Live model client handle for '${fullPath}' was created for '${entryImpl.def.id}'`
-        );
-      }
-      return {
-        kind: 'liveModelProvider',
-        contract: def,
-        resolveState: (key, name) => entryImpl.state(key, name).asLiveSource(),
-        runMutation: (name, envelope) => entryImpl.mutate(name, envelope),
-      };
-    }
-
-    throw new WireError(
-      'MISSING_HANDLER',
-      `Live model '${fullPath}' requires a provider or client handle`
-    );
   }
 
   return {
@@ -440,7 +209,7 @@ function buildController<Defs extends ContractDefinitions>(
       return immediateLiveSourceLease(result);
     },
     async dispose() {
-      await Promise.all(jobServers.map((server) => server.dispose()));
+      await Promise.all(disposables.map((dispose) => dispose()));
     },
   };
 }
@@ -511,69 +280,6 @@ function validateUploadFileEnvelope(def: UploadFileEndpointDef, file: WireFile):
       `Upload file size ${file.size} exceeds maximum ${def.maxSize}`
     );
   }
-}
-
-function createLiveLogResolver(
-  impl: LiveLogEntryImpl<LiveLogEndpointDef>
-): (key: unknown) => MaybeAsyncLiveSource {
-  if (isLiveLogReplica(impl)) return (key) => impl.resolve(key as never);
-  if (isLiveLogClientHandle(impl)) return (key) => impl.handle(key as never).asLiveSource();
-  return impl as (key: unknown) => MaybeAsyncLiveSource;
-}
-
-function createEventStreamResolver(
-  def: EventStreamEndpointDef,
-  impl: EventStreamEntryImpl<EventStreamEndpointDef>
-): (key: unknown) => MaybeAsyncLiveSource {
-  if (isEventStreamHost(impl)) {
-    if (impl.def.id !== def.id) {
-      throw new WireError(
-        'CONTRACT_MISMATCH',
-        `Event stream host for '${def.id}' was created for '${impl.def.id}'`
-      );
-    }
-    return (key) => impl.resolve(key as never);
-  }
-  if (isEventStreamClientHandle(impl)) {
-    if (impl.def.id !== def.id) {
-      throw new WireError(
-        'CONTRACT_MISMATCH',
-        `Event stream client handle for '${def.id}' was created for '${impl.def.id}'`
-      );
-    }
-    return (key) => impl.handle(key as never).asLiveSource();
-  }
-  return impl as (key: unknown) => MaybeAsyncLiveSource;
-}
-
-function createLiveJob(
-  impl: JobImpl<LiveJobEndpointDef>
-): LiveJob<unknown, unknown, unknown, unknown> {
-  return new LiveJob<unknown, unknown, unknown, unknown>(
-    async (input, ctx) => {
-      return await impl.run(input, {
-        jobId: ctx.jobId,
-        signal: ctx.signal,
-        progress: (progress) => ctx.progress(progress),
-      });
-    },
-    {
-      toError: impl.toError,
-    }
-  );
-}
-
-function parseGroupMutationInput(input: unknown): {
-  key: unknown;
-  input: Record<string, unknown>;
-  mutationId: string;
-} {
-  const envelope = input as { key?: unknown; input?: unknown; mutationId?: unknown };
-  return {
-    key: envelope.key,
-    input: (envelope.input ?? {}) as Record<string, unknown>,
-    mutationId: typeof envelope.mutationId === 'string' ? envelope.mutationId : createMutationId(),
-  };
 }
 
 function missingLiveSource(message: string): LiveSource {

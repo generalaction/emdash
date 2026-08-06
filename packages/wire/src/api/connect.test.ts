@@ -1,9 +1,9 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { client } from './client';
+import { client } from '../rpc/client';
+import { createController } from '../rpc/controller';
 import { connect } from './connect';
-import { createController } from './controller';
 import { defineContract, procedure } from './define';
 import type { WireMessage, WireTransport } from './protocol';
 import { serve } from './serve';

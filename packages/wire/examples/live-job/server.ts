@@ -1,13 +1,9 @@
 import { ok, type Unsubscribe } from '@emdash/shared';
 import { systemClock } from '@emdash/shared/scheduling';
 import { z } from 'zod';
+import type { LiveSnapshot, LiveUpdate } from '../../src/api/channel';
 import { LiveJob } from '../../src/live/job/index';
-import {
-  liveJobStateSchema,
-  type LiveJobState,
-  type LiveSnapshot,
-  type LiveUpdate,
-} from '../../src/live/protocol/index';
+import { liveJobStateSchema, type LiveJobState } from '../../src/live/protocol/index';
 
 const inputSchema = z.object({ name: z.string() });
 const progressSchema = z.object({ step: z.string() });

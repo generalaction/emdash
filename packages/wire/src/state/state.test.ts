@@ -4,8 +4,8 @@ import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { liveModel, liveState, mutation } from '../api';
+import type { LiveUpdate } from '../api/channel';
 import type { LiveModelClientHandle } from '../api/client';
-import type { LiveUpdate } from '../live/protocol';
 import { LiveState } from '../live/state/server';
 import {
   batch,

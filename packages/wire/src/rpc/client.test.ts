@@ -2,15 +2,15 @@ import { ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from '../api/define';
+import { WireError } from '../api/protocol';
+import { encodeTopic } from '../api/topics';
 import { LiveLog } from '../live/log';
 import { createLiveModelReplica, ReplicaState } from '../live/replica';
 import { LiveState } from '../live/state/server';
 import { expose } from '../state/bridge/expose';
 import { cell } from '../state/core';
 import { createTestWire } from '../testing';
-import { defineContract, liveModel, liveState, liveLog, mutation, procedure } from './define';
-import { WireError } from './protocol';
-import { encodeTopic } from './topics';
 
 const stateSchema = z.object({ count: z.number() });
 const keySchema = z.object({ id: z.string() });

@@ -1,5 +1,5 @@
 import { toSerializedError, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import type { LiveUpdate } from '../live/protocol';
+import type { LiveUpdate } from './channel';
 
 export type WireErrorCode =
   | 'CANCELLED'

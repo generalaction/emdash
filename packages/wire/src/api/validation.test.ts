@@ -1,11 +1,11 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { type LiveSource } from '../live/protocol';
+import { createController } from '../rpc/controller';
 import { expose } from '../state/bridge/expose';
 import { cell, snapshot } from '../state/core';
 import { createTestWire } from '../testing';
-import { createController } from './controller';
+import { type LiveSource } from './channel';
 import {
   defineContract,
   downloadFile,

@@ -1,3 +1,4 @@
+import type { LiveMutationResult, LiveSource } from '../../api/channel';
 import type {
   LiveModelKey,
   LiveModelMutations,
@@ -6,8 +7,6 @@ import type {
   MutationError,
   MutationInput,
 } from '../../api/define';
-import type { LiveMutationResult } from '../mutations';
-import type { LiveSource } from '../protocol';
 
 export type GroupMutationEnvelope<
   Group extends LiveModelDef,

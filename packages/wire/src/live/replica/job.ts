@@ -2,6 +2,7 @@ import type { PendingLease, Unsubscribe } from '@emdash/shared';
 import { createResourceCache } from '@emdash/shared/concurrency';
 import { stableStringify } from '@emdash/shared/util';
 import type { z } from 'zod';
+import type { LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveJobClientHandle } from '../../api/client';
 import type {
   LiveJobEndpointDef,
@@ -14,7 +15,7 @@ import type { WireInstrumentation } from '../../observability';
 import { resyncRetry } from '../follower';
 import { LiveJobCancelledError, LiveJobClient, LiveJobFailedError } from '../job';
 import { liveJobStateSchema } from '../protocol';
-import type { LiveJobState, LiveSnapshot, LiveSource, LiveUpdate } from '../protocol';
+import type { LiveJobState } from '../protocol';
 import { LiveState } from '../state';
 import { resourceCachedLiveSource } from './source';
 

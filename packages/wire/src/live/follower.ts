@@ -1,8 +1,8 @@
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
+import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../api/channel';
 import type { WireInstrumentation, WireResyncReason } from '../observability';
 import { backoffSchedule, type BackoffSchedule } from '../util/backoff';
-import type { LiveCursor, LiveSnapshot, LiveUpdate } from './protocol';
 
 export type LiveFollowerApplyResult =
   | { ok: true }

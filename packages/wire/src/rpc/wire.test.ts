@@ -2,18 +2,18 @@ import { err, ok, type Unsubscribe } from '@emdash/shared';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { LiveSource, LiveUpdate } from '../live/protocol';
+import type { LiveSource, LiveUpdate } from '../api/channel';
+import { connect } from '../api/connect';
+import { defineContract, liveModel, liveState, fallible, procedure } from '../api/define';
+import { isWireError, WireError, type WireMessage, type WireTransport } from '../api/protocol';
+import { serve } from '../api/serve';
+import { encodeTopic } from '../api/topics';
+import { memoryTransportPair, reconnectingTransport } from '../api/transports';
 import { ReplicaState } from '../live/replica';
 import { LiveState } from '../live/state/server';
 import { createTestWire } from '../testing';
 import { client } from './client';
-import { connect } from './connect';
 import { createController } from './controller';
-import { defineContract, liveModel, liveState, fallible, procedure } from './define';
-import { isWireError, WireError, type WireMessage, type WireTransport } from './protocol';
-import { serve } from './serve';
-import { encodeTopic } from './topics';
-import { memoryTransportPair, reconnectingTransport } from './transports';
 
 const contract = defineContract({
   greet: procedure({ input: z.object({ name: z.string() }), output: z.string() }),

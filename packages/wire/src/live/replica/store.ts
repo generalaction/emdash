@@ -1,6 +1,6 @@
 import type { z } from 'zod';
+import type { LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { LiveFollowerApplyResult, LiveMaterializer } from '../follower';
-import type { LiveSnapshot, LiveUpdate } from '../protocol';
 import { applyPatches, type Patch } from '../state/immer-setup';
 
 export interface StateStore<T> {

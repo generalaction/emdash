@@ -1,6 +1,5 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
-import type { LiveSnapshot, LiveUpdate } from '../live/protocol';
 import type { WireInstrumentation } from '../observability';
 import {
   findStructuredCloneFailure,
@@ -14,6 +13,7 @@ import {
   type BlobProducer,
   type BlobSource,
 } from './blob-channel';
+import type { LiveSnapshot, LiveUpdate } from './channel';
 import {
   WireError,
   type SerializedWireError,
