@@ -1,7 +1,4 @@
-import {
-  DEFAULT_PRESERVE_PATTERNS,
-  emdashConfigSchema,
-} from '@emdash/core/primitives/emdash-config/api';
+import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
 import { hostRefEquals } from '@emdash/core/primitives/host/api';
 import { hostFileRef } from '@emdash/core/primitives/path/api';
 import type { AutomationDeployment } from '@emdash/core/runtimes/automations/api';
@@ -207,7 +204,7 @@ async function loadDeploymentProjectSettings(
   if (!row) {
     return {
       baseRemote: 'origin',
-      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+      preservePatterns: [],
       pushRemote: 'origin',
     };
   }
@@ -222,13 +219,13 @@ async function loadDeploymentProjectSettings(
     const shareable = emdashConfigSchema.parse(JSON.parse(row.shareable));
     return {
       baseRemote: base.baseRemote ?? 'origin',
-      preservePatterns: shareable.preservePatterns ?? [...DEFAULT_PRESERVE_PATTERNS],
+      preservePatterns: shareable.preservePatterns ?? [],
       pushRemote: base.pushRemote ?? base.baseRemote ?? 'origin',
     };
   } catch {
     return {
       baseRemote: 'origin',
-      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+      preservePatterns: [],
       pushRemote: 'origin',
     };
   }

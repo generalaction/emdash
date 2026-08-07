@@ -1,4 +1,3 @@
-import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { hostFileRef } from '@emdash/core/primitives/path/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -153,7 +152,7 @@ describe('buildAutomationDeployment', () => {
           repository: hostFileRef(remote, hostPathFromNative('/repo')),
           worktreePoolPath: hostPathFromNative('/worktrees/repo-12345678'),
           baseRemote: 'origin',
-          preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+          preservePatterns: [],
           git: {
             kind: 'create-branch',
             fromBranch: { type: 'local', branch: 'main' },

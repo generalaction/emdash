@@ -78,7 +78,8 @@ export type CreationStageTimeline = Array<{ stage: string; at: number }>;
  * Builds the durable lifecycle section for a settled foreground creation pipeline.
  * Conditional steps that never applied are absent: adopt and create are alternatives,
  * fetch-remote-base appears only when a base fetch actually ran, copy-artifacts only
- * for a freshly created worktree, push-branch only when a push was requested.
+ * for a freshly created worktree with preservePatterns configured, push-branch only
+ * when a push was requested.
  */
 export function buildCreationLifecycle(
   input: CreateWorktreeInput,
@@ -148,13 +149,17 @@ export function buildCreationLifecycle(
         branchCreated: result.createdBranch,
       },
     });
-    steps.push({
-      id: 'copy-artifacts',
-      status: 'pending',
-      startedAt: null,
-      finishedAt: null,
-      params: {},
-    });
+    // The copy step exists only when the project deliberately names artifacts to
+    // preserve — no patterns, no step (spec: preserved-artifact copy).
+    if (input.preservePatterns.length > 0) {
+      steps.push({
+        id: 'copy-artifacts',
+        status: 'pending',
+        startedAt: null,
+        finishedAt: null,
+        params: {},
+      });
+    }
   }
 
   if (input.pushBranch) {

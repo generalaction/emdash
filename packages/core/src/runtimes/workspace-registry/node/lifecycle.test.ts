@@ -79,6 +79,20 @@ describe('buildCreationLifecycle', () => {
     ]);
   });
 
+  it('no preservePatterns yields no copy-artifacts step at all', () => {
+    const lifecycle = buildCreationLifecycle(
+      { ...input, preservePatterns: [], pushBranch: false },
+      { status: 'succeeded', finalPath: '/tmp/wt', createdWorktree: true, createdBranch: true },
+      [
+        { stage: 'inspect', at: 100 },
+        { stage: 'add-worktree', at: 150 },
+        { stage: 'verify', at: 200 },
+      ],
+      250
+    );
+    expect(lifecycle.steps.map((step) => step.id)).toEqual(['create-worktree', 'fetch-refs']);
+  });
+
   it('adopting an existing worktree yields adopt-worktree and no copy-artifacts', () => {
     const lifecycle = buildCreationLifecycle(
       { ...input, pushBranch: false },

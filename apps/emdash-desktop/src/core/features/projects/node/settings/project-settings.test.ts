@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
@@ -133,18 +132,16 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     }
   });
 
-  it('seeds default preserve patterns when the repo has no shared config', async () => {
+  it('does not seed preserve patterns when the repo has no shared config', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
     const provider = makeLocalProvider(projectPath);
 
-    await expect(provider.get()).resolves.toMatchObject({
-      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
-    });
+    await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
   });
 
-  it('seeds default preserve patterns when shared config omits preservePatterns', async () => {
+  it('does not seed preserve patterns when shared config omits preservePatterns', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
@@ -154,12 +151,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
     const provider = makeLocalProvider(projectPath);
 
-    await expect(provider.get()).resolves.toMatchObject({
-      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
-    });
+    await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
   });
 
-  it('does not seed default preserve patterns when shared config defines preservePatterns', async () => {
+  it('does not seed preserve patterns when shared config defines preservePatterns', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     fs.writeFileSync(
@@ -264,9 +259,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const git = makeTrackingGit(true);
     const provider = makeLocalProvider(projectPath, { git });
 
-    await expect(provider.get()).resolves.toMatchObject({
-      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
-    });
+    await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
     await expect(provider.get()).resolves.not.toHaveProperty('shellSetup');
     await expect(provider.get()).resolves.not.toHaveProperty('scripts');
     expect(git.isFileCleanlyTracked).toHaveBeenCalledWith(path.join(projectPath, '.emdash.json'));

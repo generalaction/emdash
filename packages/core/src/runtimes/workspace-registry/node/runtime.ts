@@ -35,7 +35,7 @@ import type {
 } from '../api/schemas';
 import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
 import { executeFetchRefs, executePushBranch } from './background-steps';
-import { executeCloneArtifacts } from './clone-artifacts';
+import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
 import {
@@ -108,8 +108,8 @@ export class WorkspaceRegistryRuntime {
   private readonly untrackedCaches = new Map<string, UntrackedLinesCache>();
   /** In-flight background-step runs, coalesced per workspace id. */
   private readonly backgroundRuns = new Map<string, Promise<void>>();
-  /** In-flight artifact clones — the promise the activation artifact gate awaits. */
-  private readonly cloneRuns = new Map<string, Promise<void>>();
+  /** In-flight artifact copies — the promise the activation artifact gate awaits. */
+  private readonly copyRuns = new Map<string, Promise<void>>();
   /** Debounce stamps for the advisory fetch-refs step, keyed by repository path. */
   private readonly lastFetchAt = new Map<string, number>();
   private readonly killSessions: SessionKiller;
@@ -191,8 +191,8 @@ export class WorkspaceRegistryRuntime {
       runner: options.activation?.runner,
       teardownTimeoutMs: options.activation?.teardownTimeoutMs,
       // The artifact gate (dependency gating): prepare/setup wait for the background
-      // clone to settle; a terminal clone failure opens the gates anyway.
-      awaitArtifacts: (id) => this.awaitCloneArtifacts(id),
+      // copy to settle; a terminal copy failure opens the gates anyway.
+      awaitArtifacts: (id) => this.awaitCopyArtifacts(id),
       clock: this.clock,
       logger: this.logger,
     });
@@ -386,7 +386,7 @@ export class WorkspaceRegistryRuntime {
         return err({ type: 'workspace-missing', workspaceId: input.id });
       }
       // Activation replays incomplete background steps (ticket semantics); the
-      // activation manager's artifact gate awaits the clone only where scripts need it.
+      // activation manager's artifact gate awaits the copy only where scripts need it.
       if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(input.id);
       await this.activationManager.activate(input.id, record.path);
       const current = this.store.get(input.id) ?? record;
@@ -773,11 +773,11 @@ export class WorkspaceRegistryRuntime {
 
     const work: Array<Promise<void>> = [];
     if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
-      const clone = this.executeCloneStep(id, repositoryPath, record.path).finally(() => {
-        this.cloneRuns.delete(id);
+      const copy = this.executeCopyStep(id, repositoryPath, record.path).finally(() => {
+        this.copyRuns.delete(id);
       });
-      this.cloneRuns.set(id, clone);
-      work.push(clone);
+      this.copyRuns.set(id, copy);
+      work.push(copy);
     }
     if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
       work.push(this.executePushStep(id, repositoryPath, branch));
@@ -788,7 +788,7 @@ export class WorkspaceRegistryRuntime {
     await Promise.all(work);
   }
 
-  private async executeCloneStep(
+  private async executeCopyStep(
     id: string,
     repositoryPath: string,
     worktreePath: string
@@ -796,7 +796,7 @@ export class WorkspaceRegistryRuntime {
     const preservePatterns = this.store.get(id)?.lifecycle?.preservePatterns ?? [];
     await this.updateLifecycleStep(id, 'copy-artifacts', { status: 'running' });
     const startedAt = Date.now();
-    const outcome = await executeCloneArtifacts({ repositoryPath, worktreePath, preservePatterns });
+    const outcome = await executeCopyArtifacts({ repositoryPath, worktreePath, preservePatterns });
     this.logger.info?.(
       `copy-artifacts for '${id}': ${outcome.status} in ${Date.now() - startedAt}ms`,
       {
@@ -845,14 +845,14 @@ export class WorkspaceRegistryRuntime {
    * consuming steps run against whatever exists. Incomplete durable state without an
    * in-flight run (post-restart) triggers a replay first.
    */
-  private async awaitCloneArtifacts(id: string): Promise<void> {
+  private async awaitCopyArtifacts(id: string): Promise<void> {
     const record = this.store.get(id);
     if (!record?.lifecycle) return;
     if (!isIncompleteStep(getLifecycleStep(record.lifecycle, 'copy-artifacts'))) return;
-    if (!this.cloneRuns.has(id)) void this.runBackgroundSteps(id);
-    // A rejected clone run (e.g. a store write failure) still opens the gate —
+    if (!this.copyRuns.has(id)) void this.runBackgroundSteps(id);
+    // A rejected copy run (e.g. a store write failure) still opens the gate —
     // dependents proceed and a real install is the graceful degradation.
-    await (this.cloneRuns.get(id) ?? Promise.resolve()).catch(() => undefined);
+    await (this.copyRuns.get(id) ?? Promise.resolve()).catch(() => undefined);
   }
 
   /**
@@ -872,7 +872,7 @@ export class WorkspaceRegistryRuntime {
         const branch = record.creation?.branch ?? null;
         if (branch !== null) await this.executePushStep(input.id, parent.path, branch);
       } else {
-        await this.executeCloneStep(input.id, parent.path, record.path);
+        await this.executeCopyStep(input.id, parent.path, record.path);
       }
     }
     const current = this.store.get(input.id) ?? record;

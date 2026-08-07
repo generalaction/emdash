@@ -332,8 +332,8 @@ describe('workspace registry contract', () => {
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
     git(repoPath, 'push', '-u', 'origin', 'main');
-    // Gitignored artifacts: they ride the background clone (the .env preserve case
-    // included — ignored files are the clone set, no patterns needed).
+    // Gitignored artifacts: only the ones named in preservePatterns ride the
+    // background copy; everything else ignored stays behind.
     await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\nnode_modules/\n');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
     await fs.mkdir(path.join(repoPath, 'node_modules', 'dep'), { recursive: true });
@@ -382,7 +382,15 @@ describe('workspace registry contract', () => {
       });
     });
     await fs.access(path.join(created.data.path, '.env'));
-    await fs.access(path.join(created.data.path, 'node_modules', 'dep', 'index.js'));
+    // The unnamed ignored artifact (node_modules) is deliberately not copied.
+    await expect(
+      fs.access(path.join(created.data.path, 'node_modules'))
+    ).rejects.toThrow();
+    // The copy step records the matched entry count for the Activity description.
+    const records = await listRecords();
+    expect(lifecycleStep(records['ws-new'], 'copy-artifacts')).toMatchObject({
+      params: { fileCount: 1 },
+    });
     expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toContain(
       'refs/heads/feature/new'
     );

@@ -50,7 +50,7 @@ export type WorkspaceActivationManagerOptions = {
   /** Persists lastActivatedAt — the only durable trace of an activation. */
   recordActivated: (id: string, at: number) => Promise<void>;
   /**
-   * The artifact gate (dependency gating): resolves once the background artifact clone
+   * The artifact gate (dependency gating): resolves once the background artifact copy
    * settled. Awaited only where scripts consume dependencies — before prepare and
    * before the setup→run chain; workspaces without those scripts never wait.
    */
@@ -129,7 +129,7 @@ export class WorkspaceActivationManager {
     this.publish(id, state);
 
     if (scripts.prepare) {
-      // Prepare chains after the artifact clone (spec: clone-artifacts → prepare →
+      // Prepare chains after the artifact copy (spec: copy-artifacts → prepare →
       // active), so a dep-installing prepare runs against cloned node_modules. A
       // terminal clone failure resolves the gate — prepare degrades to a real install.
       await this.awaitArtifacts(id);
@@ -201,7 +201,7 @@ export class WorkspaceActivationManager {
     scripts: EmdashScriptsConfig
   ): Promise<void> {
     if (scripts.setup || scripts.run) {
-      // Setup and run (dev servers) consume dependencies: wait for the artifact clone
+      // Setup and run (dev servers) consume dependencies: wait for the artifact copy
       // to settle. Never gates activation itself — this chain is already background.
       await this.awaitArtifacts(id);
       if (!this.isCurrent(id, state)) return;
