@@ -17,30 +17,37 @@
   ],
   "exports": {
     "./rpc": {
+      "development": "./src/rpc/index.ts",
       "types": "./dist/rpc.d.mts",
       "default": "./dist/rpc.mjs"
     },
     "./live": {
+      "development": "./src/live/index.ts",
       "types": "./dist/live.d.mts",
       "default": "./dist/live.mjs"
     },
     "./state": {
+      "development": "./src/state/index.ts",
       "types": "./dist/state.d.mts",
       "default": "./dist/state.mjs"
     },
     "./mobx": {
+      "development": "./src/live/mobx/index.ts",
       "types": "./dist/mobx.d.mts",
       "default": "./dist/mobx.mjs"
     },
     "./testing": {
+      "development": "./src/testing/index.ts",
       "types": "./dist/testing.d.mts",
       "default": "./dist/testing.mjs"
     },
     "./worker": {
+      "development": "./src/worker/index.ts",
       "types": "./dist/worker.d.mts",
       "default": "./dist/worker.mjs"
     },
     "./worker/node": {
+      "development": "./src/worker/node/index.ts",
       "types": "./dist/worker-node.d.mts",
       "default": "./dist/worker-node.mjs"
     },

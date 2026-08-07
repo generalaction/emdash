@@ -14,74 +14,92 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "development": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
     "./result": {
+      "development": "./src/result/index.ts",
       "types": "./dist/result.d.mts",
       "default": "./dist/result.mjs"
     },
     "./scheduling": {
+      "development": "./src/scheduling/index.ts",
       "types": "./dist/scheduling.d.mts",
       "default": "./dist/scheduling.mjs"
     },
     "./concurrency": {
+      "development": "./src/concurrency/index.ts",
       "types": "./dist/concurrency.d.mts",
       "default": "./dist/concurrency.mjs"
     },
     "./requests": {
+      "development": "./src/requests/index.ts",
       "types": "./dist/requests.d.mts",
       "default": "./dist/requests.mjs"
     },
     "./util": {
+      "development": "./src/util/index.ts",
       "types": "./dist/util.d.mts",
       "default": "./dist/util.mjs"
     },
     "./testing": {
+      "development": "./src/testing/index.ts",
       "types": "./dist/testing.d.mts",
       "default": "./dist/testing.mjs"
     },
     "./config": {
+      "development": "./src/config/index.ts",
       "types": "./dist/config.d.mts",
       "default": "./dist/config.mjs"
     },
     "./logger": {
+      "development": "./src/logger/index.ts",
       "types": "./dist/logger.d.mts",
       "default": "./dist/logger.mjs"
     },
     "./logger/context": {
+      "development": "./src/logger/context.ts",
       "types": "./dist/logger-context.d.mts",
       "default": "./dist/logger-context.mjs"
     },
     "./logger/context-node": {
+      "development": "./src/logger/context-node.ts",
       "types": "./dist/logger-context-node.d.mts",
       "default": "./dist/logger-context-node.mjs"
     },
     "./logger/pino": {
+      "development": "./src/logger/pino/index.ts",
       "types": "./dist/logger-pino.d.mts",
       "default": "./dist/logger-pino.mjs"
     },
     "./logger/node": {
+      "development": "./src/logger/node/index.ts",
       "types": "./dist/logger-node.d.mts",
       "default": "./dist/logger-node.mjs"
     },
     "./logger/transport": {
+      "development": "./src/logger/transport/index.ts",
       "types": "./dist/logger-transport.d.mts",
       "default": "./dist/logger-transport.mjs"
     },
     "./markdown": {
+      "development": "./src/markdown/index.ts",
       "types": "./dist/markdown.d.mts",
       "default": "./dist/markdown.mjs"
     },
     "./perf": {
+      "development": "./src/perf/index.ts",
       "types": "./dist/perf.d.mts",
       "default": "./dist/perf.mjs"
     },
     "./perf/node": {
+      "development": "./src/perf/node/index.ts",
       "types": "./dist/perf-node.d.mts",
       "default": "./dist/perf-node.mjs"
     },
     "./plugins": {
+      "development": "./src/plugins/index.ts",
       "types": "./dist/plugins.d.mts",
       "default": "./dist/plugins.mjs"
     },
