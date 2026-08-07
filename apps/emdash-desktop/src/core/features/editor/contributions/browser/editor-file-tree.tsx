@@ -884,16 +884,17 @@ export function FileTreeHeaderBar({
   isRefreshing: boolean;
 }) {
   return (
-    <div className="shrink-0 border-b border-border px-2 py-1.5">
-      <div className="flex items-center gap-1">
+    <div className="h-[41px] shrink-0 border-b border-border bg-background-secondary px-2">
+      <div className="flex h-full items-center gap-1">
         <div className="min-w-0 flex-1">
           <SearchInput
             ref={setSearchInputRef}
+            size="sm"
             value={searchQuery}
             maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
             aria-label="Search"
             placeholder="Search"
-            className="h-7 border-0 bg-transparent text-xs shadow-none hover:bg-background-1 focus-visible:bg-background-1 focus-visible:ring-1"
+            className="border-0 bg-transparent shadow-none hover:bg-background-2 focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-border-primary"
             onClear={() => setSearchQuery('')}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {

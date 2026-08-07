@@ -60,4 +60,35 @@ describe('FileTreeHeaderBar layout', () => {
     expect(textStart).toBeGreaterThanOrEqual(iconBox.right + 2);
     expect(host.querySelector('[aria-label="Clear search"]')).not.toBeNull();
   });
+
+  it('uses compact search geometry in a tab-aligned header row', async () => {
+    const context: FileTreeHeaderContext = {
+      targetPath: '',
+      startDraft: vi.fn(),
+      collapseAll: vi.fn(),
+      expandAll: vi.fn(),
+    };
+
+    await act(async () => {
+      root.render(
+        <FileTreeHeaderBar
+          context={context}
+          searchQuery=""
+          setSearchQuery={vi.fn()}
+          setSearchInputRef={vi.fn()}
+          onRefresh={vi.fn()}
+          isRefreshing={false}
+        />
+      );
+    });
+
+    const header = host.firstElementChild;
+    const input = host.querySelector<HTMLInputElement>('[aria-label="Search"]');
+    expect(header).not.toBeNull();
+    expect(input).not.toBeNull();
+
+    expect(header).toHaveClass('h-[41px]', 'bg-background-secondary');
+    expect(getComputedStyle(input!).height).toBe('24px');
+    expect(input).toHaveClass('focus-visible:bg-transparent');
+  });
 });
