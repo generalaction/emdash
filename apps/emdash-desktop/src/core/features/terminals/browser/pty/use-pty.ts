@@ -6,9 +6,10 @@ import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/bro
 import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
 import { measureDimensions } from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { getDesktopHostClient } from '@core/features/workbench/api/browser/client';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import type { AppSettings } from '@core/services/settings/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getAppSettingsClient } from '@core/services/settings/api/client';
 import { log } from '@renderer/utils/logger';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -312,9 +313,9 @@ export function usePty(
 
       // ── Load settings ──────────────────────────────────────────────────────
       let customFontFamily = '';
-      void getDesktopWireClient()
+      void getAppSettingsClient()
         .then(async (client) => {
-          const settings = (await client.appSettings.get({
+          const settings = (await client.get({
             key: 'terminal',
           })) as AppSettings['terminal'];
           return settings;
@@ -504,8 +505,8 @@ export function usePty(
         const selectionText =
           terminal.getSelection() || getRecentSelection(lastSelectionRef.current);
         const linkText = getTerminalContextLink(terminal, event);
-        void getDesktopWireClient().then((client) =>
-          client.host.showTerminalContextMenu({
+        void getDesktopHostClient().then((client) =>
+          client.showTerminalContextMenu({
             requestId,
             selectionText,
             linkText,
@@ -516,8 +517,8 @@ export function usePty(
       };
       let disposedContextMenu = false;
       let offTerminalContextMenuAction: (() => void) | undefined;
-      void getDesktopWireClient().then(async (client) => {
-        const unsubscribe = await client.host.events.subscribe(undefined, {
+      void getDesktopHostClient().then(async (client) => {
+        const unsubscribe = await client.events.subscribe(undefined, {
           onEvent: (event) => {
             if (
               event.type !== 'terminal-context-menu-action' ||
