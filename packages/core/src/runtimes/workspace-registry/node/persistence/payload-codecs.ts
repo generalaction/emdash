@@ -1,11 +1,13 @@
 import { defineVersionedSchema } from '@primitives/versioned-schema/api';
 import { z } from 'zod';
 import {
+  workspaceBackgroundSchema,
   workspaceCreateOutcomeSchema,
   workspaceCreationSchema,
   workspaceGitObservationsSchema,
   workspaceRemovalAttemptSchema,
   workspaceScriptOutcomesSchema,
+  type WorkspaceBackground,
   type WorkspaceCreateOutcome,
   type WorkspaceCreation,
   type WorkspaceGitObservations,
@@ -31,6 +33,10 @@ const storedRemovalAttempt = defineVersionedSchema()
 
 const storedScriptOutcomes = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceScriptOutcomesSchema }))
+  .build();
+
+const storedBackground = defineVersionedSchema()
+  .initial('1', z.object({ version: z.literal('1'), value: workspaceBackgroundSchema }))
   .build();
 
 export function serializeCreationPayload(creation: WorkspaceCreation): string {
@@ -71,6 +77,14 @@ export function serializeScriptOutcomesPayload(outcomes: WorkspaceScriptOutcomes
 
 export function parseScriptOutcomesPayload(payload: string): WorkspaceScriptOutcomes {
   return parseVersioned(storedScriptOutcomes, payload, 'script outcomes');
+}
+
+export function serializeBackgroundPayload(background: WorkspaceBackground): string {
+  return storedBackground.serialize({ version: '1', value: background });
+}
+
+export function parseBackgroundPayload(payload: string): WorkspaceBackground {
+  return parseVersioned(storedBackground, payload, 'background steps');
 }
 
 type VersionedEnvelope<T> = {

@@ -16,4 +16,11 @@ export const migrations: readonly BundledMigration[] = [
     hash: '57a9e2e208810b11fa60d39b6382e5b252c0a1c30dea11f4f26078de21b15f01',
     sql: 'ALTER TABLE `workspace_records` ADD `last_removal_attempt` text;--> statement-breakpoint\nALTER TABLE `workspace_records` ADD `script_outcomes` text;',
   },
+  {
+    idx: 2,
+    tag: '0002_next_captain_flint',
+    when: 1786079965781,
+    hash: '703d5c079d88408a94c9530d169c5a8b9bee2d777d05126555f7ac54388c88af',
+    sql: 'ALTER TABLE `workspace_records` ADD `background` text;',
+  },
 ];

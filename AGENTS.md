@@ -326,12 +326,12 @@ pnpm run test
 - Skills types and validation live in Core primitives; skills UI and service code live in
   `src/core/features/skills/browser/` and `src/main/core/skills/`.
 - Worktree runtime settings can be supplied through `.emdash.json`:
- `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
- `scripts.teardown`, and `shellSetup`.
+ `excludePatterns`, `preservePatterns` (deprecated), `scripts.prepare`,
+ `scripts.setup`, `scripts.run`, `scripts.teardown`, and `shellSetup`.
 - Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
   `pushRemote`, and `tmux` are DB-backed, not `.emdash.json`.
 - Optional environment variables include `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`,
-  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_CLONE_CACHE`, `EMDASH_DISABLE_PTY`,
+  `EMDASH_DISABLE_NATIVE_DB`, `EMDASH_DISABLE_PTY`,
   `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.

@@ -67,9 +67,28 @@ export const workspaceScriptOutcomes = defineVersionedSchema()
   .build();
 export type WorkspaceScriptOutcomes = typeof workspaceScriptOutcomes.Type;
 
+const backgroundStepV1 = z.object({
+  status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
+  at: z.number(),
+  /** Present for failed steps. */
+  message: z.string().optional(),
+});
+
 const runtimeOverlayV1 = z.object({
   version: z.literal('1'),
   creation: z.object({ stage: z.string(), startedAt: z.number() }).nullable(),
+  /**
+   * Background creation-step statuses (registry contract): unlike the rest of the
+   * overlay this is projected from durable host state and survives daemon restarts.
+   */
+  background: z
+    .object({
+      cloneArtifacts: backgroundStepV1.nullable(),
+      pushBranch: backgroundStepV1.nullable(),
+      fetchRefs: backgroundStepV1.nullable(),
+    })
+    .nullable()
+    .optional(),
   notices: z.array(
     z.object({
       id: z.string(),

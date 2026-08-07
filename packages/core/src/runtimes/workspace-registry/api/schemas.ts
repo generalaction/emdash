@@ -70,6 +70,40 @@ export const workspaceScriptOutcomesSchema = z.object({
 export type WorkspaceScriptOutcomes = z.infer<typeof workspaceScriptOutcomesSchema>;
 
 /**
+ * Durable status of one background creation step. 'pending' and 'running' read as
+ * incomplete and replay idempotently on host restart or the next activation; 'failed'
+ * is terminal and only re-runs through an explicit retry verb (push) — never
+ * automatically. 'skipped' marks a step that does not apply to this record.
+ */
+export const workspaceBackgroundStepSchema = z.object({
+  status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
+  at: z.number(),
+  /** Present for failed steps. */
+  message: z.string().optional(),
+});
+export type WorkspaceBackgroundStep = z.infer<typeof workspaceBackgroundStepSchema>;
+
+/** Per-step statuses of the background half of createWorktree. Null per step = never requested. */
+export const workspaceBackgroundStepsSchema = z.object({
+  cloneArtifacts: workspaceBackgroundStepSchema.nullable(),
+  pushBranch: workspaceBackgroundStepSchema.nullable(),
+  fetchRefs: workspaceBackgroundStepSchema.nullable(),
+});
+export type WorkspaceBackgroundSteps = z.infer<typeof workspaceBackgroundStepsSchema>;
+
+/**
+ * The durable background section of a creation record: step statuses plus the replay
+ * inputs that are not part of the immutable creation identity. Written when the
+ * worktree creation registers; steps advance as the background half executes.
+ */
+export const workspaceBackgroundSchema = z.object({
+  steps: workspaceBackgroundStepsSchema,
+  /** Honored-but-deprecated preserve patterns, kept for background replay. */
+  preservePatterns: z.array(z.string()),
+});
+export type WorkspaceBackground = z.infer<typeof workspaceBackgroundSchema>;
+
+/**
  * Host-computed git observations. `diffStats` includes untracked files' lines as
  * additions (respecting .gitignore); null = stats unavailable — a pathological worktree
  * degrades its own record, never the scan.
@@ -107,6 +141,11 @@ export const workspaceRuntimeOverlaySchema = z.object({
   /** Present while a createWorktree run is executing. */
   creation: z.object({ stage: z.string(), startedAt: z.number() }).nullable(),
   notices: z.array(workspaceNoticeSchema),
+  /**
+   * Background creation-step statuses, projected from the durable background section
+   * on every publish (unlike the rest of the overlay, this survives daemon restarts).
+   */
+  background: workspaceBackgroundStepsSchema.nullable().optional(),
   /**
    * Prepare gates sessions; setup runs after activation concurrent with sessions; run
    * waits on setup success. Script failures surface as notices, never fail activation.
@@ -153,6 +192,8 @@ export const workspaceRecordSchema = z.object({
   creation: workspaceCreationSchema.nullable(),
   /** Null unless this record was born from createWorktree. */
   lastCreateOutcome: workspaceCreateOutcomeSchema.nullable(),
+  /** Durable background creation steps; null unless born from createWorktree. */
+  background: workspaceBackgroundSchema.nullable(),
   /** Null until a delete verb fails; removed with the record on success. */
   lastRemovalAttempt: workspaceRemovalAttemptSchema.nullable(),
   /** Null until any lifecycle script has settled once. */
@@ -219,3 +260,9 @@ export const deactivateWorkspaceInputSchema = z.object({
   id: z.string().min(1),
 });
 export type DeactivateWorkspaceInput = z.infer<typeof deactivateWorkspaceInputSchema>;
+
+/** Manual retry of a failed background branch push (the only user-retryable step). */
+export const retryPushBranchInputSchema = z.object({
+  id: z.string().min(1),
+});
+export type RetryPushBranchInput = z.infer<typeof retryPushBranchInputSchema>;

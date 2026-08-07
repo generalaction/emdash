@@ -46,6 +46,12 @@ export type WorkspaceActivationManagerOptions = {
   ) => void;
   /** Persists lastActivatedAt — the only durable trace of an activation. */
   recordActivated: (id: string, at: number) => Promise<void>;
+  /**
+   * The artifact gate (dependency gating): resolves once the background artifact clone
+   * settled. Awaited only where scripts consume dependencies — before prepare and
+   * before the setup→run chain; workspaces without those scripts never wait.
+   */
+  awaitArtifacts?: (id: string) => Promise<void>;
   runner?: WorkspaceScriptRunner;
   readScripts?: (workspacePath: string) => Promise<EmdashScriptsConfig>;
   clock?: Clock;
@@ -70,6 +76,7 @@ type ActiveState = {
 export class WorkspaceActivationManager {
   private readonly options: WorkspaceActivationManagerOptions;
   private readonly runner: WorkspaceScriptRunner;
+  private readonly awaitArtifacts: (id: string) => Promise<void>;
   private readonly readScripts: (workspacePath: string) => Promise<EmdashScriptsConfig>;
   private readonly clock: Clock;
   private readonly logger: Logger;
@@ -79,6 +86,7 @@ export class WorkspaceActivationManager {
   constructor(options: WorkspaceActivationManagerOptions) {
     this.options = options;
     this.runner = options.runner ?? createWorkspaceScriptRunner();
+    this.awaitArtifacts = options.awaitArtifacts ?? (async () => undefined);
     this.readScripts = options.readScripts ?? readWorkspaceScripts;
     this.clock = options.clock ?? systemClock;
     this.logger = options.logger ?? noopLogger;
@@ -113,6 +121,11 @@ export class WorkspaceActivationManager {
     this.publish(id, state);
 
     if (scripts.prepare) {
+      // Prepare chains after the artifact clone (spec: clone-artifacts → prepare →
+      // active), so a dep-installing prepare runs against cloned node_modules. A
+      // terminal clone failure resolves the gate — prepare degrades to a real install.
+      await this.awaitArtifacts(id);
+      if (!this.isCurrent(id, state)) return;
       const outcome = await this.runScript(id, state, 'prepare', scripts.prepare);
       if (!this.isCurrent(id, state)) return;
       state.activation.scripts.prepare = outcome === 'succeeded' ? 'succeeded' : 'failed';
@@ -179,6 +192,12 @@ export class WorkspaceActivationManager {
     state: ActiveState,
     scripts: EmdashScriptsConfig
   ): Promise<void> {
+    if (scripts.setup || scripts.run) {
+      // Setup and run (dev servers) consume dependencies: wait for the artifact clone
+      // to settle. Never gates activation itself — this chain is already background.
+      await this.awaitArtifacts(id);
+      if (!this.isCurrent(id, state)) return;
+    }
     let setupSucceeded = true;
     if (scripts.setup) {
       state.activation.scripts.setup = 'running';
