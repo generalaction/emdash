@@ -25,8 +25,13 @@ import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { projectWorkspacesContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
+import {
+  getProjectWorkspacesClient,
+  getWorkspaceRegistryWireClient,
+} from '@core/features/workspaces/api/browser/client';
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
@@ -40,7 +45,6 @@ import {
   type ProjectWorkspaceRow,
   type ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { formatBytes } from '@renderer/utils/formatBytes';
 
 type UsageFilter = 'all' | 'used' | 'unused';
@@ -75,11 +79,11 @@ class ProjectWorkspacesStore {
 
   private async subscribe(): Promise<void> {
     try {
-      const client = await getDesktopWireClient();
+      const client = await getProjectWorkspacesClient();
       if (this.disposed) return;
       const list = remote(
         projectWorkspacesContract.projectWorkspaceList,
-        client.projectWorkspaces.projectWorkspaceList,
+        client.projectWorkspaceList,
         { scope: this.scope }
       );
       observe(
@@ -119,11 +123,12 @@ class ProjectWorkspacesStore {
   /** Explicit refresh: ask the host registry to re-observe, then re-measure usage. */
   async refresh(): Promise<void> {
     try {
-      const client = await getDesktopWireClient();
-      const projectList = await client.projects.projectList.state(undefined, 'list').snapshot();
+      const projectsClient = await getProjectsWireClient();
+      const projectList = await projectsClient.projectList.state(undefined, 'list').snapshot();
       const project = projectList.data.projects.find((entry) => entry.id === this.projectId);
       if (project) {
-        await client.workspaceRegistry.refresh({ host: projectHostRef(project) });
+        const registryClient = await getWorkspaceRegistryWireClient();
+        await registryClient.refresh({ host: projectHostRef(project) });
       }
     } catch {
       // Unreachable host: the mirror keeps serving cached rows with their stamps.
@@ -140,8 +145,8 @@ class ProjectWorkspacesStore {
     });
     try {
       const measured = await (
-        await getDesktopWireClient()
-      ).projectWorkspaces.measureProjectWorkspaces({ projectId: this.projectId, paths });
+        await getProjectWorkspacesClient()
+      ).measureProjectWorkspaces({ projectId: this.projectId, paths });
       if (token !== this.measureToken || this.disposed) return;
       runInAction(() => {
         for (const result of measured.results) this.usageByPath.set(result.path, result);
@@ -493,8 +498,8 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           kind === 'archive'
             ? await archiveProjectWorkspaces(projectId, rows)
             : await (
-                await getDesktopWireClient()
-              ).projectWorkspaces.deleteProjectWorkspaces({
+                await getProjectWorkspacesClient()
+              ).deleteProjectWorkspaces({
                 projectId,
                 paths,
                 deleteConversations: options.deleteConversations,

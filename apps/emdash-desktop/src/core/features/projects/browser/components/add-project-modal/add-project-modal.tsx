@@ -5,6 +5,7 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
 import type { ProjectHostParams } from '@core/features/projects/api';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { createRequiredGitHubAccountSelectState } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
   getProjectManagerStore,
@@ -23,7 +24,6 @@ import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
@@ -68,7 +68,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const { navigate } = useNavigate();
 
   const openProjectConfigImportModal = useOpenModal('projectConfigImportModal');
-  const getProjectsClient = useCallback(async () => (await getDesktopWireClient()).projects, []);
+  const getProjectsClient = useCallback(async () => await getProjectsWireClient(), []);
 
   const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
     const projectManager = getProjectManagerStore();
@@ -154,12 +154,12 @@ export const AddProjectModal = observer(function AddProjectModal({
     queryKey: ['projectPathStatus', strategy, selectedConnectionId, pickState.path],
     queryFn: async () =>
       strategy === 'ssh'
-        ? (await getDesktopWireClient()).projects.inspectProjectPath({
+        ? (await getProjectsWireClient()).inspectProjectPath({
             type: 'ssh',
             path: pickState.path,
             connectionId: selectedConnectionId!,
           })
-        : (await getDesktopWireClient()).projects.inspectProjectPath({
+        : (await getProjectsWireClient()).inspectProjectPath({
             type: 'local',
             path: pickState.path,
           }),
