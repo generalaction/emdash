@@ -120,7 +120,7 @@ running (doctor reports it). See
 | --- | --- | --- |
 | Local packaging | `pnpm run package` / `package:mac` / `package:linux` / `package:win` | `apps/emdash-desktop/` |
 | Rebuild native deps | `pnpm run rebuild` | `apps/emdash-desktop/` |
-| Lint-infra allowlists | `pnpm run generate:boundary-allowlists` | root |
+| Lint-infra allowlists | `pnpm run prune:boundary-allowlists` | root |
 | Task graph | `pnpm run graph` | root |
 | Releases (maintainers) | `gh workflow run release-prod.yml` / `release-canary.yml` | — |
 
@@ -129,8 +129,10 @@ running (doctor reports it). See
 - `rebuild` force-rebuilds better-sqlite3 for the installed Electron version
   (auto-detected). node-pty is never rebuilt — its N-API prebuild serves both
   runtimes. Offline fallback: append `--build-from-source`.
-- Re-run `generate:boundary-allowlists` after moving files across core slice
-  boundaries; lint fails if the allowlists are stale.
+- Run `prune:boundary-allowlists` after fixing boundary violations; root lint
+  fails while the allowlists carry stale entries. The allowlists are
+  shrink-only — the script removes entries that no longer violate and never
+  adds new ones.
 - Releases are maintainer-only and run only when explicitly asked
   (see AGENTS.md guardrails).
 

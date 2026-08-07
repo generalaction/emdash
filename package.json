@@ -6,14 +6,14 @@
     "dev": "nx run-many -t dev --all --parallel=10",
     "build": "nx run-many -t build --all",
     "test": "nx run-many -t test --all",
-    "lint": "nx run-many -t lint --all",
+    "lint": "nx run-many -t lint --all && node tooling/oxlint/scripts/check-allowlists.mjs",
     "format": "nx run-many -t format --all",
     "format:check": "nx run-many -t format:check --all",
     "typecheck": "nx run-many -t typecheck --all",
     "affected": "nx affected -t lint typecheck test",
     "check": "node tooling/scripts/check.mjs",
     "doctor": "pnpm --dir apps/emdash-desktop run doctor",
-    "generate:boundary-allowlists": "node tooling/scripts/generate-boundary-allowlists.mjs",
+    "prune:boundary-allowlists": "node tooling/oxlint/scripts/prune-boundary-allowlists.mjs",
     "graph": "nx graph"
   },
   "devDependencies": {
