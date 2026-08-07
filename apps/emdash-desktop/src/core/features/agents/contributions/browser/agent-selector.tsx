@@ -127,10 +127,9 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                         key={item.value}
                         value={item}
                         disabled={isComboboxOptionDisabled(item)}
+                        hoverableWhenDisabled={item.disabled}
                         className={cn(
                           'group/agent-row',
-                          item.disabled &&
-                            'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed',
                           showInstall && 'data-disabled:opacity-100'
                         )}
                         {...hoverCard.getRowHoverProps(item.agentId)}
