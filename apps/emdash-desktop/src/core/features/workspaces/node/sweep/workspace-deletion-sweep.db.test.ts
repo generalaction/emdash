@@ -1,6 +1,7 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
@@ -28,7 +29,7 @@ describe('workspace deletion sweep (integration)', () => {
 
   let fixture: Awaited<ReturnType<typeof openFixture>>;
   let scope: Scope;
-  let now: number;
+  let clock: ManualClock;
   let hostVerbs: {
     deleteWorktree: DeleteVerbMock;
     deleteWorkspace: DeleteVerbMock;
@@ -38,7 +39,7 @@ describe('workspace deletion sweep (integration)', () => {
   beforeEach(async () => {
     fixture = await openFixture('empty');
     scope = createScope({ label: 'workspace-sweep-test' });
-    now = Date.parse('2026-02-01T00:00:00.000Z');
+    clock = new ManualClock(Date.parse('2026-02-01T00:00:00.000Z'));
     reachable = true;
     hostVerbs = {
       deleteWorktree: vi.fn(async () => ok(undefined)),
@@ -63,7 +64,7 @@ describe('workspace deletion sweep (integration)', () => {
   function createService(): ReconcileSweepService {
     const service = new ReconcileSweepService({
       scope,
-      now: () => now,
+      clock,
       onError: (context, error) => {
         throw new Error(`${context}: ${String(error)}`);
       },
@@ -97,7 +98,7 @@ describe('workspace deletion sweep (integration)', () => {
     registry.tombstone(id, {
       version: '1',
       targetRecordId: id,
-      tombstonedAt: now - 60_000,
+      tombstonedAt: clock.now() - 60_000,
       options: {
         deleteBranch: options.deleteBranch ?? false,
         deleteConversations: options.deleteConversations ?? false,
@@ -197,7 +198,7 @@ describe('workspace deletion sweep (integration)', () => {
     ).toMatchObject({ terminalStop: { epoch: 0, stage: 'remove', message: 'worktree is locked' } });
 
     // Stopped durably — even a fresh service (app restart) never re-issues.
-    now += 60 * 60_000;
+    await clock.advanceBy(60 * 60_000);
     await service.sweepHost(LOCAL_HOST_REF);
     await createService().sweepHost(LOCAL_HOST_REF);
     expect(hostVerbs.deleteWorktree).toHaveBeenCalledTimes(1);
@@ -210,7 +211,7 @@ describe('workspace deletion sweep (integration)', () => {
       epoch: 0,
       stage: 'remove',
       message: 'worktree is locked',
-      at: now - 1_000,
+      at: clock.now() - 1_000,
     });
     const service = createService();
     const wire = createWorkspaceRegistryWireController({
@@ -236,7 +237,7 @@ describe('workspace deletion sweep (integration)', () => {
         stage: 'remove',
         class: 'terminal',
         message: 'worktree is locked',
-        at: now,
+        at: clock.now(),
       },
     });
     await createService().sweepHost(LOCAL_HOST_REF);
@@ -264,7 +265,7 @@ describe('workspace deletion sweep (integration)', () => {
     const registry = createWorkspaceRegistry(fixture.db);
     hostVerbs.deleteWorktree.mockImplementation(async () => {
       // Forget-host lands while the removal is in flight: untrack + hard purge.
-      registry.untrack(['wt-forgotten'], new Date(now).toISOString());
+      registry.untrack(['wt-forgotten'], new Date(clock.now()).toISOString());
       registry.purge(['wt-forgotten']);
       return ok(undefined);
     });

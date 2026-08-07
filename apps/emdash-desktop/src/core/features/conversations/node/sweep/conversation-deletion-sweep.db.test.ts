@@ -1,6 +1,7 @@
 import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { ManualClock } from '@emdash/shared/testing';
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createConversationRegistry } from '@core/features/conversations/api/node/registry';
@@ -23,7 +24,7 @@ describe('conversation deletion sweep (integration)', () => {
 
   let fixture: Awaited<ReturnType<typeof openFixture>>;
   let scope: Scope;
-  let now: number;
+  let clock: ManualClock;
   let hostVerbs: {
     killAcp: SessionKillMock;
     deleteTui: SessionKillMock;
@@ -34,7 +35,7 @@ describe('conversation deletion sweep (integration)', () => {
   beforeEach(async () => {
     fixture = await openFixture('empty');
     scope = createScope({ label: 'conversation-sweep-test' });
-    now = Date.parse('2026-02-01T00:00:00.000Z');
+    clock = new ManualClock(Date.parse('2026-02-01T00:00:00.000Z'));
     reachable = true;
     hostVerbs = {
       killAcp: vi.fn(async () => ok(undefined)),
@@ -64,7 +65,7 @@ describe('conversation deletion sweep (integration)', () => {
   function createService(): ReconcileSweepService {
     const service = new ReconcileSweepService({
       scope,
-      now: () => now,
+      clock,
       onError: (context, error) => {
         throw new Error(`${context}: ${String(error)}`);
       },
@@ -91,7 +92,11 @@ describe('conversation deletion sweep (integration)', () => {
       lastObservedAt: '2026-01-01T00:00:00.000Z',
       observedStatus: 'present',
     });
-    registry.tombstone(id, { version: '1', targetRecordId: id, tombstonedAt: now - 60_000 });
+    registry.tombstone(id, {
+      version: '1',
+      targetRecordId: id,
+      tombstonedAt: clock.now() - 60_000,
+    });
   }
 
   it('converges a tombstone end-to-end: kill sessions + index delete, purge on sync confirmation', async () => {
@@ -146,7 +151,7 @@ describe('conversation deletion sweep (integration)', () => {
     const registry = createConversationRegistry(fixture.db);
     hostVerbs.deleteRecord.mockImplementation(async () => {
       // Forget-host lands while the removal is in flight: untrack + hard purge.
-      registry.untrack(['conv-forgotten'], new Date(now).toISOString());
+      registry.untrack(['conv-forgotten'], new Date(clock.now()).toISOString());
       registry.purge(['conv-forgotten']);
       return ok(undefined);
     });
@@ -185,7 +190,7 @@ describe('conversation deletion sweep (integration)', () => {
     // Inside the backoff window nothing is re-issued; past it, the backstop retries.
     await service.sweepHost(LOCAL_HOST_REF);
     expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(1);
-    now += 10 * 60 * 1000;
+    await clock.advanceBy(10 * 60 * 1000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(2);
   });
@@ -205,7 +210,7 @@ describe('conversation deletion sweep (integration)', () => {
     ).toMatchObject({ terminalStop: { epoch: 0, message: 'index is corrupt' } });
 
     // Stopped durably — even a fresh service (app restart) never re-issues.
-    now += 60 * 60 * 1000;
+    await clock.advanceBy(60 * 60 * 1000);
     await service.sweepHost(LOCAL_HOST_REF);
     await createService().sweepHost(LOCAL_HOST_REF);
     expect(hostVerbs.deleteRecord).toHaveBeenCalledTimes(1);
@@ -235,7 +240,7 @@ describe('conversation deletion sweep (integration)', () => {
     registry.tombstone('conv-remote', {
       version: '1',
       targetRecordId: 'conv-remote',
-      tombstonedAt: now - 60_000,
+      tombstonedAt: clock.now() - 60_000,
     });
     const service = createService();
 

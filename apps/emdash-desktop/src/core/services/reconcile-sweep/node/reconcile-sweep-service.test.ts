@@ -1,5 +1,6 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { ManualClock } from '@emdash/shared/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ReconcileSweepService,
@@ -21,11 +22,11 @@ const REMOTE_HOST = hostRef('remote', 'ssh-1');
  */
 describe('ReconcileSweepService', () => {
   let scope: Scope;
-  let now: number;
+  let clock: ManualClock;
 
   beforeEach(() => {
     scope = createScope({ label: 'reconcile-sweep-test' });
-    now = 1_000_000;
+    clock = new ManualClock(1_000_000);
   });
 
   afterEach(async () => {
@@ -35,7 +36,7 @@ describe('ReconcileSweepService', () => {
   function createService(options: { onError?: (context: string, error: unknown) => void } = {}) {
     return new ReconcileSweepService({
       scope,
-      now: () => now,
+      clock,
       onError: options.onError ?? (() => {}),
     });
   }
@@ -163,29 +164,29 @@ describe('ReconcileSweepService', () => {
     expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
 
     // Inside the first backoff window (1 minute): skipped.
-    now += 30_000;
+    await clock.advanceBy(30_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
 
     // Past the window: retried, doubling the next window to 2 minutes.
-    now += 31_000;
+    await clock.advanceBy(31_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(2);
 
-    now += 60_000;
+    await clock.advanceBy(60_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(2);
-    now += 61_000;
+    await clock.advanceBy(61_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(3);
 
     // After many failures the window never exceeds the one-hour cap.
     for (let i = 0; i < 10; i += 1) {
-      now += 60 * 60_000 + 1_000;
+      await clock.advanceBy(60 * 60_000 + 1_000);
       await service.sweepHost(LOCAL_HOST_REF);
     }
     const calls = fake.executeRemoval.mock.calls.length;
-    now += 60 * 60_000 + 1_000;
+    await clock.advanceBy(60 * 60_000 + 1_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval.mock.calls.length).toBe(calls + 1);
   });
@@ -264,10 +265,10 @@ describe('ReconcileSweepService', () => {
       epoch: 0,
       stage: 'remove',
       message: 'terminal failure',
-      at: now,
+      at: clock.now(),
     });
     // Stopped durably: later sweeps (past any backoff) never re-issue.
-    now += 60 * 60_000;
+    await clock.advanceBy(60 * 60_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
   });
@@ -279,7 +280,7 @@ describe('ReconcileSweepService', () => {
     service.registerKind(fake.kind);
 
     await service.sweepHost(LOCAL_HOST_REF);
-    now += 61_000;
+    await clock.advanceBy(61_000);
     await service.sweepHost(LOCAL_HOST_REF);
 
     expect(fake.executeRemoval).toHaveBeenCalledTimes(2);
@@ -332,7 +333,7 @@ describe('ReconcileSweepService', () => {
       expect.objectContaining({ epoch: 1 })
     );
 
-    now += 60 * 60_000;
+    await clock.advanceBy(60 * 60_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(1);
   });
@@ -355,7 +356,7 @@ describe('ReconcileSweepService', () => {
 
     // The stop was tagged with the stale epoch 0 and discarded by the epoch guard.
     expect(fake.get('a')?.terminalStopEpoch).toBeNull();
-    now += 60 * 60_000;
+    await clock.advanceBy(60 * 60_000);
     await service.sweepHost(LOCAL_HOST_REF);
     expect(fake.executeRemoval).toHaveBeenCalledTimes(2);
   });
