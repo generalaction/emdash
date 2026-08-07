@@ -1,5 +1,6 @@
+import { ComboboxPopover } from '@emdash/ui/react/components';
 import { FormFieldShell, useAppForm, useFieldContext } from '@emdash/ui/react/form';
-import { Button, Collapsible, Select, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Collapsible, Tooltip } from '@emdash/ui/react/primitives';
 import {
   CheckCircle2,
   ChevronDown,
@@ -82,6 +83,10 @@ function SshConfigAliasField({
 }) {
   const field = useFieldContext<string>();
   const selectedHost = hostsByAlias.get(field.state.value);
+  const options = [
+    { value: MANUAL_CONNECTION_VALUE, label: 'Manual connection' },
+    ...hosts.map((host) => ({ value: host.host, label: host.host })),
+  ];
 
   return (
     <FormFieldShell
@@ -95,10 +100,10 @@ function SshConfigAliasField({
     >
       {({ id }) =>
         hosts.length > 0 ? (
-          <Select.Root
+          <ComboboxPopover
+            items={options}
             value={field.state.value || MANUAL_CONNECTION_VALUE}
             onValueChange={(value) => {
-              if (!value) return;
               if (value === MANUAL_CONNECTION_VALUE) {
                 onSelectManual();
                 field.handleChange('');
@@ -108,8 +113,14 @@ function SshConfigAliasField({
               const host = hostsByAlias.get(value);
               if (host) onSelectHost(host);
             }}
-          >
-            <Select.Trigger id={id} appearance="input" className="w-full">
+            itemToKey={(item) => item.value}
+            itemToLabel={(item) => item.label}
+            filter={(item, query) => item.label.toLowerCase().includes(query.toLowerCase())}
+            appearance="input"
+            className="w-full"
+            contentWidth="trigger"
+            searchPlaceholder="Search SSH config..."
+            renderTrigger={() => (
               <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
                 {selectedHost ? (
                   <span className="truncate">{selectedHost.host}</span>
@@ -119,16 +130,10 @@ function SshConfigAliasField({
                   'Manual connection'
                 )}
               </span>
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value={MANUAL_CONNECTION_VALUE}>Manual connection</Select.Item>
-              {hosts.map((host) => (
-                <Select.Item key={host.host} value={host.host}>
-                  <span className="truncate">{host.host}</span>
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
+            )}
+            renderItem={(item) => <span className="truncate">{item.label}</span>}
+            triggerId={id}
+          />
         ) : (
           <input id={id} name={field.name} value={field.state.value} type="hidden" readOnly />
         )

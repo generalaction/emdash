@@ -1,5 +1,6 @@
 import { err, type Result } from '@emdash/shared';
-import { Button, Checkbox, Dialog, Field, Select } from '@emdash/ui/react/primitives';
+import { ComboboxPopover } from '@emdash/ui/react/components';
+import { Button, Checkbox, Dialog, Field } from '@emdash/ui/react/primitives';
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -130,39 +131,44 @@ export function ShareProjectConfigModal({
           </p>
           <Field.Root>
             <Field.Label>Write to</Field.Label>
-            <Select.Root
+            <ComboboxPopover
+              items={targets}
               value={selectedTargetValue}
               onValueChange={(value) => {
                 setSelectedTarget(
                   targets.find((target) => projectConfigTargetValue(target) === value) ?? null
                 );
               }}
-            >
-              <Select.Trigger className="w-full min-w-0">
+              itemToKey={projectConfigTargetValue}
+              itemToLabel={(target) => target.label}
+              filter={(target, query) => {
+                const normalizedQuery = query.toLowerCase();
+                return (
+                  target.label.toLowerCase().includes(normalizedQuery) ||
+                  target.path.toLowerCase().includes(normalizedQuery)
+                );
+              }}
+              appearance="input"
+              className="w-full min-w-0"
+              contentWidth="trigger"
+              searchPlaceholder="Search working copies..."
+              renderTrigger={() => (
                 <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                   <span className="min-w-0 truncate">{selectedTargetLabel}</span>
                 </div>
-              </Select.Trigger>
-              <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
-                {targets.map((target) => (
-                  <Select.Item
-                    key={projectConfigTargetValue(target)}
-                    value={projectConfigTargetValue(target)}
-                    className="py-2"
-                    title={`${target.label} ${target.path}`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <span className="relative -top-px max-w-[45%] min-w-0 truncate">
-                        {target.label}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
-                        {target.path}
-                      </span>
-                    </div>
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
+              )}
+              renderItem={(target) => (
+                <div
+                  className="flex min-w-0 flex-1 flex-col gap-0.5"
+                  title={`${target.label} ${target.path}`}
+                >
+                  <span className="min-w-0 truncate">{target.label}</span>
+                  <span className="min-w-0 truncate text-xs text-foreground-muted">
+                    {target.path}
+                  </span>
+                </div>
+              )}
+            />
           </Field.Root>
 
           <Field.Root>
