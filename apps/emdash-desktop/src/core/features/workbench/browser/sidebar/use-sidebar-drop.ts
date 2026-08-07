@@ -1,11 +1,11 @@
 import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useRef, useState } from 'react';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 
 export function useSidebarDrop() {
@@ -52,8 +52,8 @@ export function useSidebarDrop() {
         filePaths.map(async (filePath) => {
           try {
             const status = await (
-              await getDesktopWireClient()
-            ).projects.inspectProjectPath({
+              await getProjectsWireClient()
+            ).inspectProjectPath({
               type: 'local',
               path: filePath,
             });
