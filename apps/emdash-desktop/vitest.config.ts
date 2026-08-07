@@ -74,10 +74,10 @@ const alias = {
   '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
 };
 
-// For fixture and migration Vitest projects, redirect better-sqlite3 to an
+// For Node-environment Vitest projects, redirect better-sqlite3 to an
 // isolated copy installed under tooling/node-deps/ (compiled for system Node).
 // The root node_modules/better-sqlite3 stays Electron-compiled at all times,
-// so no rebuild dance is needed when switching between app dev and DB tests.
+// so no rebuild dance is needed when switching between app dev and tests.
 const toolingAlias = {
   ...alias,
   'better-sqlite3': resolve(__dirname, 'tooling/node-deps/node_modules/better-sqlite3'),
@@ -91,7 +91,10 @@ export default defineConfig({
         // All existing tests that run in a Node.js environment.
         // Migration tests are excluded — run them via `pnpm run test:migrations`.
         // DB integration tests (*.db.test.ts) are excluded — run under the main-db project.
+        // Uses toolingAlias so slice tests that open real SQLite (e.g. via the
+        // sqlite-store primitive) load the system-Node build, not the Electron one.
         extends: true,
+        resolve: { alias: toolingAlias },
         test: {
           name: 'node',
           environment: 'node',
