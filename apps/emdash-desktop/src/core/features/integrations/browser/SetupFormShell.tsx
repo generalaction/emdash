@@ -51,8 +51,8 @@ export function SetupFormShell({
 
   return (
     <>
-      <Dialog.Body className="pt-1">
-        {children}
+      <Dialog.Body>
+        <div className="pt-1">{children}</div>
         {error ? (
           <p className="text-xs text-foreground-destructive" role="alert">
             {error}
