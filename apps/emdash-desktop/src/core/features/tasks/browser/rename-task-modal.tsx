@@ -3,15 +3,15 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useModalController } from '@core/manifests/browser/modal-api';
-import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
-import { defineModal } from '@core/primitives/modals/react';
 import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
   taskNameCollisionKey,
-} from '@renderer/utils/taskNames';
+} from '@core/features/tasks/api/browser/taskNames';
+import { useModalController } from '@core/manifests/browser/modal-api';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
+import { defineModal } from '@core/primitives/modals/react';
 
 type RenameTaskModalArgs = {
   projectId: string;
