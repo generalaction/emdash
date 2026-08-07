@@ -5,6 +5,7 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTerminalShellAvailability } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
 import { usePaneScope } from '@core/features/workbench/api/browser/tabs/use-pane-scope';
 import {
   useTaskComposition,
@@ -15,7 +16,6 @@ import {
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { useTerminalShellAvailability } from '@renderer/lib/hooks/use-terminal-shell-availability';
 import {
   TerminalDrawerTabBar,
   type TerminalDrawerMode,

@@ -1,10 +1,10 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { registerNotificationOpenHandler } from '@core/primitives/notifications/browser/open-handlers';
-import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 
 export function useRegisterNotificationOpenHandlers(): void {
   const { navigate } = useNavigate();
