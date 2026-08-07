@@ -3,8 +3,8 @@
 The Workspace Server (`apps/workspace-server/`) is a Node daemon that runs on a remote machine and exposes workspace runtimes (git, files, deps, ACP, …) to Emdash clients over the `@emdash/wire` protocol. Clients connect over an SSH-forwarded Unix socket; the daemon is independently lived and can be running when clients upgrade, downgrade, or are absent entirely.
 
 The desktop client and managed installation flow live in
-`apps/emdash-desktop/src/core/services/workspace-server/`. For an SSH host, the runtime broker asks
-`RemoteMachineService` (`core/services/remote-machine/`) for a runtime client. It coordinates the
+`apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`. For an SSH host, the runtime
+broker asks `HostService` (`core/services/hosts/`) for a runtime client. It coordinates the
 existing `SshConnectionManager`, workspace-server provisioning, and `WireConnectionManager`.
 `WireConnectionManager` owns dial/initialize, reconnecting transports, and one pinned Wire client
 per target until lifecycle invalidation or shutdown. The broker only resolves clients and does not
@@ -210,6 +210,6 @@ The desktop forwards the read-only agent hook-status procedure to the selected h
 | [`apps/workspace-server/src/gateway/worker-paths.ts`](../../apps/workspace-server/src/gateway/worker-paths.ts) | packaged worker executable path resolution |
 | [`apps/workspace-server/src/gateway/entries/`](../../apps/workspace-server/src/gateway/entries/) | plugin-injecting ACP, agent config, and TUI-agent worker entries |
 | [`apps/workspace-server/src/index.ts`](../../apps/workspace-server/src/index.ts) | CLI and daemon entry point |
-| [`apps/emdash-desktop/src/core/services/remote-machine/`](../../apps/emdash-desktop/src/core/services/remote-machine/) | Desktop orchestration and lifecycle policy for remote machines |
-| [`apps/emdash-desktop/src/core/services/workspace-server/`](../../apps/emdash-desktop/src/core/services/workspace-server/) | Wire connection manager, hosted-script installer, daemon control, and provisioner |
+| [`apps/emdash-desktop/src/core/services/hosts/`](../../apps/emdash-desktop/src/core/services/hosts/) | Desktop orchestration and lifecycle policy for SSH hosts |
+| [`apps/emdash-desktop/src/core/services/hosts/node/workspace-server/`](../../apps/emdash-desktop/src/core/services/hosts/node/workspace-server/) | Wire connection manager, hosted-script installer, daemon control, and provisioner |
 | [`apps/workspace-server/install.sh`](../../apps/workspace-server/install.sh) | Remote platform detection and atomic latest-artifact installation |

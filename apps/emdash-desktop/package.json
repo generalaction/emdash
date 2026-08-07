@@ -30,7 +30,7 @@
     "test:migrations": "vitest run --project migrations",
     "db:reset": "tsx scripts/db-reset.ts",
     "test": "vitest run --project node --project main-db --project migrations --project browser --project scripts",
-    "test:workspace-server-remote": "EMDASH_TEST_REMOTE_WSS=1 vitest run --project node src/core/services/workspace-server/node/workspace-server.remote.test.ts",
+    "test:workspace-server-remote": "EMDASH_TEST_REMOTE_WSS=1 vitest run --project node src/main/gateway/workspace-server.remote.test.ts",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",
     "build:renderer": "electron-vite build --filter renderer",

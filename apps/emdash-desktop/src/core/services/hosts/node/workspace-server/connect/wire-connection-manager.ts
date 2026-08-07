@@ -17,8 +17,9 @@ import {
   type ReconnectingTransport,
   type WireTransport,
 } from '@emdash/wire/rpc';
+import type { WorkspaceServerTarget } from '../../../api/targets';
 import type { WorkspaceServerSshPort } from '../ports';
-import { workspaceServerTargetKey, type WorkspaceServerTarget } from '../targets';
+import { workspaceServerTargetKey } from '../targets';
 import { openLocalWorkspaceServerTransport } from './local-socket-transport';
 import { initializeWorkspaceServerTransport, WorkspaceServerProtocolError } from './protocol';
 import { openSshWorkspaceServerTransport } from './ssh-streamlocal-transport';

@@ -2,7 +2,7 @@ import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/worksp
 import { createScope } from '@emdash/shared/concurrency';
 import { snapshot } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
-import { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
+import { HostStateModel } from '../../state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
 import { WorkspaceServerInstallError } from './installer';
 import { WorkspaceServerProvisioner } from './provisioner';
@@ -201,7 +201,7 @@ function createProvisionerFixture(
   options: { blockDial?: boolean; blockHostProbe?: boolean; devAutoUpdate?: boolean } = {}
 ) {
   const scope = createScope({ label: 'workspace-server-provisioner-test' });
-  const model = new RemoteMachineStateModel();
+  const model = new HostStateModel();
   const hostProbe = vi.fn((_connectionId: string, signal?: AbortSignal) => {
     if (!options.blockHostProbe) {
       return Promise.resolve({ home: '/home/devuser' });

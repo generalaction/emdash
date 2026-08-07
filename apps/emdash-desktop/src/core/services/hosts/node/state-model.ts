@@ -1,22 +1,18 @@
 import { isDeepEqual } from '@emdash/shared';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, peek, produce, type Cell } from '@emdash/wire/state';
-import {
-  remoteMachineContract,
-  type RemoteMachineServerRuntime,
-  type RemoteMachineServerState,
-} from '../api';
+import { hostsContract, type HostServerRuntime, type HostServerState } from '../api';
 
-export class RemoteMachineStateModel {
-  readonly runtime: Cell<RemoteMachineServerRuntime>;
-  readonly host: LeasedLiveModelProvider<typeof remoteMachineContract.serverStates>;
+export class HostStateModel {
+  readonly runtime: Cell<HostServerRuntime>;
+  readonly host: LeasedLiveModelProvider<typeof hostsContract.serverStates>;
 
   constructor() {
-    this.runtime = cell<RemoteMachineServerRuntime>({});
-    this.host = expose(remoteMachineContract.serverStates, { runtime: this.runtime });
+    this.runtime = cell<HostServerRuntime>({});
+    this.host = expose(hostsContract.serverStates, { runtime: this.runtime });
   }
 
-  set(connectionId: string, state: RemoteMachineServerState): void {
+  set(connectionId: string, state: HostServerState): void {
     this.runtime.set(
       produce(peek(this.runtime), (runtime) => {
         // Assigning a fresh deep-equal object would still produce a patch; skip
@@ -27,7 +23,7 @@ export class RemoteMachineStateModel {
     );
   }
 
-  get(connectionId: string): RemoteMachineServerState | undefined {
+  get(connectionId: string): HostServerState | undefined {
     return peek(this.runtime)[connectionId];
   }
 
@@ -53,7 +49,7 @@ export class RemoteMachineStateModel {
     );
   }
 
-  snapshot(): RemoteMachineServerRuntime {
+  snapshot(): HostServerRuntime {
     return peek(this.runtime);
   }
 

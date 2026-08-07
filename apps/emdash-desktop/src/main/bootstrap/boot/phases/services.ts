@@ -579,7 +579,7 @@ export async function bootServices(
   const hostAttachments = new HostAttachmentRegistry({
     scope: appScope,
     ssh: infrastructure.ssh.manager,
-    remoteMachine: infrastructure.remoteMachine,
+    hosts: infrastructure.hosts,
     logger: log,
   });
   // Registration order is the per-host convergence order. Backfills precede the

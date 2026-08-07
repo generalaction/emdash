@@ -30,7 +30,7 @@ import { SkillsPanel } from '@core/features/skills/api/browser/components/Skills
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { isServerUsable } from '@core/services/remote-machine/api';
+import { isServerUsable } from '@core/services/hosts/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { MachineConnectionRow } from '../components/machine-connection-card';
 import { MachineConversationsList } from '../components/machine-conversations-list';
@@ -39,8 +39,8 @@ import { deriveMachineStatusKind } from '../components/machine-status-kind';
 import { MachineSystemDependenciesCard } from '../components/machine-system-dependencies';
 import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { WorkspacesListView } from '../components/workspaces-list-view';
+import { useHostServerState } from '../use-host-server-state';
 import { useMachineMetrics } from '../use-machine-metrics';
-import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
 import { WorkspaceDetailPage } from './workspace-detail-page';
 
 type MachineDetailsSection =
@@ -118,7 +118,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const [deleting, setDeleting] = useState(false);
   const [section, setSection] = useState<MachineDetailsSection>('system');
   const renameFieldRef = useRef<HTMLInputElement>(null);
-  const workspaceServer = useRemoteMachineServerState({
+  const workspaceServer = useHostServerState({
     machineId: machine?.id,
     enabled: !!machine,
     connected,

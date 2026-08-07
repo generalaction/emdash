@@ -96,7 +96,7 @@ function createFixture() {
   const logger = { warn: vi.fn() };
   const registry = new HostAttachmentRegistry({
     ssh: ssh as never,
-    remoteMachine: {
+    hosts: {
       onInvalidate(listener) {
         invalidate = listener as typeof invalidate;
         return () => {

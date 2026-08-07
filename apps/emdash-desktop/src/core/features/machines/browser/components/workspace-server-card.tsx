@@ -2,7 +2,7 @@ import { UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Button, SplitButton } from '@emdash/ui/react/primitives';
 import { DownloadIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react';
-import type { RemoteMachineServerState } from '@core/services/remote-machine/api';
+import type { HostServerState } from '@core/services/hosts/api';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
 type WorkspaceServerActions = {
@@ -22,7 +22,7 @@ export function WorkspaceRuntimeRow({
 }: {
   connected: boolean;
   loading: boolean;
-  state: RemoteMachineServerState | undefined;
+  state: HostServerState | undefined;
   actions: WorkspaceServerActions;
 }) {
   return (
@@ -59,7 +59,7 @@ export function WorkspaceRuntimeRow({
 }
 
 function workspaceServerUpdateStatus(
-  state: RemoteMachineServerState,
+  state: HostServerState,
   actions: WorkspaceServerActions
 ): UpdateStatus {
   if (
@@ -85,7 +85,7 @@ function WorkspaceRuntimeDetails({
 }: {
   connected: boolean;
   loading: boolean;
-  state: RemoteMachineServerState | undefined;
+  state: HostServerState | undefined;
 }) {
   if (!connected) return 'Connect to this machine to inspect its workspace runtime.';
 
@@ -122,7 +122,7 @@ function WorkspaceServerAction({
   state,
   actions,
 }: {
-  state: RemoteMachineServerState;
+  state: HostServerState;
   actions: WorkspaceServerActions;
 }) {
   const transitioning = state.status === 'booting' || state.status === 'shutting-down';

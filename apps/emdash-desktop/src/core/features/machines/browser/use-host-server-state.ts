@@ -1,12 +1,16 @@
 import { toast } from '@emdash/ui/react/primitives';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useEffect } from 'react';
+import { domainClient } from '@core/primitives/wire/browser/connection';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
-import {
-  remoteMachineContract,
-  type RemoteMachineServerState,
-} from '@core/services/remote-machine/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { hostsContract, hostsDomain, type HostServerState } from '@core/services/hosts/api';
+
+type HostsClient = ContractClient<typeof hostsContract>;
+
+function getHostsClient(): Promise<HostsClient> {
+  return domainClient<HostsClient>(hostsDomain, hostsContract);
+}
 
 type ServerAction =
   | 'installServer'
@@ -15,11 +19,9 @@ type ServerAction =
   | 'restartServer'
   | 'updateServer';
 
-let serverStatesRemotePromise:
-  | Promise<RemoteModel<typeof remoteMachineContract.serverStates>>
-  | undefined;
+let serverStatesRemotePromise: Promise<RemoteModel<typeof hostsContract.serverStates>> | undefined;
 
-export function useRemoteMachineServerState({
+export function useHostServerState({
   machineId,
   enabled,
   connected,
@@ -28,7 +30,7 @@ export function useRemoteMachineServerState({
   enabled: boolean;
   connected: boolean;
 }): {
-  state: RemoteMachineServerState | undefined;
+  state: HostServerState | undefined;
   loading: boolean;
   install(): Promise<void>;
   start(): Promise<void>;
@@ -38,7 +40,7 @@ export function useRemoteMachineServerState({
   refresh(): Promise<void>;
 } {
   const runtimeState = useRemoteModelState(
-    remoteMachineContract.serverStates,
+    hostsContract.serverStates,
     getServerStatesRemote,
     undefined,
     'runtime',
@@ -48,7 +50,7 @@ export function useRemoteMachineServerState({
     }
   );
 
-  let state: RemoteMachineServerState | undefined;
+  let state: HostServerState | undefined;
   if (connected && machineId) {
     state = runtimeState.value?.[machineId];
   }
@@ -57,8 +59,8 @@ export function useRemoteMachineServerState({
     if (!enabled || !connected || !machineId || !runtimeState.ready) return;
     if (hasRecentLatestVersion(state)) return;
     let cancelled = false;
-    void getDesktopWireClient()
-      .then((client) => client.remoteMachine.refreshServerState({ connectionId: machineId }))
+    void getHostsClient()
+      .then((client) => client.refreshServerState({ connectionId: machineId }))
       .catch(() => {
         if (cancelled) return;
       });
@@ -71,8 +73,8 @@ export function useRemoteMachineServerState({
     async (action: ServerAction, label: string) => {
       if (!machineId) return;
       try {
-        const client = await getDesktopWireClient();
-        await client.remoteMachine[action]({ connectionId: machineId });
+        const client = await getHostsClient();
+        await client[action]({ connectionId: machineId });
       } catch (error) {
         toast.error(`Failed to ${label} workspace server`, {
           description: error instanceof Error ? error.message : String(error),
@@ -85,8 +87,8 @@ export function useRemoteMachineServerState({
   const refresh = useCallback(async () => {
     if (!machineId) return;
     try {
-      const client = await getDesktopWireClient();
-      await client.remoteMachine.refreshServerState({ connectionId: machineId, force: true });
+      const client = await getHostsClient();
+      await client.refreshServerState({ connectionId: machineId, force: true });
     } catch (error) {
       toast.error('Failed to check workspace server updates', {
         description: error instanceof Error ? error.message : String(error),
@@ -106,20 +108,20 @@ export function useRemoteMachineServerState({
   };
 }
 
-function hasRecentLatestVersion(state: RemoteMachineServerState | undefined): boolean {
+function hasRecentLatestVersion(state: HostServerState | undefined): boolean {
   return state?.latestVersion !== undefined;
 }
 
-function getServerStatesRemote(): Promise<RemoteModel<typeof remoteMachineContract.serverStates>> {
-  serverStatesRemotePromise ??= getDesktopWireClient().then((client) =>
-    remote(remoteMachineContract.serverStates, client.remoteMachine.serverStates, {
+function getServerStatesRemote(): Promise<RemoteModel<typeof hostsContract.serverStates>> {
+  serverStatesRemotePromise ??= getHostsClient().then((client) =>
+    remote(hostsContract.serverStates, client.serverStates, {
       lingerMs: 15_000,
     })
   );
   return serverStatesRemotePromise;
 }
 
-export async function resetRemoteMachineServerStateForTests(): Promise<void> {
+export async function resetHostServerStateForTests(): Promise<void> {
   const remoteModel = await serverStatesRemotePromise;
   serverStatesRemotePromise = undefined;
   await remoteModel?.dispose();

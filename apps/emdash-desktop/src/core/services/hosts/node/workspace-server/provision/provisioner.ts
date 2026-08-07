@@ -7,12 +7,13 @@ import {
   throwIfAborted,
   type Clock,
 } from '@emdash/shared/scheduling';
-import type { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
+import type { SshWorkspaceServerTarget } from '../../../api/targets';
+import type { HostStateModel } from '../../state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
 import type { WireConnectionManager } from '../connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
 import type { WorkspaceServerSshPort } from '../ports';
-import { sshWorkspaceServerTarget, type SshWorkspaceServerTarget } from '../targets';
+import { sshWorkspaceServerTarget } from '../targets';
 import type { RemoteWorkspaceServerDaemon } from './daemon-control';
 import type { RemoteHostProbe } from './host-probe';
 import { WorkspaceServerInstallError, type WorkspaceServerInstaller } from './installer';
@@ -43,7 +44,7 @@ type WorkspaceServerProvisionerDeps = {
   host: RemoteHostProbe;
   installer: WorkspaceServerInstaller;
   daemon: RemoteWorkspaceServerDaemon;
-  model: RemoteMachineStateModel;
+  model: HostStateModel;
   wire: Pick<WireConnectionManager, 'dialOnce'>;
   devAutoUpdate?: boolean;
   logger?: { warn(message: string, metadata?: Record<string, unknown>): void };

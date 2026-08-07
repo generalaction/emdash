@@ -82,6 +82,8 @@ import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts'
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import type { HostService } from '@core/services/hosts/node';
+import { createHostsWireController } from '@core/services/hosts/node/wire-controller';
 import {
   createLoggingWireController,
   type LoggingControllerOperations,
@@ -90,8 +92,6 @@ import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import type { ReconcileSweepHandle } from '@core/services/reconcile-sweep/node/reconcile-sweep-service';
-import type { RemoteMachineService } from '@core/services/remote-machine/node';
-import { createRemoteMachineWireController } from '@core/services/remote-machine/node/wire-controller';
 import type { MementosRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import type { AppSettingsService } from '@core/services/settings/node';
 import type { ProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
@@ -128,7 +128,7 @@ export type DesktopControllerContext = {
   readonly projectSettings: ProjectSettingsService;
   readonly providerSettings: ProviderOverrideSettings;
   readonly reconcileSweep: ReconcileSweepHandle;
-  readonly remoteMachine: RemoteMachineService;
+  readonly hosts: HostService;
   readonly runtimeClients: {
     getMementosRuntimeClient(): Promise<MementosRuntimeClient>;
     getPullRequestsRuntimeClient(): Promise<PullRequestsRuntimeClient>;
@@ -382,8 +382,8 @@ export const desktopNodeControllers = {
   ssh: {
     create: ({ ssh }) => createSshWireController(ssh.ssh, ssh.connections),
   },
-  remoteMachine: {
-    create: ({ remoteMachine }) => createRemoteMachineWireController(remoteMachine),
+  hosts: {
+    create: ({ hosts }) => createHostsWireController(hosts),
   },
   tasks: {
     create: ({ db, runtimes, scope, taskService, taskSessions, telemetry }) =>

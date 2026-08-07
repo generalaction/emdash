@@ -1,11 +1,11 @@
 import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/workspace-server';
 import { createScope } from '@emdash/shared/concurrency';
 import { describe, expect, it, vi } from 'vitest';
-import { WorkspaceServerProtocolError } from '../../workspace-server/node/connect/protocol';
-import { RemoteMachineServerOperations } from './server-operations';
-import { RemoteMachineStateModel } from './state-model';
+import { HostServerOperations } from './server-operations';
+import { HostStateModel } from './state-model';
+import { WorkspaceServerProtocolError } from './workspace-server/connect/protocol';
 
-describe('RemoteMachineServerOperations', () => {
+describe('HostServerOperations', () => {
   it('reports a missing installation without dialing the workspace server', async () => {
     const fixture = createFixture();
     fixture.installer.installedVersion.mockResolvedValueOnce(undefined);
@@ -122,8 +122,8 @@ describe('RemoteMachineServerOperations', () => {
 });
 
 function createFixture() {
-  const scope = createScope({ label: 'remote-machine-server-operations-test' });
-  const state = new RemoteMachineStateModel();
+  const scope = createScope({ label: 'host-server-operations-test' });
+  const state = new HostStateModel();
   const host = {
     probe: vi.fn(async () => ({ home: '/home/devuser' })),
   };
@@ -143,7 +143,7 @@ function createFixture() {
   const provision = {
     drop: vi.fn(),
   };
-  const operations = new RemoteMachineServerOperations({
+  const operations = new HostServerOperations({
     scope,
     state,
     host,

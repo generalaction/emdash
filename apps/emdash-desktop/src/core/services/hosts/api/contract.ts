@@ -1,7 +1,7 @@
 import { defineContract, liveModel, liveState, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
-export const remoteMachineServerStatusSchema = z.enum([
+export const hostServerStatusSchema = z.enum([
   'not-installed',
   'stopped',
   'booting',
@@ -10,8 +10,8 @@ export const remoteMachineServerStatusSchema = z.enum([
   'failed',
 ]);
 
-export const remoteMachineServerStateSchema = z.object({
-  status: remoteMachineServerStatusSchema,
+export const hostServerStateSchema = z.object({
+  status: hostServerStatusSchema,
   version: z.string().optional(),
   latestVersion: z.string().optional(),
   startedAt: z.number().optional(),
@@ -24,27 +24,27 @@ export const remoteMachineServerStateSchema = z.object({
     .optional(),
 });
 
-const remoteMachineServerRuntimeSchema = z.record(z.string(), remoteMachineServerStateSchema);
+const hostServerRuntimeSchema = z.record(z.string(), hostServerStateSchema);
 const connectionInputSchema = z.object({ connectionId: z.string().min(1) });
 const refreshServerStateInputSchema = connectionInputSchema.extend({
   force: z.boolean().optional(),
 });
 
-export type RemoteMachineServerStatus = z.infer<typeof remoteMachineServerStatusSchema>;
-export type RemoteMachineServerState = z.infer<typeof remoteMachineServerStateSchema>;
-export type RemoteMachineServerRuntime = z.infer<typeof remoteMachineServerRuntimeSchema>;
+export type HostServerStatus = z.infer<typeof hostServerStatusSchema>;
+export type HostServerState = z.infer<typeof hostServerStateSchema>;
+export type HostServerRuntime = z.infer<typeof hostServerRuntimeSchema>;
 
-export function isServerUsable(state: RemoteMachineServerState | undefined): boolean {
+export function isServerUsable(state: HostServerState | undefined): boolean {
   return state?.status === 'healthy' && state.error === undefined;
 }
 
-export const remoteMachineDomain = 'remoteMachine' as const;
+export const hostsDomain = 'hosts' as const;
 
-export const remoteMachineContract = defineContract({
+export const hostsContract = defineContract({
   serverStates: liveModel({
     key: z.void(),
     states: {
-      runtime: liveState({ data: remoteMachineServerRuntimeSchema }),
+      runtime: liveState({ data: hostServerRuntimeSchema }),
     },
   }),
   refreshServerState: procedure({ input: refreshServerStateInputSchema, output: z.void() }),

@@ -36,7 +36,7 @@ import {
 } from '@core/features/workspaces/api';
 import { loggingDomain, loggingWireContract } from '@core/primitives/logging/api/wire-contract';
 import { mementosDomain, mementosWireContract } from '@core/primitives/mementos/api';
-import { remoteMachineContract, remoteMachineDomain } from '@core/services/remote-machine/api';
+import { hostsContract, hostsDomain } from '@core/services/hosts/api';
 import { appSettingsContract, appSettingsDomain } from '@core/services/settings/api';
 import { sshContract, sshDomain } from '@core/services/ssh/api';
 import {
@@ -82,7 +82,7 @@ export const desktopDomainContracts = {
   [integrationsDomain]: integrationsContract,
   [issuesDomain]: issuesContract,
   [sshDomain]: sshContract,
-  [remoteMachineDomain]: remoteMachineContract,
+  [hostsDomain]: hostsContract,
   [tasksDomain]: tasksWireContract,
   [updatesDomain]: updatesContract,
   [desktopHostDomain]: desktopHostContract,

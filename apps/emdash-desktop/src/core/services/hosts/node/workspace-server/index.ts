@@ -8,4 +8,4 @@ export {
   type WorkspaceServerProvisionErrorCode,
 } from './provision/provisioner';
 export { WorkspaceServerProtocolError } from './connect/protocol';
-export type { WorkspaceServerTarget } from './targets';
+export type { WorkspaceServerTarget } from '../../api/targets';

@@ -5,24 +5,24 @@ import type {
   SshConnectionManagerEvent,
   SshService,
 } from '@core/primitives/ssh/api';
+import type { HostInvalidation, MachineMutationEvents } from '../api';
+import { HostServerOperations } from './server-operations';
+import { HostStateModel } from './state-model';
 import {
   createWireConnectionManager,
   type WorkspaceServerConnection,
-} from '../../workspace-server/node/connect/wire-connection-manager';
-import type { WorkspaceServerSshPort } from '../../workspace-server/node/ports';
-import { RemoteWorkspaceServerDaemon } from '../../workspace-server/node/provision/daemon-control';
-import { RemoteHostProbe } from '../../workspace-server/node/provision/host-probe';
-import { WorkspaceServerInstaller } from '../../workspace-server/node/provision/installer';
-import { WorkspaceServerProvisioner } from '../../workspace-server/node/provision/provisioner';
-import type { MachineMutationEvents, RemoteMachineInvalidation } from '../api';
-import { RemoteMachineServerOperations } from './server-operations';
-import { RemoteMachineStateModel } from './state-model';
+} from './workspace-server/connect/wire-connection-manager';
+import type { WorkspaceServerSshPort } from './workspace-server/ports';
+import { RemoteWorkspaceServerDaemon } from './workspace-server/provision/daemon-control';
+import { RemoteHostProbe } from './workspace-server/provision/host-probe';
+import { WorkspaceServerInstaller } from './workspace-server/provision/installer';
+import { WorkspaceServerProvisioner } from './workspace-server/provision/provisioner';
 
-type RemoteMachineServiceLog = {
+type HostServiceLog = {
   warn(message: string, metadata?: Record<string, unknown>): void;
 };
 
-export type CreateRemoteMachineServiceDeps = {
+export type CreateHostServiceDeps = {
   scope: Scope;
   ssh: {
     manager: SshConnectionManager;
@@ -33,15 +33,15 @@ export type CreateRemoteMachineServiceDeps = {
   installCommand?: string;
   devAutoUpdate?: boolean;
   client?: { id: string; appVersion: string };
-  logger?: RemoteMachineServiceLog;
+  logger?: HostServiceLog;
 };
 
 /**
  * Orchestrates transport, provisioning, and lifecycle for remote runtime clients.
  * Machine persistence and CRUD remain owned by the feature-level MachinesService.
  */
-export interface RemoteMachineService {
-  readonly stateModel: RemoteMachineStateModel;
+export interface HostService {
+  readonly stateModel: HostStateModel;
   client(connectionId: string): Promise<WorkspaceServerConnection>;
   refreshServerState(connectionId: string, options?: { force?: boolean }): Promise<void>;
   installServer(connectionId: string): Promise<void>;
@@ -49,15 +49,13 @@ export interface RemoteMachineService {
   stopServer(connectionId: string): Promise<void>;
   restartServer(connectionId: string): Promise<void>;
   updateServer(connectionId: string): Promise<void>;
-  onInvalidate(listener: (event: RemoteMachineInvalidation) => void): () => void;
+  onInvalidate(listener: (event: HostInvalidation) => void): () => void;
   dispose(): Promise<void>;
 }
 
-export function createRemoteMachineService(
-  deps: CreateRemoteMachineServiceDeps
-): RemoteMachineService {
-  const scope = deps.scope.child('remote-machine-service');
-  const stateModel = scope.use(new RemoteMachineStateModel());
+export function createHostService(deps: CreateHostServiceDeps): HostService {
+  const scope = deps.scope.child('host-service');
+  const stateModel = scope.use(new HostStateModel());
   const ssh = createWorkspaceServerSshPort(deps.ssh);
   const host = new RemoteHostProbe(ssh);
   const wire = createWireConnectionManager({ scope, ssh, client: deps.client });
@@ -74,7 +72,7 @@ export function createRemoteMachineService(
     devAutoUpdate: deps.devAutoUpdate,
     logger: deps.logger,
   });
-  const serverOperations = new RemoteMachineServerOperations({
+  const serverOperations = new HostServerOperations({
     scope,
     state: stateModel,
     host,
@@ -83,7 +81,7 @@ export function createRemoteMachineService(
     wire,
     provision: provisioner,
   });
-  const invalidationListeners = new Set<(event: RemoteMachineInvalidation) => void>();
+  const invalidationListeners = new Set<(event: HostInvalidation) => void>();
 
   const handleSshEvent = (event: SshConnectionManagerEvent) => {
     if (event.type !== 'reconnect-failed') return;
@@ -92,7 +90,7 @@ export function createRemoteMachineService(
     stateModel.remove(event.connectionId);
     notify({ connectionId: event.connectionId, reason: 'reconnect-failed' });
     void wire.invalidateConnection(event.connectionId).catch((error: unknown) => {
-      deps.logger?.warn('Remote-machine SSH lifecycle handling failed', { error });
+      deps.logger?.warn('Host service SSH lifecycle handling failed', { error });
     });
   };
   deps.ssh.manager.on('connection-event', handleSshEvent);
@@ -108,7 +106,7 @@ export function createRemoteMachineService(
         provisioner.cancel(event.connectionId),
         wire.invalidateConnection(event.connectionId),
       ]).catch((error: unknown) => {
-        deps.logger?.warn('Remote-machine mutation lifecycle handling failed', { error });
+        deps.logger?.warn('Host service mutation lifecycle handling failed', { error });
       });
     })
   );
@@ -150,7 +148,7 @@ export function createRemoteMachineService(
     },
   };
 
-  function notify(event: RemoteMachineInvalidation): void {
+  function notify(event: HostInvalidation): void {
     for (const listener of invalidationListeners) {
       try {
         listener(event);
@@ -161,9 +159,7 @@ export function createRemoteMachineService(
   }
 }
 
-function createWorkspaceServerSshPort(
-  ssh: CreateRemoteMachineServiceDeps['ssh']
-): WorkspaceServerSshPort {
+function createWorkspaceServerSshPort(ssh: CreateHostServiceDeps['ssh']): WorkspaceServerSshPort {
   return {
     async ensureProxy(connectionId: string): Promise<SshClientProxy> {
       await ssh.connect.ensureConnected(connectionId);

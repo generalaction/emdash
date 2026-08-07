@@ -7,7 +7,7 @@ import {
 } from '@emdash/core/primitives/host/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { SshConnectionManager, SshConnectionManagerEvent } from '@core/primitives/ssh/api';
-import type { RemoteMachineService } from '@core/services/remote-machine/node';
+import type { HostService } from '@core/services/hosts/node';
 
 export type HostAttachmentParticipant = {
   label: string;
@@ -22,7 +22,7 @@ type HostAttachmentRegistryLogger = {
 export type HostAttachmentRegistryOptions = {
   scope?: Scope;
   ssh: Pick<SshConnectionManager, 'on' | 'off'>;
-  remoteMachine: Pick<RemoteMachineService, 'onInvalidate'>;
+  hosts: Pick<HostService, 'onInvalidate'>;
   logger?: HostAttachmentRegistryLogger;
 };
 
@@ -42,7 +42,7 @@ export class HostAttachmentRegistry {
 
   constructor(private readonly options: HostAttachmentRegistryOptions) {
     options.ssh.on('connection-event', this.handleSshEvent);
-    this.unsubscribeInvalidation = options.remoteMachine.onInvalidate(({ connectionId }) => {
+    this.unsubscribeInvalidation = options.hosts.onInvalidate(({ connectionId }) => {
       this.detachHost(hostRef('remote', connectionId));
     });
     options.scope?.add(() => this.dispose());

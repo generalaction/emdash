@@ -1,9 +1,9 @@
 import { createController, type Controller } from '@emdash/wire/rpc';
-import { remoteMachineContract } from '../api';
-import type { RemoteMachineService } from './remote-machine-service';
+import { hostsContract } from '../api';
+import type { HostService } from './host-service';
 
-export function createRemoteMachineWireController(service: RemoteMachineService): Controller {
-  return createController(remoteMachineContract, {
+export function createHostsWireController(service: HostService): Controller {
+  return createController(hostsContract, {
     serverStates: service.stateModel.host,
     refreshServerState: ({ connectionId, force }) =>
       service.refreshServerState(connectionId, { force }),

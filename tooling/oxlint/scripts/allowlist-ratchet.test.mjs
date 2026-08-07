@@ -156,6 +156,19 @@ test('findStaleAllowlistEntries never reports extra violations as a problem', ()
   assert.deepEqual(findStaleAllowlistEntries(allowlists, violations), {});
 });
 
+test('findStaleAllowlistEntries treats a deleted crossSlice key as legal', () => {
+  const stale = findStaleAllowlistEntries(
+    { coreToHost: [], mainCoreToFeatures: [] },
+    {
+      coreToHost: new Set(),
+      mainCoreToFeatures: new Set(),
+      crossSlice: new Set(['apps/emdash-desktop/src/core/services/x/service.ts']),
+    }
+  );
+
+  assert.deepEqual(stale, {});
+});
+
 test('findStaleAllowlistEntries tolerates missing categories in the allowlist file', () => {
   const stale = findStaleAllowlistEntries(
     { coreToHost: ['apps/emdash-desktop/src/core/features/gone/view.tsx'] },

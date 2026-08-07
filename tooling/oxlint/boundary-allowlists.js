@@ -14,12 +14,9 @@ export const DEFAULT_API_SURFACE_ALLOWLIST_PATH = path.join(
   'allowlists/api-surfaces.json'
 );
 
-const EMPTY_ALLOWLISTS = Object.freeze({
-  coreToHost: [],
-  mainCoreToFeatures: [],
-  crossSlice: [],
-  tsxInApi: [],
-});
+const BOUNDARY_CATEGORIES = ['coreToHost', 'mainCoreToFeatures', 'crossSlice', 'tsxInApi'];
+
+const EMPTY_ALLOWLISTS = Object.freeze({});
 
 function normalizePath(value) {
   return value.replaceAll('\\', '/');
@@ -40,22 +37,31 @@ export function isBoundaryAllowlistingDisabled(env = process.env) {
   return env.EMDASH_DISABLE_BOUNDARY_ALLOWLISTS === '1';
 }
 
+/**
+ * Loads the boundary allowlists. A category key that is absent from the
+ * allowlist file is valid and means "no exceptions": the missing key is not
+ * synthesized, `isBoundaryFileAllowlisted` returns false for it, and every
+ * violation of that boundary is a hard lint error.
+ */
 export function loadBoundaryAllowlists(allowlistPath = DEFAULT_BOUNDARY_ALLOWLIST_PATH) {
   if (isBoundaryAllowlistingDisabled()) return EMPTY_ALLOWLISTS;
   try {
     const parsed = JSON.parse(fs.readFileSync(allowlistPath, 'utf8'));
-    return {
-      coreToHost: Array.isArray(parsed.coreToHost) ? parsed.coreToHost : [],
-      mainCoreToFeatures: Array.isArray(parsed.mainCoreToFeatures) ? parsed.mainCoreToFeatures : [],
-      crossSlice: Array.isArray(parsed.crossSlice) ? parsed.crossSlice : [],
-      tsxInApi: Array.isArray(parsed.tsxInApi) ? parsed.tsxInApi : [],
-    };
+    const allowlists = {};
+    for (const category of BOUNDARY_CATEGORIES) {
+      if (Array.isArray(parsed[category])) allowlists[category] = parsed[category];
+    }
+    return allowlists;
   } catch (error) {
     if (error?.code === 'ENOENT') return EMPTY_ALLOWLISTS;
     throw error;
   }
 }
 
+/**
+ * `entries` may be undefined when the category has no allowlist key; that
+ * means no file is exempt from the boundary rule.
+ */
 export function isBoundaryFileAllowlisted(filename, entries, repoRoot = DEFAULT_REPO_ROOT) {
   if (!filename || !Array.isArray(entries) || entries.length === 0) return false;
   const normalizedFilename = normalizePath(path.resolve(filename));
