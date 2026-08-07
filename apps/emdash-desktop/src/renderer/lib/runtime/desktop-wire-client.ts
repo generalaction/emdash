@@ -1,14 +1,8 @@
-import {
-  awaitWirePort,
-  client,
-  connect,
-  domPortTransport,
-  type DomPortLike,
-} from '@emdash/wire/rpc';
+import { client, type Connection } from '@emdash/wire/rpc';
 import { desktopWireContract } from '@core/manifests/shared/desktop-wire-contract';
-import { DESKTOP_WIRE_CHANNEL } from '@core/manifests/shared/wire-channels';
+import { getWireConnection } from '@core/primitives/wire/browser/connection';
 
-export type DesktopWireClient = ReturnType<typeof createDesktopWireClientForPort>;
+export type DesktopWireClient = ReturnType<typeof createDesktopWireClientForConnection>;
 
 let clientPromise: Promise<DesktopWireClient> | null = null;
 
@@ -22,11 +16,9 @@ export function resetDesktopWireClient(): void {
 }
 
 async function createDesktopWireClient(): Promise<DesktopWireClient> {
-  const portPromise = awaitWirePort(window, { channel: DESKTOP_WIRE_CHANNEL });
-  await window.electronAPI.requestWirePort(DESKTOP_WIRE_CHANNEL);
-  return createDesktopWireClientForPort((await portPromise) as DomPortLike);
+  return createDesktopWireClientForConnection(await getWireConnection());
 }
 
-function createDesktopWireClientForPort(port: DomPortLike) {
-  return client(desktopWireContract, connect(domPortTransport(port)));
+function createDesktopWireClientForConnection(connection: Connection) {
+  return client(desktopWireContract, connection);
 }
