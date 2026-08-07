@@ -1,5 +1,8 @@
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { redactDiagnosticLog } from './file-logger';
+import { flushLogWrites, redactDiagnosticLog, writeRendererLogEntry } from './file-logger';
 
 vi.mock('electron', () => ({
   app: {
@@ -8,6 +11,26 @@ vi.mock('electron', () => ({
     setAppLogsPath: vi.fn(),
   },
 }));
+
+describe('file transport output', () => {
+  it('writes redacted lines by default, with no explicit redact wiring', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-file-logger-test-'));
+    const logFile = join(dir, 'emdash.log');
+    process.env.EMDASH_LOG_FILE = logFile;
+
+    const token = `ghp_${'a'.repeat(36)}`;
+    writeRendererLogEntry({
+      level: 'info',
+      source: 'renderer',
+      input: [`token is ${token}`],
+    });
+    await flushLogWrites();
+
+    const written = await readFile(logFile, 'utf8');
+    expect(written).not.toContain(token);
+    expect(written).toContain('[REDACTED_GITHUB_TOKEN]');
+  });
+});
 
 describe('redactDiagnosticLog', () => {
   it('redacts common secrets in free-form text', () => {
