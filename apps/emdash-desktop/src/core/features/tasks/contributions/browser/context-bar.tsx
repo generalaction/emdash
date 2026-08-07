@@ -8,18 +8,18 @@ import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { AddContextPopover } from '@core/features/tasks/browser/context-bar/add-context-popover';
+import {
+  buildTaskContextActions,
+  type ContextAction,
+} from '@core/features/tasks/browser/context-bar/context-actions';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { pastePromptInjection } from '@core/features/terminals/api/browser/pty/prompt-injection';
 import {
   useConversations,
   useTaskComposition,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { AddContextPopover } from '../../../browser/context-bar/add-context-popover';
-import {
-  buildTaskContextActions,
-  type ContextAction,
-} from '../../../browser/context-bar/context-actions';
 
 interface ContextBarProps {
   conversationId: string | undefined;

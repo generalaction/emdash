@@ -1,10 +1,10 @@
 import { Field, Label } from '@emdash/ui/react/primitives';
-import { ProjectSelector } from '@core/features/tasks/api/browser/create-task-modal/project-selector';
-import { ConversationField } from '@core/features/tasks/api/browser/task-config/conversation-field';
-import { TaskConfigProvider } from '@core/features/tasks/api/browser/task-config/task-config-context';
-import { TaskConfigPanel } from '@core/features/tasks/api/browser/task-config/task-config-panel';
-import { TaskStateProvider } from '@core/features/tasks/api/browser/task-config/task-state-context';
-import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-config/workspace-settings-section';
+import { ProjectSelector } from '@core/features/tasks/contributions/browser/project-selector';
+import { ConversationField } from '@core/features/tasks/contributions/browser/task-config/conversation-field';
+import { TaskConfigProvider } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
+import { TaskConfigPanel } from '@core/features/tasks/contributions/browser/task-config/task-config-panel';
+import { TaskStateProvider } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
+import { WorkspaceSettingsSection } from '@core/features/tasks/contributions/browser/task-config/workspace-settings-section';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import type { AutomationFormState } from '../useAutomationFormState';
 

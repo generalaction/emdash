@@ -1,5 +1,5 @@
-import { InitialConversationField } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
-import { useTaskState } from '@core/features/tasks/api/browser/task-config/task-state-context';
+import { InitialConversationField } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
+import { useTaskState } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
 
 interface ConversationFieldProps {
   placeholder?: string;

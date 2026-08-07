@@ -13,7 +13,7 @@ import { HtmlContentRenderer } from '@core/features/editor/api/browser/renderers
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import {
   useTaskComposition,

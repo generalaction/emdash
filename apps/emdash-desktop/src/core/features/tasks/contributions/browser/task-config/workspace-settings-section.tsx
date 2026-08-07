@@ -1,15 +1,15 @@
 import { Collapsible, Tabs } from '@emdash/ui/react/primitives';
 import { ChevronRight } from 'lucide-react';
-import { useTaskState } from '@core/features/tasks/api/browser/task-config/task-state-context';
+import { CheckoutPrPanel } from '@core/features/tasks/browser/task-config/checkout-pr-panel';
+import { useProjectWorkspaces } from '@core/features/tasks/browser/task-config/existing-workspace-picker';
+import { NewWorktreePanel } from '@core/features/tasks/browser/task-config/new-worktree-panel';
+import type { WorkspacePanelProps } from '@core/features/tasks/browser/task-config/new-worktree-panel';
+import { PrNewBranchPanel } from '@core/features/tasks/browser/task-config/pr-new-branch-panel';
+import { UseExistingPanel } from '@core/features/tasks/browser/task-config/use-existing-panel';
+import { WorkspacePresetPicker } from '@core/features/tasks/browser/task-config/workspace-preset-picker';
+import { useTaskState } from '@core/features/tasks/contributions/browser/task-config/task-state-context';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
-import { CheckoutPrPanel } from '../../../browser/task-config/checkout-pr-panel';
-import { useProjectWorkspaces } from '../../../browser/task-config/existing-workspace-picker';
-import { NewWorktreePanel } from '../../../browser/task-config/new-worktree-panel';
-import type { WorkspacePanelProps } from '../../../browser/task-config/new-worktree-panel';
-import { PrNewBranchPanel } from '../../../browser/task-config/pr-new-branch-panel';
-import { UseExistingPanel } from '../../../browser/task-config/use-existing-panel';
-import { WorkspacePresetPicker } from '../../../browser/task-config/workspace-preset-picker';
 
 const PRESET_PANELS: Record<
   Exclude<WorkspacePresetId, 'repo-root'>,

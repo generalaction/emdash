@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
-import type { InitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+import type { InitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 export type TaskStateContextValue = {

@@ -26,7 +26,7 @@ import type {
 import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { conversationTabKind } from '@core/features/conversations/browser/conversation-tab-kind';
 // TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useConversations,
   useTaskComposition,

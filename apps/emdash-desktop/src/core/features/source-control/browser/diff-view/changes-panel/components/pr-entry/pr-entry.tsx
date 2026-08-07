@@ -2,7 +2,7 @@ import { ToggleGroup, toast } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { cn } from '@core/primitives/styling/browser/cn';

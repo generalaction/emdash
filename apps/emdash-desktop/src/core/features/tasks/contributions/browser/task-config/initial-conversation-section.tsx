@@ -19,6 +19,9 @@ import { useEffectiveProvider } from '@core/features/conversations/api/browser/u
 import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@core/features/projects/api/browser/stores/project-selectors';
+import { buildIssueContextText } from '@core/features/tasks/browser/context-bar/context-actions';
+import { appendInitialConversationText } from '@core/features/tasks/browser/create-task-modal/initial-conversation-text';
+import { usePromptFileDrop } from '@core/features/tasks/browser/create-task-modal/use-prompt-file-drop';
 import {
   agentSupportsAcp,
   agentSupportsInitialPromptDelivery,
@@ -32,9 +35,6 @@ import {
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { buildIssueContextText } from '../../../browser/context-bar/context-actions';
-import { appendInitialConversationText } from '../../../browser/create-task-modal/initial-conversation-text';
-import { usePromptFileDrop } from '../../../browser/create-task-modal/use-prompt-file-drop';
 
 type RenderMentionIcon = NonNullable<Parameters<typeof ChatComposer>[0]['renderMentionIcon']>;
 

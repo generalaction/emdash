@@ -7,7 +7,7 @@ import {
   InitialConversationField,
   useInitialConversationState,
   type InitialConversationState,
-} from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+} from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 (

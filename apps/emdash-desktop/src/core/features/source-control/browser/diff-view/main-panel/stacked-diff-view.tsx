@@ -9,7 +9,7 @@ import { StickyDiffEditor } from '@core/features/editor/api/browser/monaco/stick
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,

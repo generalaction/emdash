@@ -1,7 +1,7 @@
 import { AgentStatus as AgentStatusUi } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
-import { TaskGitDiffStats } from '@core/features/tasks/api/browser/components/task-git-diff-stats';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
 import type { AgentStatus } from '@core/primitives/agents/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 

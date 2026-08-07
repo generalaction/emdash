@@ -1,11 +1,11 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
-// TODO(conversations-extraction): Pass task context actions into the panel as composition.
-import { ContextBar } from '@core/features/tasks/api/browser/context-bar/context-bar';
 // TODO(conversations-extraction): Pass task scope into conversations instead of importing task hooks.
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+// TODO(conversations-extraction): Pass task context actions into the panel as composition.
+import { ContextBar } from '@core/features/tasks/contributions/browser/context-bar';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { PaneSizingContextProvider } from '@core/features/terminals/api/browser/pty/pane-sizing-context';
 import { PtyPane } from '@core/features/terminals/api/browser/pty/pty-pane';
 import { TerminalSearchOverlay } from '@core/features/terminals/api/browser/pty/terminal-search-overlay';

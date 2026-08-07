@@ -38,8 +38,8 @@ import {
   taskDisplayName,
   taskViewKind,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import {
   useTaskComposition,

@@ -6,8 +6,8 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,

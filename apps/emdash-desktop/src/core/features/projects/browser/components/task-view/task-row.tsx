@@ -8,10 +8,10 @@ import {
   taskConversationStats,
 } from '@core/features/conversations/api/browser/conversation-selectors';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
-import { TaskContextMenu } from '@core/features/tasks/api/browser/components/task-context-menu';
-import { TaskGitDiffStats } from '@core/features/tasks/api/browser/components/task-git-diff-stats';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
+import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';

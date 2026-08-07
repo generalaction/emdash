@@ -4,7 +4,7 @@ import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTerminalShellAvailability } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
 import { usePaneScope } from '@core/features/workbench/api/browser/tabs/use-pane-scope';
 import {
