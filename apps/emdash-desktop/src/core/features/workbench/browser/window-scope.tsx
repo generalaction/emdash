@@ -14,11 +14,11 @@ import {
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
 import { getNavigationHistory } from '@core/primitives/navigation/browser/navigation-selectors';
+import { openInCommandRegistry } from '@core/primitives/open-in-apps/browser/open-in-command-registry';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { useWorkspaceLayoutContext } from '@core/primitives/workbench-shell/browser/layout-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
 

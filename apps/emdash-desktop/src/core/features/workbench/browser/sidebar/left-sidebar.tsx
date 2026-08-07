@@ -11,7 +11,7 @@ import {
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { useWorkspaceLayoutContext } from '@core/primitives/workbench-shell/browser/layout-provider';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
 import {

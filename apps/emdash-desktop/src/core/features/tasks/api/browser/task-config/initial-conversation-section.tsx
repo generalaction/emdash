@@ -24,6 +24,7 @@ import {
   agentSupportsInitialPromptDelivery,
   agentSupportsAutoApprove,
 } from '@core/primitives/agents/api';
+import { useLocalStorage } from '@core/primitives/hooks/browser/useLocalStorage';
 import {
   extractIssueMentionTargets,
   issueMentionToken,
@@ -31,7 +32,6 @@ import {
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { buildIssueContextText } from '../../../browser/context-bar/context-actions';
 import { appendInitialConversationText } from '../../../browser/create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../../../browser/create-task-modal/use-prompt-file-drop';

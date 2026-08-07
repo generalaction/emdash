@@ -5,16 +5,16 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useInstalledFonts } from '@core/features/settings/browser/use-installed-fonts';
 import { TerminalShellOptionLabel } from '@core/features/terminals/api/browser/components/terminal-shell-option-label';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@core/features/terminals/api/browser/use-terminal-shell-availability';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
 } from '@core/primitives/terminals/api';
-import {
-  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
-  useTerminalShellAvailability,
-} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { SettingRow } from './SettingRow';
 
 type FontOption = {

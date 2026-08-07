@@ -1,11 +1,11 @@
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { WindowControls } from '@core/features/workbench/browser/window-controls';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { WindowControls } from '@renderer/window-controls';
+import { useWorkspaceLayoutContext } from '@core/primitives/workbench-shell/browser/layout-provider';
 import { NavButtons } from './nav-buttons';
 
 const platform = detectPlatformContext().os;

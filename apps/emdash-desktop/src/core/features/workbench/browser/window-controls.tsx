@@ -1,8 +1,8 @@
 import { Copy, Minus, Square, X } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 const isLinux = detectPlatformContext().os === 'linux';
 
@@ -32,9 +32,9 @@ export function WindowControls() {
   useEffect(() => {
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      setIsMaximized(await client.host.isWindowMaximized());
-      const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+    void getHostClient().then(async (client) => {
+      setIsMaximized(await client.isWindowMaximized());
+      const nextUnsubscribe = await client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.type === 'window-maximize-changed') setIsMaximized(event.maximized);
         },
@@ -53,22 +53,20 @@ export function WindowControls() {
     <div className="flex h-full items-center [-webkit-app-region:no-drag]">
       <ControlButton
         label="Minimize"
-        onClick={() => void getDesktopWireClient().then((client) => client.host.minimizeWindow())}
+        onClick={() => void getHostClient().then((client) => client.minimizeWindow())}
       >
         <Minus className="h-4 w-4" />
       </ControlButton>
       <ControlButton
         label={isMaximized ? 'Restore' : 'Maximize'}
-        onClick={() =>
-          void getDesktopWireClient().then((client) => client.host.toggleMaximizeWindow())
-        }
+        onClick={() => void getHostClient().then((client) => client.toggleMaximizeWindow())}
       >
         {isMaximized ? <Copy className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
       </ControlButton>
       <ControlButton
         label="Close"
         danger
-        onClick={() => void getDesktopWireClient().then((client) => client.host.closeWindow())}
+        onClick={() => void getHostClient().then((client) => client.closeWindow())}
       >
         <X className="h-4 w-4" />
       </ControlButton>

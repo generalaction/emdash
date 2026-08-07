@@ -21,6 +21,7 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
+import { getDraggedWorkspaceFile } from '@core/primitives/desktop-runtime/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
@@ -29,7 +30,6 @@ import {
   createPaneDimensionSink,
   PaneDimensionProvider,
 } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
-import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { type PasteFromClipboardHandler, usePty } from '../../../browser/pty/use-pty';
 
 type Props = {

@@ -4,7 +4,7 @@ import {
   getDraggedWorkspaceFile,
   hasDraggedWorkspaceFile,
   setDraggedWorkspaceFile,
-} from '@renderer/lib/drag-files';
+} from '@core/primitives/desktop-runtime/browser/drag-files';
 
 function makeDataTransfer(): DataTransfer {
   const values = new Map<string, string>();

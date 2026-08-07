@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { IntegrationListItem } from '@core/features/integrations/api';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
-import { registerIssueMentionIcons } from '@renderer/lib/chat/chat-mention-provider';
+import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
 import type { IntegrationFormInput } from '../../browser/types';
 import { getIntegrationsClient } from './client';
 

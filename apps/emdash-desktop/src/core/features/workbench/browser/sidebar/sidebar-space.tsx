@@ -2,7 +2,7 @@ import { Toggle, Tooltip } from '@emdash/ui/react/primitives';
 import { PanelLeft } from 'lucide-react';
 import { NavButtons } from '@core/features/workbench/api/browser/nav-buttons';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { useWorkspaceLayoutContext } from '@core/primitives/workbench-shell/browser/layout-provider';
 
 export function SidebarSpace() {
   const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();

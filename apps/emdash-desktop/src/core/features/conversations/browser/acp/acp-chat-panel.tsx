@@ -45,13 +45,10 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import {
-  issueMentionToken,
-  parseIssueMentionToken,
-} from '@renderer/lib/chat/chat-mention-provider';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { pickIconVariant } from '@core/features/agents/api/browser/components/agent-icon-variant';
 import type { AgentIconVariant } from '@core/primitives/agents/api';
+import { pickIconVariant } from '@core/primitives/agents/browser/agent-icon-variant';
 
 const small: AgentIconVariant = { minSize: 0, light: '<svg>mark</svg>' };
 const large: AgentIconVariant = { minSize: 24, light: '<svg>wordmark</svg>' };

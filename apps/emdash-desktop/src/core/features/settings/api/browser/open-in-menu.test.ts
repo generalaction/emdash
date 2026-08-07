@@ -36,7 +36,7 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({
+vi.mock('@core/features/settings/api/browser/useOpenInApps', () => ({
   useOpenInApps: () => ({
     icons: {},
     labels: {
