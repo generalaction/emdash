@@ -53,7 +53,7 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectViewStore: vi.fn(() => undefined),
 }));
 
-vi.mock('@core/features/integrations/api/browser/integration-icon', () => ({
+vi.mock('@core/features/integrations/contributions/browser/integration-icon', () => ({
   IntegrationIcon: () => null,
 }));
 

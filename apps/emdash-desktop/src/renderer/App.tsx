@@ -1,7 +1,7 @@
 import { Tooltip } from '@emdash/ui/react/primitives';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
-import { IntegrationsProvider } from '@core/features/integrations/api/browser/integrations-provider';
+import { IntegrationsProvider } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-pool-provider';
 import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';

@@ -22,8 +22,8 @@ import {
   openFileInAdjacentPane,
   openFileInTaskEditor,
 } from '@core/features/editor/api/browser/open-file-in-file-editor';
-import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import {

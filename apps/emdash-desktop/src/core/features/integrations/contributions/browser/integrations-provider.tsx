@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { IntegrationListItem } from '@core/features/integrations/api';
+import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
+import type { IntegrationFormInput } from '@core/features/integrations/browser/types';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
 import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
-import type { IntegrationFormInput } from '../../browser/types';
-import { getIntegrationsClient } from './client';
 
 export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
 export const INTEGRATIONS_LIST_QUERY_KEY = ['integrations:list'] as const;

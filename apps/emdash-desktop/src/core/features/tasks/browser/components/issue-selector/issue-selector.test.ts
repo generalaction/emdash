@@ -23,7 +23,7 @@ vi.mock('@core/features/workbench/api/browser/host-client', () => ({
   openExternal: vi.fn(),
 }));
 
-vi.mock('@core/features/integrations/api/browser/integrations-provider', () => {
+vi.mock('@core/features/integrations/contributions/browser/integrations-provider', () => {
   const integrations = [
     {
       id: 'github',

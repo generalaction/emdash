@@ -7,8 +7,8 @@ import {
   getIntegrationName,
   isIssueIntegration,
 } from '@core/features/integrations/api/browser/integration-display';
-import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
-import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
