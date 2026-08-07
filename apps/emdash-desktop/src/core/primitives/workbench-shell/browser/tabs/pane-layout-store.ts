@@ -18,8 +18,9 @@ export interface Pane<R extends TabRegistry = TabRegistry> {
 }
 
 /**
- * Owns the ordered array of per-pane PaneStore instances, the active
- * pane, and the pane size layout.
+ * Owns the ordered array of per-pane PaneStore instances and the active
+ * pane. Pixel sizes are library-owned (sync contract): the split-pane view
+ * persists them through the shared layout storage, never through this store.
  *
  * Cross-pane concerns handled here:
  * - mount:'single' cardinality — at most one tab per dedupKey across ALL panes
@@ -29,7 +30,6 @@ export interface Pane<R extends TabRegistry = TabRegistry> {
 export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   readonly groups: Pane<R>[] = [];
   activePaneId: string;
-  paneSizes: number[];
 
   /**
    * True when the owning task view is the currently active route.
@@ -50,28 +50,37 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   private _persistDisposer: (() => void) | null = null;
   private readonly _autoCloseDisposers = new Map<string, () => void>();
   private readonly _onActiveTabChange: ((tabId: string | undefined) => void) | undefined;
+  private readonly _onPaneDestroyed: ((paneId: string) => void) | undefined;
   private readonly _activeTabDisposer: () => void;
 
   constructor(
     registry: R,
     ctx: TabViewContext,
     snapshotMemento?: PaneLayoutSnapshotMemento,
-    opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
+    opts?: {
+      onActiveTabChange?: (tabId: string | undefined) => void;
+      /**
+       * Called when a pane group is destroyed (user close or auto-close), so
+       * the owner can drop the group's persisted layout-storage entries. Not
+       * called for the fresh constructor pane replaced during snapshot
+       * restore, nor on dispose (the view is going away, not the groups).
+       */
+      onPaneDestroyed?: (paneId: string) => void;
+    }
   ) {
     this._registry = registry;
     this._ctx = ctx;
     this._snapshotMemento = snapshotMemento;
     this._onActiveTabChange = opts?.onActiveTabChange;
+    this._onPaneDestroyed = opts?.onPaneDestroyed;
 
     const initial = this._createPane();
     this.groups.push(initial);
     this.activePaneId = initial.paneId;
-    this.paneSizes = [100];
 
     makeObservable(this, {
       groups: observable,
       activePaneId: observable,
-      paneSizes: observable,
       isViewActive: computed,
       focusedPane: computed,
       splitRight: action,
@@ -80,7 +89,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       handleDragEnd: action,
       setActiveGroup: action,
       setViewActive: action,
-      setPaneSizes: action,
       restoreSnapshot: action,
       open: action,
     });
@@ -114,7 +122,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const newGroup = this._createPane();
     const insertAt = focusedIndex === -1 ? this.groups.length : focusedIndex + 1;
     this.groups.splice(insertAt, 0, newGroup);
-    this._redistributeSizes();
 
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
   }
@@ -135,11 +142,12 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     closing.pane.dispose();
 
     this.groups.splice(index, 1);
-    this._redistributeSizes();
 
     if (this.activePaneId === paneId) {
       this.activePaneId = adjacent.paneId;
     }
+
+    this._onPaneDestroyed?.(paneId);
   }
 
   /**
@@ -195,12 +203,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   setActiveGroup(paneId: string): void {
     if (this.groups.some((g) => g.paneId === paneId)) {
       this.activePaneId = paneId;
-    }
-  }
-
-  setPaneSizes(sizes: number[]): void {
-    if (sizes.length === this.groups.length) {
-      this.paneSizes = sizes;
     }
   }
 
@@ -300,7 +302,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
         tabManager: g.pane.snapshot,
       })),
       activeGroupId: this.activePaneId,
-      paneSizes: [...this.paneSizes],
     };
   }
 
@@ -320,11 +321,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this.activePaneId = snapshot.groups.some((g) => g.groupId === snapshot.activeGroupId)
       ? snapshot.activeGroupId
       : (snapshot.groups[0]?.groupId ?? this.activePaneId);
-
-    this.paneSizes =
-      snapshot.paneSizes.length === snapshot.groups.length
-        ? [...snapshot.paneSizes]
-        : this._evenSizes(snapshot.groups.length);
   }
 
   /**
@@ -405,7 +401,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const newGroup = this._createPane();
     const insertAt = target === 'right' ? idx + 1 : idx;
     this.groups.splice(insertAt, 0, newGroup);
-    this._redistributeSizes();
     this.activePaneId = newGroup.paneId;
     return newGroup.pane;
   }
@@ -434,16 +429,5 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       }
     );
     this._autoCloseDisposers.set(paneId, disposer);
-  }
-
-  private _redistributeSizes(): void {
-    this.paneSizes = this._evenSizes(this.groups.length);
-  }
-
-  private _evenSizes(count: number): number[] {
-    const size = Math.floor(100 / count);
-    const sizes = new Array<number>(count).fill(size);
-    sizes[0] += 100 - sizes.reduce((a, b) => a + b, 0);
-    return sizes;
   }
 }

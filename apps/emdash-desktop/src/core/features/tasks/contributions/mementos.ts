@@ -119,6 +119,17 @@ export const taskPanelLayoutsMemento = defineMemento({
   },
 });
 
+/**
+ * Panel id for one split-pane group inside the task-main split. Split-pane
+ * sizes persist through the shared `tasks.panel-layouts` storage like every
+ * other resizable surface; the library derives the storage entry key from
+ * these ids (`react-resizable-panels:${groupId}:${panelIds...}`), so entries
+ * are keyed by the (restart-stable) pane-group id combination.
+ */
+export function splitPanePanelId(paneGroupId: string): string {
+  return `pane:${paneGroupId}`;
+}
+
 const gitRemoteSchema = z.object({
   name: z.string(),
   url: z.string(),
@@ -267,7 +278,6 @@ export const taskPaneLayoutSnapshotSchema = z.object({
     )
     .min(1),
   activeGroupId: z.string().min(1),
-  paneSizes: z.array(z.number()),
 });
 
 export type TaskPaneLayoutSnapshot = z.infer<typeof taskPaneLayoutSnapshotSchema>;
@@ -277,10 +287,23 @@ export type TabManagerSnapshot = TaskPaneLayoutSnapshot['groups'][number]['tabMa
 const taskPaneLayoutV1Schema = z.object({
   version: z.literal('1'),
   ...taskPaneLayoutSnapshotSchema.shape,
+  // v1 stored split-pane sizes inside the snapshot; v2 moved them onto the
+  // shared panel-layouts storage (spec: pane-layout ownership).
+  paneSizes: z.array(z.number()),
+});
+
+const taskPaneLayoutV2Schema = z.object({
+  version: z.literal('2'),
+  ...taskPaneLayoutSnapshotSchema.shape,
 });
 
 export const taskPaneLayoutSchema = defineVersionedSchema()
   .initial('1', taskPaneLayoutV1Schema)
+  // Old paneSizes are abandoned, not migrated (spec: one-time layout reset).
+  .version('2', taskPaneLayoutV2Schema, ({ paneSizes: _paneSizes, ...v1 }) => ({
+    ...v1,
+    version: '2' as const,
+  }))
   .build();
 export type TaskPaneLayoutState = typeof taskPaneLayoutSchema.Type;
 
@@ -289,7 +312,7 @@ export const taskPaneLayoutMemento = defineMemento({
   subject: taskSubject,
   schema: taskPaneLayoutSchema,
   default: {
-    version: '1' as const,
+    version: '2' as const,
     groups: [
       {
         groupId: 'default',
@@ -300,6 +323,5 @@ export const taskPaneLayoutMemento = defineMemento({
       },
     ],
     activeGroupId: 'default',
-    paneSizes: [100],
   },
 });

@@ -24,6 +24,7 @@ import {
   taskDiffSelectionMemento,
   taskEditorTreeMemento,
   taskPaneLayoutMemento,
+  taskPanelLayoutsMemento,
   taskTerminalSelectionMemento,
   type TabDescriptor,
   type TaskDiffPreferencesState,
@@ -43,6 +44,7 @@ import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { createChromeStore } from '@core/primitives/chrome-stores/browser';
 import {
+  createLayoutStorage,
   sanitizedMemento,
   type MementoHandle,
   type SubjectSpace,
@@ -51,7 +53,10 @@ import { getMementoClient } from '@core/primitives/mementos/browser';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
-import { sanitizeDiffSelection } from '../../browser/task-composition-state';
+import {
+  deleteSplitPaneLayoutEntries,
+  sanitizeDiffSelection,
+} from '../../browser/task-composition-state';
 
 export type RendererKind =
   | 'monaco'
@@ -146,10 +151,22 @@ export class TaskComposition {
       modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
     };
+    // Split-pane sizes live on the shared panel-layouts storage (spec:
+    // pane-layout ownership); when a pane group is destroyed its persisted
+    // entries are dropped so a later re-split starts fresh from defaults.
+    const panelLayoutsHandle = this.space.handle(taskPanelLayoutsMemento);
+    const panelLayoutsStorage = createLayoutStorage(this.space, taskPanelLayoutsMemento);
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
       snapshotMemento: paneLayoutMemento,
       onActiveTabChange: (tabId) => {
         if (tabId) appState.navigation.reportLocation(taskRef, { tabId });
+      },
+      onPaneDestroyed: (paneId) => {
+        deleteSplitPaneLayoutEntries(
+          panelLayoutsStorage,
+          Object.keys(panelLayoutsHandle.value.layouts),
+          paneId
+        );
       },
     });
     this._disposers.push(

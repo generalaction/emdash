@@ -16,7 +16,6 @@ export type TabGroupsSnapshot = {
     tabManager: TabManagerSnapshot;
   }>;
   activeGroupId: string;
-  paneSizes: number[];
 };
 
 /**

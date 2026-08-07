@@ -42,6 +42,8 @@ export function createTabView<const P extends readonly AnyTabProvider[]>(provide
       /** Memento document to hydrate from and persist to. Absent means no persistence. */
       snapshotMemento?: PaneLayoutSnapshotMemento;
       onActiveTabChange?: (tabId: string | undefined) => void;
+      /** Called when a pane group is destroyed; see PaneLayoutStore. */
+      onPaneDestroyed?: (paneId: string) => void;
     }
   ): PaneLayoutStore<R> {
     return new PaneLayoutStore<R>(registry, ctx, opts?.snapshotMemento, opts);

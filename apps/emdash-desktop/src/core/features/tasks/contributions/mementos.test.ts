@@ -10,11 +10,27 @@ describe('task pane layout memento', () => {
   it('rejects layouts without a pane', () => {
     expect(
       taskPaneLayoutSchema.safeParse({
-        version: '1',
+        version: '2',
         groups: [],
         activeGroupId: '',
-        paneSizes: [],
       }).status
     ).toBe('invalid');
+  });
+
+  it('upgrades a v1 document by dropping the abandoned paneSizes', () => {
+    const result = taskPaneLayoutSchema.safeParse({
+      version: '1',
+      groups: [{ groupId: 'a', tabManager: { tabs: [] } }],
+      activeGroupId: 'a',
+      paneSizes: [100],
+    });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.data).toEqual({
+        version: '2',
+        groups: [{ groupId: 'a', tabManager: { tabs: [] } }],
+        activeGroupId: 'a',
+      });
+    }
   });
 });
