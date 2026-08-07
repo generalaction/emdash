@@ -1,10 +1,8 @@
 export {
   fsWatchContract,
-  watchErrorSchema,
   watchEventSchema,
   watchEventsBatchSchema,
   watchKeySchema,
-  watchReadySchema,
   watchResyncSchema,
   type FsWatchEvent,
   type FsWatchKey,

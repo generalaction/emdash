@@ -1,6 +1,6 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { retrySchedules } from '@emdash/shared/scheduling';
-import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
+import { createTestWire, FakeWorkerProcessSpawner } from '@emdash/wire/testing';
 import { defineWireComponent } from '@emdash/wire/worker';
 import {
   createWireWorkerHost,
@@ -86,11 +86,94 @@ describe('processWatchBackend', () => {
     expect(resyncs).toEqual([]);
     await waitFor(() => childService.watches.length === 2);
     childService.latest().readyDeferred.resolve();
-    await flush();
+    await waitFor(() => resyncs.length === 1);
     expect(resyncs).toEqual(['resync']);
 
     await handle.release();
     await service.dispose();
+  });
+
+  it('makes two consumers on the same connection ready from one activation', async () => {
+    const spawner = new FakeWorkerProcessSpawner();
+    const childService = new FakeWatchService();
+    const scope = createScope({ label: 'test' });
+    const workerHost = createWireWorkerHost({
+      scope: scope.child('fs-watch-worker-host'),
+      processSpawner: spawner,
+    });
+    const worker = workerHost.create(fsWatchComponent, {
+      name: 'fs-watch',
+      executable: 'worker',
+      dependencies: {},
+      config: {},
+      supervision: { restart: 'never' },
+    });
+    const backend = processWatchBackend({ client: () => worker.ready() });
+    const firstService = createWatchService({ backend, scope });
+    const secondService = createWatchService({ backend, scope });
+    const first = firstService.watch('/tmp/project', () => {});
+    const second = secondService.watch('/tmp/project', () => {});
+
+    await waitFor(() => spawner.processes.length === 1);
+    await startChild(spawner.latest(), childService);
+    await waitFor(() => childService.watches.length === 1);
+    childService.latest().readyDeferred.resolve();
+
+    await expect(Promise.all([first.ready(), second.ready()])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(childService.watches).toHaveLength(1);
+
+    await first.release();
+    await second.release();
+    await firstService.dispose();
+    await secondService.dispose();
+    await scope.dispose();
+  });
+
+  it('makes consumers on separate connections ready from one activation', async () => {
+    const service = new FakeWatchService();
+    const scope = createScope({ label: 'test' });
+    const controller = createFsWatchController({ scope, service });
+    const firstWire = createTestWire(fsWatchContract, controller);
+    const secondWire = createTestWire(fsWatchContract, controller);
+    const key = { root: '/tmp/project', ignore: [] };
+
+    const firstSubscription = firstWire.client.events.subscribe(key, { onEvent: () => {} });
+    const secondSubscription = secondWire.client.events.subscribe(key, { onEvent: () => {} });
+    await waitFor(() => service.watches.length === 1);
+    service.latest().readyDeferred.resolve();
+
+    const [first, second] = await Promise.all([firstSubscription, secondSubscription]);
+    expect(service.watches).toHaveLength(1);
+
+    first();
+    second();
+    firstWire.dispose();
+    secondWire.dispose();
+    await scope.dispose();
+    expect(service.latest().released).toBe(true);
+  });
+
+  it('rejects attach when watcher startup fails', async () => {
+    const service = new FakeWatchService();
+    const scope = createScope({ label: 'test' });
+    const controller = createFsWatchController({ scope, service });
+    const wire = createTestWire(fsWatchContract, controller);
+    const subscription = wire.client.events.subscribe(
+      { root: '/tmp/project', ignore: [] },
+      { onEvent: () => {} }
+    );
+
+    await waitFor(() => service.watches.length === 1);
+    service.latest().readyDeferred.reject(new Error('native startup failed'));
+
+    await expect(subscription).rejects.toThrow('native startup failed');
+    expect(service.latest().released).toBe(true);
+
+    wire.dispose();
+    await scope.dispose();
   });
 });
 

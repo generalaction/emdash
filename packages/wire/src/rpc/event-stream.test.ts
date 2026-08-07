@@ -3,11 +3,12 @@ import { waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { connect } from '../api/connect';
-import { defineContract, eventStream } from '../api/define';
+import { defineContract, eventStream, resourcedStream } from '../api/define';
+import type { WireError } from '../api/protocol';
 import { serve } from '../api/serve';
 import { encodeTopic } from '../api/topics';
 import { memoryTransportPair, reconnectingTransport } from '../api/transports';
-import { createEventStreamHost } from '../live/event-stream';
+import { createEventStreamHost, EventStreamSource } from '../live/event-stream';
 import { createTestWire } from '../testing';
 import { client } from './client';
 import { createController } from './controller';
@@ -97,5 +98,20 @@ describe('eventStream API', () => {
       wire.dispose();
       host.dispose();
     }
+  });
+
+  it('rejects a bare resolver for a resourced event stream at bind time', () => {
+    const resourcedContract = defineContract({
+      events: resourcedStream({
+        key: z.object({ id: z.string() }),
+        event: z.object({ message: z.string() }),
+      }),
+    });
+
+    expect(() =>
+      createController(resourcedContract, {
+        events: (() => new EventStreamSource()) as never,
+      })
+    ).toThrowError(expect.objectContaining<Partial<WireError>>({ code: 'CONTRACT_MISMATCH' }));
   });
 });

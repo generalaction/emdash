@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { eventStream } from '../../api';
+import { eventStream, resourcedStream } from '../../api';
 import { eventFromUpdate } from './client';
 import { createEventStreamHost, EventStreamSource } from './source';
 
@@ -53,6 +53,15 @@ describe('EventStreamSource', () => {
     second();
 
     expect(onEmpty).toHaveBeenCalledOnce();
+  });
+
+  it('keeps plain stream subscription synchronous', () => {
+    const source = new EventStreamSource();
+
+    const unsubscribe = source.subscribe(() => {});
+
+    expect(unsubscribe).toBeTypeOf('function');
+    unsubscribe();
   });
 });
 
@@ -122,3 +131,89 @@ describe('createEventStreamHost', () => {
     expect(idleKeys).toEqual([{ id: 'known' }, { id: 'known' }]);
   });
 });
+
+describe('resourced event streams', () => {
+  const contract = resourcedStream({
+    key: z.object({ id: z.string() }),
+    event: z.object({ message: z.string() }),
+  });
+
+  it('shares the resolved activation barrier with late subscribers', async () => {
+    const dispose = vi.fn();
+    const activate = vi.fn(async () => dispose);
+    const host = createEventStreamHost(contract, { activate });
+    const source = host.resolve({ id: 'known' });
+
+    const first = await source.subscribe(() => {});
+    const second = await source.subscribe(() => {});
+
+    expect(activate).toHaveBeenCalledOnce();
+    first();
+    expect(dispose).not.toHaveBeenCalled();
+    second();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('registers subscribers before activation can emit', async () => {
+    const updates: unknown[] = [];
+    const host = createEventStreamHost(contract, {
+      activate: async (key) => {
+        host.emit(key, { message: 'during activation' });
+        return () => {};
+      },
+    });
+
+    const unsubscribe = await host
+      .resolve({ id: 'known' })
+      .subscribe((update) => updates.push(eventFromUpdate(update)));
+
+    expect(updates).toEqual([{ message: 'during activation' }]);
+    unsubscribe();
+  });
+
+  it('rejects every activation waiter and retries with a fresh activation', async () => {
+    const failure = new Error('startup failed');
+    const activate = vi
+      .fn<() => Promise<() => void>>()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(() => {});
+    const host = createEventStreamHost(contract, { activate });
+    const source = host.resolve({ id: 'known' });
+
+    const first = source.subscribe(() => {});
+    const second = source.subscribe(() => {});
+    await expect(first).rejects.toBe(failure);
+    await expect(second).rejects.toBe(failure);
+    expect(source.subscriberCount).toBe(0);
+
+    const unsubscribe = await host.resolve({ id: 'known' }).subscribe(() => {});
+    expect(activate).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it('disposes an activation that settles after the host is disposed', async () => {
+    const activation = deferred<() => void>();
+    const dispose = vi.fn();
+    const host = createEventStreamHost(contract, { activate: () => activation.promise });
+    const subscription = host.resolve({ id: 'known' }).subscribe(() => {});
+
+    host.dispose();
+    activation.resolve(dispose);
+    const unsubscribe = await subscription;
+
+    expect(dispose).toHaveBeenCalledOnce();
+    unsubscribe();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+});
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}

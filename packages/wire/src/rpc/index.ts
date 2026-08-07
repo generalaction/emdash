@@ -61,6 +61,7 @@ export {
   liveState,
   mutation,
   procedure,
+  resourcedStream,
   uploadFile,
   type Contract,
   type ContractDefinitions,

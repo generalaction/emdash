@@ -153,6 +153,12 @@ function bindEventStream(
   if (!impl) {
     throw new WireError('MISSING_HANDLER', `Event stream '${fullPath}' requires a resolver`);
   }
+  if (def.resourced && !isEventStreamHost(impl) && !isEventStreamClientHandle(impl)) {
+    throw new WireError(
+      'CONTRACT_MISMATCH',
+      `Resourced event stream '${fullPath}' requires a host or forwarded client handle`
+    );
+  }
   return {
     topics: [{ id: def.id, resolve: createEventStreamResolver(def, impl) }],
   };

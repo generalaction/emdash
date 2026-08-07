@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Scope } from '@emdash/shared/concurrency';
+import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 import type { WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchSink } from './backend';
@@ -179,6 +180,80 @@ describe('createWatchService', () => {
     }
   });
 
+  it('evicts a timed-out startup so the next watch makes a fresh attempt', async () => {
+    vi.useFakeTimers();
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-watch-timeout-'));
+    const backend = new DeferredWatchBackend();
+    const service = createWatchService({ backend, startupTimeoutMs: 25 });
+
+    try {
+      const first = service.watch(root, () => {});
+      const firstFailure = expect(first.ready()).rejects.toThrow('Operation timed out after 25ms');
+      await vi.advanceTimersByTimeAsync(25);
+      await firstFailure;
+      await first.release();
+      expect(backend.attempts).toHaveLength(1);
+      expect(backend.attempts[0]?.disposed).toBe(true);
+
+      const second = service.watch(root, () => {});
+      const secondReady = second.ready();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(backend.attempts).toHaveLength(2);
+      backend.attempts[1]?.ready.resolve(undefined);
+      await expect(secondReady).resolves.toBeUndefined();
+
+      backend.attempts[0]?.ready.resolve(undefined);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(backend.attempts[0]?.disposed).toBe(true);
+      await second.release();
+    } finally {
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
+  it('retries a timed-out native startup and disposes its late subscription', async () => {
+    vi.useFakeTimers();
+    const root = await mkdtemp(path.join(tmpdir(), 'emdash-native-watch-timeout-'));
+    const firstSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const secondSubscription = deferred<parcelWatcher.AsyncSubscription>();
+    const firstUnsubscribe = vi.fn(async () => {});
+    const secondUnsubscribe = vi.fn(async () => {});
+    const subscribe = vi
+      .fn()
+      .mockReturnValueOnce(firstSubscription.promise)
+      .mockReturnValueOnce(secondSubscription.promise);
+    const service = createWatchService({
+      backend: nativeWatchBackend({ subscribe }),
+      startupTimeoutMs: 1_000,
+    });
+
+    try {
+      const first = service.watch(root, () => {});
+      const firstFailure = expect(first.ready()).rejects.toThrow(
+        'Operation timed out after 1000ms'
+      );
+      await vi.advanceTimersByTimeAsync(1_000);
+      await firstFailure;
+      await first.release();
+
+      const second = service.watch(root, () => {});
+      const secondReady = expect(second.ready()).resolves.toBeUndefined();
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
+      secondSubscription.resolve({ unsubscribe: secondUnsubscribe });
+      await secondReady;
+
+      firstSubscription.resolve({ unsubscribe: firstUnsubscribe });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(firstUnsubscribe).toHaveBeenCalledOnce();
+      await second.release();
+      expect(secondUnsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+      await service.dispose();
+    }
+  });
+
   it('disposes active handles by releasing their shared native subscription', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'emdash-shared-watch-dispose-'));
     const watch = createNativeWatchService();
@@ -216,10 +291,34 @@ class FakeWatchBackend implements WatchBackend {
   }
 }
 
+class DeferredWatchBackend implements WatchBackend {
+  readonly attempts: Array<{
+    ready: ReturnType<typeof deferred>;
+    disposed: boolean;
+  }> = [];
+
+  async subscribe(_key: WatchKey, _sink: WatchSink, scope: Scope): Promise<void> {
+    const attempt = { ready: deferred(), disposed: false };
+    this.attempts.push(attempt);
+    scope.add(() => {
+      attempt.disposed = true;
+    });
+    await attempt.ready.promise;
+  }
+}
+
 function createNativeWatchService() {
   return createWatchService({ backend: nativeWatchBackend() });
 }
 
 function keyOf(key: WatchKey): string {
   return JSON.stringify({ root: realpathOrResolve(key.root), ignore: [...key.ignore].sort() });
+}
+
+function deferred<T = void>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }

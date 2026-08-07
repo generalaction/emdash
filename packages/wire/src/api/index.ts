@@ -85,6 +85,7 @@ export {
   liveState,
   mutation,
   procedure,
+  resourcedStream,
   uploadFile,
   wireFileMetaSchema,
   type Contract,

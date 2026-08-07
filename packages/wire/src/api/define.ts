@@ -38,12 +38,13 @@ export type EventStreamEndpointDef<
   Id extends string = string,
   KeySchema extends z.ZodTypeAny = z.ZodTypeAny,
   EventSchema extends z.ZodTypeAny = z.ZodTypeAny,
+  Resourced extends boolean = boolean,
 > = {
   kind: 'eventStream';
   id: Id;
   keySchema: KeySchema;
   eventSchema: EventSchema;
-};
+} & (Resourced extends true ? { resourced: true } : { resourced?: false });
 
 export type LiveJobEndpointDef<
   Id extends string = string,
@@ -301,8 +302,24 @@ export function liveLog<KeySchema extends z.ZodTypeAny>(def: {
 export function eventStream<KeySchema extends z.ZodTypeAny, EventSchema extends z.ZodTypeAny>(def: {
   key: KeySchema;
   event: EventSchema;
-}): EventStreamEndpointDef<string, KeySchema, EventSchema> {
+}): EventStreamEndpointDef<string, KeySchema, EventSchema, false> {
   return { kind: 'eventStream', id: '', keySchema: def.key, eventSchema: def.event };
+}
+
+export function resourcedStream<
+  KeySchema extends z.ZodTypeAny,
+  EventSchema extends z.ZodTypeAny,
+>(def: {
+  key: KeySchema;
+  event: EventSchema;
+}): EventStreamEndpointDef<string, KeySchema, EventSchema, true> {
+  return {
+    kind: 'eventStream',
+    id: '',
+    keySchema: def.key,
+    eventSchema: def.event,
+    resourced: true,
+  };
 }
 
 export function liveJob<

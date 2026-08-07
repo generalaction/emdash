@@ -177,3 +177,22 @@ foundation subpaths without pulling in MobX.
 
 For a complete state kernel example (`cell` + `expose` on the server,
 `remote()` on the client), see [../examples/state-kernel](../examples/state-kernel).
+
+## Event Stream Attachment Law
+
+Event streams retain no events, and a connection deduplicates attachments to the same topic.
+Anything a late attacher must learn therefore has to live in a retained snapshot or in the attach
+acknowledgment, never in an event-stream message. A one-shot `ready` event is not a valid readiness
+barrier: a consumer joining an already-attached topic will not cause the server to emit it again.
+
+Use `resourcedStream()` when a successful attach must guarantee that an underlying resource is
+ready. Its host must be created with `createEventStreamHost(def, { activate })`, where `activate`
+resolves to the activation-owned disposer only after the resource is ready. The source registers
+the subscriber before activation begins, shares and retains the activation promise for all
+subscribers to the key, and invokes the disposer when the final subscriber leaves. Failed
+activation is not retained, so a later attach makes a fresh attempt.
+
+This guarantee is enforced when a controller binds the endpoint: a resourced definition accepts
+its matching host or a forwarded client handle, but rejects a bare resolver. Forwarding preserves
+the barrier because the downstream attach is acknowledged only after the upstream attach is
+acknowledged.

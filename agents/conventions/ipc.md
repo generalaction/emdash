@@ -45,6 +45,9 @@ of extending the bridge.
 
 - Request/response operations use `procedure`.
 - Notifications use `eventStream`.
+- Resource-backed notifications whose attach acknowledgment must mean ready use
+  `resourcedStream`; never encode readiness as a one-shot no-retention event. See the
+  [Wire event-stream attachment law](../../packages/wire/docs/README.md#event-stream-attachment-law).
 - Broadcast state uses a Wire live model.
 - Long-running cancellable work uses a Wire live job.
 - Persisted renderer state uses mementos.

@@ -1,5 +1,6 @@
 import { createEmitter, type Emitter } from '@emdash/shared';
 import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout } from '@emdash/shared/scheduling';
 import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
 import { realpathOrResolve } from './paths';
@@ -8,8 +9,11 @@ export type CreateWatchServiceOptions = {
   backend: WatchBackend;
   scope?: Scope;
   graceMs?: number;
+  startupTimeoutMs?: number;
   onError?: WatchOnError;
 };
+
+const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
 
 type WatchChannel = {
   events: Emitter<WatchEvent[]>;
@@ -36,13 +40,20 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
         events.clear();
         resync.clear();
       });
-      await options.backend.subscribe(
-        key,
+      await runWithTimeout(
+        () =>
+          options.backend.subscribe(
+            key,
+            {
+              events: (batch) => events.emit(batch),
+              resync: () => resync.emit(),
+            },
+            scope
+          ),
         {
-          events: (batch) => events.emit(batch),
-          resync: () => resync.emit(),
-        },
-        scope
+          timeoutMs: options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
+          signal: scope.signal,
+        }
       );
       return { events, resync };
     },
