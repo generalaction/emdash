@@ -49,27 +49,6 @@ export const workspaceRemovalAttemptSchema = z.object({
 export type WorkspaceRemovalAttempt = z.infer<typeof workspaceRemovalAttemptSchema>;
 
 /**
- * Durable last outcome of one lifecycle script run, overwrite-in-place (the
- * conversations lastResumeOutcome precedent). Written where the script runner
- * publishes notices today; unlike notices it survives daemon restarts and keeps
- * success stamps. `message` is present for non-success outcomes.
- */
-export const workspaceScriptOutcomeSchema = z.object({
-  outcome: z.enum(['succeeded', 'failed', 'timed-out']),
-  at: z.number(),
-  message: z.string().optional(),
-});
-export type WorkspaceScriptOutcome = z.infer<typeof workspaceScriptOutcomeSchema>;
-
-/** Per-script last outcomes; null per script until that script has settled once. */
-export const workspaceScriptOutcomesSchema = z.object({
-  prepare: workspaceScriptOutcomeSchema.nullable(),
-  setup: workspaceScriptOutcomeSchema.nullable(),
-  run: workspaceScriptOutcomeSchema.nullable(),
-});
-export type WorkspaceScriptOutcomes = z.infer<typeof workspaceScriptOutcomesSchema>;
-
-/**
  * Identity of one workspace lifecycle step. Creation-class steps (adopt-worktree |
  * fetch-remote-base | create-worktree) settle in the foreground pipeline; background-
  * class steps (copy-artifacts | push-branch | fetch-refs) run after the verb returns;
@@ -235,8 +214,6 @@ export const workspaceRecordSchema = z.object({
   lifecycle: workspaceLifecycleSchema.nullable(),
   /** Null until a delete verb fails; removed with the record on success. */
   lastRemovalAttempt: workspaceRemovalAttemptSchema.nullable(),
-  /** Null until any lifecycle script has settled once. */
-  scriptOutcomes: workspaceScriptOutcomesSchema.nullable(),
   /** Null for plain directories (and until first observed). */
   git: workspaceGitObservationsSchema.nullable(),
   /** Observation only — never a durable "active" flag. */

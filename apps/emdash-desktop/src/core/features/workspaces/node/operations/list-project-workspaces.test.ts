@@ -248,18 +248,22 @@ describe('listProjectWorkspaces', () => {
     });
   });
 
-  it('passes durable script outcomes and the runtime overlay through to rows', async () => {
-    const scriptOutcomes = {
-      version: '1',
-      prepare: null,
-      setup: { outcome: 'failed', at: OBSERVED_AT, message: 'pnpm install failed' },
-      run: null,
-    };
+  it('passes the runtime overlay (including lifecycle steps) through to rows', async () => {
     const runtimeOverlay = {
       version: '1',
       creation: { stage: 'add-worktree', startedAt: OBSERVED_AT },
       notices: [],
       activation: null,
+      lifecycle: [
+        {
+          id: 'setup',
+          status: 'failed',
+          startedAt: OBSERVED_AT,
+          finishedAt: OBSERVED_AT,
+          message: 'pnpm install failed',
+          params: {},
+        },
+      ],
     };
     select
       .mockReturnValueOnce(projectQuery([{ id: 'project-1', path: '/repo' }]))
@@ -271,7 +275,6 @@ describe('listProjectWorkspaces', () => {
             id: 'workspace-1',
             path: '/repo/feature',
             config: { version: '2' },
-            scriptOutcomes,
             runtimeOverlay,
           }),
         ])
@@ -280,8 +283,10 @@ describe('listProjectWorkspaces', () => {
     const result = await list({ client: vi.fn() });
 
     expect(result.rows.find((row) => row.workspaceId === 'workspace-1')).toMatchObject({
-      scriptOutcomes: { setup: { outcome: 'failed', message: 'pnpm install failed' } },
-      runtimeOverlay: { creation: { stage: 'add-worktree' } },
+      runtimeOverlay: {
+        creation: { stage: 'add-worktree' },
+        lifecycle: [expect.objectContaining({ id: 'setup', status: 'failed' })],
+      },
     });
   });
 

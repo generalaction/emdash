@@ -7,13 +7,11 @@ import {
   parseGitObservationsPayload,
   parseLifecyclePayload,
   parseRemovalAttemptPayload,
-  parseScriptOutcomesPayload,
   serializeCreateOutcomePayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
   serializeLifecyclePayload,
   serializeRemovalAttemptPayload,
-  serializeScriptOutcomesPayload,
 } from './payload-codecs';
 import { workspaceRecords } from './schema';
 import type { WorkspaceRegistryDb } from './store';
@@ -82,8 +80,6 @@ function rowToRecord(row: Row): DurableWorkspaceRecord {
     lifecycle: row.background === null ? null : parseLifecyclePayload(row.background),
     lastRemovalAttempt:
       row.lastRemovalAttempt === null ? null : parseRemovalAttemptPayload(row.lastRemovalAttempt),
-    scriptOutcomes:
-      row.scriptOutcomes === null ? null : parseScriptOutcomesPayload(row.scriptOutcomes),
     git: row.git === null ? null : parseGitObservationsPayload(row.git),
     lastActivatedAt: row.lastActivatedAt,
     createdAt: row.createdAt,
@@ -111,8 +107,8 @@ function recordToRow(record: DurableWorkspaceRecord): Row {
       record.lastRemovalAttempt === null
         ? null
         : serializeRemovalAttemptPayload(record.lastRemovalAttempt),
-    scriptOutcomes:
-      record.scriptOutcomes === null ? null : serializeScriptOutcomesPayload(record.scriptOutcomes),
+    // Retired: script runs live as lifecycle steps now; the column stays but is unfed.
+    scriptOutcomes: null,
     git: record.git === null ? null : serializeGitObservationsPayload(record.git),
     lastActivatedAt: record.lastActivatedAt,
     createdAt: record.createdAt,

@@ -423,7 +423,6 @@ function stubRecord(id: string, path: string, kind: 'repository' | 'worktree'): 
     lastCreateOutcome: null,
     lifecycle: null,
     lastRemovalAttempt: null,
-    scriptOutcomes: null,
     git: null,
     lastActivatedAt: null,
     createdAt: 0,

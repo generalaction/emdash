@@ -26,6 +26,13 @@ export const LIFECYCLE_STEP_ORDER: readonly WorkspaceLifecycleStepId[] = [
 export const BACKGROUND_STEP_IDS = ['copy-artifacts', 'push-branch', 'fetch-refs'] as const;
 export type BackgroundStepId = (typeof BACKGROUND_STEP_IDS)[number];
 
+/** Activation-script steps: reset wholesale at each activation, never accumulated. */
+export const SCRIPT_STEP_IDS: ReadonlySet<WorkspaceLifecycleStepId> = new Set([
+  'prepare',
+  'setup',
+  'run',
+]);
+
 export function getLifecycleStep(
   lifecycle: WorkspaceLifecycle | null,
   id: WorkspaceLifecycleStepId

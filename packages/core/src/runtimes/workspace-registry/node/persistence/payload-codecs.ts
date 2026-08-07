@@ -6,14 +6,12 @@ import {
   workspaceGitObservationsSchema,
   workspaceLifecycleSchema,
   workspaceRemovalAttemptSchema,
-  workspaceScriptOutcomesSchema,
   type WorkspaceCreateOutcome,
   type WorkspaceCreation,
   type WorkspaceGitObservations,
   type WorkspaceLifecycle,
   type WorkspaceLifecycleStep,
   type WorkspaceRemovalAttempt,
-  type WorkspaceScriptOutcomes,
 } from '../../api/schemas';
 
 const storedCreation = defineVersionedSchema()
@@ -30,10 +28,6 @@ const storedGitObservations = defineVersionedSchema()
 
 const storedRemovalAttempt = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceRemovalAttemptSchema }))
-  .build();
-
-const storedScriptOutcomes = defineVersionedSchema()
-  .initial('1', z.object({ version: z.literal('1'), value: workspaceScriptOutcomesSchema }))
   .build();
 
 // The pre-lifecycle shape of the `background` column (v1): fixed per-step slots with a
@@ -121,14 +115,6 @@ export function serializeRemovalAttemptPayload(attempt: WorkspaceRemovalAttempt)
 
 export function parseRemovalAttemptPayload(payload: string): WorkspaceRemovalAttempt {
   return parseVersioned(storedRemovalAttempt, payload, 'removal attempt');
-}
-
-export function serializeScriptOutcomesPayload(outcomes: WorkspaceScriptOutcomes): string {
-  return storedScriptOutcomes.serialize({ version: '1', value: outcomes });
-}
-
-export function parseScriptOutcomesPayload(payload: string): WorkspaceScriptOutcomes {
-  return parseVersioned(storedScriptOutcomes, payload, 'script outcomes');
 }
 
 export function serializeLifecyclePayload(lifecycle: WorkspaceLifecycle): string {

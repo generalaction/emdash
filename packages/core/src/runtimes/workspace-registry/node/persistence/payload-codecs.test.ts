@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import type { WorkspaceLifecycle } from '../../api/schemas';
 import { parseLifecyclePayload, serializeLifecyclePayload } from './payload-codecs';
 
 describe('lifecycle payload codec', () => {
   it('round-trips the current lifecycle shape', () => {
-    const lifecycle = {
+    const lifecycle: WorkspaceLifecycle = {
       steps: [
         {
-          id: 'create-worktree' as const,
-          status: 'succeeded' as const,
+          id: 'create-worktree',
+          status: 'succeeded',
           startedAt: 1_000,
           finishedAt: 2_000,
           params: { path: '/tmp/wt', branch: 'feature/x', branchCreated: true },
         },
         {
-          id: 'push-branch' as const,
-          status: 'pending' as const,
+          id: 'push-branch',
+          status: 'pending',
           startedAt: null,
           finishedAt: null,
           params: { branch: 'feature/x' },

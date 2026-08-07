@@ -38,8 +38,6 @@ export {
   workspaceRecordsSchema,
   workspaceRemovalAttemptSchema,
   workspaceRuntimeOverlaySchema,
-  workspaceScriptOutcomeSchema,
-  workspaceScriptOutcomesSchema,
   type ActivateWorkspaceInput,
   type CreateWorkspaceInput,
   type CreateWorktreeInput,
@@ -65,7 +63,5 @@ export {
   type WorkspaceRecords,
   type WorkspaceRemovalAttempt,
   type WorkspaceRuntimeOverlay,
-  type WorkspaceScriptOutcome,
-  type WorkspaceScriptOutcomes,
 } from './schemas';
 export { workspaceRegistryWorker } from './worker';

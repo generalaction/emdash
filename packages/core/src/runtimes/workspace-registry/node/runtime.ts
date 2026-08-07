@@ -27,6 +27,7 @@ import type {
   RefreshWorkspacesInput,
   RetryStepInput,
   WorkspaceLifecycleStep,
+  WorkspaceLifecycleStepId,
   WorkspaceRecord,
   WorkspaceRecords,
   WorkspaceRemovalAttempt,
@@ -42,9 +43,10 @@ import {
   buildCreationLifecycle,
   getLifecycleStep,
   isIncompleteStep,
+  SCRIPT_STEP_IDS,
+  sortSteps,
   stepIdForStage,
   withLifecycleStep,
-  type BackgroundStepId,
   type CreationStageTimeline,
 } from './lifecycle';
 import {
@@ -143,22 +145,40 @@ export class WorkspaceRegistryRuntime {
           ...overlay,
           notices: overlay.notices.filter((notice) => notice.id !== `script-failed:${script}`),
         })),
-      recordScriptOutcome: (id, script, report) =>
+      resetScriptSteps: (id, scripts) =>
         void this.enqueue(async () => {
           const record = this.store.get(id);
           if (!record) return;
+          // No scripts and no section: nothing to reset — avoid minting an empty one.
+          if (!record.lifecycle && scripts.length === 0) return;
           const now = this.clock.now();
-          const outcomes = record.scriptOutcomes ?? { prepare: null, setup: null, run: null };
+          const lifecycle = record.lifecycle ?? { steps: [], preservePatterns: [] };
+          // Overwrite, not append: drop past activations' script steps, seed this one's.
+          const steps = sortSteps([
+            ...lifecycle.steps.filter((step) => !SCRIPT_STEP_IDS.has(step.id)),
+            ...scripts.map(
+              (script): WorkspaceLifecycleStep => ({
+                id: script,
+                status: 'pending',
+                startedAt: null,
+                finishedAt: null,
+                params: {},
+              })
+            ),
+          ]);
           const updated: DurableWorkspaceRecord = {
             ...record,
-            // Overwrite-in-place: one durable last outcome per script, no event list.
-            scriptOutcomes: { ...outcomes, [script]: { ...report, at: now } },
+            lifecycle: { ...lifecycle, steps },
             updatedAt: now,
           };
           this.store.update(updated);
           this.publish(updated);
         }).catch((error) => {
-          this.logger.warn?.(`recording ${script} outcome for '${id}' failed`, { error });
+          this.logger.warn?.(`resetting script steps for '${id}' failed`, { error });
+        }),
+      recordScriptStep: (id, script, state) =>
+        void this.updateLifecycleStep(id, script, state).catch((error) => {
+          this.logger.warn?.(`recording ${script} step for '${id}' failed`, { error });
         }),
       recordActivated: (id, at) =>
         this.enqueue(async () => {
@@ -553,7 +573,6 @@ export class WorkspaceRegistryRuntime {
       lastCreateOutcome: null,
       lifecycle: null,
       lastRemovalAttempt: null,
-      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: now,
@@ -640,7 +659,6 @@ export class WorkspaceRegistryRuntime {
       lastCreateOutcome: { status: 'started', at: now },
       lifecycle: null,
       lastRemovalAttempt: null,
-      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: now,
@@ -868,7 +886,7 @@ export class WorkspaceRegistryRuntime {
    */
   private updateLifecycleStep(
     id: string,
-    stepId: BackgroundStepId,
+    stepId: WorkspaceLifecycleStepId,
     state: {
       status: WorkspaceLifecycleStep['status'];
       message?: string;
@@ -1081,7 +1099,6 @@ export class WorkspaceRegistryRuntime {
         lastCreateOutcome: null,
         lifecycle: null,
         lastRemovalAttempt: null,
-        scriptOutcomes: null,
         git: await observeWorkspaceGit(canonicalPath, listing, {
           untrackedCache: this.untrackedCacheFor(adoptedId),
         }),
@@ -1210,7 +1227,6 @@ export class WorkspaceRegistryRuntime {
       lastCreateOutcome: null,
       lifecycle: null,
       lastRemovalAttempt: null,
-      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: now,

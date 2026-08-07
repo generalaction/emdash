@@ -16,10 +16,11 @@ import {
 
 type WorkspaceActivation = NonNullable<WorkspaceRuntimeOverlay['activation']>;
 type LifecycleScript = 'prepare' | 'setup' | 'run' | 'teardown';
+type ScriptStepScript = 'prepare' | 'setup' | 'run';
 
-/** A settled activation-plane script run, as recorded durably (ADR 0006). */
-export type WorkspaceScriptOutcomeReport = {
-  outcome: 'succeeded' | 'failed' | 'timed-out';
+/** A durable transition of one activation script's lifecycle step. */
+export type WorkspaceScriptStepState = {
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
   message?: string;
 };
 
@@ -35,15 +36,17 @@ export type WorkspaceActivationManagerOptions = {
   setNotice: (id: string, script: LifecycleScript, message: string) => void;
   clearNotice: (id: string, script: LifecycleScript) => void;
   /**
-   * Durable per-script last outcome, overwrite-in-place — the trace that survives a
-   * daemon restart where notices do not. Cancelled runs are deliberate deactivations,
-   * not outcomes, so they are never reported.
+   * Resets the record's script-class lifecycle steps for a fresh activation: old
+   * script steps are removed and one pending step is seeded per configured script —
+   * the durable record shows the current activation's runs, never stale history.
    */
-  recordScriptOutcome: (
-    id: string,
-    script: 'prepare' | 'setup' | 'run',
-    report: WorkspaceScriptOutcomeReport
-  ) => void;
+  resetScriptSteps: (id: string, scripts: ScriptStepScript[]) => void;
+  /**
+   * Durable step transition for one activation script — the trace that survives a
+   * daemon restart where notices do not. Cancelled runs (deliberate deactivations)
+   * settle their step as skipped.
+   */
+  recordScriptStep: (id: string, script: ScriptStepScript, state: WorkspaceScriptStepState) => void;
   /** Persists lastActivatedAt — the only durable trace of an activation. */
   recordActivated: (id: string, at: number) => Promise<void>;
   /**
@@ -102,6 +105,11 @@ export class WorkspaceActivationManager {
     if (this.active.has(id)) return;
 
     const scripts = await this.readScripts(workspacePath);
+    // Overwrite, not append: the durable timeline shows this activation's runs only.
+    this.options.resetScriptSteps(
+      id,
+      (['prepare', 'setup', 'run'] as const).filter((script) => scripts[script])
+    );
     const controller = new AbortController();
     const state: ActiveState = {
       workspacePath,
@@ -213,6 +221,10 @@ export class WorkspaceActivationManager {
     if (!setupSucceeded) {
       // Run waits on setup success; a failed setup means run never starts.
       state.activation.scripts.run = 'skipped';
+      this.options.recordScriptStep(id, 'run', {
+        status: 'skipped',
+        message: 'Setup did not succeed',
+      });
       this.publish(id, state);
       return;
     }
@@ -227,10 +239,11 @@ export class WorkspaceActivationManager {
   private async runScript(
     id: string,
     state: ActiveState,
-    script: 'prepare' | 'setup' | 'run',
+    script: ScriptStepScript,
     command: string,
     options: { longRunning?: boolean } = {}
   ): Promise<'succeeded' | 'failed' | 'cancelled'> {
+    this.options.recordScriptStep(id, script, { status: 'running' });
     const outcome = await this.runner.run({
       id: script,
       command,
@@ -242,16 +255,21 @@ export class WorkspaceActivationManager {
     });
     if (outcome.status === 'succeeded') {
       this.options.clearNotice(id, script);
-      this.options.recordScriptOutcome(id, script, { outcome: 'succeeded' });
+      this.options.recordScriptStep(id, script, { status: 'succeeded' });
       return 'succeeded';
     }
     if (outcome.status === 'cancelled') {
-      // Deactivation aborted it on purpose; a notice or outcome would be noise.
+      // Deactivation aborted it on purpose; a notice would be noise, but the step
+      // settles so the timeline never shows a phantom in-flight run.
+      this.options.recordScriptStep(id, script, {
+        status: 'skipped',
+        message: 'Cancelled by deactivation',
+      });
       return 'cancelled';
     }
     this.options.setNotice(id, script, outcome.message);
-    this.options.recordScriptOutcome(id, script, {
-      outcome: outcome.status === 'timed-out' ? 'timed-out' : 'failed',
+    this.options.recordScriptStep(id, script, {
+      status: 'failed',
       message: outcome.message,
     });
     return 'failed';

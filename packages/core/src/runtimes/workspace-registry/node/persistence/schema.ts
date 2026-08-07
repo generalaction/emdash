@@ -29,7 +29,7 @@ export const workspaceRecords = sqliteTable(
     background: text('background'),
     /** Versioned JSON: last failed removal attempt; removed with the record on success. */
     lastRemovalAttempt: text('last_removal_attempt'),
-    /** Versioned JSON: per-script (prepare/setup/run) durable last outcomes. */
+    /** Retired (script runs are lifecycle steps in `background` now); always null. */
     scriptOutcomes: text('script_outcomes'),
     /** Versioned JSON: host-computed git observation block; null for plain directories. */
     git: text('git'),

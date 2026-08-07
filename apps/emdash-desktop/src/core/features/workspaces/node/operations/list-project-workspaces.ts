@@ -22,7 +22,6 @@ import type {
   WorkspaceDeletionTombstone,
   WorkspaceObservedGit,
   WorkspaceRuntimeOverlay,
-  WorkspaceScriptOutcomes,
 } from '@core/primitives/workspaces/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { projects, tasks } from '@core/services/app-db/node/schema';
@@ -55,7 +54,6 @@ type WorkspaceRow = {
   observedAt: number | null;
   deletionTombstone: WorkspaceDeletionTombstone | null;
   lastCreateOutcome: WorkspaceCreateOutcome | null;
-  scriptOutcomes: WorkspaceScriptOutcomes | null;
   runtimeOverlay: WorkspaceRuntimeOverlay | null;
 };
 
@@ -222,7 +220,6 @@ function buildCandidateRow(
     removalStop:
       tombstone !== null ? (activeTombstoneTerminalStop(tombstone) ?? undefined) : undefined,
     lastCreateOutcome: candidate.workspace?.lastCreateOutcome ?? undefined,
-    scriptOutcomes: candidate.workspace?.scriptOutcomes ?? undefined,
     runtimeOverlay: candidate.workspace?.runtimeOverlay ?? undefined,
     errors: [],
   };
@@ -317,7 +314,6 @@ async function getWorkspaceRows(
       observedAt: workspaces.observedAt,
       deletionTombstone: workspaces.deletionTombstone,
       lastCreateOutcome: workspaces.lastCreateOutcome,
-      scriptOutcomes: workspaces.scriptOutcomes,
       runtimeOverlay: workspaces.runtimeOverlay,
     })
     .from(workspaces)

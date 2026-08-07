@@ -29,7 +29,6 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     creation: null,
     lastCreateOutcome: null,
     lastRemovalAttempt: null,
-    scriptOutcomes: null,
     lifecycle: null,
     git: null,
     lastActivatedAt: null,
