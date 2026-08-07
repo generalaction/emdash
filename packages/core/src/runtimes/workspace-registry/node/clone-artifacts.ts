@@ -245,10 +245,6 @@ async function deleteExcluded(worktreePath: string, patterns: string[]): Promise
  */
 async function copyPreservedIgnoredFiles(input: CloneArtifactsInput): Promise<string[]> {
   const warnings: string[] = [];
-  const git = createRegistryGitExec(input.repositoryPath);
-  const result = await git.exec(['ls-files', '--others', '--ignored', '--exclude-standard', '-z']);
-  const ignoredFiles = result.stdout.split('\0').filter(Boolean);
-
   const matchers: Array<(relative: string) => boolean> = [];
   for (const pattern of input.preservePatterns) {
     if (!isSafePattern(pattern)) {
@@ -258,6 +254,14 @@ async function copyPreservedIgnoredFiles(input: CloneArtifactsInput): Promise<st
     matchers.push(globMatcher(pattern));
   }
   if (matchers.length === 0) return warnings;
+
+  const git = createRegistryGitExec(input.repositoryPath);
+  // A large repo's full ignored-file listing easily exceeds the default 10MB exec
+  // buffer (node_modules alone lists tens of thousands of paths), so size it up.
+  const result = await git.exec(['ls-files', '--others', '--ignored', '--exclude-standard', '-z'], {
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  const ignoredFiles = result.stdout.split('\0').filter(Boolean);
 
   for (const relative of ignoredFiles) {
     if (relative === EMDASH_CONFIG_FILE || relative.startsWith('.git/')) continue;
