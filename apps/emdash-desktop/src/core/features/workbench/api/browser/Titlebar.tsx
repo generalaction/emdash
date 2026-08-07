@@ -13,7 +13,7 @@ const isMac = platform === 'mac';
 const isLinux = platform === 'linux';
 
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
-  const { setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
+  const { toggleLeftSidebar, isLeftOpen } = useWorkspaceLayoutContext();
   return (
     <header
       className={cn(
@@ -37,7 +37,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                       variant="ghost"
                       size="sm"
                       className="size-7 p-0"
-                      onClick={() => setCollapsed('left', isLeftOpen)}
+                      onClick={() => toggleLeftSidebar()}
                     >
                       <PanelLeft className="h-4 w-4" />
                     </Button>

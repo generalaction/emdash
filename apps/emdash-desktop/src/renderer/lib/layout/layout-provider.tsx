@@ -1,118 +1,131 @@
-import { useResizablePanelRef, type ResizablePanelHandle } from '@emdash/ui/react/primitives';
+import type { LayoutStorage } from '@emdash/ui/react/primitives';
+import { observer } from 'mobx-react-lite';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+  asMounted,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import type { WorkspaceChromeStore } from '@core/features/projects/api/browser/stores/workspace-chrome-store';
+import { projectPanelLayoutsMemento } from '@core/features/projects/contributions/mementos';
+import { workspaceChromeStoreToken } from '@core/features/projects/contributions/project-stores';
+import { createLayoutStorage } from '@core/primitives/mementos/browser';
+import type { ViewRef } from '@core/primitives/views/api';
+import { appState } from '@renderer/lib/stores/app-state';
 
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
-  leftPanelRef: RefObject<ResizablePanelHandle | null>;
-  syncLeftOpenFromPanel: () => void;
-  setCollapsed: (side: 'left', collapsed: boolean) => void;
-  toggleLeft: () => void;
-  exitZenMode: () => void;
-  toggleZenMode: (rightSidebar?: {
-    isCollapsed: boolean;
-    setCollapsed: (collapsed: boolean) => void;
-  }) => void;
+  isZenActive: boolean;
+  toggleLeftSidebar: () => void;
+  toggleZenMode: () => void;
+  /**
+   * Storage facade for the workspace outer layout, scoped to the active
+   * project's chrome subject (spec §Persistence model editorial call);
+   * ephemeral in-memory storage until a project chrome is hydrated.
+   */
+  layoutStorage: LayoutStorage;
+  /**
+   * Remount key for the outer `Resizable.Group`: the library reads
+   * `defaultLayout` only at group mount, so the group must remount whenever
+   * the storage subject changes (project switch or hydration completing).
+   */
+  layoutKey: string;
 }
 
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
 
-export function useWorkspaceLayoutService() {
-  const leftPanelRef = useResizablePanelRef();
+/** Reads `projectId` from project-bearing view refs (task, project). */
+function projectIdFromRef(ref: ViewRef | undefined): string | undefined {
+  const projectId = (ref?.params as { projectId?: unknown } | undefined)?.projectId;
+  return typeof projectId === 'string' && projectId.length > 0 ? projectId : undefined;
+}
 
-  const [isLeftOpen, setIsLeftOpen] = useState(true);
+/**
+ * Workspace chrome for one project, readable only once its subject space has
+ * hydrated. There is no render gate at the project boundary (the task-view
+ * `isHydrated` gate covers only task subjects), so callers gate here: reading
+ * chrome state or the layout facade pre-hydration is a loud dev error by
+ * design, never a silent reset.
+ */
+function hydratedWorkspaceChrome(projectId: string): WorkspaceChromeStore | undefined {
+  const mounted = asMounted(getProjectStore(projectId));
+  if (!mounted || !mounted.space.isHydrated) return undefined;
+  return mounted.get(workspaceChromeStoreToken);
+}
 
-  // Guard so the panel's onResize callback doesn't clobber isLeftOpen while a
-  // programmatic collapse/expand is in flight (state-only concern, no resize
-  // suppression needed because the ResizeObserver is now always trusted).
-  const programmaticRef = useRef(false);
-  const zenModeSnapshotRef = useRef<{
-    leftOpen: boolean;
-    rightCollapsed?: boolean;
-    setRightCollapsed?: (collapsed: boolean) => void;
-  } | null>(null);
-
-  const syncLeftOpenFromPanel = useCallback(() => {
-    if (programmaticRef.current) return;
-    setIsLeftOpen(!leftPanelRef.current?.isCollapsed());
-  }, [leftPanelRef]);
-
-  const setCollapsed = useCallback(
-    (side: 'left', collapsed: boolean) => {
-      const panel = leftPanelRef.current;
-      if (!panel) return;
-      programmaticRef.current = true;
-      setIsLeftOpen(!collapsed);
-      if (collapsed) {
-        panel.collapse();
-      } else {
-        panel.expand();
-      }
-      // Clear the guard on the next frame once the panel has settled.
-      requestAnimationFrame(() => {
-        programmaticRef.current = false;
-      });
-    },
-    [leftPanelRef]
-  );
-
-  const toggleLeft = useCallback(() => {
-    setCollapsed('left', isLeftOpen);
-  }, [setCollapsed, isLeftOpen]);
-
-  const exitZenMode = useCallback(() => {
-    const snapshot = zenModeSnapshotRef.current;
-    if (!snapshot) return;
-
-    setCollapsed('left', !snapshot.leftOpen);
-    if (snapshot.setRightCollapsed && snapshot.rightCollapsed !== undefined) {
-      snapshot.setRightCollapsed(snapshot.rightCollapsed);
-    }
-    zenModeSnapshotRef.current = null;
-  }, [setCollapsed]);
-
-  const toggleZenMode = useCallback(
-    (rightSidebar?: { isCollapsed: boolean; setCollapsed: (collapsed: boolean) => void }) => {
-      if (zenModeSnapshotRef.current) {
-        exitZenMode();
-        return;
-      }
-
-      zenModeSnapshotRef.current = {
-        leftOpen: isLeftOpen,
-        rightCollapsed: rightSidebar?.isCollapsed,
-        setRightCollapsed: rightSidebar?.setCollapsed,
-      };
-      setCollapsed('left', true);
-      rightSidebar?.setCollapsed(true);
-    },
-    [exitZenMode, isLeftOpen, setCollapsed]
-  );
-
+function createEphemeralLayoutStorage(): LayoutStorage {
+  const entries = new Map<string, string>();
   return {
-    leftPanelRef,
-    syncLeftOpenFromPanel,
-    isLeftOpen,
-    setCollapsed,
-    toggleLeft,
-    exitZenMode,
-    toggleZenMode,
+    getItem: (key) => entries.get(key) ?? null,
+    setItem: (key, value) => {
+      entries.set(key, value);
+    },
   };
 }
 
-export function WorkspaceLayoutContextProvider({ children }: { children: ReactNode }) {
-  const value = useWorkspaceLayoutService();
+export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutContextProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  // The active project is sticky: leaving for a project-less view (settings,
+  // home) keeps the last project's chrome instead of resetting the sidebar.
+  const [activeProjectId, setActiveProjectId] = useState<string | undefined>(() =>
+    projectIdFromRef(appState.navigation.currentRef)
+  );
+  // Ephemeral chrome for the no-project / pre-hydration window, so the
+  // sidebar toggle still works on a fresh install's home view. Not a shadow
+  // copy of store state — it feeds the view only while no chrome store exists.
+  const [fallbackLeftOpen, setFallbackLeftOpen] = useState(true);
+
+  useEffect(() => {
+    return appState.navigation.onDidNavigate.subscribe((event) => {
+      // The implicit exit-on-navigation cleanup became this explicit command
+      // at the navigation site. Only user navigation ('traversal' to another
+      // view ref) exits zen; the startup 'restoration' commit does not, so
+      // restarting in zen resumes zen with its persisted restore.
+      if (event.kind === 'traversal' && event.from && event.from.key !== event.to.key) {
+        const fromProjectId = projectIdFromRef(event.from);
+        if (fromProjectId) {
+          const chrome = hydratedWorkspaceChrome(fromProjectId);
+          if (chrome?.state.zen.active) chrome.commands.exitZenMode();
+        }
+      }
+      const projectId = projectIdFromRef(event.to);
+      if (projectId) setActiveProjectId(projectId);
+    });
+  }, []);
+
+  const mounted = activeProjectId ? asMounted(getProjectStore(activeProjectId)) : undefined;
+  const space = mounted && mounted.space.isHydrated ? mounted.space : undefined;
+  const chrome = space && mounted ? mounted.get(workspaceChromeStoreToken) : undefined;
+
+  const ephemeralStorage = useMemo(() => createEphemeralLayoutStorage(), []);
+  const layoutStorage = useMemo(
+    () => (space ? createLayoutStorage(space, projectPanelLayoutsMemento) : ephemeralStorage),
+    [space, ephemeralStorage]
+  );
+
+  const state = chrome ? chrome.state : undefined;
+  const value: WorkspaceLayoutContextValue = {
+    isLeftOpen: state ? state.leftSidebarOpen : fallbackLeftOpen,
+    isZenActive: state?.zen.active ?? false,
+    toggleLeftSidebar: () => {
+      if (chrome) chrome.commands.toggleLeftSidebar();
+      else setFallbackLeftOpen((open) => !open);
+    },
+    toggleZenMode: () => {
+      if (!chrome) return;
+      if (chrome.state.zen.active) chrome.commands.exitZenMode();
+      else chrome.commands.enterZenMode();
+    },
+    layoutStorage,
+    layoutKey: space && activeProjectId ? `project:${activeProjectId}` : 'unscoped',
+  };
+
   return (
     <WorkspaceLayoutContext.Provider value={value}>{children}</WorkspaceLayoutContext.Provider>
   );
-}
+});
 
 export function useWorkspaceLayoutContext() {
   const context = useContext(WorkspaceLayoutContext);

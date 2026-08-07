@@ -14,6 +14,7 @@ import { useTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { createLayoutStorage } from '@core/primitives/mementos/browser';
+import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 
@@ -269,6 +270,10 @@ const SIDEBAR_CLOSE_THRESHOLD = 8;
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const taskView = useTaskComposition();
+  // Zen is workspace-chrome data; the task sidebar hides while zen is active
+  // as a derived condition — no task-chrome mutation, no task-side restore.
+  const { isZenActive } = useWorkspaceLayoutContext();
+  const isSidebarOpen = !taskView.isSidebarCollapsed && !isZenActive;
 
   // One storage facade per composition. ReadyTaskMainPanel renders below the
   // task view's space.isHydrated gate, so synchronous reads are safe by
@@ -282,7 +287,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
     storage: layoutStorage,
     panelIds: ['task-main-area', 'task-sidebar'],
     collapsiblePanelId: 'task-sidebar',
-    open: !taskView.isSidebarCollapsed,
+    open: isSidebarOpen,
     onCloseRequest: () => taskView.chrome.commands.collapseSidebar(),
     closeThreshold: SIDEBAR_CLOSE_THRESHOLD,
   });
@@ -299,7 +304,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
         </Resizable.Panel>
         {/* Collapsed = panel AND handle unmounted (sync contract: never
             program the panels). */}
-        {!taskView.isSidebarCollapsed && (
+        {isSidebarOpen && (
           <>
             <Resizable.Handle />
             <Resizable.Panel

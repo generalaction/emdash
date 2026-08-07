@@ -1,6 +1,7 @@
 import {
   projectPanelLayoutsMemento,
   projectViewMemento,
+  workspaceChromeMemento,
 } from '@core/features/projects/contributions/mementos';
 import {
   taskChromeMemento,
@@ -27,6 +28,7 @@ import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
 export const mementoCatalog: readonly MementoCatalogEntry[] = [
   projectViewMemento,
   projectPanelLayoutsMemento,
+  workspaceChromeMemento,
   taskChromeMemento,
   taskTerminalSelectionMemento,
   taskEditorTreeMemento,

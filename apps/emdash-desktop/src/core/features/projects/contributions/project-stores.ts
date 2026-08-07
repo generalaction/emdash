@@ -1,4 +1,9 @@
 import { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
+import {
+  workspaceChromeStore,
+  type WorkspaceChromeStore,
+} from '@core/features/projects/api/browser/stores/workspace-chrome-store';
+import { createChromeStore } from '@core/primitives/chrome-stores/browser';
 import type { SubjectSpace } from '@core/primitives/mementos/browser';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
 import {
@@ -17,6 +22,9 @@ export type ProjectScopedStoreContext = Readonly<{
 export const projectViewStoreToken = scopedStoreToken<ProjectViewStore>('projects.view');
 export const projectSettingsStoreToken =
   scopedStoreToken<ProjectSettingsStore>('projects.settings');
+export const workspaceChromeStoreToken = scopedStoreToken<WorkspaceChromeStore>(
+  'projects.workspace-chrome'
+);
 
 export const projectScopedStoreContributions: readonly ScopedStoreContribution<ProjectScopedStoreContext>[] =
   [
@@ -29,5 +37,9 @@ export const projectScopedStoreContributions: readonly ScopedStoreContribution<P
       create: ({ data }) =>
         new ProjectSettingsStore(data.id, data.repositoryWorkspaceId ?? undefined),
       dispose: (store) => store.dispose(),
+    }),
+    contributeScopedStore({
+      token: workspaceChromeStoreToken,
+      create: ({ space }) => createChromeStore(workspaceChromeStore, space),
     }),
   ];
