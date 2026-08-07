@@ -45,10 +45,6 @@ import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import {
-  copyTextToClipboard,
-  getHostClient,
-} from '@core/primitives/desktop-host/browser/host-client';
-import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
@@ -56,6 +52,10 @@ import {
 import { useTabLayout } from '@core/features/workbench/api/browser/task-tab-registry';
 import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal, useOpenModal } from '@core/manifests/browser/modal-api';
+import {
+  copyTextToClipboard,
+  getHostClient,
+} from '@core/primitives/desktop-host/browser/host-client';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   clearDraggedWorkspaceFile,

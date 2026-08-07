@@ -5,9 +5,9 @@ import {
   asProvisioned,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import {
   absoluteRuntimePath,
   hostPathFromNative,

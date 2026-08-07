@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { getBrowserClient } from '@core/features/browser/api/browser/client';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import {
   cycleNextTabCommand,
   cyclePreviousTabCommand,
 } from '@core/features/workbench/contributions/commands';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import {
   browserLoadErrorCode,

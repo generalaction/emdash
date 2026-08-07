@@ -1,8 +1,8 @@
 import { Button, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
-import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';

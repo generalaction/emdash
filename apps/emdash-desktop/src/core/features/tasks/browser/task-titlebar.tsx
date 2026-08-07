@@ -40,12 +40,12 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
-import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';

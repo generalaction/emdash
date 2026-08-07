@@ -52,8 +52,8 @@ import {
   isHeicLikeFile,
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
-import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';

@@ -1,10 +1,10 @@
 import { toast } from '@emdash/ui/react/primitives';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openModal } from '@core/manifests/browser/modal-api';
 import {
   copyTextToClipboard,
   openExternal,
 } from '@core/primitives/desktop-host/browser/host-client';
-import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
-import { openModal } from '@core/manifests/browser/modal-api';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { normalizeExternalHttpUrl } from './external-url';
 

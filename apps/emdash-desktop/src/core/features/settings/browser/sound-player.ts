@@ -1,6 +1,6 @@
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import type { SoundEvent } from '@core/primitives/agents/api';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { queryClient } from '@core/primitives/query/browser/query-client';
 import { getAppSettingsClient } from '@core/services/settings/api/client';
 

@@ -1,4 +1,9 @@
-import { client, defineContract, type Connection, type ContractDefinitions } from '@emdash/wire/rpc';
+import {
+  client,
+  defineContract,
+  type Connection,
+  type ContractDefinitions,
+} from '@emdash/wire/rpc';
 
 type WireConnectionSource = () => Promise<Connection>;
 
