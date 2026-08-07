@@ -30,6 +30,14 @@ function AlertDescription({ className, ...props }: React.HTMLAttributes<HTMLPara
   );
 }
 
+/**
+ * AlertAction — free-form action slot pinned to the alert's top-right corner
+ * (e.g. a "Fix" or "Retry" button). The root reserves horizontal room for it.
+ */
+function AlertAction({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div data-slot="alert-action" className={cx(styles.alertAction, className)} {...props} />;
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -73,4 +81,5 @@ export const Alert = {
   Root: AlertRoot,
   Title: AlertTitle,
   Description: AlertDescription,
+  Action: AlertAction,
 };

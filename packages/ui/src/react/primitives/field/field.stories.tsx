@@ -111,6 +111,63 @@ export const Horizontal: Story = {
   ),
 };
 
+/** FieldGroup — vertical stack of fields with consistent spacing (dialog-form style). */
+export const Group: Story = {
+  render: () => (
+    <Box className={s.w72}>
+      <Field.Group>
+        <Field.Root>
+          <Field.Label>Name</Field.Label>
+          <Input placeholder="My remote" />
+        </Field.Root>
+        <Field.Root>
+          <Field.Label>URL</Field.Label>
+          <Input placeholder="git@github.com:owner/repo.git" />
+          <Field.Description>SSH or HTTPS remote URL.</Field.Description>
+        </Field.Root>
+        <Field.Root orientation="horizontal">
+          <Field.Content>
+            <Field.Label>Set as default</Field.Label>
+          </Field.Content>
+          <Switch aria-label="Set as default" />
+        </Field.Root>
+      </Field.Group>
+    </Box>
+  ),
+};
+
+/** FieldSet + FieldLegend — semantic fieldset grouping; disabling it disables nested fields. */
+export const FieldsetWithLegend: Story = {
+  render: () => (
+    <Box display="flex" flexDirection="column" gap="6" className={s.w72}>
+      <Field.Set>
+        <Field.Legend>Notifications</Field.Legend>
+        <Field.Group>
+          <Field.Root orientation="horizontal">
+            <Field.Content>
+              <Field.Label>Task completed</Field.Label>
+            </Field.Content>
+            <Switch defaultChecked aria-label="Task completed" />
+          </Field.Root>
+          <Field.Root orientation="horizontal">
+            <Field.Content>
+              <Field.Label>Agent needs input</Field.Label>
+            </Field.Content>
+            <Switch aria-label="Agent needs input" />
+          </Field.Root>
+        </Field.Group>
+      </Field.Set>
+      <Field.Set disabled>
+        <Field.Legend variant="label">Advanced (label-size legend, disabled)</Field.Legend>
+        <Field.Root>
+          <Field.Label>Poll interval</Field.Label>
+          <Input placeholder="30s" disabled />
+        </Field.Root>
+      </Field.Set>
+    </Box>
+  ),
+};
+
 /** All states on each surface level — verifies contrast and bg-transparent. */
 export const AcrossSurfaces: Story = {
   render: () => (

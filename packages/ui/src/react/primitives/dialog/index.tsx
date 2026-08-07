@@ -42,6 +42,7 @@ function DialogContent({
   className,
   children,
   size = 'md',
+  onKeyDownCapture,
   ...props
 }: DialogPrimitive.Popup.Props & { size?: DialogSize }) {
   return (
@@ -51,6 +52,15 @@ function DialogContent({
         <DialogPrimitive.Popup
           data-slot="dialog-content"
           className={cx('surface-base', styles.content({ size }), className)}
+          onKeyDownCapture={(event) => {
+            // The global `app.confirm` keybinding (modifier+Enter) already drives
+            // confirm buttons inside dialogs; swallow the browser default so the
+            // focused control doesn't handle the same press a second time.
+            if ((event.metaKey || event.ctrlKey || event.altKey) && event.key === 'Enter') {
+              event.preventDefault();
+            }
+            onKeyDownCapture?.(event);
+          }}
           {...props}
         >
           {children}
@@ -115,10 +125,18 @@ function DialogBody({
   );
 }
 
-function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
+function DialogFooter({
+  className,
+  children,
+  showCloseButton = false,
+  ...props
+}: React.ComponentProps<'div'> & { showCloseButton?: boolean }) {
   return (
     <div data-slot="dialog-footer" className={cx(styles.footer, className)} {...props}>
       {children}
+      {showCloseButton && (
+        <DialogPrimitive.Close render={<Button variant="secondary" />}>Close</DialogPrimitive.Close>
+      )}
     </div>
   );
 }
@@ -128,6 +146,16 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cx(styles.title, className)}
+      {...props}
+    />
+  );
+}
+
+function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
+  return (
+    <DialogPrimitive.Description
+      data-slot="dialog-description"
+      className={cx(styles.description, className)}
       {...props}
     />
   );
@@ -144,4 +172,5 @@ export const Dialog = {
   Body: DialogBody,
   Footer: DialogFooter,
   Title: DialogTitle,
+  Description: DialogDescription,
 };

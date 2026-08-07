@@ -45,7 +45,7 @@ export { Tabs, type TabsTabProps } from './tabs/tabs';
 export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
 export { InputGroup, type InputGroupAddonAlign } from './input-group';
 export { Alert, type AlertProps } from './alert';
-export { Field, type FieldVariants } from './field';
+export { Field, type FieldLegendVariants, type FieldVariants } from './field';
 export {
   Resizable,
   useResizableDefaultLayout,

@@ -70,6 +70,54 @@ export const Sizes: Story = {
   ),
 };
 
+export const WithDescription: Story = {
+  render: () => (
+    <Dialog.Root>
+      <Dialog.Trigger render={<Button variant="ghost">Open dialog</Button>} />
+      <Dialog.Content size="sm">
+        <Dialog.Header>
+          <Dialog.Title>Connect account</Dialog.Title>
+          <Dialog.Description>
+            Authorize access to your <a href="#github">GitHub</a> account to enable pull-request
+            integration.
+          </Dialog.Description>
+        </Dialog.Header>
+        <Dialog.Body>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            The description renders muted supporting text under the title, with inline links
+            underlined.
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Dialog.Close render={<Button variant="ghost">Cancel</Button>} />
+          <Dialog.Close render={<Button variant="primary">Connect</Button>} />
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+  ),
+};
+
+/** Footer `showCloseButton` appends a secondary Close button that dismisses the dialog. */
+export const FooterCloseButton: Story = {
+  render: () => (
+    <Dialog.Root>
+      <Dialog.Trigger render={<Button variant="ghost">Open read-only dialog</Button>} />
+      <Dialog.Content size="sm">
+        <Dialog.Header>
+          <Dialog.Title>Release notes</Dialog.Title>
+        </Dialog.Header>
+        <Dialog.Body>
+          <p className={cx(sx({ color: 'foregroundMuted' }))}>
+            Informational dialogs can opt into the built-in footer Close button instead of wiring
+            their own.
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer showCloseButton />
+      </Dialog.Content>
+    </Dialog.Root>
+  ),
+};
+
 export const Confirmation: Story = {
   render: () => (
     <Dialog.Root>

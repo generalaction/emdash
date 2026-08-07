@@ -1,8 +1,9 @@
 import { Field as FieldPrimitive } from '@base-ui/react/field';
+import { Fieldset as FieldsetPrimitive } from '@base-ui/react/fieldset';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
 import * as styles from './field.css';
-import type { FieldVariants } from './field.css';
+import type { FieldLegendVariants, FieldVariants } from './field.css';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,49 @@ function FieldError({ className, ...props }: FieldPrimitive.Error.Props) {
   );
 }
 
+// ── Grouping ──────────────────────────────────────────────────────────────────
+
+/**
+ * FieldSet — a semantic `<fieldset>` grouping related fields; pair with
+ * FieldLegend. Disabling the fieldset disables every field inside it.
+ */
+function FieldSet({ className, ...props }: FieldsetPrimitive.Root.Props) {
+  return (
+    <FieldsetPrimitive.Root
+      data-slot="field-set"
+      className={cx(styles.fieldSet, className)}
+      {...props}
+    />
+  );
+}
+
+/**
+ * FieldLegend — the heading of a FieldSet. The `label` variant drops it to
+ * label-size typography for compact groups.
+ */
+function FieldLegend({
+  className,
+  variant = 'legend',
+  ...props
+}: FieldsetPrimitive.Legend.Props & FieldLegendVariants) {
+  return (
+    <FieldsetPrimitive.Legend
+      data-slot="field-legend"
+      data-variant={variant}
+      className={cx(styles.fieldLegend({ variant }), className)}
+      {...props}
+    />
+  );
+}
+
+/**
+ * FieldGroup — a plain vertical stack of Field rows with consistent spacing.
+ * Use inside dialogs/forms to lay out multiple fields.
+ */
+function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
+  return <div data-slot="field-group" className={cx(styles.fieldGroup, className)} {...props} />;
+}
+
 export const Field = {
   Root: FieldRoot,
   Content: FieldContent,
@@ -107,6 +151,9 @@ export const Field = {
   Label: FieldLabel,
   Description: FieldDescription,
   Error: FieldError,
+  Set: FieldSet,
+  Legend: FieldLegend,
+  Group: FieldGroup,
 };
 
-export type { FieldVariants };
+export type { FieldLegendVariants, FieldVariants };

@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { kfFadeIn, kfFadeOut, kfPopupIn, kfPopupOut } from '@styles/effects/animations.css';
 import { vars } from '@theme/core/contract/contract.css';
@@ -96,6 +96,18 @@ export const footer = style({
 export const title = style({
   fontSize: tokenVars.textSm,
   letterSpacing: '-0.015em',
+  color: vars.foreground,
+});
+
+export const description = style({
+  fontSize: tokenVars.textSm,
+  color: vars.foregroundMuted,
+});
+globalStyle(`${description} a`, {
+  textDecoration: 'underline',
+  textUnderlineOffset: '3px',
+});
+globalStyle(`${description} a:hover`, {
   color: vars.foreground,
 });
 

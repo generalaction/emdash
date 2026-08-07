@@ -23,6 +23,10 @@ export const alertRoot = style({
   backgroundColor: vars.surface,
   borderColor: vars.surfaceBorder,
   color: vars.surfaceForeground,
+  selectors: {
+    // Reserve room for the top-right action slot so text never runs under it.
+    '&:has([data-slot=alert-action])': { paddingRight: '4.5rem' },
+  },
 });
 
 export const alertIcon = style({
@@ -47,6 +51,16 @@ export const alertTitle = style({
 export const alertDescription = style({
   lineHeight: 1.5,
   opacity: 0.9,
+});
+
+/** Free-form action slot pinned to the top-right corner of the alert. */
+export const alertAction = style({
+  position: 'absolute',
+  top: '0.625rem',
+  right: '0.75rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.25rem',
 });
 
 /** Dismiss button pinned to the top-right corner of the alert. */

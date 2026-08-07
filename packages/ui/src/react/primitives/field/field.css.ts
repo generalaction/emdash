@@ -68,3 +68,40 @@ export const fieldError = style({
   fontSize: tokenVars.textSm,
   color: vars.foregroundDestructive,
 });
+
+// A semantic grouping of related fields (renders a <fieldset>).
+export const fieldSet = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '1.5rem',
+  minWidth: 0,
+  margin: 0,
+  padding: 0,
+  border: 0,
+});
+
+export const fieldLegend = recipe({
+  base: {
+    marginBottom: '0.75rem',
+    padding: 0,
+    fontWeight: 500,
+    color: vars.foreground,
+  },
+  variants: {
+    variant: {
+      legend: { fontSize: tokenVars.textBase },
+      label: { fontSize: tokenVars.textSm },
+    },
+  },
+  defaultVariants: { variant: 'legend' },
+});
+
+export type FieldLegendVariants = NonNullable<RecipeVariants<typeof fieldLegend>>;
+
+// Vertical stack of Field rows with consistent spacing.
+export const fieldGroup = style({
+  display: 'flex',
+  flexDirection: 'column',
+  width: '100%',
+  gap: '1rem',
+});
