@@ -6,6 +6,7 @@ import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { watchFileContent } from '@core/features/editor/api/browser/files';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { terminalsContract } from '@core/features/terminals/api';
 import { getTerminalsClient } from '@core/features/terminals/api/browser/client';
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
@@ -13,7 +14,6 @@ import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import {
   addTabId,
@@ -23,6 +23,7 @@ import {
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { log } from '@renderer/utils/logger';
+import { getProjectSettingsClient } from './client';
 
 export type ScriptType = 'prepare' | 'setup' | 'run' | 'teardown';
 
@@ -151,8 +152,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       if (this._loaded) return;
       void this.load();
     });
-    void getDesktopWireClient().then(async (client) => {
-      const unsubscribe = await client.projects.events.subscribe(undefined, {
+    void getProjectsWireClient().then(async (client) => {
+      const unsubscribe = await client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.projectId === this.projectId) this.reloadIfLoaded();
         },
@@ -237,8 +238,8 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
     const result = await (
-      await getDesktopWireClient()
-    ).projectSettings.getSettings({ workspaceId: this.workspaceId });
+      await getProjectSettingsClient()
+    ).getSettings({ workspaceId: this.workspaceId });
     if (this._disposed) return;
     if (!result.success) return;
     const settings = result.data;
