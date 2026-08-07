@@ -170,8 +170,9 @@ export class Resource<T, TEventData = void> {
     return this._inFlight;
   }
 
-  /** Schedule a fresh load (fire-and-forget). */
+  /** Schedule a fresh load (fire-and-forget). No-op after dispose(). */
   invalidate(): void {
+    if (this._scope.disposed) return;
     if (this._inFlight) {
       this._reloadQueued = true;
       return;
@@ -321,6 +322,10 @@ export class Resource<T, TEventData = void> {
       : null;
 
     const rawHandler = (event: TEventData) => {
+      // Scope cleanup crosses microtask boundaries, so the subscription can
+      // still deliver events synchronously after dispose(); `disposed` flips
+      // synchronously, making this guard close that window.
+      if (this._scope.disposed) return;
       if (strategy.onEvent === 'reload') {
         if (debouncedReload) {
           debouncedReload.call();

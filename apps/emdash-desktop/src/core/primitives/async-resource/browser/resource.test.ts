@@ -71,6 +71,36 @@ describe('Resource', () => {
     expect(resource.data).toBe('fresh');
   });
 
+  it('ignores an event delivered synchronously after dispose', async () => {
+    let fetchCount = 0;
+    let emit: (() => void) | undefined;
+    const resource = new Resource(async () => {
+      fetchCount += 1;
+      return fetchCount;
+    }, [
+      {
+        kind: 'event',
+        subscribe: (handler) => {
+          emit = () => handler(undefined);
+          return () => {};
+        },
+        onEvent: 'reload',
+      },
+    ]);
+
+    resource.start();
+    await settle();
+    expect(fetchCount).toBe(1);
+
+    // Scope cleanup runs across microtasks, so the subscription is still live
+    // on the tick dispose() returns; the event must not trigger a fetch.
+    resource.dispose();
+    emit?.();
+    await settle();
+
+    expect(fetchCount).toBe(1);
+  });
+
   it('runs one fresh reload after an invalidation arrives during an in-flight load', async () => {
     let fetchCount = 0;
     let releaseFirst: (() => void) | undefined;
@@ -323,6 +353,22 @@ describe('Resource', () => {
       await settle();
       expect(fetchCount()).toBe(1);
       expect(unsubscribeCount()).toBe(1);
+    });
+
+    it('ignores an event delivered synchronously after dispose', async () => {
+      const { clock, resource, emit, fetchCount } = createEventResource(100);
+
+      resource.start();
+      await settle();
+      expect(fetchCount()).toBe(1);
+
+      resource.dispose();
+      emit();
+      await settle();
+
+      await clock.advanceBy(1_000);
+      await settle();
+      expect(fetchCount()).toBe(1);
     });
   });
 
