@@ -20,7 +20,12 @@ this is the setup-broken-vs-HEAD-red disambiguator. Decision detail:
       from node-abi, since an Electron-ABI binary cannot load under system Node)
 - [x] Report-only: it fixes nothing, but every failure line names the fixing command
 - [x] Test/check failure output references the doctor (root `pnpm run check` failure hint;
-      vitest internals untouched)
+      vitest internals untouched). Follow-up 2026-08-06: plain root `pnpm run test` failures
+      now surface the same hint via `tooling/scripts/test.mjs` (root `test` script wraps the
+      Nx run; unit-tested in `apps/emdash-desktop/scripts/root-test-wrapper.test.ts`)
 - [x] Baseline procedure re-run recorded (success-criteria checkpoint from the
       [spec](../../dev-setup-overhaul/spec.md)): one command from clone, zero interventions,
-      doctor green — re-run transcript in the build handoff report
+      doctor green — recorded in
+      [baseline-rerun.md](../../dev-setup-overhaul/assets/baseline-rerun.md) (7.5s install,
+      ~70s to window on a repo two months bigger than the original 52s measurement, doctor
+      green, fixtures ok)
