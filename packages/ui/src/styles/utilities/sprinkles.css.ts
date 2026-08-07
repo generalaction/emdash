@@ -14,7 +14,7 @@ import '../surfaces.css';
  * :root vars emitted by tokens.css.ts.
  *
  * Usage:
- *   import { sx } from '@emdash/ui/theme/sprinkles';
+ *   import { sx } from '@emdash/ui/styles/sprinkles';
  *   <div className={sx({ display: 'flex', background: 'surface', padding: '3' })} />
  */
 import { createSprinkles, defineProperties } from '@vanilla-extract/sprinkles';
