@@ -324,6 +324,26 @@ describe('PreviewServerService', () => {
     expect(context.openedTunnels).toBe(2);
   });
 
+  it('reuses a manual forward when SSH detection finds the same remote port', async () => {
+    const context = createService();
+    const manualResult = await context.service.forwardManual({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      connectionId: 'connection-1',
+      protocol: 'http:',
+      remotePort: 5173,
+    });
+    if (!manualResult.success) throw new Error('manual forward failed');
+
+    const detected = await registerSsh(context.service);
+
+    expect(detected).toBe(manualResult.data);
+    expect(context.openedTunnels).toBe(1);
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([manualResult.data]);
+  });
+
   it('returns an error result and removes the row when manual tunnel opening fails', async () => {
     const context = createService({
       openTunnel: async () => {

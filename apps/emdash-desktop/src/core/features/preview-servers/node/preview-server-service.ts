@@ -346,6 +346,16 @@ export class PreviewServerService {
   private async registerForwardedTarget(
     target: RegisterDetectedPreviewTarget & { transport: 'ssh' }
   ): Promise<ForwardedPreviewServer> {
+    const existingForward = Array.from(this.servers.values()).find(
+      (server): server is ForwardedPreviewServer =>
+        server.kind === 'forwarded' &&
+        server.connectionId === target.connectionId &&
+        server.remotePort === target.port &&
+        server.projectId === target.projectId &&
+        server.workspaceId === target.workspaceId
+    );
+    if (existingForward) return existingForward;
+
     const identity = sshAutoIdentity(target);
     const existing = this.serverForIdentity(identity);
     if (existing?.kind === 'forwarded') return existing;
