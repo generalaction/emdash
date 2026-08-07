@@ -123,7 +123,7 @@ const checks: ContractCheck[] = [
     scope: surfaceDirs,
     allowlist: [
       {
-        path: 'core/features/tasks/api/browser/task-config/initial-conversation-section.tsx',
+        path: 'core/features/tasks/contributions/browser/task-config/initial-conversation-section.tsx',
         reason:
           'New-conversation preferences (auto-approve, chat-ui opt-in) — user preferences, ' +
           'not layout state. Layout persistence goes through mementos.',
