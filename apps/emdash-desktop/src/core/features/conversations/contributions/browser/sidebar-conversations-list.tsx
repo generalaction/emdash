@@ -36,10 +36,10 @@ import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-r
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getAcpChatResourceManager } from '../../browser/acp/acp-chat-resource-manager';
-import { ConversationAgentIcon } from '../../browser/conversation-agent-icon';
-import { ConversationSelectionControl } from '../../browser/conversation-selection-control';
-import { deleteConversationBatch } from '../../browser/delete-conversation-batch';
+import { getAcpChatResourceManager } from '@core/features/conversations/browser/acp/acp-chat-resource-manager';
+import { ConversationAgentIcon } from '@core/features/conversations/browser/conversation-agent-icon';
+import { ConversationSelectionControl } from '@core/features/conversations/browser/conversation-selection-control';
+import { deleteConversationBatch } from '@core/features/conversations/browser/delete-conversation-batch';
 
 const ROW_HEIGHT = 32;
 const SECTION_HEADER_HEIGHT = 32;
