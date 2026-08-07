@@ -1,12 +1,8 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import {
-  mergeSkillsInstalledState,
-  type CatalogIndex,
-  type CatalogSkill,
-} from '@emdash/core/primitives/skills/api';
+import { mergeSkillsInstalledState, type CatalogIndex } from '@emdash/core/primitives/skills/api';
 import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { getCatalogClient } from '@core/features/catalog/api/browser/client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
@@ -25,8 +21,6 @@ export function useSkills({
 } = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const { data: installedLiveSkills, isLoading: isLoadingInstalled } =
     useInstalledSkillsLiveModel(host);
 
@@ -137,17 +131,6 @@ export function useSkills({
     [uninstallMutation]
   );
 
-  const { data: detailData, isFetching: isLoadingDetail } = useQuery({
-    queryKey: ['skills', 'detail', selectedSkillId],
-    queryFn: async () => {
-      const client = await getCatalogClient();
-      const result = await client.getSkillContent({ skillId: selectedSkillId! });
-      if (result.success) return result.data;
-      throw new Error(result.error.message);
-    },
-    enabled: !!selectedSkillId && showDetailModal,
-  });
-
   const skillShQuery = useDebounce(searchQuery.trim(), 300);
   const { data: skillShSkills = [], isFetching: isSearchingSkillSh } = useQuery({
     queryKey: ['skills', 'skillssh-search', skillShQuery],
@@ -169,42 +152,6 @@ export function useSkills({
     };
     return mergeSkillsInstalledState(index, installedLiveSkills).skills;
   }, [rawCatalog, skillShSkills, installedLiveSkills]);
-
-  const selectedSkill = useMemo<CatalogSkill | null>(() => {
-    if (!selectedSkillId || !showDetailModal) return null;
-    const selected =
-      detailData ??
-      catalog?.skills.find((s) => s.id === selectedSkillId) ??
-      mergedSkillShSkills.find((s) => s.id === selectedSkillId) ??
-      null;
-    if (!selected) return null;
-    return mergeSkillsInstalledState(
-      {
-        version: rawCatalog?.version ?? 0,
-        lastUpdated: rawCatalog?.lastUpdated ?? new Date(0).toISOString(),
-        skills: [selected],
-      },
-      installedLiveSkills
-    ).skills[0];
-  }, [
-    selectedSkillId,
-    showDetailModal,
-    detailData,
-    catalog,
-    mergedSkillShSkills,
-    rawCatalog,
-    installedLiveSkills,
-  ]);
-
-  const openDetail = useCallback((skill: CatalogSkill) => {
-    setSelectedSkillId(skill.id);
-    setShowDetailModal(true);
-  }, []);
-
-  const closeDetail = useCallback(() => {
-    setShowDetailModal(false);
-    setSelectedSkillId(null);
-  }, []);
 
   const filteredSkills = useMemo(() => {
     if (!catalog) return [];
@@ -249,9 +196,6 @@ export function useSkills({
     isLoading,
     isRefreshing: refreshMutation.isPending,
     searchQuery,
-    selectedSkill,
-    isLoadingDetail,
-    showDetailModal,
     filteredSkills,
     installedSkills,
     recommendedSkills,
@@ -260,8 +204,6 @@ export function useSkills({
     refresh,
     install,
     uninstall,
-    openDetail,
-    closeDetail,
   };
 }
 

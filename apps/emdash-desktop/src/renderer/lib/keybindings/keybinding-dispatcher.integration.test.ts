@@ -1,14 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { closeSettingsCommand } from '@core/features/settings/contributions/commands';
+import { settingsScope } from '@core/features/settings/contributions/scopes';
 import {
   archiveTaskCommand,
   newConversationCommand,
 } from '@core/features/tasks/contributions/commands';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import {
+  closeModalCommand,
   commandPaletteCommand,
   settingsCommand,
 } from '@core/features/workbench/contributions/commands';
+import { modalScope } from '@core/features/workbench/contributions/scopes';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { buildBrowserClaims } from '@core/manifests/shared/browser-claims';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
@@ -41,18 +45,18 @@ function implementationFor<TDefinition extends ViewScopeDefinition>(
   ) as unknown as ViewScopeImpl<TDefinition>;
 }
 
-function eventFor(key: string, code: string) {
+function eventFor(key: string, code: string, metaKey = true) {
   return {
     key,
     code,
     ctrlKey: false,
-    metaKey: true,
+    metaKey,
     altKey: false,
     shiftKey: false,
     repeat: false,
     isComposing: false,
     target: null,
-    getModifierState: (modifier: string) => modifier === 'Meta',
+    getModifierState: (modifier: string) => metaKey && modifier === 'Meta',
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
   } as unknown as KeyboardEvent;
@@ -75,6 +79,29 @@ function createRuntime(
 }
 
 describe('KeybindingDispatcher catalog integration', () => {
+  it('routes Escape to a capturing modal before the settings view', () => {
+    const execute = vi.fn();
+    const runtime = new ViewScopes(undefined);
+    const settings = runtime.instantiate(settingsScope(), {
+      impl: implementationFor(settingsScope, execute),
+    });
+    const modal = runtime.instantiate(modalScope(), {
+      parent: settings,
+      impl: implementationFor(modalScope, execute),
+    });
+    runtime.activate(modal);
+    const dispatcher = new KeybindingDispatcher(
+      new KeybindingService(COMMAND_CATALOG.defs, { os: 'linux' }),
+      runtime
+    );
+
+    expect(dispatcher.dispatch(eventFor('Escape', 'Escape', false)).kind).toBe('winner');
+    expect(execute).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledWith(closeModalCommand.id);
+    expect(execute).not.toHaveBeenCalledWith(closeSettingsCommand.id);
+    runtime.dispose();
+  });
+
   it('dispatches task and window commands through the active scope path', () => {
     const execute = vi.fn();
     const runtime = createRuntime(execute);

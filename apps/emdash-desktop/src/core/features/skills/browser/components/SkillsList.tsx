@@ -2,7 +2,6 @@ import { CardGridSection } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { SkillCard } from '@core/features/skills/browser/components/SkillCard';
-import { SkillDetailModal } from '@core/features/skills/browser/components/SkillDetailModal';
 import type { UseSkillsResult } from '@core/features/skills/browser/components/useSkills';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 
@@ -13,23 +12,33 @@ type SkillsListProps = {
 
 export const SkillsList: React.FC<SkillsListProps> = ({ skills, onOpenTerminal }) => {
   const openConfirm = useOpenModal('confirmActionModal');
+  const openSkillDetail = useOpenModal('skillDetailModal');
 
   const handleUninstallRequest = useCallback(
-    (skillId: string) => {
+    async (skillId: string): Promise<boolean> => {
       const displayName =
         skills.catalog?.skills.find((skill) => skill.id === skillId)?.displayName ?? skillId;
-      void openConfirm({
+      const outcome = await openConfirm({
         title: 'Uninstall skill?',
         description: `This will uninstall "${displayName}" from all agents. This action cannot be undone.`,
         confirmLabel: 'Uninstall',
-      }).then((outcome) => {
-        if (outcome.success) {
-          skills.closeDetail();
-          void skills.uninstall(skillId);
-        }
       });
+      if (!outcome.success) return false;
+      return skills.uninstall(skillId);
     },
     [openConfirm, skills]
+  );
+
+  const handleOpenDetail = useCallback(
+    (skill: UseSkillsResult['filteredSkills'][number]) => {
+      void openSkillDetail({
+        skill,
+        onInstall: skills.install,
+        onUninstall: handleUninstallRequest,
+        onOpenTerminal,
+      });
+    },
+    [handleUninstallRequest, onOpenTerminal, openSkillDetail, skills.install]
   );
 
   if (skills.isLoading) {
@@ -52,7 +61,7 @@ export const SkillsList: React.FC<SkillsListProps> = ({ skills, onOpenTerminal }
                 isInstalled={true}
                 onInstall={skills.install}
                 onUninstall={handleUninstallRequest}
-                onClick={() => skills.openDetail(skill)}
+                onClick={() => handleOpenDetail(skill)}
               />
             ))}
           </CardGridSection>
@@ -66,7 +75,7 @@ export const SkillsList: React.FC<SkillsListProps> = ({ skills, onOpenTerminal }
                 isInstalled={false}
                 onInstall={skills.install}
                 onUninstall={handleUninstallRequest}
-                onClick={() => skills.openDetail(skill)}
+                onClick={() => handleOpenDetail(skill)}
               />
             ))}
           </CardGridSection>
@@ -82,21 +91,12 @@ export const SkillsList: React.FC<SkillsListProps> = ({ skills, onOpenTerminal }
                 isInstalled={false}
                 onInstall={skills.install}
                 onUninstall={handleUninstallRequest}
-                onClick={() => skills.openDetail(skill)}
+                onClick={() => handleOpenDetail(skill)}
               />
             ))}
           </CardGridSection>
         )}
       </div>
-      <SkillDetailModal
-        skill={skills.selectedSkill}
-        isLoading={skills.isLoadingDetail}
-        isOpen={skills.showDetailModal}
-        onClose={skills.closeDetail}
-        onInstall={skills.install}
-        onUninstall={handleUninstallRequest}
-        onOpenTerminal={onOpenTerminal}
-      />
     </div>
   );
 };

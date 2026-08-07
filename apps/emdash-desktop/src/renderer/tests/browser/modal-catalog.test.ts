@@ -1,4 +1,5 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
+import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import type { Result } from '@emdash/shared';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { openModal } from '@core/manifests/browser/modal-api';
@@ -31,6 +32,7 @@ const expectedModalIds = [
   'quitUnsavedChangesModal',
   'renameTaskModal',
   'shareProjectConfigModal',
+  'skillDetailModal',
   'taskModal',
   'unsavedChangesModal',
 ] as const;
@@ -45,6 +47,14 @@ function openRemoteCreateSkillForTypeTest(host: HostRef) {
   return openModal('createSkillModal', { host });
 }
 
+function openSkillDetailForTypeTest(skill: CatalogSkill) {
+  return openModal('skillDetailModal', {
+    skill,
+    onInstall: async () => true,
+    onUninstall: async () => true,
+  });
+}
+
 describe('modalCatalog', () => {
   it('contains every modal exactly once', () => {
     const catalogIds = modalCatalog.defs.map((definition) => definition.id).sort();
@@ -57,6 +67,9 @@ describe('modalCatalog', () => {
       Promise<Result<'save' | 'discard', ModalDismissed>>
     >();
     expectTypeOf<ReturnType<typeof openRemoteCreateSkillForTypeTest>>().toEqualTypeOf<
+      Promise<Result<void, ModalDismissed>>
+    >();
+    expectTypeOf<ReturnType<typeof openSkillDetailForTypeTest>>().toEqualTypeOf<
       Promise<Result<void, ModalDismissed>>
     >();
   });
