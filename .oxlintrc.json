@@ -47,8 +47,7 @@
     "typescript/restrict-template-expressions": "off",
     "typescript/unbound-method": "off",
     "emdash/core-module-boundaries": "error",
-    "emdash/no-dynamic-imports": "error",
-    "emdash/no-legacy-ui-kit": "error"
+    "emdash/no-dynamic-imports": "error"
   },
   "overrides": [
     {
