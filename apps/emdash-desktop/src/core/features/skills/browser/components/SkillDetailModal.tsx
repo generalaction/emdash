@@ -1,19 +1,11 @@
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import { parseFrontmatter } from '@emdash/core/primitives/skills/api';
 import { Markdown } from '@emdash/ui/react/components';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog } from '@emdash/ui/react/primitives';
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
-import {
-  Dialog,
-  DialogContent,
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 const sourceMeta = {
@@ -75,15 +67,15 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   const showLoadingContent = isLoading && !skill.skillMdContent;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isProcessing && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && !isProcessing && onClose()}>
+      <Dialog.Content className="sm:max-w-2xl">
+        <Dialog.Header>
           <div className="flex items-center gap-3">
             <SkillIconRenderer skill={skill} />
             <div className="min-w-0 flex-1">
-              <DialogTitle className="font-sans text-base tracking-normal text-foreground normal-case">
+              <Dialog.Title className="font-sans text-base tracking-normal text-foreground normal-case">
                 {skill.displayName}
-              </DialogTitle>
+              </Dialog.Title>
               {meta && (
                 <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
                   <img src={meta.icon} alt="" className="h-4 w-4 rounded-sm" />
@@ -92,8 +84,8 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               )}
             </div>
           </div>
-        </DialogHeader>
-        <DialogContentArea>
+        </Dialog.Header>
+        <Dialog.Body>
           {showLoadingContent && <SkillDetailShimmer />}
 
           {!showLoadingContent && skill.defaultPrompt && (
@@ -113,9 +105,9 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               onOpenLink={openLink}
             />
           )}
-        </DialogContentArea>
+        </Dialog.Body>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <Dialog.Footer className="gap-2 sm:gap-2">
           {skill.installed && (
             <>
               <Button
@@ -146,9 +138,9 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               {isProcessing ? 'Installing...' : 'Install'}
             </ConfirmButton>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
   );
 };
 

@@ -1,17 +1,9 @@
-import { Button, ModalLayout } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Field, Input, ModalLayout } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
 import {
   ProjectDirectoryPicker,
   type ProjectDirectoryPickerClient,
@@ -60,12 +52,12 @@ export function DirectorySelectorModal({
   return (
     <ModalLayout
       header={
-        <DialogHeader>
-          <DialogTitle>Select Remote Directory</DialogTitle>
-        </DialogHeader>
+        <Dialog.Header>
+          <Dialog.Title>Select Remote Directory</Dialog.Title>
+        </Dialog.Header>
       }
       footer={
-        <DialogFooter>
+        <Dialog.Footer>
           <Button variant="secondary" onClick={modal.dismiss}>
             Cancel
           </Button>
@@ -77,37 +69,40 @@ export function DirectorySelectorModal({
           >
             Select
           </ConfirmButton>
-        </DialogFooter>
+        </Dialog.Footer>
       }
     >
-      <DialogContentArea data-autofocus tabIndex={-1} className="gap-4">
-        {isPreparingPicker ? (
-          <div className="rounded-md border border-border bg-background-1 p-3 text-sm text-foreground-muted">
-            Preparing folder browser...
-          </div>
-        ) : (
-          <ProjectDirectoryPicker
-            strategy="ssh"
-            connectionId={connectionId}
-            initialPath={pickerInitialPath}
-            homePath={homeQuery.data ?? ''}
-            homePending={homeQuery.isPending}
-            homeError={homeQuery.error}
-            value={selectedPath}
-            getProjectsClient={getProjectsClient}
-            onSelect={setSelectedPathOverride}
-          />
-        )}
-        <Field>
-          <FieldLabel>Path</FieldLabel>
-          <Input
-            value={selectedPath}
-            placeholder="/home/user/project"
-            spellCheck={false}
-            onChange={(event) => setSelectedPathOverride(event.target.value)}
-          />
-        </Field>
-      </DialogContentArea>
+      <Dialog.Body className="gap-4">
+        {/* Initial-focus target: keeps the modal from auto-focusing the path input. */}
+        <div data-autofocus tabIndex={-1} className="flex flex-col gap-4 outline-none">
+          {isPreparingPicker ? (
+            <div className="rounded-md border border-border bg-background-1 p-3 text-sm text-foreground-muted">
+              Preparing folder browser...
+            </div>
+          ) : (
+            <ProjectDirectoryPicker
+              strategy="ssh"
+              connectionId={connectionId}
+              initialPath={pickerInitialPath}
+              homePath={homeQuery.data ?? ''}
+              homePending={homeQuery.isPending}
+              homeError={homeQuery.error}
+              value={selectedPath}
+              getProjectsClient={getProjectsClient}
+              onSelect={setSelectedPathOverride}
+            />
+          )}
+          <Field.Root>
+            <Field.Label>Path</Field.Label>
+            <Input
+              value={selectedPath}
+              placeholder="/home/user/project"
+              spellCheck={false}
+              onChange={(event) => setSelectedPathOverride(event.target.value)}
+            />
+          </Field.Root>
+        </div>
+      </Dialog.Body>
     </ModalLayout>
   );
 }

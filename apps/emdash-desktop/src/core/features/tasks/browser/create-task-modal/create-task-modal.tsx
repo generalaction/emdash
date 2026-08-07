@@ -1,3 +1,4 @@
+import { Dialog } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
@@ -16,12 +17,6 @@ import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
@@ -116,10 +111,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   return (
     <>
-      <DialogHeader className="flex items-center gap-2">
-        <DialogTitle>Create Task</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea>
+      <Dialog.Header className="flex items-center gap-2">
+        <Dialog.Title>Create Task</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>
         <div className="flex w-full flex-col gap-5">
           <TaskNameField state={state.taskName} />
           <LinkedEntitySection
@@ -158,8 +153,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             />
           </TaskStateProvider>
         </div>
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <ConfirmButton
           variant="primary"
           size="sm"
@@ -168,7 +163,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         >
           Create
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 });

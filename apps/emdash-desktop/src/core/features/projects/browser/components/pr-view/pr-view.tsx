@@ -1,8 +1,10 @@
 import {
   Button,
   ContextMenu,
+  Input,
   Popover,
   SearchInput,
+  Select,
   ToggleGroup,
 } from '@emdash/ui/react/primitives';
 import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
@@ -18,14 +20,6 @@ import {
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
-import { Input } from '@core/primitives/ui/browser/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import type { PullRequestSort } from '@root/src/core/services/pull-requests/api';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
@@ -319,21 +313,21 @@ const PullRequestViewContent = observer(function PullRequestViewContent({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-sm text-foreground-passive">Sort</span>
-              <Select value={sortFilter} onValueChange={handleSortChange}>
-                <SelectTrigger
+              <Select.Root value={sortFilter} onValueChange={handleSortChange}>
+                <Select.Trigger
                   size="sm"
                   className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
                   {SORT_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>
+                    <Select.Item key={value} value={value}>
                       {label}
-                    </SelectItem>
+                    </Select.Item>
                   ))}
-                </SelectContent>
-              </Select>
+                </Select.Content>
+              </Select.Root>
             </div>
 
             <div className="flex items-center gap-3">

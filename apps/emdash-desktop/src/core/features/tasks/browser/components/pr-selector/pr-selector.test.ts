@@ -29,8 +29,10 @@ vi.mock('@root/src/core/services/pull-requests/browser/components/pr-status-icon
   };
 });
 
-vi.mock('@core/primitives/ui/browser/select', async () => {
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const React = await import('react');
+
   type SelectContextValue = {
     onValueChange?: (value: string) => void;
   };
@@ -46,31 +48,6 @@ vi.mock('@core/primitives/ui/browser/select', async () => {
       children
     );
   }
-
-  return {
-    Select: ({
-      children,
-      onValueChange,
-    }: {
-      children: React.ReactNode;
-      onValueChange?: (value: string) => void;
-    }) =>
-      React.createElement(
-        SelectContext.Provider,
-        { value: { onValueChange } },
-        React.createElement('div', {}, children)
-      ),
-    SelectContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    SelectItem: MockSelectItem,
-    SelectTrigger: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-  };
-});
-
-vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  const React = await import('react');
 
   type ComboboxContextValue = {
     items?: PullRequest[];
@@ -102,6 +79,25 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
 
   return {
     ...actual,
+    Select: {
+      Root: ({
+        children,
+        onValueChange,
+      }: {
+        children: React.ReactNode;
+        onValueChange?: (value: string) => void;
+      }) =>
+        React.createElement(
+          SelectContext.Provider,
+          { value: { onValueChange } },
+          React.createElement('div', {}, children)
+        ),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Item: MockSelectItem,
+      Trigger: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+    },
     Combobox: {
       Root: ({
         children,

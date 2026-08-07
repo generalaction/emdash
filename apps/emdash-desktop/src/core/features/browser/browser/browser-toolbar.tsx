@@ -1,4 +1,4 @@
-import { Button, DropdownMenu, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Input, Tooltip } from '@emdash/ui/react/primitives';
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,7 +32,6 @@ import {
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Input } from '@core/primitives/ui/browser/input';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {

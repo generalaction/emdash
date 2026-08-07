@@ -1,5 +1,5 @@
 import { err, type Result } from '@emdash/shared';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Field, RadioGroup, Select } from '@emdash/ui/react/primitives';
 import { Check, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -13,20 +13,6 @@ import type {
   ProjectConfigMigrationProvider,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup } from '@core/primitives/ui/browser/field';
-import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@core/primitives/ui/browser/select';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type ImportStatus = 'idle' | 'importing' | 'imported' | 'error';
@@ -104,34 +90,34 @@ export function ProjectConfigImportModal({
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>Import project config</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="pt-0">
-        <FieldGroup>
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>Import project config</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="pt-0">
+        <Field.Group>
           <p className="text-sm text-foreground-muted">{description}</p>
           {migrations.length > 1 && (
-            <Field>
-              <Select
+            <Field.Root>
+              <Select.Root
                 value={selectedMigration?.provider ?? ''}
                 onValueChange={(value) =>
                   setSelectedProvider(value as ProjectConfigMigrationProvider)
                 }
               >
-                <SelectTrigger className="w-full min-w-0">
+                <Select.Trigger className="w-full min-w-0">
                   <span className="min-w-0 truncate">
                     {selectedMigration?.label ?? 'Select config'}
                   </span>
-                </SelectTrigger>
-                <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+                </Select.Trigger>
+                <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
                   {migrations.map((migration) => (
-                    <SelectItem key={migration.provider} value={migration.provider}>
+                    <Select.Item key={migration.provider} value={migration.provider}>
                       {migration.label} ({filesLabel(migration.files)})
-                    </SelectItem>
+                    </Select.Item>
                   ))}
-                </SelectContent>
-              </Select>
-            </Field>
+                </Select.Content>
+              </Select.Root>
+            </Field.Root>
           )}
 
           {selectedMigration ? (
@@ -147,33 +133,33 @@ export function ProjectConfigImportModal({
 
           <div className="space-y-2 text-sm">
             <p>Save to</p>
-            <RadioGroup
+            <RadioGroup.Root
               value={destination}
               onValueChange={(value) => setDestination(value as ProjectConfigMigrationDestination)}
               className="grid"
             >
               <label className="flex items-center gap-3 rounded-md text-sm">
-                <RadioGroupItem value="local" className="translate-y-px" />
+                <RadioGroup.Item value="local" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
                   <p>Settings</p>
                   <p className="text-foreground-muted">– local to this machine</p>
                 </span>
               </label>
               <label className="flex items-center gap-3 rounded-md text-sm">
-                <RadioGroupItem value="shared" className="translate-y-px" />
+                <RadioGroup.Item value="shared" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
                   <p>.emdash.json</p>
                   <p className="text-foreground-muted">– commit to share with team</p>
                 </span>
               </label>
-            </RadioGroup>
+            </RadioGroup.Root>
           </div>
           {status === 'error' ? (
             <p className="text-xs text-foreground-error">{errorMessage}</p>
           ) : null}
-        </FieldGroup>
-      </DialogContentArea>
-      <DialogFooter>
+        </Field.Group>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={modal.dismiss} disabled={status === 'importing'}>
           {status === 'imported' ? 'Close' : 'Cancel'}
         </Button>
@@ -188,7 +174,7 @@ export function ProjectConfigImportModal({
                 : 'Import'}
           </span>
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

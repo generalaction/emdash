@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Input } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -7,8 +7,6 @@ import {
 } from '@core/features/integrations/api/browser/integrations-provider';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { DialogHeader, DialogTitle } from '@core/primitives/ui/browser/dialog';
-import { Input } from '@core/primitives/ui/browser/input';
 import { SetupFormShell } from './SetupFormShell';
 import type { SetupIntegrationType } from './types';
 
@@ -25,9 +23,9 @@ export function IntegrationSetupModal({ integration }: Props) {
 
   return (
     <>
-      <DialogHeader className="flex-col items-start gap-1" showCloseButton={false}>
-        <DialogTitle>{metadata ? `Connect ${metadata.name}` : 'Connect integration'}</DialogTitle>
-      </DialogHeader>
+      <Dialog.Header className="flex-col items-start gap-1" showCloseButton={false}>
+        <Dialog.Title>{metadata ? `Connect ${metadata.name}` : 'Connect integration'}</Dialog.Title>
+      </Dialog.Header>
       {metadata ? (
         <IntegrationSetupForm
           integration={integration}

@@ -1,8 +1,6 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Field, Input } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
 import React from 'react';
-import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 
 export interface KVEntry {
@@ -46,8 +44,8 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
   };
 
   return (
-    <Field>
-      <FieldLabel>{label}</FieldLabel>
+    <Field.Root>
+      <Field.Label>{label}</Field.Label>
       <div className="space-y-2">
         {entries.map((entry, i) => {
           const isCredential = credentialKeys.has(entry.key);
@@ -101,6 +99,6 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
           {addLabel}
         </Button>
       </div>
-    </Field>
+    </Field.Root>
   );
 };

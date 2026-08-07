@@ -1,10 +1,8 @@
-import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Input, Switch, Tabs, Tooltip } from '@emdash/ui/react/primitives';
 import { Ellipsis, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { useAutomationTargetAvailability, useRunAutomationNow } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
@@ -65,13 +63,13 @@ export const AutomationDetailView = observer(function AutomationDetailView({
       <div className="flex flex-col gap-2 px-4">
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex flex-1 flex-row items-center gap-3">
-            <EditableNameField
-              autoFocus={false}
+            <Input
+              bare
               value={name}
-              onChange={setName}
+              onChange={(e) => setName(e.target.value)}
               onBlur={handleNameBlur}
               placeholder="Name this automation"
-              className="flex-1"
+              className="flex-1 px-0 text-lg!"
               disabled={!canEdit}
             />
           </div>

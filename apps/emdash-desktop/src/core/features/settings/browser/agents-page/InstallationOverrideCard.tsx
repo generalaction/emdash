@@ -1,10 +1,9 @@
+import { Alert, Input } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { Installation } from '@core/primitives/agents/api';
 import { CommandActionButton } from '@core/primitives/agents/browser/install-command-row';
-import { Alert } from '@core/primitives/ui/browser/alert';
-import { Input } from '@core/primitives/ui/browser/input';
 
 export type InstallationOverrideCardProps = {
   vm: HostDependencyInstallation;
@@ -53,11 +52,11 @@ export function InstallationOverrideCard({
         className="font-mono text-sm"
         disabled={isChecking}
       />
-      <Alert variant="warning">
+      <Alert.Root status="warning">
         {kind === 'path'
           ? "Using an absolute path to the agent binary overrides auto-resolution and disables emdash's ability to update the agent."
           : "Enter the command name or binary resolved on PATH. This overrides auto-resolution and disables emdash's ability to update the agent."}
-      </Alert>
+      </Alert.Root>
       {hasValue && (
         <div className="flex justify-end">
           <CommandActionButton disabled={isChecking} onClick={() => void handleValidate()}>

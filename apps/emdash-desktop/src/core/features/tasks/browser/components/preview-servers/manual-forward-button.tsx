@@ -1,14 +1,13 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Dialog, Tooltip } from '@emdash/ui/react/primitives';
 import { Globe, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Dialog } from '@core/primitives/ui/browser/dialog';
 import { ManualForwardDialog } from './manual-forward-dialog';
 
 export function ManualForwardButton() {
   const [open, setOpen] = useState(false);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={setOpen}>
       <Tooltip.Root>
         <Tooltip.Trigger
           render={
@@ -26,6 +25,6 @@ export function ManualForwardButton() {
         <Tooltip.Content>Forward remote port</Tooltip.Content>
       </Tooltip.Root>
       <ManualForwardDialog onClose={() => setOpen(false)} />
-    </Dialog>
+    </Dialog.Root>
   );
 }

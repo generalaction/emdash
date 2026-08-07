@@ -1,3 +1,4 @@
+import { Dialog, Field, Select, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
@@ -14,21 +15,6 @@ import type { ConversationType } from '@core/primitives/conversations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
@@ -122,69 +108,69 @@ export const CreateConversationModal = observer(function CreateConversationModal
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>Create Conversation</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea>
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Agent</FieldLabel>
+      <Dialog.Header>
+        <Dialog.Title>Create Conversation</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>
+        <Field.Group>
+          <Field.Root>
+            <Field.Label>Agent</Field.Label>
             <AgentSelector
               autoFocus
               value={providerId}
               onChange={handleProviderChange}
               connectionId={connectionId}
             />
-          </Field>
+          </Field.Root>
           {modelOptions ? (
-            <Field>
-              <FieldLabel>Model</FieldLabel>
-              <Select
+            <Field.Root>
+              <Field.Label>Model</Field.Label>
+              <Select.Root
                 value={selectedModel ?? ''}
                 onValueChange={(val) => setSelectedModel(val || null)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Default model">
+                <Select.Trigger>
+                  <Select.Value placeholder="Default model">
                     {selectedModel
                       ? (modelOptions[selectedModel]?.name ?? selectedModel)
                       : 'Default model'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Default model</SelectItem>
+                  </Select.Value>
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="">Default model</Select.Item>
                   {Object.entries(modelOptions).map(([id, opt]) => (
-                    <SelectItem key={id} value={id}>
+                    <Select.Item key={id} value={id}>
                       {opt.name}
-                    </SelectItem>
+                    </Select.Item>
                   ))}
-                </SelectContent>
-              </Select>
-            </Field>
+                </Select.Content>
+              </Select.Root>
+            </Field.Root>
           ) : null}
           {showAutoApproveToggle ? (
-            <Field>
+            <Field.Root>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={skipPermissions}
                   disabled={!providerId || taskSettings.loading || taskSettings.saving}
                   onCheckedChange={setAutoApproveOverride}
                 />
-                <FieldLabel>Auto-approve permissions</FieldLabel>
+                <Field.Label>Auto-approve permissions</Field.Label>
               </div>
-            </Field>
+            </Field.Root>
           ) : null}
           {showAcpToggle ? (
-            <Field>
+            <Field.Root>
               <div className="flex items-center gap-2">
                 <Switch checked={useAcp} onCheckedChange={setUseChatUiPreference} />
-                <FieldLabel>Use chat UI</FieldLabel>
+                <Field.Label>Use chat UI</Field.Label>
               </div>
-            </Field>
+            </Field.Root>
           ) : null}
           {error && <p className="text-destructive text-xs">{error}</p>}
-        </FieldGroup>
-      </DialogContentArea>
-      <DialogFooter>
+        </Field.Group>
+      </Dialog.Body>
+      <Dialog.Footer>
         <ConfirmButton
           variant="primary"
           onClick={() => void handleCreateConversation()}
@@ -192,7 +178,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         >
           {isSubmitting ? 'Creating...' : 'Create'}
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 });

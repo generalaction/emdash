@@ -59,8 +59,16 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@core/primitives/ui/browser/select', async () => {
+vi.mock('@core/primitives/keybindings/browser/shortcut', async () => {
   const React = await import('react');
+  return {
+    BoundShortcut: () => React.createElement('span', {}),
+  };
+});
+
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
+  const React = await import('react');
+  const actual = await importOriginal<Record<string, unknown>>();
 
   type SelectContextValue = {
     onValueChange?: (value: string) => void;
@@ -90,39 +98,27 @@ vi.mock('@core/primitives/ui/browser/select', async () => {
   }
 
   return {
-    Select: ({
-      children,
-      onValueChange,
-    }: {
-      children: React.ReactNode;
-      onValueChange?: (value: string) => void;
-    }) =>
-      React.createElement(
-        SelectContext.Provider,
-        { value: { onValueChange } },
-        React.createElement('div', {}, children)
-      ),
-    SelectContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    SelectItem: MockSelectItem,
-    SelectTrigger: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('button', {}, children),
-  };
-});
-
-vi.mock('@core/primitives/keybindings/browser/shortcut', async () => {
-  const React = await import('react');
-  return {
-    BoundShortcut: () => React.createElement('span', {}),
-  };
-});
-
-vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
-  const React = await import('react');
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
     ...actual,
     useToast: () => ({ toast: mocks.toast }),
+    Select: {
+      Root: ({
+        children,
+        onValueChange,
+      }: {
+        children: React.ReactNode;
+        onValueChange?: (value: string) => void;
+      }) =>
+        React.createElement(
+          SelectContext.Provider,
+          { value: { onValueChange } },
+          React.createElement('div', {}, children)
+        ),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Item: MockSelectItem,
+      Trigger: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('button', {}, children),
+    },
     Tooltip: {
       Root: ({ children }: { children: React.ReactNode }) =>
         React.createElement('div', {}, children),

@@ -1,18 +1,9 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Field, Input, Textarea } from '@emdash/ui/react/primitives';
 import { useMemo, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 
 export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt'>;
 
@@ -44,39 +35,39 @@ export function PromptModal({ initialPrompt }: Props) {
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>{initialPrompt ? 'Edit Prompt' : 'New Prompt'}</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="gap-4 pt-0">
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Title</FieldLabel>
+      <Dialog.Header>
+        <Dialog.Title>{initialPrompt ? 'Edit Prompt' : 'New Prompt'}</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="gap-4 pt-0">
+        <Field.Group>
+          <Field.Root>
+            <Field.Label>Title</Field.Label>
             <Input
               data-autofocus
               value={form.title}
               onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
               placeholder="Security review"
             />
-          </Field>
-          <Field>
-            <FieldLabel>Prompt</FieldLabel>
+          </Field.Root>
+          <Field.Root>
+            <Field.Label>Prompt</Field.Label>
             <Textarea
               value={form.prompt}
               onChange={(e) => setForm((prev) => ({ ...prev, prompt: e.target.value }))}
               placeholder="Write the prompt agents should receive."
               className="max-h-[50dvh] min-h-56 resize-y overflow-y-auto px-3 py-2.5 text-[14px] leading-relaxed"
             />
-          </Field>
-        </FieldGroup>
-      </DialogContentArea>
-      <DialogFooter>
+          </Field.Root>
+        </Field.Group>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={dismiss}>
           Cancel
         </Button>
         <ConfirmButton variant="primary" onClick={handleSave} disabled={!canSave}>
           Save
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

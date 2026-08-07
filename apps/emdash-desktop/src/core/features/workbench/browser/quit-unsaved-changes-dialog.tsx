@@ -1,12 +1,6 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog } from '@emdash/ui/react/primitives';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 
 export type QuitUnsavedChangesResult = 'save-all' | 'discard';
 
@@ -20,15 +14,15 @@ export function QuitUnsavedChangesDialog({ count }: QuitUnsavedChangesDialogArgs
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>Save changes before quitting?</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="pt-0">
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>Save changes before quitting?</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="pt-0">
         <p>
           {count} {label} unsaved changes. Save them before quitting Emdash?
         </p>
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={controller.dismiss}>
           Cancel
         </Button>
@@ -38,7 +32,7 @@ export function QuitUnsavedChangesDialog({ count }: QuitUnsavedChangesDialogArgs
         <Button variant="primary" onClick={() => controller.complete('save-all')}>
           Save All
         </Button>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

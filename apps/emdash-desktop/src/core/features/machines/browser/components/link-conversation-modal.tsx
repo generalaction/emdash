@@ -1,17 +1,11 @@
 import { EmptyState } from '@emdash/ui/react/components';
-import { Button, Combobox, ModalLayout } from '@emdash/ui/react/primitives';
+import { Button, Combobox, Dialog, ModalLayout } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { getMachinesPageWireClient } from '@core/features/machines/api/browser/client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 
 export interface LinkConversationModalProps {
   /** SSH connection id of the conversation's host; null for the local machine. */
@@ -132,12 +126,12 @@ export function LinkConversationModal({
   return (
     <ModalLayout
       header={
-        <DialogHeader showCloseButton>
-          <DialogTitle>Link conversation to a task</DialogTitle>
-        </DialogHeader>
+        <Dialog.Header showCloseButton>
+          <Dialog.Title>Link conversation to a task</Dialog.Title>
+        </Dialog.Header>
       }
       footer={
-        <DialogFooter>
+        <Dialog.Footer>
           <Button type="button" variant="secondary" onClick={modal.dismiss}>
             Cancel
           </Button>
@@ -153,10 +147,10 @@ export function LinkConversationModal({
           >
             Link
           </Button>
-        </DialogFooter>
+        </Dialog.Footer>
       }
     >
-      <DialogContentArea className="flex flex-col gap-4">
+      <Dialog.Body className="flex flex-col gap-4">
         <p className="text-sm text-foreground-muted">
           Choose the task that <span className="text-foreground">“{conversationTitle}”</span> should
           appear under. Linking only annotates this device's registry; the conversation itself stays
@@ -190,7 +184,7 @@ export function LinkConversationModal({
             disabled={!project}
           />
         </div>
-      </DialogContentArea>
+      </Dialog.Body>
     </ModalLayout>
   );
 }

@@ -1,4 +1,12 @@
-import { Button, Checkbox, Spinner, Tooltip } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  Checkbox,
+  Dialog,
+  Input,
+  Spinner,
+  Textarea,
+  Tooltip,
+} from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
@@ -6,15 +14,6 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  DialogContentArea,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Input } from '@core/primitives/ui/browser/input';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -135,13 +134,13 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
           </div>
         </div>
       )}
-      <DialogHeader>
+      <Dialog.Header>
         <div className="flex flex-col gap-1">
-          <DialogTitle>Feedback</DialogTitle>
-          {blurb ? <DialogDescription className="text-xs">{blurb}</DialogDescription> : null}
+          <Dialog.Title>Feedback</Dialog.Title>
+          {blurb ? <Dialog.Description className="text-xs">{blurb}</Dialog.Description> : null}
         </div>
-      </DialogHeader>
-      <DialogContentArea>
+      </Dialog.Header>
+      <Dialog.Body>
         <form id="feedback-form" className="space-y-4 pt-0.5" onSubmit={handleFormSubmit}>
           <div className="space-y-1.5">
             <label htmlFor="feedback-details" className="sr-only">
@@ -253,8 +252,8 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
             </p>
           ) : null}
         </form>
-      </DialogContentArea>
-      <DialogFooter className="sm:justify-between">
+      </Dialog.Body>
+      <Dialog.Footer className="sm:justify-between">
         <Button
           type="button"
           variant="secondary"
@@ -282,7 +281,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
             <span>Send Feedback</span>
           )}
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </div>
   );
 }

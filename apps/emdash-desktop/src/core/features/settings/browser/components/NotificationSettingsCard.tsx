@@ -1,18 +1,10 @@
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { Button, SeparatedList, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Select, SeparatedList, Switch, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
@@ -203,20 +195,20 @@ const NotificationSettingsCard: React.FC = () => {
                     onReset={() => resetNotificationField('soundFocusMode', 'always')}
                     disabled={loading}
                   />
-                  <Select
+                  <Select.Root
                     value={notifications?.soundFocusMode ?? 'always'}
                     onValueChange={(next) =>
                       updateNotifications({ soundFocusMode: next as 'always' | 'unfocused' })
                     }
                   >
-                    <SelectTrigger className="w-auto shrink-0 gap-2 capitalize [&>span]:line-clamp-none">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="min-w-max">
-                      <SelectItem value="always">Always</SelectItem>
-                      <SelectItem value="unfocused">Only when unfocused</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Select.Trigger className="w-auto shrink-0 gap-2 capitalize [&>span]:line-clamp-none">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content className="min-w-max">
+                      <Select.Item value="always">Always</Select.Item>
+                      <Select.Item value="unfocused">Only when unfocused</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
                 </>
               }
             />

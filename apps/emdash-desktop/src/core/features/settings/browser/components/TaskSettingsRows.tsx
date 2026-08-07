@@ -1,9 +1,8 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Switch, Tooltip } from '@emdash/ui/react/primitives';
 import { Info } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

@@ -1,5 +1,5 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Switch } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import React from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
@@ -8,7 +8,6 @@ import { useAgentInstallationStatus } from '@core/features/agents/api/browser/us
 import { useAgent } from '@core/features/agents/api/browser/use-agents';
 import { InstallSection } from '@core/features/settings/api/browser/agents-page/InstallSection';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import type { AppSettings } from '@core/services/settings/api';
 
 type Props = {

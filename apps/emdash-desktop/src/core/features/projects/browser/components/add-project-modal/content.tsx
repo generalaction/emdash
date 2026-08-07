@@ -1,10 +1,8 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
-import { Input, Select, Separator } from '@emdash/ui/react/primitives';
+import { Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
 import { useId } from 'react';
 import { GithubAuthDisclaimer } from '@core/features/integrations/api/browser/components/github-auth-disclaimer';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';
 import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
@@ -27,9 +25,9 @@ export function PickExistingPanel({
   showInitializeGitPrompt: boolean;
 }) {
   return (
-    <FieldGroup>
-      <Field>
-        <FieldLabel>Directory</FieldLabel>
+    <Field.Group>
+      <Field.Root>
+        <Field.Label>Directory</Field.Label>
         <DirectoryField
           strategy={strategy}
           connectionId={connectionId}
@@ -39,7 +37,7 @@ export function PickExistingPanel({
           title="Select a local project"
           message="Select a project directory to open"
         />
-      </Field>
+      </Field.Root>
       {inspectionError && (
         <div className="border-destructive/40 overflow-hidden rounded-md border">
           <p className="border-destructive/30 bg-destructive/10 text-destructive border-b px-2 py-1 text-xs">
@@ -54,20 +52,20 @@ export function PickExistingPanel({
             This directory is not a git repository.
           </p>
           <div className="p-2">
-            <Field orientation="horizontal">
+            <Field.Root orientation="horizontal">
               <Switch
                 checked={state.initGitRepository}
                 onCheckedChange={state.setinitGitRepository}
               />
-              <FieldLabel>Initialize git repository</FieldLabel>
-            </Field>
+              <Field.Label>Initialize git repository</Field.Label>
+            </Field.Root>
             <p className="mt-1.5 text-xs text-foreground-muted">
               You can also open this folder now and initialize Git later from the changes view.
             </p>
           </div>
         </div>
       )}
-    </FieldGroup>
+    </Field.Group>
   );
 }
 
@@ -102,10 +100,10 @@ export function CreateNewPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      <FieldGroup>
+      <Field.Group>
         <div className="flex items-end gap-2">
-          <Field className="w-1/4 min-w-0">
-            <FieldLabel>Owner</FieldLabel>
+          <Field.Root className="w-1/4 min-w-0">
+            <Field.Label>Owner</Field.Label>
             <OwnerSelector
               owners={state.owners}
               owner={state.repositoryOwner}
@@ -114,10 +112,10 @@ export function CreateNewPanel({
               onOwnerChange={state.handleOwnerChange}
               onAccountChange={onAccountChange}
             />
-          </Field>
+          </Field.Root>
           <span className="pb-2 text-sm text-foreground-muted">/</span>
-          <Field className="min-w-0 flex-1">
-            <FieldLabel htmlFor={repositoryNameId}>Repository name</FieldLabel>
+          <Field.Root className="min-w-0 flex-1">
+            <Field.Label htmlFor={repositoryNameId}>Repository name</Field.Label>
             <Input
               id={repositoryNameId}
               autoFocus
@@ -125,9 +123,9 @@ export function CreateNewPanel({
               value={state.repositoryName}
               onChange={(e) => state.handleRepositoryNameChange(e.target.value)}
             />
-          </Field>
+          </Field.Root>
         </div>
-      </FieldGroup>
+      </Field.Group>
       <Separator className="w-full" />
       <SettingsRow
         label="Choose visibility"
@@ -148,9 +146,11 @@ export function CreateNewPanel({
         }
       />
       <Separator className="w-full" />
-      <FieldGroup>
-        <Field>
-          <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
+      <Field.Group>
+        <Field.Root>
+          <Field.Label>
+            {strategy === 'local' ? 'Project Directory' : 'Remote Directory'}
+          </Field.Label>
           <DirectoryField
             strategy={strategy}
             connectionId={connectionId}
@@ -161,8 +161,8 @@ export function CreateNewPanel({
             title="Select a local project"
             message="Select a project directory to open"
           />
-        </Field>
-      </FieldGroup>
+        </Field.Root>
+      </Field.Group>
     </div>
   );
 }
@@ -183,9 +183,9 @@ export function ClonePanel({
   const repositoryUrlId = useId();
   return (
     <div className="flex flex-col gap-6">
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor={repositoryUrlId}>Repository URL</FieldLabel>
+      <Field.Group>
+        <Field.Root>
+          <Field.Label htmlFor={repositoryUrlId}>Repository URL</Field.Label>
           <Input
             id={repositoryUrlId}
             autoFocus
@@ -193,12 +193,14 @@ export function ClonePanel({
             value={state.repositoryUrl}
             onChange={(e) => state.handleRepositoryUrlChange(e.target.value)}
           />
-        </Field>
-      </FieldGroup>
+        </Field.Root>
+      </Field.Group>
       <Separator className="w-full" />
-      <FieldGroup>
-        <Field>
-          <FieldLabel>{strategy === 'local' ? 'Project Directory' : 'Remote Directory'}</FieldLabel>
+      <Field.Group>
+        <Field.Root>
+          <Field.Label>
+            {strategy === 'local' ? 'Project Directory' : 'Remote Directory'}
+          </Field.Label>
           <DirectoryField
             strategy={strategy}
             connectionId={connectionId}
@@ -209,8 +211,8 @@ export function ClonePanel({
             title="Select a local project"
             message="Select a project directory to open"
           />
-        </Field>
-      </FieldGroup>
+        </Field.Root>
+      </Field.Group>
     </div>
   );
 }

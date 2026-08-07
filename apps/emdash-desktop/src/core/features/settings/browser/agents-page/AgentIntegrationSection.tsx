@@ -1,11 +1,10 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
-import { Button, Label, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Field, Label, Tooltip } from '@emdash/ui/react/primitives';
 import { CheckCircle2, Clock3, ExternalLink, Info, Loader2 } from 'lucide-react';
 import { useAgentHooksStatus } from '@core/features/agents/api/browser/use-agent-hooks-status';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { AgentPayload } from '@core/primitives/agents/api';
-import { Field } from '@core/primitives/ui/browser/field';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 const HOME_PREFIX_RE = /^\/(?:Users|home)\/[^/]+/;
@@ -43,7 +42,7 @@ export function AgentHooksSection({ agent, host }: { agent: AgentPayload; host: 
   if (!showHooks) return null;
 
   return (
-    <Field>
+    <Field.Root>
       <div className="flex items-center gap-1.5">
         <Label>Hooks</Label>
         <InfoTooltip>
@@ -71,7 +70,7 @@ export function AgentHooksSection({ agent, host }: { agent: AgentPayload; host: 
           </span>
         )}
       </div>
-    </Field>
+    </Field.Root>
   );
 }
 
@@ -83,7 +82,7 @@ export function AgentTrustSection({ agent }: { agent: AgentPayload }) {
   if (!supportsTrust) return null;
 
   return (
-    <Field>
+    <Field.Root>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Label>Workspace Trust</Label>
@@ -110,6 +109,6 @@ export function AgentTrustSection({ agent }: { agent: AgentPayload }) {
           'Disabled'
         )}
       </span>
-    </Field>
+    </Field.Root>
   );
 }

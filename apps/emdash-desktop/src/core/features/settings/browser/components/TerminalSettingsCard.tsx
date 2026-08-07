@@ -1,5 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
-import { Button, Combobox } from '@emdash/ui/react/primitives';
+import { Button, Combobox, Select, Switch } from '@emdash/ui/react/primitives';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -11,14 +11,6 @@ import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
 } from '@core/primitives/terminals/api';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import {
   DEFAULT_TERMINAL_SHELL_AVAILABILITY,
   useTerminalShellAvailability,
@@ -189,29 +181,29 @@ const TerminalSettingsCard: React.FC = () => {
         title="Default terminal shell"
         description="Used for new local terminals. Remote terminals use the remote system shell."
         control={
-          <Select
+          <Select.Root
             value={defaultShell}
             onValueChange={(next) => applyDefaultShell(next as TerminalShellId)}
             disabled={loading || saving}
           >
-            <SelectTrigger className="w-[183px] shrink-0 gap-2 [&>span]:line-clamp-none">
-              <SelectValue>
+            <Select.Trigger className="w-[183px] shrink-0 gap-2 [&>span]:line-clamp-none">
+              <Select.Value>
                 <TerminalShellOptionLabel entry={selectedShell} showSystemBadge={false} />
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent align="end" className="min-w-max">
+              </Select.Value>
+            </Select.Trigger>
+            <Select.Content align="end" className="min-w-max">
               {localShellAvailability.map((entry) => (
-                <SelectItem
+                <Select.Item
                   key={entry.id}
                   value={entry.id}
                   disabled={!entry.available}
                   title={entry.reason}
                 >
                   <TerminalShellOptionLabel entry={entry} />
-                </SelectItem>
+                </Select.Item>
               ))}
-            </SelectContent>
-          </Select>
+            </Select.Content>
+          </Select.Root>
         }
       />
       <SettingRow

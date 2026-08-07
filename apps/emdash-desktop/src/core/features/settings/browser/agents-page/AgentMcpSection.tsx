@@ -1,11 +1,10 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
-import { Button, Label } from '@emdash/ui/react/primitives';
+import { Button, Field, Label } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
 import React from 'react';
 import { useAgentMcps } from '@core/features/agents/api/browser/use-agent-mcps';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { Field } from '@core/primitives/ui/browser/field';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 function McpServerPill({
@@ -74,7 +73,7 @@ export function AgentMcpSection({
   const { servers, isLoading, removeServer, removingServerName } = useAgentMcps(agentId, host);
 
   return (
-    <Field>
+    <Field.Root>
       <div className="flex items-center justify-between">
         <Label>MCP Servers</Label>
         {onManage && (
@@ -110,6 +109,6 @@ export function AgentMcpSection({
           </div>
         )}
       </div>
-    </Field>
+    </Field.Root>
   );
 }

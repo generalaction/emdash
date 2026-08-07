@@ -1,4 +1,4 @@
-import { Button, useToast } from '@emdash/ui/react/primitives';
+import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import {
   AlertCircle,
   ArrowRight,
@@ -12,12 +12,6 @@ import { useState } from 'react';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 import {
   useAccountLinkProvider,
   useAccountSession,
@@ -133,10 +127,10 @@ export function GithubConnectModal() {
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>Connect GitHub</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="gap-3">
+      <Dialog.Header>
+        <Dialog.Title>Connect GitHub</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="gap-3">
         <ConnectMethodCard
           icon={Github}
           title={oauthContent.title}
@@ -174,12 +168,12 @@ export function GithubConnectModal() {
             error={error?.method === 'device_flow' ? error.message : undefined}
           />
         )}
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={modal.dismiss} disabled={anyLoading}>
           Cancel
         </Button>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

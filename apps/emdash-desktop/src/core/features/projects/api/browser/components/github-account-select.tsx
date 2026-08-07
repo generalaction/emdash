@@ -1,7 +1,6 @@
-import { Badge } from '@emdash/ui/react/primitives';
+import { Badge, Select } from '@emdash/ui/react/primitives';
 import { Github } from 'lucide-react';
 import type { GitHubAccountSummary, GitHubCredentialSource } from '@core/primitives/github/api';
-import { SelectItem } from '@core/primitives/ui/browser/select';
 
 export const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
   cli: 'GitHub CLI',
@@ -12,9 +11,9 @@ export const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
 
 export function GitHubAccountSelectItem({ account }: { account: GitHubAccountSummary }) {
   return (
-    <SelectItem value={account.accountId} className="py-2">
+    <Select.Item value={account.accountId} className="py-2">
       <GitHubAccountSelectLabel account={account} />
-    </SelectItem>
+    </Select.Item>
   );
 }
 

@@ -1,8 +1,7 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Switch } from '@emdash/ui/react/primitives';
 import { ArrowUpRight } from 'lucide-react';
 import React from 'react';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';

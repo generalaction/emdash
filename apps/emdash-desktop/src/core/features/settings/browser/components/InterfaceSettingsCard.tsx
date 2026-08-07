@@ -1,6 +1,6 @@
+import { Switch } from '@emdash/ui/react/primitives';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

@@ -1,5 +1,13 @@
 import { ComboboxPopover } from '@emdash/ui/react/components';
-import { Label, ModalLayout, ToggleGroup } from '@emdash/ui/react/primitives';
+import {
+  Dialog,
+  Field,
+  Input,
+  Label,
+  ModalLayout,
+  RadioGroup,
+  ToggleGroup,
+} from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
@@ -7,15 +15,6 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
-import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
 import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
@@ -165,12 +164,12 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   return (
     <ModalLayout
       header={
-        <DialogHeader>
-          <DialogTitle>Add Remote</DialogTitle>
-        </DialogHeader>
+        <Dialog.Header>
+          <Dialog.Title>Add Remote</Dialog.Title>
+        </Dialog.Header>
       }
       footer={
-        <DialogFooter>
+        <Dialog.Footer>
           <ConfirmButton
             variant="primary"
             onClick={() => void handleSubmit()}
@@ -178,10 +177,10 @@ export const AddRemoteModal = observer(function AddRemoteModal({
           >
             {isSubmitting ? 'Adding...' : tab === 'create' ? 'Create & Publish' : 'Link & Publish'}
           </ConfirmButton>
-        </DialogFooter>
+        </Dialog.Footer>
       }
     >
-      <DialogContentArea className="gap-4">
+      <Dialog.Body className="gap-4">
         <ToggleGroup.Root
           className="flex w-full"
           value={[tab]}
@@ -198,17 +197,17 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         </ToggleGroup.Root>
 
         {tab === 'create' && (
-          <FieldGroup>
-            <Field>
-              <FieldLabel>Repository Name</FieldLabel>
+          <Field.Group>
+            <Field.Root>
+              <Field.Label>Repository Name</Field.Label>
               <Input
                 autoFocus
                 value={repositoryName}
                 onChange={(e) => setRepositoryName(e.target.value)}
               />
-            </Field>
-            <Field>
-              <FieldLabel>Owner</FieldLabel>
+            </Field.Root>
+            <Field.Root>
+              <Field.Label>Owner</Field.Label>
               <ComboboxPopover
                 items={owners}
                 value={owner?.value ?? null}
@@ -232,42 +231,42 @@ export const AddRemoteModal = observer(function AddRemoteModal({
               {ownersErrorMessage && (
                 <p className="text-destructive text-xs">{ownersErrorMessage}</p>
               )}
-            </Field>
-            <Field>
-              <FieldLabel>Visibility</FieldLabel>
-              <RadioGroup
+            </Field.Root>
+            <Field.Root>
+              <Field.Label>Visibility</Field.Label>
+              <RadioGroup.Root
                 value={visibility}
                 onValueChange={(v) => setVisibility(v as 'public' | 'private')}
               >
                 <Label className="flex cursor-pointer items-center gap-3 font-normal">
-                  <RadioGroupItem value="private" />
+                  <RadioGroup.Item value="private" />
                   Private
                 </Label>
                 <Label className="flex cursor-pointer items-center gap-3 font-normal">
-                  <RadioGroupItem value="public" />
+                  <RadioGroup.Item value="public" />
                   Public
                 </Label>
-              </RadioGroup>
-            </Field>
-          </FieldGroup>
+              </RadioGroup.Root>
+            </Field.Root>
+          </Field.Group>
         )}
 
         {tab === 'link' && (
-          <FieldGroup>
-            <Field>
-              <FieldLabel>Remote URL</FieldLabel>
+          <Field.Group>
+            <Field.Root>
+              <Field.Label>Remote URL</Field.Label>
               <Input
                 autoFocus
                 placeholder="https://git.example.com/owner/repo.git"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
-            </Field>
-          </FieldGroup>
+            </Field.Root>
+          </Field.Group>
         )}
 
         {error && <p className="text-destructive text-sm">{error}</p>}
-      </DialogContentArea>
+      </Dialog.Body>
     </ModalLayout>
   );
 });

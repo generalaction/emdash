@@ -1,6 +1,16 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
-import { Combobox, Separator, SplitButton } from '@emdash/ui/react/primitives';
-import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
+import {
+  Alert,
+  Combobox,
+  Dialog,
+  Field,
+  Input,
+  Select,
+  Separator,
+  SplitButton,
+  Textarea,
+} from '@emdash/ui/react/primitives';
+import { ChevronDown, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { BranchDisplay } from '@core/features/source-control/api/browser/components/branch-display';
@@ -14,17 +24,6 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { Alert, AlertDescription, AlertTitle } from '@core/primitives/ui/browser/alert';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
-import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import { log } from '@renderer/utils/logger';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
@@ -151,10 +150,10 @@ export const CreatePrModal = observer(function CreatePrModal({
 
   return (
     <div className="flex max-h-[70vh] flex-col overflow-hidden">
-      <DialogHeader>
-        <DialogTitle>{draft ? 'Create Draft PR' : 'Create Pull Request'}</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="space-y-4">
+      <Dialog.Header>
+        <Dialog.Title>{draft ? 'Create Draft PR' : 'Create Pull Request'}</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="space-y-4">
         {!hasGitHubRemote && (
           <p className="text-muted-foreground text-sm">
             No GitHub remote detected. Configure a GitHub remote to create pull requests.
@@ -167,8 +166,8 @@ export const CreatePrModal = observer(function CreatePrModal({
             className="rounded-md border border-border"
           />
           {targetRemotes.length > 1 && targetRemote ? (
-            <Select value={targetRemote.remote.name} onValueChange={handleTargetRemoteChange}>
-              <SelectTrigger
+            <Select.Root value={targetRemote.remote.name} onValueChange={handleTargetRemoteChange}>
+              <Select.Trigger
                 showChevron={false}
                 className="flex min-h-[58px] w-full items-center justify-between gap-2 rounded-md border border-border p-2 text-left outline-none data-[size=default]:h-auto"
               >
@@ -184,9 +183,9 @@ export const CreatePrModal = observer(function CreatePrModal({
                   </span>
                 </div>
                 <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-              </SelectTrigger>
+              </Select.Trigger>
               <RemoteSelectContent remotes={targetRemotes.map(({ remote }) => remote)} />
-            </Select>
+            </Select.Root>
           ) : null}
           <ProjectBranchSelector
             projectId={projectId}
@@ -214,9 +213,9 @@ export const CreatePrModal = observer(function CreatePrModal({
           />
         </div>
         <Separator />
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Title</FieldLabel>
+        <Field.Group>
+          <Field.Root>
+            <Field.Label>Title</Field.Label>
             <Input
               placeholder="PR title"
               autoFocus
@@ -224,26 +223,25 @@ export const CreatePrModal = observer(function CreatePrModal({
               onChange={(e) => setTitle(e.target.value)}
               disabled={!hasGitHubRemote}
             />
-          </Field>
-          <Field>
-            <FieldLabel>Description</FieldLabel>
+          </Field.Root>
+          <Field.Root>
+            <Field.Label>Description</Field.Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={1}
               disabled={!hasGitHubRemote}
             />
-          </Field>
-        </FieldGroup>
+          </Field.Root>
+        </Field.Group>
         {error && (
-          <Alert variant="destructive">
-            <CircleAlert />
-            <AlertTitle>Failed to create pull request</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <Alert.Root status="destructive">
+            <Alert.Title>Failed to create pull request</Alert.Title>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Root>
         )}
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         {needsPush ? (
           <SplitButton
             size="sm"
@@ -276,7 +274,7 @@ export const CreatePrModal = observer(function CreatePrModal({
             {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
           </ConfirmButton>
         )}
-      </DialogFooter>
+      </Dialog.Footer>
     </div>
   );
 });

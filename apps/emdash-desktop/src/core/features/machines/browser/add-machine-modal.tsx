@@ -1,14 +1,8 @@
-import { Button, ModalLayout } from '@emdash/ui/react/primitives';
+import { Button, Dialog, ModalLayout } from '@emdash/ui/react/primitives';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 import { MachineFormActions, MachineFormFields, useMachineForm } from './machine-form';
 
 export interface AddMachineModalProps {
@@ -29,7 +23,7 @@ export function AddMachineModal({ initialConfig, dismissControl = 'back' }: AddM
   return (
     <ModalLayout
       header={
-        <DialogHeader
+        <Dialog.Header
           showCloseButton={!showBackButton}
           className="-mt-2 w-full flex-row items-center justify-between gap-2"
         >
@@ -39,14 +33,14 @@ export function AddMachineModal({ initialConfig, dismissControl = 'back' }: AddM
                 <ArrowLeftIcon className="h-4 w-4" />
               </Button>
             )}
-            <DialogTitle>
+            <Dialog.Title>
               {controller.isEditing ? 'Edit SSH Connection' : 'Add SSH Connection'}
-            </DialogTitle>
+            </Dialog.Title>
           </div>
-        </DialogHeader>
+        </Dialog.Header>
       }
       footer={
-        <DialogFooter>
+        <Dialog.Footer>
           <MachineFormActions
             controller={controller}
             formId={MACHINE_MODAL_FORM_ID}
@@ -63,12 +57,12 @@ export function AddMachineModal({ initialConfig, dismissControl = 'back' }: AddM
               ) : undefined
             }
           />
-        </DialogFooter>
+        </Dialog.Footer>
       }
     >
-      <DialogContentArea className="max-h-[calc(100dvh-10rem)] overflow-y-auto">
+      <Dialog.Body className="max-h-[calc(100dvh-10rem)] overflow-y-auto">
         <MachineFormFields controller={controller} formId={MACHINE_MODAL_FORM_ID} />
-      </DialogContentArea>
+      </Dialog.Body>
     </ModalLayout>
   );
 }

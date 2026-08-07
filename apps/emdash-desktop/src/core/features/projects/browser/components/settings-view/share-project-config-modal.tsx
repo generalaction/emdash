@@ -1,5 +1,5 @@
 import { err, type Result } from '@emdash/shared';
-import { Button, Checkbox } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Dialog, Field, Select } from '@emdash/ui/react/primitives';
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -13,19 +13,6 @@ import type {
   WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup, FieldTitle } from '@core/primitives/ui/browser/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@core/primitives/ui/browser/select';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';
@@ -132,18 +119,18 @@ export function ShareProjectConfigModal({
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>Share settings with your team</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="pt-0">
-        <FieldGroup>
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>Share settings with your team</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="pt-0">
+        <Field.Group>
           <p className="text-sm text-foreground-muted">
             This writes the selected settings to .emdash.json in the chosen working directory.
             Commit that file so teammates get the same project defaults after pulling.
           </p>
-          <Field>
-            <FieldTitle>Write to</FieldTitle>
-            <Select
+          <Field.Root>
+            <Field.Label>Write to</Field.Label>
+            <Select.Root
               value={selectedTargetValue}
               onValueChange={(value) => {
                 setSelectedTarget(
@@ -151,14 +138,14 @@ export function ShareProjectConfigModal({
                 );
               }}
             >
-              <SelectTrigger className="w-full min-w-0">
+              <Select.Trigger className="w-full min-w-0">
                 <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                   <span className="min-w-0 truncate">{selectedTargetLabel}</span>
                 </div>
-              </SelectTrigger>
-              <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+              </Select.Trigger>
+              <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
                 {targets.map((target) => (
-                  <SelectItem
+                  <Select.Item
                     key={projectConfigTargetValue(target)}
                     value={projectConfigTargetValue(target)}
                     className="py-2"
@@ -172,14 +159,14 @@ export function ShareProjectConfigModal({
                         {target.path}
                       </span>
                     </div>
-                  </SelectItem>
+                  </Select.Item>
                 ))}
-              </SelectContent>
-            </Select>
-          </Field>
+              </Select.Content>
+            </Select.Root>
+          </Field.Root>
 
-          <Field>
-            <FieldTitle>Settings to share</FieldTitle>
+          <Field.Root>
+            <Field.Label>Settings to share</Field.Label>
             <div className="grid grid-cols-2 gap-2">
               {availableFields.map((field) => (
                 <label key={field} className="flex items-center gap-2 rounded-md py-2 text-sm">
@@ -191,13 +178,13 @@ export function ShareProjectConfigModal({
                 </label>
               ))}
             </div>
-          </Field>
+          </Field.Root>
           {status === 'error' ? (
             <p className="text-xs text-foreground-error">{errorMessage}</p>
           ) : null}
-        </FieldGroup>
-      </DialogContentArea>
-      <DialogFooter>
+        </Field.Group>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={modal.dismiss} disabled={status === 'writing'}>
           Cancel
         </Button>
@@ -212,7 +199,7 @@ export function ShareProjectConfigModal({
                 : 'Write .emdash.json'}
           </span>
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

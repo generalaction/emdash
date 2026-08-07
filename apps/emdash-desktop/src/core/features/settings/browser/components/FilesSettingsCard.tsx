@@ -1,10 +1,9 @@
 import { normalizeExclusionPatterns } from '@emdash/core/primitives/lib/api';
 import { SettingsCard } from '@emdash/ui/react/patterns';
-import { SeparatedList } from '@emdash/ui/react/primitives';
+import { SeparatedList, Textarea } from '@emdash/ui/react/primitives';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { FilesSettings } from '@core/primitives/app-settings/api';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 
 type ExclusionField = keyof FilesSettings;

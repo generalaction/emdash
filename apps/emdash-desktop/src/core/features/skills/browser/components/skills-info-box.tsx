@@ -1,9 +1,9 @@
-import { Alert, AlertDescription } from '@core/primitives/ui/browser/alert';
+import { Alert } from '@emdash/ui/react/primitives';
 
 export function SkillsInfoBox() {
   return (
-    <Alert>
-      <AlertDescription>
+    <Alert.Root status="info" icon={null}>
+      <Alert.Description>
         Skills from the{' '}
         <a
           href="https://github.com/openai/skills"
@@ -34,7 +34,7 @@ export function SkillsInfoBox() {
         </a>{' '}
         standard. If you want to use skills from another library, feel free to let us know through
         the feedback modal.
-      </AlertDescription>
-    </Alert>
+      </Alert.Description>
+    </Alert.Root>
   );
 }

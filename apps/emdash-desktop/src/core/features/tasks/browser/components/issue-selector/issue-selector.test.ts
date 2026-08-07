@@ -48,25 +48,21 @@ vi.mock('@core/features/integrations/api/browser/integrations-provider', () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/select', async () => {
-  const React = await import('react');
-  return {
-    Select: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    SelectContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    SelectItem: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    SelectTrigger: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-  };
-});
-
 vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   const React = await import('react');
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
+    Select: {
+      Root: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Item: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Trigger: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+    },
     Tooltip: {
       Root: ({ children }: { children: React.ReactNode }) =>
         React.createElement('div', {}, children),

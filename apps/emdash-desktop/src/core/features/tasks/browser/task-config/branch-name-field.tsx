@@ -1,8 +1,6 @@
+import { Input, Label, Switch } from '@emdash/ui/react/primitives';
 import { useTaskConfig } from '@core/features/tasks/api/browser/task-config/task-config-context';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
-import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { FieldLabel } from '@core/primitives/ui/browser/field';
-import { Switch } from '@core/primitives/ui/browser/switch';
 
 interface BranchNameFieldProps {
   state: Pick<BranchNameState, 'branchName' | 'setBranchName' | 'branchAlreadyExists'>;
@@ -24,11 +22,12 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
         </span>
       ) : (
         <>
-          <EditableNameField
+          <Input
+            bare
             value={branchName}
-            onChange={(value) => setBranchName(value)}
+            onChange={(e) => setBranchName(e.target.value)}
             placeholder="branch-name"
-            className="text-sm!"
+            className="px-0"
           />
           {branchAlreadyExists && (
             <p className="text-muted-foreground mt-1 text-xs">
@@ -40,7 +39,7 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
       {showPush && (
         <div className="mt-1 flex items-center gap-1.5">
           <Switch size="sm" checked={pushBranch} onCheckedChange={onPushBranchChange} />
-          <FieldLabel>Push branch to remote</FieldLabel>
+          <Label>Push branch to remote</Label>
         </div>
       )}
     </div>

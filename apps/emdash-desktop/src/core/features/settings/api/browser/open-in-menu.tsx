@@ -1,4 +1,4 @@
-import { Tooltip, useToast } from '@emdash/ui/react/primitives';
+import { Select, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -9,12 +9,6 @@ import {
   type OpenInAppId,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@core/primitives/ui/browser/select';
 import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -160,7 +154,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           </Tooltip.Content>
         </Tooltip.Root>
       </Tooltip.Provider>
-      <Select
+      <Select.Root
         value={defaultApp ?? undefined}
         onValueChange={(value) => {
           if (isValidOpenInAppId(value)) {
@@ -171,24 +165,24 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         <Tooltip.Root>
           <Tooltip.Trigger
             render={
-              <SelectTrigger
+              <Select.Trigger
                 showChevron={false}
                 className="group flex size-6 shrink-0 items-center justify-center border-none bg-transparent transition-colors hover:bg-background-1 hover:text-foreground"
                 aria-label="Open in options"
               >
                 <ChevronDown className="size-3.5" />
-              </SelectTrigger>
+              </Select.Trigger>
             }
           ></Tooltip.Trigger>
           <Tooltip.Content side="bottom">Select open in app</Tooltip.Content>
         </Tooltip.Root>
-        <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6} className="w-max">
+        <Select.Content align="end" alignItemWithTrigger={false} sideOffset={6} className="w-max">
           {menuApps.map((app) => {
             const isAvailable = loading
               ? availability[app.id] === true
               : availability[app.id] !== false;
             return (
-              <SelectItem key={app.id} value={app.id} disabled={!isAvailable}>
+              <Select.Item key={app.id} value={app.id} disabled={!isAvailable}>
                 {icons[app.id] && (
                   <img
                     src={icons[app.id]}
@@ -197,11 +191,11 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   />
                 )}
                 {labels[app.id] || app.label}
-              </SelectItem>
+              </Select.Item>
             );
           })}
-        </SelectContent>
-      </Select>
+        </Select.Content>
+      </Select.Root>
     </div>
   );
 };

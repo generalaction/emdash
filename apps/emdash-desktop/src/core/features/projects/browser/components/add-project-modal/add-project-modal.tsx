@@ -1,4 +1,4 @@
-import { ModalLayout, SelectableCard, toast } from '@emdash/ui/react/primitives';
+import { Dialog, Input, ModalLayout, SelectableCard, toast } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { DownloadIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -21,13 +21,6 @@ import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-butt
 import { defineModal } from '@core/primitives/modals/react';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -274,12 +267,12 @@ export const AddProjectModal = observer(function AddProjectModal({
   return (
     <ModalLayout
       header={
-        <DialogHeader showCloseButton={submitState === 'idle'}>
-          <DialogTitle>Add Project</DialogTitle>
-        </DialogHeader>
+        <Dialog.Header showCloseButton={submitState === 'idle'}>
+          <Dialog.Title>Add Project</Dialog.Title>
+        </Dialog.Header>
       }
       footer={
-        <DialogFooter>
+        <Dialog.Footer>
           <ConfirmButton
             variant="primary"
             type="button"
@@ -288,101 +281,105 @@ export const AddProjectModal = observer(function AddProjectModal({
           >
             {submitState === 'creating' ? 'Creating...' : 'Create'}
           </ConfirmButton>
-        </DialogFooter>
+        </Dialog.Footer>
       }
     >
-      <DialogContentArea data-autofocus tabIndex={-1} className="gap-4">
-        <div className="flex items-center gap-2">
-          <EditableNameField
-            autoFocus
-            value={projectName.name}
-            placeholder={projectName.placeholder}
-            className="min-w-0 flex-1"
-            onChange={projectName.handleNameChange}
-          />
-          <LocationSelector
-            strategy={strategy}
-            connectionId={selectedConnectionId}
-            machines={availableConnections}
-            getMachineStatusKind={(machineId) =>
-              machineId
-                ? deriveConnectionMachineStatusKind(appState.machines.stateFor(machineId))
-                : 'idle'
-            }
-            onSelectLocal={() => setStrategy('local')}
-            onSelectMachine={(nextConnectionId) => {
-              setStrategy('ssh');
-              setConnectionId(nextConnectionId);
-            }}
-            onManageMachines={() => {
-              modal.dismiss();
-              navigate(settingsViewDef({ tab: 'connections' }));
-            }}
-          />
+      <Dialog.Body className="gap-4">
+        {/* Initial-focus target: keeps the modal from auto-focusing the first input. */}
+        <div data-autofocus tabIndex={-1} className="flex flex-col gap-4 outline-none">
+          <div className="flex items-center gap-2">
+            <Input
+              bare
+              autoFocus
+              value={projectName.name}
+              placeholder={projectName.placeholder}
+              className="min-w-0 flex-1 px-0 text-lg!"
+              onChange={(e) => projectName.handleNameChange(e.target.value)}
+            />
+            <LocationSelector
+              strategy={strategy}
+              connectionId={selectedConnectionId}
+              machines={availableConnections}
+              getMachineStatusKind={(machineId) =>
+                machineId
+                  ? deriveConnectionMachineStatusKind(appState.machines.stateFor(machineId))
+                  : 'idle'
+              }
+              onSelectLocal={() => setStrategy('local')}
+              onSelectMachine={(nextConnectionId) => {
+                setStrategy('ssh');
+                setConnectionId(nextConnectionId);
+              }}
+              onManageMachines={() => {
+                modal.dismiss();
+                navigate(settingsViewDef({ tab: 'connections' }));
+              }}
+            />
+          </div>
+          <div className="flex w-full gap-2">
+            <ModeCard
+              mode="pick"
+              selected={mode === 'pick'}
+              icon={<FolderOpenIcon className="size-3" />}
+              label="Pick Directory"
+              onSelect={setMode}
+            />
+            <ModeCard
+              mode="new"
+              selected={mode === 'new'}
+              icon={<PlusIcon className="size-3" />}
+              label="New Repository"
+              onSelect={setMode}
+            />
+            <ModeCard
+              mode="clone"
+              selected={mode === 'clone'}
+              icon={<DownloadIcon className="size-2" />}
+              label="Clone Repository"
+              onSelect={setMode}
+            />
+          </div>
+          {mode === 'pick' && (
+            <PickExistingPanel
+              strategy={strategy}
+              connectionId={selectedConnectionId}
+              state={pickState}
+              getProjectsClient={getProjectsClient}
+              inspectionError={pickPathInspectionError?.message}
+              showInitializeGitPrompt={requiresGitInitialization}
+            />
+          )}
+          {mode === 'new' && (
+            <CreateNewPanel
+              strategy={strategy}
+              connectionId={selectedConnectionId}
+              state={newState}
+              getProjectsClient={getProjectsClient}
+              showGithubAuthDisclaimer={showGithubAuthDisclaimer}
+              accounts={githubAccountSelect.accounts}
+              selectedAccount={githubAccountSelect.selectedAccount}
+              onAccountChange={setGithubAccountOverride}
+              onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
+              ensureDefaultRoot={
+                defaultRepositoriesRootQuery.data !== undefined &&
+                newState.path === defaultRepositoriesRootQuery.data
+              }
+            />
+          )}
+          {mode === 'clone' && (
+            <ClonePanel
+              strategy={strategy}
+              connectionId={selectedConnectionId}
+              state={cloneState}
+              getProjectsClient={getProjectsClient}
+              ensureDefaultRoot={
+                defaultRepositoriesRootQuery.data !== undefined &&
+                cloneState.path === defaultRepositoriesRootQuery.data
+              }
+            />
+          )}
         </div>
-        <div className="flex w-full gap-2">
-          <ModeCard
-            mode="pick"
-            selected={mode === 'pick'}
-            icon={<FolderOpenIcon className="size-3" />}
-            label="Pick Directory"
-            onSelect={setMode}
-          />
-          <ModeCard
-            mode="new"
-            selected={mode === 'new'}
-            icon={<PlusIcon className="size-3" />}
-            label="New Repository"
-            onSelect={setMode}
-          />
-          <ModeCard
-            mode="clone"
-            selected={mode === 'clone'}
-            icon={<DownloadIcon className="size-2" />}
-            label="Clone Repository"
-            onSelect={setMode}
-          />
-        </div>
-        {mode === 'pick' && (
-          <PickExistingPanel
-            strategy={strategy}
-            connectionId={selectedConnectionId}
-            state={pickState}
-            getProjectsClient={getProjectsClient}
-            inspectionError={pickPathInspectionError?.message}
-            showInitializeGitPrompt={requiresGitInitialization}
-          />
-        )}
-        {mode === 'new' && (
-          <CreateNewPanel
-            strategy={strategy}
-            connectionId={selectedConnectionId}
-            state={newState}
-            getProjectsClient={getProjectsClient}
-            showGithubAuthDisclaimer={showGithubAuthDisclaimer}
-            accounts={githubAccountSelect.accounts}
-            selectedAccount={githubAccountSelect.selectedAccount}
-            onAccountChange={setGithubAccountOverride}
-            onOpenAccountSettings={() => navigate(settingsViewDef({ tab: 'integrations' }))}
-            ensureDefaultRoot={
-              defaultRepositoriesRootQuery.data !== undefined &&
-              newState.path === defaultRepositoriesRootQuery.data
-            }
-          />
-        )}
-        {mode === 'clone' && (
-          <ClonePanel
-            strategy={strategy}
-            connectionId={selectedConnectionId}
-            state={cloneState}
-            getProjectsClient={getProjectsClient}
-            ensureDefaultRoot={
-              defaultRepositoriesRootQuery.data !== undefined &&
-              cloneState.path === defaultRepositoriesRootQuery.data
-            }
-          />
-        )}
-      </DialogContentArea>
+      </Dialog.Body>
     </ModalLayout>
   );
 });

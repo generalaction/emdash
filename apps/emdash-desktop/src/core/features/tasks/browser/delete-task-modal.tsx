@@ -1,4 +1,4 @@
-import { Button, Checkbox } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Dialog } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -6,12 +6,6 @@ import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskS
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export type DeleteTaskModalArgs = {
@@ -113,10 +107,10 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>{title}</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="flex flex-col gap-4 pt-0">
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>{title}</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="flex flex-col gap-4 pt-0">
         <p className="text-sm text-foreground-muted">{description}</p>
 
         {(showWorktreeCheckbox || showBranchCheckbox) && (
@@ -181,8 +175,8 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
           />
           Delete conversations
         </label>
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={dismiss}>
           Cancel
         </Button>
@@ -199,7 +193,7 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
         >
           {isLoading ? 'Loading...' : isBulk ? `Delete ${count} tasks` : 'Delete'}
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

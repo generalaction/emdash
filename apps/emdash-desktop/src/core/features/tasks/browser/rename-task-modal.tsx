@@ -1,4 +1,4 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Field, Input } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
@@ -6,14 +6,6 @@ import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
 import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,
@@ -93,13 +85,13 @@ export const RenameTaskModal = observer(function RenameTaskModal({
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>Rename task</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="pt-0">
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Task name</FieldLabel>
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>Rename task</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="pt-0">
+        <Field.Group>
+          <Field.Root>
+            <Field.Label>Task name</Field.Label>
             <Input
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
@@ -113,10 +105,10 @@ export const RenameTaskModal = observer(function RenameTaskModal({
               <p className="text-destructive mt-1 text-xs">{validationMessage}</p>
             )}
             {error && <p className="text-destructive mt-1 text-xs">{error}</p>}
-          </Field>
-        </FieldGroup>
-      </DialogContentArea>
-      <DialogFooter>
+          </Field.Root>
+        </Field.Group>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={dismiss}>
           Cancel
         </Button>
@@ -127,7 +119,7 @@ export const RenameTaskModal = observer(function RenameTaskModal({
         >
           {isSubmitting ? 'Renaming...' : 'Rename'}
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 });

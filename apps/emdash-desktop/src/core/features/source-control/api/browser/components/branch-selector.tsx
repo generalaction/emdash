@@ -1,9 +1,15 @@
-import { Badge, Combobox, InputGroup, ToggleGroup, Tooltip } from '@emdash/ui/react/primitives';
+import {
+  Badge,
+  Combobox,
+  InputGroup,
+  Select,
+  ToggleGroup,
+  Tooltip,
+} from '@emdash/ui/react/primitives';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
 import {
   filterBranchesForPicker,
   getBranchLabel,
@@ -198,7 +204,7 @@ export function BranchSelector({
         </Combobox.Empty>
         {showRemoteFooter && (
           <div className="border-t border-border">
-            <Select
+            <Select.Root
               open={remoteSelectOpen}
               onOpenChange={(nextOpen) => {
                 setRemoteSelectOpen(nextOpen);
@@ -225,16 +231,16 @@ export function BranchSelector({
                 });
               }}
             >
-              <SelectTrigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0">
+              <Select.Trigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0">
                 <span className="min-w-0 flex-1 truncate text-left text-foreground-muted">
                   {activeRemoteName}
                 </span>
-              </SelectTrigger>
+              </Select.Trigger>
               <RemoteSelectContent
                 remotes={remotes ?? []}
                 fallbackRemoteName={activeRemoteName ?? selectedRemoteName}
               />
-            </Select>
+            </Select.Root>
           </div>
         )}
       </Combobox.Content>

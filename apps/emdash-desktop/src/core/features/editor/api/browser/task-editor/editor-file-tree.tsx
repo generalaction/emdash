@@ -16,7 +16,7 @@ import {
   type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
-import { toast } from '@emdash/ui/react/primitives';
+import { Input, toast } from '@emdash/ui/react/primitives';
 import {
   ClipboardPaste,
   Copy,
@@ -54,7 +54,6 @@ import { relativeToWorkspace } from '@core/features/workspaces/api/browser/works
 import { openModal, useOpenModal } from '@core/manifests/browser/modal-api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
-import { Input } from '@core/primitives/ui/browser/input';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
 import { clearDraggedWorkspaceFile, setDraggedWorkspaceFile } from '@renderer/lib/drag-files';

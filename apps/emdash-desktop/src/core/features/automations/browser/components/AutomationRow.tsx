@@ -1,5 +1,5 @@
 import { AgentStatus } from '@emdash/ui/react/components';
-import { AbsoluteTime } from '@emdash/ui/react/primitives';
+import { AbsoluteTime, Switch } from '@emdash/ui/react/primitives';
 import cronstrue from 'cronstrue';
 import {
   CheckCircle2,
@@ -28,7 +28,6 @@ import {
 import type { Automation } from '@core/primitives/automations/api';
 import type { AutomationRunStatus } from '@core/primitives/automations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { formatRunTriggerKindLabel } from '../automation-run-format';
 
 const RUN_STATUS_ICON: Record<

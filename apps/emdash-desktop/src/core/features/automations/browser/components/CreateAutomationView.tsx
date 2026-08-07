@@ -1,4 +1,12 @@
-import { Button, Collapsible, Label, Sheet, useToast } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  Collapsible,
+  Field,
+  Input,
+  Label,
+  Sheet,
+  useToast,
+} from '@emdash/ui/react/primitives';
 import { CheckCircle2, ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -6,8 +14,6 @@ import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
-import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
-import { Field } from '@core/primitives/ui/browser/field';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
@@ -108,16 +114,17 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       <SheetHeader title="Create automation" onClose={onClose} />
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-4 px-4">
-          <Field>
+          <Field.Root>
             <Label>Name</Label>
-            <EditableNameField
+            <Input
+              bare
               autoFocus={name.trim().length === 0}
               value={name}
-              onChange={setName}
+              onChange={(e) => setName(e.target.value)}
               placeholder="Daily Pull Request Review"
-              className="h-9 text-sm"
+              className="h-9 px-0 text-lg!"
             />
-          </Field>
+          </Field.Root>
           <AutomationSettingsFields
             state={formState}
             cronError={cronError}

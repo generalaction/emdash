@@ -1,14 +1,8 @@
-import { Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 
 export type ExternalLinkChoice = 'emdash-browser' | 'external-browser';
 
@@ -46,10 +40,10 @@ export function ExternalLinkChoiceDialog({
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>Open link?</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="space-y-4 pt-0 text-sm leading-relaxed">
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>Open link?</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="space-y-4 pt-0 text-sm leading-relaxed">
         <p>Choose where to open this link.</p>
         <div className="bg-muted/50 relative rounded-md border border-border">
           <div className="max-h-32 overflow-y-auto px-3 py-2.5 pr-10 font-mono text-[13px] leading-relaxed break-all text-foreground">
@@ -80,8 +74,8 @@ export function ExternalLinkChoiceDialog({
             </Tooltip.Root>
           </Tooltip.Provider>
         </div>
-      </DialogContentArea>
-      <DialogFooter className="flex-col-reverse sm:flex-col-reverse">
+      </Dialog.Body>
+      <Dialog.Footer className="flex-col-reverse sm:flex-col-reverse">
         <Button className="w-full" variant="secondary" onClick={controller.dismiss}>
           Cancel
         </Button>
@@ -102,7 +96,7 @@ export function ExternalLinkChoiceDialog({
           <ExternalLink className="size-4" />
           Open in Browser
         </Button>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

@@ -3,7 +3,13 @@ import {
   MachineStatus,
   type MachineStatusKind,
 } from '@emdash/ui/react/components';
-import { Button, Button as UiButton, ModalLayout } from '@emdash/ui/react/primitives';
+import {
+  Button,
+  Button as UiButton,
+  Dialog,
+  Field,
+  ModalLayout,
+} from '@emdash/ui/react/primitives';
 import { PencilIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -13,13 +19,6 @@ import { useModalController, useOpenModal } from '@core/manifests/browser/modal-
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 import { appState } from '@renderer/lib/stores/app-state';
 
 export interface ChangeProjectConnectionModalProps {
@@ -72,12 +71,12 @@ export function ChangeProjectConnectionModal({
   return (
     <ModalLayout
       header={
-        <DialogHeader>
-          <DialogTitle>Change SSH Connection</DialogTitle>
-        </DialogHeader>
+        <Dialog.Header>
+          <Dialog.Title>Change SSH Connection</Dialog.Title>
+        </Dialog.Header>
       }
       footer={
-        <DialogFooter>
+        <Dialog.Footer>
           <Button variant="secondary" onClick={modal.dismiss} disabled={isSaving}>
             Cancel
           </Button>
@@ -88,20 +87,20 @@ export function ChangeProjectConnectionModal({
           >
             {isSaving ? 'Saving…' : 'Save'}
           </ConfirmButton>
-        </DialogFooter>
+        </Dialog.Footer>
       }
     >
-      <DialogContentArea>
-        <Field>
-          <FieldLabel>SSH Connection</FieldLabel>
+      <Dialog.Body>
+        <Field.Root>
+          <Field.Label>SSH Connection</Field.Label>
           <ChangeConnectionSelector
             connectionId={selectedConnectionId}
             onConnectionIdChange={setSelectedConnectionId}
             onAddConnection={() => void handleAddConnection()}
             onEditConnection={(id) => void handleEditConnection(id)}
           />
-        </Field>
-      </DialogContentArea>
+        </Field.Root>
+      </Dialog.Body>
     </ModalLayout>
   );
 }

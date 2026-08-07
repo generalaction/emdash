@@ -1,14 +1,8 @@
-import { Button, Checkbox } from '@emdash/ui/react/primitives';
+import { Button, Checkbox, Dialog } from '@emdash/ui/react/primitives';
 import { useState, type ReactNode } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 
 export type ConfirmActionDialogArgs = {
   title: string;
@@ -33,10 +27,10 @@ export function ConfirmActionDialog({
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>{title}</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="flex flex-col gap-3 pt-0">
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>{title}</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="flex flex-col gap-3 pt-0">
         {typeof description === 'string' ? <p>{description}</p> : description}
         {checkbox && (
           <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -44,8 +38,8 @@ export function ConfirmActionDialog({
             {checkbox.label}
           </label>
         )}
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={controller.dismiss}>
           Cancel
         </Button>
@@ -55,7 +49,7 @@ export function ConfirmActionDialog({
         >
           {confirmLabel}
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

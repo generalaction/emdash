@@ -1,12 +1,10 @@
-import { Collapsible, Combobox } from '@emdash/ui/react/primitives';
+import { Collapsible, Combobox, Field, Switch } from '@emdash/ui/react/primitives';
 import { ChevronDown, GitBranch } from 'lucide-react';
 import { BranchDisplay } from '@core/features/source-control/api/browser/components/branch-display';
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
 import type { BranchSelectionState } from '@core/features/tasks/browser/create-task-modal/use-branch-selection';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { BranchNameField } from './branch-name-field';
 
 interface BranchPickerFieldProps {
@@ -70,20 +68,20 @@ export function BranchPickerField({
           </Collapsible.Trigger>
           <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
             <div className="flex flex-col gap-2 p-2">
-              <Field orientation="horizontal">
+              <Field.Root orientation="horizontal">
                 <Switch
                   checked={createBranchAndWorktree}
                   onCheckedChange={setCreateBranchAndWorktree}
                 />
-                <FieldLabel>Create task branch and worktree</FieldLabel>
-              </Field>
+                <Field.Label>Create task branch and worktree</Field.Label>
+              </Field.Root>
               {createBranchAndWorktree && (
                 <>
                   {branchNameState && <BranchNameField state={branchNameState} />}
-                  <Field orientation="horizontal">
+                  <Field.Root orientation="horizontal">
                     <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
-                    <FieldLabel>Push branch to remote</FieldLabel>
-                  </Field>
+                    <Field.Label>Push branch to remote</Field.Label>
+                  </Field.Root>
                 </>
               )}
             </div>

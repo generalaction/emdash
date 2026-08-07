@@ -1,5 +1,5 @@
 import { EmptyState, ListPopoverCard } from '@emdash/ui/react/components';
-import { Button, SearchInput, ToggleGroup } from '@emdash/ui/react/primitives';
+import { Button, SearchInput, Select, ToggleGroup } from '@emdash/ui/react/primitives';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -15,13 +15,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
 import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
@@ -277,26 +270,26 @@ export const TaskList = observer(function TaskList() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-sm text-foreground-passive">Sort</span>
-            <Select
+            <Select.Root
               value={taskView.sortBy}
               onValueChange={(value) => taskView.setSortBy(value as ProjectTaskSortBy)}
             >
-              <SelectTrigger
+              <Select.Trigger
                 size="sm"
                 className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
               >
-                <SelectValue>
+                <Select.Value>
                   {SORT_OPTIONS.find(({ value }) => value === taskView.sortBy)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start" alignItemWithTrigger={false}>
+                </Select.Value>
+              </Select.Trigger>
+              <Select.Content align="start" alignItemWithTrigger={false}>
                 {SORT_OPTIONS.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>
+                  <Select.Item key={value} value={value}>
                     {label}
-                  </SelectItem>
+                  </Select.Item>
                 ))}
-              </SelectContent>
-            </Select>
+              </Select.Content>
+            </Select.Root>
           </div>
         </div>
 

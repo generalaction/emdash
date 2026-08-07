@@ -1,10 +1,9 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Input } from '@emdash/ui/react/primitives';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import React, { type RefObject } from 'react';
 import type { TerminalSearchStatus } from '@core/features/terminals/api/browser/pty/use-terminal-search';
 import { terminalSearchScope } from '@core/features/workbench/contributions/scopes';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Input } from '@core/primitives/ui/browser/input';
 import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
 

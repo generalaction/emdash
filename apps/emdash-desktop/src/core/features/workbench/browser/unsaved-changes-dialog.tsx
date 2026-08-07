@@ -1,12 +1,6 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Dialog } from '@emdash/ui/react/primitives';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 
 export type UnsavedChangesDialogResult = 'save' | 'discard';
 
@@ -19,22 +13,22 @@ export function UnsavedChangesDialog({ fileName }: UnsavedChangesDialogArgs) {
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
-        <DialogTitle>Unsaved Changes</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="pt-0">
+      <Dialog.Header showCloseButton={false}>
+        <Dialog.Title>Unsaved Changes</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="pt-0">
         <p>
           Do you want to save the changes to <strong>{fileName}</strong>?
         </p>
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <Button variant="secondary" onClick={() => controller.complete('discard')}>
           Discard
         </Button>
         <Button variant="primary" onClick={() => controller.complete('save')}>
           Save
         </Button>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

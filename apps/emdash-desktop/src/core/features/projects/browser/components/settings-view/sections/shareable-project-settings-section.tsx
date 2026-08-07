@@ -1,14 +1,10 @@
-import { Button, Separator } from '@emdash/ui/react/primitives';
+import { Button, Field, Input, Separator, Switch, Textarea } from '@emdash/ui/react/primitives';
 import { Fragment } from 'react';
 import type {
   ProjectConfigMigration,
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
-import { Switch } from '@core/primitives/ui/browser/switch';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { ConfigMigrationNotice } from '../config-migration-notice';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
@@ -47,7 +43,7 @@ function ShareableField({
   beforeInput?: React.ReactNode;
 }) {
   return (
-    <Field>
+    <Field.Root>
       <ShareableSettingTitle
         leafLabel={descriptor.leafLabel}
         overrideSources={getOverrideSources(descriptor.id)}
@@ -56,9 +52,9 @@ function ShareableField({
         {descriptor.group ? titleCase(descriptor.leafLabel) : descriptor.modalLabel}
       </ShareableSettingTitle>
       {descriptor.description ? (
-        <FieldDescription className="text-foreground-muted">
+        <Field.Description className="text-foreground-muted">
           {descriptor.description}
-        </FieldDescription>
+        </Field.Description>
       ) : null}
       {beforeInput}
       {descriptor.multiline ? (
@@ -75,7 +71,7 @@ function ShareableField({
           onChange={(e) => update(descriptor.formKey, e.target.value)}
         />
       )}
-    </Field>
+    </Field.Root>
   );
 }
 
@@ -128,9 +124,9 @@ export function ShareableSettingsSection({
       <Separator />
 
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <FieldTitle>Lifecycle scripts</FieldTitle>
-          <FieldDescription className="text-foreground-muted">
+        <Field.Root className="gap-1">
+          <Field.Label>Lifecycle scripts</Field.Label>
+          <Field.Description className="text-foreground-muted">
             Shell commands run at each stage of the worktree lifecycle. Prepare blocks task startup;
             Setup and Run start after the workspace is ready. When both are set to auto-run, Run
             waits for Setup to complete.
@@ -150,8 +146,8 @@ export function ShareableSettingsSection({
               </span>
             </Button>
             <span> for the full project config reference.</span>
-          </FieldDescription>
-        </div>
+          </Field.Description>
+        </Field.Root>
 
         {lifecycleFields.map((descriptor) => (
           <ShareableField

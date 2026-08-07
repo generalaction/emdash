@@ -1,4 +1,4 @@
-import { SplitButton, toast } from '@emdash/ui/react/primitives';
+import { Input, SplitButton, Textarea, toast } from '@emdash/ui/react/primitives';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -14,8 +14,6 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Input } from '@core/primitives/ui/browser/input';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 
 type CommitPhase =
   | 'idle'

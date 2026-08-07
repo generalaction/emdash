@@ -1,6 +1,7 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
+import { Field, Switch } from '@emdash/ui/react/primitives';
 import {
   useCallback,
   useEffect,
@@ -30,8 +31,6 @@ import {
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Field, FieldDescription, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { buildIssueContextText } from '../../../browser/context-bar/context-actions';
 import { appendInitialConversationText } from '../../../browser/create-task-modal/initial-conversation-text';
@@ -324,7 +323,7 @@ export function InitialConversationField({
   );
 
   return (
-    <Field>
+    <Field.Root>
       <div
         className={cn(
           'flex flex-col gap-2 transition-colors',
@@ -351,7 +350,7 @@ export function InitialConversationField({
               onCheckedChange={state.setAutoApprove}
               disabled={!state.provider}
             />
-            <FieldLabel htmlFor={autoApproveSwitchId}>Auto-approve permissions</FieldLabel>
+            <Field.Label htmlFor={autoApproveSwitchId}>Auto-approve permissions</Field.Label>
           </div>
         ) : null}
 
@@ -362,7 +361,7 @@ export function InitialConversationField({
               checked={state.useChatUi}
               onCheckedChange={state.setUseChatUi}
             />
-            <FieldLabel htmlFor={chatUiSwitchId}>Use chat UI</FieldLabel>
+            <Field.Label htmlFor={chatUiSwitchId}>Use chat UI</Field.Label>
           </div>
         ) : null}
 
@@ -383,8 +382,8 @@ export function InitialConversationField({
           onModelChange={(modelId) => state.setModel(modelId || null)}
           className={textareaClassName}
         />
-        {initialPromptInfo ? <FieldDescription>{initialPromptInfo}</FieldDescription> : null}
+        {initialPromptInfo ? <Field.Description>{initialPromptInfo}</Field.Description> : null}
       </div>
-    </Field>
+    </Field.Root>
   );
 }

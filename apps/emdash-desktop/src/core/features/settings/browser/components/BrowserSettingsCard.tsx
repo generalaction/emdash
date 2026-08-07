@@ -1,4 +1,4 @@
-import { Button, DropdownMenu, toast } from '@emdash/ui/react/primitives';
+import { Button, DropdownMenu, Input, Select, Switch, toast } from '@emdash/ui/react/primitives';
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -16,15 +16,6 @@ import {
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Input } from '@core/primitives/ui/browser/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { SettingRow } from './SettingRow';
 
@@ -140,25 +131,25 @@ export function BrowserSettingsCard() {
         title="Default browser profile"
         description="New browser tabs open with this profile. You can switch an individual tab's profile from its toolbar menu."
         control={
-          <Select
+          <Select.Root
             value={selectedDefault}
             onValueChange={(next) => {
               if (next) update({ defaultProfileId: next });
             }}
             disabled={disabled}
           >
-            <SelectTrigger className="w-[190px] shrink-0 gap-2">
-              <SelectValue>{browserProfileLabel(selectedDefault, profiles)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent align="end">
+            <Select.Trigger className="w-[190px] shrink-0 gap-2">
+              <Select.Value>{browserProfileLabel(selectedDefault, profiles)}</Select.Value>
+            </Select.Trigger>
+            <Select.Content align="end">
               {profiles.map((profile) => (
-                <SelectItem key={profile.id} value={profile.id}>
+                <Select.Item key={profile.id} value={profile.id}>
                   {profile.name}
-                </SelectItem>
+                </Select.Item>
               ))}
-              <SelectItem value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</SelectItem>
-            </SelectContent>
-          </Select>
+              <Select.Item value={BROWSER_ISOLATED_PROFILE_ID}>Isolated per task</Select.Item>
+            </Select.Content>
+          </Select.Root>
         }
       />
 

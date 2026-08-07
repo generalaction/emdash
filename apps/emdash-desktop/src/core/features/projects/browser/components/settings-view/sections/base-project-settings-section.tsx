@@ -1,5 +1,5 @@
 import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
-import { Button, Separator } from '@emdash/ui/react/primitives';
+import { Button, Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -13,15 +13,6 @@ import {
 } from '@core/features/source-control/api/browser/components/remote-select-content';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@core/primitives/ui/browser/select';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
@@ -82,18 +73,18 @@ export function BaseProjectSettingsSection({
 
   return (
     <>
-      <Field>
-        <FieldTitle>GitHub account</FieldTitle>
-        <FieldDescription className="text-foreground-muted">
+      <Field.Root>
+        <Field.Label>GitHub account</Field.Label>
+        <Field.Description className="text-foreground-muted">
           Used for pull requests and issues in this project.
-        </FieldDescription>
-        <Select
+        </Field.Description>
+        <Select.Root
           value={githubAccountSelect.selectValue}
           onValueChange={(value) =>
             update('githubAccountId', value === NO_GITHUB_ACCOUNT ? null : (value ?? null))
           }
         >
-          <SelectTrigger className="w-full min-w-0">
+          <Select.Trigger className="w-full min-w-0">
             {githubAccountSelect.selectedAccount ? (
               <GitHubAccountSelectLabel account={githubAccountSelect.selectedAccount} />
             ) : (
@@ -111,28 +102,28 @@ export function BaseProjectSettingsSection({
                 )}
               </div>
             )}
-          </SelectTrigger>
-          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
-            <SelectItem value={NO_GITHUB_ACCOUNT} className="py-2">
+          </Select.Trigger>
+          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+            <Select.Item value={NO_GITHUB_ACCOUNT} className="py-2">
               <div className="flex min-w-0 items-center gap-2">
                 <Github className="text-muted-foreground h-4 w-4 shrink-0" />
                 <span className="relative -top-px shrink-0">No GitHub account</span>
               </div>
-            </SelectItem>
+            </Select.Item>
             {githubAccountSelect.accounts.map((account) => (
               <GitHubAccountSelectItem key={account.accountId} account={account} />
             ))}
-          </SelectContent>
-        </Select>
-      </Field>
+          </Select.Content>
+        </Select.Root>
+      </Field.Root>
 
       <Separator />
 
-      <Field>
-        <FieldTitle>Worktree directory</FieldTitle>
-        <FieldDescription className="text-foreground-muted">
+      <Field.Root>
+        <Field.Label>Worktree directory</Field.Label>
+        <Field.Description className="text-foreground-muted">
           Change where worktrees are created.
-        </FieldDescription>
+        </Field.Description>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Input
@@ -160,59 +151,59 @@ export function BaseProjectSettingsSection({
             </Button>
           ) : null}
         </div>
-      </Field>
+      </Field.Root>
 
       <Separator />
 
-      <Field>
-        <FieldTitle>Default branch</FieldTitle>
-        <FieldDescription className="text-foreground-muted">
+      <Field.Root>
+        <Field.Label>Default branch</Field.Label>
+        <Field.Description className="text-foreground-muted">
           The branch new tasks are created from by default.
-        </FieldDescription>
+        </Field.Description>
         <ProjectBranchSelector
           projectId={projectId}
           value={form.defaultBranch ?? undefined}
           onValueChange={(branch: GitBranchRef) => update('defaultBranch', branch)}
         />
-      </Field>
+      </Field.Root>
 
       <Separator />
 
-      <Field>
-        <FieldTitle>Base remote</FieldTitle>
-        <FieldDescription className="text-foreground-muted">
+      <Field.Root>
+        <Field.Label>Base remote</Field.Label>
+        <Field.Description className="text-foreground-muted">
           Used for fetching remote branches, choosing task base branches and targeting pull
           requests.
-        </FieldDescription>
-        <Select
+        </Field.Description>
+        <Select.Root
           value={baseRemoteValue}
           onValueChange={(value) => update('baseRemote', value ?? '')}
         >
-          <SelectTrigger className="w-full min-w-0">
+          <Select.Trigger className="w-full min-w-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <span className="min-w-0 truncate">
                 {selectedBaseRemote?.name ?? baseRemoteValue}
               </span>
             </div>
-          </SelectTrigger>
+          </Select.Trigger>
           <RemoteSelectContent remotes={remotes} />
-        </Select>
-      </Field>
+        </Select.Root>
+      </Field.Root>
 
       <Separator />
 
-      <Field>
-        <FieldTitle>Push remote</FieldTitle>
-        <FieldDescription className="text-foreground-muted">
+      <Field.Root>
+        <Field.Label>Push remote</Field.Label>
+        <Field.Description className="text-foreground-muted">
           Used when publishing task branches and pushing commits.
-        </FieldDescription>
-        <Select
+        </Field.Description>
+        <Select.Root
           value={pushRemoteValue}
           onValueChange={(value) =>
             update('pushRemote', value === SAME_AS_BASE_REMOTE ? '' : (value ?? ''))
           }
         >
-          <SelectTrigger className="w-full min-w-0">
+          <Select.Trigger className="w-full min-w-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <span className="min-w-0 truncate">
                 {pushRemoteValue === SAME_AS_BASE_REMOTE
@@ -220,29 +211,29 @@ export function BaseProjectSettingsSection({
                   : (selectedPushRemote?.name ?? pushRemoteValue)}
               </span>
             </div>
-          </SelectTrigger>
-          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
-            <SelectItem value={SAME_AS_BASE_REMOTE} className="py-2">
+          </Select.Trigger>
+          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
+            <Select.Item value={SAME_AS_BASE_REMOTE} className="py-2">
               <span className="relative -top-px shrink-0 font-medium">Same as base remote</span>
-            </SelectItem>
+            </Select.Item>
             {remotes.map((remote) => (
               <RemoteSelectItem key={remote.name} remote={remote} />
             ))}
-          </SelectContent>
-        </Select>
-      </Field>
+          </Select.Content>
+        </Select.Root>
+      </Field.Root>
 
       <Separator />
 
-      <Field orientation="horizontal">
+      <Field.Root orientation="horizontal">
         <div className="flex flex-1 flex-col gap-1">
-          <FieldTitle>Enable tmux</FieldTitle>
-          <FieldDescription className="text-foreground-muted">
+          <Field.Label>Enable tmux</Field.Label>
+          <Field.Description className="text-foreground-muted">
             Run the agent session inside a tmux session.
-          </FieldDescription>
+          </Field.Description>
         </div>
         <Switch checked={form.tmux} onCheckedChange={(checked) => update('tmux', checked)} />
-      </Field>
+      </Field.Root>
     </>
   );
 }

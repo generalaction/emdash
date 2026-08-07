@@ -3,20 +3,11 @@ import type {
   McpProvidersResponse,
   McpServer,
 } from '@emdash/core/primitives/mcp/api';
-import { Button, MicroLabel, Sheet } from '@emdash/ui/react/primitives';
+import { Button, Field, Input, MicroLabel, Select, Sheet } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
-import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { SyncToAgentsSection } from './SyncToAgentsSection';
 
@@ -151,42 +142,42 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
         {isCatalog && mode.entry.description && (
           <p className="text-muted-foreground mb-4 text-xs">{mode.entry.description}</p>
         )}
-        <FieldGroup>
+        <Field.Group>
           <form.Field name="name">
             {(field) => (
-              <Field>
-                <FieldLabel>Server Name</FieldLabel>
+              <Field.Root>
+                <Field.Label>Server Name</Field.Label>
                 <Input
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   disabled={isCatalog || isEdit}
                   placeholder="my-server"
                 />
-              </Field>
+              </Field.Root>
             )}
           </form.Field>
 
           {!isCatalog && (
             <form.Field name="transport">
               {(field) => (
-                <Field>
-                  <FieldLabel>Transport</FieldLabel>
-                  <Select
+                <Field.Root>
+                  <Field.Label>Transport</Field.Label>
+                  <Select.Root
                     value={field.state.value}
                     onValueChange={(v) => {
                       const next = v as 'stdio' | 'http';
                       field.handleChange(next);
                     }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="stdio">stdio</SelectItem>
-                      <SelectItem value="http">http</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
+                    <Select.Trigger>
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="stdio">stdio</Select.Item>
+                      <Select.Item value="http">http</Select.Item>
+                    </Select.Content>
+                  </Select.Root>
+                </Field.Root>
               )}
             </form.Field>
           )}
@@ -198,21 +189,21 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
                   <>
                     <form.Field name="command">
                       {(field) => (
-                        <Field>
-                          <FieldLabel>Command</FieldLabel>
+                        <Field.Root>
+                          <Field.Label>Command</Field.Label>
                           <Input
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             disabled={isCatalog}
                             placeholder="npx"
                           />
-                        </Field>
+                        </Field.Root>
                       )}
                     </form.Field>
                     <form.Field name="args">
                       {(field) => (
-                        <Field>
-                          <FieldLabel>Arguments (one per line)</FieldLabel>
+                        <Field.Root>
+                          <Field.Label>Arguments (one per line)</Field.Label>
                           <textarea
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
@@ -221,7 +212,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
                             rows={3}
                             className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                           />
-                        </Field>
+                        </Field.Root>
                       )}
                     </form.Field>
                   </>
@@ -230,15 +221,15 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
                 {transport === 'http' && (
                   <form.Field name="url">
                     {(field) => (
-                      <Field>
-                        <FieldLabel>URL</FieldLabel>
+                      <Field.Root>
+                        <Field.Label>URL</Field.Label>
                         <Input
                           value={field.state.value}
                           onChange={(e) => field.handleChange(e.target.value)}
                           disabled={isCatalog}
                           placeholder="https://mcp.example.com"
                         />
-                      </Field>
+                      </Field.Root>
                     )}
                   </form.Field>
                 )}
@@ -295,7 +286,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
               />
             )}
           </form.Field>
-        </FieldGroup>
+        </Field.Group>
       </div>
 
       <Sheet.Footer className="flex-row items-center justify-between gap-2 sm:flex-row">

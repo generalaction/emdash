@@ -1,12 +1,10 @@
-import { Button, Collapsible, Label, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Collapsible, Field, Input, Label, Tooltip } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Field } from '@core/primitives/ui/browser/field';
-import { Input } from '@core/primitives/ui/browser/input';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { log } from '@renderer/utils/logger';
 
@@ -144,7 +142,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
           {/* Additional parameters */}
           <form.Field name="extraArgs">
             {(field) => (
-              <Field>
+              <Field.Root>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="sheet-extraArgs">Additional parameters</Label>
                   <FieldTooltip content="Extra flags appended to the command (e.g. --enable-all-github-mcp-tools)" />
@@ -157,14 +155,14 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   placeholder="e.g. --enable-all-github-mcp-tools"
                   className="font-mono text-sm"
                 />
-              </Field>
+              </Field.Root>
             )}
           </form.Field>
 
           {/* Environment variables */}
           <form.Field name="envEntries">
             {(field) => (
-              <Field>
+              <Field.Root>
                 <div className="flex items-center gap-2">
                   <Label>Environment variables</Label>
                   <FieldTooltip content="Environment variables set when running the agent" />
@@ -234,7 +232,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                     Add variable
                   </Button>
                 </div>
-              </Field>
+              </Field.Root>
             )}
           </form.Field>
 

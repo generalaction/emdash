@@ -1,5 +1,5 @@
 import { InlineMarkdown } from '@emdash/ui/react/components';
-import { Button, Combobox, Tooltip } from '@emdash/ui/react/primitives';
+import { Button, Combobox, Select, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
@@ -12,12 +12,6 @@ import { useIntegrationsContext } from '@core/features/integrations/api/browser/
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@core/primitives/ui/browser/select';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { IssueStatusIndicator, toIssueStatus } from './issue-status-indicator';
@@ -173,7 +167,7 @@ export const IssueSelector = observer(function IssueSelector({
 
   const leftAddon = issueProvider ? (
     connectedProviderCount > 1 ? (
-      <Select
+      <Select.Root
         value={issueProvider}
         onValueChange={(v) => v && handleSelectIssueProvider(v as LinkedIssue['provider'])}
         onOpenChange={(open) => {
@@ -185,21 +179,21 @@ export const IssueSelector = observer(function IssueSelector({
           }
         }}
       >
-        <SelectTrigger
+        <Select.Trigger
           aria-label="Select issue provider"
           className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
-        </SelectTrigger>
-        <SelectContent>
+        </Select.Trigger>
+        <Select.Content>
           {issueProviderOrder.map((p) => (
-            <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
+            <Select.Item key={p} value={p} disabled={isProviderDisabled(p)}>
               <ProviderLogo provider={p} className="size-4" size={16} />
               <span>{getIntegrationName(integrationById, p)}</span>
-            </SelectItem>
+            </Select.Item>
           ))}
-        </SelectContent>
-      </Select>
+        </Select.Content>
+      </Select.Root>
     ) : (
       <span className="mx-1.5 flex items-center">
         <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />

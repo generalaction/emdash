@@ -1,4 +1,5 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Dialog } from '@emdash/ui/react/primitives';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -13,7 +14,6 @@ import {
 } from '@core/primitives/modals/react';
 import { modalStore, type ModalStackEntry } from '@core/primitives/modals/react/modal-store';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Dialog, DialogOverlay, DialogPortal } from '@core/primitives/ui/browser/dialog';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 
@@ -172,13 +172,13 @@ const ModalDialog = observer(function ModalDialog({
   if (!Component || !runtimeEntry) return null;
 
   return (
-    <Dialog
+    <Dialog.Root
       open={!entry.closing}
       onOpenChange={handleOpenChange}
       onOpenChangeComplete={handleOpenChangeComplete}
     >
-      <DialogPortal>
-        <DialogOverlay />
+      <Dialog.Portal>
+        <Dialog.Overlay />
         <DialogPrimitive.Popup
           ref={attachPopupRef}
           finalFocus={false}
@@ -201,7 +201,7 @@ const ModalDialog = observer(function ModalDialog({
             </ModalHostContext.Provider>
           </ViewScopeInstanceProvider>
         </DialogPrimitive.Popup>
-      </DialogPortal>
-    </Dialog>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 });

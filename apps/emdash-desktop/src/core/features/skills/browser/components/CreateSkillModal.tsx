@@ -1,20 +1,12 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
-import { Button, Label } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Input, Label, Textarea } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Input } from '@core/primitives/ui/browser/input';
-import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { getSkillsClient } from '../client';
 
@@ -69,13 +61,13 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
 
   return (
     <>
-      <DialogHeader>
+      <Dialog.Header>
         <div className="flex flex-col gap-0.5">
-          <DialogTitle>New Skill</DialogTitle>
+          <Dialog.Title>New Skill</Dialog.Title>
         </div>
-      </DialogHeader>
+      </Dialog.Header>
 
-      <DialogContentArea>
+      <Dialog.Body>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="skill-name">Name</Label>
@@ -127,9 +119,9 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
 
           {createError && <p className="text-destructive text-xs">{createError}</p>}
         </div>
-      </DialogContentArea>
+      </Dialog.Body>
 
-      <DialogFooter className="gap-2 sm:gap-2">
+      <Dialog.Footer className="gap-2 sm:gap-2">
         <Button type="button" variant="secondary" size="sm" onClick={dismiss} disabled={isCreating}>
           Cancel
         </Button>
@@ -142,7 +134,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
         >
           {isCreating ? 'Creating...' : 'Create'}
         </ConfirmButton>
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

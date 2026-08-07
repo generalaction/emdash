@@ -1,16 +1,10 @@
 import { ListPopoverCard } from '@emdash/ui/react/components';
-import { Button, Combobox } from '@emdash/ui/react/primitives';
+import { Button, Combobox, Select } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@core/primitives/ui/browser/select';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import {
@@ -153,7 +147,7 @@ export function PrSelector({
   );
 
   const statusAddon = (
-    <Select
+    <Select.Root
       value={statusFilter}
       onValueChange={(v) => {
         if (v === 'open' || v === 'not-open') {
@@ -162,17 +156,17 @@ export function PrSelector({
         }
       }}
     >
-      <SelectTrigger
+      <Select.Trigger
         aria-label="Filter by status"
         className="h-6 gap-1 border-none bg-transparent px-1.5 text-xs text-foreground-muted shadow-none hover:text-foreground focus:ring-0"
       >
         {statusFilter === 'open' ? 'Open' : 'Closed'}
-      </SelectTrigger>
-      <SelectContent align="end">
-        <SelectItem value="open">Open</SelectItem>
-        <SelectItem value="not-open">Closed</SelectItem>
-      </SelectContent>
-    </Select>
+      </Select.Trigger>
+      <Select.Content align="end">
+        <Select.Item value="open">Open</Select.Item>
+        <Select.Item value="not-open">Closed</Select.Item>
+      </Select.Content>
+    </Select.Root>
   );
 
   return (

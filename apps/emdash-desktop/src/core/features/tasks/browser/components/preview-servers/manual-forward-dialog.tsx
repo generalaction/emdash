@@ -1,16 +1,7 @@
-import { Button, Label } from '@emdash/ui/react/primitives';
+import { Button, Dialog, Input, Label } from '@emdash/ui/react/primitives';
 import { useState, type FormEvent } from 'react';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
-import {
-  DialogContent,
-  DialogContentArea,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
-import { Input } from '@core/primitives/ui/browser/input';
 
 function parsePort(value: string): number | undefined {
   const trimmed = value.trim();
@@ -73,15 +64,15 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <DialogContent>
+    <Dialog.Content>
       <form onSubmit={handleSubmit}>
-        <DialogHeader>
-          <DialogTitle>Forward Port</DialogTitle>
-        </DialogHeader>
-        <DialogContentArea>
-          <DialogDescription>
+        <Dialog.Header>
+          <Dialog.Title>Forward Port</Dialog.Title>
+        </Dialog.Header>
+        <Dialog.Body>
+          <Dialog.Description>
             Create a preview tunnel from a remote dev server port.
-          </DialogDescription>
+          </Dialog.Description>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_1fr]">
             <Label htmlFor="preview-protocol" className="self-center">
               Protocol
@@ -117,16 +108,16 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
           {error ? <p className="text-xs text-foreground-destructive">{error}</p> : null}
-        </DialogContentArea>
-        <DialogFooter>
+        </Dialog.Body>
+        <Dialog.Footer>
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Forwarding...' : 'Forward'}
           </Button>
-        </DialogFooter>
+        </Dialog.Footer>
       </form>
-    </DialogContent>
+    </Dialog.Content>
   );
 }

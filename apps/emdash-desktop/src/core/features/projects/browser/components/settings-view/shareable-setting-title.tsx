@@ -1,10 +1,9 @@
-import { Badge, Button, Tooltip } from '@emdash/ui/react/primitives';
+import { Badge, Button, Field, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw } from 'lucide-react';
 import type {
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { FieldTitle } from '@core/primitives/ui/browser/field';
 
 type Props = {
   children: React.ReactNode;
@@ -21,7 +20,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
 
   return (
     <div className="flex min-h-5 items-center justify-between gap-3">
-      <FieldTitle className="min-w-0 flex-1">{children}</FieldTitle>
+      <Field.Label className="min-w-0 flex-1">{children}</Field.Label>
       {overrideSources.length > 0 ? (
         <div className="flex h-4.5 shrink-0 items-center gap-1.5">
           <Tooltip.Provider delay={150}>

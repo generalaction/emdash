@@ -1,15 +1,9 @@
-import { Button, useToast } from '@emdash/ui/react/primitives';
+import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
-import {
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@core/primitives/ui/browser/dialog';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -206,10 +200,10 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-      </DialogHeader>
-      <DialogContentArea className="gap-4">
+      <Dialog.Header>
+        <Dialog.Title>{title}</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body className="gap-4">
         {success ? (
           <div className="rounded-lg border border-border/60 bg-background/60 p-3">
             <div className="flex items-center gap-3">
@@ -311,8 +305,8 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
             </div>
           </>
         )}
-      </DialogContentArea>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         {error || success ? (
           <Button variant="secondary" onClick={modal.dismiss}>
             Close
@@ -340,7 +334,7 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
             </Button>
           </>
         )}
-      </DialogFooter>
+      </Dialog.Footer>
     </>
   );
 }

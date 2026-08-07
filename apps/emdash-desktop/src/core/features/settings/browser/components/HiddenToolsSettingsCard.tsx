@@ -1,8 +1,7 @@
-import { Tooltip } from '@emdash/ui/react/primitives';
+import { Switch, Tooltip } from '@emdash/ui/react/primitives';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { OPEN_IN_APPS, type OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
-import { Switch } from '@core/primitives/ui/browser/switch';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import IntegrationRow from './IntegrationRow';
 

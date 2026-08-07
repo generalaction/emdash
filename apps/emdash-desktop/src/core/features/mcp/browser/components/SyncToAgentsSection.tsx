@@ -1,12 +1,11 @@
 import type { McpProvidersResponse } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, Field } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 
 interface SyncToAgentsSectionProps {
   providers: McpProvidersResponse[];
@@ -29,9 +28,9 @@ export const SyncToAgentsSection: React.FC<SyncToAgentsSectionProps> = ({
   const installedProviders = providers.filter((provider) => provider.installed);
 
   return (
-    <Field>
+    <Field.Root>
       <div className="flex items-center justify-between gap-3">
-        <FieldLabel>Sync to agents</FieldLabel>
+        <Field.Label>Sync to agents</Field.Label>
         <Button
           type="button"
           variant="link"
@@ -79,6 +78,6 @@ export const SyncToAgentsSection: React.FC<SyncToAgentsSectionProps> = ({
           contentClassName="w-72"
         />
       </div>
-    </Field>
+    </Field.Root>
   );
 };

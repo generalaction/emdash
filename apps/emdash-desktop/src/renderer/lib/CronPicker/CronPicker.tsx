@@ -1,13 +1,6 @@
+import { Input, Select } from '@emdash/ui/react/primitives';
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Input } from '@core/primitives/ui/browser/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@core/primitives/ui/browser/select';
 import {
   changePeriod,
   DEFAULT_CRON_STATE,
@@ -53,7 +46,7 @@ function sanitizeTimeSegmentDraft(raw: string, max: number) {
   return String(Math.min(max, parsed));
 }
 
-/** Small inline <Select> styled to blend into the sentence. */
+/** Small inline <Select.Root> styled to blend into the sentence. */
 function InlineSelect({
   value,
   onValueChange,
@@ -69,25 +62,25 @@ function InlineSelect({
   renderValue?: (v: string) => string;
 }) {
   return (
-    <Select
+    <Select.Root
       value={value}
       onValueChange={(v) => {
         if (v !== null) onValueChange(v);
       }}
     >
-      <SelectTrigger
+      <Select.Trigger
         size="sm"
         className={cn(
           'h-7 border-border/60 bg-muted/20 px-2 text-sm font-medium hover:bg-muted/40',
           className
         )}
       >
-        {renderValue ? <SelectValue>{renderValue}</SelectValue> : <SelectValue />}
-      </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
+        {renderValue ? <Select.Value>{renderValue}</Select.Value> : <Select.Value />}
+      </Select.Trigger>
+      <Select.Content alignItemWithTrigger={false} side="bottom" align="start">
         {children}
-      </SelectContent>
-    </Select>
+      </Select.Content>
+    </Select.Root>
   );
 }
 
@@ -258,9 +251,9 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
           renderValue={(v) => PERIOD_LABELS[v as CronPeriod] ?? v}
         >
           {PERIOD_ORDER.map((p) => (
-            <SelectItem key={p} value={p}>
+            <Select.Item key={p} value={p}>
               {PERIOD_LABELS[p]}
-            </SelectItem>
+            </Select.Item>
           ))}
         </InlineSelect>
 
@@ -274,9 +267,9 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
               renderValue={(v) => MONTH_LABELS[parseInt(v, 10) - 1] ?? v}
             >
               {MONTH_LABELS.map((label, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>
+                <Select.Item key={i + 1} value={String(i + 1)}>
                   {label}
-                </SelectItem>
+                </Select.Item>
               ))}
             </InlineSelect>
           </>
@@ -292,9 +285,9 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
               renderValue={(v) => ordinal(parseInt(v, 10))}
             >
               {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                <SelectItem key={d} value={String(d)}>
+                <Select.Item key={d} value={String(d)}>
                   {ordinal(d)}
-                </SelectItem>
+                </Select.Item>
               ))}
             </InlineSelect>
           </>
@@ -310,9 +303,9 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
               renderValue={(v) => WEEKDAY_LABELS[parseInt(v, 10)] ?? v}
             >
               {WEEKDAY_LABELS.map((label, i) => (
-                <SelectItem key={i} value={String(i)}>
+                <Select.Item key={i} value={String(i)}>
                   {label}
-                </SelectItem>
+                </Select.Item>
               ))}
             </InlineSelect>
           </>

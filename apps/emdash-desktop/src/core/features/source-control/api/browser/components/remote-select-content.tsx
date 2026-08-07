@@ -1,5 +1,5 @@
+import { Select } from '@emdash/ui/react/primitives';
 import type { GitRemote } from '@core/primitives/git/api';
-import { SelectContent, SelectItem } from '@core/primitives/ui/browser/select';
 
 type RemoteSelectContentProps = {
   remotes: GitRemote[];
@@ -11,23 +11,23 @@ export function RemoteSelectContent({
   fallbackRemoteName = 'origin',
 }: RemoteSelectContentProps) {
   return (
-    <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+    <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
       {remotes.length > 0 ? (
         remotes.map((remote) => <RemoteSelectItem key={remote.name} remote={remote} />)
       ) : (
-        <SelectItem value={fallbackRemoteName} className="py-2">
+        <Select.Item value={fallbackRemoteName} className="py-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <span className="relative -top-px shrink-0 font-medium">{fallbackRemoteName}</span>
           </div>
-        </SelectItem>
+        </Select.Item>
       )}
-    </SelectContent>
+    </Select.Content>
   );
 }
 
 export function RemoteSelectItem({ remote }: { remote: GitRemote }) {
   return (
-    <SelectItem value={remote.name} className="py-2">
+    <Select.Item value={remote.name} className="py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="relative -top-px shrink-0">{remote.name}</span>
         {remote.url ? (
@@ -36,6 +36,6 @@ export function RemoteSelectItem({ remote }: { remote: GitRemote }) {
           </span>
         ) : null}
       </div>
-    </SelectItem>
+    </Select.Item>
   );
 }

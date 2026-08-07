@@ -1,6 +1,6 @@
+import { Textarea, type TextareaProps } from '@emdash/ui/react/primitives';
 import React, { forwardRef, useEffect } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Textarea, type TextareaProps } from '@core/primitives/ui/browser/textarea';
 
 export function useTextareaAutoFocus(
   ref: React.RefObject<HTMLTextAreaElement | null>,

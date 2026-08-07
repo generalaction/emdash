@@ -4,6 +4,7 @@ import {
   Button,
   DropdownMenu,
   Heading,
+  Input,
   SelectableCard,
   SeparatedList,
   toast,
@@ -28,7 +29,6 @@ import { SkillsPanel } from '@core/features/skills/api/browser/components/Skills
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { isServerUsable } from '@core/services/remote-machine/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -221,11 +221,12 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex min-w-0 items-center gap-2">
         {isRenaming ? (
-          <EditableNameField
+          <Input
+            bare
             ref={renameFieldRef}
             value={name}
-            className="min-w-0 flex-1"
-            onChange={setName}
+            className="min-w-0 flex-1 px-0 text-lg!"
+            onChange={(e) => setName(e.target.value)}
             onBlur={(event) => void commitName(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
