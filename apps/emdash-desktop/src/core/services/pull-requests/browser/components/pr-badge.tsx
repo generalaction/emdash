@@ -1,12 +1,12 @@
 import { Button, Popover, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
-import { PrUrlCopyButton } from '@core/primitives/ui/browser/components/pr-url-copy-button';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { PrMergeLine } from './pr-merge-line';
 import { PrNumberBadge } from './pr-number-badge';
 import { StatusIcon } from './pr-status-icon';
+import { PrUrlCopyButton } from './pr-url-copy-button';
 
 interface PrBadgeProps {
   variant?: 'default' | 'compact';

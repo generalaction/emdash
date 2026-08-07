@@ -2,12 +2,12 @@ import { Button, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
-import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
-import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';
+import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
+import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 
 export const PrRow = memo(function PrRow({
   pr,

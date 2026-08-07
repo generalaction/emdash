@@ -16,9 +16,9 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { type Task } from '@core/primitives/tasks/api';
-import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
+import { PrBadge } from '@root/src/core/services/pull-requests/browser/components/pr-badge';
 
 export type ReadyTask = TaskStore & { data: Task };
 

@@ -5,7 +5,6 @@ import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
 import {
   Select,
   SelectContent,
@@ -18,6 +17,7 @@ import {
   pullRequestErrorMessage,
   type PullRequest,
 } from '@root/src/core/services/pull-requests/api';
+import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 
 type StatusFilter = 'open' | 'not-open';
 

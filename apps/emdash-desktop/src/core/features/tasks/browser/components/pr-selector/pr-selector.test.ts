@@ -22,7 +22,7 @@ vi.mock('@renderer/lib/runtime/pull-requests-client', () => ({
   }),
 }));
 
-vi.mock('@core/primitives/ui/browser/components/pr-status-icon', async () => {
+vi.mock('@root/src/core/services/pull-requests/browser/components/pr-status-icon', async () => {
   const React = await import('react');
   return {
     StatusIcon: () => React.createElement('span', { 'data-testid': 'status-icon' }),
