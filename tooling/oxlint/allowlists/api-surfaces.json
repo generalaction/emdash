@@ -5,9 +5,6 @@
     "apps/emdash-desktop/src/core/features/integrations/api/browser/integration-icon.tsx",
     "apps/emdash-desktop/src/core/features/integrations/api/browser/integrations-provider.tsx",
     "apps/emdash-desktop/src/core/features/machines/api/browser/components/connection-status-dot.tsx",
-    "apps/emdash-desktop/src/core/features/projects/api/browser/components/github-account-select.tsx",
-    "apps/emdash-desktop/src/core/features/projects/api/browser/components/project-view-wrapper.tsx",
-    "apps/emdash-desktop/src/core/features/projects/api/browser/hooks/use-confirm-delete-project.tsx",
     "apps/emdash-desktop/src/core/features/workspaces/api/browser/removal-attention-panel.tsx"
   ]
 }

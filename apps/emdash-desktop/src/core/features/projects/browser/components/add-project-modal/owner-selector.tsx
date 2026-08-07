@@ -4,7 +4,7 @@ import { useState } from 'react';
 import {
   GitHubAccountSelectListItem,
   GitHubAccountSelectTrigger,
-} from '@core/features/projects/api/browser/components/github-account-select';
+} from '@core/features/projects/contributions/browser/github-account-select';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 
 export interface OwnerOption {

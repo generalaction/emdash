@@ -1,7 +1,6 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
-import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   isUnmountedProject,
   isUnregisteredProject,
@@ -13,6 +12,7 @@ import {
   projectViewKind,
   unmountedMountErrorMessage,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { ActiveProject } from './active-project';

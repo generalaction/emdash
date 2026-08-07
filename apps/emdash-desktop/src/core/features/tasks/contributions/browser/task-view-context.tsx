@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, useContext, type ReactNode } from 'react';
-import { ProjectViewWrapper } from '@core/features/projects/api/browser/components/project-view-wrapper';
+import { ProjectViewWrapper } from '@core/features/projects/contributions/browser/project-view-wrapper';
 import {
   getTaskStore,
   taskViewKind,

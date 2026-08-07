@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
+import { ProjectSshHealthGate } from '@core/features/projects/browser/components/project-ssh-health-gate';
 import { projectSubject } from '@core/features/projects/contributions/subject';
 import { SubjectProvider } from '@core/primitives/mementos/react';
-import { ProjectSshHealthGate } from '../../../browser/components/project-ssh-health-gate';
 
 interface ProjectViewWrapperProps {
   children: ReactNode;

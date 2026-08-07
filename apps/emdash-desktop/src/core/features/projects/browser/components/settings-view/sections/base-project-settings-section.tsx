@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
-} from '@core/features/projects/api/browser/components/github-account-select';
+} from '@core/features/projects/contributions/browser/github-account-select';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import {
   RemoteSelectContent,

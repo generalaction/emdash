@@ -1,11 +1,11 @@
 import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
+import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
   GitHubCredentialSourceBadge,
   GitHubDefaultAccountBadge,
-} from '@core/features/projects/api/browser/components/github-account-select';
-import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
+} from '@core/features/projects/contributions/browser/github-account-select';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import {
