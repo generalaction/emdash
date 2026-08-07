@@ -18,7 +18,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(currentDir, '../../..');
 export const ALLOWLISTS_DIR = path.resolve(currentDir, '../allowlists');
 
-export const BOUNDARY_CATEGORIES = ['coreToHost', 'mainCoreToFeatures', 'crossSlice'];
+export const BOUNDARY_CATEGORIES = ['coreToHost', 'mainCoreToFeatures', 'crossSlice', 'tsxInApi'];
 
 const DESKTOP_CORE_PREFIX = 'apps/emdash-desktop/src/core/';
 const MAIN_CORE_PREFIX = 'apps/emdash-desktop/src/main/core/';
@@ -30,6 +30,7 @@ function normalizeFilename(filename) {
 
 function boundaryCategory(ruleCode, filename) {
   if (ruleCode === 'emdash(core-module-boundaries)') return 'crossSlice';
+  if (ruleCode === 'emdash(no-tsx-in-api)') return 'tsxInApi';
   if (ruleCode === 'emdash(core-host-boundaries)') {
     if (filename.startsWith(MAIN_CORE_PREFIX)) return 'mainCoreToFeatures';
     if (filename.startsWith(DESKTOP_CORE_PREFIX)) return 'coreToHost';
@@ -41,7 +42,7 @@ function boundaryCategory(ruleCode, filename) {
  * Buckets oxlint JSON diagnostics into boundary categories. Filenames are
  * expected to be repo-root-relative (oxlint reports paths relative to its
  * working directory, and the ratchet always runs oxlint from the repo root).
- * Returns `{ coreToHost, mainCoreToFeatures, crossSlice }` as Sets of paths.
+ * Returns `{ coreToHost, mainCoreToFeatures, crossSlice, tsxInApi }` as Sets of paths.
  */
 export function collectBoundaryViolations(diagnostics) {
   const violations = Object.fromEntries(

@@ -2,6 +2,17 @@
 
 All paths are relative to `apps/emdash-desktop/`.
 
+## Feature `api/` Surfaces
+
+A feature slice's `api/` directory is its contract with other slices, nothing more:
+
+- `api/` holds the Wire contract, shared types, the domain client, and store interfaces + selectors
+- Cross-slice UI flows through the contributions registries (`contributions/browser.ts`,
+  aggregated by `src/core/manifests/browser/browser-contributions.ts`), never through `api/`
+- React components never live under `api/`; they belong in `browser/`
+  (enforced by the `emdash/no-tsx-in-api` lint rule; existing offenders are ratcheted in
+  `tooling/oxlint/allowlists/api-surfaces.json`)
+
 ## Modal System
 
 Modals are renderer-only feature contributions. They render as a stack, with only the top modal
