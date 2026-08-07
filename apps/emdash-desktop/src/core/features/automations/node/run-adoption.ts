@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
 import { hostRefEquals, hostRefKey } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import { err, ok, type Result } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { isAutomationRunAdoptable } from '@core/features/automations/api/automation-run';
 import { upsertRunProjection } from '@core/features/automations/api/node/run-projection';

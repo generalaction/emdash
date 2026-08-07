@@ -1,5 +1,6 @@
 import { err, isDeepEqual, ok, type Result, type Serializable } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { expose, peek, query, revisionOf, type Query } from '@emdash/wire/state';
@@ -18,7 +19,6 @@ import {
   type PathCandidate,
 } from '@primitives/host-dependencies/api';
 import type { KeyValueStore } from '@primitives/kv/api';
-import { KeyedMutex } from '@primitives/lib/api';
 import {
   hostDependenciesContract,
   type HostDependencyInstallBatchResult,

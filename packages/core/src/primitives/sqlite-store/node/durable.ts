@@ -1,4 +1,4 @@
-import type { Logger } from '../../lib/api/logger';
+import type { Logger } from '@emdash/shared/logger';
 import {
   computePendingMigrations,
   validateMigrationManifest,

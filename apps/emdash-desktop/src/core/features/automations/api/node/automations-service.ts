@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
 import { hostRefKey, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { log } from '@emdash/shared/logger';
 import { upsertRunProjection } from '@core/features/automations/api/node/run-projection';
 import type {

@@ -9,6 +9,7 @@ export {
 export { ConcurrencyLimiter } from './concurrency-limiter';
 export { createDurableQueue, type DurableQueue, type DurableQueueOptions } from './durable-queue';
 export { createKeyedLanes, type CreateKeyedLanesOptions, type KeyedLanes } from './keyed-lanes';
+export { KeyedMutex } from './keyed-mutex';
 export {
   LifecycleRegistry,
   type LifecycleRegistryObserver,

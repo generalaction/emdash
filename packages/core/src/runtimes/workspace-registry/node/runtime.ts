@@ -2,11 +2,11 @@ import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
-import { KeyedMutex } from '@primitives/lib/api';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
