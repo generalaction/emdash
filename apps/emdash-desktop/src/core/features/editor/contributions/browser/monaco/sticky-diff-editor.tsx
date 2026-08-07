@@ -2,9 +2,9 @@ import { autorun, observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import { DIFF_EDITOR_BASE_OPTIONS } from '@core/features/editor/browser/monaco/editorConfig';
+import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
 import { useTheme } from '@core/primitives/theme/browser';
-import { DIFF_EDITOR_BASE_OPTIONS } from '../../../browser/monaco/editorConfig';
-import { monacoBootstrap } from '../../../browser/monaco/monaco-bootstrap';
 
 export interface StickyDiffEditorProps {
   /** URI for the left (original/before) side — typically git:// */

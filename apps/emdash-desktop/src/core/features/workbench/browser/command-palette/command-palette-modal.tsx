@@ -4,7 +4,7 @@ import { FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-re
 import { useObserver } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useState } from 'react';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getSearchClient } from '@core/features/search/api/client';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';

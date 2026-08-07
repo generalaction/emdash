@@ -10,9 +10,9 @@
  */
 
 import type { ComponentType } from 'react';
-import { HtmlRenderer } from '@core/features/editor/api/browser/renderers/html-renderer';
 import type { FileContentType } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { HtmlRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
 import { BinaryRenderer } from '../renderers/binary-renderer';
 import { CsvRenderer } from '../renderers/csv-renderer';
 import { FileErrorRenderer } from '../renderers/file-error-renderer';

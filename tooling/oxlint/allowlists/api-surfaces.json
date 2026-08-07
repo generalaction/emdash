@@ -1,11 +1,6 @@
 {
   "tsxInApi": [
     "apps/emdash-desktop/src/core/features/conversations/api/browser/sidebar-conversations-list.tsx",
-    "apps/emdash-desktop/src/core/features/editor/api/browser/monaco/model-status-overlay.tsx",
-    "apps/emdash-desktop/src/core/features/editor/api/browser/monaco/sticky-diff-editor.tsx",
-    "apps/emdash-desktop/src/core/features/editor/api/browser/renderers/file-icon.tsx",
-    "apps/emdash-desktop/src/core/features/editor/api/browser/renderers/html-renderer.tsx",
-    "apps/emdash-desktop/src/core/features/editor/api/browser/task-editor/editor-file-tree.tsx",
     "apps/emdash-desktop/src/core/features/integrations/api/browser/components/github-auth-disclaimer.tsx",
     "apps/emdash-desktop/src/core/features/integrations/api/browser/integration-icon.tsx",
     "apps/emdash-desktop/src/core/features/integrations/api/browser/integrations-provider.tsx",

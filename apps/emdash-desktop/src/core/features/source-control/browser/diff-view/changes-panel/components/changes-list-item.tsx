@@ -2,7 +2,7 @@ import type { GitChange, GitChangeStatus } from '@emdash/core/runtimes/git/api';
 import { Checkbox } from '@emdash/ui/react/primitives';
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { splitPath } from '@core/features/tasks/api/browser/utils';
 import { formatDiffLineCount } from '@core/primitives/git/api/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';

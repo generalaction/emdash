@@ -35,12 +35,15 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '@core/features/editor/api';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import type { RenderableFileNode } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import { editorFilePath } from '@core/features/editor/api/browser/files';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { FileContentSearchResults } from '@core/features/editor/browser/task-editor/file-content-search';
 import type { TreeMutationError } from '@core/features/editor/browser/task-editor/stores/files-store';
+import type { FilesStore } from '@core/features/editor/browser/task-editor/stores/files-store';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
@@ -64,9 +67,6 @@ import {
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
-import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '../..';
-import { FileContentSearchResults } from '../../../browser/task-editor/file-content-search';
-import type { FilesStore } from '../../../browser/task-editor/stores/files-store';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 const PLATFORM = detectPlatformContext().os;
