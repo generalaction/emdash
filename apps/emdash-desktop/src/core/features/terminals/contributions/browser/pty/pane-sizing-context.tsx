@@ -14,9 +14,9 @@
 
 import type { IObservableValue } from 'mobx';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { usePtyPaneResize } from '@core/features/terminals/browser/pty/use-pty-pane-resize';
 import type { PaneDimensionSink } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { usePaneDimensions } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
-import { usePtyPaneResize } from '../../../browser/pty/use-pty-pane-resize';
 
 // ── Context interface ─────────────────────────────────────────────────────────
 

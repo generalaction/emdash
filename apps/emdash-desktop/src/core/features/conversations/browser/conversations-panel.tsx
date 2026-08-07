@@ -6,10 +6,10 @@ import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-a
 // TODO(conversations-extraction): Pass task context actions into the panel as composition.
 import { ContextBar } from '@core/features/tasks/contributions/browser/context-bar';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
-import { PaneSizingContextProvider } from '@core/features/terminals/api/browser/pty/pane-sizing-context';
-import { PtyPane } from '@core/features/terminals/api/browser/pty/pty-pane';
-import { TerminalSearchOverlay } from '@core/features/terminals/api/browser/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@core/features/terminals/api/browser/pty/use-terminal-search';
+import { PaneSizingContextProvider } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
+import { PtyPane } from '@core/features/terminals/contributions/browser/pty/pty-pane';
+import { TerminalSearchOverlay } from '@core/features/terminals/contributions/browser/pty/terminal-search-overlay';
 import {
   useConversations,
   useTaskComposition,

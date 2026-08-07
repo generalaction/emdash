@@ -1,11 +1,11 @@
 import { type Terminal } from '@xterm/xterm';
 import { reaction } from 'mobx';
 import { useCallback, useEffect, useRef } from 'react';
-import { usePaneSizingContext } from '@core/features/terminals/api/browser/pty/pane-sizing-context';
 import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/browser/pty/pty';
 import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
 import { measureDimensions } from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { usePaneSizingContext } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';

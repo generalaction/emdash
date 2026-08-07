@@ -6,6 +6,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTerminalShellAvailability } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
+import {
+  TerminalDrawerTabBar,
+  type TerminalDrawerMode,
+  type TerminalShellMenuState,
+} from '@core/features/terminals/browser/task-terminal/terminal-drawer-tab-bar';
+import { resolveTerminalPanelActiveItem } from '@core/features/terminals/browser/task-terminal/terminal-panel-selection';
+import { TerminalPtyContent } from '@core/features/terminals/browser/task-terminal/terminal-pty-content';
 import { usePaneScope } from '@core/features/workbench/api/browser/tabs/use-pane-scope';
 import {
   useTaskComposition,
@@ -16,13 +23,6 @@ import {
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import {
-  TerminalDrawerTabBar,
-  type TerminalDrawerMode,
-  type TerminalShellMenuState,
-} from '../../../browser/task-terminal/terminal-drawer-tab-bar';
-import { resolveTerminalPanelActiveItem } from '../../../browser/task-terminal/terminal-panel-selection';
-import { TerminalPtyContent } from '../../../browser/task-terminal/terminal-pty-content';
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();

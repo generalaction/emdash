@@ -5,7 +5,7 @@ import {
   getNextTerminalSearchIndex,
   type TerminalSearchBufferLike,
   type TerminalSearchMatch,
-} from '../../../browser/pty/terminal-search';
+} from '@core/features/terminals/browser/pty/terminal-search';
 
 export type TerminalSearchStatus = {
   found: boolean;

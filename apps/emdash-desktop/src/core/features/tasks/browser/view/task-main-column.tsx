@@ -15,7 +15,7 @@ import {
   isTerminalDrawerDragData,
   type TerminalDrawerDragData,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-drag';
-import { TerminalsPanel } from '@core/features/terminals/api/browser/task-terminal/terminal-panel';
+import { TerminalsPanel } from '@core/features/terminals/contributions/browser/task-terminal/terminal-panel';
 import { PaneProvider } from '@core/features/workbench/api/browser/tabs/pane-provider';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';

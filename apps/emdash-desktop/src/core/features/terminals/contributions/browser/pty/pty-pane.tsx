@@ -6,10 +6,6 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import {
-  PaneSizingContextProvider,
-  usePaneSizingContext,
-} from '@core/features/terminals/api/browser/pty/pane-sizing-context';
 import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/browser/pty/pty';
 import { resolveDroppedFile } from '@core/features/terminals/api/browser/pty/terminal-image-injection';
 import {
@@ -19,6 +15,14 @@ import {
   formatTerminalImagePaths,
   isNearDuplicatePaste,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import {
+  type PasteFromClipboardHandler,
+  usePty,
+} from '@core/features/terminals/browser/pty/use-pty';
+import {
+  PaneSizingContextProvider,
+  usePaneSizingContext,
+} from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
 import { getDraggedWorkspaceFile } from '@core/primitives/desktop-runtime/browser/drag-files';
@@ -30,7 +34,6 @@ import {
   createPaneDimensionSink,
   PaneDimensionProvider,
 } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
-import { type PasteFromClipboardHandler, usePty } from '../../../browser/pty/use-pty';
 
 type Props = {
   /**
