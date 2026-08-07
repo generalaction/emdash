@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
+import { usePaneScope } from '@core/features/workbench/api/browser/tabs/use-pane-scope';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import {
   PaneContext,
   type PaneContextValue,
 } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import type { Pane } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
-import { usePaneScope } from './use-pane-scope';
 
 interface PaneProviderProps {
   group: Pane;

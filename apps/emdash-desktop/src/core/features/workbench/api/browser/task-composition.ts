@@ -34,6 +34,7 @@ import type { TerminalManagerStore } from '@core/features/terminals/api/browser/
 import { TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
+import { sanitizeDiffSelection } from '@core/features/workbench/browser/task-composition-state';
 import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -45,7 +46,6 @@ import {
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
-import { sanitizeDiffSelection } from '../../browser/task-composition-state';
 
 export type RendererKind =
   | 'monaco'

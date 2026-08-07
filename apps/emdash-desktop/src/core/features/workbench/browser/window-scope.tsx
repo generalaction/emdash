@@ -4,8 +4,8 @@ import { captureDevPerfTrace } from '@core/features/dev-perf/api/browser/capture
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { applyHistoryEntry } from '@core/features/workbench/api/browser/nav-buttons';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { applyHistoryEntry } from '@core/features/workbench/browser/nav-buttons';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';

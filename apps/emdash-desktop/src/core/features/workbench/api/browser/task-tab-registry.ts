@@ -1,3 +1,5 @@
+import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
+import { TaskTabViewPersistor } from '@core/features/workbench/api/browser/tabs/task-tab-view-persistor';
 /**
  * Task-view tab registry.
  *
@@ -11,8 +13,6 @@ import {
   type OpenArgsOf,
 } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
 import { createTabView } from '@core/primitives/workbench-shell/browser/tabs/tab-view-factory';
-import type { TaskTabContext } from './tabs/task-tab-context';
-import { TaskTabViewPersistor } from './tabs/task-tab-view-persistor';
 
 export const taskTabView = createTabView(taskTabContributions, {
   makePersistor: (ctx) => new TaskTabViewPersistor(ctx as TaskTabContext),
