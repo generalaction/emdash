@@ -13,6 +13,7 @@ import {
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
 import { ConnectionStatusDot } from '@core/features/machines/api/browser/components/connection-status-dot';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   isUnmountedProject,
@@ -26,6 +27,7 @@ import {
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import type { ConnectionState } from '@core/primitives/ssh/api';
@@ -35,7 +37,6 @@ import {
   useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import {
   SidebarItemMiniButton,
   SidebarMenuAction,
@@ -84,13 +85,13 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     if (isProjectActive) prefetchRepository();
   }, [isProjectActive, prefetchRepository]);
 
-  const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
+  const isExpanded = getSidebarStore().expandedProjectIds.has(projectId);
 
   if (!project) return null;
 
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
-  const sshConnectionState = sshConnectionId ? appState.machines.stateFor(sshConnectionId) : null;
+  const sshConnectionState = sshConnectionId ? getMachinesStore().stateFor(sshConnectionId) : null;
   const displayedSshConnectionState: ConnectionState | null =
     isUnmountedProject(project) &&
     project.unmounted.kind === 'failed' &&
@@ -141,7 +142,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 className="relative"
                 onClick={(e) => {
                   e.stopPropagation();
-                  sidebarStore.toggleProjectExpanded(projectId);
+                  getSidebarStore().toggleProjectExpanded(projectId);
                 }}
               >
                 <ProjectIcon className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
@@ -215,7 +216,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             <ContextMenu.Item
               disabled={!canReconnect}
               onClick={() => {
-                void appState.machines.connect(sshConnectionId).catch(() => {});
+                void getMachinesStore()
+                  .connect(sshConnectionId)
+                  .catch(() => {});
               }}
             >
               <RotateCcw className="size-4" />

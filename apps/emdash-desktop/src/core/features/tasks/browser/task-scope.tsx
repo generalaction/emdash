@@ -18,6 +18,7 @@ import {
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
 import {
@@ -31,7 +32,7 @@ import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import type { ResolvedTab } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { appState } from '@renderer/lib/stores/app-state';
 import { toggleTaskSidebarTab } from './toggle-task-sidebar';
 
 type TaskScopeParams = { readonly projectId: string; readonly taskId: string };
@@ -335,7 +336,7 @@ const taskScopeImplementation = {
       taskAvailability(
         params,
         () => {
-          const entries = sidebarStore.visibleTaskEntries;
+          const entries = getSidebarStore().visibleTaskEntries;
           const index = entries.findIndex(
             (entry) => entry.projectId === params.projectId && entry.taskId === params.taskId
           );
@@ -344,7 +345,7 @@ const taskScopeImplementation = {
         'No next task'
       ),
     execute: () => {
-      const entries = sidebarStore.visibleTaskEntries;
+      const entries = getSidebarStore().visibleTaskEntries;
       const index = entries.findIndex(
         (entry) => entry.projectId === params.projectId && entry.taskId === params.taskId
       );
@@ -357,7 +358,7 @@ const taskScopeImplementation = {
       taskAvailability(
         params,
         () => {
-          const entries = sidebarStore.visibleTaskEntries;
+          const entries = getSidebarStore().visibleTaskEntries;
           return (
             entries.findIndex(
               (entry) => entry.projectId === params.projectId && entry.taskId === params.taskId
@@ -367,7 +368,7 @@ const taskScopeImplementation = {
         'No previous task'
       ),
     execute: () => {
-      const entries = sidebarStore.visibleTaskEntries;
+      const entries = getSidebarStore().visibleTaskEntries;
       const index = entries.findIndex(
         (entry) => entry.projectId === params.projectId && entry.taskId === params.taskId
       );

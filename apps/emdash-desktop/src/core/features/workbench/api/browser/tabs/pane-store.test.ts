@@ -46,15 +46,16 @@ vi.mock('@core/features/editor/api/browser/monaco/monaco-model-registry', () => 
 }));
 
 vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {
-    projects: {
-      projects: new Map(),
-    },
-    machines: {
-      healthFor: vi.fn(() => ({ status: 'ok' })),
-    },
-  },
-  sidebarStore: {},
+  appState: {},
+}));
+
+vi.mock('@core/features/projects/api/browser/stores/project-selectors', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getProjectManagerStore: () => ({ projects: new Map() }),
+}));
+
+vi.mock('@core/features/machines/contributions/app-stores', () => ({
+  getMachinesStore: () => ({ healthFor: vi.fn(() => ({ status: 'ok' })) }),
 }));
 
 vi.mock('@renderer/utils/telemetry-scope', () => ({

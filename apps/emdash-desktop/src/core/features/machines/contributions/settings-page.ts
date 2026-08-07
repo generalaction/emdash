@@ -1,9 +1,10 @@
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
+import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import {
   defineSettingsPageContribution,
   type SettingsPageContribution,
 } from '@core/primitives/settings/api/page-contribution';
-import { appState } from '@renderer/lib/stores/app-state';
 import { ConversationsSettingsPage } from '../browser/pages/conversations-settings-page';
 import { LocalWorkspacesSettingsPage } from '../browser/pages/local-workspaces-settings-page';
 import {
@@ -16,7 +17,7 @@ import { LocalWorkspaceDetailPage } from '../browser/pages/workspace-detail-page
 
 function projectBreadcrumbLabel(path: string[]): string | null {
   const projectId = path.at(-1);
-  return projectId ? (appState.projects.projects.get(projectId)?.data?.name ?? null) : null;
+  return projectId ? (getProjectManagerStore().projects.get(projectId)?.data?.name ?? null) : null;
 }
 
 export const systemSettingsPage = defineSettingsPageContribution({
@@ -52,7 +53,7 @@ export const machinesConnectionsPage = defineSettingsPageContribution({
   detail: {
     component: MachineDetailsPage,
     breadcrumbLabel: (path) =>
-      appState.machines.connections.find((connection) => connection.id === path.at(-1))?.name ??
+      getMachinesStore().connections.find((connection) => connection.id === path.at(-1))?.name ??
       null,
     child: {
       component: MachineWorkspaceDetailPage,

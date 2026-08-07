@@ -1,7 +1,7 @@
 import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
 import { useEffect, useState } from 'react';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { appState } from '@renderer/lib/stores/app-state';
 
 const REFRESH_INTERVAL_MS = 5_000;
 
@@ -14,7 +14,7 @@ export function useMachineMetrics(
   machineId: string | undefined,
   enabled: boolean
 ): ResourceUsageSample | null {
-  const connected = machineId ? appState.machines.stateFor(machineId) === 'connected' : true;
+  const connected = machineId ? getMachinesStore().stateFor(machineId) === 'connected' : true;
   const hostKey = machineId ?? 'local';
   const [state, setState] = useState<MetricsState | null>(null);
 

@@ -1,4 +1,11 @@
 export {
+  createAppScope,
+  getAppStores,
+  resetAppScope,
+  type AppScopedStoreContext,
+  type AppScopedStoreContribution,
+} from './app-scope';
+export {
   contributeScopedStore,
   scopedStoreToken,
   ScopedStoreHost,

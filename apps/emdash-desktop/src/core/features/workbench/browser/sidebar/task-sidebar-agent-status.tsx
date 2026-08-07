@@ -3,8 +3,8 @@ import { RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { getSortInstant, sortKindFor } from './sidebar-store';
 
 /**
@@ -54,7 +54,7 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
 
   if (!showTimestamp) return null;
 
-  const instant = getSortInstant(task, sortKindFor(sidebarStore.taskSortBy));
+  const instant = getSortInstant(task, sortKindFor(getSidebarStore().taskSortBy));
   if (!instant) return null;
 
   return (

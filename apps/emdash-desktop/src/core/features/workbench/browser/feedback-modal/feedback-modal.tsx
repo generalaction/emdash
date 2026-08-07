@@ -17,7 +17,7 @@ import { cn } from '@core/primitives/styling/browser/cn';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { appState } from '@renderer/lib/stores/app-state';
+import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -55,7 +55,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
   const controller = useModalController('feedbackModal');
   const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
   const { user: githubUser } = useGithubContext();
-  const appVersion = appState.update.currentVersion;
+  const appVersion = getUpdateStore().currentVersion;
   const { data: platformDisplayName } = useQuery({
     queryKey: ['app', 'platformDisplayName'],
     queryFn: () => rpc.app.getPlatformDisplayName(),

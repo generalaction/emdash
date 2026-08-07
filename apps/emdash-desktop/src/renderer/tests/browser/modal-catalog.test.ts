@@ -5,7 +5,7 @@ import { openModal } from '@core/manifests/browser/modal-api';
 import { modalCatalog } from '@core/manifests/browser/modal-catalog';
 import type { ModalDismissed } from '@core/primitives/modals/react';
 
-vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {}, sidebarStore: {} }));
+vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {} }));
 
 const expectedModalIds = [
   'addProjectModal',

@@ -3,10 +3,10 @@ import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type React from 'react';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
-import { appState } from '@renderer/lib/stores/app-state';
+import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
-  const update = appState.update;
+  const update = getUpdateStore();
   const state = update.state;
 
   const availableVersion =

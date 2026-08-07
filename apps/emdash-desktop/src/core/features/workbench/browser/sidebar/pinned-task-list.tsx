@@ -1,11 +1,11 @@
 import { MicroLabel } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { SidebarGroup, SidebarMenu } from './sidebar-primitives';
 import { SidebarTaskItem } from './task-item';
 
 export const SidebarPinnedTaskList = observer(function SidebarPinnedTaskList() {
-  const entries = sidebarStore.pinnedSidebarEntries;
+  const entries = getSidebarStore().pinnedSidebarEntries;
   if (entries.length === 0) return null;
 
   return (

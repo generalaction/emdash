@@ -4,7 +4,7 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { registerNotificationOpenHandler } from '@core/primitives/notifications/browser/open-handlers';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { appState } from '@renderer/lib/stores/app-state';
+import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 
 export function useRegisterNotificationOpenHandlers(): void {
   const { navigate } = useNavigate();
@@ -31,7 +31,7 @@ export function useRegisterNotificationOpenHandlers(): void {
     });
 
     const unregisterUpdate = registerNotificationOpenHandler('update', () => {
-      void appState.update.install();
+      void getUpdateStore().install();
     });
     const unregisterNone = registerNotificationOpenHandler('none', () => {});
 

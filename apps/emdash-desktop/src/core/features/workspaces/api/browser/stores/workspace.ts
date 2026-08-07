@@ -1,4 +1,5 @@
 import { computed, makeObservable } from 'mobx';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { type WorkspaceScopedStoreContext } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { workspaceStoreContributions } from '@core/manifests/browser/workspace-scoped-stores';
 import {
@@ -7,7 +8,6 @@ import {
   type ScopedStoreValue,
 } from '@core/primitives/scoped-stores/browser';
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import { appState } from '@renderer/lib/stores/app-state';
 
 export class WorkspaceStore {
   readonly workspaceId: string;
@@ -38,12 +38,14 @@ export class WorkspaceStore {
 
   get connectionState(): ConnectionState | null {
     if (!this.sshConnectionId) return null;
-    return appState.machines.stateFor(this.sshConnectionId);
+    return getMachinesStore().stateFor(this.sshConnectionId);
   }
 
   reconnect(): void {
     if (this.sshConnectionId) {
-      void appState.machines.connect(this.sshConnectionId).catch(() => {});
+      void getMachinesStore()
+        .connect(this.sshConnectionId)
+        .catch(() => {});
     }
   }
 

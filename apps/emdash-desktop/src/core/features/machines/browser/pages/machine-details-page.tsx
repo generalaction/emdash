@@ -23,6 +23,7 @@ import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { McpPanel } from '@core/features/mcp/api/browser/components/McpPanel';
 import { AgentsPanel } from '@core/features/settings/api/browser/agents-page/AgentsPanel';
 import { SkillsPanel } from '@core/features/skills/api/browser/components/SkillsPanel';
@@ -31,7 +32,6 @@ import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page
 import { cn } from '@core/primitives/styling/browser/cn';
 import { isServerUsable } from '@core/services/remote-machine/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';
 import { MachineConversationsList } from '../components/machine-conversations-list';
 import { ResourceUtilizationRow } from '../components/machine-resources';
@@ -90,12 +90,12 @@ export const MachineWorkspaceDetailPage = observer(function MachineWorkspaceDeta
   props: SettingsPageDetailProps
 ) {
   const machineId = props.path[0];
-  const machine = appState.machines.connections.find((connection) => connection.id === machineId);
+  const machine = getMachinesStore().connections.find((connection) => connection.id === machineId);
   if (!machineId) return null;
   return (
     <WorkspaceDetailPage
       scope={{ kind: 'machine', machineId }}
-      connected={machine ? appState.machines.stateFor(machine.id) === 'connected' : false}
+      connected={machine ? getMachinesStore().stateFor(machine.id) === 'connected' : false}
       machineName={machine?.name}
       {...props}
     />
@@ -107,7 +107,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   openDetail,
   closeDetail,
 }: SettingsPageDetailProps) {
-  const machinesStore = appState.machines;
+  const machinesStore = getMachinesStore();
   const machine = machinesStore.connections.find((connection) => connection.id === detailId);
   const openConfirm = useOpenModal('confirmActionModal');
   const openMachineModal = useOpenModal('addSshConnModal');
