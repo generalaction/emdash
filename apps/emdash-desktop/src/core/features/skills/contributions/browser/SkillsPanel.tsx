@@ -4,8 +4,8 @@ import { useCallback, useState } from 'react';
 import { SkillsList } from '@core/features/skills/browser/components/SkillsList';
 import { SkillsToolbar } from '@core/features/skills/browser/components/SkillsToolbar';
 import { useSkills } from '@core/features/skills/browser/components/useSkills';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 
 type SkillsPanelProps = {
   host?: HostRef;
