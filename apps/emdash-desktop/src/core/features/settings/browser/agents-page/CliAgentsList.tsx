@@ -1,4 +1,4 @@
-import { Label, Separator } from '@emdash/ui/react/primitives';
+import { Label } from '@emdash/ui/react/primitives';
 import React, { useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
@@ -41,9 +41,8 @@ export const CliAgentsList: React.FC<CliAgentsListProps> = ({
 
   return (
     <div className="pb-4">
-      {visibleSections.map((section, index) => (
+      {visibleSections.map((section) => (
         <React.Fragment key={section.label}>
-          {index > 0 && <Separator />}
           <div className="pt-4">
             <SectionLabel totalCount={section.agents.length}>{section.label}</SectionLabel>
             {section.agents.map((agent) => (
