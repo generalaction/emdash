@@ -26,13 +26,14 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: { browser: browserRpc },
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    browser: browserRpc,
-    host: {
-      events: {
-        subscribe: vi.fn(async () => () => {}),
-      },
+vi.mock('@core/features/browser/api/browser/client', () => ({
+  getBrowserClient: async () => browserRpc,
+}));
+
+vi.mock('@core/features/workbench/api/browser/client', () => ({
+  getDesktopHostClient: async () => ({
+    events: {
+      subscribe: vi.fn(async () => () => {}),
     },
   }),
 }));

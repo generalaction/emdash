@@ -2,12 +2,12 @@ import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { projectWorkspacesContract } from '@core/features/workspaces/api';
+import { getProjectWorkspacesClient } from '@core/features/workspaces/api/browser/client';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import type {
   HostWorkspaceGroup,
   MeasureProjectWorkspacesResult,
 } from '@core/primitives/workspaces/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 /** Which host's workspaces to read: this device or a remote machine. */
 export type WorkspacesScope = { kind: 'local' } | { kind: 'machine'; machineId: string };
@@ -21,8 +21,8 @@ let workspaceGroupsRemotePromise:
 function getWorkspaceGroupsRemote(): Promise<
   RemoteModel<typeof projectWorkspacesContract.workspaceGroups>
 > {
-  workspaceGroupsRemotePromise ??= getDesktopWireClient().then((client) =>
-    remote(projectWorkspacesContract.workspaceGroups, client.projectWorkspaces.workspaceGroups, {
+  workspaceGroupsRemotePromise ??= getProjectWorkspacesClient().then((client) =>
+    remote(projectWorkspacesContract.workspaceGroups, client.workspaceGroups, {
       lingerMs: 15_000,
     })
   );
@@ -63,8 +63,8 @@ export function useProjectWorkspaceUsage(
     queryKey: ['projectWorkspaceUsage', projectId, paths],
     queryFn: async (): Promise<MeasureProjectWorkspacesResult> => {
       if (!projectId) return { scannedAt: new Date().toISOString(), projectId: '', results: [] };
-      const client = await getDesktopWireClient();
-      return await client.projectWorkspaces.measureProjectWorkspaces({
+      const client = await getProjectWorkspacesClient();
+      return await client.measureProjectWorkspaces({
         projectId,
         paths: Array.from(paths),
       });
@@ -84,7 +84,7 @@ export async function deleteMachineProjectWorkspaces({
   paths: string[];
   deleteConversations?: boolean;
 }) {
-  return (await getDesktopWireClient()).projectWorkspaces.deleteProjectWorkspaces({
+  return (await getProjectWorkspacesClient()).deleteProjectWorkspaces({
     projectId,
     paths,
     deleteConversations,

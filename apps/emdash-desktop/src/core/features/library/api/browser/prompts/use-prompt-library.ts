@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getPromptLibraryClient } from '@core/features/library/api/browser/client';
 import { type PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 const promptLibraryQueryKey = ['promptLibrary'] as const;
 
@@ -8,7 +8,7 @@ export function usePromptLibrary() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: promptLibraryQueryKey,
-    queryFn: async () => (await getDesktopWireClient()).promptLibrary.get(),
+    queryFn: async () => (await getPromptLibraryClient()).get(),
     staleTime: 5 * 60_000,
   });
 
@@ -18,7 +18,7 @@ export function usePromptLibrary() {
     PromptLibraryPrompt[],
     { previousPrompts: PromptLibraryPrompt[] | undefined }
   >({
-    mutationFn: async (prompts) => (await getDesktopWireClient()).promptLibrary.update({ prompts }),
+    mutationFn: async (prompts) => (await getPromptLibraryClient()).update({ prompts }),
     onMutate: async (prompts) => {
       await queryClient.cancelQueries({ queryKey: promptLibraryQueryKey });
       const previousPrompts =

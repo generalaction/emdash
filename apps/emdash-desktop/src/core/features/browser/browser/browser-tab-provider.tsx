@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
 import { BrowserTabResource } from '@core/features/browser/api/browser/browser-tab-resource';
+import { getBrowserClient } from '@core/features/browser/api/browser/client';
 import { BrowserPane } from '@core/features/browser/browser/browser-pane';
 import { getAppSettingValueSnapshot } from '@core/features/settings/api/browser/app-settings-client';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
@@ -16,7 +17,6 @@ import type {
   ResolvedTab,
 } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { createTabProvider } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider-registry';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { BrowserTabBarItem, BrowserTabBarItemDragPreview } from './browser-tab-item';
 
 export interface BrowserState {
@@ -45,9 +45,7 @@ const BrowserTabContent = observer(function BrowserTabContent({ host }: TabConte
 
   useEffect(() => {
     if (activeBrowserId !== null) return;
-    void getDesktopWireClient().then((client) =>
-      client.browser.setActiveBrowser({ browserId: null })
-    );
+    void getBrowserClient().then((client) => client.setActiveBrowser({ browserId: null }));
   }, [activeBrowserId]);
 
   return (

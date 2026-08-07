@@ -1,6 +1,6 @@
 import type { AppSettings, AppSettingsKey, SettingsMeta } from '@core/services/settings/api';
+import { getAppSettingsClient } from '@core/services/settings/api/client';
 import { queryClient } from '@renderer/lib/query-client';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export const APP_SETTINGS_STALE_TIME_MS = 5 * 60_000;
 
@@ -36,9 +36,9 @@ export function mergeAppSettingsValue<K extends AppSettingsKey>(
 export function requestAppSettingsMeta<K extends AppSettingsKey>(
   key: K
 ): Promise<AppSettingsMeta<K>> {
-  return getDesktopWireClient().then((client) =>
-    client.appSettings.getWithMeta({ key })
-  ) as Promise<AppSettingsMeta<K>>;
+  return getAppSettingsClient().then((client) => client.getWithMeta({ key })) as Promise<
+    AppSettingsMeta<K>
+  >;
 }
 
 export function fetchAppSettingsMeta<K extends AppSettingsKey>(
@@ -103,19 +103,19 @@ export function updateAppSettingsRequest<K extends AppSettingsKey>(
   key: K,
   value: AppSettings[K]
 ): Promise<void> {
-  return getDesktopWireClient().then((client) => client.appSettings.update({ key, value }));
+  return getAppSettingsClient().then((client) => client.update({ key, value }));
 }
 
 export function resetAppSettingsRequest<K extends AppSettingsKey>(key: K): Promise<void> {
-  return getDesktopWireClient().then((client) => client.appSettings.reset({ key }));
+  return getAppSettingsClient().then((client) => client.reset({ key }));
 }
 
 export function resetAppSettingsFieldRequest<K extends AppSettingsKey>(
   key: K,
   field: keyof AppSettings[K]
 ): Promise<void> {
-  return getDesktopWireClient().then((client) =>
-    client.appSettings.resetField({ key, field: field as string })
+  return getAppSettingsClient().then((client) =>
+    client.resetField({ key, field: field as string })
   );
 }
 

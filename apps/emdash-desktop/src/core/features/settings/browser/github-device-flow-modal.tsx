@@ -1,13 +1,13 @@
 import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getGithubClient } from '@core/features/github/api/browser/client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { defineModal } from '@core/primitives/modals/react';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 
 export type GithubDeviceFlowModalArgs = {
@@ -122,8 +122,8 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
   useEffect(() => {
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.github.events.subscribe(undefined, {
+    void getGithubClient().then(async (client) => {
+      const nextUnsubscribe = await client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.type === 'device-code') {
             setUserCode(event.userCode);

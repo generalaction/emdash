@@ -1,4 +1,5 @@
 import { toast } from '@emdash/ui/react/primitives';
+import { getBrowserClient } from '@core/features/browser/api/browser/client';
 import { openModal } from '@core/manifests/browser/modal-api';
 import {
   normalizeBrowserUrl,
@@ -6,7 +7,6 @@ import {
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function openBrowserUrlExternally(url: string): void {
@@ -24,8 +24,8 @@ export function canOpenBrowserUrlExternally(url: string): boolean {
 
 export async function captureBrowserScreenshot(session: BrowserSessionSnapshot): Promise<void> {
   const result = await (
-    await getDesktopWireClient()
-  ).browser.captureScreenshot({
+    await getBrowserClient()
+  ).captureScreenshot({
     browserId: session.browserId,
   });
   if (result.success) {
@@ -40,8 +40,8 @@ export function clearBrowserData(
   kind: BrowserDataClearKind,
   onSuccess: () => void
 ): Promise<void> {
-  return getDesktopWireClient()
-    .then((client) => client.browser.clearData({ browserId: session.browserId, kind }))
+  return getBrowserClient()
+    .then((client) => client.clearData({ browserId: session.browserId, kind }))
     .then((result) => {
       if (result.success) {
         onSuccess();

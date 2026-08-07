@@ -1,6 +1,6 @@
 import type { ResourceUsageSample } from '@emdash/core/runtimes/resource-usage/api';
 import { useEffect, useState } from 'react';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { appState } from '@renderer/lib/stores/app-state';
 
 const REFRESH_INTERVAL_MS = 5_000;
@@ -27,8 +27,8 @@ export function useMachineMetrics(
     let cancelled = false;
     const refresh = async () => {
       try {
-        const client = await getDesktopWireClient();
-        const metrics = await client.machines.getMachineMetrics(machineId ? { machineId } : {});
+        const client = await getMachinesClient();
+        const metrics = await client.getMachineMetrics(machineId ? { machineId } : {});
         if (!cancelled) setState({ hostKey, metrics });
       } catch {
         if (!cancelled) setState(null);

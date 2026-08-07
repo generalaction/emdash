@@ -23,8 +23,8 @@ import { resetSystemDependenciesRemoteForTests } from './use-system-dependency-s
 
 let activeFixture: ReturnType<typeof createMachinesWire> | undefined;
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({ machines: activeFixture!.wire.client }),
+vi.mock('@core/features/machines/api/browser/client', () => ({
+  getMachinesClient: async () => activeFixture!.wire.client,
 }));
 
 vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({

@@ -25,12 +25,10 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: vi.fn(async () => ({
-    browser: {
-      captureScreenshot: mocks.captureScreenshot,
-      clearData: mocks.clearData,
-    },
+vi.mock('@core/features/browser/api/browser/client', () => ({
+  getBrowserClient: vi.fn(async () => ({
+    captureScreenshot: mocks.captureScreenshot,
+    clearData: mocks.clearData,
   })),
 }));
 

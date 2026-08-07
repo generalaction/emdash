@@ -23,6 +23,7 @@ import { observer } from 'mobx-react-lite';
 import type * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
+import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { McpPanel } from '@core/features/mcp/api/browser/components/McpPanel';
 import { AgentsPanel } from '@core/features/settings/api/browser/agents-page/AgentsPanel';
 import { SkillsPanel } from '@core/features/skills/api/browser/components/SkillsPanel';
@@ -30,7 +31,6 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { isServerUsable } from '@core/services/remote-machine/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';
 import { MachineConversationsList } from '../components/machine-conversations-list';
@@ -187,7 +187,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const requestDelete = async () => {
     setDeleting(true);
     try {
-      const usage = await (await getDesktopWireClient()).machines.getMachineUsage(undefined);
+      const usage = await (await getMachinesClient()).getMachineUsage(undefined);
       const projects = usage[machine.id] ?? [];
 
       if (projects.length > 0) {
