@@ -1,7 +1,11 @@
 import { abortableWait, abortReason } from '../scheduling';
 
 /** FIFO limiter that bounds concurrent work without rejecting excess callers. */
-export class ConcurrencyLimiter {
+export interface ConcurrencyLimiter {
+  run<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T>;
+}
+
+class ConcurrencyLimiterImpl implements ConcurrencyLimiter {
   private active = 0;
   private readonly waiting: Array<{
     resolve: (release: () => void) => void;
@@ -58,4 +62,8 @@ export class ConcurrencyLimiter {
       waiter.resolve(this.releaseOnce());
     }
   }
+}
+
+export function createConcurrencyLimiter(limit: number): ConcurrencyLimiter {
+  return new ConcurrencyLimiterImpl(limit);
 }

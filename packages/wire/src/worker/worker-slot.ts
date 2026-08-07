@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { type Run, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { retrySchedule, runWithTimeout, systemClock, type Clock } from '@emdash/shared/scheduling';
@@ -52,7 +52,7 @@ class WorkerExitedBeforeReady extends Error {
 
 export class WorkerSlot<Defs extends ContractDefinitions> implements WireWorker<Defs> {
   private readonly link = new WorkerLink();
-  private readonly stateEmitter = new Emitter<WireWorkerState>();
+  private readonly stateEmitter = createEmitter<WireWorkerState>();
   private readonly connection: Connection;
   private readonly stableClient: ContractClient<Defs>;
   private readonly clock: Clock;

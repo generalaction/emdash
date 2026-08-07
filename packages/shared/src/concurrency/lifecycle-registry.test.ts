@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { err, ok, type Result } from '../result';
 import { deferred } from '../testing';
-import { LifecycleRegistry } from './lifecycle-registry';
+import { createLifecycleRegistry } from './lifecycle-registry';
 import type { Scope } from './scope';
 
 type Resource = { id: string; generation: number };
@@ -14,7 +14,7 @@ describe('LifecycleRegistry', () => {
     const resource = { id: 'task-1', generation: 1 };
     const startDeferred = deferred<Result<Resource, TestError>>();
     const start = vi.fn(async () => startDeferred.promise);
-    const registry = new LifecycleRegistry<{ id: string }, Resource, TestError>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
       keyOf: (input) => input.id,
       start,
       stop: async () => ok(),
@@ -38,7 +38,7 @@ describe('LifecycleRegistry', () => {
     const resource = { id: 'task-1', generation: 1 };
     const startDeferred = deferred<Result<Resource, TestError>>();
     const stop = vi.fn(async () => ok<void>());
-    const registry = new LifecycleRegistry<{ id: string }, Resource, TestError>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
       keyOf: (input) => input.id,
       start: async () => startDeferred.promise,
       stop,
@@ -62,7 +62,7 @@ describe('LifecycleRegistry', () => {
     const start = vi.fn(async (input: { id: string; generation: number }) =>
       ok({ id: input.id, generation: input.generation })
     );
-    const registry = new LifecycleRegistry<{ id: string; generation: number }, Resource, TestError>(
+    const registry = createLifecycleRegistry<{ id: string; generation: number }, Resource, TestError>(
       {
         keyOf: (input) => input.id,
         start,
@@ -88,7 +88,7 @@ describe('LifecycleRegistry', () => {
   it('disposes partial start scope on failure and clears the error on retry', async () => {
     const cleanup = vi.fn();
     let shouldFail = true;
-    const registry = new LifecycleRegistry<{ id: string }, Resource, TestError>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
       keyOf: (input) => input.id,
       start: async (input, scope: Scope) => {
         scope.add(cleanup);
@@ -121,7 +121,7 @@ describe('LifecycleRegistry', () => {
     const cleanup = vi.fn();
     const thrown = new Error('start threw');
     const observed: Array<{ current: string; cleanupCallsSoFar: number }> = [];
-    const registry = new LifecycleRegistry<{ id: string }, Resource, unknown>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, unknown>({
       keyOf: (input) => input.id,
       start: async (_input, scope: Scope) => {
         scope.add(cleanup);
@@ -150,7 +150,7 @@ describe('LifecycleRegistry', () => {
   it('retains ownership after failed stop until retry succeeds', async () => {
     let shouldFail = true;
     const resource = { id: 'task-1', generation: 1 };
-    const registry = new LifecycleRegistry<{ id: string }, Resource, TestError>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
       keyOf: (input) => input.id,
       start: async (input) => ok({ id: input.id, generation: 1 }),
       stop: async () => (shouldFail ? err(testError('stop failed')) : ok()),
@@ -169,14 +169,14 @@ describe('LifecycleRegistry', () => {
     });
 
     shouldFail = false;
-    await expect(registry.retryStop('task-1')).resolves.toEqual(ok());
+    await expect(registry.stop('task-1')).resolves.toEqual(ok());
     expect(registry.has('task-1')).toBe(false);
     expect(registry.state('task-1')).toEqual({ kind: 'idle' });
   });
 
   it('force-removes retained failed stop ownership', async () => {
     const resource = { id: 'task-1', generation: 1 };
-    const registry = new LifecycleRegistry<{ id: string }, Resource, TestError>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
       keyOf: (input) => input.id,
       start: async (input) => ok({ id: input.id, generation: 1 }),
       stop: async () => err(testError('stop failed')),
@@ -192,7 +192,7 @@ describe('LifecycleRegistry', () => {
 
   it('reports observer errors without changing lifecycle results', async () => {
     const observerErrors: unknown[] = [];
-    const registry = new LifecycleRegistry<{ id: string }, Resource, TestError>({
+    const registry = createLifecycleRegistry<{ id: string }, Resource, TestError>({
       keyOf: (input) => input.id,
       start: async (input) => ok({ id: input.id, generation: 1 }),
       stop: async () => ok(),

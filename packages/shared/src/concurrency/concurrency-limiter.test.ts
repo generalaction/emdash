@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { deferred } from '../testing';
-import { ConcurrencyLimiter } from './concurrency-limiter';
+import { createConcurrencyLimiter } from './concurrency-limiter';
 
 describe('ConcurrencyLimiter', () => {
   it('queues excess operations in FIFO order', async () => {
-    const limiter = new ConcurrencyLimiter(1);
+    const limiter = createConcurrencyLimiter(1);
     const releaseFirst = deferred<void>();
     const started: string[] = [];
     const signal = new AbortController().signal;
@@ -25,7 +25,7 @@ describe('ConcurrencyLimiter', () => {
   });
 
   it('removes an aborted waiter without consuming capacity', async () => {
-    const limiter = new ConcurrencyLimiter(1);
+    const limiter = createConcurrencyLimiter(1);
     const releaseFirst = deferred<void>();
     const first = limiter.run(new AbortController().signal, async () => {
       await releaseFirst.promise;

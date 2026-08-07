@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import {
@@ -46,7 +46,7 @@ interface PendingLocation {
 }
 
 export class NavigationStore implements NavigationParticipantHost {
-  readonly onDidNavigate = new Emitter<NavigationEvent>();
+  readonly onDidNavigate = createEmitter<NavigationEvent>();
 
   private _currentRef: ViewRef = homeViewDef();
   private readonly _lastRefByViewId = observable.map<string, ViewRef>();

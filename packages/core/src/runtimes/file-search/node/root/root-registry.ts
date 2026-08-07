@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { LifecycleRegistry, type Scope } from '@emdash/shared/concurrency';
+import { createLifecycleRegistry, type LifecycleRegistry, type Scope } from '@emdash/shared/concurrency';
 import { canonicalExclusionPatterns } from '@primitives/lib/api';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type {
@@ -68,7 +68,7 @@ export class FileSearchRootRegistry {
   >;
 
   constructor(private readonly options: FileSearchRootRegistryOptions) {
-    this.lifecycle = new LifecycleRegistry({
+    this.lifecycle = createLifecycleRegistry({
       label: 'file-search-roots',
       scope: options.scope,
       keyOf: (input) => input.rootKey,

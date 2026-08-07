@@ -1,4 +1,4 @@
-import { Emitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type SerializedError, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
@@ -40,7 +40,7 @@ export class LiveJobCancelledError extends Error {
 export class LiveJobClient<P, R, E> {
   readonly result: Promise<R>;
 
-  private readonly progressEmitter = new Emitter<P>();
+  private readonly progressEmitter = createEmitter<P>();
   private readonly model: LiveStateClient<LiveJobState<P, R, E>>;
   private readonly waiterRejecters = new Set<(error: Error) => void>();
   private lastProgressCount = 0;
@@ -227,7 +227,7 @@ export class LiveJobClient<P, R, E> {
     }
   }
 
-  private readonly stateEmitter = new Emitter<LiveJobState<P, R, E>>();
+  private readonly stateEmitter = createEmitter<LiveJobState<P, R, E>>();
 
   private onStateChange(cb: (state: LiveJobState<P, R, E>) => void): Unsubscribe {
     return this.stateEmitter.subscribe(cb);

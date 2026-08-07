@@ -1,5 +1,5 @@
 import { log } from '@emdash/shared/logger';
-import { ConcurrencyLimiter } from './concurrency-limiter';
+import { createConcurrencyLimiter, type ConcurrencyLimiter } from './concurrency-limiter';
 
 export type KeyedLanes = {
   /** FIFO wait within the lane. */
@@ -33,7 +33,7 @@ export function createKeyedLanes(options: CreateKeyedLanesOptions = {}): KeyedLa
     let lane = lanes.get(key);
     if (!lane) {
       lane = {
-        limiter: new ConcurrencyLimiter(limitPerLane),
+        limiter: createConcurrencyLimiter(limitPerLane),
         runDepth: 0,
         coalesceRunning: false,
         coalescePending: undefined,

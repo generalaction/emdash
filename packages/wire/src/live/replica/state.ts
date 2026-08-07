@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { z } from 'zod';
@@ -29,8 +29,8 @@ type ReplicaStateChange<T> = {
 export class ReplicaState<T> implements LiveSource {
   readonly ready: Promise<void>;
 
-  private readonly emitter = new Emitter<LiveUpdate>();
-  private readonly changeEmitter = new Emitter<ReplicaStateChange<T>>();
+  private readonly emitter = createEmitter<LiveUpdate>();
+  private readonly changeEmitter = createEmitter<ReplicaStateChange<T>>();
   private readonly client: LiveStateClient<T>;
   private readonly store: StateStore<T>;
   private readonly localWaiters: LiveStateWaiters;

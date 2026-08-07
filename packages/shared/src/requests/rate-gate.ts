@@ -19,7 +19,7 @@ export type TokenBucketRateGateOptions = {
   clock?: Clock;
 };
 
-export function tokenBucketGate(options: TokenBucketRateGateOptions): RateGate {
+export function createTokenBucketGate(options: TokenBucketRateGateOptions): RateGate {
   return new TokenBucketRateGate(options);
 }
 

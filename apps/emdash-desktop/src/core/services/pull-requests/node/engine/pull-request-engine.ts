@@ -3,7 +3,7 @@ import type { Logger } from '@emdash/shared/logger';
 import {
   createRequestScheduler,
   requestPriorities,
-  tokenBucketGate,
+  createTokenBucketGate,
   type CreateRequestSchedulerOptions,
   type RateFeedback,
   type RateGate,
@@ -1043,7 +1043,7 @@ export class PullRequestEngine {
   private createRateGate(resource: GitHubRateResource): RateGate {
     return (
       this.options.createRateGate?.(resource) ??
-      tokenBucketGate({
+      createTokenBucketGate({
         capacity: DEFAULT_REQUEST_CAPACITY,
         refillPerSec: DEFAULT_REQUEST_REFILL_PER_SEC,
         reserve: DEFAULT_REQUEST_RESERVE,

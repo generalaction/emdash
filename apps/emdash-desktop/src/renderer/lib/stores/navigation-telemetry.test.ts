@@ -1,4 +1,4 @@
-import { Emitter } from '@emdash/shared';
+import { createEmitter } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
@@ -18,7 +18,7 @@ describe('wireNavigationTelemetry', () => {
   });
 
   it('observes traversals and restorations only when the view changes', () => {
-    const onDidNavigate = new Emitter<NavigationEvent>();
+    const onDidNavigate = createEmitter<NavigationEvent>();
     wireNavigationTelemetry({ onDidNavigate } as NavigationStore);
     const home = homeViewDef();
     const firstProject = projectViewDef({ projectId: 'p1' });

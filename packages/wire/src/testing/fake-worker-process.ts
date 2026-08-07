@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type {
   ProcessExit,
@@ -36,11 +36,11 @@ export class FakeWorkerProcess implements WorkerProcess {
   readonly childMessages: unknown[] = [];
   readonly childPort: WorkerParentPort;
   readonly pid = 1_000 + Math.floor(Math.random() * 1_000);
-  private readonly parentMessagesEmitter = new Emitter<unknown>();
-  private readonly childMessagesEmitter = new Emitter<unknown>();
-  private readonly exitEmitter = new Emitter<ProcessExit>();
-  private readonly disconnectEmitter = new Emitter<void>();
-  private readonly stdioEmitter = new Emitter<{ stream: WorkerStdioStream; chunk: string }>();
+  private readonly parentMessagesEmitter = createEmitter<unknown>();
+  private readonly childMessagesEmitter = createEmitter<unknown>();
+  private readonly exitEmitter = createEmitter<ProcessExit>();
+  private readonly disconnectEmitter = createEmitter<void>();
+  private readonly stdioEmitter = createEmitter<{ stream: WorkerStdioStream; chunk: string }>();
   private exited = false;
 
   constructor(readonly spec: WorkerProcessSpec) {

@@ -1,4 +1,4 @@
-import { Emitter, ok, type Result, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, ok, type Result, type Unsubscribe } from '@emdash/shared';
 
 export type MachineEvolveResult<State, Effect> = {
   state: State;
@@ -46,7 +46,7 @@ export function createMachine<State, Command, Event, Effect, CommandError, Conte
 ): Machine<State, Command, Event, Effect, CommandError, Context> {
   let state = initialState;
   let disposed = false;
-  const batches = new Emitter<MachineBatch<State, Command, Event, Effect>>({
+  const batches = createEmitter<MachineBatch<State, Command, Event, Effect>>({
     onSubscriberError: ({ error }) => options.onSubscriberError?.(error),
   });
 

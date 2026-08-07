@@ -9,7 +9,14 @@ export type EmitterOptions = {
   onSubscriberError?: (event: EmitterSubscriberError) => void;
 };
 
-export class Emitter<T> {
+export interface Emitter<T> {
+  readonly size: number;
+  subscribe(cb: (value: T) => void): Unsubscribe;
+  emit(value: T): void;
+  clear(): void;
+}
+
+class EmitterImpl<T> implements Emitter<T> {
   private readonly subscribers = new Set<(value: T) => void>();
 
   constructor(private readonly options: EmitterOptions = {}) {}
@@ -50,4 +57,8 @@ export class Emitter<T> {
       // Subscriber error reporting must not affect event delivery.
     }
   }
+}
+
+export function createEmitter<T>(options: EmitterOptions = {}): Emitter<T> {
+  return new EmitterImpl<T>(options);
 }

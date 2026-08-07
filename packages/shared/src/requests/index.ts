@@ -2,7 +2,7 @@ export { compose, type Middleware } from './compose';
 export { deduplicate, type DeduplicateOptions } from './deduplicate';
 export type { SignalContext, SignalHandler } from './handler';
 export {
-  tokenBucketGate,
+  createTokenBucketGate,
   type RateFeedback,
   type RateGate,
   type TokenBucketRateGateOptions,

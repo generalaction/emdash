@@ -1,4 +1,4 @@
-import { ConcurrencyLimiter, createMailbox, type Disposable, type Scope } from '../concurrency';
+import { createConcurrencyLimiter, createMailbox, type Disposable, type Scope } from '../concurrency';
 import { abortableWait, abortReason, throwIfAborted } from '../scheduling';
 import type { RateGate } from './rate-gate';
 
@@ -64,7 +64,7 @@ export function createRequestScheduler(options: CreateRequestSchedulerOptions): 
   }
 
   const scope = options.scope.child(options.label ?? 'request-scheduler');
-  const limiter = new ConcurrencyLimiter(options.maxConcurrency);
+  const limiter = createConcurrencyLimiter(options.maxConcurrency);
   const gate = options.gate ?? unlimitedRateGate;
   const wake = scope.use(createMailbox<number>({ capacity: 1, overflow: 'drop-newest' }));
   const heap: HeapItem[] = [];

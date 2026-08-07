@@ -1,5 +1,10 @@
 import type { Result } from '@emdash/shared';
-import { ConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  createConcurrencyLimiter,
+  createScope,
+  type ConcurrencyLimiter,
+  type Scope,
+} from '@emdash/shared/concurrency';
 import { DEFAULT_SEARCH_EXCLUDE } from '@primitives/lib/api';
 import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type {
@@ -60,10 +65,10 @@ export class FileSearchRuntime {
     try {
       const defaultContentExclusions = new DefaultFileSearchExclusions();
       const scanner = new NodePathScanner();
-      const scanLimiter = new ConcurrencyLimiter(
+      const scanLimiter = createConcurrencyLimiter(
         options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
       );
-      this.contentLimiter = new ConcurrencyLimiter(
+      this.contentLimiter = createConcurrencyLimiter(
         options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
       );
       this.contentSearcher = new RipgrepContentSearcher({

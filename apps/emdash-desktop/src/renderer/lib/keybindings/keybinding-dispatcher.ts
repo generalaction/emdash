@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { matchKeybindingPress } from 'tinykeys';
 import {
   detectPlatformContext,
@@ -31,7 +31,7 @@ const DEFAULT_SYNTHETIC_EVENT: SyntheticKeybindingEvent = Object.freeze({
 });
 
 export class KeybindingDispatcher {
-  readonly onDidDispatch = new Emitter<KeybindingDispatchEvent>();
+  readonly onDidDispatch = createEmitter<KeybindingDispatchEvent>();
   private readonly service: KeybindingService;
   private readonly runtime: ViewScopes;
   private readonly context: PlatformContext;

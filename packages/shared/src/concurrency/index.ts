@@ -6,11 +6,12 @@ export {
   type BoundedBufferOverflow,
   type CreateBoundedBufferOptions,
 } from './bounded-buffer';
-export { ConcurrencyLimiter } from './concurrency-limiter';
+export { createConcurrencyLimiter, type ConcurrencyLimiter } from './concurrency-limiter';
 export { createDurableQueue, type DurableQueue, type DurableQueueOptions } from './durable-queue';
 export { createKeyedLanes, type CreateKeyedLanesOptions, type KeyedLanes } from './keyed-lanes';
 export {
-  LifecycleRegistry,
+  createLifecycleRegistry,
+  type LifecycleRegistry,
   type LifecycleRegistryObserver,
   type LifecycleRegistryObserverError,
   type LifecycleRegistryOptions,
