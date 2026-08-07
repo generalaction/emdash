@@ -23,13 +23,9 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
   toast: mocks.toast,
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
-    app: {
-      clipboardWriteText: mocks.clipboardWriteText,
-      openExternal: mocks.openExternal,
-    },
-  },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  copyTextToClipboard: mocks.clipboardWriteText,
+  openExternal: mocks.openExternal,
 }));
 
 vi.mock('@core/manifests/browser/modal-api', () => ({

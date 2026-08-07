@@ -2,7 +2,7 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import {
   computeCheckBucket,
   formatCheckDuration,
@@ -67,7 +67,7 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
             type="button"
             aria-label={`Open ${check.name} check details`}
             className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
-            onClick={() => void rpc.app.openExternal(detailsUrl)}
+            onClick={() => void openExternal(detailsUrl)}
           >
             <ExternalLink className="size-3.5" />
           </button>

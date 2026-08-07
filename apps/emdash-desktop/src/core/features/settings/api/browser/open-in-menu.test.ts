@@ -51,12 +51,8 @@ vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
-    app: {
-      openIn: mocks.openIn,
-    },
-  },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  getHostClient: async () => ({ openIn: mocks.openIn }),
 }));
 
 vi.mock('@core/primitives/keybindings/browser/shortcut', async () => {

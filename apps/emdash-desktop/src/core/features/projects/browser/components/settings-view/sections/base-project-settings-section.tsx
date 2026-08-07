@@ -11,10 +11,10 @@ import {
   RemoteSelectContent,
   RemoteSelectItem,
 } from '@core/features/source-control/api/browser/components/remote-select-content';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
   createProjectGitHubAccountSelectState,
@@ -58,7 +58,9 @@ export function BaseProjectSettingsSection({
 
     setIsBrowsingWorktreeDirectory(true);
     try {
-      const result = await rpc.app.openSelectDirectoryDialog({
+      const result = await (
+        await getHostClient()
+      ).openSelectDirectoryDialog({
         title: 'Select worktree directory',
         message: 'Choose the directory where worktrees should be created.',
         defaultPath: form.worktreeDirectory || defaultWorktreeDirectory,

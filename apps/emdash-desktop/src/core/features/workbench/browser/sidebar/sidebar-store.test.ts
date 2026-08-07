@@ -6,13 +6,6 @@ import { SidebarStore } from './sidebar-store';
 
 type SidebarProjectManager = ConstructorParameters<typeof SidebarStore>[0];
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: {
-    on: vi.fn(),
-  },
-  rpc: {},
-}));
-
 vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {},
 }));

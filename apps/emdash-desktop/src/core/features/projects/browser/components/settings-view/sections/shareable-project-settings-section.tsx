@@ -1,11 +1,11 @@
 import { Button, Field, Input, Separator, Switch, Textarea } from '@emdash/ui/react/primitives';
 import { Fragment } from 'react';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import type {
   ProjectConfigMigration,
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
 } from '@core/primitives/project-settings/api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { ConfigMigrationNotice } from '../config-migration-notice';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
@@ -136,7 +136,7 @@ export function ShareableSettingsSection({
               variant="link"
               size="sm"
               className="group text-muted-foreground inline-flex h-auto cursor-pointer items-center gap-1 px-0 text-sm font-normal hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
-              onClick={() => rpc.app.openExternal('https://www.emdash.sh/docs/project-config')}
+              onClick={() => openExternal('https://www.emdash.sh/docs/project-config')}
             >
               <span className="font-sans text-xs transition-colors group-hover:text-foreground">
                 docs

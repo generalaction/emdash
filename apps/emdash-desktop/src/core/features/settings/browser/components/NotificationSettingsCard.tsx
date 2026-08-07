@@ -3,9 +3,9 @@ import { Button, Select, SeparatedList, Switch, Tooltip } from '@emdash/ui/react
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
@@ -81,7 +81,9 @@ const NotificationSettingsCard: React.FC = () => {
   };
 
   const chooseCustomSound = async () => {
-    const result = await rpc.app.openSelectAudioFileDialog({
+    const result = await (
+      await getHostClient()
+    ).openSelectAudioFileDialog({
       title: 'Choose custom sound',
       message: 'Select an audio file to play for agent events',
     });

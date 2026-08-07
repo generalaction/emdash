@@ -3,9 +3,9 @@ import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from '@root/src/core/services/pull-requests/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@root/src/core/services/pull-requests/browser/components/pr-number-badge';
@@ -102,7 +102,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         <div className="group/header flex items-center justify-between gap-2">
           <button
             className="group relative flex min-w-0 flex-1 items-center gap-2"
-            onClick={() => rpc.app.openExternal(pr.url)}
+            onClick={() => openExternal(pr.url)}
           >
             <StatusIcon className="size-4" pr={pr} />
             <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>

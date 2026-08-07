@@ -40,6 +40,7 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import {
   useTaskComposition,
   useWorkspace,
@@ -49,7 +50,6 @@ import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
@@ -427,7 +427,7 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
             type="button"
             disabled={!issue.url}
             onClick={() => {
-              if (issue.url) void rpc.app.openExternal(issue.url);
+              if (issue.url) void openExternal(issue.url);
             }}
             className="hover:bg-muted/30 flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted disabled:cursor-default disabled:opacity-60"
           >

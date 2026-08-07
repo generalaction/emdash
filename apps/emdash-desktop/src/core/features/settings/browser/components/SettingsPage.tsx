@@ -13,6 +13,7 @@ import {
 } from '@core/features/settings/browser/search/settings-search';
 import { SettingsSearchProvider } from '@core/features/settings/browser/search/settings-search-context';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { settingsPageContributions } from '@core/manifests/browser/settings-page-contributions';
 import { chord, detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
@@ -20,7 +21,6 @@ import {
   keyboardLayoutService,
   useChordKeydown,
 } from '@core/primitives/keybindings/browser';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { resolveDetailLevels, type ResolvedDetailLevel } from './settings-detail-path';
 
 const LOCAL_SECTION: PageNavSection = { kind: 'section', id: 'local', label: 'Local' };
@@ -175,7 +175,7 @@ export const SettingsPage = observer(function SettingsPage({
               <button
                 type="button"
                 className="flex h-8 w-full items-center gap-2 rounded-md px-3 text-sm font-normal text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground"
-                onClick={() => void rpc.app.openExternal('https://docs.emdash.sh')}
+                onClick={() => void openExternal('https://docs.emdash.sh')}
               >
                 <Icon name="external-link" size="sm" />
                 <span>View Docs</span>

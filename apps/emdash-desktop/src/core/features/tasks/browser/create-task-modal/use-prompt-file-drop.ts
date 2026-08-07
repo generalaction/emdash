@@ -1,13 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import { resolveDroppedFile } from '@core/features/terminals/api/browser/pty/terminal-image-injection';
 import { formatTerminalImagePaths } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import {
   getDraggedWorkspaceFile,
   hasDraggedFiles,
   hasDraggedWorkspaceFile,
 } from '@renderer/lib/drag-files';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 /**
  * Drag-and-drop file support for prompt textareas: dropping OS files or
@@ -87,7 +87,7 @@ export function usePromptFileDrop({
       void (async () => {
         try {
           const platform =
-            workspaceFile?.targetPlatform ?? ((await rpc.app.getPlatform()) as NodeJS.Platform);
+            workspaceFile?.targetPlatform ?? (await (await getHostClient()).getPlatform());
           if (workspaceFile) {
             onDropText(formatTerminalImagePaths(workspaceFile.targetPaths, platform));
             return;

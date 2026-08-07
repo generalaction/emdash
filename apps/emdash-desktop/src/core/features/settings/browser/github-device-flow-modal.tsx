@@ -1,13 +1,13 @@
 import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export type GithubDeviceFlowModalArgs = {
@@ -114,7 +114,7 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
 
   const openGitHub = useCallback(() => {
     if (verificationUri) {
-      void rpc.app.openExternal(verificationUri);
+      void openExternal(verificationUri);
     }
   }, [verificationUri]);
 
@@ -143,7 +143,7 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
                 setBrowserOpening(false);
                 if (!hasOpenedBrowser.current) {
                   hasOpenedBrowser.current = true;
-                  void rpc.app.openExternal(event.verificationUri);
+                  void openExternal(event.verificationUri);
                 }
               }, 3000);
             }
@@ -297,7 +297,7 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
               </div>
               <button
                 type="button"
-                onClick={() => rpc.app.openExternal(EMDASH_ISSUES_URL)}
+                onClick={() => openExternal(EMDASH_ISSUES_URL)}
                 className="shrink-0 underline-offset-3 hover:text-foreground hover:underline focus:text-foreground focus:underline focus:outline-none"
               >
                 Having trouble?

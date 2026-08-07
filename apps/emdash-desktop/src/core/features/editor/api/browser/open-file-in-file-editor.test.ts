@@ -35,8 +35,8 @@ vi.mock('@core/features/workspaces/api/browser/stores/workspace-registry', () =>
   workspaceRegistry: { get: mocks.getWorkspace },
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: { app: { openPath: mocks.openPath } },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  getHostClient: async () => ({ openPath: mocks.openPath }),
 }));
 
 vi.mock('@renderer/utils/focus-tracker', () => ({

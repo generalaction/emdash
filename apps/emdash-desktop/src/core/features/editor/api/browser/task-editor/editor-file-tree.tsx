@@ -45,6 +45,10 @@ import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import {
+  copyTextToClipboard,
+  getHostClient,
+} from '@core/features/workbench/api/browser/host-client';
+import {
   useTaskComposition,
   useWorkspace,
   useWorkspaceId,
@@ -57,7 +61,6 @@ import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
 import { clearDraggedWorkspaceFile, setDraggedWorkspaceFile } from '@renderer/lib/drag-files';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '../..';
 import { FileContentSearchResults } from '../../../browser/task-editor/file-content-search';
 import type { FilesStore } from '../../../browser/task-editor/stores/files-store';
@@ -486,7 +489,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
         toast.error('Copy failed', { description: 'File is too large to copy.' });
         return;
       }
-      await rpc.app.clipboardWriteText(result.data.content);
+      await copyTextToClipboard(result.data.content);
       toast('File copied');
     } catch (error) {
       toast.error('Copy failed', {
@@ -505,7 +508,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
         toast.error('Copy failed', { description: resultErrorMessage(result.error) });
         return;
       }
-      await rpc.app.clipboardWriteText(nativePathFromHost(result.data));
+      await copyTextToClipboard(nativePathFromHost(result.data));
       toast('Path copied');
     } catch (error) {
       toast.error('Copy failed', {
@@ -516,7 +519,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   const copyRelativePath = async (node: FileTreeNode) => {
     try {
-      await rpc.app.clipboardWriteText(relativeToWorkspace(workspace.path, node.path));
+      await copyTextToClipboard(relativeToWorkspace(workspace.path, node.path));
       toast('Relative path copied');
     } catch (error) {
       toast.error('Copy failed', {
@@ -527,7 +530,9 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   const revealInFileManager = async (node: FileTreeNode) => {
     try {
-      const result = await rpc.app.showWorkspaceItemInFolder({
+      const result = await (
+        await getHostClient()
+      ).showWorkspaceItemInFolder({
         workspaceId,
         relativePath: relativeToWorkspace(workspace.path, node.path),
       });

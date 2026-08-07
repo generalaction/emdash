@@ -5,6 +5,7 @@ import {
   asProvisioned,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import {
@@ -13,7 +14,6 @@ import {
   nativePathFromHost,
   relativePathWithin,
 } from '@core/primitives/desktop-runtime/api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
 function resolveEditorFilePath(workspacePath: string, filePath: string): string | null {
@@ -92,7 +92,7 @@ export async function openExternalFilePath(
     );
     return;
   }
-  const result = await rpc.app.openPath(filePath);
+  const result = await (await getHostClient()).openPath({ path: filePath });
   if (!result.success) {
     toast.error(`Could not open ${filePath}: ${result.error}`);
   }

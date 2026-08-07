@@ -1,11 +1,11 @@
 import { toast } from '@emdash/ui/react/primitives';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
 import {
   normalizeBrowserUrl,
   type BrowserDataClearKind,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
@@ -13,7 +13,7 @@ export function openBrowserUrlExternally(url: string): void {
   if (!canOpenBrowserUrlExternally(url)) return;
   const normalized = normalizeBrowserUrl(url);
   if (normalized.ok) {
-    void rpc.app.openExternal(normalized.url);
+    void openExternal(normalized.url);
   }
 }
 

@@ -10,10 +10,10 @@ import {
 import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { IssueStatusIndicator, toIssueStatus } from './issue-status-indicator';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
@@ -323,7 +323,7 @@ export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
                 <button
                   className="opacity-0 group-hover:opacity-100"
                   disabled={!issue.url}
-                  onClick={() => issue.url && rpc.app.openExternal(issue.url)}
+                  onClick={() => issue.url && openExternal(issue.url)}
                 >
                   <ExternalLink className="size-3" />
                 </button>

@@ -13,17 +13,6 @@ vi.mock('@core/features/editor/api/browser/open-file-in-file-editor', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: { on: () => () => {} },
-  rpc: {
-    conversations: {
-      dehydrateConversation,
-      getConversationsForTask: vi.fn(),
-      hydrateConversation,
-    },
-  },
-}));
-
 vi.mock('@core/features/terminals/api/browser/pty/pty', () => ({
   FrontendPty: class {
     constructor(readonly sessionId: string) {}

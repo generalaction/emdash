@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 
 const dedupeAndSort = (fonts: string[]): string[] =>
   Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean))).sort((a, b) =>
@@ -11,7 +11,7 @@ export function useInstalledFonts() {
     queryKey: ['app', 'installedFonts', 'all'],
     queryFn: async () => {
       try {
-        const result = await rpc.app.listInstalledFonts({ refresh: true });
+        const result = await (await getHostClient()).listInstalledFonts({ refresh: true });
         if (result?.success && Array.isArray(result.fonts)) {
           return dedupeAndSort(result.fonts);
         }

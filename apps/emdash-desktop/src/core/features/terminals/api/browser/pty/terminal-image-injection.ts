@@ -2,8 +2,8 @@ import {
   isHeicLikeFile,
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;
 
@@ -18,7 +18,9 @@ export async function resolveDroppedFile(file: File): Promise<string | null> {
   }
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const result = await rpc.app.persistDroppedBlob({
+    const result = await (
+      await getHostClient()
+    ).persistDroppedBlob({
       bytes,
       name: file.name,
       mimeType: file.type,

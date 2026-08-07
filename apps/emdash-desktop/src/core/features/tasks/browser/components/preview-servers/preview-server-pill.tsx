@@ -10,13 +10,16 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
+  copyTextToClipboard,
+  openExternal,
+} from '@core/features/workbench/api/browser/host-client';
+import {
   usePreviewServers,
   useTaskComposition,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServer } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   formatPreviewServerLabel,
   previewServerStatusClasses,
@@ -92,15 +95,12 @@ export const PreviewServerPill = observer(function PreviewServerPill({
         </DropdownMenu.Item>
         <DropdownMenu.Item
           disabled={!canOpen}
-          onClick={() => canOpen && url && void rpc.app.openExternal(url)}
+          onClick={() => canOpen && url && void openExternal(url)}
         >
           <ExternalLink className="size-3.5" />
           Open in System Browser
         </DropdownMenu.Item>
-        <DropdownMenu.Item
-          disabled={!hasUrl}
-          onClick={() => url && void rpc.app.clipboardWriteText(url)}
-        >
+        <DropdownMenu.Item disabled={!hasUrl} onClick={() => url && void copyTextToClipboard(url)}>
           <Clipboard className="size-3.5" />
           Copy URL
         </DropdownMenu.Item>

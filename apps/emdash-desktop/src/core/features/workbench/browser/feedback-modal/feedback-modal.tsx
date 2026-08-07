@@ -10,13 +10,13 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
@@ -58,7 +58,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
   const appVersion = getUpdateStore().currentVersion;
   const { data: platformDisplayName } = useQuery({
     queryKey: ['app', 'platformDisplayName'],
-    queryFn: () => rpc.app.getPlatformDisplayName(),
+    queryFn: async () => (await getHostClient()).getPlatformDisplayName(),
     staleTime: Infinity,
   });
   const {
@@ -104,7 +104,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
       event.preventDefault();
       const loadDiagnosticLog = includeDiagnosticLogs
         ? async () => {
-            const attachment = await rpc.app.getDiagnosticLogAttachment();
+            const attachment = await (await getHostClient()).getDiagnosticLogAttachment();
             return new File([attachment.content], attachment.filename, {
               type: attachment.mimeType,
             });

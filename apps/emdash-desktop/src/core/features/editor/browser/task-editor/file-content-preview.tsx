@@ -2,7 +2,7 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { FILE_CONTENT_TYPES } from './file-content-types';
 
 interface FileContentPreviewProps {
@@ -29,7 +29,7 @@ export const FileContentPreview = observer(function FileContentPreview({
     let cancelled = false;
     void (async () => {
       try {
-        const result = await rpc.app.readUserFile(tab.path);
+        const result = await (await getHostClient()).readUserFile({ path: tab.path });
         if (cancelled) return;
         runInAction(() => {
           if (result.success) tab.setExternalContent(result.content);

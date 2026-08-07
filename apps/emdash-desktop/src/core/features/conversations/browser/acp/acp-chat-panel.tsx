@@ -41,6 +41,7 @@ import {
   isHeicLikeFile,
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
@@ -51,7 +52,6 @@ import {
 } from '@renderer/lib/chat/chat-mention-provider';
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -809,7 +809,7 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
             )
             .then((result) => {
               if (result.success && result.data.url) {
-                void rpc.app.openExternal(result.data.url);
+                void openExternal(result.data.url);
               }
             });
         }

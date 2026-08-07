@@ -21,6 +21,7 @@ import type { BlobSource } from '@emdash/wire/rpc';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getAgentsClient } from '@core/features/agents/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import {
   registerConversationCommands,
@@ -28,7 +29,6 @@ import {
 } from '@renderer/lib/chat/advertised-command-provider';
 import { getChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 
@@ -515,7 +515,9 @@ export class AcpChatStore {
 
       const label = kind === 'raw' ? 'raw ACP log' : 'parsed transcript';
       const suffix = kind === 'raw' ? 'acp-raw' : 'transcript';
-      const saved = await rpc.app.saveTextFile({
+      const saved = await (
+        await getHostClient()
+      ).saveTextFile({
         title: `Export ${label}`,
         defaultPath: `${this.conversationId}-${suffix}.json`,
         content: result.data,
