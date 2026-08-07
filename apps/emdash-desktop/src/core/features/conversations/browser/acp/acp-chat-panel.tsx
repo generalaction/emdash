@@ -24,12 +24,14 @@ import {
 } from '@core/features/editor/api/browser/open-file-in-file-editor';
 import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import {
   asMounted,
   getProjectStore,
   getProjectViewStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import { getSearchClient } from '@core/features/search/api/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 // TODO(conversations-extraction): Pass task state into ACP chat instead of importing task stores.
 import {
@@ -51,7 +53,6 @@ import {
 import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
 import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
@@ -273,8 +274,8 @@ const ComposerForStore = observer(function ComposerForStore({
     (value: string) =>
       buildIssueMentionHiddenContext(value, async (target) => {
         const result = await (
-          await getDesktopWireClient()
-        ).issues.getIssueContext({
+          await getIssuesClient()
+        ).getIssueContext({
           provider: target.provider,
           options: { identifier: target.identifier, projectId: store.projectId },
         });
@@ -467,9 +468,9 @@ const ComposerForStore = observer(function ComposerForStore({
             : null;
         const issueSearch =
           issueProvider && query.trim().length >= ISSUE_SEARCH_MIN_LENGTH
-            ? getDesktopWireClient()
+            ? getIssuesClient()
                 .then((client) =>
-                  client.issues.searchIssues({
+                  client.searchIssues({
                     provider: issueProvider,
                     options: {
                       limit: ISSUE_SEARCH_LIMIT,
@@ -488,8 +489,8 @@ const ComposerForStore = observer(function ComposerForStore({
 
         const [files, issueResult] = await Promise.all([
           wsId
-            ? getDesktopWireClient().then((client) =>
-                client.search.searchWorkspaceFiles({ workspaceId: wsId, query })
+            ? getSearchClient().then((client) =>
+                client.searchWorkspaceFiles({ workspaceId: wsId, query })
               )
             : Promise.resolve([]),
           issueSearch,
@@ -800,9 +801,9 @@ export const AcpChatPanel = observer(function AcpChatPanel() {
         if (arg.kind === 'issue') {
           const target = parseIssueMentionToken(arg.id);
           if (!target) return;
-          void getDesktopWireClient()
+          void getIssuesClient()
             .then((client) =>
-              client.issues.getIssueContext({
+              client.getIssueContext({
                 provider: target.provider,
                 options: { identifier: target.identifier, projectId: store.projectId },
               })
