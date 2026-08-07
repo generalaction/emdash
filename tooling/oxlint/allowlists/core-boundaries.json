@@ -1,8 +1,0 @@
-{
-  "coreToHost": [],
-  "mainCoreToFeatures": [],
-  "crossSlice": [
-    "apps/emdash-desktop/src/core/services/pull-requests/browser/components/pr-badge.tsx",
-    "apps/emdash-desktop/src/core/services/pull-requests/browser/components/pr-url-copy.ts"
-  ]
-}
