@@ -45,32 +45,32 @@ describe('FilesAllocationGraph', () => {
     expect(releaseCount).toBe(1);
   });
 
-  it('evicts a failed root acquisition so it can be retried', async () => {
+  it('serves acquisitions when watch startup fails and reports the error', async () => {
     const root = await makeRoot();
-    let attempt = 0;
+    const errors: string[] = [];
     const watcher: IWatchService = {
-      watch: () => {
-        attempt += 1;
-        return {
-          ready: async () => {
-            if (attempt === 1) throw new Error('watch failed');
-          },
-          release: async () => {},
-        };
-      },
+      watch: () => ({
+        ready: async () => {
+          throw new Error('watch failed');
+        },
+        release: async () => {},
+      }),
       dispose: async () => {},
     };
-    const graph = new FilesAllocationGraph({ watcher, idleTtlMs: 0 });
+    const graph = new FilesAllocationGraph({
+      watcher,
+      idleTtlMs: 0,
+      onError: (context) => errors.push(context),
+    });
     const rootRef = runtimeRoot(root);
 
-    await expect(graph.acquireTree({ root: rootRef, sessionId: 'one' }).ready()).rejects.toThrow(
-      'watch failed'
-    );
-    const retry = graph.acquireTree({ root: rootRef, sessionId: 'one' });
-    await expect(retry.ready()).resolves.toMatchObject({ identity: { sessionId: 'one' } });
-    await retry.release();
+    const tree = graph.acquireTree({ root: rootRef, sessionId: 'one' });
+    await expect(tree.ready()).resolves.toMatchObject({ identity: { sessionId: 'one' } });
+    await expect
+      .poll(() => errors.some((context) => context.includes('files root watch')))
+      .toBe(true);
+    await tree.release();
     await graph.dispose();
-    expect(attempt).toBe(2);
   });
 
   it('passes configured watcher ignore globs to root watchers', async () => {

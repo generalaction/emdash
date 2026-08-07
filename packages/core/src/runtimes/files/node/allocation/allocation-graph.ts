@@ -43,6 +43,7 @@ export class FilesAllocationGraph {
           identity,
           watcher: options.watcher,
           watchIgnoreGlobs: options.watchIgnoreGlobs,
+          onError,
         });
         scope.add(() => resource.dispose());
         return resource;

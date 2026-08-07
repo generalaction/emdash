@@ -6,7 +6,7 @@ import {
   useToast,
 } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { GitBranchPlus } from 'lucide-react';
+import { GitBranchPlus, RotateCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Fragment, useMemo, useState } from 'react';
 import {
@@ -39,17 +39,8 @@ import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import { log } from '@core/primitives/logging/browser/logger';
 import { createLayoutStorage } from '@core/primitives/mementos/browser';
 import type { InitializeRepositoryError } from '@core/primitives/projects/api';
-
-let lastDebugState = '';
-function debugRenderState(state: Record<string, unknown>): void {
-  const encoded = JSON.stringify(state);
-  if (encoded === lastDebugState) return;
-  lastDebugState = encoded;
-  log.warn('[DEBUG-gck] ChangesPanel render state', state);
-}
 
 const SECTION_IDS = ['unstaged', 'staged', 'pullRequests'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
@@ -97,6 +88,15 @@ export const ChangesPanel = observer(function ChangesPanel() {
     },
   });
 
+  const retryCheckoutMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all([
+        gitCheckout.retry(),
+        queryClient.invalidateQueries({ queryKey: noRepositoryQueryKey }),
+      ]);
+    },
+  });
+
   const initializeRepositoryMutation = useMutation({
     mutationFn: async () => {
       return initializeProjectRepository(projectId);
@@ -124,15 +124,6 @@ export const ChangesPanel = observer(function ChangesPanel() {
     },
   });
 
-  debugRenderState({
-    hasDiffView: !!diffView,
-    hasChangesView: !!changesView,
-    gitHasData: gitCheckout.hasData,
-    gitError: gitCheckout.error,
-    repoQueryStatus: repositoryStatusQuery.status,
-    repoIsGitRepo: repositoryStatusQuery.data?.isGitRepo,
-    expandedSections: changesView?.expandedSections,
-  });
   if (!diffView || !changesView) return null;
   if (!gitCheckout.hasData) {
     const status = repositoryStatusQuery.data;
@@ -153,6 +144,28 @@ export const ChangesPanel = observer(function ChangesPanel() {
               {initializeRepositoryMutation.isPending
                 ? 'Initializing…'
                 : 'Initialize Git repository'}
+            </Button>
+          }
+        />
+      );
+    }
+    // The store's startup timeout guarantees loading eventually resolves to an
+    // error; never leave the panel silently blank once syncing has failed.
+    if (gitCheckout.error) {
+      return (
+        <EmptyState
+          label="Git status unavailable"
+          description={gitCheckout.error}
+          action={
+            <Button
+              variant="secondary"
+              type="button"
+              size="sm"
+              onClick={() => retryCheckoutMutation.mutate()}
+              disabled={retryCheckoutMutation.isPending}
+            >
+              <RotateCw className="size-3.5" />
+              {retryCheckoutMutation.isPending ? 'Retrying…' : 'Retry'}
             </Button>
           }
         />

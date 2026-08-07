@@ -7,6 +7,7 @@ import {
 } from '@emdash/core/runtimes/git/api';
 import { err, ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
@@ -17,11 +18,14 @@ import {
   gitFilePath,
 } from '@core/features/source-control/api/browser/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
-import { log } from '@core/primitives/logging/browser/logger';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../../api';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
+// A healthy checkout model emits status and head within a few seconds; a wait
+// this long means the Git runtime is wedged, so surface an error the panel can
+// show (with retry) instead of leaving the store in a permanent loading state.
+const CHECKOUT_MODEL_STARTUP_TIMEOUT_MS = 30_000;
 const MAX_UNTRACKED_STAT_BYTES = 2 * 1024 * 1024;
 type CheckoutModel = typeof sourceControlContract.checkout.model;
 type CheckoutRemote = RemoteModel<CheckoutModel>;
@@ -302,35 +306,30 @@ export class GitCheckoutStore {
 
   private async bindRuntime(): Promise<void> {
     const scope = createScope({ label: `git-checkout-store:${this.workspaceId}` });
-    log.warn('[DEBUG-gck] bindRuntime start', { workspaceId: this.workspaceId });
-    const watchdog = setTimeout(() => {
-      log.warn('[DEBUG-gck] bindRuntime still unresolved after 15s', {
-        workspaceId: this.workspaceId,
-        hasModel: this.model !== null,
-        syncError: this.syncError,
-      });
-    }, 15_000);
+    let checkoutRemote: CheckoutRemote | null = null;
     try {
       const client = await getSourceControlClient();
-      log.warn('[DEBUG-gck] source-control client resolved', { workspaceId: this.workspaceId });
-      const checkoutRemote = remote(sourceControlContract.checkout.model, client.checkout.model, {
+      checkoutRemote = remote(sourceControlContract.checkout.model, client.checkout.model, {
         scope,
         lingerMs: 15_000,
       });
       const model = checkoutRemote(checkoutSelector(this.workspaceId));
       pin(scope, Object.values(model.states));
-      await waitForCheckoutModel(model, scope, {
-        setStatus: (status) => {
-          this.statusData = status;
-          this.revision += 1;
-          void this.refreshChanges();
-        },
-        setHead: (head) => {
-          this.headData = head;
-          this.revision += 1;
-        },
-      });
-      log.warn('[DEBUG-gck] checkout model ready', { workspaceId: this.workspaceId });
+      await runWithTimeout(
+        () =>
+          waitForCheckoutModel(model, scope, {
+            setStatus: (status) => {
+              this.statusData = status;
+              this.revision += 1;
+              void this.refreshChanges();
+            },
+            setHead: (head) => {
+              this.headData = head;
+              this.revision += 1;
+            },
+          }),
+        { timeoutMs: CHECKOUT_MODEL_STARTUP_TIMEOUT_MS }
+      );
       if (!this.started) {
         await checkoutRemote.dispose();
         await scope.dispose();
@@ -343,16 +342,16 @@ export class GitCheckoutStore {
         this.syncError = null;
       });
     } catch (error) {
-      log.warn('[DEBUG-gck] bindRuntime failed', {
-        workspaceId: this.workspaceId,
-        error: error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : String(error),
-      });
+      await checkoutRemote?.dispose();
       await scope.dispose();
       runInAction(() => {
-        this.syncError = error instanceof Error ? error.message : String(error);
+        this.syncError =
+          error instanceof TimeoutError
+            ? 'Timed out waiting for Git status. The Git runtime may be unresponsive.'
+            : error instanceof Error
+              ? error.message
+              : String(error);
       });
-    } finally {
-      clearTimeout(watchdog);
     }
   }
 
@@ -443,11 +442,6 @@ function waitForCheckoutModel(
     observe(
       model.states.status,
       (current) => {
-        log.warn('[DEBUG-gck] status emission', {
-          status: current.status,
-          hasValue: current.value != null,
-          error: current.status === 'error' ? String(current.error) : undefined,
-        });
         runInAction(() => {
           if (current.status === 'error') {
             reject(current.error);
@@ -464,11 +458,6 @@ function waitForCheckoutModel(
     observe(
       model.states.head,
       (current) => {
-        log.warn('[DEBUG-gck] head emission', {
-          status: current.status,
-          hasValue: current.value != null,
-          error: current.status === 'error' ? String(current.error) : undefined,
-        });
         runInAction(() => {
           if (current.status === 'error') {
             reject(current.error);

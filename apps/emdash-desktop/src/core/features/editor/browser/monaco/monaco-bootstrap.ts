@@ -1,11 +1,43 @@
 import { loader } from '@monaco-editor/react';
-import type * as monaco from 'monaco-editor';
+import * as monaco from 'monaco-editor';
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { configureMonacoTypeScript } from './monaco-config';
 import { defineMonacoThemes, getMonacoTheme } from './monaco-themes';
 
 let instance: typeof monaco | null = null;
 let initPromise: Promise<typeof monaco> | null = null;
+
+function configureMonacoEnvironment(): void {
+  self.MonacoEnvironment = {
+    getWorker(_workerId: string, label: string): Worker {
+      switch (label) {
+        case 'json':
+          return new jsonWorker();
+        case 'css':
+        case 'scss':
+        case 'less':
+          return new cssWorker();
+        case 'html':
+        case 'handlebars':
+        case 'razor':
+          return new htmlWorker();
+        case 'typescript':
+        case 'javascript':
+          return new tsWorker();
+        default:
+          return new editorWorker();
+      }
+    },
+  };
+  // Serve Monaco from the bundled package instead of the default CDN so the
+  // editor works offline; loader.init() resolves with this instance.
+  loader.config({ monaco });
+}
 
 /**
  * Shared Monaco bootstrap — the single entry point for loading Monaco,
@@ -21,6 +53,7 @@ export const monacoBootstrap = {
   /** Load Monaco once, set up themes and TypeScript. Safe to call multiple times. */
   init(): Promise<typeof monaco> {
     if (initPromise) return initPromise;
+    configureMonacoEnvironment();
     initPromise = (async () => {
       const m = await loader.init();
       instance = m;

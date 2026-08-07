@@ -15,6 +15,7 @@ export type RootResourceOptions = {
   identity: RootIdentity;
   watcher: IWatchService;
   watchIgnoreGlobs?: readonly string[];
+  onError?: (context: string, error: unknown) => void;
 };
 
 export class RootResource {
@@ -24,17 +25,15 @@ export class RootResource {
   private readonly listeners = new Set<(changes: RootChange[]) => void>();
   private readonly mutationMutex = new KeyedMutex();
   private readonly watch: WatchHandle;
+  private readonly watchReadyPromise: Promise<void>;
   private disposed = false;
 
   static async create(options: RootResourceOptions): Promise<RootResource> {
-    const resource = new RootResource(options);
-    try {
-      await resource.watch.ready();
-      return resource;
-    } catch (error) {
-      await resource.dispose();
-      throw error;
-    }
+    // Reads never wait on watcher readiness: tree and content consumers read
+    // from disk and need the watch only for change notifications. Watch attach
+    // (which awaits native watcher startup) proceeds concurrently, and the
+    // post-ready resync covers changes missed during that startup window.
+    return new RootResource(options);
   }
 
   private constructor(options: RootResourceOptions) {
@@ -55,6 +54,24 @@ export class RootResource {
         onResync: () => this.emit([{ kind: 'resync' }]),
       }
     );
+    this.watchReadyPromise = this.watch.ready().then(
+      () => {
+        this.emit([{ kind: 'resync' }]);
+      },
+      (error: unknown) => {
+        if (this.disposed) return;
+        options.onError?.(`files root watch ${options.identity.rootId}`, error);
+      }
+    );
+  }
+
+  /**
+   * Settles once the watch attach attempt finishes (never rejects). After a
+   * successful attach a resync change has been emitted; after a failed attach
+   * the resource keeps serving reads without live change notifications.
+   */
+  watchReady(): Promise<void> {
+    return this.watchReadyPromise;
   }
 
   subscribe(listener: (changes: RootChange[]) => void): Unsubscribe {

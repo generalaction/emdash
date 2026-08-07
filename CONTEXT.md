@@ -143,6 +143,38 @@ _Avoid_: Provisioning (that creates the artifact; activation starts using it), d
 A surfaced, non-fatal event about a Workspace's session plane (a failed prepare or setup script). Informational with a re-run affordance, carried on the workspace's Runtime overlay — ephemeral like the activation it belongs to. The durable trace is the per-script last-outcome on the workspace record, which survives daemon restarts and syncs to the mirror.
 _Avoid_: Operation, error state (the workspace keeps working)
 
+### File identity vocabulary
+
+Roles in `@emdash/core/primitives/path/api` (see `agents/architecture/path-system.md`), adopted as
+the file identity for the unified content stack.
+
+**HostFileRef**:
+The canonical identity of a file: a Host (`HostRef`) plus an absolute path on that host. Independent
+of any Workspace — workspace membership is a view/scoping concern, never part of file identity.
+_Avoid_: HostPathRef (retired working name), (workspaceId, relative path) as identity
+
+**ResourceUri**:
+The serialized form of a HostFileRef (`emdash-file://v2/...`), used on the wire and in durable
+state.
+_Avoid_: Raw absolute path strings as serialized identity
+
+**ResourceKey**:
+The normalized comparison key derived from a HostFileRef for in-memory maps and dedupe — accounts
+for case sensitivity and unicode normalization without changing display spelling.
+_Avoid_: Using formatted paths or ResourceUris as map keys where normalized equality matters
+
+**ScopedPath**:
+A root HostFileRef plus a portable relative path — the shape for root-relative operations (tree
+entries, watcher events, git paths, bulk calls). Not a file identity: the same file reached via
+different roots yields different ScopedPaths.
+_Avoid_: Keying content or open-file state by ScopedPath
+
+**Facet**:
+One of the up-to-three Monaco models of a single open file: the writable buffer, the read-only disk
+mirror, and a read-only git snapshot at a ref. Facet URIs derive deterministically from the file's
+ResourceUri and decode back to its HostFileRef.
+_Avoid_: Treating facets as independent files with unrelated URIs
+
 ### Wire vocabulary
 
 Roles in `packages/wire`, settled by the wire-architecture map's naming pass.
