@@ -17,14 +17,12 @@ const mocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    automations: {
-      getRunOverview: mocks.getRunOverview,
-      listChangedRuns: mocks.listChangedRuns,
-      listRuns: mocks.listRuns,
-      runEvents: { subscribe: mocks.subscribe },
-    },
+vi.mock('@core/features/automations/api/browser/client', () => ({
+  getAutomationsClient: async () => ({
+    getRunOverview: mocks.getRunOverview,
+    listChangedRuns: mocks.listChangedRuns,
+    listRuns: mocks.listRuns,
+    runEvents: { subscribe: mocks.subscribe },
   }),
 }));
 
