@@ -1,17 +1,5 @@
 import type { Client, ClientChannel } from 'ssh2';
-
-export type SshExecOptions = {
-  timeoutMs?: number;
-  signal?: AbortSignal;
-  maxStdoutBytes?: number;
-  maxStderrBytes?: number;
-};
-
-export type SshExecResult = {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-};
+import type { SshExecOptions, SshExecResult } from '@core/primitives/ssh/api';
 
 export class SshExecTimeoutError extends Error {
   readonly name = 'SshExecTimeoutError';

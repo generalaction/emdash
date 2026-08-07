@@ -78,6 +78,7 @@ import { createWorkspaceDeletionSweepKind } from '@core/features/workspaces/node
 import { WorkspaceRegistryBackfillService } from '@core/features/workspaces/node/sync/workspace-registry-backfill';
 import { WorkspaceRegistrySyncService } from '@core/features/workspaces/node/sync/workspace-registry-sync-service';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
+import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import { AppDbKeyValueStore } from '@core/services/app-db/node/key-value-store';
 import { createNotificationService } from '@core/services/notifications/node';
 import { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
@@ -88,10 +89,7 @@ import {
 } from '@core/services/reconcile-sweep/node/reconcile-sweep-triggers';
 import type { AppSettingsKey } from '@core/services/settings/api';
 import { createProviderOverrideSettings } from '@core/services/settings/node/provider-settings-service';
-import {
-  createHostReachabilityProbe,
-  type HostReachabilityProbe,
-} from '@core/services/ssh/node/host-reachability';
+import { createHostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 import { agentStatusService } from '@main/core/agent-status/agent-status-service';
 import { appService } from '@main/core/app/service';
 import {

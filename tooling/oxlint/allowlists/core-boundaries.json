@@ -193,7 +193,6 @@
     "apps/emdash-desktop/src/core/services/remote-machine/node/server-operations.test.ts",
     "apps/emdash-desktop/src/core/services/remote-machine/node/server-operations.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/connect/ssh-streamlocal-transport.test.ts",
-    "apps/emdash-desktop/src/core/services/workspace-server/node/ports.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/provision/host-probe.test.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/provision/provisioner.test.ts",
     "apps/emdash-desktop/src/core/services/workspace-server/node/provision/provisioner.ts",

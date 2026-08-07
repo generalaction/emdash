@@ -36,6 +36,7 @@ import {
 } from '@core/features/workspaces/api/node/registry/workspace-tombstones';
 import type { ConversationConfig } from '@core/primitives/conversations/api';
 import type { Conversation } from '@core/primitives/conversations/api';
+import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -51,7 +52,6 @@ import type {
   TaskRow,
   WorkspaceInsert,
 } from '@core/services/app-db/node/schema';
-import type { HostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 
 type ConvInsert = ConversationInsert;
 

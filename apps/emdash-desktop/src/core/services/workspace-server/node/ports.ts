@@ -1,4 +1,4 @@
-import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
+import type { SshClientProxy } from '@core/primitives/ssh/api';
 
 export type WorkspaceServerSshPort = {
   ensureProxy(connectionId: string): Promise<SshClientProxy>;

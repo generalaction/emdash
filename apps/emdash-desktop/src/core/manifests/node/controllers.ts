@@ -79,6 +79,7 @@ import {
 } from '@core/features/workspaces/node/wire-controller';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts';
+import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { NotificationService } from '@core/services/notifications/node';
@@ -95,7 +96,6 @@ import {
   type SettingsRuntimePort,
 } from '@core/services/settings/node/wire-controller';
 import { createSshWireController } from '@core/services/ssh/node/controller';
-import type { HostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 
 export type DesktopControllerContext = {
   readonly accountService: EmdashAccountService;

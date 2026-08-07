@@ -1,6 +1,11 @@
 import { formatCommandLine, type Command } from '@emdash/core/primitives/exec/api';
 import type { Client, ClientChannel } from 'ssh2';
-import { execOnClient, type SshExecOptions, type SshExecResult } from '../operations/exec';
+import type {
+  SshClientProxy as SshClientProxyContract,
+  SshExecOptions,
+  SshExecResult,
+} from '@core/primitives/ssh/api';
+import { execOnClient } from '../operations/exec';
 import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
 
 /**
@@ -13,7 +18,7 @@ import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
  * therefore always get the current live Client without needing to be
  * rebuilt or replaced.
  */
-export class SshClientProxy {
+export class SshClientProxy implements SshClientProxyContract {
   private _client: Client | null = null;
 
   constructor(readonly connectionId: string) {}
