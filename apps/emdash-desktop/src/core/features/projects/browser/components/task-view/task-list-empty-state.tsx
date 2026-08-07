@@ -7,9 +7,9 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
+import { useArrowKeyNavigation } from '@core/primitives/react-hooks/browser/use-arrow-key-navigation';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 
 interface TaskAction {
   label: string;

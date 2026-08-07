@@ -15,14 +15,14 @@ import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xte
 import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
-import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider } from '@core/primitives/workbench-shell/browser/tabs/generic-tab-view';
 import {
   addTabId,
   setNextTabActive,
   setPreviousTabActive,
   setTabActive,
   setTabActiveIndex,
-} from '@renderer/lib/stores/tab-utils';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-utils';
 import { getProjectSettingsClient } from './client';
 
 export type ScriptType = 'prepare' | 'setup' | 'run' | 'teardown';

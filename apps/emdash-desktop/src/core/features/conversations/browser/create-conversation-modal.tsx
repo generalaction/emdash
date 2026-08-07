@@ -15,7 +15,7 @@ import type { ConversationType } from '@core/primitives/conversations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
+import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   projectId,

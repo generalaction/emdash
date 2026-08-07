@@ -1,5 +1,9 @@
 import { useId } from 'react';
-import { EMDASH_PATHS, NATURAL_HEIGHT, NATURAL_WIDTH } from '@renderer/lib/emdash-logo';
+import {
+  EMDASH_PATHS,
+  NATURAL_HEIGHT,
+  NATURAL_WIDTH,
+} from '@core/primitives/app-identity/browser/emdash-logo';
 
 export function EmdashShimmerLogo({
   className,

@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
-import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import {
   pullRequestErrorMessage,
   type PullRequest,

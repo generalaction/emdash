@@ -7,10 +7,10 @@ import {
 import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
+import { getCatalogClient } from '@core/features/catalog/api/browser/client';
 import { log } from '@core/primitives/logging/browser/logger';
-import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
-import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { getSkillsClient } from '../client';
 import { useInstalledSkillsLiveModel } from '../live-model-hooks';
 
@@ -33,7 +33,7 @@ export function useSkills({
   const { data: rawCatalog = null, isPending: isLoadingCatalog } = useQuery({
     queryKey: CATALOG_QUERY_KEY,
     queryFn: async () => {
-      const client = await getCatalogRuntimeClient();
+      const client = await getCatalogClient();
       const result = await client.getSkillsCatalog(undefined);
       if (result.success) return result.data;
       throw new Error(result.error.message);
@@ -48,7 +48,7 @@ export function useSkills({
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const client = await getCatalogRuntimeClient();
+      const client = await getCatalogClient();
       const result = await client.refreshSkillsCatalog(undefined);
       if (result.success) return result.data;
       throw new Error(result.error.message);
@@ -65,7 +65,7 @@ export function useSkills({
 
   const installMutation = useMutation({
     mutationFn: async (skillId: string) => {
-      const catalogClient = await getCatalogRuntimeClient();
+      const catalogClient = await getCatalogClient();
       const payload = await catalogClient.resolveSkillInstall({ skillId });
       if (!payload.success) throw new Error(payload.error.message);
       const skillsClient = await getSkillsClient();
@@ -140,7 +140,7 @@ export function useSkills({
   const { data: detailData, isFetching: isLoadingDetail } = useQuery({
     queryKey: ['skills', 'detail', selectedSkillId],
     queryFn: async () => {
-      const client = await getCatalogRuntimeClient();
+      const client = await getCatalogClient();
       const result = await client.getSkillContent({ skillId: selectedSkillId! });
       if (result.success) return result.data;
       throw new Error(result.error.message);
@@ -152,7 +152,7 @@ export function useSkills({
   const { data: skillShSkills = [], isFetching: isSearchingSkillSh } = useQuery({
     queryKey: ['skills', 'skillssh-search', skillShQuery],
     queryFn: async () => {
-      const client = await getCatalogRuntimeClient();
+      const client = await getCatalogClient();
       const result = await client.searchSkillSh({ query: skillShQuery });
       if (result.success) return result.data;
       throw new Error(result.error.message);

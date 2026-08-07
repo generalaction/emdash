@@ -34,6 +34,7 @@ import {
 } from '@core/features/workspaces/api/browser/client';
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -45,7 +46,6 @@ import {
   type ProjectWorkspaceRow,
   type ProjectWorkspaceUsageResult,
 } from '@core/primitives/workspaces/api';
-import { formatBytes } from '@renderer/utils/formatBytes';
 
 type UsageFilter = 'all' | 'used' | 'unused';
 type LoadStatus = 'idle' | 'loading' | 'error';

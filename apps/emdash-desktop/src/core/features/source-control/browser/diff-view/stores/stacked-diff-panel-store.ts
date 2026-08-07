@@ -1,5 +1,6 @@
 import type { GitChange, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
+import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { isBinaryForDiff } from '@core/features/editor/api/browser/renderers/fileKind';
@@ -10,7 +11,6 @@ import {
 import type { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { getPrNumber } from '@root/src/core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
 

@@ -35,10 +35,10 @@ import {
   getNavigationHistory,
 } from '@core/primitives/navigation/browser/navigation-selectors';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
+import { reconcileKeyedEntities } from '@core/primitives/reconcile/browser/keyed-entity-reconciler';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
-import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
-import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import type {
   ModeData,
   ProjectCreationCompletion,

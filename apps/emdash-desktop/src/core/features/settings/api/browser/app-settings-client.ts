@@ -1,6 +1,6 @@
+import { queryClient } from '@core/primitives/query/browser/query-client';
 import type { AppSettings, AppSettingsKey, SettingsMeta } from '@core/services/settings/api';
 import { getAppSettingsClient } from '@core/services/settings/api/client';
-import { queryClient } from '@renderer/lib/query-client';
 
 export const APP_SETTINGS_STALE_TIME_MS = 5 * 60_000;
 

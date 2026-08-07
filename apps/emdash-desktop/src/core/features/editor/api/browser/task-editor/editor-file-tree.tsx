@@ -57,10 +57,13 @@ import { useTabLayout } from '@core/features/workbench/api/browser/task-tab-regi
 import { relativeToWorkspace } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal, useOpenModal } from '@core/manifests/browser/modal-api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import {
+  clearDraggedWorkspaceFile,
+  setDraggedWorkspaceFile,
+} from '@core/primitives/drag-files/browser/drag-files';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
-import { clearDraggedWorkspaceFile, setDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '../..';
 import { FileContentSearchResults } from '../../../browser/task-editor/file-content-search';
 import type { FilesStore } from '../../../browser/task-editor/stores/files-store';

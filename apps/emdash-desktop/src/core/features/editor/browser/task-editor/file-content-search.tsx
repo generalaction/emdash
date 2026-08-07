@@ -26,7 +26,7 @@ import type {
 import { searchContract } from '@core/features/search/api';
 import { getSearchClient } from '@core/features/search/api/client';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { useDebounce } from '@renderer/lib/hooks/useDebounce';
+import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import {
   countContentSearchOccurrences,
   mergeContentSearchFiles,

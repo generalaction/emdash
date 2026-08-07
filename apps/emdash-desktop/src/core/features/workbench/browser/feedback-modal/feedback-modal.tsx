@@ -10,14 +10,14 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
+import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
+import { useAttachments } from '@core/primitives/react-hooks/browser/use-attachments';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useAttachments } from '@renderer/lib/hooks/use-attachments';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {

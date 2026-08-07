@@ -4,6 +4,7 @@ import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
 import { readEditorImage } from '@core/features/editor/api/browser/files';
+import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
 import { ModelStatusOverlay } from '@core/features/editor/api/browser/monaco/model-status-overlay';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
@@ -28,7 +29,6 @@ import {
   type DraftCommentTarget,
 } from '@core/primitives/line-comments/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 import { ImageDiffView } from './image-diff-view';
