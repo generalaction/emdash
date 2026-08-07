@@ -9,6 +9,7 @@
       "{workspaceRoot}/.oxlintrc.json",
       "{workspaceRoot}/.oxfmtrc.json",
       "{workspaceRoot}/tooling/oxlint/**/*",
+      "{workspaceRoot}/tooling/scripts/**/*",
       "{workspaceRoot}/pnpm-lock.yaml"
     ]
   },

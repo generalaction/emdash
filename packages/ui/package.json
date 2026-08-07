@@ -98,7 +98,7 @@
     "watch:theme": "pnpm --filter @emdash/theme run watch:theme",
     "storybook": "node ../../tooling/scripts/ensure-packages-built.mjs && storybook dev -p 6006 -c .storybook",
     "build:storybook": "storybook build -c .storybook",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/ui/src\"'",
+    "lint": "oxlint src",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit"

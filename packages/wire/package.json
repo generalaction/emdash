@@ -60,7 +60,7 @@
     "example:dedupe": "tsx examples/dedupe/server.ts",
     "example:job-contract": "tsx examples/job-contract/client.ts",
     "example:api-definition": "tsx examples/api-definition/inspect.ts",
-    "lint": "sh -c 'root=$(cd ../.. && pwd); cd \"$root/apps/emdash-desktop\" && pnpm exec oxlint --config .oxlintrc.json \"$root/packages/wire\"'",
+    "lint": "oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
