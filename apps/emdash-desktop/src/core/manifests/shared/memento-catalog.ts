@@ -7,11 +7,9 @@ import {
   taskPaneLayoutMemento,
   taskTerminalSelectionMemento,
 } from '@core/features/tasks/contributions/mementos';
-import {
-  workbenchHistoryMemento,
-  workbenchSidebarMemento,
-} from '@core/features/workbench/contributions/mementos';
+import { workbenchSidebarMemento } from '@core/features/workbench/contributions/mementos';
 import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
+import { workbenchHistoryMemento } from '@core/primitives/navigation/api/mementos';
 
 /**
  * Composition-root registry for persisted mementos.

@@ -2,15 +2,18 @@ import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { appState } from '@renderer/lib/stores/app-state';
-import type { HistoryEntry } from '@renderer/lib/stores/navigation-history-store';
+import type { HistoryEntry } from '@core/primitives/navigation/api';
+import {
+  getNavigation,
+  getNavigationHistory,
+} from '@core/primitives/navigation/browser/navigation-selectors';
 
 export function applyHistoryEntry(entry: HistoryEntry): boolean {
-  return appState.navigation.applyEntry(entry);
+  return getNavigation().applyEntry(entry);
 }
 
 export const NavButtons = observer(function NavButtons() {
-  const { canGoBack, canGoForward } = appState.history;
+  const { canGoBack, canGoForward } = getNavigationHistory();
   return (
     <div className="flex items-center gap-0.5 [-webkit-app-region:no-drag]">
       <Tooltip.Root>
@@ -20,7 +23,7 @@ export const NavButtons = observer(function NavButtons() {
             size="sm"
             className="size-7 p-0"
             disabled={!canGoBack}
-            onClick={() => appState.history.back(applyHistoryEntry)}
+            onClick={() => getNavigationHistory().back(applyHistoryEntry)}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -37,7 +40,7 @@ export const NavButtons = observer(function NavButtons() {
             size="sm"
             className="size-7 p-0"
             disabled={!canGoForward}
-            onClick={() => appState.history.forward(applyHistoryEntry)}
+            onClick={() => getNavigationHistory().forward(applyHistoryEntry)}
           >
             <ArrowRight className="h-4 w-4" />
           </Button>

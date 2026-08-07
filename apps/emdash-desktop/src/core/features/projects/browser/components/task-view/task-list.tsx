@@ -14,11 +14,11 @@ import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
+import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
 

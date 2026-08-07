@@ -10,9 +10,9 @@ import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-sto
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import type { NavigateFnTyped } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
-import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteTaskItem } from './palette-task-item';
 

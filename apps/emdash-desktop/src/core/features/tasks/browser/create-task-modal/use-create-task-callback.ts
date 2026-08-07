@@ -3,7 +3,7 @@ import type { InitialConversationState } from '@core/features/tasks/api/browser/
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { log } from '@core/primitives/logging/browser/logger';
-import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
+import type { NavigateFnTyped } from '@core/primitives/navigation/browser/navigation-hooks';
 import { buildInitialConversation, deriveInitialStatus } from './build-create-task-params';
 import type { CreateTaskState } from './use-create-task-state';
 

@@ -1,19 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { projectSubject } from '@core/features/projects/contributions/subject';
-import { projectViewDef } from '@core/features/projects/contributions/views';
-import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { taskViewDef } from '@core/features/tasks/contributions/views';
+import type { JsonObject } from '@core/primitives/json/api';
+import type { MementoHandle } from '@core/primitives/mementos/browser';
+import type { Resolution } from '../api';
 import {
   workbenchHistoryMemento,
   workbenchNavigationMemento,
   type WorkbenchHistoryState,
   type WorkbenchNavigationState,
-} from '@core/features/workbench/contributions/mementos';
-import { homeViewDef } from '@core/features/workbench/contributions/views';
-import type { JsonObject } from '@core/primitives/json/api';
-import type { MementoHandle } from '@core/primitives/mementos/browser';
-import type { Resolution } from '@core/primitives/navigation/api';
-import { NavigationHistoryStore } from './navigation-history-store';
+} from '../api/mementos';
+import type { NavigationHistoryStore } from './navigation-history-store';
+import type { NavigationStore } from './navigation-store';
+import {
+  createTestNavigation,
+  seedTestNavigationHost,
+  testHomeViewDef as homeViewDef,
+  testProjectSubject as projectSubject,
+  testProjectViewDef as projectViewDef,
+  testSettingsViewDef as settingsViewDef,
+  testTaskViewDef as taskViewDef,
+} from './testing';
 
 const runtimeResolvers = vi.hoisted(() => new Map<string, (params: JsonObject) => Resolution>());
 const dismissModal = vi.hoisted(() => vi.fn());
@@ -29,20 +34,9 @@ vi.mock('@core/primitives/modals/react/modal-store', () => ({
   modalStore: { dismissAll: dismissModal },
 }));
 
-vi.mock('@renderer/utils/focus-tracker', () => ({
+vi.mock('@core/primitives/telemetry/browser/focus-tracker', () => ({
   focusTracker: { transition: vi.fn(() => null) },
 }));
-
-vi.mock('@core/primitives/logging/browser/logger', () => ({
-  log: { error: vi.fn() },
-}));
-
-const history = new NavigationHistoryStore();
-vi.mock('./app-state', () => ({
-  appState: { history },
-}));
-
-const { NavigationStore } = await import('./navigation-store');
 
 function handle<T>(value: T, options: { hasStoredValue?: boolean } = {}): MementoHandle<T> {
   let current = value;
@@ -78,10 +72,14 @@ function legacyHandle(
   return handle(state, { hasStoredValue });
 }
 
-function buildStore(): InstanceType<typeof NavigationStore> {
-  history.replace([], -1);
+let history: NavigationHistoryStore;
+
+function buildStore(): NavigationStore {
   runtimeResolvers.clear();
-  return new NavigationStore();
+  seedTestNavigationHost();
+  const stores = createTestNavigation();
+  history = stores.history;
+  return stores.navigation;
 }
 
 describe('NavigationStore', () => {

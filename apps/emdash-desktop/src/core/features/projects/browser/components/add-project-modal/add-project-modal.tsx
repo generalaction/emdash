@@ -22,10 +22,10 @@ import { useModalController, useOpenModal } from '@core/manifests/browser/modal-
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { LocationSelector } from './location-selector';
 import { extractRepoName, useCloneMode, useNewMode, usePickMode } from './modes';

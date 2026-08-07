@@ -5,7 +5,10 @@ import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-sta
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import {
+  useViewParams,
+  useWorkspaceSlots,
+} from '@core/primitives/navigation/browser/navigation-hooks';
 import { SidebarMenuButton } from './sidebar-primitives';
 
 export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {

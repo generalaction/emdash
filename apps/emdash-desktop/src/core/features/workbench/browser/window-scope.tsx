@@ -9,14 +9,17 @@ import { getTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
+import {
+  useViewParams,
+  useWorkspaceSlots,
+} from '@core/primitives/navigation/browser/navigation-hooks';
+import { getNavigationHistory } from '@core/primitives/navigation/browser/navigation-selectors';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { appState } from '@renderer/lib/stores/app-state';
 import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
 
 export function WindowScope({ children }: { readonly children: ReactNode }) {
@@ -63,12 +66,14 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       },
     }),
     'app.navigateBack': () => ({
-      availability: () => (appState.history.canGoBack ? enabled : disabled('No previous location')),
-      execute: () => appState.history.back(applyHistoryEntry),
+      availability: () =>
+        getNavigationHistory().canGoBack ? enabled : disabled('No previous location'),
+      execute: () => getNavigationHistory().back(applyHistoryEntry),
     }),
     'app.navigateForward': () => ({
-      availability: () => (appState.history.canGoForward ? enabled : disabled('No next location')),
-      execute: () => appState.history.forward(applyHistoryEntry),
+      availability: () =>
+        getNavigationHistory().canGoForward ? enabled : disabled('No next location'),
+      execute: () => getNavigationHistory().forward(applyHistoryEntry),
     }),
     'app.commandPalette': () => ({
       execute: () => {

@@ -1,28 +1,26 @@
 import { Emitter, type Unsubscribe } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
-import { settingsViewDef } from '@core/features/settings/contributions/views';
-import {
-  workbenchHistoryMemento,
-  type WorkbenchHistoryState,
-  type WorkbenchNavigationState,
-} from '@core/features/workbench/contributions/mementos';
-import { homeViewDef } from '@core/features/workbench/contributions/views';
-import { viewCatalog, type ViewId } from '@core/manifests/browser/view-catalog';
 import type { JsonObject, JsonValue } from '@core/primitives/json/api';
-import { log } from '@core/primitives/logging/browser/logger';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
+import type { Subject } from '@core/primitives/subjects/api';
+import type { FocusView } from '@core/primitives/telemetry/api/telemetry';
+import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
+import type { ViewRef } from '@core/primitives/views/api';
+import { getViewRuntime } from '@core/primitives/views/react';
 import type {
   HistoryEntry,
   NavigationParticipant,
   NavigationParticipantHost,
   Resolution,
-} from '@core/primitives/navigation/api';
-import type { Subject } from '@core/primitives/subjects/api';
-import type { ViewRef } from '@core/primitives/views/api';
-import { getViewRuntime, type RuntimeViewDef } from '@core/primitives/views/react';
-import { focusTracker } from '@renderer/utils/focus-tracker';
-import { appState } from './app-state';
+} from '../api';
+import {
+  workbenchHistoryMemento,
+  type WorkbenchHistoryState,
+  type WorkbenchNavigationState,
+} from '../api/mementos';
+import type { NavigationHistoryStore } from './navigation-history-store';
+import { getNavigationHost, type NavigationHost } from './navigation-host';
 
 const MAX_REDIRECTS = 10;
 
@@ -48,7 +46,8 @@ interface PendingLocation {
 export class NavigationStore implements NavigationParticipantHost {
   readonly onDidNavigate = new Emitter<NavigationEvent>();
 
-  private _currentRef: ViewRef = homeViewDef();
+  private readonly _host: NavigationHost;
+  private _currentRef: ViewRef;
   private readonly _lastRefByViewId = observable.map<string, ViewRef>();
   private _historyHandle: MementoHandle<WorkbenchHistoryState> | undefined;
   private _historyUnsubscribe: Unsubscribe | undefined;
@@ -56,9 +55,13 @@ export class NavigationStore implements NavigationParticipantHost {
   private _pendingLocation: PendingLocation | undefined;
   private _rehydrating = false;
 
-  constructor() {
+  constructor(private readonly _history: NavigationHistoryStore) {
+    this._host = getNavigationHost();
+    this._currentRef = this._host.homeRef();
     makeAutoObservable<
       NavigationStore,
+      | '_host'
+      | '_history'
       | '_currentRef'
       | '_historyHandle'
       | '_historyUnsubscribe'
@@ -67,6 +70,8 @@ export class NavigationStore implements NavigationParticipantHost {
       | '_rehydrating'
       | '_lastRefByViewId'
     >(this, {
+      _host: false,
+      _history: false,
       _currentRef: observable.ref,
       _lastRefByViewId: false,
       _historyHandle: false,
@@ -82,8 +87,8 @@ export class NavigationStore implements NavigationParticipantHost {
     return this._currentRef;
   }
 
-  get currentViewId(): ViewId {
-    return this._currentRef.viewId as ViewId;
+  get currentViewId(): string {
+    return this._currentRef.viewId;
   }
 
   attachMemento(
@@ -92,7 +97,7 @@ export class NavigationStore implements NavigationParticipantHost {
   ): void {
     if (this._historyHandle) throw new Error('Navigation history memento is already attached');
     this._historyHandle = historyHandle;
-    this._historyUnsubscribe = appState.history.onDidChange.subscribe(() => this.persistHistory());
+    this._historyUnsubscribe = this._history.onDidChange.subscribe(() => this.persistHistory());
 
     const legacySeed =
       !historyHandle.hasStoredValue && legacyHandle?.hasStoredValue ? legacyHandle : undefined;
@@ -110,16 +115,16 @@ export class NavigationStore implements NavigationParticipantHost {
     let attached = false;
     this._rehydrating = true;
     try {
-      appState.history.replace(entries, index);
+      this._history.replace(entries, index);
       this.rebuildLastRefs();
 
-      const current = appState.history.current;
+      const current = this._history.current;
       if (!current) {
-        this.navigate(homeViewDef());
+        this.navigate(this._host.homeRef());
       } else {
         const resolved = this.resolveChain(current.ref);
         if (resolved.key !== current.ref.key) {
-          appState.history.prune((entry) => entry === current);
+          this._history.prune((entry) => entry === current);
           this.navigate(resolved);
         } else {
           this.commit(resolved, 'restoration');
@@ -132,7 +137,7 @@ export class NavigationStore implements NavigationParticipantHost {
       this.persistHistory();
       if (attached && legacySeed) {
         void legacySeed.reset().catch((error: unknown) => {
-          log.error('Failed to reset legacy navigation memento:', error);
+          this._host.onError('Failed to reset legacy navigation memento:', error);
         });
       }
     }
@@ -142,40 +147,40 @@ export class NavigationStore implements NavigationParticipantHost {
     this.captureCurrentLocation();
     this._pendingLocation = undefined;
     const resolved = this.resolveChain(requested);
-    const previousEntry = appState.history.current;
+    const previousEntry = this._history.current;
     const entry = this.entryFor(
       resolved,
       previousEntry?.ref.key === resolved.key ? previousEntry.location : undefined
     );
     const kind: NavigationEventKind = previousEntry?.key === entry.key ? 'refinement' : 'traversal';
-    appState.history.record(entry);
+    this._history.record(entry);
     this.commit(resolved, kind);
   }
 
-  lastRefFor<TDef extends RuntimeViewDef>(definition: TDef): ViewRef | undefined {
+  lastRefFor(definition: { readonly id: string }): ViewRef | undefined {
     return this._lastRefByViewId.get(definition.id);
   }
 
   toggleSettings(): void {
-    if (this.currentViewId !== settingsViewDef.id) {
-      this.navigate(settingsViewDef());
+    if (this.currentViewId !== this._host.settingsViewId) {
+      this.navigate(this._host.settingsRef());
       return;
     }
 
-    const previous = appState.history.nearestBefore(
-      (entry) => entry.ref.viewId !== settingsViewDef.id
+    const previous = this._history.nearestBefore(
+      (entry) => entry.ref.viewId !== this._host.settingsViewId
     );
-    this.navigate(previous?.ref ?? homeViewDef());
+    this.navigate(previous?.ref ?? this._host.homeRef());
   }
 
   invalidateSubject(subject: Subject): void {
     const affects = (ref: ViewRef): boolean => {
-      const definition = viewCatalog.byId(ref.viewId);
+      const definition = this._host.views.byId(ref.viewId);
       const refSubject = definition?.subject?.(ref.params as never);
       return refSubject?.kind === subject.kind && refSubject.key === subject.key;
     };
 
-    appState.history.prune((entry) => affects(entry.ref));
+    this._history.prune((entry) => affects(entry.ref));
     for (const [viewId, ref] of this._lastRefByViewId) {
       if (affects(ref)) this._lastRefByViewId.delete(viewId);
     }
@@ -183,7 +188,7 @@ export class NavigationStore implements NavigationParticipantHost {
     if (affects(this._currentRef)) {
       const resolved = this.resolveChain(this._currentRef);
       if (resolved.key === this._currentRef.key) {
-        this.navigate(homeViewDef());
+        this.navigate(this._host.homeRef());
       } else {
         this.navigate(resolved);
       }
@@ -191,7 +196,7 @@ export class NavigationStore implements NavigationParticipantHost {
   }
 
   applyEntry(entry: HistoryEntry): boolean {
-    const definition = viewCatalog.byId(entry.ref.viewId);
+    const definition = this._host.views.byId(entry.ref.viewId);
     const ref = definition?.safeRef(entry.ref.params);
     if (!ref) return false;
     const resolved = this.resolveChain(ref);
@@ -215,10 +220,10 @@ export class NavigationStore implements NavigationParticipantHost {
       const restored = participant.restoreLocation(this._pendingLocation.location as TLocation);
       this._pendingLocation = undefined;
       if (restored === false) {
-        const current = appState.history.current;
+        const current = this._history.current;
         if (current?.ref.key === ref.key) {
-          appState.history.prune((entry) => entry === current);
-          appState.history.record(this.entryFor(ref));
+          this._history.prune((entry) => entry === current);
+          this._history.record(this.entryFor(ref));
         }
       }
     }
@@ -229,23 +234,29 @@ export class NavigationStore implements NavigationParticipantHost {
   }
 
   reportLocation(ref: ViewRef, location: JsonValue): void {
-    if (appState.history.isApplying || ref.key !== this._currentRef.key) return;
+    if (this._history.isApplying || ref.key !== this._currentRef.key) return;
     const parsed = this.parseLocation(ref, location);
     if (parsed === undefined) return;
 
     const entry = this.entryFor(ref, parsed);
-    const current = appState.history.current;
+    const current = this._history.current;
     if (!current || current.ref.key !== ref.key) return;
 
     if (current.location === undefined) {
-      appState.history.annotate(entry);
+      this._history.annotate(entry);
       this.onDidNavigate.emit({ from: ref, to: ref, kind: 'refinement' });
       return;
     }
 
     const kind: NavigationEventKind = current.key === entry.key ? 'refinement' : 'traversal';
-    appState.history.record(entry);
+    this._history.record(entry);
     this.onDidNavigate.emit({ from: ref, to: ref, kind });
+  }
+
+  /** Detaches the history subscription. Called when the app scope is disposed (tests/HMR). */
+  dispose(): void {
+    this._historyUnsubscribe?.();
+    this._historyUnsubscribe = undefined;
   }
 
   private resolveChain(initial: ViewRef): ViewRef {
@@ -255,7 +266,7 @@ export class NavigationStore implements NavigationParticipantHost {
     // Detect cycles and also bound non-repeating redirect chains produced from changing params.
     for (let redirects = 0; redirects < MAX_REDIRECTS; redirects++) {
       const cycleKey = `${ref.viewId}:${JSON.stringify(ref.params)}`;
-      if (visited.has(cycleKey)) return homeViewDef();
+      if (visited.has(cycleKey)) return this._host.homeRef();
       visited.add(cycleKey);
 
       const contribution = getViewRuntime(ref.viewId);
@@ -267,14 +278,14 @@ export class NavigationStore implements NavigationParticipantHost {
       ref = resolution.ref;
     }
 
-    return homeViewDef();
+    return this._host.homeRef();
   }
 
   private commit(ref: ViewRef, kind: NavigationEventKind): void {
     const from = this._currentRef;
     const viewChanged = from.viewId !== ref.viewId;
     if (viewChanged) {
-      const viewId = ref.viewId as ViewId;
+      const viewId = ref.viewId as FocusView;
       focusTracker.transition(
         viewId === 'task'
           ? { view: viewId }
@@ -290,7 +301,7 @@ export class NavigationStore implements NavigationParticipantHost {
   }
 
   private entryFor(ref: ViewRef, location?: JsonValue): HistoryEntry {
-    const definition = viewCatalog.byId(ref.viewId);
+    const definition = this._host.views.byId(ref.viewId);
     const locationKey =
       location !== undefined && definition?.location
         ? definition.location.key(location as never)
@@ -303,7 +314,7 @@ export class NavigationStore implements NavigationParticipantHost {
   }
 
   private parseLocation(ref: ViewRef, location: unknown): JsonValue | undefined {
-    const contract = viewCatalog.byId(ref.viewId)?.location;
+    const contract = this._host.views.byId(ref.viewId)?.location;
     if (!contract) return undefined;
     const parsed = contract.schema.safeParse(location);
     return parsed.success ? parsed.data : undefined;
@@ -316,9 +327,9 @@ export class NavigationStore implements NavigationParticipantHost {
     if (location === undefined) return;
     const parsed = this.parseLocation(this._currentRef, location);
     if (parsed === undefined) return;
-    const current = appState.history.current;
+    const current = this._history.current;
     if (current?.ref.key === this._currentRef.key) {
-      appState.history.annotate(this.entryFor(this._currentRef, parsed));
+      this._history.annotate(this.entryFor(this._currentRef, parsed));
     }
   }
 
@@ -341,7 +352,7 @@ export class NavigationStore implements NavigationParticipantHost {
   private rehydrateEntry(
     persisted: WorkbenchHistoryState['entries'][number]
   ): HistoryEntry | undefined {
-    const definition = viewCatalog.byId(persisted.viewId);
+    const definition = this._host.views.byId(persisted.viewId);
     const ref = definition?.safeRef(persisted.params);
     if (!ref) return undefined;
     const location =
@@ -360,7 +371,7 @@ export class NavigationStore implements NavigationParticipantHost {
 
   private rebuildLastRefs(): void {
     this._lastRefByViewId.clear();
-    for (const entry of appState.history.entries.slice(0, appState.history.index + 1)) {
+    for (const entry of this._history.entries.slice(0, this._history.index + 1)) {
       this._lastRefByViewId.set(entry.ref.viewId, entry.ref);
     }
   }
@@ -369,12 +380,12 @@ export class NavigationStore implements NavigationParticipantHost {
     if (!this._historyHandle || this._rehydrating) return;
     this._historyHandle.update({
       version: '1',
-      entries: appState.history.entries.map((entry) => ({
+      entries: this._history.entries.map((entry) => ({
         viewId: entry.ref.viewId,
         params: entry.ref.params,
         ...(entry.location === undefined ? {} : { location: entry.location }),
       })),
-      index: appState.history.index,
+      index: this._history.index,
     });
   }
 }

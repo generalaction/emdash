@@ -32,13 +32,11 @@ vi.mock('@core/manifests/browser/modal-api', () => ({
   openModal: mocks.openModal,
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {
-    navigation: {
-      currentViewId: 'home',
-      currentRef: mocks.navigationRef,
-    },
-  },
+vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
+  getNavigation: () => ({
+    currentViewId: 'home',
+    currentRef: mocks.navigationRef,
+  }),
 }));
 
 type ExternalLinkModalArgs = {

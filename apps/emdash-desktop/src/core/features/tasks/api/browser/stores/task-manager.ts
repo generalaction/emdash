@@ -24,6 +24,7 @@ import { workspacesWireContract, type WorkspaceError } from '@core/features/work
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';
 import {
   isProvisioned,
@@ -46,7 +47,6 @@ import type {
 } from '@core/primitives/tasks/api';
 import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
 import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
-import { appState } from '@renderer/lib/stores/app-state';
 import { getTasksWireClient } from '../client';
 
 type TaskMutationInvocation<Data, Error> = {
@@ -268,7 +268,7 @@ export class TaskManagerStore {
       shouldKeepMissing: (_taskId, task) => isUnregistered(task),
       remove: (task, taskId) => {
         task.dispose();
-        appState.navigation.invalidateSubject(taskSubject({ taskId }));
+        getNavigation().invalidateSubject(taskSubject({ taskId }));
       },
     });
   }
@@ -640,11 +640,11 @@ export class TaskManagerStore {
         task.transitionToDryUnprovisioned({ ...task.data }, 'idle');
       }
     });
-    const current = appState.navigation.currentRef;
+    const current = getNavigation().currentRef;
     if (current.viewId === 'task' && (current.params as { taskId?: string }).taskId === taskId) {
-      appState.navigation.navigate(projectViewDef({ projectId: this.projectId }));
+      getNavigation().navigate(projectViewDef({ projectId: this.projectId }));
     }
-    appState.navigation.invalidateSubject(taskSubject({ taskId }));
+    getNavigation().invalidateSubject(taskSubject({ taskId }));
   }
 
   async restoreTask(taskId: string): Promise<void> {
@@ -715,7 +715,7 @@ export class TaskManagerStore {
       });
       removed.forEach((task) => task.dispose());
       for (const id of removed.keys()) {
-        appState.navigation.invalidateSubject(taskSubject({ taskId: id }));
+        getNavigation().invalidateSubject(taskSubject({ taskId: id }));
       }
     } catch (e) {
       runInAction(() => {

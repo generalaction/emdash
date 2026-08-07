@@ -17,8 +17,8 @@ import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { appState } from '@renderer/lib/stores/app-state';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
@@ -28,7 +28,7 @@ import { type LinkedType, useCreateTaskState } from './use-create-task-state';
 function useDefaultProjectId(propProjectId?: string): string | undefined {
   return useMemo(() => {
     if (propProjectId) return propProjectId;
-    const nav = appState.navigation;
+    const nav = getNavigation();
     const params = nav.currentRef.params as { projectId?: string };
     const navProjectId =
       nav.currentViewId === 'task' || nav.currentViewId === 'project'

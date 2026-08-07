@@ -30,11 +30,14 @@ import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { log } from '@core/primitives/logging/browser/logger';
 import { getMementoClient } from '@core/primitives/mementos/browser';
+import {
+  getNavigation,
+  getNavigationHistory,
+} from '@core/primitives/navigation/browser/navigation-selectors';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
 import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
 import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
-import { appState } from '@renderer/lib/stores/app-state';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type {
   ModeData,
@@ -433,7 +436,7 @@ export class ProjectManagerStore {
           ?.mountedProject?.get(taskManagerStoreToken);
         if (taskManager) {
           await taskManager.loadTasks();
-          const nav = appState.navigation;
+          const nav = getNavigation();
           const navParams = nav.currentRef.params as {
             projectId?: string;
             taskId?: string;
@@ -474,13 +477,13 @@ export class ProjectManagerStore {
     const deletedIndex = projectIds.indexOf(projectId);
     const adjacentProjectId =
       projectIds[deletedIndex + 1] ?? projectIds[deletedIndex - 1] ?? undefined;
-    const current = appState.navigation.currentRef;
+    const current = getNavigation().currentRef;
     const currentProjectId =
       current.viewId === 'project' || current.viewId === 'task'
         ? (current.params as { projectId?: string }).projectId
         : undefined;
     if (currentProjectId === projectId) {
-      appState.navigation.navigate(
+      getNavigation().navigate(
         adjacentProjectId ? projectViewDef({ projectId: adjacentProjectId }) : homeViewDef()
       );
     }
@@ -492,12 +495,12 @@ export class ProjectManagerStore {
       const result = await (await getProjectsWireClient()).delete({ projectId });
       if (!result.success) throw new Error(result.error.message);
       for (const taskId of taskIds) {
-        appState.navigation.invalidateSubject(taskSubject({ taskId }));
+        getNavigation().invalidateSubject(taskSubject({ taskId }));
       }
-      appState.navigation.invalidateSubject(projectSubject({ projectId }));
+      getNavigation().invalidateSubject(projectSubject({ projectId }));
       // Unmounted projects do not expose their task IDs, so prune any remaining task refs by
       // project parameter even when they could not be invalidated by subject above.
-      appState.history.prune((entry) => {
+      getNavigationHistory().prune((entry) => {
         const params = entry.ref.params as { projectId?: string };
         return params.projectId === projectId;
       });

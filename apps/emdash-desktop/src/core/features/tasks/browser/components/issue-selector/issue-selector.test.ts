@@ -95,7 +95,7 @@ vi.mock('@emdash/ui/react/components', async (importOriginal) => {
   };
 });
 
-vi.mock('@renderer/lib/layout/navigation-provider', () => ({
+vi.mock('@core/primitives/navigation/browser/navigation-hooks', () => ({
   useNavigate: () => vi.fn(),
 }));
 

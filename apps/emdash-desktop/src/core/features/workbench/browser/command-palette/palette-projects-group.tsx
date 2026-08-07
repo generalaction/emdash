@@ -6,8 +6,8 @@ import {
   getProjectManagerStore,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import type { NavigateFnTyped } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 
 const GROUP_CLASS = cn(

@@ -39,7 +39,7 @@ vi.mock('@core/features/workbench/api/browser/host-client', () => ({
   getHostClient: async () => ({ openPath: mocks.openPath }),
 }));
 
-vi.mock('@renderer/utils/focus-tracker', () => ({
+vi.mock('@core/primitives/telemetry/browser/focus-tracker', () => ({
   focusTracker: { transition: mocks.transition },
 }));
 

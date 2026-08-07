@@ -1,4 +1,4 @@
-import { appState } from '@renderer/lib/stores/app-state';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 
 let lastToggleAt = 0;
 
@@ -11,5 +11,5 @@ export function toggleSettingsView(): void {
   if (now - lastToggleAt < DEDUP_WINDOW_MS) return;
   lastToggleAt = now;
 
-  appState.navigation.toggleSettings();
+  getNavigation().toggleSettings();
 }

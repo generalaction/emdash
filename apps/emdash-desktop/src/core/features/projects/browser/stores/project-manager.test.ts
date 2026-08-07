@@ -70,16 +70,14 @@ vi.mock('@core/primitives/mementos/browser', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {
-    navigation: {
-      currentViewId: 'home',
-      currentRef: { viewId: 'home', params: {}, key: 'home' },
-      navigate: vi.fn(),
-      invalidateSubject: vi.fn(),
-    },
-    history: { prune: vi.fn() },
-  },
+vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
+  getNavigation: () => ({
+    currentViewId: 'home',
+    currentRef: { viewId: 'home', params: {}, key: 'home' },
+    navigate: vi.fn(),
+    invalidateSubject: vi.fn(),
+  }),
+  getNavigationHistory: () => ({ prune: vi.fn() }),
 }));
 
 vi.mock('@core/features/machines/contributions/app-stores', () => ({

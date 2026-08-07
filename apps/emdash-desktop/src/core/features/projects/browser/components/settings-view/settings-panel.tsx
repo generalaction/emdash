@@ -7,7 +7,7 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { ProjectSettingsForm } from '@core/features/projects/browser/components/settings-view/project-settings-form';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 
 export const SettingsPanel = observer(function SettingsPanel() {
   const {

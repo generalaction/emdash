@@ -30,7 +30,10 @@ import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-s
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { type SidebarRow } from '@core/features/workbench/browser/sidebar/sidebar-store';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
-import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import {
+  useViewParams,
+  useWorkspaceSlots,
+} from '@core/primitives/navigation/browser/navigation-hooks';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 

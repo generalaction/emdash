@@ -12,7 +12,7 @@ import {
 } from '@core/features/projects/api/browser/stores/project';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 
 const STAGE_LABELS: Record<ProjectCreationStage, string> = {
   'creating-repo': 'Creating repository',

@@ -6,10 +6,6 @@ import { SidebarStore } from './sidebar-store';
 
 type SidebarProjectManager = ConstructorParameters<typeof SidebarStore>[0];
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {},
-}));
-
 vi.mock('@core/features/conversations/browser/acp/acp-chat-store', () => ({
   AcpChatStore: class {
     conversationId = '';

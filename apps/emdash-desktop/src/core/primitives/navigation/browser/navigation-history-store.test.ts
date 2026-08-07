@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { projectViewDef } from '@core/features/projects/contributions/views';
-import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { homeViewDef } from '@core/features/workbench/contributions/views';
 import type { JsonValue } from '@core/primitives/json/api';
-import type { HistoryEntry } from '@core/primitives/navigation/api';
 import type { ViewRef } from '@core/primitives/views/api';
+import type { HistoryEntry } from '../api';
 import { NavigationHistoryStore } from './navigation-history-store';
+import {
+  testHomeViewDef as homeViewDef,
+  testProjectViewDef as projectViewDef,
+  testSettingsViewDef as settingsViewDef,
+  testTaskViewDef as taskViewDef,
+} from './testing';
 
 function entry(ref: ViewRef, location?: JsonValue, key = ref.key): HistoryEntry {
   return { ref, ...(location === undefined ? {} : { location }), key };

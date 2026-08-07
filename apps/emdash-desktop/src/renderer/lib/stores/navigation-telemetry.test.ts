@@ -2,7 +2,10 @@ import { Emitter } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import type { NavigationEvent, NavigationStore } from './navigation-store';
+import type {
+  NavigationEvent,
+  NavigationStore,
+} from '@core/primitives/navigation/browser/navigation-store';
 
 const captureTelemetry = vi.hoisted(() => vi.fn());
 

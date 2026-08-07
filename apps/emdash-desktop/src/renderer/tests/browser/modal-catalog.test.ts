@@ -1,11 +1,9 @@
 import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { Result } from '@emdash/shared';
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { modalCatalog } from '@core/manifests/browser/modal-catalog';
 import type { ModalDismissed } from '@core/primitives/modals/react';
-
-vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {} }));
 
 const expectedModalIds = [
   'addProjectModal',

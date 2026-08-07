@@ -6,10 +6,10 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 interface TaskAction {
   label: string;
