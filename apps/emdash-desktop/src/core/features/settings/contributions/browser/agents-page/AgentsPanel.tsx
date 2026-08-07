@@ -3,10 +3,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import { AgentsToolbar } from '@core/features/settings/browser/agents-page/AgentsToolbar';
-import {
-  CliAgentsList,
-  type AgentFilter,
-} from '@core/features/settings/browser/agents-page/CliAgentsList';
+import { CliAgentsList } from '@core/features/settings/browser/agents-page/CliAgentsList';
 
 type AgentsPanelProps = {
   connectionId?: string;
@@ -25,7 +22,6 @@ export function AgentsPanel({
 }: AgentsPanelProps) {
   const host = useMemo(() => hostRefFromConnectionId(connectionId), [connectionId]);
   const [localSearchQuery, setLocalSearchQuery] = useState('');
-  const [filter, setFilter] = useState<AgentFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const { probeAll } = useAgentInstallationStatuses(host);
   const searchQuery = controlledSearchQuery ?? localSearchQuery;
@@ -42,8 +38,6 @@ export function AgentsPanel({
     <AgentsToolbar
       searchQuery={searchQuery}
       onSearchQueryChange={setSearchQuery}
-      filter={filter}
-      onFilterChange={setFilter}
       onRefresh={handleRefresh}
       isRefreshing={refreshing}
     />
@@ -52,7 +46,6 @@ export function AgentsPanel({
   const list = (
     <CliAgentsList
       searchQuery={searchQuery}
-      filter={filter}
       connectionId={connectionId}
       onManageMcp={onManageMcp}
     />
