@@ -6,17 +6,18 @@ import {
 } from '@core/features/projects/api/browser/stores/project';
 import type { ProjectManagerStore } from '@core/features/projects/api/browser/stores/project-manager';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
+import { projectManagerStoreToken } from '@core/features/projects/contributions/app-store-tokens';
 import {
   projectSettingsStoreToken,
   projectViewStoreToken,
 } from '@core/features/projects/contributions/project-stores';
 import type { LocalProject, SshProject } from '@core/primitives/projects/api';
-import { appState } from '@renderer/lib/stores/app-state';
+import { getAppStores } from '@core/primitives/scoped-stores/browser';
 import type { ProjectViewStore } from '../../../browser/stores/project-view';
 
-/** Returns the ProjectManagerStore from appState. Call only inside `observer` components (or other MobX reactions). */
+/** Returns the app-scoped ProjectManagerStore. Call only inside `observer` components (or other MobX reactions). */
 export function getProjectManagerStore(): ProjectManagerStore {
-  return appState.projects;
+  return getAppStores().get(projectManagerStoreToken);
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */

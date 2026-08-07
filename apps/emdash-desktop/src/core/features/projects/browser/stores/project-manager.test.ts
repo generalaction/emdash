@@ -80,12 +80,15 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
       invalidateSubject: vi.fn(),
     },
     history: { prune: vi.fn() },
-    machines: {
-      connect: mocks.sshConnect,
-      ensureConnected: mocks.sshEnsureConnected,
-      stateFor: mocks.sshStateFor,
-    },
   },
+}));
+
+vi.mock('@core/features/machines/contributions/app-stores', () => ({
+  getMachinesStore: () => ({
+    connect: mocks.sshConnect,
+    ensureConnected: mocks.sshEnsureConnected,
+    stateFor: mocks.sshStateFor,
+  }),
 }));
 
 vi.mock('@core/features/conversations/browser/acp/acp-chat-store', () => ({

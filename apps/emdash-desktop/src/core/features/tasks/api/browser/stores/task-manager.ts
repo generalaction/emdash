@@ -5,6 +5,7 @@ import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import { optimistic, remote, type OptimisticView, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { match } from 'ts-pattern';
+import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
@@ -353,7 +354,7 @@ export class TaskManagerStore {
 
     if (!result.success) {
       const message = formatCreateTaskError(result.error, {
-        isSshProject: appState.projects.projects.get(this.projectId)?.data?.type === 'ssh',
+        isSshProject: getProjectManagerStore().projects.get(this.projectId)?.data?.type === 'ssh',
       });
       runInAction(() => {
         const current = this.tasks.get(params.id);
@@ -390,7 +391,7 @@ export class TaskManagerStore {
   }
 
   async provisionTask(taskId: string): Promise<void> {
-    await appState.projects.mountProject(this.projectId);
+    await getProjectManagerStore().mountProject(this.projectId);
     await this.loadTasks();
 
     const inFlight = this._provisionPromises.get(taskId);

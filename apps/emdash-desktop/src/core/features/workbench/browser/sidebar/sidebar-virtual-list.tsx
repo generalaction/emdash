@@ -29,15 +29,15 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { type SidebarRow } from '@core/features/workbench/browser/sidebar/sidebar-store';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
 const ROW_HEIGHT = 32;
 
 export const SidebarVirtualList = observer(function SidebarVirtualList() {
-  const rows = sidebarStore.sidebarRows;
+  const rows = getSidebarStore().sidebarRows;
   const { currentView } = useWorkspaceSlots();
   const taskParams = useViewParams(taskViewDef) ?? {
     projectId: undefined,
@@ -55,7 +55,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
   const activeTaskProjectExpanded =
     currentView === 'task' && taskParams.projectId
-      ? sidebarStore.expandedProjectIds.has(taskParams.projectId)
+      ? getSidebarStore().expandedProjectIds.has(taskParams.projectId)
       : null;
   const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
 
@@ -75,7 +75,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     if (!targetProjectId || !targetTaskId) return;
     const activeTask = getTaskStore(targetProjectId, targetTaskId);
     if (activeTask?.data.isPinned) return;
-    sidebarStore.ensureProjectExpanded(targetProjectId);
+    getSidebarStore().ensureProjectExpanded(targetProjectId);
   }, [currentView, taskParams.projectId, taskParams.taskId]);
 
   // Scroll the active project/task into view only when the navigation target itself
@@ -165,8 +165,8 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
       if (overRowIdx === -1) return;
       const insertionRowIdx = isAbove ? overRowIdx : overRowIdx + 1;
-      const ids = sidebarStore.orderedProjects
-        .map((p) => (p.state === 'unregistered' ? p.id : (p.data?.id ?? '')))
+      const ids = getSidebarStore()
+        .orderedProjects.map((p) => (p.state === 'unregistered' ? p.id : (p.data?.id ?? '')))
         .filter(Boolean);
       const oldIdx = ids.indexOf(aParsed.projectId);
       if (oldIdx === -1) return;
@@ -176,7 +176,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       let newIdx = projectsAbove;
       if (newIdx > oldIdx) newIdx -= 1;
       if (newIdx === oldIdx) return;
-      sidebarStore.setProjectOrder(arrayMove(ids, oldIdx, newIdx));
+      getSidebarStore().setProjectOrder(arrayMove(ids, oldIdx, newIdx));
     } else if (oParsed.kind === 'task' && oParsed.projectId === aParsed.projectId) {
       const projectId = aParsed.projectId;
       const taskIds = rows
@@ -191,7 +191,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       let newIdx = isAbove ? overTaskIdx : overTaskIdx + 1;
       if (newIdx > oldIdx) newIdx -= 1;
       if (newIdx === oldIdx) return;
-      sidebarStore.setTaskOrder(projectId, arrayMove(taskIds, oldIdx, newIdx));
+      getSidebarStore().setTaskOrder(projectId, arrayMove(taskIds, oldIdx, newIdx));
     }
   }
 

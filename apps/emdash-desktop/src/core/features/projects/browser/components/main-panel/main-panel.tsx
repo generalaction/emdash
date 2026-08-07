@@ -1,5 +1,6 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   isUnmountedProject,
@@ -14,7 +15,6 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { appState } from '@renderer/lib/stores/app-state';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
 
@@ -94,7 +94,7 @@ function ProjectSshDisconnectedPanel({
   projectId: string;
 }) {
   const handleReconnect = () => {
-    void appState.machines
+    void getMachinesStore()
       .connect(connectionId)
       .then(() => getProjectManagerStore().mountProject(projectId))
       .catch(() => {});

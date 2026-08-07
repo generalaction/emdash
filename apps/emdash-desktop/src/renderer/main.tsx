@@ -8,24 +8,28 @@ import {
 import ReactDOM from 'react-dom/client';
 import { configureDevPerfClient } from '@core/features/dev-perf/api/browser/client';
 import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
+import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import {
   workbenchHistoryMemento,
   workbenchNavigationMemento,
   workbenchSidebarMemento,
 } from '@core/features/workbench/contributions/mementos';
+import { appStoreContributions } from '@core/manifests/browser/app-scoped-stores';
 import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
 import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
-import { appSubject } from '@core/primitives/subjects/api';
+import { createAppScope } from '@core/primitives/scoped-stores/browser';
 import '@fontsource-variable/inter/index.css';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
+import { appSubject } from '@core/primitives/subjects/api';
 import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import { ErrorBoundary } from '@renderer/error-boundary';
 import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
@@ -40,6 +44,7 @@ import { initNotificationDeliveryListener } from '@root/src/core/services/notifi
 import { App } from './App';
 import { appState } from './lib/stores/app-state';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
+import { updateAppStoreContributions } from './lib/stores/update-store-contribution';
 
 async function bootstrap() {
   // Core owns wire access through the seeded-connection seam; seed it before
@@ -55,8 +60,10 @@ async function bootstrap() {
   });
   wireExternalLinkRequests();
 
-  appState.update.start();
-  void appState.machines.start();
+  // Builds and activates all app-scoped stores (projects, machines, sidebar,
+  // updates) before React mounts. The update contribution is renderer-side
+  // because UpdateStore depends on renderer-only modules.
+  createAppScope([...appStoreContributions, ...updateAppStoreContributions]);
   initSoundPlayer();
   initNotificationDeliveryListener();
   initRendererPerfVitals();
@@ -78,7 +85,7 @@ async function bootstrap() {
     monacoBootstrap.init().catch((error: unknown) => {
       log.warn('[monaco-bootstrap] init failed:', error);
     }),
-    appState.projects.load(),
+    getProjectManagerStore().load(),
     prefetchAppSettingsKey('interface'),
     prefetchAppSettingsKey('browser'),
   ]);
@@ -91,8 +98,8 @@ async function bootstrap() {
   const sidebarHandle = appSpace.handle(workbenchSidebarMemento);
   await appSpace.ready;
   appState.navigation.attachMemento(historyHandle, legacyNavigationHandle);
-  appState.sidebar.attachMemento(sidebarHandle);
-  if (!sidebarHandle.hasStoredValue) appState.sidebar.expandAllProjects();
+  getSidebarStore().attachMemento(sidebarHandle);
+  if (!sidebarHandle.hasStoredValue) getSidebarStore().expandAllProjects();
   wireNavigationTelemetry(appState.navigation);
 
   // Avoid double-mount in dev which can duplicate PTY sessions

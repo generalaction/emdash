@@ -3,10 +3,10 @@ import { Button, SearchInput } from '@emdash/ui/react/primitives';
 import { PlusIcon, ServerIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageProps } from '@core/primitives/settings/api/page-contribution';
 import type { ConnectionState, SshConfig } from '@core/primitives/ssh/api';
-import { appState } from '@renderer/lib/stores/app-state';
 import { MachineListRow } from '../components/machine-list-row';
 
 function isRecentlyUsed(state: ConnectionState): boolean {
@@ -25,7 +25,7 @@ function matchesSearch(machine: SshConfig, query: string): boolean {
 export const MachinesSettingsPage = observer(function MachinesSettingsPage({
   openDetail,
 }: SettingsPageProps) {
-  const machinesStore = appState.machines;
+  const machinesStore = getMachinesStore();
   const openMachineModal = useOpenModal('addSshConnModal');
   const [search, setSearch] = useState('');
 

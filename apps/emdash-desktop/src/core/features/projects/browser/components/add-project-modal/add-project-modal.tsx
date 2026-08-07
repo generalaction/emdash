@@ -4,6 +4,7 @@ import { DownloadIcon, FolderOpenIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import type { ProjectHostParams } from '@core/features/projects/api';
 import { createRequiredGitHubAccountSelectState } from '@core/features/projects/api/browser/components/github-account-select-model';
 import {
@@ -24,7 +25,6 @@ import type { SshConfig } from '@core/primitives/ssh/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { appState } from '@renderer/lib/stores/app-state';
 import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { LocationSelector } from './location-selector';
@@ -52,7 +52,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
   const [submitState, setSubmitState] = useState<'idle' | 'creating'>('idle');
-  const { connections } = appState.machines;
+  const { connections } = getMachinesStore();
   const availableConnections = useMemo(
     () =>
       connections.filter((connection): connection is MachineOption => connection.id !== undefined),
@@ -302,7 +302,7 @@ export const AddProjectModal = observer(function AddProjectModal({
               machines={availableConnections}
               getMachineStatusKind={(machineId) =>
                 machineId
-                  ? deriveConnectionMachineStatusKind(appState.machines.stateFor(machineId))
+                  ? deriveConnectionMachineStatusKind(getMachinesStore().stateFor(machineId))
                   : 'idle'
               }
               onSelectLocal={() => setStrategy('local')}

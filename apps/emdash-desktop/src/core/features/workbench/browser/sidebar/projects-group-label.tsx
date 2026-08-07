@@ -1,9 +1,9 @@
 import { Button, DropdownMenu, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
   const openAddProjectModal = useOpenModal('addProjectModal');
@@ -30,16 +30,16 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
           <DropdownMenu.Content className="min-w-48">
             <DropdownMenu.Group>
               <DropdownMenu.Label>Sort by</DropdownMenu.Label>
-              <DropdownMenu.RadioGroup value={sidebarStore.taskSortBy}>
+              <DropdownMenu.RadioGroup value={getSidebarStore().taskSortBy}>
                 <DropdownMenu.RadioItem
                   value="created-at"
-                  onClick={() => sidebarStore.applySort('created-at')}
+                  onClick={() => getSidebarStore().applySort('created-at')}
                 >
                   Created at
                 </DropdownMenu.RadioItem>
                 <DropdownMenu.RadioItem
                   value="updated-at"
-                  onClick={() => sidebarStore.applySort('updated-at')}
+                  onClick={() => getSidebarStore().applySort('updated-at')}
                 >
                   Last used
                 </DropdownMenu.RadioItem>

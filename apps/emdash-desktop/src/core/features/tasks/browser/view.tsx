@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
+import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
   getTaskManagerStore,
@@ -10,7 +11,6 @@ import { TaskViewWrapper } from '@core/features/tasks/api/browser/task-state/tas
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { defineViewRuntime } from '@core/primitives/views/react';
-import { appState } from '@renderer/lib/stores/app-state';
 import { TaskMainPanel } from './main-panel';
 import { TaskScope } from './task-scope';
 import { TaskTitlebar } from './task-titlebar';
@@ -56,8 +56,8 @@ export const taskViewRuntime = defineViewRuntime(taskViewDef, {
   },
   resolve: ({ projectId, taskId }) => {
     if (
-      !appState.projects.projects.has(projectId) &&
-      !appState.projects.pendingCreationIds.has(projectId)
+      !getProjectManagerStore().projects.has(projectId) &&
+      !getProjectManagerStore().pendingCreationIds.has(projectId)
     ) {
       return { kind: 'redirect', ref: homeViewDef() };
     }

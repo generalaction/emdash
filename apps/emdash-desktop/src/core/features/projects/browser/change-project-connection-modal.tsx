@@ -14,12 +14,12 @@ import { PencilIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import { appState } from '@renderer/lib/stores/app-state';
 
 export interface ChangeProjectConnectionModalProps {
   projectId: string;
@@ -44,7 +44,7 @@ export function ChangeProjectConnectionModal({
   };
 
   const handleEditConnection = async (id: string) => {
-    const conn = appState.machines.connections.find((c) => c.id === id);
+    const conn = getMachinesStore().connections.find((c) => c.id === id);
     if (!conn) return;
     const outcome = await openSshConnModal({
       initialConfig: conn,
@@ -118,7 +118,7 @@ const ChangeConnectionSelector = observer(function ChangeConnectionSelector({
   onAddConnection: () => void;
   onEditConnection?: (connectionId: string) => void;
 }) {
-  const machines = appState.machines.connections.filter(
+  const machines = getMachinesStore().connections.filter(
     (machine): machine is MachineOption => machine.id !== undefined
   );
 
@@ -177,7 +177,7 @@ const ChangeConnectionSelector = observer(function ChangeConnectionSelector({
 
 function getMachineStatusKind(machineId: string | undefined) {
   if (!machineId) return 'idle';
-  return deriveConnectionMachineStatusKind(appState.machines.stateFor(machineId));
+  return deriveConnectionMachineStatusKind(getMachinesStore().stateFor(machineId));
 }
 
 function MachineConnectionLabel({

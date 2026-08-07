@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
 
-vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {}, sidebarStore: {} }));
+vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {} }));
 
 afterEach(async () => {
   modalStore.dismiss();

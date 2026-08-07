@@ -9,8 +9,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@core/primitives/ssh/api';
-import { appState } from '@renderer/lib/stores/app-state';
 import { suggestedAuthTypeForSshConfigHost, type MachineAuthType } from './machine-form-model';
 import { machineFormSchema } from './machine-form-schema';
 import { useSshConfigHost, useSshConfigHosts } from './use-ssh-config-hosts';
@@ -143,7 +143,7 @@ export interface UseMachineFormOptions {
 }
 
 export function useMachineForm({ initialConfig, onSaved }: UseMachineFormOptions) {
-  const machines = appState.machines;
+  const machines = getMachinesStore();
   const isEditing = !!initialConfig;
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);

@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { appState } from '@renderer/lib/stores/app-state';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 
 export function useSshConfigHosts() {
-  const machines = appState.machines;
+  const machines = getMachinesStore();
 
   return useQuery({
     queryKey: ['ssh-config-hosts'],
@@ -11,7 +11,7 @@ export function useSshConfigHosts() {
 }
 
 export function useSshConfigHost(alias: string) {
-  const machines = appState.machines;
+  const machines = getMachinesStore();
   const trimmedAlias = alias.trim();
 
   return useQuery({

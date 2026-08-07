@@ -9,6 +9,7 @@ import {
 } from '@emdash/wire/live';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';
 import {
   MountedProject,
@@ -540,16 +541,16 @@ export class ProjectManagerStore {
     this._lastSshRecoveryAttemptAt = now;
 
     for (const connectionId of connectionIds) {
-      const state = appState.machines.stateFor(connectionId);
+      const state = getMachinesStore().stateFor(connectionId);
       if (state === 'connected') {
         this._mountDisconnectedSshProjects(connectionId);
         continue;
       }
       if (state === 'connecting') continue;
-      void appState.machines
+      void getMachinesStore()
         .ensureConnected(connectionId, { force: true })
         .then(() => {
-          if (appState.machines.stateFor(connectionId) === 'connected') {
+          if (getMachinesStore().stateFor(connectionId) === 'connected') {
             this._mountDisconnectedSshProjects(connectionId);
           }
         })
