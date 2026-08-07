@@ -1,7 +1,1 @@
-{
-  "tsxInApi": [
-    "apps/emdash-desktop/src/core/features/conversations/api/browser/sidebar-conversations-list.tsx",
-    "apps/emdash-desktop/src/core/features/machines/api/browser/components/connection-status-dot.tsx",
-    "apps/emdash-desktop/src/core/features/workspaces/api/browser/removal-attention-panel.tsx"
-  ]
-}
+{}
