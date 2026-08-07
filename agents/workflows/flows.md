@@ -151,7 +151,6 @@ doctor lists any that are active.
 | `EMDASH_SKIP_ELECTRON_REBUILD=1` | Skip the Electron-ABI rebuild in postinstall (CI sets this implicitly via `--ignore-scripts`) |
 | `EMDASH_DISABLE_NATIVE_DB=1` | Run without the native better-sqlite3 (also skips its rebuild) |
 | `EMDASH_DISABLE_PTY=1` | Run without PTY support |
-| `EMDASH_DISABLE_CLONE_CACHE=1` | Disable the worktree clone cache |
 | `EMDASH_TEST_SKIP_BROWSER=1` | Omit the Playwright-backed `browser` Vitest projects (CI sets this) |
 | `EMDASH_FORCE_BOOT_FAILURE=1` | Force the boot-failure path for recovery testing |
 | `TELEMETRY_ENABLED=false` | Disable telemetry |

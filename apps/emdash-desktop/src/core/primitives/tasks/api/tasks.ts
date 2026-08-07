@@ -95,6 +95,20 @@ export type TaskListData = {
   tasks: TaskRow[];
 };
 
+/** One background creation step's status (host registry contract). */
+export type WorkspaceBackgroundStepInfo = {
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
+  at: number;
+  message?: string;
+};
+
+/** Per-step statuses of the background half of workspace creation. */
+export type WorkspaceBackgroundInfo = {
+  cloneArtifacts: WorkspaceBackgroundStepInfo | null;
+  pushBranch: WorkspaceBackgroundStepInfo | null;
+  fetchRefs: WorkspaceBackgroundStepInfo | null;
+};
+
 export type TaskStatsData = {
   byWorkspaceId: Record<string, { linesAdded: number; linesDeleted: number }>;
   workspaceById?: Record<
@@ -110,6 +124,8 @@ export type TaskStatsData = {
         stage?: string;
         message?: string;
       } | null;
+      /** Background creation-step statuses (artifact clone, branch push, ref fetch). */
+      background?: WorkspaceBackgroundInfo | null;
     }
   >;
 };

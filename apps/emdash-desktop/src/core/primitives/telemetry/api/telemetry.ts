@@ -95,6 +95,8 @@ export type TelemetryEventProperties = {
     provider: AgentProviderId | null;
   };
   task_provisioned: EmptyProps;
+  /** Wall-clock cost of a full workspace provision, rounded to 100ms. */
+  task_provision_timing: { duration_ms: number };
   task_archived: EmptyProps;
   task_status_changed: { from_status: TaskLifecycleStatus; to_status: TaskLifecycleStatus };
   task_deleted: EmptyProps;

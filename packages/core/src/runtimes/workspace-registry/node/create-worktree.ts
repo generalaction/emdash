@@ -1,7 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BoundExec } from '#services/exec/api';
-import { copyPreservedFiles } from './copy-preserved-files';
 import { createRegistryGitExec } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
 
@@ -11,22 +10,21 @@ export type CreateWorktreeExecution = {
   worktreePath: string;
   branch: string;
   baseRef: string;
-  preservePatterns: string[];
-  pushBranch: boolean;
   /** Overlay feeder: called as each stage begins. */
   onStage: (stage: string) => void;
 };
 
 export type CreateWorktreeExecutionResult =
-  | { status: 'succeeded'; finalPath: string }
+  | { status: 'succeeded'; finalPath: string; createdWorktree: boolean }
   | { status: 'failed'; stage: string; message: string };
 
 /**
- * The createWorktree stage pipeline (ADR 0005): inspect → fetch → add-worktree →
- * verify → copy-preserved-files → push-branch. Adapted from the legacy workspace-host
- * handler, minus the operation kernel: failures return stage-tagged results for the
- * durable outcome; rollback of artifacts created in this attempt is best-effort —
- * irremovable debris is left for auto-adoption to surface.
+ * The foreground createWorktree stage pipeline (ADR 0005): inspect → resolve-base →
+ * add-worktree → verify. This is everything an agent needs to start working — tracked
+ * files checked out and functional git. Artifact cloning, branch pushing, and ref
+ * freshening are background steps owned by the runtime, never awaited here. Failures
+ * return stage-tagged results for the durable outcome; rollback of artifacts created in
+ * this attempt is best-effort — irremovable debris is left for auto-adoption to surface.
  */
 export async function executeCreateWorktree(
   execution: CreateWorktreeExecution
@@ -77,18 +75,30 @@ export async function executeCreateWorktree(
   }
 
   if (!existing) {
-    execution.onStage('fetch');
+    // Stale-is-fine: creation never fetches when the base ref resolves locally. Only an
+    // unresolvable remote-shaped ref triggers a targeted single-ref fetch — no --all,
+    // no --prune, no tags. Failure surfaces git's own error; no emdash timeout or retry.
+    execution.onStage('resolve-base');
     try {
-      if (await hasRemotes(exec)) {
-        try {
-          await exec.exec(['fetch', '--all', '--prune']);
-        } catch (fetchError) {
-          // Offline is tolerable when the base ref resolves locally.
-          if (!(await refResolves(exec, execution.baseRef))) throw fetchError;
+      if (
+        !(await branchExists(exec, execution.branch)) &&
+        !(await refResolves(exec, execution.baseRef))
+      ) {
+        const remoteRef = await parseRemoteRef(exec, execution.baseRef);
+        if (remoteRef) {
+          execution.onStage('fetch-base');
+          await exec.exec([
+            'fetch',
+            remoteRef.remote,
+            `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
+            '--no-tags',
+          ]);
         }
+        // Non-remote-shaped unresolvable refs fall through: add-worktree fails with
+        // git's own "invalid reference" error, exactly as it would have after a fetch.
       }
     } catch (error) {
-      return await fail('fetch', error);
+      return await fail('resolve-base', error);
     }
 
     execution.onStage('add-worktree');
@@ -126,37 +136,24 @@ export async function executeCreateWorktree(
     return await fail('verify', error);
   }
 
-  if (!existing && execution.preservePatterns.length > 0) {
-    execution.onStage('copy-preserved-files');
-    try {
-      const warnings = await copyPreservedFiles({
-        repoPath: execution.repositoryPath,
-        worktreePath: finalPath,
-        patterns: execution.preservePatterns,
-        git: exec,
-      });
-      if (warnings.length > 0) {
-        return await fail('copy-preserved-files', new Error(warnings.join('\n')));
-      }
-    } catch (error) {
-      return await fail('copy-preserved-files', error);
-    }
-  }
+  return { status: 'succeeded', finalPath, createdWorktree };
+}
 
-  if (execution.pushBranch) {
-    execution.onStage('push-branch');
-    try {
-      const remote = await defaultRemote(exec);
-      if (!remote) {
-        return await fail('push-branch', new Error('Repository has no remote to push to'));
-      }
-      await exec.exec(['push', '-u', remote, execution.branch]);
-    } catch (error) {
-      return await fail('push-branch', error);
-    }
-  }
-
-  return { status: 'succeeded', finalPath };
+/**
+ * Interprets a base ref of the shape `<remote>/<branch>` against the repository's
+ * actual remotes. Returns null for refs that are not remote-shaped (plain local
+ * branches, SHAs, tags) — those cannot be freshened by a targeted fetch.
+ */
+async function parseRemoteRef(
+  exec: BoundExec,
+  baseRef: string
+): Promise<{ remote: string; branch: string } | null> {
+  const separator = baseRef.indexOf('/');
+  if (separator <= 0 || separator === baseRef.length - 1) return null;
+  const remote = baseRef.slice(0, separator);
+  const branch = baseRef.slice(separator + 1);
+  const remotes = (await exec.exec(['remote'])).stdout.trim().split('\n').filter(Boolean);
+  return remotes.includes(remote) ? { remote, branch } : null;
 }
 
 async function rollback(
@@ -202,17 +199,6 @@ async function refResolves(exec: BoundExec, ref: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function hasRemotes(exec: BoundExec): Promise<boolean> {
-  const result = await exec.exec(['remote']);
-  return result.stdout.trim().length > 0;
-}
-
-async function defaultRemote(exec: BoundExec): Promise<string | null> {
-  const remotes = (await exec.exec(['remote'])).stdout.trim().split('\n').filter(Boolean);
-  if (remotes.includes('origin')) return 'origin';
-  return remotes[0] ?? null;
 }
 
 async function canonicalOrResolved(target: string): Promise<string> {

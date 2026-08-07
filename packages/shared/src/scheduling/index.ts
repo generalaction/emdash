@@ -13,6 +13,7 @@ export {
   type ScheduleOptions,
   type SleepOptions,
 } from './clock';
+export { createDebounced, type CreateDebouncedOptions, type Debounced } from './debounce';
 export { retry, type RetryAttempt, type RetryOptions } from './retry';
 export {
   retrySchedule,

@@ -99,6 +99,13 @@ export function createWorkspaceRegistryWireController(
         registry.refresh(workspaceId === undefined ? {} : { id: workspaceId })
       ),
 
+    retryPushBranch: ({ host, workspaceId }) =>
+      withRegistry(host, async (registry) => {
+        const result = await registry.retryPushBranch({ id: workspaceId });
+        if (result.success) upsertMirrorRow(options.db, host, result.data, undefined);
+        return result;
+      }),
+
     untrackWorkspace: async ({ workspaceId }) => {
       createWorkspaceRegistry(options.db).untrack([workspaceId], new Date().toISOString());
       appDbPokes.workspaces.poke({});

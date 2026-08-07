@@ -1,9 +1,31 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
 
 const root = resolve(__dirname, 'src');
 import dts from 'vite-plugin-dts';
+
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as {
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+
+// Rollup string externals match import specifiers EXACTLY, so 'foo' does not
+// externalize 'foo/bar'. Source here imports many subpaths ('@base-ui/react/dialog',
+// '@tiptap/pm/state', '@emdash/theme/manifest', ...), and inlining them duplicates
+// modules the app also imports directly — two copies of @base-ui/react means two
+// React contexts and broken dialogs. Externalize every dependency and peer
+// dependency with a subpath-tolerant regex so nothing third-party or workspace
+// gets bundled into dist.
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const externalizeDep = (name: string) => new RegExp(`^${escapeRegExp(name)}(/|$)`);
+const externalDeps = [
+  ...Object.keys(pkg.dependencies ?? {}),
+  ...Object.keys(pkg.peerDependencies ?? {}),
+  // Imported directly in src but provided transitively via @tanstack/react-form.
+  '@tanstack/react-store',
+].map(externalizeDep);
 
 // @vitejs/plugin-react is intentionally omitted from the lib build.
 // Vite's esbuild handles React JSX natively via tsconfig "jsx": "react-jsx".
@@ -53,39 +75,10 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@emdash/chat-ui',
-        '@emdash/theme/shiki-themes',
-        '@tanstack/react-form',
-        '@tanstack/react-store',
-        '@tanstack/react-virtual',
-        'beautiful-mermaid',
-        'mobx',
-        'mobx-react-lite',
-        'react',
-        'react-dom',
-        'react-markdown',
-        'react-resizable-panels',
-        'react-zoom-pan-pinch',
-        'react/jsx-runtime',
-        'rehype-katex',
-        'rehype-raw',
-        'rehype-sanitize',
-        'remark-gfm',
-        'remark-math',
-        'sonner',
-        '@base-ui/react',
-        'lucide-react',
-        'lucide-react/dynamic',
-        '@tiptap/core',
-        '@tiptap/extension-mention',
-        '@tiptap/extension-placeholder',
-        '@tiptap/pm',
-        '@tiptap/react',
-        '@tiptap/starter-kit',
-        '@tiptap/suggestion',
+        ...externalDeps,
+        // Transitive scopes that may surface in output beyond declared deps.
         /^@fontsource/,
         /^@shikijs\//,
-        /^shiki(\/|$)/,
       ],
       output: {
         // Rename the bundled stylesheet so consumers import '@emdash/ui/style.css'.

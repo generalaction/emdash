@@ -21,6 +21,8 @@ export const workspaceRecords = sqliteTable(
     creation: text('creation'),
     /** Versioned JSON: durable outcome of the last createWorktree attempt. */
     lastCreateOutcome: text('last_create_outcome'),
+    /** Versioned JSON: durable background creation-step statuses + replay inputs. */
+    background: text('background'),
     /** Versioned JSON: last failed removal attempt; removed with the record on success. */
     lastRemovalAttempt: text('last_removal_attempt'),
     /** Versioned JSON: per-script (prepare/setup/run) durable last outcomes. */

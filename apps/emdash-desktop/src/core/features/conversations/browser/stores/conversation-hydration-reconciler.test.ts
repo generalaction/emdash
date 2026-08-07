@@ -1,3 +1,4 @@
+import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ConversationHydrationReconciler,
@@ -25,14 +26,17 @@ function makeHarness() {
     dehydrateConversation: vi.fn().mockResolvedValue(undefined),
   };
   const logger = { warn: vi.fn() };
+  const clock = createManualClock();
   const reconciler = new ConversationHydrationReconciler({
     taskId: 'task-1',
     getConversations: () => adapter,
     log: logger,
+    clock,
   });
   return {
     adapter,
     logger,
+    clock,
     reconciler,
     hydrateConversation: vi.mocked(adapter.hydrateConversation),
     dehydrateConversation: vi.mocked(adapter.dehydrateConversation),
@@ -144,29 +148,66 @@ describe('ConversationHydrationReconciler', () => {
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
   });
 
-  it('retries failed dehydrate without waiting for another sync', async () => {
-    vi.useFakeTimers();
-    try {
-      const { reconciler, dehydrateConversation, logger } = makeHarness();
-      dehydrateConversation
-        .mockRejectedValueOnce(new Error('dehydrate failed'))
-        .mockResolvedValueOnce(undefined);
+  it('retries failed dehydrate once after the delay without waiting for another sync', async () => {
+    const { reconciler, clock, dehydrateConversation, logger } = makeHarness();
+    dehydrateConversation
+      .mockRejectedValueOnce(new Error('dehydrate failed'))
+      .mockResolvedValueOnce(undefined);
 
-      reconciler.sync(['conversation-1']);
-      await Promise.resolve();
+    reconciler.sync(['conversation-1']);
+    await Promise.resolve();
 
-      reconciler.sync([]);
-      await Promise.resolve();
+    reconciler.sync([]);
+    await Promise.resolve();
 
-      expect(dehydrateConversation).toHaveBeenCalledTimes(1);
-      expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
 
-      await vi.advanceTimersByTimeAsync(DEHYDRATE_RETRY_DELAY_MS);
+    await clock.advanceBy(DEHYDRATE_RETRY_DELAY_MS - 1);
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
 
-      expect(dehydrateConversation).toHaveBeenCalledTimes(2);
-      expect(dehydrateConversation).toHaveBeenLastCalledWith('conversation-1');
-    } finally {
-      vi.useRealTimers();
-    }
+    await clock.advanceBy(1);
+    expect(dehydrateConversation).toHaveBeenCalledTimes(2);
+    expect(dehydrateConversation).toHaveBeenLastCalledWith('conversation-1');
+
+    await clock.advanceBy(DEHYDRATE_RETRY_DELAY_MS * 2);
+    expect(dehydrateConversation).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry dehydrate when the conversation becomes desired again', async () => {
+    const { reconciler, clock, dehydrateConversation } = makeHarness();
+    dehydrateConversation.mockRejectedValueOnce(new Error('dehydrate failed'));
+
+    reconciler.sync(['conversation-1']);
+    await Promise.resolve();
+
+    reconciler.sync([]);
+    await Promise.resolve();
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+
+    reconciler.sync(['conversation-1']);
+
+    await clock.advanceBy(DEHYDRATE_RETRY_DELAY_MS * 2);
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry dehydrate after dispose', async () => {
+    const { reconciler, clock, dehydrateConversation } = makeHarness();
+    dehydrateConversation.mockRejectedValue(new Error('dehydrate failed'));
+
+    reconciler.sync(['conversation-1']);
+    await Promise.resolve();
+
+    reconciler.sync([]);
+    await Promise.resolve();
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+
+    reconciler.dispose();
+    await Promise.resolve();
+    // dispose itself makes one last dehydrate attempt via reconcile
+    expect(dehydrateConversation).toHaveBeenCalledTimes(2);
+
+    await clock.advanceBy(DEHYDRATE_RETRY_DELAY_MS * 2);
+    expect(dehydrateConversation).toHaveBeenCalledTimes(2);
   });
 });

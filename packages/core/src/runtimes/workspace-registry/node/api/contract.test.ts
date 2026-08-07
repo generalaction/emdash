@@ -122,6 +122,7 @@ describe('workspace registry contract', () => {
         observedStatus: 'present',
         creation: null,
         lastCreateOutcome: null,
+        background: null,
         lastRemovalAttempt: null,
         scriptOutcomes: null,
         git: null,
@@ -317,16 +318,19 @@ describe('workspace registry contract', () => {
     });
   });
 
-  it('createWorktree runs the full pipeline: worktree, preserved files, pushed branch', async () => {
+  it('createWorktree returns at agent-spawnable; artifacts and push land in the background', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    // A bare origin so push-branch has somewhere to go.
+    // A bare origin so the background push-branch step has somewhere to go.
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
     git(repoPath, 'push', '-u', 'origin', 'main');
-    // A preserved file that git ignores (the classic .env case).
-    await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\n');
+    // Gitignored artifacts: they ride the background clone (the .env preserve case
+    // included — ignored files are the clone set, no patterns needed).
+    await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\nnode_modules/\n');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
+    await fs.mkdir(path.join(repoPath, 'node_modules', 'dep'), { recursive: true });
+    await fs.writeFile(path.join(repoPath, 'node_modules', 'dep', 'index.js'), 'ok\n');
     git(repoPath, 'add', '.gitignore');
     git(repoPath, 'commit', '-m', 'ignore env');
     await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
@@ -341,6 +345,7 @@ describe('workspace registry contract', () => {
       preservePatterns: ['.env'],
       pushBranch: true,
     });
+    // The verb returns at agent-spawnable: worktree checked out, background pending.
     expect(created).toMatchObject({
       success: true,
       data: {
@@ -352,16 +357,28 @@ describe('workspace registry contract', () => {
         creation: { branch: 'feature/new', baseRef: 'main', requestedPath: worktreePath },
         lastCreateOutcome: { status: 'succeeded' },
         git: { branch: 'feature/new' },
-        runtime: null,
       },
     });
     if (!created.success) throw new Error('expected success');
     expect(created.data.gitAdminName).not.toBeNull();
+    // No push happened on the critical path.
+    expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toBe('');
 
+    // The background steps settle: artifacts cloned, branch pushed, statuses durable.
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-new']?.runtime?.background).toMatchObject({
+        cloneArtifacts: { status: 'succeeded' },
+        pushBranch: { status: 'succeeded' },
+      });
+    });
     await fs.access(path.join(created.data.path, '.env'));
+    await fs.access(path.join(created.data.path, 'node_modules', 'dep', 'index.js'));
     expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toContain(
       'refs/heads/feature/new'
     );
+    // git status in the new worktree stays clean — artifacts are all ignored.
+    expect(git(created.data.path, 'status', '--porcelain')).toBe('');
   });
 
   it('createWorktree failure records the stage durably and keeps the record', async () => {
@@ -391,7 +408,7 @@ describe('workspace registry contract', () => {
     });
   });
 
-  it('createWorktree replays: succeeded is a no-op, failed re-executes, divergent errors', async () => {
+  it('createWorktree replays: succeeded is a no-op, a failed push retries manually, divergent errors', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
     const worktreePath = path.join(root, 'retry-wt');
@@ -402,28 +419,42 @@ describe('workspace registry contract', () => {
       baseRef: 'main',
       path: worktreePath,
       preservePatterns: [],
-      // No remote: push-branch fails after the worktree was created (transient failure).
+      // No remote: the background push fails, but never the creation itself.
       pushBranch: true,
     };
 
     const first = await wire.client.createWorktree(input);
     expect(first).toMatchObject({
-      success: false,
-      error: { type: 'stage-failed', stage: 'push-branch' },
-    });
-
-    // The transient condition clears; the identical request re-executes to success.
-    const originPath = path.join(root, 'origin.git');
-    git(root, 'init', '--bare', originPath);
-    git(repoPath, 'remote', 'add', 'origin', originPath);
-    const retried = await wire.client.createWorktree(input);
-    expect(retried).toMatchObject({
       success: true,
       data: { lastCreateOutcome: { status: 'succeeded' } },
     });
 
+    // The push failure is a durable, non-blocking "branch not pushed" state.
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-retry']?.runtime?.background).toMatchObject({
+        pushBranch: { status: 'failed' },
+      });
+    });
+
     const replay = await wire.client.createWorktree(input);
-    expect(replay).toEqual(retried);
+    expect(replay).toMatchObject({
+      success: true,
+      data: { lastCreateOutcome: { status: 'succeeded' } },
+    });
+
+    // The transient condition clears; one manual retry pushes the branch.
+    const originPath = path.join(root, 'origin.git');
+    git(root, 'init', '--bare', originPath);
+    git(repoPath, 'remote', 'add', 'origin', originPath);
+    const retried = await wire.client.retryPushBranch({ id: 'ws-retry' });
+    expect(retried).toMatchObject({
+      success: true,
+      data: { runtime: { background: { pushBranch: { status: 'succeeded' } } } },
+    });
+    expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/retry')).toContain(
+      'refs/heads/feature/retry'
+    );
 
     const divergent = await wire.client.createWorktree({ ...input, baseRef: 'other-base' });
     expect(divergent).toMatchObject({
@@ -450,6 +481,7 @@ describe('workspace registry contract', () => {
       observedStatus: 'missing',
       creation: { branch: 'feature/interrupted', baseRef: 'main', requestedPath: worktreePath },
       lastCreateOutcome: { status: 'started', at: 9_000 },
+      background: null,
       lastRemovalAttempt: null,
       scriptOutcomes: null,
       git: null,

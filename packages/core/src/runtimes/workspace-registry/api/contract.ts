@@ -16,6 +16,7 @@ import {
   deleteWorkspaceInputSchema,
   deleteWorktreeInputSchema,
   refreshWorkspacesInputSchema,
+  retryPushBranchInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
 } from './schemas';
@@ -56,16 +57,29 @@ export const workspaceRegistryContract = defineContract({
 
   /**
    * Creates a worktree from a repository spec as one plain RPC: registers the record
-   * immediately (outcome 'started'), executes inspect → fetch → add-worktree → verify →
-   * copy-preserved-files → push-branch under an exclusive per-repository claim
-   * (concurrent same-repo calls wait, never error), and returns on completion. Progress
-   * is the records overlay — no job objects. Replay by id + identical spec: succeeded →
-   * no-op success; failed/interrupted → re-execute; divergent spec → typed mismatch.
+   * immediately (outcome 'started'), executes the foreground pipeline inspect →
+   * resolve-base → add-worktree → verify under an exclusive per-repository claim
+   * (concurrent same-repo calls wait, never error), and returns at agent-spawnable.
+   * Artifact cloning, branch pushing, and ref freshening continue as background steps
+   * with durable per-step statuses on the record, outside the repository claim.
+   * Progress is the records overlay — no job objects. Replay by id + identical spec:
+   * succeeded → no-op (incomplete background steps re-run); failed/interrupted →
+   * re-execute; divergent spec → typed mismatch.
    */
   createWorktree: fallible({
     input: createWorktreeInputSchema,
     data: workspaceRecordSchema,
     error: createWorktreeErrorSchema,
+  }),
+
+  /**
+   * Manual retry of a durably failed background branch push ("branch not pushed").
+   * One fresh attempt; the outcome lands on the record's background section.
+   */
+  retryPushBranch: fallible({
+    input: retryPushBranchInputSchema,
+    data: workspaceRecordSchema,
+    error: workspaceNotFoundErrorSchema,
   }),
 
   /**

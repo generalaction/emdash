@@ -1,4 +1,5 @@
 import type { AutomationRun, GetRunOverviewResult } from '@emdash/core/runtimes/automations/api';
+import { createEmitter } from '@emdash/shared';
 import { getAutomationsClient } from '@core/features/automations/api/browser/client';
 
 export type RunHistoryFilter = 'all' | 'done' | 'failed' | 'skipped' | 'cancelled';
@@ -25,7 +26,7 @@ const EMPTY_COUNTS: GetRunOverviewResult['counts'] = {
 export class AutomationRunStore {
   private readonly runs = new Map<string, AutomationRun>();
   private readonly histories = new Map<RunHistoryFilter, HistoryState>();
-  private readonly listeners = new Set<() => void>();
+  private readonly changes = createEmitter<void>();
   private cursor = 0;
   private version = 0;
   private references = 0;
@@ -48,10 +49,7 @@ export class AutomationRunStore {
     readonly automationId: string
   ) {}
 
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
+  subscribe = (listener: () => void): (() => void) => this.changes.subscribe(listener);
 
   getVersion = (): number => this.version;
 
@@ -304,7 +302,7 @@ export class AutomationRunStore {
 
   private notify(): void {
     this.version += 1;
-    for (const listener of this.listeners) listener();
+    this.changes.emit();
   }
 }
 

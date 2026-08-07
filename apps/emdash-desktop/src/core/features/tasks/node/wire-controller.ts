@@ -226,6 +226,7 @@ async function loadTaskStats(db: AppDb, projectId: string): Promise<TaskStatsDat
                 message: row.lastCreateOutcome.message,
               }
             : null,
+          background: row.runtimeOverlay?.background ?? null,
         },
       ])
     ),

@@ -100,6 +100,13 @@ export const workspaceRegistryWireContract = defineContract({
     error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
   }),
 
+  /** Manual retry of a durably failed background branch push ("branch not pushed"). */
+  retryPushBranch: fallible({
+    input: workspaceKeyInput,
+    data: workspaceRecordSchema,
+    error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
+  }),
+
   /**
    * Desktop-only escape hatch for unreachable or identity-lost rows: a durable
    * tombstone sync never resurrects. Reachable-host removals go through the verbs.

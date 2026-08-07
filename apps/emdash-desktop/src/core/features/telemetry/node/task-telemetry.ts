@@ -44,4 +44,12 @@ export function installTaskTelemetry(
   taskSessionManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
     telemetry.capture('task_provisioned', { project_id: projectId, task_id: taskId });
   });
+
+  taskService.on('task:provision-timing', ({ taskId, durationMs }) => {
+    // Coarse resolution only; full-resolution stage timings stay in the local log.
+    telemetry.capture('task_provision_timing', {
+      task_id: taskId,
+      duration_ms: Math.round(durationMs / 100) * 100,
+    });
+  });
 }

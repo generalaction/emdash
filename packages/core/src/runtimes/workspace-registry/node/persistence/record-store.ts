@@ -2,11 +2,13 @@ import { eq } from 'drizzle-orm';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { WorkspaceRecord } from '../../api/schemas';
 import {
+  parseBackgroundPayload,
   parseCreateOutcomePayload,
   parseCreationPayload,
   parseGitObservationsPayload,
   parseRemovalAttemptPayload,
   parseScriptOutcomesPayload,
+  serializeBackgroundPayload,
   serializeCreateOutcomePayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
@@ -76,6 +78,7 @@ function rowToRecord(row: Row): DurableWorkspaceRecord {
     creation: row.creation === null ? null : parseCreationPayload(row.creation),
     lastCreateOutcome:
       row.lastCreateOutcome === null ? null : parseCreateOutcomePayload(row.lastCreateOutcome),
+    background: row.background === null ? null : parseBackgroundPayload(row.background),
     lastRemovalAttempt:
       row.lastRemovalAttempt === null ? null : parseRemovalAttemptPayload(row.lastRemovalAttempt),
     scriptOutcomes:
@@ -102,6 +105,7 @@ function recordToRow(record: DurableWorkspaceRecord): Row {
       record.lastCreateOutcome === null
         ? null
         : serializeCreateOutcomePayload(record.lastCreateOutcome),
+    background: record.background === null ? null : serializeBackgroundPayload(record.background),
     lastRemovalAttempt:
       record.lastRemovalAttempt === null
         ? null

@@ -76,6 +76,8 @@ export type TaskLifecycleHooks = {
   'task:archived': (taskId: string, projectId: string) => void | Promise<void>;
   'task:deleted': (taskId: string, projectId: string) => void | Promise<void>;
   'task:workspace-ready': (taskId: string, result: ProvisionResult) => void | Promise<void>;
+  /** Fires after a full (non-fast-path) provision succeeds, with the wall-clock cost. */
+  'task:provision-timing': (info: { taskId: string; durationMs: number }) => void | Promise<void>;
 };
 
 export class TaskService implements Hookable<TaskLifecycleHooks> {
@@ -157,6 +159,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       return ok(provisionResult);
     }
 
+    const startedAt = Date.now();
     const result = await this._activateWorkspace(row, signal);
     if (!result.success) return err(result.error);
 
@@ -168,6 +171,10 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       sshConnectionId: result.data.persistData.sshConnectionId,
     };
 
+    this._hooks.callHookBackground('task:provision-timing', {
+      taskId,
+      durationMs: Date.now() - startedAt,
+    });
     this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
     return ok(provisionResult);
   }

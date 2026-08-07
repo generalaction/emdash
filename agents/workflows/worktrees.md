@@ -12,14 +12,21 @@
 - task worktrees are created under the project's DB-backed worktree directory setting
 - branch prefix defaults to `emdash` and is configurable in app settings
 - generated task branch names use the configured prefix plus a random suffix by default; app repository settings can disable only the random suffix
-- selected gitignored files are preserved into worktrees
 - worktree creation is managed by the project provider pattern
+- creation runs a fast foreground pipeline (`inspect → resolve-base → add-worktree → verify`);
+  the base ref is fetched only when it is not locally resolvable
+- gitignored artifacts (for example `node_modules`) are cloned from the repository into the new
+  worktree as a durable background step, using copy-on-write (`cp -c` on APFS,
+  `--reflink=auto` on Linux) with a plain-copy fallback
+- branch push and ref freshening also run as durable background steps after activation; a failed
+  push surfaces as a "branch not pushed" task state with a manual retry
 
 ## `.emdash.json`
 
 `.emdash.json` stores optional shareable project settings. Supported runtime keys:
 
-- `preservePatterns`
+- `excludePatterns` (extends the built-in exclusions for the artifact clone; `['**']` disables it)
+- `preservePatterns` (deprecated; now a targeted post-clone copy shim)
 - `scripts.prepare`
 - `scripts.setup`
 - `scripts.run`
@@ -40,6 +47,8 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 - use lifecycle config for repo-specific bootstrap and teardown behavior
 - `scripts.prepare` is blocking and runs after the workspace exists but before task providers,
   conversations, setup scripts, or run scripts start; keep it idempotent
+- `scripts.prepare`, `scripts.setup`, and `scripts.run` wait for the background artifact clone to
+  settle before running, since they may consume cloned dependencies
 - `scripts.setup` and `scripts.run` are runtime-triggered after `scripts.prepare` succeeds; they do
   not block task readiness
 - `shellSetup` runs inside each PTY before the interactive shell starts
