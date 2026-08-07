@@ -1,6 +1,5 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Button } from '@react/primitives/button';
-import { ScrollContainer } from '@react/primitives/scroll-container';
 import { cx } from '@styles/utilities/cx';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
@@ -113,15 +112,27 @@ function DialogBody({
   maxHeight?: number | string;
   topFade?: boolean;
 }) {
+  const resolvedMaxHeight =
+    maxHeight === undefined
+      ? undefined
+      : typeof maxHeight === 'number'
+        ? `${maxHeight}px`
+        : maxHeight;
+
   return (
-    <ScrollContainer
-      maxHeight={maxHeight}
-      topFade={topFade}
-      style={{ minHeight: 0, ...style }}
-      viewportClassName={cx(styles.body, className)}
+    <div
+      data-slot="dialog-body"
+      className={cx(
+        'scroll-fade',
+        'scroll-fade__viewport',
+        !topFade && 'sf-no-top',
+        styles.body,
+        className
+      )}
+      style={{ height: '100%', minHeight: 0, maxHeight: resolvedMaxHeight, ...style }}
     >
       {children}
-    </ScrollContainer>
+    </div>
   );
 }
 
