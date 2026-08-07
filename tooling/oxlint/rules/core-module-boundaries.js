@@ -242,12 +242,12 @@ export const coreModuleBoundariesRule = {
     const allowlists = loadBoundaryAllowlists(
       options.allowlistPath ?? DEFAULT_BOUNDARY_ALLOWLIST_PATH
     );
+    // A missing crossSlice key means "no exceptions": skip the allowlist
+    // lookup entirely and report every cross-module violation as an error.
+    const crossSliceAllowlist = allowlists.crossSlice;
     if (
-      isBoundaryFileAllowlisted(
-        filename,
-        allowlists.crossSlice,
-        options.repoRoot ?? DEFAULT_REPO_ROOT
-      )
+      crossSliceAllowlist !== undefined &&
+      isBoundaryFileAllowlisted(filename, crossSliceAllowlist, options.repoRoot ?? DEFAULT_REPO_ROOT)
     ) {
       return {};
     }

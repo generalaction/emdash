@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
+import type { SshClientProxy } from '@core/primitives/ssh/api';
 import { RemoteHostProbe } from './host-probe';
 
 describe('RemoteHostProbe', () => {
   it('reads and caches the remote home directory until explicitly dropped', async () => {
-    const proxy = new SshClientProxy('ssh-1');
     const execScript = vi
-      .spyOn(proxy, 'execScript')
+      .fn<SshClientProxy['execScript']>()
       .mockResolvedValue({ stdout: '/home/devuser\n', stderr: '', exitCode: 0 });
+    const proxy = { execScript } as Pick<SshClientProxy, 'execScript'> as SshClientProxy;
     const ensureProxy = vi.fn(async () => proxy);
     const probe = new RemoteHostProbe({ ensureProxy });
 

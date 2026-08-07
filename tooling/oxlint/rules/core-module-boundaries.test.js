@@ -248,6 +248,54 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
   }
 });
 
+test('a missing crossSlice allowlist key is valid and means no exceptions', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-core-boundaries-allowlist-'));
+  try {
+    const fixtureCoreRoot = path.join(tempRoot, 'packages/core/src');
+    const featureDir = path.join(fixtureCoreRoot, 'features/tasks/browser');
+    await mkdir(featureDir, { recursive: true });
+    const violatingPath = path.join(featureDir, 'invalid.ts');
+    await writeFile(
+      violatingPath,
+      "import { project } from '@core/features/projects/browser/project';\n"
+    );
+    const allowlistPath = path.join(tempRoot, 'allowlists.json');
+    const configPath = path.join(tempRoot, '.oxlintrc.json');
+    await writeFile(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: ['eslint', 'typescript'],
+          jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
+          env: { node: true, es2020: true },
+          rules: {
+            'emdash/core-module-boundaries': [
+              'error',
+              { coreSrcRoot: fixtureCoreRoot, allowlistPath, repoRoot: tempRoot },
+            ],
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    await writeFile(
+      allowlistPath,
+      JSON.stringify({ crossSlice: [path.relative(tempRoot, violatingPath)] })
+    );
+    const allowlisted = await runOxlint(configPath, violatingPath);
+    assert.equal(allowlisted.code, 0, allowlisted.output);
+
+    await writeFile(allowlistPath, JSON.stringify({ coreToHost: [] }));
+    const strict = await runOxlint(configPath, violatingPath);
+    assert.notEqual(strict.code, 0);
+    assert.match(strict.output, /features\/tasks must not import features\/projects/);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 function runOxlint(config, file) {
   return new Promise((resolve, reject) => {
     const child = spawn('pnpm', ['exec', 'oxlint', '--config', config, file], {
