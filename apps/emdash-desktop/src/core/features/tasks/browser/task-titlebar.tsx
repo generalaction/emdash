@@ -169,9 +169,20 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <Tooltip.Content>Link to issue</Tooltip.Content>
             </Tooltip.Root>
             <Popover.Content align="start" className="flex w-96 flex-col gap-2 p-4">
-              <div className="flex w-full flex-col gap-1">
-                <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
-                <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
+              <div className="flex w-full items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <MicroLabel className="flex items-center text-foreground-passive">
+                    Task
+                  </MicroLabel>
+                  <span className="truncate text-sm tracking-tight">
+                    {taskDisplayName(taskStore)}
+                  </span>
+                </div>
+                <OpenInMenu
+                  path={workspace.path}
+                  isRemote={isRemoteProject}
+                  sshConnectionId={workspace.sshConnectionId}
+                />
               </div>
               <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
@@ -313,13 +324,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           <WorkspaceBackgroundPill projectId={projectId} taskId={taskId} />
           <LifecycleScriptPill />
           <PreviewServerPills />
-          <OpenInMenu
-            path={workspace.path}
-            className="h-7 bg-transparent"
-            borderless
-            isRemote={isRemoteProject}
-            sshConnectionId={workspace.sshConnectionId}
-          />
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip.Root>
             <Tooltip.Trigger>

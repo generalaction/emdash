@@ -17,6 +17,7 @@ import {
   gitFilePath,
 } from '@core/features/source-control/api/browser/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { log } from '@core/primitives/logging/browser/logger';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../../api';
 
@@ -301,8 +302,17 @@ export class GitCheckoutStore {
 
   private async bindRuntime(): Promise<void> {
     const scope = createScope({ label: `git-checkout-store:${this.workspaceId}` });
+    log.warn('[DEBUG-gck] bindRuntime start', { workspaceId: this.workspaceId });
+    const watchdog = setTimeout(() => {
+      log.warn('[DEBUG-gck] bindRuntime still unresolved after 15s', {
+        workspaceId: this.workspaceId,
+        hasModel: this.model !== null,
+        syncError: this.syncError,
+      });
+    }, 15_000);
     try {
       const client = await getSourceControlClient();
+      log.warn('[DEBUG-gck] source-control client resolved', { workspaceId: this.workspaceId });
       const checkoutRemote = remote(sourceControlContract.checkout.model, client.checkout.model, {
         scope,
         lingerMs: 15_000,
@@ -320,6 +330,7 @@ export class GitCheckoutStore {
           this.revision += 1;
         },
       });
+      log.warn('[DEBUG-gck] checkout model ready', { workspaceId: this.workspaceId });
       if (!this.started) {
         await checkoutRemote.dispose();
         await scope.dispose();
@@ -332,10 +343,16 @@ export class GitCheckoutStore {
         this.syncError = null;
       });
     } catch (error) {
+      log.warn('[DEBUG-gck] bindRuntime failed', {
+        workspaceId: this.workspaceId,
+        error: error instanceof Error ? `${error.name}: ${error.message}\n${error.stack}` : String(error),
+      });
       await scope.dispose();
       runInAction(() => {
         this.syncError = error instanceof Error ? error.message : String(error);
       });
+    } finally {
+      clearTimeout(watchdog);
     }
   }
 
@@ -426,6 +443,11 @@ function waitForCheckoutModel(
     observe(
       model.states.status,
       (current) => {
+        log.warn('[DEBUG-gck] status emission', {
+          status: current.status,
+          hasValue: current.value != null,
+          error: current.status === 'error' ? String(current.error) : undefined,
+        });
         runInAction(() => {
           if (current.status === 'error') {
             reject(current.error);
@@ -442,6 +464,11 @@ function waitForCheckoutModel(
     observe(
       model.states.head,
       (current) => {
+        log.warn('[DEBUG-gck] head emission', {
+          status: current.status,
+          hasValue: current.value != null,
+          error: current.status === 'error' ? String(current.error) : undefined,
+        });
         runInAction(() => {
           if (current.status === 'error') {
             reject(current.error);
