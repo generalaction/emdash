@@ -72,6 +72,8 @@ export const workspaceRegistryComponent = defineWireComponent({
       ...config.scan,
     });
     runtime.setOnRecordsChanged(() => scheduler.syncWatches());
+    // Self-suppression: background steps mute their own watch events while writing.
+    runtime.setScanMuter((id) => scheduler.mute(id));
     scheduler.start();
     scope.add(() => scheduler.dispose());
 

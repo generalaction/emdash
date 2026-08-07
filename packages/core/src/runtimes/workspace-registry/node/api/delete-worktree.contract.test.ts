@@ -107,6 +107,8 @@ describe('workspace registry deleteWorktree', () => {
       path.join(worktree.path, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'echo teardown >> ../teardown-log' } })
     );
+    // The config live model refreshes on scans; stand in for the watcher settling.
+    await wire.client.refresh({ id: 'wt-active' });
     const activated = await wire.client.activateWorkspace({ id: 'wt-active' });
     expect(activated.success).toBe(true);
 
@@ -237,6 +239,7 @@ describe('workspace registry deleteWorktree', () => {
       path.join(worktree.path, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'echo torn down >&2; exit 9' } })
     );
+    await wire.client.refresh({ id: 'wt-torn' });
     expect((await wire.client.activateWorkspace({ id: 'wt-torn' })).success).toBe(true);
 
     const deleted = await wire.client.deleteWorktree({ id: 'wt-torn', deleteBranch: false });
@@ -264,6 +267,7 @@ describe('workspace registry deleteWorktree', () => {
       path.join(repoPath, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'exit 3' } })
     );
+    await wire.client.refresh({ id: 'ws-repo' });
     expect((await wire.client.activateWorkspace({ id: 'ws-repo' })).success).toBe(true);
 
     const deleted = await wire.client.deleteWorkspace({ id: 'ws-repo' });
@@ -287,6 +291,7 @@ describe('workspace registry deleteWorktree', () => {
       path.join(repoPath, '.emdash.json'),
       JSON.stringify({ scripts: { teardown: 'echo teardown >> ../repo-teardown-log' } })
     );
+    await wire.client.refresh({ id: 'ws-repo' });
     const activated = await wire.client.activateWorkspace({ id: 'ws-repo' });
     expect(activated.success).toBe(true);
 

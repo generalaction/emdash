@@ -27,7 +27,7 @@ import { useWorkspaceRows, type WorkspacesScope } from '../use-workspace-rows';
 import type { JoinedWorkspaceRow } from '../workspace-rows';
 import { aggregateWorkspaceStatus } from '../workspace-runtime-status';
 
-/** One durable script failure (mirror `scriptOutcomes`) or a live overlay notice. */
+/** One durable script failure (overlay lifecycle step) or a live overlay notice. */
 type WorkspaceScriptIssue = {
   script: string;
   outcome: 'failed' | 'timed-out';
@@ -286,17 +286,21 @@ function buildWorktreeItem({
 }
 
 /**
- * One chip per script: the durable last outcome (mirror `scriptOutcomes`, survives
- * daemon restarts) is the fact of record; a live overlay notice only adds a chip for
- * a script without a durable failure yet — never a duplicate of the same failure.
+ * One chip per script: the durable lifecycle step (mirror overlay, survives daemon
+ * restarts) is the fact of record; a live overlay notice only adds a chip for a
+ * script without a durable failure yet — never a duplicate of the same failure.
  */
 function workspaceScriptIssues(row: ProjectWorkspaceRow): WorkspaceScriptIssue[] {
   const issues: WorkspaceScriptIssue[] = [];
-  const outcomes = row.scriptOutcomes;
   for (const script of ['prepare', 'setup', 'run'] as const) {
-    const outcome = outcomes?.[script];
-    if (outcome && outcome.outcome !== 'succeeded') {
-      issues.push({ script, outcome: outcome.outcome, at: outcome.at, message: outcome.message });
+    const step = row.runtimeOverlay?.lifecycle?.find((entry) => entry.id === script);
+    if (step && step.status === 'failed') {
+      issues.push({
+        script,
+        outcome: 'failed',
+        at: step.finishedAt ?? step.startedAt ?? 0,
+        message: step.message,
+      });
     }
   }
   const covered = new Set(issues.map((issue) => issue.script));

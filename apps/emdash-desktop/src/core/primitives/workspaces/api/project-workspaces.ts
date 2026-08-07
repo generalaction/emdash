@@ -3,7 +3,6 @@ import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
 import type {
   WorkspaceCreateOutcome,
   WorkspaceRuntimeOverlay,
-  WorkspaceScriptOutcomes,
 } from './workspace-registry-observations';
 
 export type ProjectWorkspacePathState =
@@ -59,8 +58,6 @@ export type ProjectWorkspaceRow = {
   removalStop?: TombstoneTerminalStop;
   /** Durable outcome of the last create run on the workspace record. */
   lastCreateOutcome?: WorkspaceCreateOutcome;
-  /** Durable per-script (prepare/setup/run) last outcomes; survive daemon restarts. */
-  scriptOutcomes?: WorkspaceScriptOutcomes;
   /** Live host runtime overlay (creation stage, script notices); cleared on daemon restart. */
   runtimeOverlay?: WorkspaceRuntimeOverlay;
   errors: { path: string; message: string }[];

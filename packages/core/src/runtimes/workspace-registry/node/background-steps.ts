@@ -15,7 +15,10 @@ export async function executePushBranch(input: {
   repositoryPath: string;
   branch: string;
 }): Promise<BackgroundStepOutcome> {
-  const exec = createRegistryGitExec(input.repositoryPath);
+  const exec = createRegistryGitExec(input.repositoryPath, {
+    tier: 'background',
+    repository: input.repositoryPath,
+  });
   try {
     const remote = await defaultRemote(exec);
     if (!remote) {
@@ -37,7 +40,10 @@ export async function executeFetchRefs(input: {
   repositoryPath: string;
   baseRef: string;
 }): Promise<BackgroundStepOutcome> {
-  const exec = createRegistryGitExec(input.repositoryPath);
+  const exec = createRegistryGitExec(input.repositoryPath, {
+    tier: 'background',
+    repository: input.repositoryPath,
+  });
   try {
     const remotes = (await exec.exec(['remote'])).stdout.trim().split('\n').filter(Boolean);
     if (remotes.length === 0) {
@@ -51,7 +57,9 @@ export async function executeFetchRefs(input: {
         : remotes.includes('origin')
           ? 'origin'
           : remotes[0]!;
-    await exec.exec(['fetch', remote, '--prune']);
+    // Hygiene (spec: git concurrency model): freshen tracking refs without a
+    // FETCH_HEAD write or an auto-maintenance child racing other operations.
+    await exec.exec(['fetch', remote, '--prune', '--no-write-fetch-head', '--no-auto-maintenance']);
     return { status: 'succeeded' };
   } catch (error) {
     return { status: 'failed', message: describe(error) };

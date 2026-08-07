@@ -21,11 +21,15 @@ export const workspaceRecords = sqliteTable(
     creation: text('creation'),
     /** Versioned JSON: durable outcome of the last createWorktree attempt. */
     lastCreateOutcome: text('last_create_outcome'),
-    /** Versioned JSON: durable background creation-step statuses + replay inputs. */
+    /**
+     * Versioned JSON: the unified lifecycle section (ordered steps + replay inputs).
+     * The column keeps its historical name; v1 payloads (the old background-steps
+     * shape) upgrade in the codec.
+     */
     background: text('background'),
     /** Versioned JSON: last failed removal attempt; removed with the record on success. */
     lastRemovalAttempt: text('last_removal_attempt'),
-    /** Versioned JSON: per-script (prepare/setup/run) durable last outcomes. */
+    /** Retired (script runs are lifecycle steps in `background` now); always null. */
     scriptOutcomes: text('script_outcomes'),
     /** Versioned JSON: host-computed git observation block; null for plain directories. */
     git: text('git'),

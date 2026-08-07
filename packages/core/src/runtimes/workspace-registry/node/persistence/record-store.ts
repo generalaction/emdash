@@ -2,18 +2,16 @@ import { eq } from 'drizzle-orm';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { WorkspaceRecord } from '../../api/schemas';
 import {
-  parseBackgroundPayload,
   parseCreateOutcomePayload,
   parseCreationPayload,
   parseGitObservationsPayload,
+  parseLifecyclePayload,
   parseRemovalAttemptPayload,
-  parseScriptOutcomesPayload,
-  serializeBackgroundPayload,
   serializeCreateOutcomePayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
+  serializeLifecyclePayload,
   serializeRemovalAttemptPayload,
-  serializeScriptOutcomesPayload,
 } from './payload-codecs';
 import { workspaceRecords } from './schema';
 import type { WorkspaceRegistryDb } from './store';
@@ -24,7 +22,8 @@ type Row = typeof workspaceRecords.$inferSelect;
  * A durable workspace record: everything on the wire record except the in-memory
  * runtime overlay, which the runtime merges in when publishing.
  */
-export type DurableWorkspaceRecord = Omit<WorkspaceRecord, 'runtime'>;
+/** The persisted row shape: no runtime overlay, no config-model projection. */
+export type DurableWorkspaceRecord = Omit<WorkspaceRecord, 'runtime' | 'config'>;
 
 export class WorkspaceRecordStore {
   constructor(private readonly handle: StoreHandle<WorkspaceRegistryDb>) {}
@@ -78,11 +77,10 @@ function rowToRecord(row: Row): DurableWorkspaceRecord {
     creation: row.creation === null ? null : parseCreationPayload(row.creation),
     lastCreateOutcome:
       row.lastCreateOutcome === null ? null : parseCreateOutcomePayload(row.lastCreateOutcome),
-    background: row.background === null ? null : parseBackgroundPayload(row.background),
+    // The background column stores the lifecycle payload (v1 rows upgrade in the codec).
+    lifecycle: row.background === null ? null : parseLifecyclePayload(row.background),
     lastRemovalAttempt:
       row.lastRemovalAttempt === null ? null : parseRemovalAttemptPayload(row.lastRemovalAttempt),
-    scriptOutcomes:
-      row.scriptOutcomes === null ? null : parseScriptOutcomesPayload(row.scriptOutcomes),
     git: row.git === null ? null : parseGitObservationsPayload(row.git),
     lastActivatedAt: row.lastActivatedAt,
     createdAt: row.createdAt,
@@ -105,13 +103,13 @@ function recordToRow(record: DurableWorkspaceRecord): Row {
       record.lastCreateOutcome === null
         ? null
         : serializeCreateOutcomePayload(record.lastCreateOutcome),
-    background: record.background === null ? null : serializeBackgroundPayload(record.background),
+    background: record.lifecycle === null ? null : serializeLifecyclePayload(record.lifecycle),
     lastRemovalAttempt:
       record.lastRemovalAttempt === null
         ? null
         : serializeRemovalAttemptPayload(record.lastRemovalAttempt),
-    scriptOutcomes:
-      record.scriptOutcomes === null ? null : serializeScriptOutcomesPayload(record.scriptOutcomes),
+    // Retired: script runs live as lifecycle steps now; the column stays but is unfed.
+    scriptOutcomes: null,
     git: record.git === null ? null : serializeGitObservationsPayload(record.git),
     lastActivatedAt: record.lastActivatedAt,
     createdAt: record.createdAt,

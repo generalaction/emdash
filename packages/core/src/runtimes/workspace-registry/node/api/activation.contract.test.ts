@@ -202,7 +202,7 @@ describe('workspace registry activation lifecycle', () => {
     expect(records['ws-hanging']?.runtime?.activation ?? null).toBeNull();
   });
 
-  it('script outcomes are durable: a failed setup survives a restart and a later success overwrites it', async () => {
+  it('script steps are durable: a failed setup survives a restart and reactivation overwrites', async () => {
     const workspacePath = await makeWorkspace('outcomes', {
       prepare: 'echo prepared',
       setup: '[ -f fixed ] || { echo setup broke >&2; exit 3; }',
@@ -212,35 +212,54 @@ describe('workspace registry activation lifecycle', () => {
     expect((await wire.client.activateWorkspace({ id: 'ws-outcomes' })).success).toBe(true);
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-outcomes']?.scriptOutcomes).toEqual({
-        prepare: { outcome: 'succeeded', at: 10_000 },
-        setup: { outcome: 'failed', at: 10_000, message: expect.any(String) },
-        // Run never started (setup gates it), so no outcome exists to record.
-        run: null,
-      });
+      expect(records['ws-outcomes']?.runtime?.lifecycle).toEqual([
+        expect.objectContaining({
+          id: 'prepare',
+          status: 'succeeded',
+          startedAt: 10_000,
+          finishedAt: 10_000,
+        }),
+        expect.objectContaining({ id: 'setup', status: 'failed', message: expect.any(String) }),
+        // Run never started (setup gates it): a settled skipped step, not a phantom run.
+        expect.objectContaining({ id: 'run', status: 'skipped' }),
+      ]);
     });
 
-    // Simulated daemon restart: the overlay dies, the durable outcomes do not.
+    // Simulated daemon restart: the overlay dies, the durable steps do not.
     wire.dispose();
     runtime.dispose();
     runtime = new WorkspaceRegistryRuntime({ handle, clock });
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
-    expect((await listRecords())['ws-outcomes']).toMatchObject({
-      runtime: null,
-      scriptOutcomes: { setup: { outcome: 'failed', at: 10_000 } },
-    });
+    const restarted = (await listRecords())['ws-outcomes'];
+    expect(restarted?.runtime?.activation ?? null).toBeNull();
+    expect(restarted?.runtime?.lifecycle).toEqual([
+      expect.objectContaining({ id: 'prepare', status: 'succeeded' }),
+      expect.objectContaining({ id: 'setup', status: 'failed' }),
+      expect.objectContaining({ id: 'run', status: 'skipped' }),
+    ]);
 
-    // A later success overwrites the failure in place — no history list.
+    // Reactivating overwrites the script steps wholesale — no history accumulates.
     await fs.writeFile(path.join(workspacePath, 'fixed'), '');
     await clock.advanceBy(7_000);
     expect((await wire.client.activateWorkspace({ id: 'ws-outcomes' })).success).toBe(true);
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-outcomes']?.scriptOutcomes).toEqual({
-        prepare: { outcome: 'succeeded', at: 17_000 },
-        setup: { outcome: 'succeeded', at: 17_000 },
-        run: { outcome: 'succeeded', at: 17_000 },
-      });
+      expect(records['ws-outcomes']?.runtime?.lifecycle).toEqual([
+        expect.objectContaining({ id: 'prepare', status: 'succeeded', finishedAt: 17_000 }),
+        expect.objectContaining({ id: 'setup', status: 'succeeded', finishedAt: 17_000 }),
+        expect.objectContaining({ id: 'run', status: 'succeeded', finishedAt: 17_000 }),
+      ]);
+    });
+  });
+
+  it('workspaces without configured scripts get no script steps', async () => {
+    await makeWorkspace('scriptless', { prepare: 'echo prepared' });
+    expect((await wire.client.activateWorkspace({ id: 'ws-scriptless' })).success).toBe(true);
+    await eventually(async () => {
+      const records = await listRecords();
+      expect(records['ws-scriptless']?.runtime?.lifecycle?.map((step) => step.id)).toEqual([
+        'prepare',
+      ]);
     });
   });
 

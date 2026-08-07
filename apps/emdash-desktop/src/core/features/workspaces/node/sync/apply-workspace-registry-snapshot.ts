@@ -182,8 +182,8 @@ export function mirrorObservationFromRecord(
       record.lastRemovalAttempt === null
         ? null
         : { version: '1' as const, ...record.lastRemovalAttempt },
-    scriptOutcomes:
-      record.scriptOutcomes === null ? null : { version: '1' as const, ...record.scriptOutcomes },
+    // Retired: script runs ride the overlay's lifecycle steps now.
+    scriptOutcomes: null,
     // Wholesale-refreshed: a daemon restart delivers runtime null, clearing the column.
     runtimeOverlay: record.runtime === null ? null : { version: '1' as const, ...record.runtime },
     lastActivatedAt: record.lastActivatedAt,

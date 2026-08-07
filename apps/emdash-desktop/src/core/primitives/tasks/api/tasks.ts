@@ -95,18 +95,23 @@ export type TaskListData = {
   tasks: TaskRow[];
 };
 
-/** One background creation step's status (host registry contract). */
-export type WorkspaceBackgroundStepInfo = {
+/** One workspace lifecycle step (host registry contract): machine facts only. */
+export type WorkspaceLifecycleStepInfo = {
+  id:
+    | 'adopt-worktree'
+    | 'fetch-remote-base'
+    | 'create-worktree'
+    | 'copy-artifacts'
+    | 'push-branch'
+    | 'fetch-refs'
+    | 'prepare'
+    | 'setup'
+    | 'run';
   status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
-  at: number;
+  startedAt: number | null;
+  finishedAt: number | null;
   message?: string;
-};
-
-/** Per-step statuses of the background half of workspace creation. */
-export type WorkspaceBackgroundInfo = {
-  cloneArtifacts: WorkspaceBackgroundStepInfo | null;
-  pushBranch: WorkspaceBackgroundStepInfo | null;
-  fetchRefs: WorkspaceBackgroundStepInfo | null;
+  params: Record<string, string | number | boolean>;
 };
 
 export type TaskStatsData = {
@@ -124,8 +129,8 @@ export type TaskStatsData = {
         stage?: string;
         message?: string;
       } | null;
-      /** Background creation-step statuses (artifact clone, branch push, ref fetch). */
-      background?: WorkspaceBackgroundInfo | null;
+      /** Lifecycle steps in canonical order (creation, background, and script steps). */
+      lifecycle?: WorkspaceLifecycleStepInfo[] | null;
     }
   >;
 };

@@ -1,21 +1,31 @@
-import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import { describe, expect, it } from 'vitest';
 import type { ProjectSettings } from './project-settings';
 import { hasConfiguredShareableProjectSettings } from './project-settings-fields';
 
+// The list emdash used to seed into new projects before the defaults were removed
+// (workspace-lifecycle-v2); rows created back then still carry it.
+const LEGACY_SEEDED_PRESERVE_PATTERNS = [
+  '.env',
+  '.env.keys',
+  '.env.local',
+  '.env.*.local',
+  '.envrc',
+  'docker-compose.override.yml',
+];
+
 describe('hasConfiguredShareableProjectSettings', () => {
-  it('does not treat seeded default preserve patterns as configured settings', () => {
+  it('does not treat legacy seeded preserve patterns as configured settings', () => {
     expect(
       hasConfiguredShareableProjectSettings({
-        preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+        preservePatterns: [...LEGACY_SEEDED_PRESERVE_PATTERNS],
       })
     ).toBe(false);
   });
 
-  it('does not treat reordered default preserve patterns as configured settings', () => {
+  it('does not treat reordered legacy seeded preserve patterns as configured settings', () => {
     expect(
       hasConfiguredShareableProjectSettings({
-        preservePatterns: [...DEFAULT_PRESERVE_PATTERNS].reverse(),
+        preservePatterns: [...LEGACY_SEEDED_PRESERVE_PATTERNS].reverse(),
       })
     ).toBe(false);
   });
@@ -30,7 +40,7 @@ describe('hasConfiguredShareableProjectSettings', () => {
 
   it('treats scripts and shell setup as configured settings', () => {
     const settings: ProjectSettings = {
-      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+      preservePatterns: [...LEGACY_SEEDED_PRESERVE_PATTERNS],
       shellSetup: 'nvm use',
       scripts: {
         setup: 'npm install',

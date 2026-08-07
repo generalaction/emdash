@@ -1,18 +1,17 @@
 import { z } from 'zod';
 import { defineVersionedSchema } from '#primitives/versioned-schema/api';
 import {
-  workspaceBackgroundSchema,
   workspaceCreateOutcomeSchema,
   workspaceCreationSchema,
   workspaceGitObservationsSchema,
+  workspaceLifecycleSchema,
   workspaceRemovalAttemptSchema,
-  workspaceScriptOutcomesSchema,
-  type WorkspaceBackground,
   type WorkspaceCreateOutcome,
   type WorkspaceCreation,
   type WorkspaceGitObservations,
+  type WorkspaceLifecycle,
+  type WorkspaceLifecycleStep,
   type WorkspaceRemovalAttempt,
-  type WorkspaceScriptOutcomes,
 } from '../../api/schemas';
 
 const storedCreation = defineVersionedSchema()
@@ -31,13 +30,60 @@ const storedRemovalAttempt = defineVersionedSchema()
   .initial('1', z.object({ version: z.literal('1'), value: workspaceRemovalAttemptSchema }))
   .build();
 
-const storedScriptOutcomes = defineVersionedSchema()
-  .initial('1', z.object({ version: z.literal('1'), value: workspaceScriptOutcomesSchema }))
+// The pre-lifecycle shape of the `background` column (v1): fixed per-step slots with a
+// single transition stamp. Kept only for the v1 → v2 upgrade of existing rows.
+const legacyBackgroundStepSchema = z.object({
+  status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
+  at: z.number(),
+  message: z.string().optional(),
+});
+type LegacyBackgroundStep = z.infer<typeof legacyBackgroundStepSchema>;
+
+const legacyBackgroundSchema = z.object({
+  steps: z.object({
+    cloneArtifacts: legacyBackgroundStepSchema.nullable(),
+    pushBranch: legacyBackgroundStepSchema.nullable(),
+    fetchRefs: legacyBackgroundStepSchema.nullable(),
+  }),
+  preservePatterns: z.array(z.string()),
+});
+type LegacyBackground = z.infer<typeof legacyBackgroundSchema>;
+
+/**
+ * The `background` column now stores the unified lifecycle section; v1 payloads (the
+ * old background-steps shape) upgrade in place, best-effort — the legacy single `at`
+ * stamp becomes startedAt/finishedAt as its status implies.
+ */
+const storedLifecycle = defineVersionedSchema()
+  .initial('1', z.object({ version: z.literal('1'), value: legacyBackgroundSchema }))
+  .version('2', z.object({ version: z.literal('2'), value: workspaceLifecycleSchema }), (prev) => ({
+    version: '2' as const,
+    value: migrateLegacyBackground(prev.value),
+  }))
   .build();
 
-const storedBackground = defineVersionedSchema()
-  .initial('1', z.object({ version: z.literal('1'), value: workspaceBackgroundSchema }))
-  .build();
+function migrateLegacyBackground(legacy: LegacyBackground): WorkspaceLifecycle {
+  const steps: WorkspaceLifecycleStep[] = [];
+  const append = (
+    id: 'copy-artifacts' | 'push-branch' | 'fetch-refs',
+    step: LegacyBackgroundStep | null
+  ) => {
+    if (step === null) return;
+    const terminal = step.status !== 'pending' && step.status !== 'running';
+    steps.push({
+      id,
+      status: step.status,
+      startedAt: step.status === 'pending' ? null : step.at,
+      finishedAt: terminal ? step.at : null,
+      ...(step.message !== undefined ? { message: step.message } : {}),
+      params: {},
+    });
+  };
+  append('copy-artifacts', legacy.steps.cloneArtifacts);
+  append('push-branch', legacy.steps.pushBranch);
+  append('fetch-refs', legacy.steps.fetchRefs);
+  return { steps, preservePatterns: legacy.preservePatterns };
+}
 
 export function serializeCreationPayload(creation: WorkspaceCreation): string {
   return storedCreation.serialize({ version: '1', value: creation });
@@ -71,27 +117,19 @@ export function parseRemovalAttemptPayload(payload: string): WorkspaceRemovalAtt
   return parseVersioned(storedRemovalAttempt, payload, 'removal attempt');
 }
 
-export function serializeScriptOutcomesPayload(outcomes: WorkspaceScriptOutcomes): string {
-  return storedScriptOutcomes.serialize({ version: '1', value: outcomes });
+export function serializeLifecyclePayload(lifecycle: WorkspaceLifecycle): string {
+  return storedLifecycle.serialize({ version: '2', value: lifecycle });
 }
 
-export function parseScriptOutcomesPayload(payload: string): WorkspaceScriptOutcomes {
-  return parseVersioned(storedScriptOutcomes, payload, 'script outcomes');
-}
-
-export function serializeBackgroundPayload(background: WorkspaceBackground): string {
-  return storedBackground.serialize({ version: '1', value: background });
-}
-
-export function parseBackgroundPayload(payload: string): WorkspaceBackground {
-  return parseVersioned(storedBackground, payload, 'background steps');
+export function parseLifecyclePayload(payload: string): WorkspaceLifecycle {
+  return parseVersioned(storedLifecycle, payload, 'lifecycle steps');
 }
 
 type VersionedEnvelope<T> = {
   safeParse(
     input: unknown
   ):
-    | { status: 'ok'; data: { version: '1'; value: T } }
+    | { status: 'ok'; data: { version: string; value: T } }
     | { status: 'needs-context'; version: string }
     | { status: 'future-version'; version: string }
     | { status: 'invalid'; reason: string };

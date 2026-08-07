@@ -99,9 +99,9 @@ export function createWorkspaceRegistryWireController(
         registry.refresh(workspaceId === undefined ? {} : { id: workspaceId })
       ),
 
-    retryPushBranch: ({ host, workspaceId }) =>
+    retryStep: ({ host, workspaceId, step }) =>
       withRegistry(host, async (registry) => {
-        const result = await registry.retryPushBranch({ id: workspaceId });
+        const result = await registry.retryStep({ id: workspaceId, step });
         if (result.success) upsertMirrorRow(options.db, host, result.data, undefined);
         return result;
       }),

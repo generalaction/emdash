@@ -29,6 +29,20 @@ describe('parseEmdashConfig', () => {
     });
   });
 
+  it('silently ignores stale keys from retired features (excludePatterns)', () => {
+    expect(
+      parseEmdashConfig(JSON.stringify({ excludePatterns: ['**'], preservePatterns: ['.env'] }))
+    ).toEqual({
+      success: true,
+      data: { preservePatterns: ['.env'] },
+    });
+  });
+
+  it('has no built-in preserve defaults', () => {
+    expect(defaultEmdashConfig()).toEqual({});
+    expect(parseEmdashConfig('{}')).toEqual({ success: true, data: {} });
+  });
+
   it('returns defaults and the parse error for invalid content', () => {
     const result = parseEmdashConfig('{');
     expect(result.success).toBe(false);

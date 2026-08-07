@@ -17,8 +17,7 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     creation: null,
     lastCreateOutcome: null,
     lastRemovalAttempt: null,
-    scriptOutcomes: null,
-    background: null,
+    lifecycle: null,
     git: {
       branch: 'feature/x',
       dirty: true,
@@ -32,6 +31,7 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
     updatedAt: Date.parse('2026-01-02T00:00:00.000Z'),
     lastObservedAt: Date.parse('2026-01-02T00:00:00.000Z'),
+    config: null,
     runtime: null,
     ...overrides,
   };
@@ -209,14 +209,20 @@ describe('applyWorkspaceRegistrySnapshot', () => {
             message: 'worktree is locked',
             at: Date.parse('2026-01-06T00:00:00.000Z'),
           },
-          scriptOutcomes: {
-            prepare: { outcome: 'succeeded', at: Date.parse('2026-01-05T00:00:00.000Z') },
-            setup: {
-              outcome: 'failed',
-              at: Date.parse('2026-01-05T00:00:01.000Z'),
-              message: 'exit 3',
-            },
-            run: null,
+          runtime: {
+            creation: null,
+            notices: [],
+            activation: null,
+            lifecycle: [
+              {
+                id: 'setup',
+                status: 'failed',
+                startedAt: Date.parse('2026-01-05T00:00:00.000Z'),
+                finishedAt: Date.parse('2026-01-05T00:00:01.000Z'),
+                message: 'exit 3',
+                params: {},
+              },
+            ],
           },
         }),
       },
@@ -228,11 +234,9 @@ describe('applyWorkspaceRegistrySnapshot', () => {
         class: 'terminal',
         message: 'worktree is locked',
       },
-      scriptOutcomes: {
+      runtimeOverlay: {
         version: '1',
-        prepare: { outcome: 'succeeded' },
-        setup: { outcome: 'failed', message: 'exit 3' },
-        run: null,
+        lifecycle: [expect.objectContaining({ id: 'setup', status: 'failed' })],
       },
     });
 
@@ -244,7 +248,7 @@ describe('applyWorkspaceRegistrySnapshot', () => {
     });
     expect(registry.getLive('wt-1')).toMatchObject({
       lastRemovalAttempt: null,
-      scriptOutcomes: null,
+      runtimeOverlay: null,
     });
   });
 

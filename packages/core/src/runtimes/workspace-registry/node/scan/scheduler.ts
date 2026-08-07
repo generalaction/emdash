@@ -15,6 +15,8 @@ export type ScanTarget = {
   kind: WorkspaceKind;
   path: string;
   parentId: string | null;
+  /** The `.git/worktrees/<name>` admin entry, for per-worktree gitdir event routing. */
+  gitAdminName: string | null;
   observedStatus: 'present' | 'missing';
   lastObservedAt: number;
 };
@@ -68,6 +70,8 @@ export class WorkspaceScanScheduler {
 
   private readonly watches = new Map<string, WatchHandle>();
   private readonly pending = new Map<string, PendingScan>();
+  /** Refcounted self-suppression: ids the registry is actively writing into. */
+  private readonly muted = new Map<string, number>();
   private readonly inFlight = new Map<string, Promise<void>>();
   private readonly rerunAfterFlight = new Map<string, ScanRequest>();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -129,6 +133,25 @@ export class WorkspaceScanScheduler {
     }
   }
 
+  /**
+   * Self-inflicted scan suppression (spec: scan minimization): while the registry
+   * writes into a workspace (artifact copy) or a repository's git dir (background
+   * fetch/push), its watcher-driven requests are dropped. The holder requests one
+   * explicit scan on settle, so the trailing scan is deliberate, not event-driven.
+   * Refcounted for overlapping holds; the returned release is idempotent.
+   */
+  mute(id: string): () => void {
+    this.muted.set(id, (this.muted.get(id) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const count = this.muted.get(id) ?? 0;
+      if (count <= 1) this.muted.delete(id);
+      else this.muted.set(id, count - 1);
+    };
+  }
+
   async dispose(): Promise<void> {
     this.disposed = true;
     if (this.pollTimer !== null) clearInterval(this.pollTimer);
@@ -142,10 +165,15 @@ export class WorkspaceScanScheduler {
 
   /** Classifies events inside a repository's git dir (refs vs index vs worktree admin). */
   private onGitDirEvents(repositoryId: string, repositoryPath: string, events: WatchEvent[]): void {
+    // A muted repository is one the registry itself is writing into (background
+    // fetch/push): drop the whole classification, fanout included — the writer
+    // requests its own deliberate scan on settle.
+    if (this.muted.has(repositoryId)) return;
     const gitDir = path.join(repositoryPath, '.git');
     let refs = false;
     let full = false;
-    let worktrees = false;
+    let reconcile = false;
+    const worktreeRefs = new Set<string>();
     for (const event of events) {
       const rel = path.relative(gitDir, event.path).replace(/\\/g, '/');
       if (rel.startsWith('..')) continue;
@@ -156,18 +184,54 @@ export class WorkspaceScanScheduler {
         continue;
       }
       if (rel.startsWith('worktrees/') || rel === 'worktrees') {
-        worktrees = true;
-      } else if (rel === 'index') {
+        const segments = rel.split('/');
+        if (segments.length <= 2) {
+          // The `worktrees` dir or an admin entry itself appeared/disappeared:
+          // membership may have changed — only this escalates to a reconcile.
+          reconcile = true;
+          continue;
+        }
+        const adminName = segments[1] ?? '';
+        const file = segments.slice(2).join('/');
+        if (file === 'gitdir') {
+          // The entry's back-pointer is (re)written at add/repair/prune time.
+          reconcile = true;
+          continue;
+        }
+        if (file === 'index' || file.endsWith('.lock')) {
+          // Staged-only changes: the working-tree watch covers real file changes
+          // and the poll floor corrects staged-only staleness.
+          continue;
+        }
+        if (file === 'FETCH_HEAD' || file === 'ORIG_HEAD') continue;
+        // HEAD, logs/**, and anything else localized to one entry: a checkout or
+        // commit in that single worktree — refs-only there, no repository rescan.
+        worktreeRefs.add(adminName);
+        continue;
+      }
+      if (rel === 'index') {
         full = true;
       } else {
         // refs/, HEAD, packed-refs, config, logs — all cheap-path triggers.
         refs = true;
       }
     }
-    if (worktrees) {
-      // Worktree admin data changed: membership may have changed — reconcile the repo.
+    if (reconcile) {
       this.request({ kind: 'repository', id: repositoryId });
       return;
+    }
+    const targets = worktreeRefs.size > 0 || refs ? this.listTargets() : [];
+    for (const adminName of worktreeRefs) {
+      const target = targets.find(
+        (candidate) => candidate.parentId === repositoryId && candidate.gitAdminName === adminName
+      );
+      if (target) {
+        this.request({ kind: 'workspace', id: target.id, mode: 'refs' });
+      } else {
+        // An admin entry we don't know about: membership knowledge is stale.
+        this.request({ kind: 'repository', id: repositoryId });
+        return;
+      }
     }
     if (full) {
       this.request({ kind: 'workspace', id: repositoryId, mode: 'full' });
@@ -176,7 +240,7 @@ export class WorkspaceScanScheduler {
     if (refs) {
       this.request({ kind: 'workspace', id: repositoryId, mode: 'refs' });
       // Branch tips moved: every worktree's ahead/behind may have changed.
-      for (const target of this.listTargets()) {
+      for (const target of targets) {
         if (target.parentId === repositoryId && target.observedStatus === 'present') {
           this.request({ kind: 'workspace', id: target.id, mode: 'refs' });
         }
@@ -185,7 +249,7 @@ export class WorkspaceScanScheduler {
   }
 
   private request(request: ScanRequest): void {
-    if (this.disposed) return;
+    if (this.disposed || this.muted.has(request.id)) return;
     const key = request.id;
 
     if (this.inFlight.has(key)) {

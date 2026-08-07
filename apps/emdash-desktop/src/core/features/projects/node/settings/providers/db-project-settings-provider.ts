@@ -1,7 +1,4 @@
-import {
-  DEFAULT_PRESERVE_PATTERNS,
-  emdashConfigSchema,
-} from '@emdash/core/primitives/emdash-config/api';
+import { emdashConfigSchema } from '@emdash/core/primitives/emdash-config/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
 import type {
@@ -19,13 +16,13 @@ import {
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { fileKey, type FilesClientScope } from '@core/services/runtime-broker/node/files';
+import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 import {
   migrateLegacyProjectSettingsIfNeeded,
   type ProjectSettingsGitInspector,
 } from '../legacy-project-settings-migration';
 import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
-import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
+import { compactUndefined, readJson } from '../project-settings-json';
 import type { ProjectSettingsStorage } from '../project-settings-storage';
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
 
@@ -67,37 +64,6 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     };
   }
 
-  private async hasSharedPreservePatterns(): Promise<boolean> {
-    if (!this.configFiles) return false;
-    const configPath = this.projectFilePath(CONFIG_FILE);
-    try {
-      const exists = await this.configFiles.client.fs.exists(fileKey(this.configFiles, configPath));
-      if (!exists.success || !exists.data) return false;
-      const content = await this.configFiles.client.fs.readText(
-        fileKey(this.configFiles, configPath)
-      );
-      if (!content.success) return false;
-      if (content.data.truncated) {
-        log.warn('Shared project settings were truncated during initialization', {
-          path: configPath,
-          totalSize: content.data.totalSize,
-        });
-        return false;
-      }
-      const parsed = emdashConfigSchema.safeParse(parseJsonObject(content.data.content));
-      if (!parsed.success) {
-        log.warn('Failed to inspect shared project settings during initialization', {
-          error: parsed.error,
-        });
-        return false;
-      }
-      return parsed.data.preservePatterns !== undefined;
-    } catch (error) {
-      log.warn('Failed to inspect shared project settings during initialization', { error });
-      return false;
-    }
-  }
-
   private projectFilePath(relPath: string): string {
     return this.joinProjectPath(this.projectPath, relPath);
   }
@@ -106,12 +72,11 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     if (await this.options.storage.get(this.projectId)) return;
 
     const baseSettings = await this.initialBaseProjectSettings();
-    const shareableSettings = (await this.hasSharedPreservePatterns())
-      ? {}
-      : { preservePatterns: [...DEFAULT_PRESERVE_PATTERNS] };
+    // No built-in preserve defaults (spec: workspace-lifecycle-v2): new projects
+    // start with empty shareable settings; preservePatterns is a deliberate choice.
     await this.options.storage.insertIfMissing(this.projectId, {
       baseProjectSettingsJson: JSON.stringify(compactUndefined(baseSettings)),
-      shareableProjectSettingsJson: serializeShareableProjectSettings(shareableSettings),
+      shareableProjectSettingsJson: serializeShareableProjectSettings({}),
       legacyConfigMigratedAt: null,
     });
   }

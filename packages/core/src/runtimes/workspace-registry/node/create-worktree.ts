@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { BoundExec } from '#services/exec/api';
+import { retryTransientLock } from './git-schedule';
 import { createRegistryGitExec } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
 
@@ -15,7 +16,13 @@ export type CreateWorktreeExecution = {
 };
 
 export type CreateWorktreeExecutionResult =
-  | { status: 'succeeded'; finalPath: string; createdWorktree: boolean }
+  | {
+      status: 'succeeded';
+      finalPath: string;
+      createdWorktree: boolean;
+      /** True when the branch was created by this run (vs reusing an existing branch). */
+      createdBranch: boolean;
+    }
   | { status: 'failed'; stage: string; message: string };
 
 /**
@@ -29,7 +36,11 @@ export type CreateWorktreeExecutionResult =
 export async function executeCreateWorktree(
   execution: CreateWorktreeExecution
 ): Promise<CreateWorktreeExecutionResult> {
-  const exec = createRegistryGitExec(execution.repositoryPath);
+  // Creation-tier budget slots: starts immediately even under saturated probe load.
+  const exec = createRegistryGitExec(execution.repositoryPath, {
+    tier: 'creation',
+    repository: execution.repositoryPath,
+  });
   let existing = false;
   let createdWorktree = false;
   let createdBranch = false;
@@ -58,7 +69,10 @@ export async function executeCreateWorktree(
     );
     if (existing) {
       const current = (
-        await createRegistryGitExec(execution.worktreePath).exec(['branch', '--show-current'])
+        await createRegistryGitExec(execution.worktreePath, {
+          tier: 'creation',
+          repository: execution.repositoryPath,
+        }).exec(['branch', '--show-current'])
       ).stdout.trim();
       if (current !== execution.branch) {
         return {
@@ -87,11 +101,15 @@ export async function executeCreateWorktree(
         const remoteRef = await parseRemoteRef(exec, execution.baseRef);
         if (remoteRef) {
           execution.onStage('fetch-base');
+          // Hygiene (spec: git concurrency model): no FETCH_HEAD write, no auto
+          // maintenance kicked off on the creation path.
           await exec.exec([
             'fetch',
             remoteRef.remote,
             `+refs/heads/${remoteRef.branch}:refs/remotes/${remoteRef.remote}/${remoteRef.branch}`,
             '--no-tags',
+            '--no-write-fetch-head',
+            '--no-auto-maintenance',
           ]);
         }
         // Non-remote-shaped unresolvable refs fall through: add-worktree fails with
@@ -103,17 +121,23 @@ export async function executeCreateWorktree(
 
     execution.onStage('add-worktree');
     try {
+      // Concurrent adds against one repository are safe (conflict matrix); a transient
+      // ref/index lock collision retries with short backoff instead of serializing.
       if (await branchExists(exec, execution.branch)) {
-        await exec.exec(['worktree', 'add', execution.worktreePath, execution.branch]);
+        await retryTransientLock(() =>
+          exec.exec(['worktree', 'add', execution.worktreePath, execution.branch])
+        );
       } else {
-        await exec.exec([
-          'worktree',
-          'add',
-          '-b',
-          execution.branch,
-          execution.worktreePath,
-          execution.baseRef,
-        ]);
+        await retryTransientLock(() =>
+          exec.exec([
+            'worktree',
+            'add',
+            '-b',
+            execution.branch,
+            execution.worktreePath,
+            execution.baseRef,
+          ])
+        );
         createdBranch = true;
       }
       createdWorktree = true;
@@ -136,7 +160,7 @@ export async function executeCreateWorktree(
     return await fail('verify', error);
   }
 
-  return { status: 'succeeded', finalPath, createdWorktree };
+  return { status: 'succeeded', finalPath, createdWorktree, createdBranch };
 }
 
 /**

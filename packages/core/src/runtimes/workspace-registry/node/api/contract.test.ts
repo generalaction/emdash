@@ -73,6 +73,14 @@ async function makeWorktree(repoPath: string, root: string, name: string): Promi
   return await fs.realpath(worktreePath);
 }
 
+/** One lifecycle step from a wire record's runtime projection, by id. */
+function lifecycleStep(
+  record: { runtime: { lifecycle?: Array<{ id: string }> | null } | null } | undefined,
+  id: string
+) {
+  return record?.runtime?.lifecycle?.find((step) => step.id === id);
+}
+
 describe('workspace registry contract', () => {
   let root: string;
   let handle: TempStoreHandle<WorkspaceRegistryDb>;
@@ -122,14 +130,14 @@ describe('workspace registry contract', () => {
         observedStatus: 'present',
         creation: null,
         lastCreateOutcome: null,
-        background: null,
+        lifecycle: null,
         lastRemovalAttempt: null,
-        scriptOutcomes: null,
         git: null,
         lastActivatedAt: null,
         createdAt: 10_000,
         updatedAt: 10_000,
         lastObservedAt: 10_000,
+        config: null,
         runtime: null,
       },
     });
@@ -182,7 +190,12 @@ describe('workspace registry contract', () => {
     const repoPath = await makeRepo(root, 'repo');
     const first = await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
     const replay = await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
-    expect(replay).toEqual(first);
+    if (!first.success || !replay.success) throw new Error('createWorkspace failed');
+    // The config summary is a live-model projection and may fill in between the two
+    // calls; replay idempotency is a property of the durable record.
+    const { config: _firstConfig, ...firstRest } = first.data;
+    const { config: _replayConfig, ...replayRest } = replay.data;
+    expect(replayRest).toEqual(firstRest);
 
     const other = path.join(root, 'other');
     await fs.mkdir(other);
@@ -325,8 +338,8 @@ describe('workspace registry contract', () => {
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
     git(repoPath, 'push', '-u', 'origin', 'main');
-    // Gitignored artifacts: they ride the background clone (the .env preserve case
-    // included — ignored files are the clone set, no patterns needed).
+    // Gitignored artifacts: only the ones named in preservePatterns ride the
+    // background copy; everything else ignored stays behind.
     await fs.writeFile(path.join(repoPath, '.gitignore'), '.env\nnode_modules/\n');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
     await fs.mkdir(path.join(repoPath, 'node_modules', 'dep'), { recursive: true });
@@ -367,18 +380,60 @@ describe('workspace registry contract', () => {
     // The background steps settle: artifacts cloned, branch pushed, statuses durable.
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-new']?.runtime?.background).toMatchObject({
-        cloneArtifacts: { status: 'succeeded' },
-        pushBranch: { status: 'succeeded' },
+      expect(lifecycleStep(records['ws-new'], 'copy-artifacts')).toMatchObject({
+        status: 'succeeded',
+      });
+      expect(lifecycleStep(records['ws-new'], 'push-branch')).toMatchObject({
+        status: 'succeeded',
       });
     });
     await fs.access(path.join(created.data.path, '.env'));
-    await fs.access(path.join(created.data.path, 'node_modules', 'dep', 'index.js'));
+    // The unnamed ignored artifact (node_modules) is deliberately not copied.
+    await expect(fs.access(path.join(created.data.path, 'node_modules'))).rejects.toThrow();
+    // The copy step records the matched entry count for the Activity description.
+    const records = await listRecords();
+    expect(lifecycleStep(records['ws-new'], 'copy-artifacts')).toMatchObject({
+      params: { fileCount: 1 },
+    });
     expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/new')).toContain(
       'refs/heads/feature/new'
     );
     // git status in the new worktree stays clean — artifacts are all ignored.
     expect(git(created.data.path, 'status', '--porcelain')).toBe('');
+  });
+
+  it('concurrent worktree creations against one repository both succeed unserialized', async () => {
+    // Spec (git concurrency model): per-repository creation serialization is dropped;
+    // git's own locking suffices for parallel `worktree add` calls.
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const [first, second] = await Promise.all([
+      wire.client.createWorktree({
+        id: 'wt-first',
+        repositoryId: 'ws-repo',
+        branch: 'parallel/first',
+        baseRef: 'main',
+        path: path.join(root, 'parallel-first'),
+        preservePatterns: [],
+        pushBranch: false,
+      }),
+      wire.client.createWorktree({
+        id: 'wt-second',
+        repositoryId: 'ws-repo',
+        branch: 'parallel/second',
+        baseRef: 'main',
+        path: path.join(root, 'parallel-second'),
+        preservePatterns: [],
+        pushBranch: false,
+      }),
+    ]);
+
+    expect(first).toMatchObject({ success: true, data: { observedStatus: 'present' } });
+    expect(second).toMatchObject({ success: true, data: { observedStatus: 'present' } });
+    const worktrees = git(repoPath, 'worktree', 'list', '--porcelain');
+    expect(worktrees).toContain('parallel-first');
+    expect(worktrees).toContain('parallel-second');
   });
 
   it('createWorktree failure records the stage durably and keeps the record', async () => {
@@ -404,7 +459,10 @@ describe('workspace registry contract', () => {
     expect(records['ws-doomed']).toMatchObject({
       observedStatus: 'missing',
       lastCreateOutcome: { status: 'failed', stage: 'add-worktree' },
-      runtime: null,
+    });
+    // The failed pipeline leaves a failed lifecycle step carrying git's message.
+    expect(lifecycleStep(records['ws-doomed'], 'create-worktree')).toMatchObject({
+      status: 'failed',
     });
   });
 
@@ -432,8 +490,8 @@ describe('workspace registry contract', () => {
     // The push failure is a durable, non-blocking "branch not pushed" state.
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-retry']?.runtime?.background).toMatchObject({
-        pushBranch: { status: 'failed' },
+      expect(lifecycleStep(records['ws-retry'], 'push-branch')).toMatchObject({
+        status: 'failed',
       });
     });
 
@@ -447,11 +505,10 @@ describe('workspace registry contract', () => {
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
-    const retried = await wire.client.retryPushBranch({ id: 'ws-retry' });
-    expect(retried).toMatchObject({
-      success: true,
-      data: { runtime: { background: { pushBranch: { status: 'succeeded' } } } },
-    });
+    const retried = await wire.client.retryStep({ id: 'ws-retry', step: 'push-branch' });
+    expect(retried).toMatchObject({ success: true });
+    if (!retried.success) throw new Error('expected success');
+    expect(lifecycleStep(retried.data, 'push-branch')).toMatchObject({ status: 'succeeded' });
     expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/retry')).toContain(
       'refs/heads/feature/retry'
     );
@@ -481,9 +538,8 @@ describe('workspace registry contract', () => {
       observedStatus: 'missing',
       creation: { branch: 'feature/interrupted', baseRef: 'main', requestedPath: worktreePath },
       lastCreateOutcome: { status: 'started', at: 9_000 },
-      background: null,
+      lifecycle: null,
       lastRemovalAttempt: null,
-      scriptOutcomes: null,
       git: null,
       lastActivatedAt: null,
       createdAt: 9_000,

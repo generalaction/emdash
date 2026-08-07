@@ -79,8 +79,8 @@ describe('getEffectiveTaskSettings', () => {
       taskConfigPath,
     });
 
-    expect(settings.preservePatterns).toContain('.env');
-    expect(settings.preservePatterns).not.toContain('.emdash.json');
+    // No built-in preserve defaults: nothing is copied unless configured.
+    expect(settings).not.toHaveProperty('preservePatterns');
     expect(settings.shellSetup).toBe('nvm use');
   });
 
@@ -106,7 +106,7 @@ describe('getEffectiveTaskSettings', () => {
     expect(settings.scripts?.run).toBe('pnpm dev');
   });
 
-  it('falls back to defaults when project settings are invalid', async () => {
+  it('falls back to defaults (empty) when project settings are invalid', async () => {
     const settings = await getEffectiveTaskSettings({
       projectSettings: makeProjectSettings({
         preservePatterns: 'not-an-array',
@@ -115,6 +115,6 @@ describe('getEffectiveTaskSettings', () => {
       taskConfigPath,
     });
 
-    expect(settings.preservePatterns).toContain('.env');
+    expect(settings).not.toHaveProperty('preservePatterns');
   });
 });

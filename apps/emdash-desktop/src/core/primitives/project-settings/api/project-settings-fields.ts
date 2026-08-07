@@ -1,4 +1,3 @@
-import { DEFAULT_PRESERVE_PATTERNS } from '@emdash/core/primitives/emdash-config/api';
 import {
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
   type ProjectSettings,
@@ -35,11 +34,26 @@ function normalizePatterns(patterns: string[] | undefined): string[] {
   return patterns?.map((pattern) => pattern.trim()).filter(Boolean) ?? [];
 }
 
+/**
+ * The preserve defaults emdash used to seed into new projects (removed in
+ * workspace-lifecycle-v2). Rows seeded before the removal still carry them, and a
+ * project whose only shareable setting is that stale seed should not read as
+ * deliberately configured.
+ */
+const LEGACY_SEEDED_PRESERVE_PATTERNS = [
+  '.env',
+  '.env.keys',
+  '.env.local',
+  '.env.*.local',
+  '.envrc',
+  'docker-compose.override.yml',
+] as const;
+
 export function hasDefaultPreservePatterns(settings: ShareableProjectSettings): boolean {
   const patterns = normalizePatterns(settings.preservePatterns);
-  if (patterns.length !== DEFAULT_PRESERVE_PATTERNS.length) return false;
+  if (patterns.length !== LEGACY_SEEDED_PRESERVE_PATTERNS.length) return false;
   const patternSet = new Set(patterns);
-  return DEFAULT_PRESERVE_PATTERNS.every((pattern) => patternSet.has(pattern));
+  return LEGACY_SEEDED_PRESERVE_PATTERNS.every((pattern) => patternSet.has(pattern));
 }
 
 export function hasConfiguredShareableProjectSettings(settings: ProjectSettings): boolean {

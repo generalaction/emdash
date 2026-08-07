@@ -421,14 +421,14 @@ function stubRecord(id: string, path: string, kind: 'repository' | 'worktree'): 
     observedStatus: 'present',
     creation: null,
     lastCreateOutcome: null,
-    background: null,
+    lifecycle: null,
     lastRemovalAttempt: null,
-    scriptOutcomes: null,
     git: null,
     lastActivatedAt: null,
     createdAt: 0,
     updatedAt: 0,
     lastObservedAt: 0,
+    config: null,
     runtime: null,
   };
 }
