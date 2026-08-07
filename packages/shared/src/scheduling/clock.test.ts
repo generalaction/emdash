@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { abortReason, systemClock, throwIfAborted, waitWithSignal } from './clock';
+import { abortReason, throwIfAborted } from './abortable-wait';
+import { systemClock, waitWithSignal } from './clock';
 
 describe('systemClock', () => {
   it('cancels scheduled callbacks through timer handles', async () => {

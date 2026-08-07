@@ -127,6 +127,52 @@ describe('createMailbox', () => {
     });
   });
 
+  describe('canonical abort-reason mapping', () => {
+    it('passes an Error abort reason through untouched', async () => {
+      const mailbox = createMailbox<string>({ capacity: 1 });
+      const controller = new AbortController();
+      const take = mailbox.take({ signal: controller.signal });
+      const reason = new Error('typed cancellation');
+
+      controller.abort(reason);
+
+      await expect(take).rejects.toBe(reason);
+    });
+
+    it('maps a non-Error abort reason to the fallback message', async () => {
+      const mailbox = createMailbox<string>({ capacity: 1 });
+      const controller = new AbortController();
+      const take = mailbox.take({ signal: controller.signal });
+
+      controller.abort('string reason');
+
+      await expect(take).rejects.toThrow('Mailbox take aborted');
+    });
+
+    it('maps a non-Error abort reason on a suspended offer to the offer fallback', async () => {
+      const mailbox = createMailbox<string>({ capacity: 1 });
+      mailbox.tryOffer('a');
+      const controller = new AbortController();
+      const offer = mailbox.offer('b', { signal: controller.signal });
+
+      controller.abort('string reason');
+
+      await expect(offer).rejects.toThrow('Mailbox offer aborted');
+    });
+
+    it('passes the default DOMException through for a reasonless abort', async () => {
+      const mailbox = createMailbox<string>({ capacity: 1 });
+      const controller = new AbortController();
+      const take = mailbox.take({ signal: controller.signal });
+
+      controller.abort();
+
+      await expect(take).rejects.toSatisfy(
+        (error) => error instanceof DOMException && error.name === 'AbortError'
+      );
+    });
+  });
+
   describe('offer(undefined)', () => {
     it('throws from tryOffer with a clear message', () => {
       const mailbox = createMailbox<string | undefined>({ capacity: 1 });

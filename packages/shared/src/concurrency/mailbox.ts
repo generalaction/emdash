@@ -1,3 +1,4 @@
+import { abortableWait } from '../scheduling';
 import {
   createBoundedBuffer,
   type BoundedBuffer,
@@ -38,14 +39,12 @@ export interface Mailbox<T> extends AsyncIterable<T>, Disposable {
 type PendingTake<T> = {
   resolve: (value: T) => void;
   reject: (error: unknown) => void;
-  cleanup: () => void;
 };
 
 type PendingOffer<T> = {
   value: T;
   resolve: (result: MailboxOfferResult<T>) => void;
   reject: (error: unknown) => void;
-  cleanup: () => void;
 };
 
 export class MailboxClosedError extends Error {
@@ -108,7 +107,6 @@ class MailboxImpl<T> implements Mailbox<T> {
     if (this.pendingTake && this.buffer.size === 0) {
       const take = this.pendingTake;
       this.pendingTake = undefined;
-      take.cleanup();
       take.resolve(value);
       return { kind: 'accepted' };
     }
@@ -125,26 +123,19 @@ class MailboxImpl<T> implements Mailbox<T> {
     if (this.overflow !== 'suspend') return Promise.resolve(this.tryOffer(value));
     const immediate = this.tryOffer(value);
     if (immediate.kind !== 'full') return Promise.resolve(immediate);
-    const signal = options.signal;
-    if (signal?.aborted) return Promise.reject(abortReason(signal, 'Mailbox offer aborted'));
 
-    return new Promise<MailboxOfferResult<T>>((resolve, reject) => {
-      const pending: PendingOffer<T> = {
-        value,
-        resolve,
-        reject,
-        cleanup: () => {},
-      };
-      if (signal) {
-        const onAbort = (): void => {
-          this.removeSuspendedOffer(pending);
-          reject(abortReason(signal, 'Mailbox offer aborted'));
+    return abortableWait<MailboxOfferResult<T>>(
+      { signal: options.signal, fallback: 'Mailbox offer aborted' },
+      (settle) => {
+        const pending: PendingOffer<T> = {
+          value,
+          resolve: settle.resolve,
+          reject: settle.reject,
         };
-        signal.addEventListener('abort', onAbort, { once: true });
-        pending.cleanup = () => signal.removeEventListener('abort', onAbort);
+        this.suspendedOffers.push(pending);
+        return () => this.removeSuspendedOffer(pending);
       }
-      this.suspendedOffers.push(pending);
-    });
+    );
   }
 
   take(options: { signal?: AbortSignal } = {}): Promise<T> {
@@ -229,25 +220,19 @@ class MailboxImpl<T> implements Mailbox<T> {
       return Promise.reject(new MailboxConsumerError('Mailbox already has a pending take'));
     }
 
-    const signal = options.signal;
-    if (signal?.aborted) return Promise.reject(abortReason(signal, 'Mailbox take aborted'));
-
-    return new Promise<T>((resolve, reject) => {
-      const pending: PendingTake<T> = {
-        resolve,
-        reject,
-        cleanup: () => {},
-      };
-      if (signal) {
-        const onAbort = (): void => {
-          if (this.pendingTake === pending) this.pendingTake = undefined;
-          reject(abortReason(signal, 'Mailbox take aborted'));
+    return abortableWait<T>(
+      { signal: options.signal, fallback: 'Mailbox take aborted' },
+      (settle) => {
+        const pending: PendingTake<T> = {
+          resolve: settle.resolve,
+          reject: settle.reject,
         };
-        signal.addEventListener('abort', onAbort, { once: true });
-        pending.cleanup = () => signal.removeEventListener('abort', onAbort);
+        this.pendingTake = pending;
+        return () => {
+          if (this.pendingTake === pending) this.pendingTake = undefined;
+        };
       }
-      this.pendingTake = pending;
-    });
+    );
   }
 
   private afterTake(): void {
@@ -264,7 +249,6 @@ class MailboxImpl<T> implements Mailbox<T> {
       const result = this.tryOffer(pending.value);
       if (result.kind === 'full') return;
       this.suspendedOffers.shift();
-      pending.cleanup();
       pending.resolve(result);
     }
   }
@@ -278,7 +262,6 @@ class MailboxImpl<T> implements Mailbox<T> {
   private closeSuspendedOffers(): void {
     const offers = this.suspendedOffers.splice(0);
     for (const offer of offers) {
-      offer.cleanup();
       offer.resolve({ kind: 'closed' });
     }
   }
@@ -286,14 +269,12 @@ class MailboxImpl<T> implements Mailbox<T> {
   private removeSuspendedOffer(pending: PendingOffer<T>): void {
     const index = this.suspendedOffers.indexOf(pending);
     if (index >= 0) this.suspendedOffers.splice(index, 1);
-    pending.cleanup();
   }
 
   private rejectPendingTake(error: unknown): void {
     const take = this.pendingTake;
     if (!take) return;
     this.pendingTake = undefined;
-    take.cleanup();
     take.reject(error);
   }
 }
@@ -308,8 +289,4 @@ function mailboxOverflowToBufferOverflow(overflow: MailboxOverflow): BoundedBuff
     case 'suspend':
       return 'reject';
   }
-}
-
-function abortReason(signal: AbortSignal, fallback: string): unknown {
-  return signal.reason ?? new Error(fallback);
 }

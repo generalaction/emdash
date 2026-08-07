@@ -1,5 +1,5 @@
 import { ConcurrencyLimiter, createMailbox, type Disposable, type Scope } from '../concurrency';
-import { abortReason, throwIfAborted } from '../scheduling';
+import { abortableWait, abortReason, throwIfAborted } from '../scheduling';
 import type { RateGate } from './rate-gate';
 
 export const requestPriorities = {
@@ -225,13 +225,10 @@ export function createRequestScheduler(options: CreateRequestSchedulerOptions): 
   }
 
   function waitForEntry<T>(entry: RequestEntry, signal: AbortSignal | undefined): Promise<T> {
-    entry.waiters += 1;
-    return new Promise<T>((resolve, reject) => {
-      let finished = false;
-      const finish = (complete: () => void): void => {
-        if (finished) return;
-        finished = true;
-        signal?.removeEventListener('abort', onAbort);
+    return abortableWait<T>({ signal, fallback: 'Scheduled request cancelled' }, (settlement) => {
+      entry.waiters += 1;
+      entry.promise.then((value) => settlement.resolve(value as T), settlement.reject);
+      return () => {
         entry.waiters -= 1;
         if (entry.waiters === 0 && entry.state !== 'settled' && !entry.controller.signal.aborted) {
           const reason = signal?.aborted
@@ -243,17 +240,7 @@ export function createRequestScheduler(options: CreateRequestSchedulerOptions): 
           entry.controller.abort(reason);
           if (entry.state === 'queued') settle(entry, false, reason);
         }
-        complete();
       };
-      const onAbort = (): void =>
-        finish(() => reject(abortReason(signal as AbortSignal, 'Scheduled request cancelled')));
-
-      signal?.addEventListener('abort', onAbort, { once: true });
-      entry.promise.then(
-        (value) => finish(() => resolve(value as T)),
-        (error: unknown) => finish(() => reject(error))
-      );
-      if (signal?.aborted) onAbort();
     });
   }
 }

@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createManualClock } from '../testing';
 import { createAsyncCache } from './async-cache';
 
 describe('createAsyncCache', () => {
   it('caches loaded values and reloads after expiry on get', async () => {
-    let time = 0;
-    const load = vi.fn(async (key: string) => `${key}:${time}`);
+    const clock = createManualClock();
+    const load = vi.fn(async (key: string) => `${key}:${clock.now()}`);
     const cache = createAsyncCache<string, string>({
       key: (key) => key,
       ttlMs: 100,
-      now: () => time,
+      clock,
       load,
     });
 
@@ -16,7 +17,7 @@ describe('createAsyncCache', () => {
     await expect(cache.get('a')).resolves.toBe('a:0');
     expect(load).toHaveBeenCalledTimes(1);
 
-    time = 150;
+    await clock.advanceBy(150);
     await expect(cache.get('a')).resolves.toBe('a:150');
     expect(load).toHaveBeenCalledTimes(2);
 
@@ -25,19 +26,19 @@ describe('createAsyncCache', () => {
 
   describe('peek purity', () => {
     it('returns undefined past expiry without loading', async () => {
-      let time = 0;
+      const clock = createManualClock();
       const load = vi.fn(async (key: string) => key.toUpperCase());
       const cache = createAsyncCache<string, string>({
         key: (key) => key,
         ttlMs: 100,
-        now: () => time,
+        clock,
         load,
       });
 
       await cache.get('a');
       expect(cache.peek('a')).toBe('A');
 
-      time = 150;
+      await clock.advanceBy(150);
       expect(cache.peek('a')).toBeUndefined();
       expect(load).toHaveBeenCalledTimes(1);
 
@@ -67,17 +68,17 @@ describe('createAsyncCache', () => {
     });
 
     it('repeated expired peeks stay stable and get() still reloads afterwards', async () => {
-      let time = 0;
-      const load = vi.fn(async (key: string) => `${key}:${time}`);
+      const clock = createManualClock();
+      const load = vi.fn(async (key: string) => `${key}:${clock.now()}`);
       const cache = createAsyncCache<string, string>({
         key: (key) => key,
         ttlMs: 100,
-        now: () => time,
+        clock,
         load,
       });
 
       await cache.get('a');
-      time = 150;
+      await clock.advanceBy(150);
       expect(cache.peek('a')).toBeUndefined();
       expect(cache.peek('a')).toBeUndefined();
 

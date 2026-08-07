@@ -1,10 +1,16 @@
 export {
+  abortableWait,
   abortReason,
+  throwIfAborted,
+  type AbortableWaitExecutor,
+  type AbortableWaitOptions,
+  type AbortableWaitSettle,
+} from './abortable-wait';
+export {
   MAX_TIMER_DELAY_MS,
   normalizeDelay,
   sleepWithClock,
   systemClock,
-  throwIfAborted,
   waitWithSignal,
   type Clock,
   type ScheduleOptions,
