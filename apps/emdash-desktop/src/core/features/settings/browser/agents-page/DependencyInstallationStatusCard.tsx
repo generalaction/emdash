@@ -1,21 +1,9 @@
+import { DropdownMenu, toast } from '@emdash/ui/react/primitives';
 import { Check, Loader2, MoreHorizontal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { toast } from 'sonner';
 import type { HostDependencyInstallation } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import type { AgentPayload, InstallOption, SelectedSource } from '@core/primitives/agents/api';
 import { resolveActiveInstallation, sourceKey } from '@core/primitives/agents/api';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { InstalledBadge, RecommendedBadge, UsedBadge } from './agent-status-badge';
 import { buildSourceRows, provenanceLabel } from './installation-sources';
 
@@ -115,25 +103,25 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
           {state === 'uninstalled' && <span className="text-foreground-muted">Uninstalled</span>}
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
             className="shrink-0 rounded p-1 text-foreground-passive hover:bg-background-2 hover:text-foreground"
             aria-label="Installation options"
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Change source</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Select source</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end">
+            <DropdownMenu.Sub>
+              <DropdownMenu.SubTrigger>Change source</DropdownMenu.SubTrigger>
+              <DropdownMenu.SubContent>
+                <DropdownMenu.Group>
+                  <DropdownMenu.Label>Select source</DropdownMenu.Label>
+                  <DropdownMenu.Separator />
                   {sourceRows.map((row) => {
                     const rowKey = sourceKey(row.ref);
                     const isCurrentSource = rowKey === selectedKey;
                     return (
-                      <DropdownMenuItem key={rowKey} onClick={() => onSelectSource(row.ref)}>
+                      <DropdownMenu.Item key={rowKey} onClick={() => onSelectSource(row.ref)}>
                         <span className="flex items-center gap-1.5 truncate">
                           <span className="flex flex-col truncate">
                             <span className="truncate">{row.label}</span>
@@ -155,14 +143,14 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                               <UsedBadge />
                             )}
                         </span>
-                      </DropdownMenuItem>
+                      </DropdownMenu.Item>
                     );
                   })}
-                </DropdownMenuGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
+                </DropdownMenu.Group>
+              </DropdownMenu.SubContent>
+            </DropdownMenu.Sub>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item
               onClick={() => {
                 void toast.promise(refresh(), {
                   loading: 'Refreshing installations...',
@@ -172,8 +160,8 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
               }}
             >
               Refresh
-            </DropdownMenuItem>
-            <DropdownMenuItem
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
               onClick={() => {
                 void toast.promise(fetchLatestVersion(), {
                   loading: 'Checking for updates...',
@@ -183,11 +171,11 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
               }}
             >
               Check for updates
-            </DropdownMenuItem>
+            </DropdownMenu.Item>
             {canUninstall && (
               <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item
                   variant="destructive"
                   disabled={isUninstalling}
                   onClick={() => {
@@ -200,11 +188,11 @@ export const DependencyInstallationStatusCard = observer(function DependencyInst
                   }}
                 >
                   Uninstall
-                </DropdownMenuItem>
+                </DropdownMenu.Item>
               </>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </div>
       {showNoAutoUpdateHint && (
         <p className="px-1 text-xs text-foreground-muted">

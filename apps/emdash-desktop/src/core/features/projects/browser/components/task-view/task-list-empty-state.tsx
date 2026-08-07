@@ -1,3 +1,4 @@
+import { menuItemBase } from '@emdash/ui/styles/recipes/menu-item';
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
@@ -5,7 +6,8 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
-import { ActionListItem } from '@core/primitives/ui/browser/action-list-item';
+import { cn } from '@core/primitives/styling/browser/cn';
+import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
@@ -74,21 +76,59 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
     <div className="flex h-full flex-col items-center justify-center bg-background p-8">
       <div className="flex w-full max-w-sm flex-col gap-1">
         {actions.map((action, i) => (
-          <ActionListItem
+          <TaskActionRow
             key={action.label}
-            label={action.label}
-            description={action.description}
-            icon={action.icon}
+            action={action}
             isSelected={i === selectedIndex}
-            disabled={action.disabled}
-            disabledReason={action.disabledReason}
             onMouseEnter={() => setSelectedIndex(i)}
-            onClick={() => {
-              if (!action.disabled) action.onActivate();
-            }}
           />
         ))}
       </div>
     </div>
   );
 });
+
+function TaskActionRow({
+  action,
+  isSelected,
+  onMouseEnter,
+}: {
+  action: TaskAction;
+  isSelected: boolean;
+  onMouseEnter: () => void;
+}) {
+  const { label, description, icon: Icon, disabled, disabledReason, onActivate } = action;
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={disabled ? undefined : onActivate}
+      onMouseEnter={disabled ? undefined : onMouseEnter}
+      className={cn(
+        menuItemBase({ fullWidth: true }),
+        'justify-between',
+        disabled ? 'opacity-50' : 'hover:bg-background-1',
+        !disabled && isSelected && 'bg-background-1'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Icon className="size-7 shrink-0 text-foreground-passive" strokeWidth={1} />
+        <div className="flex flex-col gap-1 text-left">
+          <span
+            className={cn(
+              'text-sm whitespace-nowrap text-foreground-muted transition-colors',
+              !disabled && isSelected && 'text-foreground'
+            )}
+          >
+            {label}
+          </span>
+          <span className="text-xs text-foreground-passive">
+            {disabled && disabledReason ? disabledReason : description}
+          </span>
+        </div>
+      </div>
+      {!disabled && isSelected && <Shortcut hotkey="Enter" variant="keycaps" />}
+    </button>
+  );
+}

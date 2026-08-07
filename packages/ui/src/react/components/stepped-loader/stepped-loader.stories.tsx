@@ -54,7 +54,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 /** Single ghost Cancel button — the default footer action ([ 2/4 ─── Cancel ]). */
 function cancelAction() {
   return (
-    <Button size="sm" variant="ghost">
+    <Button size="xs" variant="ghost">
       Cancel
     </Button>
   );
@@ -63,10 +63,10 @@ function cancelAction() {
 function retryCancelActions() {
   return (
     <>
-      <Button size="sm" variant="ghost">
+      <Button size="xs" variant="ghost">
         Retry
       </Button>
-      <Button size="sm" variant="ghost">
+      <Button size="xs" variant="ghost">
         Cancel
       </Button>
     </>
@@ -283,13 +283,13 @@ function InteractiveDemo() {
           status={status}
           actions={
             <>
-              <Button size="sm" variant="ghost" onClick={retry}>
+              <Button size="xs" variant="ghost" onClick={retry}>
                 Retry
               </Button>
-              <Button size="sm" variant="ghost" onClick={triggerError}>
+              <Button size="xs" variant="ghost" onClick={triggerError}>
                 Error
               </Button>
-              <Button size="sm" variant="ghost" onClick={cancel}>
+              <Button size="xs" variant="ghost" onClick={cancel}>
                 Cancel
               </Button>
             </>
@@ -297,7 +297,7 @@ function InteractiveDemo() {
         />
       </Frame>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <Button size="sm" variant="ghost" onClick={reset}>
+        <Button size="xs" variant="ghost" onClick={reset}>
           Reset demo
         </Button>
         <span

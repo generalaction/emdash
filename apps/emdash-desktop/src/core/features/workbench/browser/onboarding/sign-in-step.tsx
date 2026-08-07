@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { AlertCircle, CheckCircle, Github, LogIn, User } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
 
 export function SignInStep({ onComplete }: { onComplete: () => void }) {
@@ -68,7 +68,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
             )}
           </div>
         </div>
-        <Button size={'lg'} onClick={onComplete}>
+        <Button variant="primary" size="lg" onClick={onComplete}>
           Continue
         </Button>
       </div>
@@ -87,7 +87,12 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
         </div>
       </div>
       <div className="flex w-full flex-col gap-2">
-        <Button size={'lg'} onClick={handleSignIn} disabled={signInMutation.isPending}>
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={handleSignIn}
+          disabled={signInMutation.isPending}
+        >
           <LogIn className="h-4 w-4" />
           {signInMutation.isPending ? 'Signing in…' : 'Sign in with GitHub'}
         </Button>
@@ -97,7 +102,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
             <span>{error}</span>
           </div>
         )}
-        <Button size={'lg'} variant="outline" onClick={handleSkip}>
+        <Button size="lg" variant="secondary" onClick={handleSkip}>
           Skip for now
         </Button>
       </div>

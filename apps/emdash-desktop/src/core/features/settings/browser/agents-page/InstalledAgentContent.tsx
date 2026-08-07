@@ -1,33 +1,21 @@
+import { Button, Collapsible, Label, Tooltip } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@core/primitives/ui/browser/collapsible';
 import { Field } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { log } from '@renderer/utils/logger';
 
 type EnvEntry = { key: string; value: string };
 
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger>
+  <Tooltip.Provider>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground"
@@ -35,12 +23,12 @@ const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
         >
           <Info className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[200px] text-xs">
+      </Tooltip.Trigger>
+      <Tooltip.Content side="top" className="max-w-[200px] text-xs">
         {content}
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  </Tooltip.Provider>
 );
 
 export interface InstalledAgentContentProps {
@@ -123,8 +111,9 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
+        <Collapsible.Trigger
+          hideChevron
           type="button"
           className="flex w-full items-center justify-between rounded-md py-2 text-sm font-medium text-foreground-muted hover:text-foreground"
         >
@@ -140,7 +129,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
               variant="ghost"
               size="sm"
               className="h-6 gap-1.5 px-2 text-xs"
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.stopPropagation();
                 handleResetToDefaults();
               }}
@@ -149,9 +138,9 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
               Reset to defaults
             </Button>
           )}
-        </CollapsibleTrigger>
+        </Collapsible.Trigger>
 
-        <CollapsibleContent className="space-y-4 rounded-lg border p-3">
+        <Collapsible.Panel className="space-y-4 rounded-lg border p-3">
           {/* Additional parameters */}
           <form.Field name="extraArgs">
             {(field) => (
@@ -220,7 +209,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
+                        icon
                         className="h-8 w-8 shrink-0"
                         aria-label="Remove"
                         onClick={() => {
@@ -234,7 +223,7 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
                   ))}
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     className="gap-1.5"
                     onClick={() =>
@@ -254,8 +243,8 @@ export const InstalledAgentContent = observer(function InstalledAgentContent({
               Custom configuration is applied
             </div>
           )}
-        </CollapsibleContent>
-      </Collapsible>
+        </Collapsible.Panel>
+      </Collapsible.Root>
     </div>
   );
 });

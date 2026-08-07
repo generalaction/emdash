@@ -1,4 +1,4 @@
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
+import { ToggleGroup } from '@emdash/ui/react/primitives';
 import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
 import type { LinkedType, CreateTaskState } from './use-create-task-state';
@@ -26,28 +26,20 @@ export function LinkedEntitySection({
         className={`flex w-full items-center justify-between gap-2 px-2 py-1 ${state.linkedType ? 'border-b' : ''}`}
       >
         <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
-        <ToggleGroup
-          className="gap-1! border-none bg-transparent p-1!"
+        <ToggleGroup.Root
+          className="bg-transparent"
           value={state.linkedType ? [state.linkedType] : []}
           onValueChange={([v]) => {
             state.setLinkedType((v as LinkedType) ?? null);
           }}
         >
-          <ToggleGroupItem
-            className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
-            value="issue"
-            disabled={!hasAnyIssueIntegration}
-          >
+          <ToggleGroup.Item className="text-xs" value="issue" disabled={!hasAnyIssueIntegration}>
             Issue
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
-            value="pr"
-            disabled={!hasPrSupport}
-          >
+          </ToggleGroup.Item>
+          <ToggleGroup.Item className="text-xs" value="pr" disabled={!hasPrSupport}>
             Pull Request
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </ToggleGroup.Item>
+        </ToggleGroup.Root>
       </div>
       {state.linkedType === 'issue' && (
         <IssueComboboxField

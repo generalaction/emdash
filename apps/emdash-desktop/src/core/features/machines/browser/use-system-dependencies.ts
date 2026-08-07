@@ -1,5 +1,6 @@
 import type { InstallMethod } from '@emdash/core/services/host-dependencies/api';
 import { err } from '@emdash/shared';
+import { toast } from '@emdash/ui/react/primitives';
 import { useMutation, useMutationState } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import type {
@@ -9,7 +10,6 @@ import type {
 } from '@core/features/machines/api';
 import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
 import { useDependencyOperationFailures } from '@core/primitives/host-dependencies/browser/use-dependency-operation-failures';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import type { SystemDependenciesStore } from './machines-store';
 import { useSystemDependencySnapshot } from './use-system-dependency-snapshot';
 
@@ -61,7 +61,7 @@ export function useSystemDependencies(
       const name = nameOf(variables.id);
       if (result.success) {
         failureMap.clearFailure(variables.id);
-        toast({ title: `${name} successfully installed` });
+        toast(`${name} successfully installed`);
         return;
       }
       if (result.error.type === 'permission-denied') {
@@ -69,17 +69,14 @@ export function useSystemDependencies(
           error: result.error,
           method: variables.method,
         });
-        toast({
-          title: `Permission denied installing ${name}`,
+        toast(`Permission denied installing ${name}`, {
           description: 'See the install panel for retry and recovery options.',
         });
         return;
       }
       failureMap.clearFailure(variables.id);
-      toast({
-        title: `Failed to install ${name}`,
+      toast.error(`Failed to install ${name}`, {
         description: getHostDependencyErrorMessage(result.error),
-        variant: 'destructive',
       });
     },
     [failureMap, nameOf]
@@ -100,10 +97,8 @@ export function useSystemDependencies(
     },
     onSuccess: reportInstallResult,
     onError: (installError, variables) => {
-      toast({
-        title: `Failed to install ${nameOf(variables.id)}`,
+      toast.error(`Failed to install ${nameOf(variables.id)}`, {
         description: installError.message,
-        variant: 'destructive',
       });
     },
   });
@@ -122,11 +117,7 @@ export function useSystemDependencies(
       }
     },
     onError: (installError) => {
-      toast({
-        title: 'Failed to install system dependencies',
-        description: installError.message,
-        variant: 'destructive',
-      });
+      toast.error('Failed to install system dependencies', { description: installError.message });
     },
   });
 

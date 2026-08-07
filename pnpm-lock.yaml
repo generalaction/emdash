@@ -282,9 +282,6 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.17)(react@19.2.7)
-      react-resizable-panels:
-        specifier: ^4.7.3
-        version: 4.11.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-syntax-highlighter:
         specifier: ^15.6.6
         version: 15.6.6(react@19.2.7)
@@ -309,9 +306,6 @@ importers:
       s3mini:
         specifier: ^0.9.4
         version: 0.9.5
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.1
@@ -744,9 +738,21 @@ importers:
       '@tiptap/suggestion':
         specifier: ^3.26.1
         version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.4.0
       lucide-react:
         specifier: ^0.564.0
         version: 0.564.0(react@19.2.7)
+      react-resizable-panels:
+        specifier: ^4.7.3
+        version: 4.11.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react-zoom-pan-pinch:
+        specifier: ^4.0.3
+        version: 4.0.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@storybook/addon-docs':
         specifier: ^10.4.6

@@ -1,7 +1,7 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useMemo, useState } from 'react';
 import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,
@@ -151,7 +151,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
       {startFreshError && <p className="text-destructive text-center text-sm">{startFreshError}</p>}
 
       <div className="flex w-full shrink-0 flex-col gap-2">
-        <Button size={'lg'} onClick={handleImport} disabled={isBusy || !canImport}>
+        <Button variant="primary" size="lg" onClick={handleImport} disabled={isBusy || !canImport}>
           {importProgress.isImporting ? 'Importing...' : 'Import data'}
         </Button>
         <Button variant="ghost" onClick={handleStartFresh} disabled={isBusy}>

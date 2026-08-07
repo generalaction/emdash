@@ -1,8 +1,7 @@
-import { Button } from '@emdash/ui/react/primitives';
+import { Button, useToast } from '@emdash/ui/react/primitives';
 import { Loader2, LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useAccountHealth,
   useAccountSession,
@@ -32,15 +31,10 @@ export function AccountTab() {
       if (!result.success) {
         const message = result.error || 'Sign in failed';
         setError(message);
-        toast({
-          title: 'Sign in failed',
-          description: message,
-          variant: 'destructive',
-        });
+        toast.error('Sign in failed', { description: message });
         return;
       }
-      toast({
-        title: 'Signed in to Emdash',
+      toast('Signed in to Emdash', {
         description: result.user
           ? `Connected as ${result.user.name?.trim() || result.user.username}`
           : 'Signed in',
@@ -48,11 +42,7 @@ export function AccountTab() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
       setError(message);
-      toast({
-        title: 'Sign in failed',
-        description: message,
-        variant: 'destructive',
-      });
+      toast.error('Sign in failed', { description: message });
     }
   };
 
@@ -61,11 +51,7 @@ export function AccountTab() {
       await signOutMutation.mutateAsync();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign out failed';
-      toast({
-        title: 'Sign out failed',
-        description: message,
-        variant: 'destructive',
-      });
+      toast.error('Sign out failed', { description: message });
     }
   };
 
@@ -109,7 +95,7 @@ export function AccountTab() {
         </div>
         <Button
           variant="secondary"
-          size="sm"
+          size="xs"
           onClick={handleSignOut}
           disabled={signOutMutation.isPending}
         >

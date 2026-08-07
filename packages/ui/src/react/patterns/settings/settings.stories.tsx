@@ -62,7 +62,7 @@ function DefaultSettings() {
             label="Application version"
             description="You are using the latest version."
             control={
-              <Button variant="secondary" size="sm">
+              <Button variant="secondary" size="xs">
                 Check for updates
               </Button>
             }
@@ -188,7 +188,7 @@ export const AcrossSurfaces: Story = {
               label="Restore defaults"
               description="Reset the settings in this section."
               control={
-                <Button variant="secondary" size="sm">
+                <Button variant="secondary" size="xs">
                   Restore
                 </Button>
               }

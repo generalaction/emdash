@@ -1,11 +1,9 @@
+import { Button, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ISSUE_FEATURE_LABELS } from '@core/features/integrations/api/browser/integration-display';
 import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import { Button } from '@core/primitives/ui/browser/button';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { GitHubAccountRows } from './GitHubAccountsSection';
 import type { IntegrationItem } from './IntegrationsCard';
 
@@ -106,20 +104,21 @@ function SingleIntegrationAccount({ integration }: { integration: IntegrationIte
         </p>
       </div>
       {integration.onDisconnect && (
-        <Tooltip>
-          <TooltipTrigger>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
+              icon
               onClick={integration.onDisconnect}
               aria-label={`Disconnect ${integration.name}`}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Disconnect</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content side="top">Disconnect</Tooltip.Content>
+        </Tooltip.Root>
       )}
     </div>
   );

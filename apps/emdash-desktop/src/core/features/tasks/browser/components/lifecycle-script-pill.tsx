@@ -1,3 +1,4 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import { ScrollText } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -6,7 +7,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 
 export const LifecycleScriptPill = observer(function LifecycleScriptPill() {
   const workspace = useWorkspace();
@@ -34,11 +34,7 @@ export const LifecycleScriptPill = observer(function LifecycleScriptPill() {
         taskView.setTerminalDrawerOpen(true);
       }}
     >
-      {failed ? (
-        <ScrollText className="size-3 shrink-0" />
-      ) : (
-        <Spinner className="size-3 shrink-0" />
-      )}
+      {failed ? <ScrollText className="size-3 shrink-0" /> : <Spinner size="sm" />}
       <span className="max-w-28 truncate">{label}</span>
     </button>
   );

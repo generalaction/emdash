@@ -1,3 +1,4 @@
+import { useToast } from '@emdash/ui/react/primitives';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect } from 'react';
 import type {
@@ -5,7 +6,6 @@ import type {
   GitHubAccountSummary,
   GitHubUser,
 } from '@core/primitives/github/api';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { log } from '@renderer/utils/logger';
 import {
@@ -72,8 +72,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       void refreshAccountState();
       setTimeout(() => void refreshAccountState(), 500);
       invalidateGitHubState();
-      toast({
-        title: 'Connected to GitHub',
+      toast('Connected to GitHub', {
         description: `Signed in as ${flowUser?.login || flowUser?.name || 'user'}`,
       });
     },
@@ -82,11 +81,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const handleDeviceFlowError = useCallback(
     (error: string) => {
-      toast({
-        title: 'Authentication Failed',
-        description: error,
-        variant: 'destructive',
-      });
+      toast.error('Authentication Failed', { description: error });
     },
     [toast]
   );
@@ -119,10 +114,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const cancelGithubConnect = useCallback(() => {
     void getDesktopWireClient().then((client) => client.github.authCancel(undefined));
-    toast({
-      title: 'GitHub connection unsuccessful',
-      description: 'Device flow was canceled',
-    });
+    toast('GitHub connection unsuccessful', { description: 'Device flow was canceled' });
   }, [toast]);
 
   const value: GithubContextValue = {

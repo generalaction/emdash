@@ -1,4 +1,14 @@
+import { AgentStatus, ListPopoverCard } from '@emdash/ui/react/components';
 import { createListView, defineSelection, ListView } from '@emdash/ui/react/patterns';
+import {
+  Button,
+  Checkbox,
+  ContextMenu,
+  MicroLabel,
+  RelativeTime,
+  Spinner,
+  toast,
+} from '@emdash/ui/react/primitives';
 import { Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
@@ -26,21 +36,6 @@ import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-r
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
-import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getAcpChatResourceManager } from '../../browser/acp/acp-chat-resource-manager';
 import { ConversationAgentIcon } from '../../browser/conversation-agent-icon';
 import { ConversationSelectionControl } from '../../browser/conversation-selection-control';
@@ -164,10 +159,8 @@ const ConversationRow = observer(function ConversationRow({
             await conversations.killSession(conversationId);
             closeConversationTab();
           } catch (error) {
-            toast({
-              title: 'Failed to kill session',
+            toast.error('Failed to kill session', {
               description: error instanceof Error ? error.message : String(error),
-              variant: 'destructive',
             });
           }
         })();
@@ -178,10 +171,8 @@ const ConversationRow = observer(function ConversationRow({
   const handleExport = (kind: 'parsed' | 'raw') => {
     const store = getAcpChatResourceManager(taskId, projectId).get(conversationId);
     if (!store) {
-      toast({
-        title: 'Failed to export transcript',
+      toast.error('Failed to export transcript', {
         description: 'Open the chat before exporting it.',
-        variant: 'destructive',
       });
       return;
     }
@@ -189,8 +180,8 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>
         <div
           role="button"
           tabIndex={0}
@@ -248,7 +239,7 @@ const ConversationRow = observer(function ConversationRow({
             selectionId={conversationId}
           >
             {conversation.indicatorStatus ? (
-              <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+              <AgentStatus status={conversation.indicatorStatus} />
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
@@ -258,41 +249,41 @@ const ConversationRow = observer(function ConversationRow({
             )}
           </ConversationSelectionControl>
         </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent finalFocus={false}>
-        <ContextMenuItem onClick={handleRename}>
+      </ContextMenu.Trigger>
+      <ContextMenu.Content finalFocus={false}>
+        <ContextMenu.Item onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
-        </ContextMenuItem>
+        </ContextMenu.Item>
         {conversation.data.type === 'acp' && (
           <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => handleExport('parsed')}>
+            <ContextMenu.Separator />
+            <ContextMenu.Item onClick={() => handleExport('parsed')}>
               <Download className="size-4" />
               Export transcript
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => handleExport('raw')}>
+            </ContextMenu.Item>
+            <ContextMenu.Item onClick={() => handleExport('raw')}>
               <Download className="size-4" />
               Export raw ACP log
-            </ContextMenuItem>
+            </ContextMenu.Item>
           </>
         )}
         {isSessionActive && (
           <>
-            <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" onClick={handleKillSession}>
+            <ContextMenu.Separator />
+            <ContextMenu.Item variant="destructive" onClick={handleKillSession}>
               <Square className="size-4" />
               Kill session
-            </ContextMenuItem>
+            </ContextMenu.Item>
           </>
         )}
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" disabled={deleting} onClick={handleDelete}>
+        <ContextMenu.Separator />
+        <ContextMenu.Item variant="destructive" disabled={deleting} onClick={handleDelete}>
           <Trash2 className="size-4" />
           Delete
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        </ContextMenu.Item>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 });
 
@@ -356,7 +347,7 @@ const ConversationSelectionBar = observer(function ConversationSelectionBar({
   if (selection.count === 0) return null;
 
   return (
-    <ListPopoverCard className="justify-between px-2.5 py-1.5">
+    <ListPopoverCard className="justify-between">
       <span className="text-xs whitespace-nowrap text-foreground-muted">
         {selection.count} selected
       </span>
@@ -367,12 +358,13 @@ const ConversationSelectionBar = observer(function ConversationSelectionBar({
           disabled={deleting}
           onClick={() => onDelete([...selection.selectedIds])}
         >
-          {deleting ? <Spinner className="size-3.5" /> : <Trash2 className="size-3.5" />}
+          {deleting ? <Spinner size="sm" /> : <Trash2 className="size-3.5" />}
           Delete
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           disabled={deleting}
           onClick={selection.clear}
           aria-label="Clear conversation selection"
@@ -487,13 +479,11 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
 
         if (result.failures.length > 0) {
           const firstError = result.failures[0]!.error;
-          toast({
-            title: `${result.succeededIds.length} deleted, ${result.failures.length} failed`,
+          toast.error(`${result.succeededIds.length} deleted, ${result.failures.length} failed`, {
             description: firstError instanceof Error ? firstError.message : String(firstError),
-            variant: 'destructive',
           });
         } else if (result.succeededIds.length > 1) {
-          toast({ title: `${result.succeededIds.length} conversations deleted` });
+          toast(`${result.succeededIds.length} conversations deleted`);
         }
       } finally {
         setDeleting(false);
@@ -506,7 +496,7 @@ const SidebarConversationsListContent = observer(function SidebarConversationsLi
     <div ref={listRootRef} className="relative flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel className="font-medium">Conversations</MicroLabel>
-        <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
+        <Button size="sm" icon variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />
         </Button>
       </div>

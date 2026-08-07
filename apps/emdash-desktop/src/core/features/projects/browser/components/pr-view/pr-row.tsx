@@ -1,12 +1,10 @@
+import { Button, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-line';
 import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
@@ -32,19 +30,20 @@ export const PrRow = memo(function PrRow({
               {pr.title}
             </span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            <Tooltip>
-              <TooltipTrigger>
+            <Tooltip.Root>
+              <Tooltip.Trigger>
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="xs"
+                  icon
                   className="opacity-0 transition-opacity group-hover:opacity-100"
                   onClick={() => rpc.app.openExternal(pr.url)}
                 >
                   <ExternalLink className="size-3.5" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Open PR on GitHub</TooltipContent>
-            </Tooltip>
+              </Tooltip.Trigger>
+              <Tooltip.Content>Open PR on GitHub</Tooltip.Content>
+            </Tooltip.Root>
           </div>
           <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />
         </div>
@@ -55,7 +54,7 @@ export const PrRow = memo(function PrRow({
       </div>
       <div className="absolute top-0 right-3 flex h-full shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() =>
             void openCreateTaskModal({ projectId, strategy: 'from-pull-request', initialPR: pr })

@@ -14,7 +14,7 @@ const meta: Meta<typeof Button> = {
   argTypes: {
     variant: { control: 'select', options: buttonVariants },
     tone: { table: { disable: true } },
-    size: { control: 'select', options: ['base', 'sm'] },
+    size: { control: 'select', options: ['xs', 'sm', 'base', 'lg'] },
     icon: { control: 'boolean' },
     disabled: { control: 'boolean' },
   },
@@ -40,24 +40,36 @@ export const VariantMatrix: Story = {
   ),
 };
 
-/** Base (32 px) and SM (24 px) sizes, plus the link variant. */
+/** The four-step size scale — XS (24 px), SM (28 px), Base (32 px), LG (40 px) — plus link. */
 export const Sizes: Story = {
   render: () => (
     <Box display="flex" flexDirection="column" gap="3">
       <Box display="flex" flexWrap="wrap" alignItems="flex-end" gap="2">
-        <Button variant="primary" size="base">
-          Base
+        <Button variant="primary" size="xs">
+          Extra small
         </Button>
         <Button variant="primary" size="sm">
           Small
         </Button>
+        <Button variant="primary" size="base">
+          Base
+        </Button>
+        <Button variant="primary" size="lg">
+          Large
+        </Button>
         <Button variant="link">Link</Button>
       </Box>
       <Box display="flex" flexWrap="wrap" alignItems="flex-end" gap="2">
-        <Button size="base" icon>
+        <Button size="xs" icon>
           <SearchIcon />
         </Button>
         <Button size="sm" icon>
+          <SearchIcon />
+        </Button>
+        <Button size="base" icon>
+          <SearchIcon />
+        </Button>
+        <Button size="lg" icon>
           <SearchIcon />
         </Button>
       </Box>
@@ -75,7 +87,7 @@ export const IconButtons: Story = {
       <Button icon variant="primary">
         <PlusIcon />
       </Button>
-      <Button icon variant="secondary" size="sm">
+      <Button icon variant="secondary" size="xs">
         <SearchIcon />
       </Button>
       <Button icon variant="destructive">
@@ -159,7 +171,7 @@ export const WithShortcuts: Story = {
           <Button
             key={variant}
             variant={variant}
-            size="sm"
+            size="xs"
             kbd={
               <KbdGroup>
                 <Kbd>⌘</Kbd>
@@ -187,7 +199,7 @@ export const WithShortcuts: Story = {
         </Button>
         <Button
           variant="secondary"
-          size="sm"
+          size="xs"
           kbd={
             <KbdGroup>
               <Kbd>⌘</Kbd>

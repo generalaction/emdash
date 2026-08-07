@@ -68,7 +68,8 @@ vi.mock('@core/primitives/ui/browser/select', async () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/combobox', async () => {
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const React = await import('react');
 
   type ComboboxContextValue = {
@@ -100,51 +101,54 @@ vi.mock('@core/primitives/ui/browser/combobox', async () => {
   }
 
   return {
-    Combobox: ({
-      children,
-      items,
-      inputValue,
-      onInputValueChange,
-    }: {
-      children: React.ReactNode;
-      items?: PullRequest[];
-      inputValue?: string;
-      onInputValueChange?: (value: string, details: { reason: string }) => void;
-    }) =>
-      React.createElement(
-        ComboboxContext.Provider,
-        { value: { items, inputValue, onInputValueChange } },
-        children
-      ),
-    ComboboxContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    ComboboxEmpty: ({ children }: { children: React.ReactNode }) => {
-      const { items } = React.useContext(ComboboxContext);
-      return items?.length ? null : React.createElement('div', {}, children);
+    ...actual,
+    Combobox: {
+      Root: ({
+        children,
+        items,
+        inputValue,
+        onInputValueChange,
+      }: {
+        children: React.ReactNode;
+        items?: PullRequest[];
+        inputValue?: string;
+        onInputValueChange?: (value: string, details: { reason: string }) => void;
+      }) =>
+        React.createElement(
+          ComboboxContext.Provider,
+          { value: { items, inputValue, onInputValueChange } },
+          children
+        ),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Empty: ({ children }: { children: React.ReactNode }) => {
+        const { items } = React.useContext(ComboboxContext);
+        return items?.length ? null : React.createElement('div', {}, children);
+      },
+      Input: MockComboboxInput,
+      Item: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      List: ({ children }: { children: React.ReactNode }) => {
+        const { items } = React.useContext(ComboboxContext);
+        return React.createElement(
+          'div',
+          {},
+          items?.map((item) =>
+            typeof children === 'function'
+              ? (children as (item: PullRequest) => React.ReactNode)(item)
+              : children
+          )
+        );
+      },
+      Trigger: ({ render }: { render: React.ReactElement }) => render,
+      Value: ({
+        children,
+        placeholder,
+      }: {
+        children?: React.ReactNode;
+        placeholder?: React.ReactNode;
+      }) => React.createElement('div', {}, children ?? placeholder),
     },
-    ComboboxInput: MockComboboxInput,
-    ComboboxItem: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    ComboboxList: ({ children }: { children: React.ReactNode }) => {
-      const { items } = React.useContext(ComboboxContext);
-      return React.createElement(
-        'div',
-        {},
-        items?.map((item) =>
-          typeof children === 'function'
-            ? (children as (item: PullRequest) => React.ReactNode)(item)
-            : children
-        )
-      );
-    },
-    ComboboxTrigger: ({ render }: { render: React.ReactElement }) => render,
-    ComboboxValue: ({
-      children,
-      placeholder,
-    }: {
-      children?: React.ReactNode;
-      placeholder?: React.ReactNode;
-    }) => React.createElement('div', {}, children ?? placeholder),
   };
 });
 
@@ -365,8 +369,8 @@ describe('PrSelector', () => {
     });
     expect(container.textContent).toContain('Sync failed');
     expect(container.textContent).toContain('Search PR');
-    expect(container.querySelector('.absolute.right-6.bottom-4.left-6')).not.toBeNull();
-    expect(container.querySelector('.border-border-destructive')).not.toBeNull();
+    expect(container.querySelector('[data-slot="list-popover-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-status="destructive"]')).not.toBeNull();
     expect(container.textContent).not.toContain('No open pull requests');
   });
 });

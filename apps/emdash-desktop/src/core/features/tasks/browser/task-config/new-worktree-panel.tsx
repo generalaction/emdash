@@ -1,8 +1,7 @@
+import { Button, Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown, GitBranch, Layers } from 'lucide-react';
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
-import { Button } from '@core/primitives/ui/browser/button';
-import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
 import { BranchNameField } from './branch-name-field';
 
 export type WorkspacePanelProps = {
@@ -35,7 +34,7 @@ export function NewWorktreePanel({
           onValueChange={branchSelection.setSelectedBranch}
           showRemoteSelectorFooter
           trigger={
-            <ComboboxTrigger className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 outline-none hover:bg-background-2 data-popup-open:bg-background-1">
+            <Combobox.Trigger className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 outline-none hover:bg-background-2 data-popup-open:bg-background-1">
               <div className="flex flex-col gap-1 text-left text-sm">
                 <span className="text-xs text-foreground-passive">
                   {createBranchAndWorktree ? 'From branch' : 'Branch'}
@@ -46,11 +45,11 @@ export function NewWorktreePanel({
                     strokeWidth={2}
                     className="size-3.5 shrink-0 text-foreground-muted"
                   />
-                  <ComboboxValue placeholder="Select a branch" />
+                  <Combobox.Value placeholder="Select a branch" />
                 </span>
               </div>
               <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-            </ComboboxTrigger>
+            </Combobox.Trigger>
           }
         />
       )}
@@ -70,7 +69,7 @@ export function NewWorktreePanel({
             . A new isolated worktree cannot be created for a branch that is already in use.
           </p>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={handleReuseExisting}
             className="gap-1.5 self-start border-border-warning bg-transparent text-foreground-warning hover:bg-background-warning-hover hover:text-foreground-warning"

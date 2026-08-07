@@ -1,4 +1,5 @@
 import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
+import { Button, Separator } from '@emdash/ui/react/primitives';
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -8,7 +9,6 @@ import {
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
@@ -21,7 +21,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@core/primitives/ui/browser/select';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { Switch } from '@core/primitives/ui/browser/switch';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -152,7 +151,7 @@ export function BaseProjectSettingsSection({
           {projectType === 'local' ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               disabled={isBrowsingWorktreeDirectory}
               onClick={handleBrowseWorktreeDirectory}
             >

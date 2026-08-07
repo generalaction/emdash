@@ -1,6 +1,5 @@
+import { Button, MicroLabel } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
-import { Button } from '@core/primitives/ui/browser/button';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 
 export function SheetHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (

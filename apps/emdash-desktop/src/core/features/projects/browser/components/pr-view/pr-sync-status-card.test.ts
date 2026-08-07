@@ -61,7 +61,7 @@ describe('PrSyncStatusCard', () => {
 
     expect(container.textContent).toContain('Sync failed');
     expect(container.textContent).toContain('GitHub API is disabled for this project.');
-    expect(container.querySelector('.border-border-destructive')).not.toBeNull();
-    expect(container.querySelector('.bg-background-destructive')).not.toBeNull();
+    expect(container.querySelector('[data-slot="list-popover-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-status="destructive"]')).not.toBeNull();
   });
 });

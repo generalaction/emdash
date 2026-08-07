@@ -1,3 +1,4 @@
+import { ToggleGroup, toast } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -8,14 +9,12 @@ import { PrMergeLine } from '@core/primitives/ui/browser/components/pr-merge-lin
 import { PrNumberBadge } from '@core/primitives/ui/browser/components/pr-number-badge';
 import { StatusIcon } from '@core/primitives/ui/browser/components/pr-status-icon';
 import { PrUrlCopyButton } from '@core/primitives/ui/browser/components/pr-url-copy-button';
-import { type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrChecksList } from './checks-list';
 import { CommitRangeCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
+import { type MergeAction } from './merge-footer';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState } from './merge-ui-state';
 import { commitRangeForPullRequest } from './use-commits';
@@ -70,13 +69,10 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         bypassRequirements,
       });
       if (!result.success) {
-        toast({
-          title: bypassRequirements
-            ? 'Failed to merge without waiting'
-            : 'Failed to merge pull request',
-          description: result.error,
-          variant: 'destructive',
-        });
+        toast.error(
+          bypassRequirements ? 'Failed to merge without waiting' : 'Failed to merge pull request',
+          { description: result.error }
+        );
       }
     } finally {
       setIsMerging(false);
@@ -91,16 +87,14 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
     }
   };
 
-  const mergeActions: SplitButtonAction[] = (['merge', 'squash', 'rebase'] as const).map(
-    (strategy) => ({
-      value: strategy,
-      label: shouldBypassRequirements ? bypassMergeLabels[strategy] : mergeLabels[strategy],
-      description: shouldBypassRequirements
-        ? bypassMergeDescriptions[strategy]
-        : mergeDescriptions[strategy],
-      action: () => handleMergeClick(strategy),
-    })
-  );
+  const mergeActions: MergeAction[] = (['merge', 'squash', 'rebase'] as const).map((strategy) => ({
+    value: strategy,
+    label: shouldBypassRequirements ? bypassMergeLabels[strategy] : mergeLabels[strategy],
+    description: shouldBypassRequirements
+      ? bypassMergeDescriptions[strategy]
+      : mergeDescriptions[strategy],
+    action: () => handleMergeClick(strategy),
+  }));
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
@@ -127,26 +121,25 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         <PrMergeLine pr={pr} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-2.5">
-        <ToggleGroup
+        <ToggleGroup.Root
           value={[tab]}
-          size={'xs'}
-          className="w-full"
+          className="flex w-full"
           onValueChange={([value]) => {
             if (value) {
               diffView.setPrTab(value as 'files' | 'commits' | 'checks');
             }
           }}
         >
-          <ToggleGroupItem className="flex-1" value="files" disabled={!isOpen}>
+          <ToggleGroup.Item className="flex-1" value="files" disabled={!isOpen}>
             Files
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="commits">
+          </ToggleGroup.Item>
+          <ToggleGroup.Item className="flex-1" value="commits">
             Commits
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="checks">
+          </ToggleGroup.Item>
+          <ToggleGroup.Item className="flex-1" value="checks">
             Checks
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </ToggleGroup.Item>
+        </ToggleGroup.Root>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
           {tab === 'commits' && <CommitRangeCommitsList range={commitRangeForPullRequest(pr)} />}
@@ -165,10 +158,8 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
             prStore
               .markReadyForReview(pr.url)
               .catch(() => {
-                toast({
-                  title: 'Failed to mark pull request ready',
+                toast.error('Failed to mark pull request ready', {
                   description: 'Refresh PR status and try again.',
-                  variant: 'destructive',
                 });
               })
               .finally(() => setIsMarkingReady(false));

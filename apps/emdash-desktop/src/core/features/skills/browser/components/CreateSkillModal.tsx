@@ -1,11 +1,11 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { isValidSkillName } from '@emdash/core/primitives/skills/api';
+import { Button, Label } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { getSkillsClient } from '../client';
@@ -79,9 +78,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
       <DialogContentArea>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="skill-name" className="text-xs">
-              Name
-            </Label>
+            <Label htmlFor="skill-name">Name</Label>
             <Input
               id="skill-name"
               placeholder="my-skill"
@@ -98,9 +95,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="skill-desc" className="text-xs">
-              Description
-            </Label>
+            <Label htmlFor="skill-desc">Description</Label>
             <Input
               id="skill-desc"
               placeholder="What does this skill do?"
@@ -114,9 +109,7 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="skill-content" className="text-xs">
-              Instructions
-            </Label>
+            <Label htmlFor="skill-content">Instructions</Label>
             <Textarea
               id="skill-content"
               placeholder="Write the skill instructions here. The YAML frontmatter (name and description) will be added automatically."
@@ -137,10 +130,11 @@ export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) 
       </DialogContentArea>
 
       <DialogFooter className="gap-2 sm:gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={dismiss} disabled={isCreating}>
+        <Button type="button" variant="secondary" size="sm" onClick={dismiss} disabled={isCreating}>
           Cancel
         </Button>
         <ConfirmButton
+          variant="primary"
           type="button"
           onClick={() => void handleCreateSkill()}
           size="sm"

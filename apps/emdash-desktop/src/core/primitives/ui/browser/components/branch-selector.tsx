@@ -1,22 +1,9 @@
+import { Badge, Combobox, InputGroup, ToggleGroup, Tooltip } from '@emdash/ui/react/primitives';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Badge } from '@core/primitives/ui/browser/badge';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-} from '@core/primitives/ui/browser/combobox';
-import { InputGroupButton } from '@core/primitives/ui/browser/input-group';
 import { Select, SelectTrigger } from '@core/primitives/ui/browser/select';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import {
   filterBranchesForPicker,
   getBranchLabel,
@@ -102,7 +89,7 @@ export function BranchSelector({
   );
 
   return (
-    <Combobox
+    <Combobox.Root
       open={open}
       inputValue={inputValue}
       onInputValueChange={(nextInputValue: string, { reason }: { reason: string }) => {
@@ -138,18 +125,18 @@ export function BranchSelector({
       }}
     >
       {trigger ?? (
-        <ComboboxTrigger className="hover:bg-muted/30 flex h-9 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
+        <Combobox.Trigger className="hover:bg-muted/30 flex h-9 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
           <div className="text-muted-foreground flex items-center gap-2">
             <GitBranch />
-            <ComboboxValue placeholder="Select a branch" />
+            <Combobox.Value placeholder="Select a branch" />
           </div>
-        </ComboboxTrigger>
+        </Combobox.Trigger>
       )}
-      <ComboboxContent
+      <Combobox.Content
         className={cn('min-w-(--anchor-width) border', showRemoteFooter ? 'pb-0' : 'pb-1')}
       >
         {!remoteOnly && (
-          <ToggleGroup
+          <ToggleGroup.Root
             value={[tab]}
             onValueChange={([value]) => {
               if (value) {
@@ -157,64 +144,58 @@ export function BranchSelector({
                 inputRef.current?.focus();
               }
             }}
-            className="w-full rounded-b-none border-0 border-b border-border bg-transparent"
+            className="flex w-full rounded-b-none border-b border-border bg-transparent"
           >
-            <ToggleGroupItem
+            <ToggleGroup.Item
               value="local"
               className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={localCount === 0}
             >
               Local
-              <Badge
-                variant="secondary"
-                className="group-data-pressed:bg-background-quaternary-3 shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1"
-              >
-                {localCount}
-              </Badge>
-            </ToggleGroupItem>
-            <ToggleGroupItem
+              <Badge>{localCount}</Badge>
+            </ToggleGroup.Item>
+            <ToggleGroup.Item
               value="remote"
               className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={remoteCount === 0}
             >
               Remote
-              <Badge variant="secondary" className="shrink-0 bg-background-2 transition-colors">
-                {remoteCount}
-              </Badge>
-            </ToggleGroupItem>
-          </ToggleGroup>
+              <Badge>{remoteCount}</Badge>
+            </ToggleGroup.Item>
+          </ToggleGroup.Root>
         )}
-        <ComboboxInput
+        <Combobox.Input
           showTrigger={false}
           placeholder="Search branches"
           inputRef={inputRef}
           rightAddon={
             onRefresh && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <InputGroupButton
-                    size="icon-xs"
+              <Tooltip.Root>
+                <Tooltip.Trigger>
+                  <InputGroup.Button
                     className="text-foreground-muted hover:text-foreground"
                     onClick={onRefresh}
                     disabled={isRefreshing}
                     aria-label="Refresh branches"
                   >
                     <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
-                  </InputGroupButton>
-                </TooltipTrigger>
-                <TooltipContent>Refresh branches</TooltipContent>
-              </Tooltip>
+                  </InputGroup.Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Refresh branches</Tooltip.Content>
+              </Tooltip.Root>
             )
           }
         />
-        <ComboboxList>
+        <Combobox.List>
           {(item) => (
-            <ComboboxItem value={item} disabled={item.disabled}>
+            <Combobox.Item value={item} disabled={item.disabled}>
               {item.label}
-            </ComboboxItem>
+            </Combobox.Item>
           )}
-        </ComboboxList>
-        <ComboboxEmpty>{branches.length === 0 ? 'no branches exist' : 'no results'}</ComboboxEmpty>
+        </Combobox.List>
+        <Combobox.Empty>
+          {branches.length === 0 ? 'no branches exist' : 'no results'}
+        </Combobox.Empty>
         {showRemoteFooter && (
           <div className="border-t border-border">
             <Select
@@ -256,7 +237,7 @@ export function BranchSelector({
             </Select>
           </div>
         )}
-      </ComboboxContent>
-    </Combobox>
+      </Combobox.Content>
+    </Combobox.Root>
   );
 }

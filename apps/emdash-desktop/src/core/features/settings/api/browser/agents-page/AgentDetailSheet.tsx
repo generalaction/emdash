@@ -1,10 +1,9 @@
+import { Label, MicroLabel, Sheet } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentSettings } from '@core/features/agents/api/browser/use-agent-settings';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { Field } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
-import { Sheet, SheetContent, SheetHeader } from '@core/primitives/ui/browser/sheet';
 import {
   AgentHooksSection,
   AgentTrustSection,
@@ -54,7 +53,9 @@ const AgentDetailSheetContent = observer(function AgentDetailSheetContent({
 
   return (
     <>
-      <SheetHeader label={isInstalled ? 'Agent Settings' : 'Install Agent'} />
+      <Sheet.Header>
+        <MicroLabel>{isInstalled ? 'Agent Settings' : 'Install Agent'}</MicroLabel>
+      </Sheet.Header>
       <div className="overflow-y-auto px-4">
         {agentPayload && (
           <div className="space-y-6">
@@ -97,8 +98,8 @@ export function AgentDetailSheet({
   onClose,
 }: AgentDetailSheetProps) {
   return (
-    <Sheet open={agentId !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex flex-col gap-0 p-0">
+    <Sheet.Root open={agentId !== null} onOpenChange={(open) => !open && onClose()}>
+      <Sheet.Content side="right" className="flex flex-col gap-0 p-0">
         {agentId && (
           <AgentDetailSheetContent
             agentId={agentId}
@@ -107,7 +108,7 @@ export function AgentDetailSheet({
             onClose={onClose}
           />
         )}
-      </SheetContent>
-    </Sheet>
+      </Sheet.Content>
+    </Sheet.Root>
   );
 }

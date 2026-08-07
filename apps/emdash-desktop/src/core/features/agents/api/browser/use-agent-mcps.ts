@@ -1,8 +1,8 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
+import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMcpClient } from '@core/features/mcp/api/browser/client';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 
 export function useAgentMcps(
   agentId: string,
@@ -40,11 +40,7 @@ export function useAgentMcps(
       await queryClient.invalidateQueries({ queryKey });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to remove MCP server',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Failed to remove MCP server', { description: error.message });
     },
   });
 

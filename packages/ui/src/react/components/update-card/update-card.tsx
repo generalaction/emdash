@@ -65,7 +65,7 @@ export function UpdateCard({
         return (
           <Button
             variant="secondary"
-            size="sm"
+            size="xs"
             onClick={checkForUpdates}
             disabled={isCheckingForUpdates}
             aria-busy={isCheckingForUpdates}
@@ -77,7 +77,7 @@ export function UpdateCard({
         return (
           <Button
             variant="secondary"
-            size="sm"
+            size="xs"
             onClick={updateNow}
             disabled={isUpdating}
             aria-busy={isUpdating}
@@ -97,7 +97,7 @@ export function UpdateCard({
         return (
           <Button
             variant="secondary"
-            size="sm"
+            size="xs"
             onClick={installUpdate}
             disabled={isInstalling}
             aria-busy={isInstalling}
@@ -188,7 +188,7 @@ function DownloadButton({
   };
 
   return (
-    <Button variant="secondary" size="sm" disabled={isDownloading} onClick={onClick}>
+    <Button variant="secondary" size="xs" disabled={isDownloading} onClick={onClick}>
       {renderButtonContent()}
     </Button>
   );

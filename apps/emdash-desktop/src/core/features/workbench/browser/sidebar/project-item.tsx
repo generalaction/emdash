@@ -1,3 +1,4 @@
+import { ContextMenu, Tooltip } from '@emdash/ui/react/primitives';
 import {
   CableIcon,
   ChevronRight,
@@ -28,15 +29,7 @@ import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import {
   useNavigate,
   useViewParams,
@@ -117,20 +110,20 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         ? 'Failed'
         : UNREGISTERED_STAGE_LABEL[project.creation.stage];
     return (
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <SidebarItemMiniButton type="button" disabled aria-label="Loading">
             <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
           </SidebarItemMiniButton>
-        </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>{label}</Tooltip.Content>
+      </Tooltip.Root>
     );
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>
         <SidebarMenuRow
           className={cn('group/row h-8 justify-between flex px-1')}
           data-active={isProjectActive || undefined}
@@ -177,19 +170,19 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate">{project.name}</span>
                   {projectViewKind(project) === 'path_not_found' && (
-                    <Tooltip>
-                      <TooltipTrigger>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger>
                         <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
-                      </TooltipTrigger>
-                      <TooltipContent>Project not found at path</TooltipContent>
-                    </Tooltip>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>Project not found at path</Tooltip.Content>
+                    </Tooltip.Root>
                   )}
                 </span>
               )}
             </SidebarMenuAction>
           </div>
-          <Tooltip>
-            <TooltipTrigger
+          <Tooltip.Root>
+            <Tooltip.Trigger
               className="h-6"
               render={
                 <SidebarItemMiniButton
@@ -209,17 +202,17 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 </SidebarItemMiniButton>
               }
             />
-            <TooltipContent>
+            <Tooltip.Content>
               New Task
               <BoundShortcut command="app.newTask" variant="keycaps" />
-            </TooltipContent>
-          </Tooltip>
+            </Tooltip.Content>
+          </Tooltip.Root>
         </SidebarMenuRow>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
+      </ContextMenu.Trigger>
+      <ContextMenu.Content>
         {sshConnectionId && (
           <>
-            <ContextMenuItem
+            <ContextMenu.Item
               disabled={!canReconnect}
               onClick={() => {
                 void appState.machines.connect(sshConnectionId).catch(() => {});
@@ -227,8 +220,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <RotateCcw className="size-4" />
               Reconnect
-            </ContextMenuItem>
-            <ContextMenuItem
+            </ContextMenu.Item>
+            <ContextMenu.Item
               onClick={() => {
                 void openChangeConnectionModal({
                   projectId,
@@ -238,11 +231,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <CableIcon className="size-4" />
               Change SSH Connection
-            </ContextMenuItem>
-            <ContextMenuSeparator />
+            </ContextMenu.Item>
+            <ContextMenu.Separator />
           </>
         )}
-        <ContextMenuItem
+        <ContextMenu.Item
           variant="destructive"
           onClick={() => {
             void confirmDeleteProject({
@@ -253,9 +246,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         >
           <Trash2 className="size-4" />
           Remove Project
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        </ContextMenu.Item>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 });
 

@@ -1,7 +1,8 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
+import { EmptyState } from '@emdash/ui/react/components';
+import { Button, toast } from '@emdash/ui/react/primitives';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { toast } from 'sonner';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
@@ -12,8 +13,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { Button } from '@core/primitives/ui/browser/button';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { activeDiffEntry } from '../pane-selectors';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';
@@ -118,7 +117,7 @@ export const StagedSection = observer(function StagedSection() {
             selectedCount={changesView.stagedSelection.size}
             selectionActions={
               <Button
-                variant="outline"
+                variant="secondary"
                 size="xs"
                 onClick={handleUnstageSelection}
                 title="Unstage selected files"

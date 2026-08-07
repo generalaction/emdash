@@ -1,10 +1,6 @@
+import { Collapsible } from '@emdash/ui/react/primitives';
 import { ChevronDown, Info } from 'lucide-react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@core/primitives/ui/browser/collapsible';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
 
 // ---------------------------------------------------------------------------
@@ -46,14 +42,15 @@ export function WorkspaceSummaryAlert({
   const hasSteps = steps.length > 0;
 
   return (
-    <Collapsible
+    <Collapsible.Root
       disabled={!hasSteps}
       className={cn(
         'rounded-md border bg-background-info border-border-info text-foreground-info text-xs',
         className
       )}
     >
-      <CollapsibleTrigger
+      <Collapsible.Trigger
+        hideChevron
         className={cn('flex w-full items-center gap-2 px-3 py-2 text-left outline-none')}
       >
         <Info className="size-3.5 shrink-0" />
@@ -61,10 +58,10 @@ export function WorkspaceSummaryAlert({
         {hasSteps && (
           <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-data-open:rotate-180" />
         )}
-      </CollapsibleTrigger>
+      </Collapsible.Trigger>
 
       {hasSteps && (
-        <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
+        <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
           <ol className="flex flex-col gap-0.5 border-t border-border px-3 py-2">
             {steps.map((step, i) => (
               <li key={i} className="flex items-start gap-2 text-foreground-muted">
@@ -73,8 +70,8 @@ export function WorkspaceSummaryAlert({
               </li>
             ))}
           </ol>
-        </CollapsibleContent>
+        </Collapsible.Panel>
       )}
-    </Collapsible>
+    </Collapsible.Root>
   );
 }

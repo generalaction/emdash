@@ -1,3 +1,4 @@
+import { Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -15,13 +16,6 @@ import {
   SelectTrigger,
 } from '@core/primitives/ui/browser/select';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
@@ -65,17 +59,13 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           sshConnectionId,
         });
         if (!res?.success) {
-          toast({
-            title: `Open in ${label} failed`,
+          toast.error(`Open in ${label} failed`, {
             description: res?.error || 'Application not available.',
-            variant: 'destructive',
           });
         }
       } catch (e: unknown) {
-        toast({
-          title: `Open in ${label} failed`,
+        toast.error(`Open in ${label} failed`, {
           description: e instanceof Error ? e.message : String(e),
-          variant: 'destructive',
         });
       }
     },
@@ -135,9 +125,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         className
       )}
     >
-      <TooltipProvider delay={0}>
-        <Tooltip>
-          <TooltipTrigger className="flex min-w-0 flex-1">
+      <Tooltip.Provider delay={0}>
+        <Tooltip.Root>
+          <Tooltip.Trigger className="flex min-w-0 flex-1">
             <button
               type="button"
               className={cn(
@@ -161,15 +151,15 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                 />
               )}
             </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
+          </Tooltip.Trigger>
+          <Tooltip.Content side="bottom">
             <div className="flex flex-col gap-1">
               <span>Open in {buttonAppLabel || 'editor'}</span>
               <BoundShortcut command="app.openInEditor" variant="keycaps" />
             </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </Tooltip.Provider>
       <Select
         value={defaultApp ?? undefined}
         onValueChange={(value) => {
@@ -178,8 +168,8 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           }
         }}
       >
-        <Tooltip>
-          <TooltipTrigger
+        <Tooltip.Root>
+          <Tooltip.Trigger
             render={
               <SelectTrigger
                 showChevron={false}
@@ -189,9 +179,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                 <ChevronDown className="size-3.5" />
               </SelectTrigger>
             }
-          ></TooltipTrigger>
-          <TooltipContent side="bottom">Select open in app</TooltipContent>
-        </Tooltip>
+          ></Tooltip.Trigger>
+          <Tooltip.Content side="bottom">Select open in app</Tooltip.Content>
+        </Tooltip.Root>
         <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6} className="w-max">
           {menuApps.map((app) => {
             const isAvailable = loading

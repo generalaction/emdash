@@ -7,8 +7,9 @@ import { toggleGroup as toggleGroupClass } from './toggle.css';
 
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
-export interface ToggleProps
-  extends TogglePrimitive.Props, Pick<ControlVariantProps, 'size' | 'tone'> {
+export interface ToggleProps extends TogglePrimitive.Props {
+  size?: ControlVariantProps['size'];
+  tone?: ControlVariantProps['tone'];
   icon?: boolean;
 }
 
@@ -45,9 +46,13 @@ function ToggleGroupRoot({ className, ...props }: ToggleGroupProps) {
 
 const ToggleGroupItem = React.forwardRef<
   HTMLButtonElement,
-  TogglePrimitive.Props & Pick<ControlVariantProps, 'size' | 'tone'> & { icon?: boolean }
+  TogglePrimitive.Props & {
+    size?: ControlVariantProps['size'];
+    tone?: ControlVariantProps['tone'];
+    icon?: boolean;
+  }
 >(function ToggleGroupItem(
-  { className, size = 'sm', tone = 'neutral', icon = false, ...props },
+  { className, size = 'xs', tone = 'neutral', icon = false, ...props },
   ref
 ) {
   return (

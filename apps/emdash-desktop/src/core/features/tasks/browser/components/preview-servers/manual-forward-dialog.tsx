@@ -1,7 +1,7 @@
+import { Button, Label } from '@emdash/ui/react/primitives';
 import { useState, type FormEvent } from 'react';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContent,
   DialogContentArea,
@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
 
 function parsePort(value: string): number | undefined {
   const trimmed = value.trim();
@@ -120,10 +119,10 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
           {error ? <p className="text-xs text-foreground-destructive">{error}</p> : null}
         </DialogContentArea>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button variant="primary" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Forwarding...' : 'Forward'}
           </Button>
         </DialogFooter>

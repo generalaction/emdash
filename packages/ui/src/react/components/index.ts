@@ -87,7 +87,14 @@ export {
   type DirectoryHistory,
   type DirectoryHistoryState,
 } from './directory-selector/use-directory-history';
-export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer';
+export { ImageViewerDialog, type ImageViewerDialogProps } from './image-viewer/image-viewer-dialog';
+export {
+  ZoomViewerDialog,
+  type ZoomViewerApi,
+  type ZoomViewerDialogProps,
+} from './image-viewer/zoom-viewer-dialog';
+export { ContainedImage, type ContainedImageProps } from './image-viewer/contained-image';
+export { ExpandableImage, type ExpandableImageProps } from './image-viewer/expandable-image';
 export { MermaidViewerDialog, type MermaidViewerDialogProps } from './mermaid-viewer';
 export { ComboboxPopover, type ComboboxPopoverProps } from './combobox-popover';
 export {
@@ -96,10 +103,27 @@ export {
   type AgentStatusProps,
 } from './agent-status/agent-status';
 export {
+  BrailleSpinner,
+  type BrailleSpinnerProps,
+  type BrailleSpinnerVariant,
+} from './agent-status/braille-spinner';
+export {
   MachineStatus,
   type MachineStatusKind,
   type MachineStatusProps,
 } from './machine-status/machine-status';
+export {
+  CardGrid,
+  CardGridItem,
+  CardGridSection,
+  type CardGridSectionProps,
+} from './card-grid/card-grid';
+export { EmptyState, type EmptyStateProps } from './empty-state/empty-state';
+export {
+  ListPopoverCard,
+  type ListPopoverCardProps,
+  type ListPopoverCardStatus,
+} from './list-popover-card/list-popover-card';
 export { Pill, type PillProps, type PillVariant } from './pill/pill';
 export {
   ScriptStatus,

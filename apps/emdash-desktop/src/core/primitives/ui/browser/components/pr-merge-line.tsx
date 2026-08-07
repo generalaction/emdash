@@ -1,7 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { ArrowRight, GitBranch } from 'lucide-react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: string }) {
@@ -40,18 +40,18 @@ export function getPrMergeLineActionText(status: PullRequest['status']) {
 
 function PrBranchBadge({ owner, branch }: { owner?: string; branch: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger className="min-w-0">
+    <Tooltip.Root>
+      <Tooltip.Trigger className="min-w-0">
         <span className="flex min-w-0 items-center gap-1 rounded-md bg-background-2 px-1 py-0.5 font-mono text-[10px] font-medium">
           <GitBranch className="size-3 shrink-0" />
           <span className="truncate">
             {owner}:{branch}
           </span>
         </span>
-      </TooltipTrigger>
-      <TooltipContent>
+      </Tooltip.Trigger>
+      <Tooltip.Content>
         {owner}:{branch}
-      </TooltipContent>
-    </Tooltip>
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }

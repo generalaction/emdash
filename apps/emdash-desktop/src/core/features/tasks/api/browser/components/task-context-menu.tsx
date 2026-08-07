@@ -1,13 +1,6 @@
+import { ContextMenu, toast } from '@emdash/ui/react/primitives';
 import { Archive, Copy, MessageSquare, Pencil, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
 import React from 'react';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 
 interface TaskContextMenuProps {
   children: React.ReactNode;
@@ -45,72 +38,70 @@ export function TaskContextMenu({
 
     try {
       await navigator.clipboard.writeText(branchName);
-      toast({ title: 'Branch name copied' });
+      toast('Branch name copied');
     } catch {
-      toast({
-        title: 'Copy failed',
+      toast.error('Copy failed', {
         description: 'The branch name could not be copied to the clipboard.',
-        variant: 'destructive',
       });
     }
   };
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>{children}</ContextMenuTrigger>
-      <ContextMenuContent>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>{children}</ContextMenu.Trigger>
+      <ContextMenu.Content>
         {canPin &&
           (isPinned ? (
-            <ContextMenuItem onClick={onUnpin}>
+            <ContextMenu.Item onClick={onUnpin}>
               <PinOff className="size-4" />
               Unpin task
-            </ContextMenuItem>
+            </ContextMenu.Item>
           ) : (
-            <ContextMenuItem onClick={onPin}>
+            <ContextMenu.Item onClick={onPin}>
               <Pin className="size-4" />
               Pin task
-            </ContextMenuItem>
+            </ContextMenu.Item>
           ))}
-        <ContextMenuItem onClick={onRename}>
+        <ContextMenu.Item onClick={onRename}>
           <Pencil className="size-4" />
           Rename
-        </ContextMenuItem>
+        </ContextMenu.Item>
         {onReconnect && (
-          <ContextMenuItem onClick={onReconnect}>
+          <ContextMenu.Item onClick={onReconnect}>
             <RotateCcw className="size-4" />
             Reconnect
-          </ContextMenuItem>
+          </ContextMenu.Item>
         )}
         {onConvertAutomation && (
-          <ContextMenuItem onClick={onConvertAutomation}>
+          <ContextMenu.Item onClick={onConvertAutomation}>
             <MessageSquare className="size-4" />
             Convert to regular task
-          </ContextMenuItem>
+          </ContextMenu.Item>
         )}
         {!isArchived && (
-          <ContextMenuItem onClick={onArchive}>
+          <ContextMenu.Item onClick={onArchive}>
             <Archive className="size-4" />
             Archive
-          </ContextMenuItem>
+          </ContextMenu.Item>
         )}
         {isArchived && onRestore && (
-          <ContextMenuItem onClick={onRestore}>
+          <ContextMenu.Item onClick={onRestore}>
             <RotateCcw className="size-4" />
             Restore
-          </ContextMenuItem>
+          </ContextMenu.Item>
         )}
         {branchName && (
-          <ContextMenuItem onClick={() => void handleCopyBranchName()}>
+          <ContextMenu.Item onClick={() => void handleCopyBranchName()}>
             <Copy className="size-4" />
             Copy branch name
-          </ContextMenuItem>
+          </ContextMenu.Item>
         )}
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onClick={onDelete}>
+        <ContextMenu.Separator />
+        <ContextMenu.Item variant="destructive" onClick={onDelete}>
           <Trash2 className="size-4" />
           Delete
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        </ContextMenu.Item>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 }

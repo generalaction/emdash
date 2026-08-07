@@ -1,8 +1,7 @@
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Expand } from 'lucide-react';
 import type React from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 
 interface MermaidDiagramPreviewProps {
   svg: string;
@@ -25,13 +24,14 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
 
   return (
     <div className="group/mermaid relative overflow-x-auto rounded-md border border-border bg-background">
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <Button
               type="button"
               variant="secondary"
-              size="icon-xs"
+              size="xs"
+              icon
               aria-label="Expand Mermaid diagram"
               className="absolute top-1 right-1 z-10 opacity-0 shadow-sm ring-1 ring-border/80 transition-opacity group-hover/mermaid:opacity-100 focus-visible:opacity-100"
               onClick={expandFromInteraction}
@@ -40,10 +40,10 @@ export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagram
             </Button>
           }
         />
-        <TooltipContent side="left" align="end">
+        <Tooltip.Content side="left" align="end">
           Expand diagram
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
       <div
         role="button"
         tabIndex={0}

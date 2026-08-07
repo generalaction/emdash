@@ -1,4 +1,5 @@
 import type { TerminalShellId } from '@emdash/core/primitives/terminal-shell/api';
+import { Button, Combobox } from '@emdash/ui/react/primitives';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -9,20 +10,6 @@ import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
 } from '@core/primitives/terminals/api';
-import { Button } from '@core/primitives/ui/browser/button';
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-} from '@core/primitives/ui/browser/combobox';
 import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
 import {
   Select,
@@ -232,7 +219,7 @@ const TerminalSettingsCard: React.FC = () => {
         description="Choose the font family for the terminal."
         control={
           <div className="w-[183px] flex-shrink-0">
-            <Combobox
+            <Combobox.Root
               items={visibleGroups}
               value={selectedOption}
               onValueChange={(opt: FontOption | null) => {
@@ -251,20 +238,20 @@ const TerminalSettingsCard: React.FC = () => {
               filter={null}
               autoHighlight
             >
-              <ComboboxTrigger
+              <Combobox.Trigger
                 render={
                   <button
                     type="button"
                     disabled={loading || saving}
                     className="flex h-9 w-full items-center justify-between rounded-md border border-border bg-transparent px-2.5 py-1 text-left text-sm font-normal outline-none disabled:opacity-50"
                   >
-                    <ComboboxValue placeholder="Default (Menlo)" />
+                    <Combobox.Value placeholder="Default (Menlo)" />
                     <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 text-foreground-muted" />
                   </button>
                 }
               />
-              <ComboboxContent>
-                <ComboboxInput
+              <Combobox.Content>
+                <Combobox.Input
                   showTrigger={false}
                   placeholder="Search or type custom font"
                   onKeyDown={(e) => {
@@ -276,13 +263,13 @@ const TerminalSettingsCard: React.FC = () => {
                     setPickerOpen(false);
                   }}
                 />
-                <ComboboxList>
+                <Combobox.List>
                   {(group: FontGroup) => (
-                    <ComboboxGroup key={group.value} items={group.items}>
-                      <ComboboxLabel>{group.label}</ComboboxLabel>
-                      <ComboboxCollection>
+                    <Combobox.Group key={group.value} items={group.items}>
+                      <Combobox.Label>{group.label}</Combobox.Label>
+                      <Combobox.Collection>
                         {(item: FontOption) => (
-                          <ComboboxItem key={item.value || '__default__'} value={item}>
+                          <Combobox.Item key={item.value || '__default__'} value={item}>
                             <span
                               style={{
                                 fontFamily: item.value ? `"${item.value}"` : DEFAULT_FONT_FAMILY,
@@ -290,12 +277,12 @@ const TerminalSettingsCard: React.FC = () => {
                             >
                               {item.label}
                             </span>
-                          </ComboboxItem>
+                          </Combobox.Item>
                         )}
-                      </ComboboxCollection>
-                    </ComboboxGroup>
+                      </Combobox.Collection>
+                    </Combobox.Group>
                   )}
-                </ComboboxList>
+                </Combobox.List>
                 {loadingFonts ? (
                   <div className="px-1 pb-1">
                     <div className="px-2 py-1.5 text-xs text-foreground-muted">Installed</div>
@@ -305,9 +292,9 @@ const TerminalSettingsCard: React.FC = () => {
                     </div>
                   </div>
                 ) : null}
-                <ComboboxEmpty>No fonts found.</ComboboxEmpty>
-              </ComboboxContent>
-            </Combobox>
+                <Combobox.Empty>No fonts found.</Combobox.Empty>
+              </Combobox.Content>
+            </Combobox.Root>
           </div>
         }
       />
@@ -319,7 +306,8 @@ const TerminalSettingsCard: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="xs"
+              icon
               disabled={loading || saving || fontSize <= TERMINAL_FONT_SIZE_MIN}
               onClick={() => applyFontSize(fontSize - 1)}
               aria-label="Decrease terminal font size"
@@ -333,7 +321,8 @@ const TerminalSettingsCard: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="xs"
+              icon
               disabled={loading || saving || fontSize >= TERMINAL_FONT_SIZE_MAX}
               onClick={() => applyFontSize(fontSize + 1)}
               aria-label="Increase terminal font size"

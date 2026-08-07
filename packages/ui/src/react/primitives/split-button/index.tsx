@@ -27,6 +27,8 @@ export type SplitButtonOptionTone = 'neutral' | 'accept' | 'reject';
 export type SplitButtonOption = {
   id: string;
   label: string;
+  /** Secondary muted text rendered under the label in the option menu. */
+  description?: string;
   /**
    * Visual tone hint rendered as a small color dot before the label.
    * Defaults to 'neutral' when omitted.
@@ -44,13 +46,28 @@ export interface SplitButtonProps {
   onSelectedChange?: (id: string) => void;
   /**
    * Fires with the id of the chosen option.
-   * Called on primary-face click (current selection) and on menu item click.
+   * Called on primary-face click (current selection) and — unless
+   * `commitOnSelect` is false — on menu item click.
    */
   onAction: (id: string) => void;
+  /**
+   * Whether picking an option from the menu fires `onAction` immediately.
+   * Set to false for select-then-commit flows (e.g. picking a merge strategy)
+   * where the menu only changes the pending selection and the primary face
+   * commits it. @default true
+   */
+  commitOnSelect?: boolean;
   disabled?: boolean;
+  /** Disables both segments and swaps the face label for `loadingLabel`. */
+  loading?: boolean;
+  loadingLabel?: string;
+  /** Leading node rendered before the face label (e.g. an icon). */
+  icon?: React.ReactNode;
   size?: ButtonProps['size'];
   variant?: ButtonVariant;
   tone?: ControlVariantProps['tone'];
+  /** Stretch to the container width; the face grows and truncates. */
+  fullWidth?: boolean;
   className?: string;
   /**
    * Extra class for the portaled option menu. The menu mounts under <body>,
@@ -67,10 +84,15 @@ export function SplitButton({
   selectedId,
   onSelectedChange,
   onAction,
+  commitOnSelect = true,
   disabled = false,
-  size = 'sm',
+  loading = false,
+  loadingLabel,
+  icon,
+  size = 'xs',
   variant = 'primary',
   tone = 'neutral',
+  fullWidth = false,
   className,
   menuClassName,
 }: SplitButtonProps) {
@@ -79,33 +101,36 @@ export function SplitButton({
   const controlVariant = resolveButtonControlVariant({ variant, tone, size });
   const hasFilledSegment =
     variant === 'primary' || variant === 'destructive' || variant === 'secondary';
+  const isDisabled = disabled || loading;
+  const faceLabel = loading ? (loadingLabel ?? selectedOption?.label) : selectedOption?.label;
 
   const handleMenuSelect = (option: SplitButtonOption) => {
     onSelectedChange?.(option.id);
-    onAction(option.id);
+    if (commitOnSelect) onAction(option.id);
   };
 
   return (
-    <div className={cx(styles.splitButtonRoot, className)}>
+    <div className={cx(styles.splitButtonRoot, fullWidth && styles.splitButtonRootFull, className)}>
       {/* Primary face — fires the currently selected option */}
       <Button
         variant={variant}
         size={size}
         tone={tone}
-        disabled={disabled}
-        className={styles.splitButtonFace}
+        disabled={isDisabled}
+        className={cx(styles.splitButtonFace, fullWidth && styles.splitButtonFaceFull)}
         title={selectedOption?.label}
         onClick={() => {
           if (selectedOption) onAction(selectedOption.id);
         }}
       >
-        <span className={styles.splitButtonLabel}>{selectedOption?.label ?? ''}</span>
+        {icon}
+        <span className={styles.splitButtonLabel}>{faceLabel ?? ''}</span>
       </Button>
 
       {/* Chevron trigger — opens the option menu */}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          disabled={disabled}
+          disabled={isDisabled}
           aria-label="More options"
           className={cx(
             controlVariants({ ...controlVariant, icon: true }),
@@ -120,9 +145,13 @@ export function SplitButton({
             <DropdownMenu.Item
               key={option.id}
               title={option.label}
+              className={option.description ? styles.splitButtonMenuItemStacked : undefined}
               onClick={() => handleMenuSelect(option)}
             >
               <span className={styles.splitButtonMenuLabel}>{option.label}</span>
+              {option.description && (
+                <span className={styles.splitButtonMenuDescription}>{option.description}</span>
+              )}
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>

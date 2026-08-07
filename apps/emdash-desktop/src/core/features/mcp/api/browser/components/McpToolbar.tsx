@@ -1,7 +1,7 @@
+import { Button, SearchInput } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 
 type McpToolbarProps = {
   search: string;
@@ -18,17 +18,19 @@ export function McpToolbar({
   isRefreshing,
   onAddCustom,
 }: McpToolbarProps) {
+  const searchRef = useSearchFocusHotkeys();
   return (
     <div className="flex w-full items-center justify-between gap-2">
       <SearchInput
+        ref={searchRef}
         placeholder="Search servers..."
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
       />
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
-          size="icon"
+          variant="secondary"
+          icon
           onClick={onRefresh}
           disabled={isRefreshing}
           aria-label="Refresh providers"
@@ -37,7 +39,7 @@ export function McpToolbar({
             className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
           />
         </Button>
-        <Button onClick={onAddCustom}>
+        <Button variant="primary" onClick={onAddCustom}>
           <Plus className="size-4" />
           Custom MCP
         </Button>

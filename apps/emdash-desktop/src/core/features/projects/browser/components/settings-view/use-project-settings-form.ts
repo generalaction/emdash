@@ -1,5 +1,6 @@
 import type { GitRemote } from '@emdash/core/runtimes/git/api';
 import { err, type Result } from '@emdash/shared';
+import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
@@ -15,7 +16,6 @@ import {
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,
@@ -174,10 +174,7 @@ export function useProjectSettingsForm({
         form: nextForm,
         savedForm: nextForm,
       });
-      toast({
-        title: 'Team config shared',
-        description: '.emdash.json was written successfully.',
-      });
+      toast('Team config shared', { description: '.emdash.json was written successfully.' });
       onSuccess();
     });
   }, [
@@ -209,8 +206,7 @@ export function useProjectSettingsForm({
         form: nextForm,
         savedForm: nextForm,
       });
-      toast({
-        title: `${migration.label} config imported`,
+      toast(`${migration.label} config imported`, {
         description: `${migration.files.join(', ')} was imported successfully.`,
       });
       onSuccess();

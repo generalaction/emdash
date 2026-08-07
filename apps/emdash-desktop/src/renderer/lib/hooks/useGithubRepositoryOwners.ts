@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import type { ComboboxSelectOption } from '@core/primitives/ui/browser/combobox-popover';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
-export type GitHubOwnerOption = ComboboxSelectOption & { avatarUrl: string };
+export type GitHubOwnerOption = { value: string; label: string; avatarUrl: string };
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'string' && error.length > 0) return error;

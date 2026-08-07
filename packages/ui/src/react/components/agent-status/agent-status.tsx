@@ -1,36 +1,31 @@
+import { Tooltip } from '@react/primitives/tooltip';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+import { BrailleSpinner } from './braille-spinner';
 import * as styles from './agent-status.css';
 
-export type AgentStatusKind = 'working' | 'user-action-required' | 'done' | 'error';
+export type AgentStatusKind = 'working' | 'awaiting-input' | 'error' | 'completed' | 'idle';
+
+type ActiveAgentStatusKind = Exclude<AgentStatusKind, 'idle'>;
 
 export interface AgentStatusProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'children'> {
-  status: AgentStatusKind;
+  /** An `idle` (or `null`) status renders nothing. */
+  status: AgentStatusKind | null;
   /**
    * Uniform size shorthand. Sets the shared status bounding box.
    * Numbers are treated as CSS px values.
    */
   size?: string | number;
+  /** Wrap the indicator in a tooltip naming the status. */
+  tooltip?: boolean;
 }
 
-const STATUS_LABELS: Record<AgentStatusKind, string> = {
-  working: 'Working',
-  'user-action-required': 'User Action Required',
-  done: 'Done',
-  error: 'Error',
+const STATUS_LABELS: Record<ActiveAgentStatusKind, string> = {
+  working: 'Agent is working',
+  'awaiting-input': 'Agent is awaiting input',
+  error: 'Agent error',
+  completed: 'Agent completed',
 };
-
-const DOT_POINTS = [
-  [6, 6],
-  [12, 6],
-  [18, 6],
-  [6, 12],
-  [12, 12],
-  [18, 12],
-  [6, 18],
-  [12, 18],
-  [18, 18],
-] as const;
 
 function toCssLength(size: string | number) {
   return typeof size === 'number' ? `${size}px` : size;
@@ -39,13 +34,16 @@ function toCssLength(size: string | number) {
 function AgentStatus({
   status,
   size = '1.5rem',
+  tooltip = false,
   className,
   style,
   role = 'img',
   'aria-label': ariaLabel,
   ...props
 }: AgentStatusProps) {
-  return (
+  if (!status || status === 'idle') return null;
+
+  const indicator = (
     <span
       {...props}
       role={role}
@@ -62,20 +60,23 @@ function AgentStatus({
       <AgentStatusGlyph status={status} />
     </span>
   );
+
+  if (!tooltip) return indicator;
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger render={indicator} />
+      <Tooltip.Content>{STATUS_LABELS[status]}</Tooltip.Content>
+    </Tooltip.Root>
+  );
 }
 
-function AgentStatusGlyph({ status }: { status: AgentStatusKind }) {
+function AgentStatusGlyph({ status }: { status: ActiveAgentStatusKind }) {
   switch (status) {
     case 'working':
-      return (
-        <svg className={cx(styles.icon, styles.workingIcon)} viewBox="0 0 24 24" aria-hidden="true">
-          {DOT_POINTS.map(([cx, cy], index) => (
-            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.85" className={styles.dot[index]} />
-          ))}
-        </svg>
-      );
+      return <BrailleSpinner />;
 
-    case 'user-action-required':
+    case 'awaiting-input':
       return (
         <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
           <rect
@@ -91,7 +92,7 @@ function AgentStatusGlyph({ status }: { status: AgentStatusKind }) {
         </svg>
       );
 
-    case 'done':
+    case 'completed':
       return (
         <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="7.5" className={styles.successShape} strokeWidth="1" />

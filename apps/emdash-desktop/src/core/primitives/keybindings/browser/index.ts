@@ -20,5 +20,9 @@ export {
   type SettingsKeybindingGroup,
 } from './keybinding-service';
 export { useChordKeydown, type UseChordKeydownOptions } from './use-chord-keydown';
+export {
+  useSearchFocusHotkeys,
+  type UseSearchFocusHotkeysOptions,
+} from './use-search-focus-hotkeys';
 export { useChordRecorder, type UseChordRecorderOptions } from './use-chord-recorder';
 export { useConfirm, type UseConfirmOptions } from './use-confirm';

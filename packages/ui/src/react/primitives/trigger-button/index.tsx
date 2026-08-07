@@ -57,7 +57,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
         ? cx(
             fieldShellBase,
             triggerInputLayoutBase,
-            size === 'sm' && triggerInputLayoutSm,
+            size === 'xs' && triggerInputLayoutSm,
             className
           )
         : cx(controlVariants({ variant: 'ghost', tone, size }), triggerButtonExtra, className);

@@ -1,8 +1,7 @@
+import { Button, Resizable, toast, useResizablePanelRef } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
-import { usePanelRef } from 'react-resizable-panels';
-import { toast } from 'sonner';
 import {
   getTaskManagerStore,
   getTaskStore,
@@ -13,12 +12,6 @@ import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
-import { Button } from '@core/primitives/ui/browser/button';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@core/primitives/ui/browser/resizable';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 
@@ -136,7 +129,7 @@ function MissingWorkspaceState({
       </p>
       {reprovision && removeAndReprovision && (
         <div className="mt-2 flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => void reprovision()}>
+          <Button size="sm" variant="secondary" onClick={() => void reprovision()}>
             Re-provision
           </Button>
           <Button size="sm" variant="ghost" onClick={() => void removeAndReprovision()}>
@@ -273,7 +266,7 @@ const SIDEBAR_COLLAPSED_SIZE = '0px';
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const taskView = useTaskComposition();
-  const sidebarPanelRef = usePanelRef();
+  const sidebarPanelRef = useResizablePanelRef();
 
   useEffect(() => {
     if (taskView.isSidebarCollapsed) {
@@ -285,12 +278,12 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
 
   return (
     <taskTabView.TabLayoutProvider layout={taskView.paneLayout}>
-      <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
-        <ResizablePanel id="task-main-area">
+      <Resizable.Group orientation="horizontal" id="task-sidebar-layout">
+        <Resizable.Panel id="task-main-area">
           <TaskMainColumn />
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel
+        </Resizable.Panel>
+        <Resizable.Handle />
+        <Resizable.Panel
           id="task-sidebar"
           panelRef={sidebarPanelRef}
           defaultSize="25%"
@@ -303,8 +296,8 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
           }
         >
           <TaskSidebar />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </Resizable.Panel>
+      </Resizable.Group>
     </taskTabView.TabLayoutProvider>
   );
 });

@@ -186,6 +186,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton
+          variant="primary"
           onClick={() => void handleCreateConversation()}
           disabled={createDisabled || isSubmitting}
         >

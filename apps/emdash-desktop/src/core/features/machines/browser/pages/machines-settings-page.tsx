@@ -66,7 +66,7 @@ export const MachinesSettingsPage = observer(function MachinesSettingsPage({
               placeholder="Search machines…"
               style={{ width: '14rem' }}
             />
-            <Button type="button" variant="primary" size="sm" onClick={openCreateModal}>
+            <Button type="button" variant="primary" size="xs" onClick={openCreateModal}>
               <PlusIcon />
               Add machine
             </Button>

@@ -6,21 +6,13 @@ import {
   type WorkspaceIconStatus,
   type WorkspaceIconType,
 } from '@emdash/ui/react/components';
+import { RelativeTime, Spinner, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import type {
   ProjectWorkspaceGitStats,
   ProjectWorkspacePathIssue,
@@ -170,8 +162,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
     const deletableRows = group.workspaces.filter((row) => row.row.canDelete);
     if (deletableRows.length === 0) {
       const pendingCount = group.workspaces.filter((row) => row.pendingRemoval).length;
-      toast({
-        title: pendingCount > 0 ? 'Removal already pending' : 'No deletable workspaces',
+      toast(pendingCount > 0 ? 'Removal already pending' : 'No deletable workspaces', {
         description:
           pendingCount > 0
             ? 'These workspaces are already being removed.'
@@ -201,21 +192,17 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
       const failed = result.results.filter((row) => !row.success);
 
       if (failed.length > 0) {
-        toast({
-          title: `${result.results.length - failed.length} deleted, ${failed.length} failed`,
+        toast.error(`${result.results.length - failed.length} deleted, ${failed.length} failed`, {
           description: failed[0]?.message,
-          variant: 'destructive',
         });
       } else {
-        toast({ title: `Deleted ${deletableRows.length} workspaces` });
+        toast(`Deleted ${deletableRows.length} workspaces`);
         closeDetail();
       }
       // No cache invalidation: the mirror live model streams the deletions.
     } catch (error) {
-      toast({
-        title: 'Could not delete workspaces',
+      toast.error('Could not delete workspaces', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     }
   }, [closeDetail, group, openConfirm]);
@@ -226,7 +213,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
   if (!group || !rootJoined || !rootRow) return <DetailMissingState />;
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <div className="flex min-h-0 flex-col gap-6 pb-4">
         <RepositoryHeader
           project={group.project}
@@ -254,7 +241,7 @@ export const WorkspaceDetailPage = observer(function WorkspaceDetailPage({
           />
         </WorkspaceSection>
       </div>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 });
 
@@ -328,14 +315,16 @@ function workspaceScriptIssues(row: ProjectWorkspaceRow): WorkspaceScriptIssue[]
 
 function PathIssueChip({ issue, path }: { issue: ProjectWorkspacePathIssue; path: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span className={pathIssueChipClass(issue)}>
           {issue.kind === 'prunable' ? 'Stale git record' : 'Missing'}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-80 text-xs">{pathIssueMessage(issue, path)}</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-80 text-xs">
+        {pathIssueMessage(issue, path)}
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -357,16 +346,16 @@ function RemovalChip({ item }: { item: WorkspaceDetailListItem }) {
   const chipBase = 'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] tracking-wide uppercase';
   if (item.removalNeedsAttention) {
     return (
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <span className={`${chipBase} border-border-destructive text-foreground-destructive`}>
             Removal failed
           </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-70 text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content className="max-w-70 text-xs">
           {item.statusMessage ?? 'The removal stopped after a failure that needs your decision.'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     );
   }
   return (
@@ -378,17 +367,17 @@ function RemovalChip({ item }: { item: WorkspaceDetailListItem }) {
 
 function ScriptIssueChip({ issue }: { issue: WorkspaceScriptIssue }) {
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span className="shrink-0 rounded-full border border-border-warning px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-warning uppercase">
           {scriptIssueLabel(issue)}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-80 text-xs">
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-80 text-xs">
         {scriptIssueLabel(issue)} <RelativeTime value={issue.at} />
         {issue.message ? `: ${issue.message}` : ''}
-      </TooltipContent>
-    </Tooltip>
+      </Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -423,7 +412,7 @@ function DetailOfflineState({ machineName }: { machineName?: string }) {
 function DetailLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspace
     </div>
   );

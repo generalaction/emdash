@@ -1,6 +1,6 @@
+import { Separator } from '@emdash/ui/react/primitives';
 import { Fragment } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { AutomationRow } from './AutomationRow';
 
 interface AutomationsListProps {

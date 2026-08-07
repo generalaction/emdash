@@ -1,22 +1,12 @@
 import type { ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { Pill } from '@emdash/ui/react/components';
+import { Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  ComboboxTrigger,
-} from '@core/primitives/ui/browser/combobox';
-import { AgentUiBadge } from '@core/primitives/ui/browser/components/agent-ui-badge';
 import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,
@@ -85,7 +75,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     }
 
     return (
-      <Combobox
+      <Combobox.Root
         items={groups}
         value={selectedOption ?? null}
         onValueChange={handleValueChange}
@@ -97,7 +87,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
         }
         autoHighlight
       >
-        <ComboboxTrigger
+        <Combobox.Trigger
           data-autofocus={autoFocus || undefined}
           disabled={disabled}
           className={cn(
@@ -115,21 +105,21 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
             <span className="flex-1 truncate text-foreground-muted">{placeholder}</span>
           )}
           <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
-        </ComboboxTrigger>
-        <ComboboxContent
+        </Combobox.Trigger>
+        <Combobox.Content
           ref={setAnchorEl}
           className={cn('min-w-(--anchor-width)', contentClassName)}
         >
-          <ComboboxInput showTrigger={false} placeholder="Search agents..." />
-          <ComboboxList className="pb-0">
+          <Combobox.Input showTrigger={false} placeholder="Search agents..." />
+          <Combobox.List className="pb-0">
             {(group: AgentGroup) => (
-              <ComboboxGroup key={group.value} items={group.items} className="py-1">
-                <ComboboxLabel>{group.label}</ComboboxLabel>
-                <ComboboxCollection>
+              <Combobox.Group key={group.value} items={group.items} className="py-1">
+                <Combobox.Label>{group.label}</Combobox.Label>
+                <Combobox.Collection>
                   {(item: AgentOption) => {
                     const showInstall = canInstallAgentOption(item, installable);
                     return (
-                      <ComboboxItem
+                      <Combobox.Item
                         key={item.value}
                         value={item}
                         disabled={isComboboxOptionDisabled(item)}
@@ -158,17 +148,17 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                             </span>
                           ) : null}
                         </span>
-                        {item.supportsAcp && <AgentUiBadge />}
-                      </ComboboxItem>
+                        {item.supportsAcp && <Pill variant="info">Chat UI</Pill>}
+                      </Combobox.Item>
                     );
                   }}
-                </ComboboxCollection>
-              </ComboboxGroup>
+                </Combobox.Collection>
+              </Combobox.Group>
             )}
-          </ComboboxList>
-        </ComboboxContent>
+          </Combobox.List>
+        </Combobox.Content>
         <AgentHoverCard anchor={anchorEl} controller={hoverCard} connectionId={connectionId} />
-      </Combobox>
+      </Combobox.Root>
     );
   }
 );

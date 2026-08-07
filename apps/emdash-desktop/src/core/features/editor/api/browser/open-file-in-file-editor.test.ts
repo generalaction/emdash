@@ -11,8 +11,9 @@ const mocks = vi.hoisted(() => ({
   transition: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { error: mocks.toastError },
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  toast: Object.assign(vi.fn(), { error: mocks.toastError }),
 }));
 
 vi.mock('@core/features/editor/api/browser/client', () => ({

@@ -1,6 +1,6 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
+import { PageLayout } from '@emdash/ui/react/patterns';
 import React, { useState } from 'react';
-import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
 import type { McpDrawerMode } from '../../../browser/components/McpDrawer';
 import { useMcps } from '../../../browser/components/useMcps';
 import { McpServersList } from './McpServersList';
@@ -29,9 +29,12 @@ export function McpPanel({ host = LOCAL_HOST_REF, header }: McpPanelProps) {
   return (
     <div className="flex flex-col text-foreground">
       {header ? (
-        <PageHeader sticky title={header.title} description={header.description}>
-          {toolbar}
-        </PageHeader>
+        <PageLayout.Header
+          sticky
+          title={header.title}
+          description={header.description}
+          actions={toolbar}
+        />
       ) : (
         toolbar
       )}

@@ -73,7 +73,10 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectSshConnectionId: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
+}));
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {

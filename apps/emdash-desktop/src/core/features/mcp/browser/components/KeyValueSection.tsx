@@ -1,6 +1,6 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
@@ -82,7 +82,7 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                icon
                 className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                 onClick={() => onChange(entries.filter((_, j) => j !== i))}
               >

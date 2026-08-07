@@ -1,8 +1,8 @@
+import { RelativeTime } from '@emdash/ui/react/primitives';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   sortPullRequestConversationItems,

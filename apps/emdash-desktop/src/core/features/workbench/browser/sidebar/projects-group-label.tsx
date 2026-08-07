@@ -1,19 +1,8 @@
+import { Button, DropdownMenu, MicroLabel, Tooltip } from '@emdash/ui/react/primitives';
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { buttonVariants } from '@core/primitives/ui/browser/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
@@ -23,72 +12,61 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
     <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
       <MicroLabel className="font-medium text-foreground-tertiary-passive">Projects</MicroLabel>
       <div className="flex items-center gap-1">
-        <DropdownMenu>
-          <Tooltip>
-            <DropdownMenuTrigger
+        <DropdownMenu.Root>
+          <Tooltip.Root>
+            <DropdownMenu.Trigger
               render={
-                <TooltipTrigger
+                <Tooltip.Trigger
                   render={
-                    <button
-                      type="button"
-                      aria-label="Sort projects"
-                      className={buttonVariants({
-                        size: 'icon-xs',
-                        variant: 'ghost',
-                        className:
-                          'hover:bg-transparent text-foreground-muted hover:text-foreground',
-                      })}
-                    >
+                    <Button type="button" variant="ghost" size="xs" icon aria-label="Sort projects">
                       <ListFilter />
-                    </button>
+                    </Button>
                   }
                 />
               }
             />
-            <TooltipContent>Sort by</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent className="min-w-48">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
-                <DropdownMenuRadioItem
+            <Tooltip.Content>Sort by</Tooltip.Content>
+          </Tooltip.Root>
+          <DropdownMenu.Content className="min-w-48">
+            <DropdownMenu.Group>
+              <DropdownMenu.Label>Sort by</DropdownMenu.Label>
+              <DropdownMenu.RadioGroup value={sidebarStore.taskSortBy}>
+                <DropdownMenu.RadioItem
                   value="created-at"
                   onClick={() => sidebarStore.applySort('created-at')}
                 >
                   Created at
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem
+                </DropdownMenu.RadioItem>
+                <DropdownMenu.RadioItem
                   value="updated-at"
                   onClick={() => sidebarStore.applySort('updated-at')}
                 >
                   Last used
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger
+                </DropdownMenu.RadioItem>
+              </DropdownMenu.RadioGroup>
+            </DropdownMenu.Group>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+        <Tooltip.Root>
+          <Tooltip.Trigger
             render={
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
+                icon
                 onClick={() => void openAddProjectModal({})}
                 aria-label="Add Project"
-                className={buttonVariants({
-                  size: 'icon-xs',
-                  variant: 'ghost',
-                  className: 'hover:bg-transparent text-foreground-muted hover:text-foreground',
-                })}
               >
                 <FolderPlus />
-              </button>
+              </Button>
             }
           />
-          <TooltipContent>
+          <Tooltip.Content>
             Add Project
             <BoundShortcut command="app.newProject" variant="keycaps" />
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
       </div>
     </div>
   );

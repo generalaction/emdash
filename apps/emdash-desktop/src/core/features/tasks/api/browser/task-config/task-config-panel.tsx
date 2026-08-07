@@ -1,5 +1,5 @@
+import { Tabs } from '@emdash/ui/react/primitives';
 import { useState } from 'react';
-import { PanelTabs } from '@core/primitives/ui/browser/panel-tabs';
 
 interface Tab {
   value: string;
@@ -19,11 +19,15 @@ export function TaskConfigPanel({ tabs, defaultTab }: TaskConfigPanelProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <PanelTabs
-        value={activeTab}
-        onChange={setActiveTab}
-        tabs={tabs.map(({ value, label }) => ({ value, label }))}
-      />
+      <Tabs.Root value={activeTab} onValueChange={(value) => setActiveTab(String(value))}>
+        <Tabs.List>
+          {tabs.map(({ value, label }) => (
+            <Tabs.Tab key={value} value={value}>
+              {label}
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs.Root>
       <div>{currentContent}</div>
     </div>
   );

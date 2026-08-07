@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import {
   GitMerge,
   GitPullRequestArrow,
@@ -6,7 +7,6 @@ import {
 } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { type PullRequest } from '@root/src/core/services/pull-requests/api';
 
 type PrStatusIconInput = Pick<PullRequest, 'status' | 'isDraft'>;
@@ -24,10 +24,10 @@ export function StatusIcon({
   const renderTooltip = (children: ReactNode, text: string) => {
     if (disableTooltip) return children;
     return (
-      <Tooltip>
-        <TooltipTrigger>{children}</TooltipTrigger>
-        <TooltipContent>{text}</TooltipContent>
-      </Tooltip>
+      <Tooltip.Root>
+        <Tooltip.Trigger>{children}</Tooltip.Trigger>
+        <Tooltip.Content>{text}</Tooltip.Content>
+      </Tooltip.Root>
     );
   };
 

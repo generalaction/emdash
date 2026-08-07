@@ -104,10 +104,10 @@ export const CustomHeader: Story = {
             <strong style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
               Creating in {context.targetPath || 'root'}
             </strong>
-            <Button size="sm" variant="secondary" onClick={() => context.startDraft('file')}>
+            <Button size="xs" variant="secondary" onClick={() => context.startDraft('file')}>
               Add file
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => context.startDraft('directory')}>
+            <Button size="xs" variant="secondary" onClick={() => context.startDraft('directory')}>
               Add folder
             </Button>
           </div>
@@ -348,24 +348,24 @@ function RefDrivenHeaderStory() {
       <div
         style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--em-border)', padding: 8 }}
       >
-        <Button size="sm" variant="secondary" onClick={() => treeRef.current?.startDraft('file')}>
+        <Button size="xs" variant="secondary" onClick={() => treeRef.current?.startDraft('file')}>
           Add file
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant="secondary"
           onClick={() => treeRef.current?.startDraft('directory')}
         >
           Add folder
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => treeRef.current?.collapseAll()}>
+        <Button size="xs" variant="ghost" onClick={() => treeRef.current?.collapseAll()}>
           Collapse all
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => treeRef.current?.expandAll()}>
+        <Button size="xs" variant="ghost" onClick={() => treeRef.current?.expandAll()}>
           Expand all
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           onClick={() => treeRef.current?.scrollToPath('packages/ui/package.json')}
         >
@@ -465,21 +465,21 @@ function MockGitChanges({ mode: initialMode }: { mode: 'tree' | 'flat' }) {
     >
       <div style={{ display: 'flex', gap: 6 }}>
         <Button
-          size="sm"
+          size="xs"
           variant={mode === 'tree' ? 'secondary' : 'ghost'}
           onClick={() => setMode('tree')}
         >
           Tree
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant={mode === 'flat' ? 'secondary' : 'ghost'}
           onClick={() => setMode('flat')}
         >
           List
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           disabled={mode === 'flat'}
           onClick={() => setExpandedPaths(new Set(allDirectoryPaths))}
@@ -487,7 +487,7 @@ function MockGitChanges({ mode: initialMode }: { mode: 'tree' | 'flat' }) {
           Expand all
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           disabled={mode === 'flat'}
           onClick={() => setExpandedPaths(new Set())}

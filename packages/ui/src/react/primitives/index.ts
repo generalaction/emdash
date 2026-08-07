@@ -1,11 +1,19 @@
 // ── Single-component primitives (named exports) ───────────────────────────────
+export { AnimatedHeight, type AnimatedHeightProps } from './animated-height';
 export { Box } from './box';
+export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from './badge';
 export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs';
 export { Button, type ButtonProps } from './button';
+export { Checkbox, type CheckboxProps } from './checkbox';
 export { DirectoryField, type DirectoryFieldProps } from './directory-field';
 export { Icon, type IconName, type IconProps, type IconSize } from './icon';
 export { Input, type InputProps } from './input';
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from './kbd';
+export { Label, MicroLabel, type LabelProps } from './label';
+export { Separator, type SeparatorProps } from './separator';
+export { Spinner, type SpinnerProps, type SpinnerSize } from './spinner';
+export { ModalLayout, type ModalLayoutProps } from './modal-layout';
+export { ShowHide, type ShowHideProps } from './show-hide';
 export { Textarea, type TextareaProps } from './textarea';
 export { Switch, type SwitchProps } from './switch';
 export { SearchInput, type SearchInputProps } from './search-input';
@@ -15,6 +23,8 @@ export { SelectableCard, type SelectableCardProps } from './selectable-card';
 export { Surface, useSurfaceLevel, type SurfaceProps } from './surface/surface';
 export { TriggerButton, type TriggerButtonProps } from './trigger-button';
 export { Text, type TextProps } from './typography/Text';
+export { AbsoluteTime, type AbsoluteTimeProps } from './time/absolute-time';
+export { RelativeTime, type RelativeTimeProps } from './time/relative-time';
 export { Heading, type HeadingProps } from './typography/Heading';
 export { textVariants, type TextVariantProps } from './typography/typography.variants';
 
@@ -27,6 +37,7 @@ export { RadioGroup } from './radio-group';
 export { Dialog, type DialogSize } from './dialog';
 export { Sheet, type SheetSide } from './sheet';
 export { Popover } from './popover';
+export { Tooltip } from './tooltip';
 export { DropdownMenu } from './dropdown-menu';
 export { ContextMenu } from './context-menu';
 export { Combobox, useComboboxAnchor } from './combobox/combobox';
@@ -35,6 +46,15 @@ export { Collapsible, type CollapsibleTriggerProps } from './collapsible';
 export { InputGroup, type InputGroupAddonAlign } from './input-group';
 export { Alert, type AlertProps } from './alert';
 export { Field, type FieldVariants } from './field';
+export {
+  Resizable,
+  useResizableDefaultLayout,
+  useResizablePanelRef,
+  type ResizableGroupProps,
+  type ResizableHandleProps,
+  type ResizablePanelHandle,
+  type ResizablePanelProps,
+} from './resizable';
 
 // ── Non-namespaced compound helpers (remain as named exports) ─────────────────
 export {
@@ -64,6 +84,19 @@ export {
   type AsyncActionTrigger,
   type UseAsyncActionOptions,
 } from './hooks/use-async-action';
+
+// ── Toast (imperative namespace + hook + app-mounted Toaster) ────────────────
+export {
+  Toaster,
+  toast,
+  useToast,
+  type ToastAction,
+  type ToastId,
+  type ToastOptions,
+  type ToastPromiseMessages,
+  type ToastTone,
+  type ToasterProps,
+} from './toast';
 
 // ── Theme / provider ──────────────────────────────────────────────────────────
 export {

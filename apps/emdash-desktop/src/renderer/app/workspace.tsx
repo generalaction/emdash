@@ -1,7 +1,7 @@
+import { Toaster } from '@emdash/ui/react/primitives';
 import { LeftSidebar } from '@core/features/workbench/browser/sidebar/left-sidebar';
 import { WindowScope } from '@core/features/workbench/browser/window-scope';
 import { useTheme } from '@core/primitives/theme/browser';
-import { Toaster } from '@core/primitives/ui/browser/toaster';
 import { BrowserShortcutForwarding, KeybindingDispatcherMount } from '@renderer/lib/keybindings';
 import {
   useWorkspaceSlots,

@@ -1,10 +1,10 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -117,10 +117,14 @@ export const RenameTaskModal = observer(function RenameTaskModal({
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={dismiss}>
+        <Button variant="secondary" onClick={dismiss}>
           Cancel
         </Button>
-        <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
+        <ConfirmButton
+          variant="primary"
+          onClick={() => void handleSubmit()}
+          disabled={!isValid || isSubmitting}
+        >
           {isSubmitting ? 'Renaming...' : 'Rename'}
         </ConfirmButton>
       </DialogFooter>

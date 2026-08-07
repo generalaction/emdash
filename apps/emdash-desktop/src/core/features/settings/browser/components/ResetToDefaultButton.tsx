@@ -1,12 +1,6 @@
+import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 
 interface ResetToDefaultButtonProps {
   /** Optional label shown in the tooltip: "Reset to default: <label>" */
@@ -27,13 +21,13 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
   }
 
   return (
-    <TooltipProvider delay={150}>
-      <Tooltip>
-        <TooltipTrigger>
+    <Tooltip.Provider delay={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            icon
             className="text-muted-foreground h-7 w-7 shrink-0 hover:text-foreground"
             onClick={onReset}
             disabled={disabled}
@@ -41,11 +35,11 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top">
           {defaultLabel !== undefined ? `Reset to default: ${defaultLabel}` : 'Reset to default'}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 };

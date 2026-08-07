@@ -8,9 +8,9 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import { Resizable, useResizablePanelRef } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
-import { usePanelRef } from 'react-resizable-panels';
 import {
   isTerminalDrawerDragData,
   type TerminalDrawerDragData,
@@ -18,11 +18,6 @@ import {
 import { TerminalsPanel } from '@core/features/terminals/api/browser/task-terminal/terminal-panel';
 import { PaneProvider } from '@core/features/workbench/api/browser/tabs/pane-provider';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@core/primitives/ui/browser/resizable';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
@@ -36,7 +31,7 @@ type ActiveDrag =
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
-  const bottomPanelRef = usePanelRef();
+  const bottomPanelRef = useResizablePanelRef();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
 
@@ -85,12 +80,12 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <ResizablePanelGroup orientation="vertical" id="task-main-vertical">
-        <ResizablePanel id="task-main-content" minSize="30%">
+      <Resizable.Group orientation="vertical" id="task-main-vertical">
+        <Resizable.Panel id="task-main-content" minSize="30%">
           <SplitPaneLayout />
-        </ResizablePanel>
-        <ResizableHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
-        <ResizablePanel
+        </Resizable.Panel>
+        <Resizable.Handle hidden={!taskView.isTerminalDrawerOpen} />
+        <Resizable.Panel
           id="task-terminal-drawer"
           panelRef={bottomPanelRef}
           collapsible
@@ -103,8 +98,8 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
           }}
         >
           <TerminalsPanel />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </Resizable.Panel>
+      </Resizable.Group>
       <DragOverlay dropAnimation={null}>
         {activeDrag?.kind === 'tab' ? (
           <TabDragPreview tabId={activeDrag.tabId} />
@@ -136,8 +131,8 @@ const SplitPane = observer(function SplitPane({
   const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.groups.length < 3;
   return (
     <>
-      {index > 0 && <ResizableHandle />}
-      <ResizablePanel
+      {index > 0 && <Resizable.Handle />}
+      <Resizable.Panel
         id={`pane-${group.paneId}`}
         defaultSize={`${defaultSizePct}%`}
         minSize="200px"
@@ -150,18 +145,18 @@ const SplitPane = observer(function SplitPane({
         >
           <PaneContent emptyState={<PaneEmptyState />} actionsSlot={<TabBarActions />} />
         </PaneProvider>
-      </ResizablePanel>
+      </Resizable.Panel>
     </>
   );
 });
 
-/** Renders one vertical pane per tab group inside a ResizablePanelGroup. */
+/** Renders one vertical pane per tab group inside a Resizable.Group. */
 const SplitPaneLayout = observer(function SplitPaneLayout() {
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
 
   return (
-    <ResizablePanelGroup orientation="horizontal" id="task-main-split">
+    <Resizable.Group orientation="horizontal" id="task-main-split">
       {paneLayout.groups.map((group, i) => (
         <SplitPane
           key={group.paneId}
@@ -171,7 +166,7 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
           defaultSizePct={paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}
         />
       ))}
-    </ResizablePanelGroup>
+    </Resizable.Group>
   );
 });
 

@@ -1,3 +1,4 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import {
   asMounted,
@@ -6,7 +7,6 @@ import {
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { ProjectSettingsForm } from '@core/features/projects/browser/components/settings-view/project-settings-form';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 
 export const SettingsPanel = observer(function SettingsPanel() {

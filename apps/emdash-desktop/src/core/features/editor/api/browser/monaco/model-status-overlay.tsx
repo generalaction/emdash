@@ -1,5 +1,5 @@
+import { Spinner } from '@emdash/ui/react/primitives';
 import type { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 
 export function ModelStatusOverlay({ status }: { status: ReturnType<typeof useModelStatus> }) {
   const message =

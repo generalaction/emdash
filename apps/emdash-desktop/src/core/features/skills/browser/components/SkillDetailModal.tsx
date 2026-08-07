@@ -1,8 +1,8 @@
 import type { CatalogSkill } from '@emdash/core/primitives/skills/api';
 import { parseFrontmatter } from '@emdash/core/primitives/skills/api';
+import { Button } from '@emdash/ui/react/primitives';
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   Dialog,
@@ -125,7 +125,7 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
                 Uninstall
               </Button>
               {skill.localPath && onOpenTerminal && (
-                <Button variant="outline" size="sm" onClick={handleOpen}>
+                <Button variant="secondary" size="sm" onClick={handleOpen}>
                   <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
                   Open
                 </Button>
@@ -133,7 +133,12 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </>
           )}
           {!skill.installed && (
-            <ConfirmButton size="sm" onClick={() => void handleInstall()} disabled={isProcessing}>
+            <ConfirmButton
+              variant="primary"
+              size="sm"
+              onClick={() => void handleInstall()}
+              disabled={isProcessing}
+            >
               {isProcessing ? 'Installing...' : 'Install'}
             </ConfirmButton>
           )}

@@ -1,11 +1,10 @@
+import { Button, Checkbox, Spinner, Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -15,14 +14,7 @@ import {
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import { Textarea } from '@core/primitives/ui/browser/textarea';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
@@ -208,9 +200,9 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
                 />
                 <span className="min-w-0">Include diagnostic logs</span>
               </label>
-              <TooltipProvider delay={150}>
-                <Tooltip>
-                  <TooltipTrigger>
+              <Tooltip.Provider delay={150}>
+                <Tooltip.Root>
+                  <Tooltip.Trigger>
                     <button
                       type="button"
                       className="text-muted-foreground mt-1 inline-flex size-4 items-center justify-center hover:text-foreground"
@@ -218,12 +210,12 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
                     >
                       <Info className="size-3.5" aria-hidden="true" />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side="top" className="max-w-xs text-xs">
                     Attaches recent app logs with sensitive details redacted.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </Tooltip.Provider>
             </div>
 
             <input
@@ -265,7 +257,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
       <DialogFooter className="sm:justify-between">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={openFilePicker}
           className="gap-2"
           disabled={submitting}
@@ -274,6 +266,7 @@ export function FeedbackModal({ blurb }: FeedbackModalArgs) {
           <span>Attach image</span>
         </Button>
         <ConfirmButton
+          variant="primary"
           type="submit"
           form="feedback-form"
           className="gap-2 px-4"

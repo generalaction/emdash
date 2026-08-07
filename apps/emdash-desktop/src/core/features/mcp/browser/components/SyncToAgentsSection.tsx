@@ -1,11 +1,11 @@
 import type { McpProvidersResponse } from '@emdash/core/primitives/mcp/api';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { Button } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Field, FieldLabel } from '@core/primitives/ui/browser/field';
 
 interface SyncToAgentsSectionProps {

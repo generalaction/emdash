@@ -1,4 +1,5 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { ListPopoverCard } from '@emdash/ui/react/components';
 import {
   compareDates,
   compareNumbers,
@@ -9,7 +10,16 @@ import {
   defineSelection,
   defineSort,
   ListView,
+  PageLayout,
 } from '@emdash/ui/react/patterns';
+import {
+  Button,
+  Checkbox,
+  SearchInput,
+  Spinner,
+  toast,
+  Tooltip,
+} from '@emdash/ui/react/primitives';
 import { observe, remote } from '@emdash/wire/state';
 import { AlertTriangle, Archive, HardDrive, RefreshCw, Trash2, X } from 'lucide-react';
 import { makeAutoObservable, observable, runInAction } from 'mobx';
@@ -19,21 +29,9 @@ import { projectWorkspacesContract } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
-import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceActionResult,
@@ -245,7 +243,7 @@ export const WorkspacesView = observer(function WorkspacesView({
   }, [store]);
 
   return (
-    <TooltipProvider delay={150}>
+    <Tooltip.Provider delay={150}>
       <view.Root>
         <div className="relative flex h-full min-h-0 w-full flex-col">
           <WorkspacesHeader store={store} view={view} />
@@ -271,7 +269,7 @@ export const WorkspacesView = observer(function WorkspacesView({
           <WorkspacesSelectionBar store={store} view={view} projectId={projectId} />
         </div>
       </view.Root>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 });
 
@@ -283,44 +281,48 @@ const WorkspacesHeader = observer(function WorkspacesHeader({
   view: ProjectWorkspacesListView;
 }) {
   const search = view.useSearch();
+  const searchRef = useSearchFocusHotkeys();
   const filter = view.useFilter();
   const loading = store.status === 'loading' || store.measuring;
 
   return (
-    <PageHeader
+    <PageLayout.Header
       title="Workspaces"
       description="Review repository workspaces, linked tasks, and reclaimable artifacts."
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SearchInput
-          containerClassName="min-w-64 flex-1"
-          className="h-8"
-          placeholder="Search workspaces, branches, tasks..."
-          value={search.query}
-          onChange={(event) => search.setQuery(event.target.value)}
-        />
-        <div className="flex items-center gap-3">
-          {(['all', 'used', 'unused'] as const).map((usage) => (
-            <ListView.FilterButton
-              key={usage}
-              active={filter.model.usage === usage}
-              onClick={() => filter.set({ usage })}
+      actions={
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-64 flex-1">
+            <SearchInput
+              ref={searchRef}
+              className="h-8"
+              placeholder="Search workspaces, branches, tasks..."
+              value={search.query}
+              onChange={(event) => search.setQuery(event.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            {(['all', 'used', 'unused'] as const).map((usage) => (
+              <ListView.FilterButton
+                key={usage}
+                active={filter.model.usage === usage}
+                onClick={() => filter.set({ usage })}
+              >
+                {usage[0]!.toUpperCase() + usage.slice(1)}
+              </ListView.FilterButton>
+            ))}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={loading}
+              onClick={() => void store.refresh()}
             >
-              {usage[0]!.toUpperCase() + usage.slice(1)}
-            </ListView.FilterButton>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => void store.refresh()}
-          >
-            <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
-            Refresh
-          </Button>
+              <RefreshCw className={cn('size-4', loading && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
         </div>
-      </div>
-    </PageHeader>
+      }
+    />
   );
 });
 
@@ -367,14 +369,14 @@ const WorkspaceRow = observer(function WorkspaceRow({
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-foreground-muted">
             <span>{taskCount(row.tasks.length)}</span>
             {row.tasks.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger className="truncate text-left underline decoration-dotted underline-offset-2">
+              <Tooltip.Root>
+                <Tooltip.Trigger className="truncate text-left underline decoration-dotted underline-offset-2">
                   {row.tasks.map((task) => task.name).join(', ')}
-                </TooltipTrigger>
-                <TooltipContent className="max-w-70 text-xs">
+                </Tooltip.Trigger>
+                <Tooltip.Content className="max-w-70 text-xs">
                   {row.tasks.map((task) => task.name).join(', ')}
-                </TooltipContent>
-              </Tooltip>
+                </Tooltip.Content>
+              </Tooltip.Root>
             )}
           </div>
         </div>
@@ -411,17 +413,17 @@ function SelectableCheckbox({
   );
   if (!disabled || !disabledReason) return checkbox;
   return (
-    <Tooltip>
-      <TooltipTrigger>
+    <Tooltip.Root>
+      <Tooltip.Trigger>
         <span
           className="inline-flex size-4 items-center justify-center"
           onClick={(event) => event.stopPropagation()}
         >
           {checkbox}
         </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-55 text-xs">{disabledReason}</TooltipContent>
-    </Tooltip>
+      </Tooltip.Trigger>
+      <Tooltip.Content className="max-w-55 text-xs">{disabledReason}</Tooltip.Content>
+    </Tooltip.Root>
   );
 }
 
@@ -502,12 +504,10 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
         // Row removal streams in via the live model; only disk usage needs a re-measure.
         await store.measure();
       } catch (error) {
-        toast({
-          title:
-            kind === 'archive' ? 'Could not archive workspaces' : 'Could not delete workspaces',
-          description: error instanceof Error ? error.message : String(error),
-          variant: 'destructive',
-        });
+        toast.error(
+          kind === 'archive' ? 'Could not archive workspaces' : 'Could not delete workspaces',
+          { description: error instanceof Error ? error.message : String(error) }
+        );
       } finally {
         setPendingAction(null);
       }
@@ -562,16 +562,12 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
       </div>
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={archivableRows.length === 0 || pendingAction !== null}
           onClick={confirmArchive}
         >
-          {pendingAction === 'archive' ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Archive className="size-4" />
-          )}
+          {pendingAction === 'archive' ? <Spinner size="sm" /> : <Archive className="size-4" />}
           Archive
         </Button>
         <Button
@@ -580,16 +576,13 @@ const WorkspacesSelectionBar = observer(function WorkspacesSelectionBar({
           disabled={deletableRows.length === 0 || pendingAction !== null}
           onClick={confirmDelete}
         >
-          {pendingAction === 'delete' ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Trash2 className="size-4" />
-          )}
+          {pendingAction === 'delete' ? <Spinner size="sm" /> : <Trash2 className="size-4" />}
           Delete
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={() => selection.clear()}
           aria-label="Clear selection"
         >
@@ -613,7 +606,8 @@ function WorkspaceWarnings({ warnings }: { warnings: string[] }) {
       </div>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="xs"
+        icon
         onClick={() => setDismissed(true)}
         aria-label="Dismiss warning"
       >
@@ -626,7 +620,7 @@ function WorkspaceWarnings({ warnings }: { warnings: string[] }) {
 function WorkspacesLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading workspaces
     </div>
   );
@@ -671,16 +665,16 @@ function removalBadgeFor(row: ProjectWorkspaceRow): ReactNode {
   if (!row.pendingRemoval) return null;
   if (workspaceRemovalNeedsAttention(row)) {
     return (
-      <Tooltip>
-        <TooltipTrigger>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <span className="rounded-full border border-border-destructive px-1.5 py-0.5 text-[10px] tracking-wide text-foreground-destructive uppercase">
             Removal failed
           </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-70 text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content className="max-w-70 text-xs">
           {row.removalStop?.message ?? 'The removal stopped after a failure.'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     );
   }
   return (
@@ -741,20 +735,17 @@ async function archiveProjectWorkspaces(
 function showActionResult(kind: 'archive' | 'delete', result: ProjectWorkspaceActionSummary): void {
   if (result.failedCount > 0) {
     const firstFailure = result.results.find((item) => !item.success);
-    toast({
-      title: `${result.succeededCount} succeeded, ${result.failedCount} failed`,
+    toast.error(`${result.succeededCount} succeeded, ${result.failedCount} failed`, {
       description: firstFailure && !firstFailure.success ? firstFailure.message : undefined,
-      variant: 'destructive',
     });
     return;
   }
 
-  toast({
-    title:
-      kind === 'archive'
-        ? `Queued archive for ${workspaceCount(result.succeededCount)}`
-        : `Deleted ${workspaceCount(result.succeededCount)}`,
-  });
+  toast(
+    kind === 'archive'
+      ? `Queued archive for ${workspaceCount(result.succeededCount)}`
+      : `Deleted ${workspaceCount(result.succeededCount)}`
+  );
 }
 
 function unselectableReason(row: ProjectWorkspaceRow): string {

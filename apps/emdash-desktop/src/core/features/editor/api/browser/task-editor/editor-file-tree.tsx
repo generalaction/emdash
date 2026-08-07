@@ -16,6 +16,7 @@ import {
   type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
+import { toast } from '@emdash/ui/react/primitives';
 import {
   ClipboardPaste,
   Copy,
@@ -54,7 +55,6 @@ import { openModal, useOpenModal } from '@core/manifests/browser/modal-api';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { Input } from '@core/primitives/ui/browser/input';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
 import { clearDraggedWorkspaceFile, setDraggedWorkspaceFile } from '@renderer/lib/drag-files';
@@ -101,19 +101,15 @@ async function importLocalFiles(args: {
   const { files, workspaceId, workspacePath, sourceFiles, destDirPath, overwrite = false } = args;
   const oversizedFile = sourceFiles.find((file) => file.size > MAX_EDITOR_FILE_UPLOAD_BYTES);
   if (oversizedFile) {
-    toast({
-      title: 'Import failed',
+    toast.error('Import failed', {
       description: `${oversizedFile.name} exceeds the 10 MB upload limit.`,
-      variant: 'destructive',
     });
     return;
   }
   const destinations = sourceFiles.map((file) => joinFileTreePath(destDirPath, file.name));
   if (new Set(destinations).size !== destinations.length) {
-    toast({
-      title: 'Import failed',
+    toast.error('Import failed', {
       description: 'Multiple dropped files have the same destination name.',
-      variant: 'destructive',
     });
     return;
   }
@@ -154,11 +150,7 @@ async function importLocalFiles(args: {
       return;
     }
 
-    toast({
-      title: 'Import failed',
-      description: message,
-      variant: 'destructive',
-    });
+    toast.error('Import failed', { description: message });
   };
 
   try {
@@ -309,11 +301,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     void (async () => {
       const result = await files.revealFile(revealRequest.path);
       if (!result.success) {
-        toast({
-          title: 'Reveal failed',
-          description: resultErrorMessage(result.error),
-          variant: 'destructive',
-        });
+        toast.error('Reveal failed', { description: resultErrorMessage(result.error) });
         return;
       }
       editorView.expandPaths(result.data);
@@ -350,11 +338,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
     try {
       const result = await files.refresh();
       if (!result.success) {
-        toast({
-          title: 'Refresh failed',
-          description: resultErrorMessage(result.error),
-          variant: 'destructive',
-        });
+        toast.error('Refresh failed', { description: resultErrorMessage(result.error) });
       }
     } finally {
       setIsRefreshing(false);
@@ -366,16 +350,12 @@ export const EditorFileTree = observer(function EditorFileTree() {
     const path = joinFileTreePath(parentPath, name);
     const result = await files.createFile(path);
     if (!result.success) {
-      toast({
-        title: 'Create failed',
-        description: resultErrorMessage(result.error),
-        variant: 'destructive',
-      });
+      toast.error('Create failed', { description: resultErrorMessage(result.error) });
       return;
     }
     editorView.expandPath(parentPath);
     openFile(path, false);
-    toast({ title: 'File created' });
+    toast('File created');
   };
 
   const handleCreateDirectory = async (parentPath: string, name: string) => {
@@ -383,16 +363,12 @@ export const EditorFileTree = observer(function EditorFileTree() {
     const path = joinFileTreePath(parentPath, name);
     const result = await files.createDirectory(path);
     if (!result.success) {
-      toast({
-        title: 'Create failed',
-        description: resultErrorMessage(result.error),
-        variant: 'destructive',
-      });
+      toast.error('Create failed', { description: resultErrorMessage(result.error) });
       return;
     }
     editorView.expandPath(parentPath);
     editorView.expandPath(path);
-    toast({ title: 'Folder created' });
+    toast('Folder created');
   };
 
   const handleRename = async (node: FileTreeNode, name: string) => {
@@ -400,16 +376,12 @@ export const EditorFileTree = observer(function EditorFileTree() {
     const targetPath = joinFileTreePath(node.parentPath ?? '', name);
     const result = await files.rename(node.path, name);
     if (!result.success) {
-      toast({
-        title: 'Rename failed',
-        description: resultErrorMessage(result.error),
-        variant: 'destructive',
-      });
+      toast.error('Rename failed', { description: resultErrorMessage(result.error) });
       return;
     }
     await editorView.retargetOpenFiles(node.path, targetPath);
     setRenamePath(null);
-    toast({ title: node.type === 'directory' ? 'Folder renamed' : 'File renamed' });
+    toast(node.type === 'directory' ? 'Folder renamed' : 'File renamed');
   };
 
   const handleMove = async (sourcePaths: string[], targetDirPath: string) => {
@@ -420,17 +392,13 @@ export const EditorFileTree = observer(function EditorFileTree() {
       const targetPath = joinFileTreePath(targetDirPath, basenameFromPath(sourcePath));
       const result = await files.move(sourcePath, targetDirPath);
       if (!result.success) {
-        toast({
-          title: 'Move failed',
-          description: resultErrorMessage(result.error),
-          variant: 'destructive',
-        });
+        toast.error('Move failed', { description: resultErrorMessage(result.error) });
         return;
       }
       await editorView.retargetOpenFiles(sourcePath, targetPath);
       moved += 1;
     }
-    toast({ title: moved === 1 ? 'Item moved' : `${moved} items moved` });
+    toast(moved === 1 ? 'Item moved' : `${moved} items moved`);
   };
 
   const closeDeletedFileTabs = (nodes: readonly FileTreeNode[]) => {
@@ -484,26 +452,22 @@ export const EditorFileTree = observer(function EditorFileTree() {
         const result = await files.deleteEntry(node.path, node.type === 'directory');
         if (!result.success) {
           await files.registerDir(node.parentPath ?? workspace.path, true);
-          toast({
-            title: 'Delete failed',
-            description: resultErrorMessage(result.error),
-            variant: 'destructive',
-          });
+          toast.error('Delete failed', { description: resultErrorMessage(result.error) });
           return;
         }
       }
       closeDeletedFileTabs(targets);
       setSelectedPaths(new Set());
       setSelectionAnchorPath(null);
-      toast({
-        title: single
+      toast(
+        single
           ? single.type === 'directory'
             ? 'Folder deleted'
             : single.type === 'symlink'
               ? 'Link deleted'
               : 'File deleted'
-          : `${targets.length} items deleted`,
-      });
+          : `${targets.length} items deleted`
+      );
     })();
   };
 
@@ -516,28 +480,18 @@ export const EditorFileTree = observer(function EditorFileTree() {
         options: { maxBytes: MAX_COPY_FILE_BYTES },
       });
       if (!result.success) {
-        toast({
-          title: 'Copy failed',
-          description: resultErrorMessage(result.error),
-          variant: 'destructive',
-        });
+        toast.error('Copy failed', { description: resultErrorMessage(result.error) });
         return;
       }
       if (result.data.truncated) {
-        toast({
-          title: 'Copy failed',
-          description: 'File is too large to copy.',
-          variant: 'destructive',
-        });
+        toast.error('Copy failed', { description: 'File is too large to copy.' });
         return;
       }
       await rpc.app.clipboardWriteText(result.data.content);
-      toast({ title: 'File copied' });
+      toast('File copied');
     } catch (error) {
-      toast({
-        title: 'Copy failed',
+      toast.error('Copy failed', {
         description: error instanceof Error ? error.message : 'The file could not be copied.',
-        variant: 'destructive',
       });
     }
   };
@@ -549,20 +503,14 @@ export const EditorFileTree = observer(function EditorFileTree() {
         editorFilePath(workspaceId, workspace.path, node.path)
       );
       if (!result.success) {
-        toast({
-          title: 'Copy failed',
-          description: resultErrorMessage(result.error),
-          variant: 'destructive',
-        });
+        toast.error('Copy failed', { description: resultErrorMessage(result.error) });
         return;
       }
       await rpc.app.clipboardWriteText(nativePathFromHost(result.data));
-      toast({ title: 'Path copied' });
+      toast('Path copied');
     } catch (error) {
-      toast({
-        title: 'Copy failed',
+      toast.error('Copy failed', {
         description: error instanceof Error ? error.message : 'The path could not be copied.',
-        variant: 'destructive',
       });
     }
   };
@@ -570,12 +518,10 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const copyRelativePath = async (node: FileTreeNode) => {
     try {
       await rpc.app.clipboardWriteText(relativeToWorkspace(workspace.path, node.path));
-      toast({ title: 'Relative path copied' });
+      toast('Relative path copied');
     } catch (error) {
-      toast({
-        title: 'Copy failed',
+      toast.error('Copy failed', {
         description: error instanceof Error ? error.message : 'The path could not be copied.',
-        variant: 'destructive',
       });
     }
   };
@@ -587,17 +533,11 @@ export const EditorFileTree = observer(function EditorFileTree() {
         relativePath: relativeToWorkspace(workspace.path, node.path),
       });
       if (!result.success) {
-        toast({
-          title: 'Show failed',
-          description: resultErrorMessage(result.error),
-          variant: 'destructive',
-        });
+        toast.error('Show failed', { description: resultErrorMessage(result.error) });
       }
     } catch (error) {
-      toast({
-        title: 'Show failed',
+      toast.error('Show failed', {
         description: error instanceof Error ? error.message : 'The item could not be shown.',
-        variant: 'destructive',
       });
     }
   };
@@ -612,14 +552,14 @@ export const EditorFileTree = observer(function EditorFileTree() {
     const paths = dedupeDescendantPaths(selectionOrNode(node).map((entry) => entry.path));
     if (paths.length === 0) return;
     setClipboard({ mode: 'cut', paths });
-    toast({ title: paths.length === 1 ? 'Item cut' : `${paths.length} items cut` });
+    toast(paths.length === 1 ? 'Item cut' : `${paths.length} items cut`);
   };
 
   const copySelection = (node?: FileTreeNode) => {
     const paths = dedupeDescendantPaths(selectionOrNode(node).map((entry) => entry.path));
     if (paths.length === 0) return;
     setClipboard({ mode: 'copy', paths });
-    toast({ title: paths.length === 1 ? 'Item copied' : `${paths.length} items copied` });
+    toast(paths.length === 1 ? 'Item copied' : `${paths.length} items copied`);
   };
 
   const pasteClipboard = async (targetDirPath = pasteTargetPath()) => {
@@ -653,10 +593,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
           ? await files.move(sourcePath, targetDirPath, nextName)
           : await files.copy(sourcePath, targetDirPath, nextName);
       if (!result.success) {
-        toast({
-          title: clipboard.mode === 'cut' ? 'Move failed' : 'Copy failed',
+        toast.error(clipboard.mode === 'cut' ? 'Move failed' : 'Copy failed', {
           description: resultErrorMessage(result.error),
-          variant: 'destructive',
         });
         return;
       }
@@ -666,16 +604,15 @@ export const EditorFileTree = observer(function EditorFileTree() {
       completed += 1;
     }
     if (clipboard.mode === 'cut') setClipboard(null);
-    toast({
-      title:
-        clipboard.mode === 'cut'
-          ? completed === 1
-            ? 'Item moved'
-            : `${completed} items moved`
-          : completed === 1
-            ? 'Item copied'
-            : `${completed} items copied`,
-    });
+    toast(
+      clipboard.mode === 'cut'
+        ? completed === 1
+          ? 'Item moved'
+          : `${completed} items moved`
+        : completed === 1
+          ? 'Item copied'
+          : `${completed} items copied`
+    );
   };
 
   const pasteTargetPath = () => creationTargetPath;

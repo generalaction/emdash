@@ -1,8 +1,8 @@
+import { ListPopoverCard, type ListPopoverCardStatus } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
-import { ListPopoverCard } from '@core/primitives/ui/browser/components/list-popover-card';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { usePullRequestsStore } from '@root/src/core/services/pull-requests/browser';
 
@@ -17,12 +17,13 @@ interface SyncStatusCardProps {
   label?: ReactNode;
   content: ReactNode;
   actions?: ReactNode;
+  status?: ListPopoverCardStatus;
   className?: string;
 }
 
-function SyncStatusCard({ icon, label, content, actions, className }: SyncStatusCardProps) {
+function SyncStatusCard({ icon, label, content, actions, status, className }: SyncStatusCardProps) {
   return (
-    <ListPopoverCard className={className}>
+    <ListPopoverCard status={status} className={className}>
       {icon}
       {label && <span className="shrink-0 text-foreground-muted">{label}</span>}
 
@@ -41,7 +42,8 @@ function SyncErrorStatusCard({
 }) {
   return (
     <SyncStatusCard
-      className={'border-border-destructive bg-background-destructive text-foreground-destructive'}
+      status="destructive"
+      className="text-foreground-destructive"
       icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
       label={<span className="font-medium text-foreground-destructive">Sync failed</span>}
       content={
@@ -133,7 +135,8 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
           </Button>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="xs"
+            icon
             onClick={() => setDismissedError(error)}
             aria-label="Dismiss"
           >

@@ -1,7 +1,7 @@
+import { Button, SearchInput } from '@emdash/ui/react/primitives';
 import { Plus, RefreshCw } from 'lucide-react';
 import React from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 
 type SkillsToolbarProps = {
   searchQuery: string;
@@ -18,17 +18,19 @@ export function SkillsToolbar({
   isRefreshing,
   onCreateSkill,
 }: SkillsToolbarProps) {
+  const searchRef = useSearchFocusHotkeys();
   return (
     <div className="flex w-full items-center justify-between gap-2">
       <SearchInput
+        ref={searchRef}
         placeholder="Search skills..."
         value={searchQuery}
         onChange={(event) => onSearchQueryChange(event.target.value)}
       />
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
-          size="icon"
+          variant="secondary"
+          icon
           onClick={onRefresh}
           disabled={isRefreshing}
           aria-label="Refresh catalog"
@@ -37,7 +39,7 @@ export function SkillsToolbar({
             className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
           />
         </Button>
-        <Button onClick={onCreateSkill}>
+        <Button variant="primary" onClick={onCreateSkill}>
           <Plus className="size-4" />
           New Skill
         </Button>

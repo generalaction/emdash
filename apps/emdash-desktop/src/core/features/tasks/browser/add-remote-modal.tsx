@@ -1,12 +1,11 @@
-import { ChevronsUpDownIcon } from 'lucide-react';
+import { ComboboxPopover } from '@emdash/ui/react/components';
+import { Label, ModalLayout, ToggleGroup } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
-import { ComboboxTrigger, ComboboxValue } from '@core/primitives/ui/browser/combobox';
-import { ComboboxPopover } from '@core/primitives/ui/browser/combobox-popover';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -16,10 +15,7 @@ import {
 } from '@core/primitives/ui/browser/dialog';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
-import { Label } from '@core/primitives/ui/browser/label';
-import { ModalLayout } from '@core/primitives/ui/browser/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@core/primitives/ui/browser/radio-group';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
@@ -175,27 +171,31 @@ export const AddRemoteModal = observer(function AddRemoteModal({
       }
       footer={
         <DialogFooter>
-          <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
+          <ConfirmButton
+            variant="primary"
+            onClick={() => void handleSubmit()}
+            disabled={!isValid || isSubmitting}
+          >
             {isSubmitting ? 'Adding...' : tab === 'create' ? 'Create & Publish' : 'Link & Publish'}
           </ConfirmButton>
         </DialogFooter>
       }
     >
       <DialogContentArea className="gap-4">
-        <ToggleGroup
-          className="w-full"
+        <ToggleGroup.Root
+          className="flex w-full"
           value={[tab]}
           onValueChange={([v]) => {
             if (v) setTab(v as Tab);
           }}
         >
-          <ToggleGroupItem className="flex-1" value="create">
+          <ToggleGroup.Item className="flex-1" value="create">
             Create Repository
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="link">
+          </ToggleGroup.Item>
+          <ToggleGroup.Item className="flex-1" value="link">
             Link Existing
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </ToggleGroup.Item>
+        </ToggleGroup.Root>
 
         {tab === 'create' && (
           <FieldGroup>
@@ -210,20 +210,18 @@ export const AddRemoteModal = observer(function AddRemoteModal({
             <Field>
               <FieldLabel>Owner</FieldLabel>
               <ComboboxPopover
-                trigger={
-                  <ComboboxTrigger
-                    render={
-                      <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
-                        <ComboboxValue />
-                        <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
-                      </button>
-                    }
-                  />
-                }
                 items={owners}
-                defaultValue={owner}
-                value={owner}
-                onValueChange={handleOwnerChange}
+                value={owner?.value ?? null}
+                onValueChange={(next) => {
+                  const match = owners.find((o) => o.value === next);
+                  if (match) handleOwnerChange(match);
+                }}
+                itemToKey={(o) => o.value}
+                itemToLabel={(o) => o.label}
+                renderTrigger={(selected) => selected?.label ?? 'Select owner'}
+                renderItem={(o) => o.label}
+                appearance="input"
+                className="w-full"
               />
               {githubAccountId === null && !settingsLoading && !settingsError && (
                 <p className="text-muted-foreground text-xs">

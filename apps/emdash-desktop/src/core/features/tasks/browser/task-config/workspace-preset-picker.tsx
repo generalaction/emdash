@@ -1,3 +1,4 @@
+import { Combobox } from '@emdash/ui/react/primitives';
 import {
   ChevronsUpDown,
   FolderGit2,
@@ -9,13 +10,6 @@ import {
 import React from 'react';
 import { useTaskConfig } from '@core/features/tasks/api/browser/task-config/task-config-context';
 import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from '@core/primitives/ui/browser/combobox';
 import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
 import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
 
@@ -75,7 +69,7 @@ export function WorkspacePresetPicker({
   const selected = options.find((o) => o.id === value) ?? options[0];
 
   return (
-    <Combobox
+    <Combobox.Root
       value={selected}
       onValueChange={(item: PresetOption | null) => {
         if (item && !item.disabled) onValueChange(item.id);
@@ -83,7 +77,7 @@ export function WorkspacePresetPicker({
       isItemEqualToValue={(a: PresetOption, b: PresetOption) => a.id === b.id}
       disabled={disabled}
     >
-      <ComboboxTrigger
+      <Combobox.Trigger
         className={cn(
           'data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border py-2 px-2.5  text-sm outline-none transition-colors hover:bg-background-2',
           disabled && 'cursor-not-allowed opacity-50'
@@ -99,12 +93,12 @@ export function WorkspacePresetPicker({
           </span>
         </span>
         <ChevronsUpDown className="size-4 shrink-0 text-foreground-passive" />
-      </ComboboxTrigger>
+      </Combobox.Trigger>
 
-      <ComboboxContent>
-        <ComboboxList className="max-h-52 overflow-y-auto p-1!">
+      <Combobox.Content>
+        <Combobox.List className="max-h-52 overflow-y-auto p-1!">
           {options.map((option) => (
-            <ComboboxItem
+            <Combobox.Item
               key={option.id}
               value={option}
               disabled={option.disabled}
@@ -127,10 +121,10 @@ export function WorkspacePresetPicker({
                   {option.disabledReason ?? option.description}
                 </span>
               </span>
-            </ComboboxItem>
+            </Combobox.Item>
           ))}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+        </Combobox.List>
+      </Combobox.Content>
+    </Combobox.Root>
   );
 }

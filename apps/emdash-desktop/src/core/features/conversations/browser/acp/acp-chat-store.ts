@@ -16,11 +16,11 @@ import type {
   ComposerPermissionModeOption,
   ComposerQueuedPrompt,
 } from '@emdash/ui/react/components';
+import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getAgentsClient } from '@core/features/agents/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -525,7 +525,7 @@ export class AcpChatStore {
         return;
       }
       if (!saved.path) return;
-      toast({ title: `Exported ${label}` });
+      toast(`Exported ${label}`);
     } catch (error) {
       this._toastError('Failed to export transcript', error);
     }
@@ -632,11 +632,7 @@ export class AcpChatStore {
   }
 
   private _toastError(title: string, error: unknown): void {
-    toast({
-      title,
-      description: error instanceof Error ? error.message : undefined,
-      variant: 'destructive',
-    });
+    toast.error(title, { description: error instanceof Error ? error.message : undefined });
   }
 }
 

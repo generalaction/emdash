@@ -1,3 +1,4 @@
+import { Button, useToast } from '@emdash/ui/react/primitives';
 import {
   AlertCircle,
   ArrowRight,
@@ -11,14 +12,12 @@ import { useState } from 'react';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
 import {
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@core/primitives/ui/browser/dialog';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import {
   useAccountLinkProvider,
   useAccountSession,
@@ -74,18 +73,19 @@ export function GithubConnectModal() {
       const providerAccountStatus =
         'providerAccountStatus' in result ? result.providerAccountStatus : undefined;
 
-      toast({
-        title:
-          providerAccountStatus === 'updated'
-            ? 'GitHub account already connected'
-            : 'Connected to GitHub',
-        description:
-          providerAccountStatus === 'updated' && providerAccount
-            ? `@${providerAccount.login} was already connected.`
-            : providerAccount
-              ? `Linked @${providerAccount.login}.`
-              : 'GitHub is connected.',
-      });
+      toast(
+        providerAccountStatus === 'updated'
+          ? 'GitHub account already connected'
+          : 'Connected to GitHub',
+        {
+          description:
+            providerAccountStatus === 'updated' && providerAccount
+              ? `@${providerAccount.login} was already connected.`
+              : providerAccount
+                ? `Linked @${providerAccount.login}.`
+                : 'GitHub is connected.',
+        }
+      );
       modal.complete();
     } finally {
       setOauthLoading(false);
@@ -113,8 +113,7 @@ export function GithubConnectModal() {
         return;
       }
 
-      toast({
-        title: 'GitHub CLI accounts imported',
+      toast('GitHub CLI accounts imported', {
         description:
           result.importedAccountIds.length === 1
             ? '1 account is available in Emdash.'
@@ -177,7 +176,7 @@ export function GithubConnectModal() {
         )}
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={modal.dismiss} disabled={anyLoading}>
+        <Button variant="secondary" onClick={modal.dismiss} disabled={anyLoading}>
           Cancel
         </Button>
       </DialogFooter>

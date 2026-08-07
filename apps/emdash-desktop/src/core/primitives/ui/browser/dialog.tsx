@@ -1,9 +1,8 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Button } from '@emdash/ui/react/primitives';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
@@ -108,7 +107,7 @@ function DialogFooter({
     >
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>Close</DialogPrimitive.Close>
+        <DialogPrimitive.Close render={<Button variant="secondary" />}>Close</DialogPrimitive.Close>
       )}
     </div>
   );

@@ -1,11 +1,11 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpProvidersResponse, McpServer } from '@emdash/core/primitives/mcp/api';
+import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import { getMcpClient } from '@core/features/mcp/api/browser/client';
-import { useToast } from '@core/primitives/ui/browser/use-toast';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { useInstalledMcpServersLiveModel } from '../live-model-hooks';
@@ -64,11 +64,7 @@ export function useMcps(host: HostRef = LOCAL_HOST_REF) {
       }
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to save server',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Failed to save server', { description: error.message });
     },
   });
 
@@ -89,11 +85,7 @@ export function useMcps(host: HostRef = LOCAL_HOST_REF) {
       captureTelemetry('mcp_server_removed');
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to remove server',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Failed to remove server', { description: error.message });
     },
   });
 
@@ -112,7 +104,7 @@ export function useMcps(host: HostRef = LOCAL_HOST_REF) {
       await queryClient.invalidateQueries({ queryKey: MCP_CATALOG_QUERY_KEY });
     },
     onError: () => {
-      toast({ title: 'Failed to refresh MCP data', variant: 'destructive' });
+      toast.error('Failed to refresh MCP data');
     },
   });
 

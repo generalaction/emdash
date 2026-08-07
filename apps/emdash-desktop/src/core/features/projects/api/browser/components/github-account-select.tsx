@@ -1,6 +1,6 @@
+import { Badge } from '@emdash/ui/react/primitives';
 import { Github } from 'lucide-react';
 import type { GitHubAccountSummary, GitHubCredentialSource } from '@core/primitives/github/api';
-import { Badge } from '@core/primitives/ui/browser/badge';
 import { SelectItem } from '@core/primitives/ui/browser/select';
 
 export const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
@@ -72,23 +72,9 @@ export function GitHubAccountSelectListItem({ account }: { account: GitHubAccoun
 }
 
 export function GitHubDefaultAccountBadge() {
-  return (
-    <Badge
-      variant="secondary"
-      className="rounded-md border-border/40 bg-background-2 text-foreground"
-    >
-      Default
-    </Badge>
-  );
+  return <Badge>Default</Badge>;
 }
 
 export function GitHubCredentialSourceBadge({ source }: { source: GitHubCredentialSource }) {
-  return (
-    <Badge
-      variant="outline"
-      className="rounded-md border-border/60 bg-transparent text-foreground-muted"
-    >
-      {GITHUB_SOURCE_LABELS[source]}
-    </Badge>
-  );
+  return <Badge variant="outline">{GITHUB_SOURCE_LABELS[source]}</Badge>;
 }

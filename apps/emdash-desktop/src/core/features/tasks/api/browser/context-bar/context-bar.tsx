@@ -1,3 +1,4 @@
+import { ContextMenu } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
@@ -13,12 +14,6 @@ import {
   useConversations,
   useTaskComposition,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@core/primitives/ui/browser/context-menu';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { AddContextPopover } from '../../../browser/context-bar/add-context-popover';
 import {
@@ -116,17 +111,17 @@ export const ContextBar = observer(function ContextBar({
   if (!hasVisibleContextBar) return null;
 
   return (
-    <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
-      <ContextMenuTrigger>
+    <ContextMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+      <ContextMenu.Trigger>
         <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
           {contextPopover}
         </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent finalFocus={false}>
-        <ContextMenuItem disabled={isSavingInterfaceSettings} onClick={hideContextBar}>
+      </ContextMenu.Trigger>
+      <ContextMenu.Content finalFocus={false}>
+        <ContextMenu.Item disabled={isSavingInterfaceSettings} onClick={hideContextBar}>
           Hide context bar
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        </ContextMenu.Item>
+      </ContextMenu.Content>
+    </ContextMenu.Root>
   );
 });

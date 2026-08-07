@@ -1,7 +1,7 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Globe, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Dialog } from '@core/primitives/ui/browser/dialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { ManualForwardDialog } from './manual-forward-dialog';
 
 export function ManualForwardButton() {
@@ -9,8 +9,8 @@ export function ManualForwardButton() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger
+      <Tooltip.Root>
+        <Tooltip.Trigger
           render={
             <button
               type="button"
@@ -22,9 +22,9 @@ export function ManualForwardButton() {
         >
           <Plus className="size-3.5" />
           <Globe className="size-3.5" />
-        </TooltipTrigger>
-        <TooltipContent>Forward remote port</TooltipContent>
-      </Tooltip>
+        </Tooltip.Trigger>
+        <Tooltip.Content>Forward remote port</Tooltip.Content>
+      </Tooltip.Root>
       <ManualForwardDialog onClose={() => setOpen(false)} />
     </Dialog>
   );

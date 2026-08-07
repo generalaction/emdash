@@ -1,7 +1,7 @@
 import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
 import type { AgentProviderId } from '@emdash/plugins/agents';
+import { Popover } from '@emdash/ui/react/primitives';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Popover, PopoverContent } from '@core/primitives/ui/browser/popover';
 import { AgentInfoCard } from './agent-info-card';
 
 const OPEN_DELAY_MS = 500;
@@ -211,8 +211,8 @@ export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({
   if (!anchor || !activeId) return null;
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverContent
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
+      <Popover.Content
         {...{ [HOVER_CARD_ATTR]: '' }}
         anchor={anchor}
         side={side}
@@ -225,7 +225,7 @@ export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({
         onMouseLeave={popupHoverProps.onMouseLeave}
       >
         <AgentInfoCard id={activeId} connectionId={connectionId} />
-      </PopoverContent>
-    </Popover>
+      </Popover.Content>
+    </Popover.Root>
   );
 };

@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   openModal: vi.fn(),
   reload: vi.fn(),
   reloadIgnoringCache: vi.fn(),
-  toast: vi.fn(),
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
 vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
@@ -38,7 +38,8 @@ vi.mock('@core/manifests/browser/modal-api', () => ({
   openModal: mocks.openModal,
 }));
 
-vi.mock('@core/primitives/ui/browser/use-toast', () => ({
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   toast: mocks.toast,
 }));
 
@@ -92,7 +93,7 @@ describe('browser toolbar actions', () => {
     await captureBrowserScreenshot(session());
 
     expect(mocks.captureScreenshot).toHaveBeenCalledWith({ browserId: 'browser-1' });
-    expect(mocks.toast).toHaveBeenCalledWith({ title: 'Screenshot copied to clipboard' });
+    expect(mocks.toast).toHaveBeenCalledWith('Screenshot copied to clipboard');
   });
 
   it('shows feedback when screenshot capture fails', async () => {
@@ -100,10 +101,7 @@ describe('browser toolbar actions', () => {
     await captureBrowserScreenshot(session());
 
     expect(mocks.captureScreenshot).toHaveBeenCalledWith({ browserId: 'browser-1' });
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Could not capture screenshot',
-      variant: 'destructive',
-    });
+    expect(mocks.toast.error).toHaveBeenCalledWith('Could not capture screenshot');
   });
 
   it('clears storage only after explicit modal confirmation and reloads on success', async () => {
@@ -155,10 +153,8 @@ describe('browser toolbar actions', () => {
 
     expect(mocks.clearData).toHaveBeenCalledWith({ browserId: 'browser-1', kind: 'cookies' });
     expect(mocks.reload).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Could not clear browser data',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Could not clear browser data', {
       description: 'Try again, or reload the browser view manually.',
-      variant: 'destructive',
     });
   });
 
@@ -169,10 +165,8 @@ describe('browser toolbar actions', () => {
 
     expect(mocks.clearData).toHaveBeenCalledWith({ browserId: 'browser-1', kind: 'cache' });
     expect(mocks.reloadIgnoringCache).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Could not clear browser data',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Could not clear browser data', {
       description: 'IPC failed',
-      variant: 'destructive',
     });
   });
 });

@@ -19,6 +19,7 @@ import {
   type DirectoryEntry,
   type DirectoryListing,
 } from '@emdash/ui/react/components';
+import { toast } from '@emdash/ui/react/primitives';
 import { type Contract, type ContractClient } from '@emdash/wire/rpc';
 import {
   observe,
@@ -38,7 +39,6 @@ import {
   nativePathFromHost,
   relativePathWithin,
 } from '@core/primitives/desktop-runtime/api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { type Strategy } from './add-project-modal';
 
 type DirectoryTreeModel = typeof projectsWireContract.directoryTree;
@@ -132,11 +132,7 @@ export function ProjectDirectoryPicker({
 
     const childPath = joinPortableRelativePath(currentRelativePath, name);
     if (!childPath.success) {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid folder name',
-        description: childPath.error.message,
-      });
+      toast.error('Invalid folder name', { description: childPath.error.message });
       return;
     }
 
@@ -148,21 +144,13 @@ export function ProjectDirectoryPicker({
       path: childPath.data,
     });
     if (!result.success) {
-      toast({
-        variant: 'destructive',
-        title: 'Could not create folder',
-        description: fsErrorMessage(result.error),
-      });
+      toast.error('Could not create folder', { description: fsErrorMessage(result.error) });
       return;
     }
 
     const createdPath = joinAbsolute(root, childPath.data);
     if (!createdPath.success) {
-      toast({
-        variant: 'destructive',
-        title: 'Could not select folder',
-        description: createdPath.error.message,
-      });
+      toast.error('Could not select folder', { description: createdPath.error.message });
       return;
     }
 

@@ -54,6 +54,8 @@ export const content = recipe({
       md: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '32rem' } } },
       lg: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '42rem' } } },
       xl: { '@media': { 'screen and (min-width: 640px)': { maxWidth: '80vw', height: '80vh' } } },
+      // Near-fullscreen: fills the positioner (viewport minus its 1rem padding).
+      full: { height: '100%' },
     },
   },
   defaultVariants: { size: 'md' },

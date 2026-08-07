@@ -44,7 +44,7 @@ export function LocationSelector({
         render={
           <TriggerButton
             appearance="input"
-            size="sm"
+            size="xs"
             tone="neutral"
             className="max-w-34 min-w-1 justify-between"
             aria-label="Project location"

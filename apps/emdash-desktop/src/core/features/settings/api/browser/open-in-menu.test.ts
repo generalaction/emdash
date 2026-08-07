@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
     },
     loading: false,
   },
-  toast: vi.fn(),
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
   updateOpenIn: vi.fn(),
 }));
 
@@ -34,10 +34,6 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
     }
     return { value: {}, update: vi.fn(), isLoading: false };
   },
-}));
-
-vi.mock('@core/primitives/ui/browser/use-toast', () => ({
-  useToast: () => ({ toast: mocks.toast }),
 }));
 
 vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({
@@ -121,22 +117,27 @@ vi.mock('@core/primitives/ui/browser/shortcut', async () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/tooltip', async () => {
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   const React = await import('react');
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
-    Tooltip: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipProvider: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipTrigger: ({
-      children,
-      render,
-    }: {
-      children?: React.ReactNode;
-      render?: React.ReactElement;
-    }) => render ?? React.createElement('div', {}, children),
+    ...actual,
+    useToast: () => ({ toast: mocks.toast }),
+    Tooltip: {
+      Root: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Provider: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Trigger: ({
+        children,
+        render,
+      }: {
+        children?: React.ReactNode;
+        render?: React.ReactElement;
+      }) => render ?? React.createElement('div', {}, children),
+    },
   };
 });
 
@@ -210,10 +211,8 @@ describe('OpenInMenu', () => {
     });
 
     expect(mocks.updateOpenIn).toHaveBeenCalledWith({ default: 'cursor' });
-    expect(mocks.toast).toHaveBeenCalledWith({
-      title: 'Open in Cursor failed',
+    expect(mocks.toast.error).toHaveBeenCalledWith('Open in Cursor failed', {
       description: 'Cursor is unavailable',
-      variant: 'destructive',
     });
   });
 

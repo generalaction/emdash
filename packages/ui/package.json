@@ -74,6 +74,10 @@
       "types": "./dist/src/styles/recipes/box.d.ts",
       "default": "./dist/styles/recipes/box.js"
     },
+    "./styles/recipes/menu-item": {
+      "types": "./dist/src/styles/recipes/menu-item.css.d.ts",
+      "default": "./dist/styles/recipes/menu-item.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css",
     "./styles/global": {
       "types": "./dist/src/styles/global.css.d.ts",
@@ -112,7 +116,11 @@
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
     "@tiptap/suggestion": "^3.26.1",
-    "lucide-react": "^0.564.0"
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.564.0",
+    "react-resizable-panels": "^4.7.3",
+    "react-zoom-pan-pinch": "^4.0.3",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@storybook/addon-docs": "^10.4.6",

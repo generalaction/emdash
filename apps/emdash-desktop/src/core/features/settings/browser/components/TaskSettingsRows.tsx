@@ -1,22 +1,17 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { Info } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { Switch } from '@core/primitives/ui/browser/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
 function InfoTooltip({ label, content }: { label: string; content: React.ReactNode }) {
   return (
-    <TooltipProvider delay={150}>
-      <Tooltip>
-        <TooltipTrigger>
+    <Tooltip.Provider delay={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
           <button
             type="button"
             className="text-muted-foreground inline-flex h-4 w-4 items-center justify-center hover:text-foreground"
@@ -24,12 +19,12 @@ function InfoTooltip({ label, content }: { label: string; content: React.ReactNo
           >
             <Info className="h-3.5 w-3.5" />
           </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">
+        </Tooltip.Trigger>
+        <Tooltip.Content side="top" className="max-w-xs text-xs">
           {content}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
 

@@ -1,9 +1,9 @@
+import { ExpandableImage } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { ContainedImage } from '@core/primitives/ui/browser/contained-image';
 
 interface SvgRendererProps {
   filePath: string;
@@ -30,7 +30,12 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
   return (
     <div className="flex h-full items-center justify-center overflow-auto p-4">
       {svgUrl ? (
-        <ContainedImage src={svgUrl} alt={fileName} className="max-h-full max-w-full" />
+        <ExpandableImage
+          src={svgUrl}
+          alt={fileName}
+          containerClassName="max-h-full max-w-full"
+          className="max-h-full max-w-full"
+        />
       ) : (
         <div className="text-xs text-foreground-passive">Loading…</div>
       )}

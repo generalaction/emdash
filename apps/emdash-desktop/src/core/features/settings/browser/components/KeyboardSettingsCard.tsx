@@ -1,3 +1,4 @@
+import { Button, toast, Tooltip } from '@emdash/ui/react/primitives';
 import { RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
@@ -17,15 +18,7 @@ import {
   keybindingService,
   useChordRecorder,
 } from '@core/primitives/keybindings/browser';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Shortcut } from '@core/primitives/ui/browser/shortcut';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@core/primitives/ui/browser/tooltip';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 
 const groupsByCommandId = new Map<string, string[]>();
 for (const scope of SCOPE_CATALOG) {
@@ -88,11 +81,10 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
         const conflictingTitle =
           COMMAND_CATALOG.byId(rejected.id)?.title ??
           (rejected.id === SYSTEM_HIDE_ENTRY.id ? 'Hide Emdash' : rejected.id);
-        toast({
-          title: rejected.severity === 'reserved' ? 'Shortcut is reserved' : 'Shortcut conflict',
-          description: `Conflicts with "${conflictingTitle}". Choose a different shortcut.`,
-          variant: 'destructive',
-        });
+        toast.error(
+          rejected.severity === 'reserved' ? 'Shortcut is reserved' : 'Shortcut conflict',
+          { description: `Conflicts with "${conflictingTitle}". Choose a different shortcut.` }
+        );
         setEditingKey(null);
         return;
       }
@@ -100,8 +92,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
       update({ [editingKey]: candidate });
       const shadowing = conflicts.find((conflict) => conflict.severity === 'shadowing');
       const label = keyboardLayoutService.displayLabel(candidate, platform).join(' + ');
-      toast({
-        title: 'Shortcut updated',
+      toast('Shortcut updated', {
         description: shadowing
           ? `${editingEntry.command.title} is now ${label}. It shadows ${
               COMMAND_CATALOG.byId(shadowing.id)?.title ?? shadowing.id
@@ -149,7 +140,7 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                         <>
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             className="min-w-[80px] animate-pulse"
                             onClick={recorder.cancelRecording}
@@ -171,19 +162,18 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                         <>
                           {(showClear || showReset) && (
                             <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover/shortcut:pointer-events-auto group-hover/shortcut:opacity-100">
-                              <TooltipProvider delay={150}>
+                              <Tooltip.Provider delay={150}>
                                 {showReset && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger>
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
+                                        icon
                                         className="text-muted-foreground hover:text-foreground"
                                         onClick={() => {
                                           resetField(key);
-                                          toast({
-                                            title: 'Shortcut reset',
+                                          toast('Shortcut reset', {
                                             description: `${entry.command.title} reset to default.`,
                                           });
                                         }}
@@ -192,22 +182,21 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                       >
                                         <RotateCcw className="h-3.5 w-3.5" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">Reset to default</TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side="top">Reset to default</Tooltip.Content>
+                                  </Tooltip.Root>
                                 )}
                                 {showClear && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger>
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
+                                        icon
                                         className="text-muted-foreground hover:text-foreground"
                                         onClick={() => {
                                           update({ [key]: null });
-                                          toast({
-                                            title: 'Shortcut removed',
+                                          toast('Shortcut removed', {
                                             description: `${entry.command.title} no longer has a key binding.`,
                                           });
                                         }}
@@ -216,11 +205,11 @@ const KeyboardSettingsCard: React.FC = observer(function KeyboardSettingsCard() 
                                       >
                                         <X className="h-3.5 w-3.5" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">Remove shortcut</TooltipContent>
-                                  </Tooltip>
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content side="top">Remove shortcut</Tooltip.Content>
+                                  </Tooltip.Root>
                                 )}
-                              </TooltipProvider>
+                              </Tooltip.Provider>
                             </div>
                           )}
                           <Button

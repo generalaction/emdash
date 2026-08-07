@@ -1,9 +1,5 @@
+import { Collapsible } from '@emdash/ui/react/primitives';
 import { ChevronDown, Terminal } from 'lucide-react';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@core/primitives/ui/browser/collapsible';
 
 interface SetupStepPreviewProps {
   steps: string[];
@@ -17,15 +13,18 @@ export function SetupStepPreview({ steps }: SetupStepPreviewProps) {
   if (steps.length === 0) return null;
 
   return (
-    <Collapsible className="rounded-md border border-border">
-      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-xs text-foreground-muted hover:bg-background-1 data-open:bg-background-1">
+    <Collapsible.Root className="rounded-md border border-border">
+      <Collapsible.Trigger
+        hideChevron
+        className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-xs text-foreground-muted hover:bg-background-1 data-open:bg-background-1"
+      >
         <span className="flex items-center gap-1.5">
           <Terminal className="size-3 shrink-0" />
           Setup steps ({steps.length})
         </span>
         <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 data-[state=open]:rotate-180" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
+      </Collapsible.Trigger>
+      <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
         <ol className="flex flex-col gap-0.5 border-t border-border px-2.5 py-2">
           {steps.map((step, i) => (
             <li key={i} className="flex items-start gap-2 text-xs text-foreground-muted">
@@ -34,7 +33,7 @@ export function SetupStepPreview({ steps }: SetupStepPreviewProps) {
             </li>
           ))}
         </ol>
-      </CollapsibleContent>
-    </Collapsible>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 }

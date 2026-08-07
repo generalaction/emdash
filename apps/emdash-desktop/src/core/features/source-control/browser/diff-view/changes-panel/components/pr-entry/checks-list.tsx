@@ -1,7 +1,7 @@
+import { EmptyState } from '@emdash/ui/react/components';
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   computeCheckBucket,

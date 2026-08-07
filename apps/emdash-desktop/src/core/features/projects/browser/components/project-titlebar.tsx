@@ -1,3 +1,4 @@
+import { Button, DropdownMenu, Separator } from '@emdash/ui/react/primitives';
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
@@ -11,15 +12,7 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
-import { Separator } from '@core/primitives/ui/browser/separator';
 import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
@@ -43,8 +36,8 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
 
   return (
     <div className="flex h-full items-center gap-2 px-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
           render={
             <button className="group flex items-center gap-1.5 text-sm text-foreground-muted hover:text-foreground">
               <span className="text-sm">{displayName}</span>
@@ -53,9 +46,9 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           }
         >
           <Ellipsis className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="min-w-40">
-          <DropdownMenuItem
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content className="min-w-40">
+          <DropdownMenu.Item
             className="flex items-center gap-2 text-foreground-destructive"
             onClick={() => {
               void confirmDeleteProject({
@@ -66,15 +59,12 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           >
             <Trash2 className="size-4" />
             Remove Project
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
       {remoteUrl && (
         <>
-          <Separator
-            orientation="vertical"
-            className="h-4 data-[orientation=vertical]:self-center"
-          />
+          <Separator orientation="vertical" className="h-4 self-center!" />
           <Button
             variant="ghost"
             className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"

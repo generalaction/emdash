@@ -1,6 +1,6 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
@@ -40,7 +40,7 @@ async function copyExternalLink(url: string): Promise<boolean> {
       showCopyFailure();
       return false;
     }
-    toast({ title: 'Link copied' });
+    toast('Link copied');
     return true;
   } catch {
     showCopyFailure();
@@ -49,11 +49,7 @@ async function copyExternalLink(url: string): Promise<boolean> {
 }
 
 function showCopyFailure(): void {
-  toast({
-    title: 'Copy failed',
-    description: 'The link could not be copied to the clipboard.',
-    variant: 'destructive',
-  });
+  toast.error('Copy failed', { description: 'The link could not be copied to the clipboard.' });
 }
 
 function getActiveTaskView() {

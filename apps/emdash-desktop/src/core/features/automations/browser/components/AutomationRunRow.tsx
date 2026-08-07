@@ -1,6 +1,6 @@
 import type { AutomationRun } from '@emdash/core/runtimes/automations/api';
+import { toast } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { toast } from 'sonner';
 import { isAutomationRunAdoptable } from '@core/features/automations/api/automation-run';
 import { useAutomationRunActions } from '@core/features/automations/browser/use-automation-run-actions';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';

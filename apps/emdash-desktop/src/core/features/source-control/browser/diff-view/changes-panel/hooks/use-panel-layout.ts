@@ -1,5 +1,5 @@
+import { useResizablePanelRef } from '@emdash/ui/react/primitives';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { usePanelRef } from 'react-resizable-panels';
 import type { ChangesViewStore, ExpandedSections } from '../../stores/changes-view-store';
 
 // Unreachable in practice: callers guard with `if (!changesView) return null` before calling this
@@ -19,10 +19,10 @@ type usePanelLayoutReturn = {
     onPointerUp: () => void;
     onPointerCancel: () => void;
   };
-  unstagedRef: ReturnType<typeof usePanelRef>;
-  stagedRef: ReturnType<typeof usePanelRef>;
-  prRef: ReturnType<typeof usePanelRef>;
-  spacerRef: ReturnType<typeof usePanelRef>;
+  unstagedRef: ReturnType<typeof useResizablePanelRef>;
+  stagedRef: ReturnType<typeof useResizablePanelRef>;
+  prRef: ReturnType<typeof useResizablePanelRef>;
+  spacerRef: ReturnType<typeof useResizablePanelRef>;
   containerRef: React.RefObject<HTMLDivElement | null>;
 };
 
@@ -30,10 +30,10 @@ export function usePanelLayout(
   changesView: ChangesViewStore | null,
   isVisible: boolean
 ): usePanelLayoutReturn {
-  const unstagedRef = usePanelRef();
-  const stagedRef = usePanelRef();
-  const prRef = usePanelRef();
-  const spacerRef = usePanelRef();
+  const unstagedRef = useResizablePanelRef();
+  const stagedRef = useResizablePanelRef();
+  const prRef = useResizablePanelRef();
+  const spacerRef = useResizablePanelRef();
 
   const [isDragging, setIsDragging] = useState(false);
 

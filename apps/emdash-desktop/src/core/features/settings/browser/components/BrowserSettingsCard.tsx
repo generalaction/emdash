@@ -1,3 +1,4 @@
+import { Button, DropdownMenu, toast } from '@emdash/ui/react/primitives';
 import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -15,14 +16,6 @@ import {
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
 import { Input } from '@core/primitives/ui/browser/input';
 import {
   Select,
@@ -32,7 +25,6 @@ import {
   SelectValue,
 } from '@core/primitives/ui/browser/select';
 import { Switch } from '@core/primitives/ui/browser/switch';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { SettingRow } from './SettingRow';
 
@@ -95,21 +87,15 @@ export function BrowserSettingsCard() {
     try {
       const result = await (await getDesktopWireClient()).browser.clearBrowsingData({ kind });
       if (!result.success) {
-        toast({
-          title: 'Could not clear browsing data',
+        toast.error('Could not clear browsing data', {
           description: 'Try again, or reload the browser view manually.',
-          variant: 'destructive',
         });
         return;
       }
       reloadAllBrowserSessions();
-      toast({ title: `${label} cleared` });
+      toast(`${label} cleared`);
     } catch (error) {
-      toast({
-        title: 'Could not clear browsing data',
-        description: errorMessage(error),
-        variant: 'destructive',
-      });
+      toast.error('Could not clear browsing data', { description: errorMessage(error) });
     } finally {
       setIsClearingBrowsingData(false);
     }
@@ -219,7 +205,7 @@ export function BrowserSettingsCard() {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    icon
                     className="size-7 shrink-0 text-foreground-muted"
                     disabled={disabled}
                     aria-label={`Save ${profile.name} browser profile name`}
@@ -230,7 +216,7 @@ export function BrowserSettingsCard() {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    icon
                     className="size-7 shrink-0 text-foreground-muted"
                     disabled={disabled}
                     aria-label={`Cancel renaming ${profile.name} browser profile`}
@@ -244,13 +230,13 @@ export function BrowserSettingsCard() {
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {profile.name}
                   </span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger
                       render={
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon"
+                          icon
                           className="size-7 shrink-0 text-foreground-muted"
                           disabled={disabled}
                           aria-label={`${profile.name} browser profile actions`}
@@ -258,31 +244,31 @@ export function BrowserSettingsCard() {
                       }
                     >
                       <Ellipsis className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content
                       align="end"
                       className="min-w-40"
                       finalFocus={renameInputRef}
                     >
-                      <DropdownMenuItem onClick={() => setEditingProfileId(profile.id)}>
+                      <DropdownMenu.Item onClick={() => setEditingProfileId(profile.id)}>
                         <Pencil className="size-4" />
                         Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => clearProfileStorage(profile)}>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item onClick={() => clearProfileStorage(profile)}>
                         <Eraser className="size-4" />
                         Clear storage
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item
                         variant="destructive"
                         disabled={profiles.length <= 1}
                         onClick={() => deleteProfile(profile)}
                       >
                         <Trash2 className="size-4" />
                         Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
                 </>
               )}
             </div>
@@ -307,7 +293,7 @@ export function BrowserSettingsCard() {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                icon
                 className="size-7 shrink-0 text-foreground-muted"
                 disabled={disabled}
                 aria-label="Save new browser profile"
@@ -318,7 +304,7 @@ export function BrowserSettingsCard() {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                icon
                 className="size-7 shrink-0 text-foreground-muted"
                 disabled={disabled}
                 aria-label="Cancel adding profile"
@@ -365,7 +351,8 @@ export function BrowserSettingsCard() {
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
+              icon
               className="shrink-0 text-foreground-muted"
               aria-expanded={isBrowsingDataExpanded}
               aria-label={
@@ -465,20 +452,14 @@ async function clearProfileStorageAndReload(profileId: string): Promise<void> {
   try {
     const result = await (await getDesktopWireClient()).browser.clearProfileStorage({ profileId });
     if (!result.success) {
-      toast({
-        title: 'Could not clear browser storage',
+      toast.error('Could not clear browser storage', {
         description: 'The browser profile no longer exists or could not be cleared.',
-        variant: 'destructive',
       });
       return;
     }
     reloadBrowserSessionsForProfile(profileId);
   } catch (error) {
-    toast({
-      title: 'Could not clear browser storage',
-      description: errorMessage(error),
-      variant: 'destructive',
-    });
+    toast.error('Could not clear browser storage', { description: errorMessage(error) });
   }
 }
 
@@ -501,10 +482,8 @@ async function deleteProfileAfterStorageClear({
       profileId: deletedProfileId,
     });
     if (!clearResult.success) {
-      toast({
-        title: 'Could not delete browser profile',
+      toast.error('Could not delete browser profile', {
         description: 'The profile storage could not be cleared, so the profile was kept.',
-        variant: 'destructive',
       });
       return;
     }
@@ -521,12 +500,10 @@ async function deleteProfileAfterStorageClear({
     );
   } catch (error) {
     if (storageCleared) reloadBrowserSessionsForProfile(deletedProfileId);
-    toast({
-      title: 'Could not delete browser profile',
+    toast.error('Could not delete browser profile', {
       description: storageCleared
         ? `Storage was cleared, but the profile is still listed. ${errorMessage(error)}`
         : errorMessage(error),
-      variant: 'destructive',
     });
   }
 }

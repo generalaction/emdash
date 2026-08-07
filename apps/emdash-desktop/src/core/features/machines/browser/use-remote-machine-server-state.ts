@@ -1,6 +1,6 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useEffect } from 'react';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
 import {
   remoteMachineContract,
@@ -74,10 +74,8 @@ export function useRemoteMachineServerState({
         const client = await getDesktopWireClient();
         await client.remoteMachine[action]({ connectionId: machineId });
       } catch (error) {
-        toast({
-          title: `Failed to ${label} workspace server`,
+        toast.error(`Failed to ${label} workspace server`, {
           description: error instanceof Error ? error.message : String(error),
-          variant: 'destructive',
         });
       }
     },
@@ -90,10 +88,8 @@ export function useRemoteMachineServerState({
       const client = await getDesktopWireClient();
       await client.remoteMachine.refreshServerState({ connectionId: machineId, force: true });
     } catch (error) {
-      toast({
-        title: 'Failed to check workspace server updates',
+      toast.error('Failed to check workspace server updates', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     }
   }, [machineId]);

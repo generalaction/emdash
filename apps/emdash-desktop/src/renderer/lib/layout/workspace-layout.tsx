@@ -1,11 +1,5 @@
+import { Resizable, useResizableDefaultLayout } from '@emdash/ui/react/primitives';
 import { type ReactNode } from 'react';
-import { useDefaultLayout } from 'react-resizable-panels';
-import { cn } from '@core/primitives/styling/browser/cn';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@core/primitives/ui/browser/resizable';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 
 const LEFT_PANEL_DEFAULT_SIZE = '20%';
@@ -20,20 +14,19 @@ interface WorkspaceLayoutProps {
 
 export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutProps) {
   const { leftPanelRef, syncLeftOpenFromPanel, isLeftOpen } = useWorkspaceLayoutContext();
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+  const { defaultLayout, onLayoutChanged } = useResizableDefaultLayout({
     id: 'workspace-outer',
     storage: localStorage,
   });
 
   return (
-    <ResizablePanelGroup
+    <Resizable.Group
       id="workspace-outer"
       orientation="horizontal"
-      className="h-full w-full overflow-hidden"
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
     >
-      <ResizablePanel
+      <Resizable.Panel
         id="workspace-left"
         panelRef={leftPanelRef}
         defaultSize={LEFT_PANEL_DEFAULT_SIZE}
@@ -44,17 +37,12 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
         collapsible
       >
         {leftSidebar}
-      </ResizablePanel>
-      <ResizableHandle
-        className={cn(
-          'items-center justify-center bg-transparent transition-colors hover:bg-border/80',
-          isLeftOpen ? 'flex' : 'hidden'
-        )}
-      />
-      <ResizablePanel id="workspace-main" minSize={MAIN_PANEL_MIN_SIZE}>
+      </Resizable.Panel>
+      <Resizable.Handle variant="ghost" hidden={!isLeftOpen} />
+      <Resizable.Panel id="workspace-main" minSize={MAIN_PANEL_MIN_SIZE}>
         {mainContent}
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      </Resizable.Panel>
+    </Resizable.Group>
   );
 }
 

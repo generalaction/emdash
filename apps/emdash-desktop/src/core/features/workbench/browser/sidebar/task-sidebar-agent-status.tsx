@@ -1,10 +1,8 @@
+import { AgentStatus, BrailleSpinner } from '@emdash/ui/react/components';
+import { RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
-import { AgentStatusIndicator } from '@core/primitives/ui/browser/components/agent-status-indicator';
-import { CLISpinner } from '@core/primitives/ui/browser/components/cliSpinner';
-import { RelativeTime } from '@core/primitives/ui/browser/relative-time';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@core/primitives/ui/browser/tooltip';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { getSortInstant, sortKindFor } from './sidebar-store';
@@ -32,14 +30,14 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
   if (delayedIsBootstrapping) {
     return (
       <Slot>
-        <Tooltip>
-          <TooltipTrigger>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
             <span className="flex size-6 items-center justify-center">
-              <CLISpinner variant="2" />
+              <BrailleSpinner variant="wave" />
             </span>
-          </TooltipTrigger>
-          <TooltipContent>Creating task workspace...</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Creating task workspace...</Tooltip.Content>
+        </Tooltip.Root>
       </Slot>
     );
   }
@@ -49,7 +47,7 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
   if (status !== null) {
     return (
       <Slot>
-        <AgentStatusIndicator status={status} />
+        <AgentStatus status={status} tooltip />
       </Slot>
     );
   }

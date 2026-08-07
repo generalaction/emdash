@@ -27,8 +27,9 @@ vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   getDesktopWireClient: async () => ({ machines: activeFixture!.wire.client }),
 }));
 
-vi.mock('@core/primitives/ui/browser/use-toast', () => ({
-  toast: vi.fn(),
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
 describe('useSystemDependencies', () => {

@@ -442,7 +442,7 @@ function ComposerAgentSelector({
     return (
       <Button
         variant="ghost"
-        size="sm"
+        size="xs"
         icon
         disabled
         aria-label={triggerLabel}
@@ -1035,7 +1035,7 @@ export function ChatComposer({
             {onAttach && (
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 icon
                 onClick={onAttach}
                 disabled={disabled}
@@ -1050,7 +1050,7 @@ export function ChatComposer({
                 <Button
                   variant="primary"
                   tone="destructive"
-                  size="sm"
+                  size="xs"
                   icon
                   className={styles.sendButtonRound}
                   onClick={onStop}
@@ -1061,7 +1061,7 @@ export function ChatComposer({
               ) : (
                 <Button
                   variant="primary"
-                  size="sm"
+                  size="xs"
                   icon
                   className={styles.sendButtonRound}
                   onClick={() => handleSubmit(editorRef.current?.getText() ?? '')}

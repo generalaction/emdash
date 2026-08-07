@@ -48,30 +48,6 @@ vi.mock('@core/features/integrations/api/browser/integrations-provider', () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/combobox', async () => {
-  const React = await import('react');
-  return {
-    Combobox: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    ComboboxContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    ComboboxEmpty: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'empty' }, children),
-    ComboboxInput: () => React.createElement('input', {}),
-    ComboboxItem: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    ComboboxList: () => React.createElement('div', {}),
-    ComboboxTrigger: ({ render }: { render: React.ReactElement }) => render,
-    ComboboxValue: ({
-      children,
-      placeholder,
-    }: {
-      children?: React.ReactNode;
-      placeholder?: React.ReactNode;
-    }) => React.createElement('div', {}, children ?? placeholder),
-  };
-});
-
 vi.mock('@core/primitives/ui/browser/select', async () => {
   const React = await import('react');
   return {
@@ -86,14 +62,38 @@ vi.mock('@core/primitives/ui/browser/select', async () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/tooltip', async () => {
+vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   const React = await import('react');
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
-    Tooltip: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
-    TooltipTrigger: ({ render }: { render: React.ReactElement }) => render,
+    ...actual,
+    Tooltip: {
+      Root: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Trigger: ({ render }: { render: React.ReactElement }) => render,
+    },
+    Combobox: {
+      Root: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Content: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      Empty: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', { 'data-testid': 'empty' }, children),
+      Input: () => React.createElement('input', {}),
+      Item: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      List: () => React.createElement('div', {}),
+      Trigger: ({ render }: { render: React.ReactElement }) => render,
+      Value: ({
+        children,
+        placeholder,
+      }: {
+        children?: React.ReactNode;
+        placeholder?: React.ReactNode;
+      }) => React.createElement('div', {}, children ?? placeholder),
+    },
   };
 });
 

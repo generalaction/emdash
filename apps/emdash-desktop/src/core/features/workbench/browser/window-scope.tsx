@@ -1,3 +1,4 @@
+import { toast } from '@emdash/ui/react/primitives';
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { captureDevPerfTrace } from '@core/features/dev-perf/api/browser/capture-trace';
 import { projectViewDef } from '@core/features/projects/contributions/views';
@@ -9,7 +10,6 @@ import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import { applyHistoryEntry } from '@core/primitives/ui/browser/components/nav-buttons';
 import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
@@ -58,11 +58,7 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       execute: () => {
         void toggleAppTheme().then((result) => {
           if (result.success) return;
-          toast({
-            title: 'Theme not changed',
-            description: result.error.message,
-            variant: 'destructive',
-          });
+          toast.error('Theme not changed', { description: result.error.message });
         });
       },
     }),
@@ -105,15 +101,11 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
     }),
     'devPerf.captureTrace': () => ({
       execute: () => {
-        toast({ title: 'Recording performance trace', description: 'Capturing 10 seconds…' });
+        toast('Recording performance trace', { description: 'Capturing 10 seconds…' });
         void captureDevPerfTrace().then((outcome) =>
           outcome.ok
-            ? toast({ title: 'Trace captured', description: outcome.path })
-            : toast({
-                title: 'Trace capture failed',
-                description: outcome.message,
-                variant: 'destructive',
-              })
+            ? toast.success('Trace captured', { description: outcome.path })
+            : toast.error('Trace capture failed', { description: outcome.message })
         );
       },
     }),

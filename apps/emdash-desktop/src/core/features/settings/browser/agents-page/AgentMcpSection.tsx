@@ -1,12 +1,11 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { McpServer } from '@emdash/core/primitives/mcp/api';
+import { Button, Label } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
 import React from 'react';
 import { useAgentMcps } from '@core/features/agents/api/browser/use-agent-mcps';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { Button } from '@core/primitives/ui/browser/button';
 import { Field } from '@core/primitives/ui/browser/field';
-import { Label } from '@core/primitives/ui/browser/label';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 function McpServerPill({

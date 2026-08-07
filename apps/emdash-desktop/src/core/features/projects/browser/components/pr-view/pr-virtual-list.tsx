@@ -1,7 +1,7 @@
+import { EmptyState } from '@emdash/ui/react/components';
+import { ListView } from '@emdash/ui/react/patterns';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
-import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrRow } from './pr-row';
 
@@ -82,9 +82,13 @@ export function PrVirtualList({
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
-            <MultiLineListItem isLast={virtualItem.index === prs.length - 1}>
+            <ListView.Row
+              interactive
+              isLast={virtualItem.index === prs.length - 1}
+              className="group"
+            >
               <PrRow pr={prs[virtualItem.index]!} projectId={projectId} />
-            </MultiLineListItem>
+            </ListView.Row>
           </div>
         ))}
       </div>

@@ -67,7 +67,7 @@ export function MachineSystemDependenciesCard({
         <Button
           type="button"
           variant="primary"
-          size="sm"
+          size="xs"
           disabled={!canInstallAll}
           onClick={() => void installAll(installableMissingDependencies)}
         >
@@ -186,7 +186,7 @@ function SystemDependencyRow({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="xs"
             disabled={installing}
             onClick={onInstall}
           >

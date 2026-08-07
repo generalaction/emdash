@@ -3,6 +3,7 @@ import {
   SteppedLoaderProgress,
   type SteppedLoaderProps,
 } from '@emdash/ui/react/components';
+import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import {
@@ -11,7 +12,6 @@ import {
 } from '@core/features/projects/api/browser/stores/project';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
-import { Button } from '@core/primitives/ui/browser/button';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 
 const STAGE_LABELS: Record<ProjectCreationStage, string> = {

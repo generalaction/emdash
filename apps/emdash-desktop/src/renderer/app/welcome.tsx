@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { motion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
@@ -7,7 +8,6 @@ import { confirmCommand } from '@core/features/workbench/contributions/commands'
 import { detectPlatformContext, resolveEffectiveChord } from '@core/primitives/keybindings/api';
 import { useChordKeydown } from '@core/primitives/keybindings/browser';
 import { useTheme } from '@core/primitives/theme/browser';
-import { Button } from '@core/primitives/ui/browser/button';
 import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 
 const SHORTCUT_PRESS_DURATION_MS = 120;
@@ -134,6 +134,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
             }`}
           >
             <Button
+              variant="primary"
               onClick={handleGetStarted}
               size="sm"
               className={

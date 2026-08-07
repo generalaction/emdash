@@ -1,10 +1,31 @@
+import { SearchInput } from '@emdash/ui/react/primitives';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
+import {
+  useSearchFocusHotkeys,
+  type UseSearchFocusHotkeysOptions,
+} from '@core/primitives/keybindings/browser';
+import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 
 const PLATFORM = detectPlatformContext().os;
+
+/** Settings-style composition: @emdash/ui SearchInput wired to the app focus hotkeys. */
+function SettingsSearch({
+  label = 'Search settings',
+  ...options
+}: UseSearchFocusHotkeysOptions & { label?: string }) {
+  const searchRef = useSearchFocusHotkeys(options);
+  return (
+    <SearchInput
+      ref={searchRef}
+      aria-label={label}
+      placeholder="Search settings"
+      shortcut={<Shortcut hotkey="Mod+F" variant="keycaps" />}
+    />
+  );
+}
 
 function dispatchShortcut(init: KeyboardEventInit): KeyboardEvent {
   const event = new KeyboardEvent('keydown', {
@@ -43,12 +64,7 @@ describe('settings search shortcuts', () => {
         <>
           <button type="button">Before search</button>
           <textarea aria-label="Notes" />
-          <SearchInput
-            aria-label="Search settings"
-            shortcutHotkey="Mod+F"
-            focusHotkey
-            focusSlashHotkey
-          />
+          <SettingsSearch focusHotkey focusSlashHotkey />
         </>
       );
     });
@@ -79,21 +95,12 @@ describe('settings search shortcuts', () => {
     ]);
   });
 
-  it('keeps the shared input focus ring and corner styling', async () => {
-    const search = await renderSearch();
-
-    expect(search.classList).toContain('rounded-md');
-    expect(search.classList).toContain('focus-visible:ring-2');
-    expect(search.classList).not.toContain('rounded-sm');
-    expect(search.classList).not.toContain('focus-visible:ring-0');
-  });
-
   it('allows a nested search field to opt out of owning Mod+F', async () => {
     await act(async () => {
       root.render(
         <>
           <button type="button">Before search</button>
-          <SearchInput aria-label="Nested search" focusHotkey={false} />
+          <SettingsSearch label="Nested search" focusHotkey={false} />
         </>
       );
     });

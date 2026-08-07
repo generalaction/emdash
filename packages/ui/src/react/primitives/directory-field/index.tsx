@@ -43,7 +43,7 @@ const DirectoryField = React.forwardRef<HTMLButtonElement, DirectoryFieldProps>(
         </span>
         <span
           className={cx(
-            controlVariants({ variant: 'secondary', size: 'sm' }),
+            controlVariants({ variant: 'secondary', size: 'xs' }),
             styles.chooseAffordance
           )}
           aria-hidden

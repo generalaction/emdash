@@ -1,9 +1,8 @@
+import { EmptyState } from '@emdash/ui/react/components';
+import { Button, Spinner } from '@emdash/ui/react/primitives';
 import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
 import type { RunHistoryFilter } from '../automation-run-store';
 import {
   useAutomationRunCounts,

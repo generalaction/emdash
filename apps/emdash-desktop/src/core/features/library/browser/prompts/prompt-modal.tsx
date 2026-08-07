@@ -1,8 +1,8 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { useMemo, useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
@@ -70,10 +70,10 @@ export function PromptModal({ initialPrompt }: Props) {
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <Button variant="outline" onClick={dismiss}>
+        <Button variant="secondary" onClick={dismiss}>
           Cancel
         </Button>
-        <ConfirmButton onClick={handleSave} disabled={!canSave}>
+        <ConfirmButton variant="primary" onClick={handleSave} disabled={!canSave}>
           Save
         </ConfirmButton>
       </DialogFooter>

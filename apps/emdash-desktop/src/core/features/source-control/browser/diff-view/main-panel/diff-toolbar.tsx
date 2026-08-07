@@ -1,8 +1,7 @@
+import { MicroLabel, ToggleGroup } from '@emdash/ui/react/primitives';
 import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
-import { MicroLabel } from '@core/primitives/ui/browser/label';
-import { ToggleGroup, ToggleGroupItem } from '@core/primitives/ui/browser/toggle-group';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 
 interface DiffToolbarProps {
@@ -31,25 +30,23 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
       </div>
       <div className="flex items-center gap-2">
         {canPreview && (
-          <ToggleGroup
-            size="sm"
+          <ToggleGroup.Root
             multiple={false}
             value={[tab.viewMode]}
             onValueChange={([value]) => {
               if (value === 'diff' || value === 'preview') tab.setViewMode(value);
             }}
           >
-            <ToggleGroupItem value="diff" className="text-xs">
+            <ToggleGroup.Item size="sm" value="diff" className="text-xs">
               Diff
-            </ToggleGroupItem>
-            <ToggleGroupItem value="preview" className="text-xs">
+            </ToggleGroup.Item>
+            <ToggleGroup.Item size="sm" value="preview" className="text-xs">
               Preview
-            </ToggleGroupItem>
-          </ToggleGroup>
+            </ToggleGroup.Item>
+          </ToggleGroup.Root>
         )}
         {tab.viewMode === 'diff' && (
-          <ToggleGroup
-            size="sm"
+          <ToggleGroup.Root
             multiple={false}
             value={[diffStyle]}
             onValueChange={([value]) => {
@@ -58,13 +55,13 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
               }
             }}
           >
-            <ToggleGroupItem value="unified">
+            <ToggleGroup.Item size="sm" icon value="unified" aria-label="Unified diff">
               <AlignJustify className="h-3.5 w-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="split">
+            </ToggleGroup.Item>
+            <ToggleGroup.Item size="sm" icon value="split" aria-label="Split diff">
               <Columns2 className="h-3.5 w-3.5" />
-            </ToggleGroupItem>
-          </ToggleGroup>
+            </ToggleGroup.Item>
+          </ToggleGroup.Root>
         )}
       </div>
     </div>

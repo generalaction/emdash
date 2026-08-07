@@ -1,3 +1,4 @@
+import { Button } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
@@ -8,7 +9,6 @@ import {
   cyclePreviousTabCommand,
 } from '@core/features/workbench/contributions/commands';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
-import { Button } from '@core/primitives/ui/browser/button';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
@@ -346,12 +346,12 @@ function BrowserLoadErrorView({
           {code && <span className="text-foreground-tertiary-muted"> ({code})</span>}
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onReload}>
+          <Button type="button" variant="secondary" size="sm" onClick={onReload}>
             Reload
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={!canOpenExternal}
             onClick={onOpenExternal}

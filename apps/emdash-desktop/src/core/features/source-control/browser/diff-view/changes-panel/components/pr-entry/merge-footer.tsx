@@ -1,3 +1,4 @@
+import { Button, Checkbox, SplitButton } from '@emdash/ui/react/primitives';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -7,11 +8,17 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { Checkbox } from '@core/primitives/ui/browser/checkbox';
-import { SplitButton, type SplitButtonAction } from '@core/primitives/ui/browser/split-button';
 import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
+
+/** A selectable action for the merge split button: label plus its own callback. */
+export type MergeAction = {
+  value: string;
+  label: string;
+  description?: string;
+  action: () => void;
+};
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {
   success: { icon: CheckCircle2, iconClass: 'text-foreground-success' },
@@ -32,7 +39,7 @@ export function MergeFooter({
   onBypassRequirementsChange,
 }: {
   uiState: MergeUiState;
-  mergeActions: SplitButtonAction[];
+  mergeActions: MergeAction[];
   isMerging: boolean;
   isMarkingReady: boolean;
   bypassRequirements: boolean;
@@ -40,6 +47,7 @@ export function MergeFooter({
   onBypassRequirementsChange: (checked: boolean) => void;
 }) {
   const isDraft = uiState.kind === 'draft';
+  const [selectedMergeId, setSelectedMergeId] = useState<string | undefined>(undefined);
   const mergeDisabled =
     !isMerging && !uiState.canMerge && (!uiState.canBypassRequirements || !bypassRequirements);
   const bypassEnabled = uiState.canBypassRequirements && bypassRequirements;
@@ -57,7 +65,7 @@ export function MergeFooter({
         <div className="flex items-center gap-1.5">
           {isDraft ? (
             <Button
-              variant="outline"
+              variant="secondary"
               size="xs"
               onClick={onMarkReady}
               disabled={isMarkingReady}
@@ -69,11 +77,19 @@ export function MergeFooter({
           ) : (
             <SplitButton
               size="xs"
-              variant="outline"
+              variant="secondary"
               loading={isMerging}
               loadingLabel="Merging..."
               icon={<GitMerge className="size-3" />}
-              actions={mergeActions}
+              options={mergeActions.map(({ value, label, description }) => ({
+                id: value,
+                label,
+                description,
+              }))}
+              selectedId={selectedMergeId}
+              onSelectedChange={setSelectedMergeId}
+              commitOnSelect={false}
+              onAction={(id) => mergeActions.find((a) => a.value === id)?.action()}
               disabled={mergeDisabled}
             />
           )}

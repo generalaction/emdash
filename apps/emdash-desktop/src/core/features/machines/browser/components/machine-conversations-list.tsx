@@ -1,19 +1,11 @@
 import { ColumnList, ColumnListCell, type ColumnListColumn } from '@emdash/ui/react/components';
+import { Button, DropdownMenu, SearchInput, Spinner, toast } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import { EllipsisIcon, Link2Icon, MessageSquareIcon, Trash2Icon, WifiOffIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@core/primitives/ui/browser/dropdown-menu';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { Spinner } from '@core/primitives/ui/browser/spinner';
-import { toast } from '@core/primitives/ui/browser/use-toast';
 import {
   joinMachineConversationRows,
   type MachineConversationItem,
@@ -96,6 +88,7 @@ export function MachineConversationsList({
   const openLinkModal = useOpenModal('linkConversationModal');
   const openConfirm = useOpenModal('confirmActionModal');
   const [search, setSearch] = useState('');
+  const searchRef = useSearchFocusHotkeys();
   const [busyId, setBusyId] = useState<string | null>(null);
 
   // Dangling-path detection is a client presentation over workspace observations
@@ -145,10 +138,8 @@ export function MachineConversationsList({
       });
       await refresh();
     } catch (error) {
-      toast({
-        title: 'Could not link conversation',
+      toast.error('Could not link conversation', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     } finally {
       setBusyId(null);
@@ -168,10 +159,8 @@ export function MachineConversationsList({
       await deleteMachineConversation(item.conversation.id);
       await refresh();
     } catch (error) {
-      toast({
-        title: 'Could not delete conversation',
+      toast.error('Could not delete conversation', {
         description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive',
       });
     } finally {
       setBusyId(null);
@@ -188,13 +177,15 @@ export function MachineConversationsList({
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput
-          containerClassName="min-w-48 flex-1"
-          className="h-8"
-          placeholder="Search conversations, tasks, workspaces..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        <div className="min-w-48 flex-1">
+          <SearchInput
+            ref={searchRef}
+            className="h-8"
+            placeholder="Search conversations, tasks, workspaces..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
         <span className="text-xs text-foreground-passive tabular-nums">
           {items.length} {items.length === 1 ? 'conversation' : 'conversations'}
         </span>
@@ -256,31 +247,32 @@ function ConversationStatusCell({ item }: { item: MachineConversationItem }) {
 function ConversationActionsCell({ row }: { row: ConversationListRow }) {
   const { item, busy, onLink, onDelete } = row;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
         render={
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="xs"
+            icon
             aria-label={`Actions for ${item.conversation.title || 'conversation'}`}
             disabled={busy || item.pendingRemoval}
           />
         }
       >
-        {busy ? <Spinner className="size-3.5" /> : <EllipsisIcon className="size-3.5" />}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={onLink}>
+        {busy ? <Spinner size="sm" /> : <EllipsisIcon className="size-3.5" />}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end">
+        <DropdownMenu.Item onClick={onLink}>
           <Link2Icon />
           {item.linked ? 'Link to another task…' : 'Link to a task…'}
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+        </DropdownMenu.Item>
+        <DropdownMenu.Item variant="destructive" onClick={onDelete}>
           <Trash2Icon />
           Delete…
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 }
 
@@ -310,7 +302,7 @@ function Pill({
 function ConversationsLoadingState() {
   return (
     <div className="flex h-40 items-center justify-center gap-2 text-sm text-foreground-muted">
-      <Spinner className="size-4" />
+      <Spinner size="sm" />
       Loading conversations
     </div>
   );

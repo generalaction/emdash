@@ -1,16 +1,13 @@
+import { EmptyState } from '@emdash/ui/react/components';
+import { ListView, PageLayout } from '@emdash/ui/react/patterns';
+import { Button, SearchInput, toast } from '@emdash/ui/react/primitives';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Button } from '@core/primitives/ui/browser/button';
-import { MultiLineListItem } from '@core/primitives/ui/browser/components/multi-line-list-item';
-import { PageHeader } from '@core/primitives/ui/browser/components/page-header';
-import { EmptyState } from '@core/primitives/ui/browser/empty-state';
-import { SearchInput } from '@core/primitives/ui/browser/search-input';
-import { toast } from '@core/primitives/ui/browser/use-toast';
-
 type PromptListItem = {
   id: string;
   title: string;
@@ -54,7 +51,8 @@ function PromptRow({
       <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={onEdit}
           disabled={disabled}
           aria-label={`Edit ${item.title}`}
@@ -63,7 +61,8 @@ function PromptRow({
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="xs"
+          icon
           onClick={onDelete}
           disabled={disabled}
           aria-label={`Delete ${item.title}`}
@@ -85,6 +84,7 @@ export function PromptLibraryView() {
   const openPromptModal = useOpenModal('promptModal');
   const openConfirm = useOpenModal('confirmActionModal');
   const [search, setSearch] = useState('');
+  const searchRef = useSearchFocusHotkeys();
 
   const promptLibrary = useMemo(() => promptLibraryValue ?? [], [promptLibraryValue]);
   const isDisabled = isPromptLibraryLoading || isPromptLibrarySaving;
@@ -100,7 +100,7 @@ export function PromptLibraryView() {
       ? promptLibrary.map((item) => (item.id === prompt.id ? prompt : item))
       : [...promptLibrary, prompt];
     updatePromptLibrary(nextPrompts, {
-      onSuccess: () => toast({ title: successTitle }),
+      onSuccess: () => toast(successTitle),
     });
   };
 
@@ -130,7 +130,7 @@ export function PromptLibraryView() {
       updatePromptLibrary(
         promptLibrary.filter((item) => item.id !== prompt.id),
         {
-          onSuccess: () => toast({ title: 'Prompt deleted' }),
+          onSuccess: () => toast('Prompt deleted'),
         }
       );
     });
@@ -138,31 +138,39 @@ export function PromptLibraryView() {
 
   return (
     <div className="flex flex-col text-foreground">
-      <PageHeader
+      <PageLayout.Header
         sticky
         title="Prompts"
         description="Manage reusable prompts that can be sent from task prompt menus."
-      >
-        <div className="flex w-full justify-between gap-2">
-          <SearchInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search prompts..."
-          />
-          <Button onClick={createPrompt} disabled={isDisabled} aria-label="New Prompt">
-            <Plus className="size-4" />
-            <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
-          </Button>
-        </div>
-      </PageHeader>
+        actions={
+          <div className="flex w-full justify-between gap-2">
+            <SearchInput
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search prompts..."
+            />
+            <Button
+              variant="primary"
+              onClick={createPrompt}
+              disabled={isDisabled}
+              aria-label="New Prompt"
+            >
+              <Plus className="size-4" />
+              <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
+            </Button>
+          </div>
+        }
+      />
       <div className={cn('flex flex-col py-2', filteredItems.length === 0 && 'min-h-64')}>
         {filteredItems.length > 0 ? (
           filteredItems.map((prompt, index) => {
             return (
-              <MultiLineListItem
+              <ListView.Row
                 key={prompt.id}
+                interactive
                 isLast={index === filteredItems.length - 1}
-                className="py-3"
+                className="group"
               >
                 <PromptRow
                   item={prompt}
@@ -170,7 +178,7 @@ export function PromptLibraryView() {
                   onEdit={() => editPrompt(prompt)}
                   onDelete={() => deletePrompt(prompt)}
                 />
-              </MultiLineListItem>
+              </ListView.Row>
             );
           })
         ) : (

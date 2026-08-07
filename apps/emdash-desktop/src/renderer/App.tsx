@@ -1,3 +1,4 @@
+import { Tooltip } from '@emdash/ui/react/primitives';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { IntegrationsProvider } from '@core/features/integrations/api/browser/integrations-provider';
@@ -6,7 +7,6 @@ import { Onboarding } from '@core/features/workbench/browser/onboarding/onboardi
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
 import { FramelessTitlebarOverlay } from '@core/primitives/ui/browser/components/titlebar/window-controls';
 import { RightSidebarProvider } from '@core/primitives/ui/browser/right-sidebar';
-import { TooltipProvider } from '@core/primitives/ui/browser/tooltip';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
@@ -95,7 +95,7 @@ function AppContent() {
   };
 
   return (
-    <TooltipProvider delay={300}>
+    <Tooltip.Provider delay={300}>
       <WorkspaceLayoutContextProvider>
         <TerminalPoolProvider>
           <GithubContextProvider>
@@ -116,7 +116,7 @@ function AppContent() {
           </GithubContextProvider>
         </TerminalPoolProvider>
       </WorkspaceLayoutContextProvider>
-    </TooltipProvider>
+    </Tooltip.Provider>
   );
 }
 

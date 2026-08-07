@@ -3,10 +3,10 @@ import type {
   McpProvidersResponse,
   McpServer,
 } from '@emdash/core/primitives/mcp/api';
+import { Button, MicroLabel, Sheet } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
-import { Button } from '@core/primitives/ui/browser/button';
 import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
@@ -17,13 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@core/primitives/ui/browser/select';
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@core/primitives/ui/browser/sheet';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { SyncToAgentsSection } from './SyncToAgentsSection';
 
@@ -50,8 +43,8 @@ export const McpDrawer: React.FC<McpDrawerProps> = ({
   onRemove,
 }) => {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="gap-0 p-0">
+    <Sheet.Root open={open} onOpenChange={onOpenChange}>
+      <Sheet.Content side="right" className="gap-0 p-0">
         {mode && (
           <McpDrawerContent
             mode={mode}
@@ -61,8 +54,8 @@ export const McpDrawer: React.FC<McpDrawerProps> = ({
             onRemove={onRemove}
           />
         )}
-      </SheetContent>
-    </Sheet>
+      </Sheet.Content>
+    </Sheet.Root>
   );
 };
 
@@ -143,15 +136,16 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
 
   return (
     <>
-      <SheetHeader label="MCP Server">
-        <SheetTitle>
+      <Sheet.Header>
+        <MicroLabel>MCP Server</MicroLabel>
+        <Sheet.Title>
           {isEdit
             ? 'Edit MCP Server'
             : isCatalog
               ? `Add ${form.state.values.name}`
               : 'Add Custom MCP Server'}
-        </SheetTitle>
-      </SheetHeader>
+        </Sheet.Title>
+      </Sheet.Header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         {isCatalog && mode.entry.description && (
@@ -304,7 +298,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
         </FieldGroup>
       </div>
 
-      <SheetFooter className="flex-row items-center justify-between gap-2 sm:flex-row">
+      <Sheet.Footer className="flex-row items-center justify-between gap-2 sm:flex-row">
         {isEdit && onRemove ? (
           <Button
             type="button"
@@ -328,6 +322,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
               !!(values.transport === 'http' ? values.url.trim() : values.command.trim());
             return (
               <ConfirmButton
+                variant="primary"
                 type="button"
                 onClick={() => void handleSave()}
                 disabled={!canSave}
@@ -338,7 +333,7 @@ const McpDrawerContent: React.FC<McpDrawerContentProps> = ({
             );
           }}
         </form.Subscribe>
-      </SheetFooter>
+      </Sheet.Footer>
     </>
   );
 };
