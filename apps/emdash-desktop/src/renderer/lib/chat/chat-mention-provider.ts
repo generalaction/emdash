@@ -1,12 +1,12 @@
 import type { ChatMentionMeta, MentionProvider } from '@emdash/chat-ui';
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 import { pickIconVariant } from '@core/features/agents/api/browser/components/agent-icon-variant';
-import type { AgentIconAsset } from '@core/primitives/agents/api';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import { workspaceFileMentionProvider } from './workspace-file-mention-provider';
 
 type IntegrationIconInput = {
   id: string;
-  icon?: AgentIconAsset;
+  icon?: PluginIconAsset;
   features?: string[];
 };
 
@@ -42,7 +42,7 @@ export function registerIssueMentionIcons(integrations: IntegrationIconInput[]):
   }
 }
 
-function iconAssetToUrl(id: string, icon: AgentIconAsset): string | null {
+function iconAssetToUrl(id: string, icon: PluginIconAsset): string | null {
   const variant = pickIconVariant(icon.variants, 16);
   const content = variant.light;
   if (!content) return null;

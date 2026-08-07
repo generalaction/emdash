@@ -1,3 +1,4 @@
+import { abortableWait, throwIfAborted } from './abortable-wait';
 import type { TimerHandle } from './timer-handle';
 
 export const MAX_TIMER_DELAY_MS = 2_147_483_647;
@@ -49,39 +50,13 @@ export function normalizeDelay(delayMs: number): number {
   return Math.min(MAX_TIMER_DELAY_MS, Math.max(0, Math.floor(delayMs)));
 }
 
-export function throwIfAborted(signal: AbortSignal | undefined, fallback?: string): void {
-  if (signal?.aborted) throw abortReason(signal, fallback);
-}
-
-export function abortReason(signal: AbortSignal, fallback?: string): unknown {
-  if (signal.reason instanceof Error) return signal.reason;
-  if (fallback !== undefined) return new Error(fallback);
-  return signal.reason ?? new DOMException('Aborted', 'AbortError');
-}
-
 export function waitWithSignal<T>(
   promise: Promise<T>,
   signal: AbortSignal,
   fallback?: string
 ): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortReason(signal, fallback));
-  return new Promise((resolve, reject) => {
-    const onAbort = (): void => {
-      cleanup();
-      reject(abortReason(signal, fallback));
-    };
-    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(
-      (value) => {
-        cleanup();
-        resolve(value);
-      },
-      (error: unknown) => {
-        cleanup();
-        reject(error);
-      }
-    );
+  return abortableWait<T>({ signal, fallback }, (settle) => {
+    promise.then(settle.resolve, settle.reject);
   });
 }
 
@@ -93,23 +68,8 @@ export function sleepWithClock(
   throwIfAborted(options.signal);
   if (delayMs <= 0) return Promise.resolve();
 
-  return new Promise<void>((resolve, reject) => {
-    let settled = false;
-    const timer = clock.schedule(delayMs, () => finish(resolve), options);
-
-    const onAbort = (): void => {
-      finish(() => reject(abortReason(options.signal as AbortSignal)));
-    };
-
-    function finish(complete: () => void): void {
-      if (settled) return;
-      settled = true;
-      timer.dispose();
-      options.signal?.removeEventListener('abort', onAbort);
-      complete();
-    }
-
-    options.signal?.addEventListener('abort', onAbort, { once: true });
-    if (options.signal?.aborted) onAbort();
+  return abortableWait<void>({ signal: options.signal }, (settle) => {
+    const timer = clock.schedule(delayMs, () => settle.resolve(), options);
+    return () => timer.dispose();
   });
 }

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ManualClock } from '../testing';
-import { tokenBucketGate } from './rate-gate';
+import { createTokenBucketGate } from './rate-gate';
 
-describe('tokenBucketGate', () => {
+describe('createTokenBucketGate', () => {
   it('allows a burst up to capacity and refills over time', async () => {
     const clock = new ManualClock();
-    const gate = tokenBucketGate({ capacity: 2, refillPerSec: 1, clock });
+    const gate = createTokenBucketGate({ capacity: 2, refillPerSec: 1, clock });
     const signal = new AbortController().signal;
 
     await gate.acquire(1, signal);
@@ -25,7 +25,7 @@ describe('tokenBucketGate', () => {
 
   it('pauses until retry-after expires', async () => {
     const clock = new ManualClock(1_000);
-    const gate = tokenBucketGate({ capacity: 10, refillPerSec: 10, clock });
+    const gate = createTokenBucketGate({ capacity: 10, refillPerSec: 10, clock });
     gate.observe({ retryAfterMs: 5_000 });
     let acquired = false;
     const pending = gate.acquire(1, new AbortController().signal).then(() => {
@@ -40,7 +40,7 @@ describe('tokenBucketGate', () => {
 
   it('applies server pauses to zero-cost scheduling checks', async () => {
     const clock = new ManualClock();
-    const gate = tokenBucketGate({ capacity: 10, refillPerSec: 10, clock });
+    const gate = createTokenBucketGate({ capacity: 10, refillPerSec: 10, clock });
     gate.observe({ retryAfterMs: 1_000 });
     let acquired = false;
     const pending = gate.acquire(0, new AbortController().signal).then(() => {
@@ -55,7 +55,7 @@ describe('tokenBucketGate', () => {
 
   it('reserves reported server budget until reset', async () => {
     const clock = new ManualClock(1_000);
-    const gate = tokenBucketGate({
+    const gate = createTokenBucketGate({
       capacity: 10,
       refillPerSec: 10,
       reserve: 2,
@@ -75,7 +75,7 @@ describe('tokenBucketGate', () => {
 
   it('does not let stale feedback increase the current server budget', async () => {
     const clock = new ManualClock();
-    const gate = tokenBucketGate({
+    const gate = createTokenBucketGate({
       capacity: 100,
       refillPerSec: 100,
       reserve: 5,
@@ -96,7 +96,7 @@ describe('tokenBucketGate', () => {
 
   it('accounts for observed request cost in the local bucket', async () => {
     const clock = new ManualClock();
-    const gate = tokenBucketGate({ capacity: 5, refillPerSec: 1, clock });
+    const gate = createTokenBucketGate({ capacity: 5, refillPerSec: 1, clock });
     await gate.acquire(0, new AbortController().signal);
     gate.observe({ cost: 5 });
     let acquired = false;
@@ -112,7 +112,7 @@ describe('tokenBucketGate', () => {
 
   it('cancels while waiting', async () => {
     const clock = new ManualClock();
-    const gate = tokenBucketGate({ capacity: 1, refillPerSec: 1, clock });
+    const gate = createTokenBucketGate({ capacity: 1, refillPerSec: 1, clock });
     const abort = new AbortController();
     await gate.acquire(1, abort.signal);
 
@@ -123,9 +123,9 @@ describe('tokenBucketGate', () => {
   });
 
   it('validates configuration and costs', async () => {
-    expect(() => tokenBucketGate({ capacity: 0, refillPerSec: 1 })).toThrow('capacity');
-    expect(() => tokenBucketGate({ capacity: 1, refillPerSec: 0 })).toThrow('refill rate');
-    const gate = tokenBucketGate({ capacity: 1, refillPerSec: 1 });
+    expect(() => createTokenBucketGate({ capacity: 0, refillPerSec: 1 })).toThrow('capacity');
+    expect(() => createTokenBucketGate({ capacity: 1, refillPerSec: 0 })).toThrow('refill rate');
+    const gate = createTokenBucketGate({ capacity: 1, refillPerSec: 1 });
     await expect(gate.acquire(-1, new AbortController().signal)).rejects.toThrow('cost');
   });
 });

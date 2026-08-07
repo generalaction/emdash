@@ -1,8 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import type { Clock } from '@emdash/shared/scheduling';
-import type { BackoffSchedule } from '../api/backoff';
+import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '../api/client';
 import type { Contract, ContractDefinitions } from '../api/define';
 import type { WireInstrumentation } from '../api/instrumentation';
@@ -47,7 +46,7 @@ export type WorkerSupervision =
     }
   | {
       restart: 'on-failure';
-      schedule: BackoffSchedule;
+      schedule: RetrySchedule;
     };
 
 export type WireWorkerState =

@@ -1,3 +1,4 @@
+import { secret, type Secret } from '@emdash/shared';
 import { eq } from 'drizzle-orm';
 import { safeStorage } from 'electron';
 import type { AppDb } from '@core/services/app-db/node/db';
@@ -15,25 +16,27 @@ export class EncryptedAppSecretsStore {
     return this.database ?? getAppDb();
   }
 
-  async getSecret(key: string): Promise<string | null> {
+  async getSecret(key: string): Promise<Secret<string> | null> {
     const rows = await this.db
       .select({ secret: appSecrets.secret })
       .from(appSecrets)
       .where(eq(appSecrets.key, key))
       .limit(1);
 
-    const secret = rows[0]?.secret;
-    if (!secret) {
+    const encrypted = rows[0]?.secret;
+    if (!encrypted) {
       return null;
     }
 
     this.assertSecureStorageAvailable();
-    return this.safeStorageApi.decryptString(Buffer.from(secret, 'base64'));
+    return secret(this.safeStorageApi.decryptString(Buffer.from(encrypted, 'base64')), key);
   }
 
-  async setSecret(key: string, secret: string): Promise<void> {
+  async setSecret(key: string, value: Secret<string>): Promise<void> {
     this.assertSecureStorageAvailable();
-    const encryptedSecret = this.safeStorageApi.encryptString(secret).toString('base64');
+    // Boundary disclosure: the Electron safeStorage write is a documented
+    // .expose() site — plaintext leaves the Secret only to be encrypted.
+    const encryptedSecret = this.safeStorageApi.encryptString(value.expose()).toString('base64');
 
     await this.setEncryptedSecret(key, encryptedSecret);
   }

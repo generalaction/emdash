@@ -1,5 +1,6 @@
 import { hostRefKey, type HostRef } from '@emdash/core/primitives/host/api';
 import type { Scope } from '@emdash/shared/concurrency';
+import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { startPeriodicSweep } from '@core/primitives/periodic-sweep/node/periodic-sweep';
 
 /**
@@ -84,8 +85,8 @@ export interface ReconcileSweepServiceOptions {
   scope: Scope;
   /** Backstop cadence; the retry vehicle (spec §2). Defaults to 10 minutes. */
   backstopIntervalMs?: number;
-  /** Test seam for backoff arithmetic. */
-  now?: () => number;
+  /** Test seam for backoff arithmetic; drive a manual clock in tests. */
+  clock?: Clock;
   onError?: (context: string, error: unknown) => void;
 }
 
@@ -108,11 +109,11 @@ export class ReconcileSweepService {
   private readonly hosts = new Map<string, HostRef>();
   private readonly states = new Map<string, ItemState>();
   private readonly inFlight = new Set<string>();
-  private readonly now: () => number;
+  private readonly clock: Clock;
   private disposed = false;
 
   constructor(private readonly options: ReconcileSweepServiceOptions) {
-    this.now = options.now ?? Date.now;
+    this.clock = options.clock ?? systemClock;
     startPeriodicSweep({
       scope: options.scope,
       intervalMs: options.backstopIntervalMs ?? BACKSTOP_INTERVAL_MS,
@@ -198,7 +199,7 @@ export class ReconcileSweepService {
     if (this.inFlight.has(key)) return;
     if (isTerminallyStopped(item)) return;
     const state = this.states.get(key);
-    if (state !== undefined && this.now() < state.nextAttemptAt) return;
+    if (state !== undefined && this.clock.now() < state.nextAttemptAt) return;
 
     this.inFlight.add(key);
     try {
@@ -217,7 +218,7 @@ export class ReconcileSweepService {
         // 'unreachable' is not an attempt: no backoff; the reconnect trigger retries.
         const failed = this.stateFor(kind.kind, item.id, hostKey);
         failed.failures += 1;
-        failed.nextAttemptAt = this.now() + backoffWindowMs(failed.failures);
+        failed.nextAttemptAt = this.clock.now() + backoffWindowMs(failed.failures);
         if (outcome.failed.class === 'terminal') {
           // The durable stop, tagged with the epoch this attempt ran in: survives
           // restarts and registry syncs; a Retry's epoch bump makes it inert.
@@ -225,14 +226,14 @@ export class ReconcileSweepService {
             epoch: item.attemptEpoch,
             stage: outcome.failed.stage,
             message: outcome.failed.message,
-            at: this.now(),
+            at: this.clock.now(),
           });
         }
       }
     } catch (error) {
       const failed = this.stateFor(kind.kind, item.id, hostKey);
       failed.failures += 1;
-      failed.nextAttemptAt = this.now() + backoffWindowMs(failed.failures);
+      failed.nextAttemptAt = this.clock.now() + backoffWindowMs(failed.failures);
       this.options.onError?.(`reconcile sweep removal (${kind.kind})`, error);
     } finally {
       this.inFlight.delete(key);

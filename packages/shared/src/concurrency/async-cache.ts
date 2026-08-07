@@ -1,3 +1,4 @@
+import { systemClock, type Clock } from '../scheduling';
 import { createScope, type Run, type Scope } from './scope';
 
 export interface AsyncCache<K, T> {
@@ -16,7 +17,7 @@ export type CreateAsyncCacheOptions<K, T> = {
   label?: string;
   ttlMs?: number;
   maxEntries?: number;
-  now?: () => number;
+  clock?: Clock;
   load: (key: K, signal: AbortSignal) => Promise<T> | T;
   onError?: (error: unknown, key: string) => void;
 };
@@ -32,12 +33,13 @@ type Entry<K, T> = {
 };
 
 export function createAsyncCache<K, T>(options: CreateAsyncCacheOptions<K, T>): AsyncCache<K, T> {
+  const clock = options.clock ?? systemClock;
   const cacheScope = options.scope
     ? options.scope.child(options.label ?? 'async-cache')
-    : createScope({ label: options.label });
+    : createScope({ label: options.label, clock });
   const ttlMs = Math.max(0, options.ttlMs ?? 0);
   const maxEntries = Math.max(1, options.maxEntries ?? Number.POSITIVE_INFINITY);
-  const now = options.now ?? Date.now;
+  const now = (): number => clock.now();
   const entries = new Map<string, Entry<K, T>>();
   let disposed = false;
   let disposePromise: Promise<void> | undefined;
@@ -65,14 +67,11 @@ export function createAsyncCache<K, T>(options: CreateAsyncCacheOptions<K, T>): 
       return load(keyId, key, existing);
     },
     peek(key): T | undefined {
-      const keyId = options.key(key);
-      const entry = entries.get(keyId);
+      // A genuinely side-effect-free read: no expired-entry delete, no LRU
+      // bump. Cleanup stays lazy on get/set.
+      const entry = entries.get(options.key(key));
       if (!entry?.hasValue) return undefined;
-      if (entry.expiresAt <= now()) {
-        entries.delete(keyId);
-        return undefined;
-      }
-      touch(keyId, entry);
+      if (entry.expiresAt <= now()) return undefined;
       return entry.value as T;
     },
     set(key, value): void {

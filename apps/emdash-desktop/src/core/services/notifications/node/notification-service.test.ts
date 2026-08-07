@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared/result';
+import { ok } from '@emdash/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppNotification, PublishNotification } from '../api';
 import type { Clock, NotificationStore, TimerHandle } from '../api/ports';

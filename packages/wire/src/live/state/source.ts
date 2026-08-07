@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import { type Patch, produceWithPatches } from './immer-setup';
 
@@ -22,7 +22,7 @@ export type LiveStateSourceProduceOptions = {
  * result cause validation failures and resync loops on the client.
  */
 export class LiveStateSource<T> {
-  private readonly emitter = new Emitter<LiveUpdate>();
+  private readonly emitter = createEmitter<LiveUpdate>();
   private generation: number;
   private sequence = 0;
 

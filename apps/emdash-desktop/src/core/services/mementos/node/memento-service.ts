@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { err, ok, type Result } from '@emdash/shared/result';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { expose, family, query, type Family, type Query } from '@emdash/wire/state';
 import {

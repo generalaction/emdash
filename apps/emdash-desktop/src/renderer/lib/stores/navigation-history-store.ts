@@ -1,4 +1,4 @@
-import { Emitter } from '@emdash/shared';
+import { createEmitter } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
 import type { HistoryEntry } from '@core/primitives/navigation/api';
 
@@ -18,7 +18,7 @@ function flatten(entries: HistoryEntry[]): HistoryEntry[] {
 export class NavigationHistoryStore {
   entries: HistoryEntry[] = [];
   index = -1;
-  readonly onDidChange = new Emitter<void>();
+  readonly onDidChange = createEmitter<void>();
 
   private applying = false;
 

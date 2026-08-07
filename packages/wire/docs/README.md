@@ -123,8 +123,9 @@ import { cell, expose } from '@emdash/wire/state';
   protocol vocabulary (`WireMessage`, `WireTransport`, `WireError`,
   `LiveSource`, `LiveUpdate`, cursors), provider seam types
   (`LiveModelProvider`, `LeasedLiveModelProvider`,
-  `LiveModelMutationEnvelope`), the blob/file surface, validation, backoff
-  schedules, and the `WireInstrumentation` seam types.
+  `LiveModelMutationEnvelope`), the blob/file surface, validation, and the
+  `WireInstrumentation` seam types. Retry schedules come from
+  `@emdash/shared/scheduling`.
 - `@emdash/wire/live`: the server-side reactivity sources (`LiveLogSource`,
   `LiveJobSource`, `EventStreamSource`, `createEventStreamHost()`), the keyed
   replica caches (`createLiveLogReplicaCache()`, `createLiveJobReplicaCache()`,
@@ -151,7 +152,7 @@ Use Shared subpaths directly for generic foundations:
   and `retry()`.
 - `@emdash/shared/requests`: request handler composition, timeout, retry,
   in-flight deduplication, and request scheduling.
-- `@emdash/shared/testing`: `ManualClock`, `createDeferred()`, `waitFor()`, and
+- `@emdash/shared/testing`: `createManualClock()`, `deferred()`, `waitFor()`, and
   stub logger helpers.
 - `@emdash/shared/util`: stable utility helpers such as `stableStringify()`.
 

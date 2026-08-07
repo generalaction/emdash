@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { isWireMessage, WireError, type WireMessage, type WireTransport } from '../api/protocol';
 import { isWireWorkerFrame, RUNTIME_CHANNEL } from './component-protocol';
 import { isWorkerSignal } from './protocol';
@@ -14,11 +14,11 @@ type ActiveGeneration = {
 export class WorkerLink implements WireTransport {
   private active: ActiveGeneration | undefined;
   private closed = false;
-  private readonly messageEmitter = new Emitter<WireMessage>();
-  private readonly disconnectEmitter = new Emitter<void>();
-  private readonly reconnectEmitter = new Emitter<void>();
-  private readonly terminalFailureEmitter = new Emitter<unknown>();
-  private readonly readyEmitter = new Emitter<number>();
+  private readonly messageEmitter = createEmitter<WireMessage>();
+  private readonly disconnectEmitter = createEmitter<void>();
+  private readonly reconnectEmitter = createEmitter<void>();
+  private readonly terminalFailureEmitter = createEmitter<unknown>();
+  private readonly readyEmitter = createEmitter<number>();
 
   post(message: WireMessage): void {
     const active = this.active;

@@ -1,5 +1,5 @@
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { err, ok } from '../result';
 import { createMachine, type MachineDefinition } from './machine';
 
 type State = {

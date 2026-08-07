@@ -21,7 +21,7 @@ await runWithLogger(logger.child({ requestId: 'r1' }), async () => {
 Node entry points can install the `AsyncLocalStorage` store:
 
 ```ts
-import { installAsyncLogContext } from '@emdash/shared/logger/context-node';
+import { installAsyncLogContext } from '@emdash/shared/logger/node';
 
 installAsyncLogContext();
 ```

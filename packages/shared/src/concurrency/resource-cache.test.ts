@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createManualClock } from '../testing';
 import { acquireResourceAsResult, createResourceCache } from './resource-cache';
 import type { Scope } from './scope';
 
@@ -22,6 +23,42 @@ describe('createResourceCache', () => {
     expect(cleanup).not.toHaveBeenCalled();
     await second.release();
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers the idle-timer cleanup once per entry regardless of release cycles', async () => {
+    const clock = createManualClock();
+    // Counts scope.add() calls made after entry creation; the idle-timer cleanup
+    // must be registered once at creation, not once per release cycle.
+    let addCallsAfterCreate = 0;
+    const cache = createResourceCache({
+      key: (key: string) => key,
+      idleTtlMs: 1_000,
+      clock,
+      create: (key: string, scope: Scope) => {
+        const originalAdd = scope.add.bind(scope);
+        (scope as { add: Scope['add'] }).add = (cleanup) => {
+          addCallsAfterCreate += 1;
+          originalAdd(cleanup);
+        };
+        return { key };
+      },
+    });
+
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      const lease = cache.acquire('same');
+      await lease.ready();
+      await lease.release();
+      await clock.advanceBy(500);
+    }
+
+    expect(addCallsAfterCreate).toBe(0);
+    expect(cache.peek('same')).toBeDefined();
+
+    // The entry still disposes when the idle window finally elapses.
+    await clock.advanceBy(1_000);
+    await vi.waitFor(() => expect(cache.peek('same')).toBeUndefined());
+
+    await cache.dispose();
   });
 
   it('maps expected acquire errors to err results', async () => {

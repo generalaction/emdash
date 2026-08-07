@@ -174,7 +174,7 @@ idempotent:
 ```ts
 await session.mutations.addNote({ text: 'Optimistic title' }, {
   mutationId: 'custom-mutation',
-  retry: { schedule: backoffSchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
+  retry: { schedule: retrySchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
 });
 ```
 

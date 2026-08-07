@@ -1,4 +1,4 @@
-export * from './deferred';
-export * from './manual-clock';
-export * from './stub-logger';
-export * from './wait-for';
+export { deferred, type Deferred } from './deferred';
+export { createManualClock, ManualClock } from './manual-clock';
+export { createStubLogger, type StubLogCall } from './stub-logger';
+export { waitFor, type WaitForOptions } from './wait-for';

@@ -1,4 +1,5 @@
-import { abortReason, systemClock, throwIfAborted, type Clock } from './clock';
+import { abortReason, throwIfAborted } from './abortable-wait';
+import { systemClock, type Clock } from './clock';
 import type { RetrySchedule } from './retry-schedule';
 
 export type RetryAttempt = {

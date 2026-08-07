@@ -1,5 +1,6 @@
 /**
- * Node-only process logging bootstrap.
+ * Node-only logger surface: process logging bootstrap, the pino-backed Logger,
+ * the file transport, and the AsyncLocalStorage log context.
  * Import from '@emdash/shared/logger/node' in Node deployments only.
  */
 
@@ -8,6 +9,15 @@ import { setRootLogger } from '../context';
 import { installAsyncLogContext } from '../context-node';
 import { createPinoLogger } from '../pino';
 import type { LogFields, Logger } from '../types';
+
+export { installAsyncLogContext } from '../context-node';
+export { createPinoLogger, type PinoLoggerOptions } from '../pino';
+export {
+  createFileTransport,
+  trimToLineBoundary,
+  type FileTransport,
+  type FileTransportOptions,
+} from '../transport';
 
 export type InitProcessLoggingOptions = {
   name: string;

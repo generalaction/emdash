@@ -19,7 +19,6 @@
       "@emdash/shared/util": ["./src/util/index.ts"],
       "@emdash/shared/testing": ["./src/testing/index.ts"],
       "@emdash/shared/logger": ["./src/logger/index.ts"],
-      "@emdash/shared/result": ["./src/result/index.ts"],
       "@emdash/shared": ["./src/index.ts"]
     }
   },

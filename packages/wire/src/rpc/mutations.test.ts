@@ -1,8 +1,8 @@
 import { ok } from '@emdash/shared';
+import { retrySchedule } from '@emdash/shared/scheduling';
 import { deferred, waitFor } from '@emdash/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { backoffSchedule } from '../api/backoff';
 import type { LiveModelClientHandle } from '../api/client';
 import { connect } from '../api/connect';
 import {
@@ -160,7 +160,7 @@ describe('live model group mutations', () => {
       { touchRight: false },
       {
         mutationId: 'retry-mutation',
-        retry: { schedule: backoffSchedule({ delaysMs: [0], maxRetries: 1 }) },
+        retry: { schedule: retrySchedule({ delaysMs: [0], maxRetries: 1 }) },
       }
     );
     await waitFor(() => handlerCalls === 1 && currentPair !== undefined);

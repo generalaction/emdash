@@ -1,4 +1,4 @@
-import { Emitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type PendingLease, type Unsubscribe } from '@emdash/shared';
 import { stableStringify } from '@emdash/shared/util';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveSource, LiveUpdate } from '../../api/channel';
 import type { LiveLogClientHandle } from '../../api/client';
@@ -30,7 +30,7 @@ export class ReplicaLog implements LiveSource {
 
   private local: LiveLogSource | undefined;
   private readonly client: LiveLogClient;
-  private readonly appendEmitter = new Emitter<string>();
+  private readonly appendEmitter = createEmitter<string>();
   private readonly detachPromise: Promise<Unsubscribe>;
   private writtenOffset = 0;
   private disposed = false;

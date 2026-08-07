@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import {
   chordParts,
   detectPlatformContext,
@@ -75,7 +75,7 @@ function displayMainKey(value: string): string {
 }
 
 export class KeyboardLayoutService {
-  private readonly didChangeEmitter = new Emitter<void>();
+  private readonly didChangeEmitter = createEmitter<void>();
   private readonly handleNativeChange = () => {
     this.pendingLoad = this.load();
   };

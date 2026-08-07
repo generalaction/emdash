@@ -1,5 +1,4 @@
-import type { Result } from '@emdash/shared';
-import { err, ok } from '@emdash/shared/result';
+import { err, ok, type Result } from '@emdash/shared';
 import { desc, gte, inArray, lt } from 'drizzle-orm';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { notifications } from '@core/services/app-db/node/schema';

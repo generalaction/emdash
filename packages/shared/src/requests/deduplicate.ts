@@ -1,4 +1,4 @@
-import { abortReason } from '../scheduling';
+import { abortableWait } from '../scheduling';
 import { stableStringify } from '../util';
 import type { SignalContext, SignalHandler } from './handler';
 
@@ -64,15 +64,10 @@ export function deduplicate<I>(options: DeduplicateOptions<I> = {}) {
       entry: Entry<O>,
       signal: AbortSignal | undefined
     ): Promise<O> {
-      if (signal?.aborted) return Promise.reject(abortReason(signal));
-
-      entry.waiters += 1;
-      return new Promise<O>((resolve, reject) => {
-        let settled = false;
-        const finish = (complete: () => void): void => {
-          if (settled) return;
-          settled = true;
-          signal?.removeEventListener('abort', onAbort);
+      return abortableWait<O>({ signal }, (settle) => {
+        entry.waiters += 1;
+        entry.promise.then(settle.resolve, settle.reject);
+        return () => {
           entry.waiters -= 1;
           if (
             options.cancelWhenUnused &&
@@ -83,16 +78,7 @@ export function deduplicate<I>(options: DeduplicateOptions<I> = {}) {
             if (inFlight.get(key) === entry) inFlight.delete(key);
             entry.controller.abort(new Error('Deduplicated request has no waiters'));
           }
-          complete();
         };
-        const onAbort = (): void => finish(() => reject(abortReason(signal as AbortSignal)));
-
-        signal?.addEventListener('abort', onAbort, { once: true });
-        entry.promise.then(
-          (value) => finish(() => resolve(value)),
-          (error: unknown) => finish(() => reject(error))
-        );
-        if (signal?.aborted) onAbort();
       });
     }
   };

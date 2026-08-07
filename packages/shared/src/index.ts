@@ -35,7 +35,12 @@ export {
   type SerializedError,
 } from './result/index';
 export { Secret, secret, isSecret, reveal, REDACTED } from './secret';
-export { Emitter } from './emitter';
+export {
+  createEmitter,
+  type Emitter,
+  type EmitterOptions,
+  type EmitterSubscriberError,
+} from './emitter';
 export { isDeepEqual } from './deep-equal';
 export { once, toPendingLease } from './lifecycle';
 export type { PendingLease, Lease, Unsubscribe } from './lifecycle';

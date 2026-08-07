@@ -1,4 +1,4 @@
-import { ok, type Result } from '@emdash/shared/result';
+import { ok, type Result } from '@emdash/shared';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
 import {

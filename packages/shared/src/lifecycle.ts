@@ -1,3 +1,5 @@
+import { log } from '@emdash/shared/logger';
+
 export type Unsubscribe = () => void;
 
 export interface Lease<T> {
@@ -22,7 +24,9 @@ export function toPendingLease<T>(leasePromise: Promise<Lease<T>>): PendingLease
     release: once(async () => {
       try {
         await (await leasePromise).release();
-      } catch {}
+      } catch (error) {
+        log.warn('pending lease release failed', { error });
+      }
     }),
   };
 }

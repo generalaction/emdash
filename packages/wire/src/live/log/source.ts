@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import type { LiveLogSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { LiveLogDelta } from '../protocol';
 
@@ -27,7 +27,7 @@ export type LiveLogSourceOptions = {
  * of the first retained byte so clients can reset cheaply after gaps.
  */
 export class LiveLogSource {
-  private readonly emitter = new Emitter<LiveUpdate>();
+  private readonly emitter = createEmitter<LiveUpdate>();
   private readonly maxBufferBytes: number;
   private generation: number;
   private sequence = 0;

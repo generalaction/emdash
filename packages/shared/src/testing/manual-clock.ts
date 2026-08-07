@@ -1,11 +1,5 @@
-import {
-  normalizeDelay,
-  sleepWithClock,
-  type Clock,
-  type ScheduleOptions,
-  type SleepOptions,
-  type TimerHandle,
-} from '../scheduling';
+import type { Clock, ScheduleOptions, SleepOptions, TimerHandle } from '../scheduling';
+import { normalizeDelay, sleepWithClock } from '../scheduling/clock';
 
 type ManualTimer = {
   id: number;

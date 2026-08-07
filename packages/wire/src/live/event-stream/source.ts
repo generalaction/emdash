@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { stableStringify } from '@emdash/shared/util';
 import type { EventStreamSnapshotData, LiveSnapshot, LiveUpdate } from '../../api/channel';
 import type { EventStreamEndpointDef, EventStreamEvent, EventStreamKey } from '../../api/define';
@@ -14,7 +14,7 @@ export type EventStreamSourceOptions = {
  * A no-retention event stream. Events emitted while no subscriber is attached are dropped.
  */
 export class EventStreamSource<Event = unknown> {
-  private readonly emitter = new Emitter<LiveUpdate>();
+  private readonly emitter = createEmitter<LiveUpdate>();
   private readonly onFirst: (() => void) | undefined;
   private readonly onEmpty: (() => void) | undefined;
   private readonly generation: number;

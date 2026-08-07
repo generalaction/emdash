@@ -1,4 +1,4 @@
-import type { SerializedError } from '@emdash/shared/result';
+import type { SerializedError } from '@emdash/shared';
 
 export type AccountInitializeError = AccountSessionPersistenceError;
 

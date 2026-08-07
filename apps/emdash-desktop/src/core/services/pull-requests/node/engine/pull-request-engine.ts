@@ -1,15 +1,15 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import {
   createRequestScheduler,
   requestPriorities,
-  tokenBucketGate,
+  createTokenBucketGate,
   type CreateRequestSchedulerOptions,
   type RateFeedback,
   type RateGate,
   type RequestScheduler,
 } from '@emdash/shared/requests';
-import { err, ok, type Result } from '@emdash/shared/result';
 import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { Octokit } from '@octokit/rest';
@@ -1043,7 +1043,7 @@ export class PullRequestEngine {
   private createRateGate(resource: GitHubRateResource): RateGate {
     return (
       this.options.createRateGate?.(resource) ??
-      tokenBucketGate({
+      createTokenBucketGate({
         capacity: DEFAULT_REQUEST_CAPACITY,
         refillPerSec: DEFAULT_REQUEST_REFILL_PER_SEC,
         reserve: DEFAULT_REQUEST_RESERVE,

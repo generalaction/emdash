@@ -1,5 +1,5 @@
 import { ok, type Result, type SerializedError, type Unsubscribe } from '@emdash/shared';
-import type { BackoffSchedule } from './backoff';
+import type { RetrySchedule } from '@emdash/shared/scheduling';
 import {
   createSingleUseDownloadHandle,
   normalizeUploadFile,
@@ -61,7 +61,7 @@ export type MutationCallOptions = {
    * automatic retry; mutation ids keep opted-in retries idempotent.
    */
   retry?: {
-    schedule: BackoffSchedule;
+    schedule: RetrySchedule;
   };
 };
 
