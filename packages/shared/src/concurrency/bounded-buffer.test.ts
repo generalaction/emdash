@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createStubLogger } from '../testing';
 import { createBoundedBuffer } from './bounded-buffer';
 
 describe('createBoundedBuffer', () => {
@@ -87,6 +89,69 @@ describe('createBoundedBuffer', () => {
       buffer.clear();
 
       expect(onDrop).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('throwing onDrop hook', () => {
+    afterEach(() => {
+      setRootLogger(noopLogger);
+    });
+
+    it('clear() still drains every value and logs instead of throwing', () => {
+      const { logger, calls } = createStubLogger();
+      setRootLogger(logger);
+      const dropped: string[] = [];
+      const buffer = createBoundedBuffer<string>({
+        capacity: 3,
+        overflow: 'reject',
+        onDrop: (value) => {
+          dropped.push(value);
+          throw new Error('drop boom');
+        },
+      });
+      buffer.offer('a');
+      buffer.offer('b');
+      buffer.offer('c');
+
+      expect(() => buffer.clear()).not.toThrow();
+
+      expect(dropped).toEqual(['a', 'b', 'c']);
+      expect(buffer.size).toBe(0);
+      expect(calls.filter((call) => call.level === 'warn')).toHaveLength(3);
+    });
+
+    it('drop-oldest eviction keeps buffer invariants and reports the eviction to the caller', () => {
+      const { logger, calls } = createStubLogger();
+      setRootLogger(logger);
+      const buffer = createBoundedBuffer<string>({
+        capacity: 1,
+        overflow: 'drop-oldest',
+        onDrop: () => {
+          throw new Error('drop boom');
+        },
+      });
+      buffer.offer('a');
+
+      expect(buffer.offer('b')).toEqual({ kind: 'accepted', dropped: 'a' });
+      expect(buffer.toArray()).toEqual(['b']);
+      expect(calls.filter((call) => call.level === 'warn')).toHaveLength(1);
+    });
+
+    it('drop-newest policy drop reports the drop to the caller despite the throw', () => {
+      const { logger, calls } = createStubLogger();
+      setRootLogger(logger);
+      const buffer = createBoundedBuffer<string>({
+        capacity: 1,
+        overflow: 'drop-newest',
+        onDrop: () => {
+          throw new Error('drop boom');
+        },
+      });
+      buffer.offer('a');
+
+      expect(buffer.offer('b')).toEqual({ kind: 'dropped', value: 'b' });
+      expect(buffer.toArray()).toEqual(['a']);
+      expect(calls.filter((call) => call.level === 'warn')).toHaveLength(1);
     });
   });
 

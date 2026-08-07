@@ -1,3 +1,5 @@
+import { log } from '@emdash/shared/logger';
+
 export type BoundedBufferOverflow = 'reject' | 'drop-oldest' | 'drop-newest';
 
 export type BoundedBufferOfferResult<T> =
@@ -35,7 +37,7 @@ class BoundedBufferImpl<T> implements BoundedBuffer<T> {
 
   constructor(private readonly options: CreateBoundedBufferOptions<T>) {
     this.slots = new Array(Math.max(0, Math.floor(options.capacity)));
-    this.onDrop = options.onDrop;
+    this.onDrop = wrapOnDrop(options.onDrop);
   }
 
   get capacity(): number {
@@ -135,4 +137,18 @@ class BoundedBufferImpl<T> implements BoundedBuffer<T> {
   private indexOf(offset: number): number {
     return (this.start + offset) % this.capacity;
   }
+}
+
+// onDrop fires exactly once per discarded value; a throwing hook must not break
+// buffer invariants or interrupt drains, so failures are reported, never rethrown.
+// The dropped value is deliberately kept out of the log fields.
+function wrapOnDrop<T>(onDrop: ((value: T) => void) | undefined): ((value: T) => void) | undefined {
+  if (!onDrop) return undefined;
+  return (value) => {
+    try {
+      onDrop(value);
+    } catch (error) {
+      log.warn('bounded buffer onDrop hook failed', { error });
+    }
+  };
 }

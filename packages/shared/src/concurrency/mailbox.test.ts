@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { deferred } from '../testing';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createStubLogger, deferred } from '../testing';
 import { createMailbox, MailboxClosedError, MailboxConsumerError } from './mailbox';
 
 describe('createMailbox', () => {
@@ -111,6 +112,37 @@ describe('createMailbox', () => {
       expect(onDrop).toHaveBeenCalledTimes(2);
       expect(onDrop.mock.calls.map(([value]) => value)).toEqual(['a', 'b']);
       expect(mailbox.state).toBe('closed');
+    });
+
+    describe('throwing onDrop hook', () => {
+      afterEach(() => {
+        setRootLogger(noopLogger);
+      });
+
+      it('does not wedge dispose(): drains all values, settles waiters, and logs the failure', async () => {
+        const { logger, calls } = createStubLogger();
+        setRootLogger(logger);
+        const dropped: string[] = [];
+        const onDrop = vi.fn((value: string) => {
+          dropped.push(value);
+          throw new Error('drop boom');
+        });
+        const mailbox = createMailbox<string>({ capacity: 2, onDrop });
+        mailbox.tryOffer('a');
+        mailbox.tryOffer('b');
+        const suspendedOffer = mailbox.offer('c');
+
+        expect(() => mailbox.dispose()).not.toThrow();
+
+        // Every buffered value still reached onDrop despite each call throwing.
+        expect(dropped).toEqual(['a', 'b']);
+        expect(mailbox.state).toBe('closed');
+        await expect(suspendedOffer).resolves.toEqual({ kind: 'closed' });
+        await expect(mailbox.take()).rejects.toBeInstanceOf(MailboxClosedError);
+        const warnings = calls.filter((call) => call.level === 'warn');
+        expect(warnings.length).toBeGreaterThan(0);
+        expect(warnings[0]?.fields?.error).toBeInstanceOf(Error);
+      });
     });
 
     it('resolves suspended offers as closed on dispose without firing onDrop for them', async () => {
