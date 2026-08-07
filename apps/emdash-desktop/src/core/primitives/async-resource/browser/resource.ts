@@ -1,3 +1,10 @@
+import { createScope, type Scope } from '@emdash/shared/concurrency';
+import {
+  createDebounced,
+  systemClock,
+  type Clock,
+  type TimerHandle,
+} from '@emdash/shared/scheduling';
 import {
   makeObservable,
   observable,
@@ -54,9 +61,10 @@ export class Resource<T, TEventData = void> {
 
   private readonly _fetch: (() => Promise<T>) | null;
   private readonly _strategies: ResourceStrategy<T, TEventData>[];
+  private readonly _clock: Clock;
+  private readonly _scope: Scope;
   private _inFlight: Promise<void> | null = null;
   private _reloadQueued = false;
-  private _stopFns: Array<() => void> = [];
   private readonly _ctx: ResourceContext<T>;
 
   constructor(
@@ -70,10 +78,14 @@ export class Resource<T, TEventData = void> {
        * object/array mutations will not notify observers. Use ctx.set() instead.
        */
       refData?: boolean;
+      /** Time seam for polling, event debounce, and lastUpdatedAt (tests inject a manual clock). */
+      clock?: Clock;
     }
   ) {
     this._fetch = fetch;
     this._strategies = strategies;
+    this._clock = options?.clock ?? systemClock;
+    this._scope = createScope({ label: 'resource', clock: this._clock });
     this.data = options?.init ?? null;
 
     makeObservable(this, {
@@ -94,7 +106,7 @@ export class Resource<T, TEventData = void> {
       set: (newData: T) => {
         runInAction(() => {
           this.data = newData;
-          this.lastUpdatedAt = Date.now();
+          this.lastUpdatedAt = this._clock.now();
         });
       },
       mutate: (updater: (data: T) => void) => {
@@ -138,7 +150,7 @@ export class Resource<T, TEventData = void> {
           this.data = data;
           this.loading = this._reloadQueued;
           this.error = undefined;
-          this.lastUpdatedAt = Date.now();
+          this.lastUpdatedAt = this._clock.now();
         });
       })
       .catch((e: unknown) => {
@@ -158,8 +170,9 @@ export class Resource<T, TEventData = void> {
     return this._inFlight;
   }
 
-  /** Schedule a fresh load (fire-and-forget). */
+  /** Schedule a fresh load (fire-and-forget). No-op after dispose(). */
   invalidate(): void {
+    if (this._scope.disposed) return;
     if (this._inFlight) {
       this._reloadQueued = true;
       return;
@@ -175,7 +188,7 @@ export class Resource<T, TEventData = void> {
   setValue(data: T): void {
     runInAction(() => {
       this.data = data;
-      this.lastUpdatedAt = Date.now();
+      this.lastUpdatedAt = this._clock.now();
     });
   }
 
@@ -196,28 +209,51 @@ export class Resource<T, TEventData = void> {
     }
   }
 
-  /** Stop all timers and unsubscribe all listeners. */
+  /** Stop all timers and unsubscribe all listeners. Idempotent. */
   dispose(): void {
     this._reloadQueued = false;
-    for (const stop of this._stopFns) stop();
-    this._stopFns = [];
+    void this._scope.dispose();
+  }
+
+  /**
+   * Clock has no setInterval; emulate a repeating tick by re-arming a
+   * one-shot schedule after each fire. Returns a stop function.
+   */
+  private _scheduleRepeating(intervalMs: number, tick: () => void): () => void {
+    let handle: TimerHandle | null = null;
+    const arm = (): void => {
+      handle = this._clock.schedule(intervalMs, () => {
+        tick();
+        arm();
+      });
+    };
+    arm();
+    return () => {
+      void handle?.dispose();
+      handle = null;
+    };
   }
 
   private _wireDemandGatedPoll(
     strategy: Extract<ResourceStrategy<T, TEventData>, { kind: 'poll' }>
   ): void {
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let stopTimer: (() => void) | null = null;
     let visibilityHandler: (() => void) | null = null;
 
     const startTimer = () => {
-      if (timer) return;
-      timer = setInterval(() => void this.load(), strategy.intervalMs);
+      if (stopTimer || this._scope.disposed) return;
+      stopTimer = this._scheduleRepeating(strategy.intervalMs, () => void this.load());
     };
 
-    const stopTimer = () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
+    const stop = () => {
+      stopTimer?.();
+      stopTimer = null;
+    };
+
+    const removeVisibilityHandler = () => {
+      if (visibilityHandler) {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+        visibilityHandler = null;
       }
     };
 
@@ -227,7 +263,7 @@ export class Resource<T, TEventData = void> {
       if (strategy.pauseWhenHidden) {
         if (!document.hidden) startTimer();
         visibilityHandler = () => {
-          if (document.hidden) stopTimer();
+          if (document.hidden) stop();
           else startTimer();
         };
         document.addEventListener('visibilitychange', visibilityHandler);
@@ -237,54 +273,62 @@ export class Resource<T, TEventData = void> {
     });
 
     onBecomeUnobserved(this, 'data', () => {
-      stopTimer();
-      if (visibilityHandler) {
-        document.removeEventListener('visibilitychange', visibilityHandler);
-        visibilityHandler = null;
-      }
+      stop();
+      removeVisibilityHandler();
+    });
+
+    this._scope.add(() => {
+      stop();
+      removeVisibilityHandler();
     });
   }
 
   private _startPoll(strategy: Extract<ResourceStrategy<T, TEventData>, { kind: 'poll' }>): void {
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let stopTimer: (() => void) | null = null;
 
     const startTimer = () => {
-      if (timer) return;
-      timer = setInterval(() => void this.load(), strategy.intervalMs);
+      if (stopTimer || this._scope.disposed) return;
+      stopTimer = this._scheduleRepeating(strategy.intervalMs, () => void this.load());
     };
 
-    const stopTimer = () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+    const stop = () => {
+      stopTimer?.();
+      stopTimer = null;
     };
 
     if (strategy.pauseWhenHidden) {
       if (!document.hidden) startTimer();
       const handleVisibility = () => {
-        if (document.hidden) stopTimer();
+        if (document.hidden) stop();
         else startTimer();
       };
       document.addEventListener('visibilitychange', handleVisibility);
-      this._stopFns.push(() => {
-        stopTimer();
+      this._scope.add(() => {
+        stop();
         document.removeEventListener('visibilitychange', handleVisibility);
       });
     } else {
       startTimer();
-      this._stopFns.push(stopTimer);
+      this._scope.add(stop);
     }
   }
 
   private _startEvent(strategy: Extract<ResourceStrategy<T, TEventData>, { kind: 'event' }>): void {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = strategy.debounceMs
+      ? createDebounced<void>(() => this.invalidate(), {
+          delayMs: strategy.debounceMs,
+          clock: this._clock,
+        })
+      : null;
 
     const rawHandler = (event: TEventData) => {
+      // Scope cleanup crosses microtask boundaries, so the subscription can
+      // still deliver events synchronously after dispose(); `disposed` flips
+      // synchronously, making this guard close that window.
+      if (this._scope.disposed) return;
       if (strategy.onEvent === 'reload') {
-        if (strategy.debounceMs) {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => this.invalidate(), strategy.debounceMs);
+        if (debouncedReload) {
+          debouncedReload.call();
         } else {
           this.invalidate();
         }
@@ -300,12 +344,9 @@ export class Resource<T, TEventData = void> {
 
     const unsubscribe = strategy.subscribe(rawHandler);
 
-    this._stopFns.push(() => {
+    this._scope.add(() => {
       unsubscribe();
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
-      }
+      debouncedReload?.cancel();
     });
   }
 }

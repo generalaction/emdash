@@ -17,7 +17,7 @@ import {
   type TerminalState,
 } from '@emdash/core/runtimes/acp/api/client';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
-import type { Result, Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Result, type Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { TimeoutError, runWithTimeout } from '@emdash/shared/scheduling';
 import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
@@ -306,7 +306,7 @@ function remoteValueState<T>(
   parentScope: Scope
 ): RemoteValueState<T> {
   const scope = parentScope.child('remote-value-state');
-  const listeners = new Set<(value: T) => void>();
+  const changes = createEmitter<T>();
   let value: T | undefined;
   const ready = whenReady(source, { scope }).then((settled) => {
     if (settled.status === 'error' && settled.value === undefined) {
@@ -319,7 +319,7 @@ function remoteValueState<T>(
     (snapshot) => {
       if (snapshot.value !== undefined) {
         value = schema.parse(snapshot.value);
-        for (const listener of [...listeners]) listener(value);
+        changes.emit(value);
       }
     },
     { scope }
@@ -330,8 +330,7 @@ function remoteValueState<T>(
       return value as T;
     },
     onChange(cb) {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
+      return changes.subscribe(cb);
     },
     dispose() {
       return scope.dispose();

@@ -21,6 +21,10 @@ export async function runDesktopLiveJob<Def extends LiveJobEndpointDef>(
   try {
     const job = await lease.ready();
     const cancel = () => void job.cancel().catch(() => undefined);
+    // Deliberately hand-rolled instead of `abortableWait`: abort here means
+    // "request job.cancel() and keep awaiting the job's own settled result",
+    // while abortableWait rejects the wait on abort and never runs its
+    // executor for a pre-aborted signal (renderer-shared-adoption ticket 05).
     if (options.signal?.aborted) cancel();
     options.signal?.addEventListener('abort', cancel, { once: true });
     const unsubscribe = onProgress ? job.onProgress(onProgress) : undefined;

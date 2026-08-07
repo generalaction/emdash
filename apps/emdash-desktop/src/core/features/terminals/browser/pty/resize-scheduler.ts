@@ -1,3 +1,5 @@
+import { createDebounced } from '@emdash/shared/scheduling';
+
 /**
  * Leading + trailing debounce for PTY resizes.
  *
@@ -12,7 +14,9 @@
  * with the xterm grid.  The leading flush consumes the pending value, so a lone
  * resize flushes exactly once; the trailing flush still captures the final
  * value of a burst (e.g. a continuous window drag), with the burst's middle
- * coalesced.
+ * coalesced.  These are exactly the leading-edge semantics of the shared
+ * debounce primitive (leading only fires after a full quiet window since the
+ * last flush), so this module is a thin adapter over `createDebounced`.
  */
 export interface ResizeScheduler<T> {
   /** Record the latest value; flush immediately on the leading edge, else coalesce. */
@@ -25,41 +29,9 @@ export function createResizeScheduler<T>(
   flush: (value: T) => void,
   trailingMs: number
 ): ResizeScheduler<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let pending: { value: T } | null = null;
-  let lastFlushAt = Number.NEGATIVE_INFINITY;
-
-  const fireTrailing = () => {
-    timer = null;
-    if (!pending) return;
-    const v = pending.value;
-    pending = null;
-    lastFlushAt = Date.now();
-    flush(v);
-  };
-
+  const debounced = createDebounced(flush, { delayMs: trailingMs, leading: true });
   return {
-    schedule(value: T) {
-      const now = Date.now();
-      // Leading edge: no burst in flight → flush now so the PTY stays in
-      // lockstep with the synchronous xterm resize.  Otherwise coalesce; the
-      // trailing flush delivers the burst's final value.
-      if (timer === null && now - lastFlushAt >= trailingMs) {
-        lastFlushAt = now;
-        flush(value);
-        return;
-      }
-
-      pending = { value };
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(fireTrailing, trailingMs);
-    },
-    cancel() {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      pending = null;
-    },
+    schedule: (value: T) => debounced.call(value),
+    cancel: () => debounced.cancel(),
   };
 }

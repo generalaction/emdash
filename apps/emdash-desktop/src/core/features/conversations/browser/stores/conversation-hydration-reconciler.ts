@@ -1,4 +1,5 @@
 import type { Disposable } from '@emdash/shared/concurrency';
+import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
 
 export type ConversationSessionAdapter = {
   hydrateConversation(conversationId: string): Promise<void>;
@@ -13,6 +14,7 @@ type ConversationHydrationReconcilerOptions = {
   taskId: string;
   getConversations: () => ConversationSessionAdapter | undefined;
   log: Logger;
+  clock?: Clock;
 };
 
 type SessionState = 'stopped' | 'starting' | 'running' | 'stopping';
@@ -22,20 +24,22 @@ export const DEHYDRATE_RETRY_DELAY_MS = 500;
 type Entry = {
   desired: boolean;
   state: SessionState;
-  dehydrateRetryTimer: ReturnType<typeof setTimeout> | null;
+  dehydrateRetryTimer: TimerHandle | null;
 };
 
 export class ConversationHydrationReconciler implements Disposable {
   private readonly taskId: string;
   private readonly getConversations: () => ConversationSessionAdapter | undefined;
   private readonly log: Logger;
+  private readonly clock: Clock;
   private readonly entries = new Map<string, Entry>();
   private disposed = false;
 
-  constructor({ taskId, getConversations, log }: ConversationHydrationReconcilerOptions) {
+  constructor({ taskId, getConversations, log, clock }: ConversationHydrationReconcilerOptions) {
     this.taskId = taskId;
     this.getConversations = getConversations;
     this.log = log;
+    this.clock = clock ?? systemClock;
   }
 
   sync(openConversationIds: Iterable<string>): void {
@@ -154,17 +158,16 @@ export class ConversationHydrationReconciler implements Disposable {
 
   private scheduleDehydrateRetry(id: string, entry: Entry): void {
     if (this.disposed || entry.dehydrateRetryTimer) return;
-    entry.dehydrateRetryTimer = setTimeout(() => {
+    entry.dehydrateRetryTimer = this.clock.schedule(DEHYDRATE_RETRY_DELAY_MS, () => {
       entry.dehydrateRetryTimer = null;
       if (this.entries.get(id) !== entry || entry.desired) return;
       this.reconcile(id, entry);
       this.cleanupIfIdle(id, entry);
-    }, DEHYDRATE_RETRY_DELAY_MS);
+    });
   }
 
   private clearDehydrateRetry(entry: Entry): void {
-    if (!entry.dehydrateRetryTimer) return;
-    clearTimeout(entry.dehydrateRetryTimer);
+    void entry.dehydrateRetryTimer?.dispose();
     entry.dehydrateRetryTimer = null;
   }
 }
