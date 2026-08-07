@@ -28,7 +28,7 @@ import {
   projectDisplayName,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
+import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';

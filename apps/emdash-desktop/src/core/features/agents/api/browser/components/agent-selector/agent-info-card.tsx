@@ -6,8 +6,8 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgentInstallationStatus } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import { useAgent } from '@core/features/agents/api/browser/use-agents';
-import { InstallSection } from '@core/features/settings/api/browser/agents-page/InstallSection';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { InstallSection } from '@core/features/settings/contributions/browser/agents-page/InstallSection';
 import type { AppSettings } from '@core/services/settings/api';
 
 type Props = {

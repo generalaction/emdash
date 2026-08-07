@@ -6,14 +6,14 @@ import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import {
   AgentHooksSection,
   AgentTrustSection,
-} from '../../../browser/agents-page/AgentIntegrationSection';
+} from '@core/features/settings/browser/agents-page/AgentIntegrationSection';
 import {
   AgentMcpSection,
   useManageMcpSettingsNavigation,
-} from '../../../browser/agents-page/AgentMcpSection';
-import { AgentSheetHeaderSection } from '../../../browser/agents-page/AgentSheetHeaderSection';
-import { InstalledAgentContent } from '../../../browser/agents-page/InstalledAgentContent';
-import { InstallSection } from './InstallSection';
+} from '@core/features/settings/browser/agents-page/AgentMcpSection';
+import { AgentSheetHeaderSection } from '@core/features/settings/browser/agents-page/AgentSheetHeaderSection';
+import { InstalledAgentContent } from '@core/features/settings/browser/agents-page/InstalledAgentContent';
+import { InstallSection } from '@core/features/settings/contributions/browser/agents-page/InstallSection';
 
 interface AgentDetailSheetProps {
   agentId: string | null;

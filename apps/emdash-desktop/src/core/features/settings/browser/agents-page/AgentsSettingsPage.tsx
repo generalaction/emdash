@@ -1,6 +1,6 @@
 import React from 'react';
-import { AgentsPanel } from '@core/features/settings/api/browser/agents-page/AgentsPanel';
 import { useSettingsSearch } from '@core/features/settings/browser/search/settings-search-context';
+import { AgentsPanel } from '@core/features/settings/contributions/browser/agents-page/AgentsPanel';
 
 export function AgentsSettingsPage() {
   const { query: settingsSearchQuery, setQuery: setSettingsSearchQuery } = useSettingsSearch();

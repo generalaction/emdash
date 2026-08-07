@@ -2,6 +2,16 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentInstallationStatus } from '@core/features/agents/api/browser/use-agent-installation-statuses';
+import { DependencyInstallationStatusCard } from '@core/features/settings/browser/agents-page/DependencyInstallationStatusCard';
+import type { InstallationState } from '@core/features/settings/browser/agents-page/DependencyInstallationStatusCard';
+import { DependencyInstallationUpdateCard } from '@core/features/settings/browser/agents-page/DependencyInstallationUpdateCard';
+import {
+  findInstallation,
+  refFromUsed,
+  toSelection,
+} from '@core/features/settings/browser/agents-page/installation-sources';
+import { InstallationOverrideCard } from '@core/features/settings/browser/agents-page/InstallationOverrideCard';
+import { InstallDependencyCard } from '@core/features/settings/browser/agents-page/InstallDependencyCard';
 import type {
   AgentPayload,
   Installation,
@@ -10,16 +20,6 @@ import type {
   SelectedSource,
 } from '@core/primitives/agents/api';
 import { sourceKey } from '@core/primitives/agents/api';
-import { DependencyInstallationStatusCard } from '../../../browser/agents-page/DependencyInstallationStatusCard';
-import type { InstallationState } from '../../../browser/agents-page/DependencyInstallationStatusCard';
-import { DependencyInstallationUpdateCard } from '../../../browser/agents-page/DependencyInstallationUpdateCard';
-import {
-  findInstallation,
-  refFromUsed,
-  toSelection,
-} from '../../../browser/agents-page/installation-sources';
-import { InstallationOverrideCard } from '../../../browser/agents-page/InstallationOverrideCard';
-import { InstallDependencyCard } from '../../../browser/agents-page/InstallDependencyCard';
 
 export type InstallSectionProps = {
   agentId: string;

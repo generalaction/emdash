@@ -2,8 +2,11 @@ import { PageLayout } from '@emdash/ui/react/patterns';
 import React, { useCallback, useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
-import { AgentsToolbar } from './AgentsToolbar';
-import { CliAgentsList, type AgentFilter } from './CliAgentsList';
+import { AgentsToolbar } from '@core/features/settings/browser/agents-page/AgentsToolbar';
+import {
+  CliAgentsList,
+  type AgentFilter,
+} from '@core/features/settings/browser/agents-page/CliAgentsList';
 
 type AgentsPanelProps = {
   connectionId?: string;

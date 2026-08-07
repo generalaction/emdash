@@ -2,9 +2,9 @@ import { Label, Separator } from '@emdash/ui/react/primitives';
 import React, { useMemo, useState } from 'react';
 import { hostRefFromConnectionId } from '@core/features/agents/api/browser/client';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentDetailSheet } from '@core/features/settings/browser/agents-page/AgentDetailSheet';
+import { AgentRow } from '@core/features/settings/browser/agents-page/AgentRow';
 import type { AgentPayload } from '@core/primitives/agents/api';
-import { AgentDetailSheet } from './AgentDetailSheet';
-import { AgentRow } from './AgentRow';
 
 const SectionLabel: React.FC<{ children: React.ReactNode; totalCount: number }> = ({
   children,

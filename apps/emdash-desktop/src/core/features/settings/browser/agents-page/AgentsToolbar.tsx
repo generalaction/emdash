@@ -1,7 +1,7 @@
 import { Button, SearchInput, ToggleGroup } from '@emdash/ui/react/primitives';
 import { RefreshCw } from 'lucide-react';
 import React from 'react';
-import type { AgentFilter } from './CliAgentsList';
+import type { AgentFilter } from '@core/features/settings/browser/agents-page/CliAgentsList';
 
 type AgentsToolbarProps = {
   searchQuery: string;

@@ -26,7 +26,7 @@ import { hostRefFromConnectionId } from '@core/features/agents/api/browser/clien
 import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { McpPanel } from '@core/features/mcp/api/browser/components/McpPanel';
-import { AgentsPanel } from '@core/features/settings/api/browser/agents-page/AgentsPanel';
+import { AgentsPanel } from '@core/features/settings/contributions/browser/agents-page/AgentsPanel';
 import { SkillsPanel } from '@core/features/skills/api/browser/components/SkillsPanel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';

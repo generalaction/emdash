@@ -9,7 +9,7 @@ import {
   projectViewKind,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
+import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';

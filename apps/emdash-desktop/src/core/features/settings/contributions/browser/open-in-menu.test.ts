@@ -2,8 +2,8 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { OPEN_IN_APPS } from '@core/primitives/open-in-apps/api/open-in-apps';
-import { OpenInMenu } from './open-in-menu';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }

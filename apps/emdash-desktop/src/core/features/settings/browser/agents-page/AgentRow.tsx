@@ -1,12 +1,12 @@
 import { Pill } from '@emdash/ui/react/components';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { getAgentUpdateActionState } from '@core/features/agents/api/browser/components/agent-selector/agent-install';
-import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
 import {
   InstalledBadge,
   UninstalledBadge,
   UpdateAvailableBadge,
-} from '../../../browser/agents-page/agent-status-badge';
+} from '@core/features/settings/browser/agents-page/agent-status-badge';
+import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
 
 export const AgentRow = ({ agent, onClick }: { agent: AgentPayload; onClick?: () => void }) => {
   const isInstalled = agent.status === 'available';
