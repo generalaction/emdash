@@ -4,18 +4,27 @@ All paths are relative to `apps/emdash-desktop/`.
 
 ## Main Entry Points
 
-- `src/renderer/main.tsx`: renderer bootstrap
+- `src/renderer/main.tsx`: renderer bootstrap — seeds the wire connection and navigation host,
+  creates the app store scope, then mounts React
 - `src/renderer/App.tsx`: top-level provider composition
 - `src/renderer/app/workspace.tsx`: main post-onboarding shell
-- `src/renderer/app/view-registry.ts`: view definitions and navigation guards; switches between views
-- `src/renderer/lib/runtime/desktop-wire-client.ts`: typed desktop Wire client
+- `src/core/primitives/wire/browser/connection.ts`: seeded wire-connection seam
+  (`seedWireConnection` / `getWireConnection` / `domainClient`); every slice exposes a typed
+  domain client from its `api/` built on `domainClient`
+- `src/core/manifests/browser/view-catalog.ts`: aggregated view catalog; view definitions are
+  contributed by slices (`contributions/views.ts`) via `defineView` from
+  `src/core/primitives/views/`
 
 ## App Shell (`src/renderer/app/`)
 
-- `workspace.tsx`, `home-view.tsx`, `welcome.tsx` — shell and top-level views
-- `modal-registry.ts` — central modal registry; all modals are registered here
-- `view-registry.ts` — central view registry; all views are registered here
+- `workspace.tsx`, `welcome.tsx` — shell and top-level views (the home view is workbench-owned:
+  `src/core/features/workbench/browser/home-view.tsx`)
 - `app-menu-events.tsx` — native app menu event wiring
+- `app-shutdown-lifecycle.tsx` — quit-confirmation and shutdown-flush handling
+
+Modal and view registration are manifest-owned, not shell-owned:
+`src/core/manifests/browser/modal-catalog.ts` and `src/core/manifests/browser/view-catalog.ts`
+aggregate slice contributions.
 
 ## Feature Areas (`src/core/features/*/browser/`)
 
@@ -24,8 +33,9 @@ implementation. Major browser slices include `tasks`, `projects`, `conversations
 `browser`, `integrations`, `settings`, `skills`, `mcp`, and `library`. Workbench-owned tabs,
 sidebar, command palette, and onboarding UI live under `src/core/features/workbench/browser/`.
 Cross-slice task-view lifecycle and workspace composition live in
-`src/core/features/workbench/browser/task-composition.tsx`; task, project, and workspace stores
-expose feature-owned children through scoped-store tokens.
+`src/core/features/workbench/api/browser/task-composition.ts` and
+`src/core/features/workbench/browser/task-composition-state.ts`; task, project, and workspace
+stores expose feature-owned children through scoped-store tokens.
 
 Feature views, modals, and task tabs are exposed through `contributions/` and aggregated by
 `src/core/manifests/browser/browser-contributions.ts` and
@@ -33,16 +43,25 @@ Feature views, modals, and task tabs are exposed through `contributions/` and ag
 
 ## Shared Renderer Infrastructure (`src/renderer/lib/`)
 
-- `runtime/desktop-wire-client.ts` — typed Wire client
-- `modal/` — modal provider, renderer, store, and close-guard infrastructure
-- `layout/` — layout, navigation, and panel drag providers
-- `commands/` — command registry (`registry.ts`) and view-level `commandProvider` hooks
-- `pty/` — frontend PTY sessions, pool provider, panes, prompt injection
-- `stores/` — cross-feature stores (navigation, dependencies, resource monitor, ...)
-- `providers/`, `hooks/`, `components/`, `ui/`, `theme/` — shared providers, hooks, and UI primitives
+`src/renderer/lib/` is a thin host shell; portable browser infrastructure lives in
+`src/core/primitives/`.
 
-Monaco, file rendering, file-tree projection, and renderer-facing file runtime access are owned by
-`src/core/features/editor/browser/`.
+- `runtime/` — bootstrap seeding (`seed-desktop-wire.ts`, `seed-navigation-host.ts`) and the
+  renderer-internal aggregate Wire client (`desktop-wire-client.ts`); slices use their own
+  domain clients instead
+- `modal/modal-renderer.tsx` — renders the active modal from the manifest catalog; modal
+  definitions, store, and close guards live in `src/core/primitives/modals/react/`
+- `layout/` — workspace layout and right-sidebar composition
+- `keybindings/` — keybinding dispatcher mount and browser shortcut forwarding
+- `stores/` — navigation telemetry wiring; app-lifetime stores are slice-owned and ride the app
+  scope (`src/core/manifests/browser/app-scoped-stores.ts`)
+- `providers/`, `hooks/` — shared providers and hooks (theme, feature flags, multi-select)
+
+Navigation lives in `src/core/primitives/navigation/`; commands and the palette live in
+`src/core/primitives/commands/`, `src/core/primitives/view-scopes/`, and
+`src/core/primitives/palette/`. The PTY frontend is owned by the terminals slice
+(`src/core/features/terminals/`). Monaco, file rendering, file-tree projection, and
+renderer-facing file runtime access are owned by `src/core/features/editor/browser/`.
 
 ## Tests
 
@@ -52,7 +71,7 @@ Monaco, file rendering, file-tree projection, and renderer-facing file runtime a
 ## When Editing Here
 
 - Check `agents/conventions/renderer-patterns.md` for modal, view, PTY frontend, and store patterns.
-- Call renderer-main methods through the typed desktop Wire client.
+- Call renderer-main methods through the owning slice's typed domain client.
 - Add feature views, modals, and task tabs through the owning slice's contributions.
 - The preload bridge (`src/entry/preload.ts`) exposes only `requestWirePort` and
   `getPathForFile`; keep application traffic on Wire.

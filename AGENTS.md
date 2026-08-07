@@ -36,8 +36,9 @@ Inside `apps/emdash-desktop/`:
 - `build/` - Electron packaging assets; avoid edits unless working on packaging/signing.
 - `drizzle/` - Generated Drizzle SQL migrations and metadata.
 - `scripts/` - Release, verification, and build support scripts.
-- `src/main/` - Electron main process, RPC controllers, services, DB, ACP, PTY, and SSH.
-- `src/preload/` - Typed Electron preload bridge exposed to the renderer.
+- `src/main/` - Electron main process: bootstrap, Wire gateway, DB, and host services.
+- `src/entry/` - Electron entry points: `main.ts` (main process) and `preload.ts`, the typed
+  preload bridge exposed to the renderer.
 - `src/renderer/` - React composition shell, shared browser infrastructure, and tests.
 - `src/core/` - Vertical slices with portable APIs, Node implementations, browser UI, and manifests.
 - `src/types/` - Ambient and cross-cutting TypeScript declarations.
@@ -111,18 +112,26 @@ releases currently publish to R2 only.
 - Never re-export as a shortcut; import from the original source.
 - Components use `PascalCase`; hooks use `useX` camelCase or an existing local pattern.
 - Tests use `*.test.ts` or `*.test.tsx`.
-- Main-process RPC handlers live in `src/main/core/*/controller.ts` and delegate to
-  imported operation or service functions.
-- Renderer-main calls go through Wire using `src/renderer/lib/runtime/desktop-wire-client.ts`.
+- Slice Wire controllers live in `src/core/features/<feature>/node/` and are aggregated by
+  `src/core/manifests/node/controllers.ts`; they delegate to imported operation or service
+  functions.
+- Renderer-main calls go through Wire via the seeded connection seam in
+  `src/core/primitives/wire/browser/connection.ts`: the renderer bootstrap seeds it once at
+  startup, and each slice exposes a typed domain client from its `api/` (for example
+  `getMcpClient()`) built on `domainClient`.
 - Feature UI lives under `src/core/features/<feature>/browser/`; the editor slice owns Monaco and
-  file rendering under `src/core/features/editor/browser/`; shared renderer primitives, stores,
-  hooks, modals, PTY, and UI live under `src/renderer/lib/`.
+  file rendering under `src/core/features/editor/browser/`; portable browser primitives (modals,
+  views, navigation, commands, scoped stores) live under `src/core/primitives/`; the thin
+  renderer host shell lives under `src/renderer/lib/`.
 - New feature modals and views must be exposed through the owning slice's `contributions/browser.ts`
   and aggregated by `src/core/manifests/browser/browser-contributions.ts`.
-- New task tabs contribute providers through `src/core/features/<feature>/contributions/tabs.ts`;
-  the workbench registry lives at `src/core/features/workbench/browser/task-tab-registry.tsx`.
-- New commands should use `src/renderer/lib/commands/registry.ts` and view-level
-  `commandProvider` hooks where possible.
+- New task tabs contribute providers through `src/core/features/<feature>/contributions/tabs.ts`,
+  aggregated by `src/core/manifests/browser/task-tab-contributions.ts`; the workbench registry
+  lives at `src/core/features/workbench/api/browser/task-tab-registry.ts`.
+- New commands are defined with `defineCommand` (`src/core/primitives/commands/`) in the owning
+  slice's `contributions/commands.ts`, aggregated by
+  `src/core/manifests/shared/command-catalog.ts`; view scopes
+  (`src/core/primitives/view-scopes/`) bind availability and implementation.
 - Commit messages should follow Conventional Commits:
 
 ```text
@@ -138,10 +147,12 @@ feat(docs): add changelog tab with GitHub releases integration
 ```mermaid
 flowchart LR
   User[User] --> Renderer[React renderer]
-  Renderer --> RPC[Typed RPC client and events]
-  RPC --> Preload[Electron preload bridge]
+  Renderer --> Clients[Typed Wire domain clients]
+  Clients --> Seam[Seeded wire connection seam]
+  Seam --> Preload[Preload wire port]
   Preload --> Main[Electron main process]
-  Main --> Controllers[src/main/core controllers]
+  Main --> Gateway[Desktop Wire gateway]
+  Gateway --> Controllers[Slice Wire controllers]
   Controllers --> Services[Domain services]
   Services --> DB[(SQLite via Drizzle)]
   Services --> Runtime[Runtime services]
@@ -154,25 +165,28 @@ flowchart LR
   ACP --> CoreAcp[@emdash/core ACP runtime]
   ACP --> Plugins[@emdash/plugins providers]
   Renderer --> ChatUI[@emdash/chat-ui]
-  Main --> Events[Typed events]
+  Main --> Events[Live models and typed events]
   Events --> Renderer
 ```
 
-The app boots from `src/main/index.ts`, loads environment and database state,
-registers RPC controllers through `src/main/rpc.ts`, creates the Electron window,
-and exposes a small typed preload API from `src/preload/index.ts`. The renderer is
-a React app that calls typed RPC methods, subscribes to typed events, and coordinates
-views, tabs, modals, command providers, project state, terminal state, and task
+The app boots from `src/entry/main.ts`, which runs the phased bootstrap in
+`src/main/bootstrap/` (environment, database, window creation, recovery). Renderer-main
+traffic is served by the desktop Wire gateway (`src/main/gateway/desktop-wire.ts`) from the
+contract assembled in `src/core/manifests/shared/desktop-wire-contract.ts` and the controllers
+aggregated in `src/core/manifests/node/controllers.ts`. The preload bridge
+(`src/entry/preload.ts`) exposes only `requestWirePort` and `getPathForFile`. The renderer is
+a React app that calls typed Wire domain clients, subscribes to live models and typed events,
+and coordinates views, tabs, modals, commands, project state, terminal state, and task
 workflows.
 
 Task execution has two runtime paths. Legacy/TUI conversations run through PTY
 services under `packages/core/src/services/pty/` and the terminal/TUI runtimes under
 `packages/core/src/runtimes/terminals/` and `packages/core/src/runtimes/tui-agents/`.
 Structured chat conversations use ACP: provider plugins in `packages/plugins/` expose
-ACP behavior, `packages/core/src/runtimes/acp/` owns protocol/session state and
-terminal management,
-`src/main/core/acp/` adapts that runtime to Electron Wire and local/SSH process
-hosts, and `src/core/features/conversations/browser/acp/` maps updates into `@emdash/chat-ui`.
+ACP behavior, `packages/core/src/runtimes/acp/` owns protocol/session state, terminal
+management, and process hosting, the desktop launches that runtime as a Wire component worker
+from `src/main/gateway/entries/acp.ts` (`src/main/core/acp/` bridges agent status), and
+`src/core/features/conversations/browser/acp/` maps updates into `@emdash/chat-ui`.
 
 Main-process adapter domains live under `src/main/core/`: ACP, agent status, app,
 dependencies, file search, files, Git, preview servers, provider accounts, runtime,
@@ -259,13 +273,14 @@ pnpm run test
   updater code.
 - Do not weaken shell quoting, spawn behavior, env allowlists, path validation, or
   secret redaction casually.
-- Prefer existing service, provider, plugin, RPC, modal, view, tab, and store patterns
+- Prefer existing service, provider, plugin, Wire, modal, view, tab, and store patterns
   over new abstractions.
-- New RPC methods belong in the appropriate `src/main/core/*/controller.ts` and must be
-  registered through `src/main/rpc.ts`.
-- Keep renderer-main calls on typed RPC and typed events. The preload bridge should stay
-  small; add direct `window.electronAPI` surface only when an Electron/browser primitive
-  cannot fit the RPC/event path.
+- New Wire procedures belong in the owning slice's `api/` contract with a controller in
+  `node/`, registered through `src/core/manifests/shared/desktop-wire-contract.ts` and
+  `src/core/manifests/node/controllers.ts`.
+- Keep renderer-main calls on typed Wire contracts, live models, and typed events. The preload
+  bridge should stay small; add direct `window.electronAPI` surface only when an
+  Electron/browser primitive cannot fit the Wire path.
 - Access task and project MobX stores through selectors and task view hooks:
   `getTaskStore`, `asProvisioned`, `taskViewKind`, `getTaskManagerStore`,
   `getProjectStore`, `asMounted`, `useTaskViewKind`, `useWorkspace`,
@@ -275,8 +290,8 @@ pnpm run test
 - State guards must check `kind !== 'ready'` rather than enumerating non-ready states.
 - Access task managers through `getTaskManagerStore(projectId)`, not `project.taskManager`.
 - Access mounted projects through `asMounted(getProjectStore(id))`, not inline guards.
-- Task selectors live in `src/core/features/tasks/browser/stores/task-selectors.ts`.
-- Project selectors live in `src/core/features/projects/browser/stores/project-selectors.ts`.
+- Task selectors live in `src/core/features/tasks/api/browser/task-state/task-selectors.ts`.
+- Project selectors live in `src/core/features/projects/api/browser/stores/project-selectors.ts`.
 - For provider changes, update plugin metadata, shared provider metadata, ACP support
   flags, PTY env passthrough if needed, hook integrations, renderer assumptions, and
   tests for non-standard behavior.
@@ -303,27 +318,27 @@ pnpm run test
 
 - Agent provider plugins live in `packages/plugins/src/agents/impl/` and are registered
   in `packages/plugins/src/agents/registry.ts`.
-- Provider capabilities and helpers live in `packages/core/src/agents/plugins/`.
+- Provider plugin hosting services live in `packages/core/src/services/agent-plugins/`.
 - Agent provider metadata and capabilities live in `packages/plugins/src/agents/registry.ts`
   and `packages/plugins/src/agents/impl/`; renderer-facing DTOs are built by
-  `src/main/core/agents/agent-payload-builder.ts`.
+  `src/core/features/agents/node/agent-payload-builder.ts`.
 - ACP support is exposed through plugin ACP capabilities and portable Core ACP APIs.
 - Provider detection lives in `src/main/core/dependencies/`.
 - Provider PTY behavior and env construction live under `packages/core/src/services/pty/`.
 - Provider event hooks and plugins are installed and hosted by
  `packages/core/src/runtimes/tui-agents/`; desktop projection lives under
  `src/main/core/agent-status/`.
-- ACP process hosts live under `src/main/core/acp/transport/` for local and SSH-backed
-  execution.
+- ACP process hosting lives in `packages/core/src/runtimes/acp/`; the desktop launches the
+  runtime as a Wire component worker from `src/main/gateway/entries/acp.ts`.
 - Feature modal and view definitions are contributed by slices and aggregated in
   `src/core/manifests/browser/browser-contributions.ts`; renderer app registries compose host entries.
 - Task tab providers are aggregated through
   `src/core/manifests/browser/task-tab-contributions.ts`.
-- MCP server config handling lives in `src/main/core/mcp/services/McpService.ts`,
-  `src/main/core/mcp/utils/`, `src/core/primitives/mcp/api/`, and
+- MCP server config handling lives in `src/core/features/mcp/node/` (wire controller and
+  registration utils), canonical types in `src/core/primitives/mcp/api/`, and UI in
   `src/core/features/mcp/browser/`.
 - Skills types and validation live in Core primitives; skills UI and service code live in
-  `src/core/features/skills/browser/` and `src/main/core/skills/`.
+  `src/core/features/skills/browser/` and `src/core/features/skills/node/`.
 - Worktree runtime settings can be supplied through `.emdash.json`:
  `preservePatterns`, `scripts.prepare`, `scripts.setup`, `scripts.run`,
  `scripts.teardown`, and `shellSetup`.
@@ -334,8 +349,10 @@ pnpm run test
   `CODEX_SANDBOX_MODE`, and `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`.
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
-- App path aliases are defined in `tsconfig.json` and mirrored in `electron.vite.config.ts`:
-  `@/*`, `@core/*`, `@renderer/*`, `@main/*`, `@root/*`, and `@tooling/*`.
+- App-internal path aliases are defined in `tsconfig.json` (`@/*`, `@core/*`, `@renderer/*`,
+  `@main/*`, `@root/*`, and `@tooling/*`) and mirrored where needed in
+  `electron.vite.config.ts`; workspace packages resolve through their `exports` maps with a
+  `development` condition, not aliases.
 - Versioned JSON column schemas use `defineVersionedSchema()` from
   `@emdash/core/primitives/versioned-schema/api`
  (`packages/core/src/primitives/versioned-schema/api/versioned-schema.ts`) and Drizzle
