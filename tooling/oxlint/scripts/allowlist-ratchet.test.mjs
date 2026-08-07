@@ -37,6 +37,42 @@ test('collectBoundaryViolations buckets core-module-boundaries as crossSlice', (
   );
 });
 
+test('collectBoundaryViolations buckets no-tsx-in-api as tsxInApi', () => {
+  const violations = collectBoundaryViolations([
+    diagnostic(
+      'emdash(no-tsx-in-api)',
+      'apps/emdash-desktop/src/core/features/a/api/browser/view.tsx'
+    ),
+  ]);
+
+  assert.deepEqual(
+    [...violations.tsxInApi],
+    ['apps/emdash-desktop/src/core/features/a/api/browser/view.tsx']
+  );
+  assert.equal(violations.crossSlice.size, 0);
+});
+
+test('findStaleAllowlistEntries reports stale tsxInApi entries', () => {
+  const stale = findStaleAllowlistEntries(
+    {
+      tsxInApi: [
+        'apps/emdash-desktop/src/core/features/a/api/view.tsx',
+        'apps/emdash-desktop/src/core/features/b/api/view.tsx',
+      ],
+    },
+    {
+      coreToHost: new Set(),
+      mainCoreToFeatures: new Set(),
+      crossSlice: new Set(),
+      tsxInApi: new Set(['apps/emdash-desktop/src/core/features/a/api/view.tsx']),
+    }
+  );
+
+  assert.deepEqual(stale, {
+    tsxInApi: ['apps/emdash-desktop/src/core/features/b/api/view.tsx'],
+  });
+});
+
 test('collectBoundaryViolations ignores unrelated diagnostics and dedupes files', () => {
   const violations = collectBoundaryViolations([
     diagnostic('emdash(no-dynamic-imports)', 'apps/emdash-desktop/src/core/features/a/view.tsx'),

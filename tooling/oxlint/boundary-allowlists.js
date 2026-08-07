@@ -9,11 +9,16 @@ export const DEFAULT_BOUNDARY_ALLOWLIST_PATH = path.join(
   currentDir,
   'allowlists/core-boundaries.json'
 );
+export const DEFAULT_API_SURFACE_ALLOWLIST_PATH = path.join(
+  currentDir,
+  'allowlists/api-surfaces.json'
+);
 
 const EMPTY_ALLOWLISTS = Object.freeze({
   coreToHost: [],
   mainCoreToFeatures: [],
   crossSlice: [],
+  tsxInApi: [],
 });
 
 function normalizePath(value) {
@@ -43,6 +48,7 @@ export function loadBoundaryAllowlists(allowlistPath = DEFAULT_BOUNDARY_ALLOWLIS
       coreToHost: Array.isArray(parsed.coreToHost) ? parsed.coreToHost : [],
       mainCoreToFeatures: Array.isArray(parsed.mainCoreToFeatures) ? parsed.mainCoreToFeatures : [],
       crossSlice: Array.isArray(parsed.crossSlice) ? parsed.crossSlice : [],
+      tsxInApi: Array.isArray(parsed.tsxInApi) ? parsed.tsxInApi : [],
     };
   } catch (error) {
     if (error?.code === 'ENOENT') return EMPTY_ALLOWLISTS;
