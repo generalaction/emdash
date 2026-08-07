@@ -1,13 +1,13 @@
 import { err, ok, toSerializedError, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import type { SecretStore } from '@core/primitives/secrets/api/secret-store';
+import type { PlaintextSecretStore } from '@core/primitives/secrets/api/secret-store';
 import { type AccountSessionPersistenceError, unknownErrorMessage } from '../account-errors';
 
 const ACCOUNT_SESSION_SECRET_KEY = 'emdash-account-token';
 
 export class AccountCredentialStore {
   constructor(
-    private readonly secrets: SecretStore,
+    private readonly secrets: PlaintextSecretStore,
     private readonly logger: Pick<Logger, 'error'>
   ) {}
 

@@ -121,6 +121,7 @@ export default defineConfig({
             'src/core/services/**/*.db.test.ts',
             'src/main/core/**/*.db.test.ts',
             'src/main/db/legacy-port/**/*.test.ts',
+            'src/main/host/**/*.db.test.ts',
             'src/services/**/*.db.test.ts',
           ],
         },

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { Secret } from '@emdash/shared';
 import ssh2, { type BaseAgent, type ConnectConfig } from 'ssh2';
 import type { SshConfig } from '@core/primitives/ssh/api';
 import type { SshConnectionRow } from '@core/services/app-db/node/schema';
@@ -34,8 +35,8 @@ export type SshConnectInput = PersistedConnectInput | TransientConnectInput;
 
 export interface SshConnectDeps {
   readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
-  getPassword: (connectionId: string) => Promise<string | null>;
-  getPassphrase: (connectionId: string) => Promise<string | null>;
+  getPassword: (connectionId: string) => Promise<Secret<string> | null>;
+  getPassphrase: (connectionId: string) => Promise<Secret<string> | null>;
   resolveSshConfig: (alias: string) => Promise<ResolvedSshConfig>;
   findSshConfigByHostName: (hostname: string) => Promise<ResolvedSshConfig | undefined>;
   spawnProxyCommand: (command: string, tokens: ProxyTokens) => Omit<TransportResult, 'process'>;
