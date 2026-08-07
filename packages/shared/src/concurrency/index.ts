@@ -69,4 +69,3 @@ export {
   type CreateSharedResourceOptions,
   type SharedResource,
 } from './shared-resource';
-export type { Lease, PendingLease, Unsubscribe } from '../lifecycle';
