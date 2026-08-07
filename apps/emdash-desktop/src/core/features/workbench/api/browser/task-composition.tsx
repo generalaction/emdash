@@ -499,10 +499,6 @@ export class TaskComposition {
     this.editorView.requestRevealFile(path);
   }
 
-  get isChangesPanelVisible(): boolean {
-    return !this.isSidebarCollapsed && this.sidebarTab === 'changes';
-  }
-
   setFocusedRegion(region: TaskFocusedRegion): void {
     this.chrome.commands.focusRegion(region);
   }

@@ -47,8 +47,8 @@ Views use a registry + parameterized navigation pattern.
 - `src/renderer/app/view-registry.ts` — view definitions (required `MainPanel`, optional
   `WrapView` and `TitlebarSlot`) plus navigation guards (`setupNavigationGuards`)
 - `src/renderer/lib/layout/` — `provider.tsx`, `navigation-provider.tsx` (navigation and
-  param persistence), `layout-provider.tsx` (panel collapse/expand/drag state),
-  `panel-drag-store.ts`
+  param persistence), `layout-provider.tsx` (workspace chrome context: reads the
+  per-project workspace chrome command store and exposes the layout-storage facade)
 
 **Key behaviors:**
 - `navigate(viewId, params?)` (from `useNavigate`) is type-safe; params are optional when all fields are optional
@@ -58,6 +58,30 @@ Views use a registry + parameterized navigation pattern.
 **Rules:**
 - Views are singletons — one per ViewId
 - Add new views to `src/renderer/app/view-registry.ts`
+
+## Workbench Layout State
+
+Workbench layout follows a strict ownership model (see
+`.scratch/workbench-state-architecture/spec.md` history for rationale):
+
+- **Chrome state lives in command stores, one per subject.** Task chrome
+  (`sidebarCollapsed`, `sidebarTab`, `terminalDrawerOpen`) and workspace chrome
+  (`leftSidebarOpen`, `zen`) are memento-backed state objects mutated only through
+  named commands (`toggleSidebar`, `openSidebarTab`, `enterZenMode`, ...) — never
+  through field setters. The shared mechanism is `defineChromeStore` in
+  `src/core/primitives/chrome-stores/`.
+- **Panel visibility is store-driven conditional rendering, never programmatic panel
+  writes.** Closed = unmounted. Collapsible surfaces bind through
+  `useCollapsiblePanelBinding` from `@emdash/ui` (next to `Resizable`), which turns
+  drag-below-threshold into a semantic close command. No `panel.collapse()` /
+  `expand()` / `resize()` / `setLayout()` calls exist in app code, and no
+  `display:none` toggling of workbench surfaces.
+- **Pixel sizes belong to react-resizable-panels alone**, persisted via
+  `useResizableDefaultLayout` with a memento-backed `LayoutStorage` facade
+  (`createLayoutStorage` in `src/core/primitives/mementos/browser/`). Sizes are never
+  MobX observables and never persisted to localStorage.
+- **Persisted view state renders below a hydration gate.** The task view gates on
+  `space.isHydrated`; the storage facade dev-asserts on reads before hydration.
 
 ## PTY Frontend (`src/renderer/lib/pty/`)
 
@@ -73,7 +97,6 @@ Views use a registry + parameterized navigation pattern.
 - Historical output comes from the main-process ring buffer; do not add renderer-side buffering
 - `sessionId` format: `makePtySessionId(projectId, scopeId, leafId)` from
   `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
-- Panel drag pauses resizing to avoid jank (`src/renderer/lib/layout/panel-drag-store.ts`)
 
 ## React Query Context Pattern
 
@@ -102,7 +125,9 @@ const mutation = useMutation({
 
 For state that must survive React unmounts or be shared across unrelated components:
 
-- **`useSyncExternalStore`-compatible stores** — e.g., `panelDragStore` in `src/renderer/lib/layout/`
+- **`useSyncExternalStore`-compatible stores** — e.g., the memento hooks in
+  `src/core/primitives/mementos/react/` and the layout-storage facade in
+  `src/core/primitives/mementos/browser/`
 - **Cross-feature stores** — `src/renderer/lib/stores/` (navigation, dependencies, resource monitor, ...)
 - **MobX task and project stores** — `src/core/features/tasks/browser/stores/` and
   `src/core/features/projects/browser/stores/`; access them through selectors

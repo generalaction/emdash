@@ -14,10 +14,9 @@ import { useTaskComposition } from '@core/features/workbench/api/browser/task-co
  * remounts the previous body. Remount cost is modest by design: the
  * conversations list and file tree render from MobX stores (tree expansion
  * persists via the tasks.editor-tree memento) and lose only ephemeral
- * selection and scroll position; the changes panel's section sizes are not
- * yet persisted and reset to defaults on remount until the changes-panel
- * conversion moves them onto the shared layout storage. No tab body owns a
- * Monaco instance.
+ * selection and scroll position; the changes panel's section sizes persist
+ * via the shared layout storage (task panel-layouts memento) and survive the
+ * remount. No tab body owns a Monaco instance.
  */
 export const TaskSidebar = observer(function TaskSidebar() {
   const taskView = useTaskComposition();

@@ -50,13 +50,11 @@ export {
   Resizable,
   useCollapsiblePanelBinding,
   useResizableDefaultLayout,
-  useResizablePanelRef,
   type CollapsiblePanelBinding,
   type CollapsiblePanelBindingOptions,
   type LayoutStorage,
   type ResizableGroupProps,
   type ResizableHandleProps,
-  type ResizablePanelHandle,
   type ResizablePanelProps,
 } from './resizable';
 
