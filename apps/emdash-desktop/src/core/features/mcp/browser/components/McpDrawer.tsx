@@ -7,7 +7,11 @@ import { Button, Field, Input, MicroLabel, Select, Sheet } from '@emdash/ui/reac
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
+import { modalScope } from '@core/features/workbench/contributions/scopes';
+import { confirmRegistry } from '@core/primitives/keybindings/browser';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
+import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
+import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { SyncToAgentsSection } from './SyncToAgentsSection';
 
@@ -33,18 +37,29 @@ export const McpDrawer: React.FC<McpDrawerProps> = ({
   onSave,
   onRemove,
 }) => {
+  const implementation = {
+    'modal.close': () => ({ execute: () => onOpenChange(false) }),
+    'app.confirm': () => ({
+      availability: () => (confirmRegistry.current?.isEnabled() ? enabled : hidden),
+      execute: () => confirmRegistry.current?.trigger(),
+    }),
+  } satisfies ViewScopeImpl<typeof modalScope>;
+  const { attachRef, instance } = useViewScope(modalScope(), implementation);
+
   return (
     <Sheet.Root open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="gap-0 p-0">
-        {mode && (
-          <McpDrawerContent
-            mode={mode}
-            providers={providers}
-            onOpenChange={onOpenChange}
-            onSave={onSave}
-            onRemove={onRemove}
-          />
-        )}
+      <Sheet.Content ref={attachRef} side="right" className="gap-0 p-0">
+        <ViewScopeInstanceProvider instance={instance}>
+          {mode && (
+            <McpDrawerContent
+              mode={mode}
+              providers={providers}
+              onOpenChange={onOpenChange}
+              onSave={onSave}
+              onRemove={onRemove}
+            />
+          )}
+        </ViewScopeInstanceProvider>
       </Sheet.Content>
     </Sheet.Root>
   );
