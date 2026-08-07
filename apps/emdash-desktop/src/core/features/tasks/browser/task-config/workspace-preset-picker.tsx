@@ -1,4 +1,8 @@
-import { Combobox } from '@emdash/ui/react/primitives';
+import { useTaskConfig } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
+import { cn } from '@core/primitives/styling/browser/cn';
+import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
+import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
+import { Select } from '@emdash/ui/react/primitives';
 import {
   ChevronsUpDown,
   FolderGit2,
@@ -8,10 +12,6 @@ import {
   Layers,
 } from 'lucide-react';
 import React from 'react';
-import { useTaskConfig } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
-import { cn } from '@core/primitives/styling/browser/cn';
-import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
-import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -69,15 +69,15 @@ export function WorkspacePresetPicker({
   const selected = options.find((o) => o.id === value) ?? options[0];
 
   return (
-    <Combobox.Root
-      value={selected}
-      onValueChange={(item: PresetOption | null) => {
-        if (item && !item.disabled) onValueChange(item.id);
-      }}
-      isItemEqualToValue={(a: PresetOption, b: PresetOption) => a.id === b.id}
+    <Select.Root
+      value={value}
+      onValueChange={(nextValue) => onValueChange(nextValue as WorkspacePresetId)}
       disabled={disabled}
     >
-      <Combobox.Trigger
+      <Select.Trigger
+        appearance="input"
+        showChevron={false}
+        style={{ height: 'auto', minHeight: '4.25rem' }}
         className={cn(
           'data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border py-2 px-2.5  text-sm outline-none transition-colors hover:bg-background-2',
           disabled && 'cursor-not-allowed opacity-50'
@@ -93,38 +93,35 @@ export function WorkspacePresetPicker({
           </span>
         </span>
         <ChevronsUpDown className="size-4 shrink-0 text-foreground-passive" />
-      </Combobox.Trigger>
+      </Select.Trigger>
 
-      <Combobox.Content>
-        <Combobox.List className="max-h-52 overflow-y-auto p-1!">
-          {options.map((option) => (
-            <Combobox.Item
-              key={option.id}
-              value={option}
-              disabled={option.disabled}
-              showCheck={false}
-              className="items-start rounded-md px-2.5 py-2"
-            >
-              <span className="flex flex-col items-start gap-1.5">
-                <span className="flex gap-1.5">
-                  <span
-                    className={cn(
-                      'mt-px shrink-0',
-                      option.disabled ? 'text-foreground-passive' : 'text-foreground-muted'
-                    )}
-                  >
-                    {PRESET_ICONS[option.id]}
-                  </span>
-                  <span className="text-sm leading-none">{option.label}</span>
+      <Select.Content width="trigger" align="start">
+        {options.map((option) => (
+          <Select.Item
+            key={option.id}
+            value={option.id}
+            disabled={option.disabled}
+            className="items-start rounded-md px-2.5 py-2"
+          >
+            <span className="flex flex-col items-start gap-1.5">
+              <span className="flex gap-1.5">
+                <span
+                  className={cn(
+                    'mt-px shrink-0',
+                    option.disabled ? 'text-foreground-passive' : 'text-foreground-muted'
+                  )}
+                >
+                  {PRESET_ICONS[option.id]}
                 </span>
-                <span className="text-xs leading-snug text-foreground-muted">
-                  {option.disabledReason ?? option.description}
-                </span>
+                <span className="text-sm leading-none">{option.label}</span>
               </span>
-            </Combobox.Item>
-          ))}
-        </Combobox.List>
-      </Combobox.Content>
-    </Combobox.Root>
+              <span className="text-xs leading-snug text-foreground-muted">
+                {option.disabledReason ?? option.description}
+              </span>
+            </span>
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select.Root>
   );
 }

@@ -127,20 +127,20 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <Field.Label>Model</Field.Label>
               <Select.Root
                 value={selectedModel ?? ''}
-                onValueChange={(val) => setSelectedModel(val || null)}
+                onValueChange={(value) => setSelectedModel(value || null)}
               >
-                <Select.Trigger>
+                <Select.Trigger appearance="input" className="w-full">
                   <Select.Value placeholder="Default model">
                     {selectedModel
                       ? (modelOptions[selectedModel]?.name ?? selectedModel)
                       : 'Default model'}
                   </Select.Value>
                 </Select.Trigger>
-                <Select.Content>
+                <Select.Content align="start" width="trigger">
                   <Select.Item value="">Default model</Select.Item>
-                  {Object.entries(modelOptions).map(([id, opt]) => (
+                  {Object.entries(modelOptions).map(([id, option]) => (
                     <Select.Item key={id} value={id}>
-                      {opt.name}
+                      {option.name}
                     </Select.Item>
                   ))}
                 </Select.Content>

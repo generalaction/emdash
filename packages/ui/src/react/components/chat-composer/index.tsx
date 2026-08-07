@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Combobox } from '@/react/primitives/combobox/combobox';
 import { DropdownMenu } from '@/react/primitives/dropdown-menu';
 import { Popover } from '@/react/primitives/popover';
+import { Select } from '@/react/primitives/select';
 import { ComboboxPopover } from '../combobox-popover';
 import { PromptEditor } from '../prompt-editor/prompt-editor';
 import type {
@@ -724,6 +725,9 @@ export function ChatComposer({
   const permissionModeItems: PermissionModeItem[] = permissionModeOptions
     ? Object.entries(permissionModeOptions).map(([id, opt]) => ({ id, ...opt }))
     : [];
+  const selectedPermissionModeItem = selectedPermissionMode
+    ? (permissionModeItems.find((item) => item.id === selectedPermissionMode) ?? null)
+    : null;
   const permissionModeIsFirst = modelItems.length === 0 && !agentOptions?.length;
 
   const canShowQueuedPrompts =
@@ -948,60 +952,73 @@ export function ChatComposer({
               />
             )}
             {permissionModeItems.length > 0 && (
-              <ComboboxPopover<PermissionModeItem>
-                items={permissionModeItems}
-                value={selectedPermissionMode ?? null}
-                onValueChange={(id) => onPermissionModeChange?.(id)}
-                itemToKey={(item) => item.id}
-                itemToLabel={(item) => item.name}
+              <Select.Root
+                value={selectedPermissionMode ?? undefined}
+                onValueChange={(id) => {
+                  if (id) onPermissionModeChange?.(id);
+                }}
                 disabled={disabled}
-                searchPlaceholder="Search"
-                className={permissionModeIsFirst ? styles.permissionModeTrigger : undefined}
-                contentClassName={composerThemeScope}
-                contentStyle={{ minWidth: '18rem' }}
-                renderTrigger={(selected) => (
+              >
+                <Select.Trigger
+                  className={permissionModeIsFirst ? styles.permissionModeTrigger : undefined}
+                >
                   <span
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.25rem',
-                      color: selected ? 'var(--em-foreground)' : 'var(--em-foreground-muted)',
+                      color: selectedPermissionModeItem
+                        ? 'var(--em-foreground)'
+                        : 'var(--em-foreground-muted)',
                       fontSize: 'var(--em-text-xs)',
                       lineHeight: 1.25,
                     }}
                   >
                     <ShieldCheck style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }} />
-                    {selected?.name ?? 'Permissions…'}
+                    {selectedPermissionModeItem?.name ?? 'Permissions…'}
                   </span>
-                )}
-                renderItem={(item) => (
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 'var(--em-text-sm)',
-                      }}
-                    >
-                      {item.name}
-                    </span>
-                    {item.description && (
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontSize: 'var(--em-text-xs)',
-                          color: 'var(--em-foreground-muted)',
-                        }}
-                      >
-                        {item.description}
+                </Select.Trigger>
+                <Select.Content
+                  align="start"
+                  width="trigger"
+                  className={composerThemeScope}
+                  style={{
+                    width: 'min(18rem, var(--available-width, 18rem))',
+                    minWidth: 0,
+                    maxWidth: '18rem',
+                  }}
+                >
+                  {permissionModeItems.map((item) => (
+                    <Select.Item key={item.id} value={item.id}>
+                      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: 'var(--em-text-sm)',
+                          }}
+                        >
+                          {item.name}
+                        </span>
+                        {item.description && (
+                          <span
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 'var(--em-text-xs)',
+                              color: 'var(--em-foreground-muted)',
+                            }}
+                          >
+                            {item.description}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </div>
-                )}
-              />
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
             )}
             {mcpServers.length > 0 && (
               <Popover.Root>

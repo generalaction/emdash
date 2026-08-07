@@ -1,7 +1,7 @@
-import { Button, Dialog, Input, Label } from '@emdash/ui/react/primitives';
-import { useState, type FormEvent } from 'react';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import type { PreviewServerProtocol } from '@core/primitives/preview-servers/api';
+import { Button, Dialog, Input, Label, Select } from '@emdash/ui/react/primitives';
+import { useState, type FormEvent } from 'react';
 
 function parsePort(value: string): number | undefined {
   const trimmed = value.trim();
@@ -77,15 +77,20 @@ export function ManualForwardDialog({ onClose }: { onClose: () => void }) {
             <Label htmlFor="preview-protocol" className="self-center">
               Protocol
             </Label>
-            <select
-              id="preview-protocol"
+            <Select.Root
               value={protocol}
-              onChange={(event) => setProtocol(event.target.value as PreviewServerProtocol)}
-              className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground"
+              onValueChange={(value) => {
+                if (value) setProtocol(value as PreviewServerProtocol);
+              }}
             >
-              <option value="http:">HTTP</option>
-              <option value="https:">HTTPS</option>
-            </select>
+              <Select.Trigger id="preview-protocol" appearance="input" className="w-full">
+                <Select.Value>{protocol === 'https:' ? 'HTTPS' : 'HTTP'}</Select.Value>
+              </Select.Trigger>
+              <Select.Content align="start" width="trigger">
+                <Select.Item value="http:">HTTP</Select.Item>
+                <Select.Item value="https:">HTTPS</Select.Item>
+              </Select.Content>
+            </Select.Root>
             <Label htmlFor="preview-remote-port" className="self-center">
               Remote port
             </Label>
