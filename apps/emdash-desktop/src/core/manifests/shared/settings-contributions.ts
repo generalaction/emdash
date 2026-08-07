@@ -18,8 +18,8 @@ import {
   themeSettingsContribution,
 } from '@core/features/workbench/contributions/settings';
 import type { SettingsValues } from '@core/primitives/settings/api';
+import { hostSettingsContribution } from '@core/services/hosts/contributions/settings';
 import { notificationSettingsContribution } from '@core/services/notifications/contributions/settings';
-import { remoteMachineSettingsContribution } from '@core/services/hosts/contributions/settings';
 
 export const appSettingsContributions = {
   localProject: localProjectSettingsContribution,
@@ -36,7 +36,7 @@ export const appSettingsContributions = {
   browserPreview: browserPreviewSettingsContribution,
   browser: browserSettingsContribution,
   changesViewMode: changesViewModeSettingsContribution,
-  remoteMachine: remoteMachineSettingsContribution,
+  remoteMachine: hostSettingsContribution,
 } as const;
 
 export type AppSettings = SettingsValues<typeof appSettingsContributions>;

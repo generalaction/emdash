@@ -1,18 +1,17 @@
 import { z } from 'zod';
-import type { RemoteMachineSettings } from '@core/primitives/app-settings/api';
+import type { HostSettings } from '@core/primitives/app-settings/api';
 import { defineSettingsContribution } from '@core/primitives/settings/api';
 
-const remoteMachineSettingsSchema = z.object({
+const hostSettingsSchema = z.object({
   installBaseUrl: z.string(),
   installCommand: z.string().nullable(),
 });
 
-export const remoteMachineSettingsContribution = defineSettingsContribution<
-  'remoteMachine',
-  RemoteMachineSettings
->({
+// The persisted settings key stays 'remoteMachine': it is stored in the app
+// settings table and must not change in a structural rename.
+export const hostSettingsContribution = defineSettingsContribution<'remoteMachine', HostSettings>({
   key: 'remoteMachine',
-  schema: remoteMachineSettingsSchema,
+  schema: hostSettingsSchema,
   defaults: () => ({
     installBaseUrl:
       process.env['EMDASH_WORKSPACE_SERVER_ARTIFACTS_URL'] ??

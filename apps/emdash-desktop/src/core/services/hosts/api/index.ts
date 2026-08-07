@@ -7,17 +7,17 @@ export type {
 } from './targets';
 
 export {
-  remoteMachineContract,
-  remoteMachineDomain,
-  remoteMachineServerStateSchema,
-  remoteMachineServerStatusSchema,
+  hostsContract,
+  hostsDomain,
+  hostServerStateSchema,
+  hostServerStatusSchema,
   isServerUsable,
-  type RemoteMachineServerRuntime,
-  type RemoteMachineServerState,
-  type RemoteMachineServerStatus,
+  type HostServerRuntime,
+  type HostServerState,
+  type HostServerStatus,
 } from './contract';
 
-export type RemoteMachineInvalidation = {
+export type HostInvalidation = {
   connectionId: string;
   reason: 'reconnect-failed' | 'machine-mutation' | 'connection-lost';
   target?: WorkspaceServerTarget;

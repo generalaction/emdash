@@ -7,7 +7,7 @@ import { deferred } from '@emdash/shared/testing';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
-import { createRemoteMachineService } from '@core/services/hosts/node';
+import { createHostService } from '@core/services/hosts/node';
 import { workspaceServerLayout } from '@core/services/hosts/node/workspace-server/layout';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
 import { createDesktopRuntimeBroker } from './runtime-broker';
@@ -44,7 +44,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
     const expectedVersion = await readPublishedVersion(
       process.env['EMDASH_TEST_REMOTE_WSS_LATEST_URL'] ?? defaultPublishedVersionUrl
     );
-    const remoteMachine = createRemoteMachineService({
+    const hosts = createHostService({
       scope,
       ssh: {
         manager,
@@ -53,10 +53,10 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
       machineEvents: { on: () => () => {} },
       installBaseUrl,
     });
-    const broker = createDesktopRuntimeBroker({} as never, remoteMachine);
+    const broker = createDesktopRuntimeBroker({} as never, hosts);
     const layout = workspaceServerLayout('/home/devuser');
     const invalidations: unknown[] = [];
-    remoteMachine.onInvalidate((event) => invalidations.push(event));
+    hosts.onInvalidate((event) => invalidations.push(event));
 
     const host = hostRef('remote', connectionId);
     try {
@@ -128,7 +128,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         });
       }
 
-      const connection = await remoteMachine.client(connectionId);
+      const connection = await hosts.client(connectionId);
       expect(connection.target).toMatchObject({ socketPath: layout.socketPath });
       expect(connection.currentHandshake()?.server.appVersion).toBe(expectedVersion);
       const disconnected = deferred<void>();
@@ -155,7 +155,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         }))
         .catch(() => undefined);
       if (proxy) await stopDaemon(proxy, layout).catch(() => {});
-      await remoteMachine.dispose();
+      await hosts.dispose();
       await manager.disconnectAll();
       await scope.dispose();
     }

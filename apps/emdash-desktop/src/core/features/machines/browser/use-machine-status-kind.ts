@@ -1,7 +1,7 @@
 import type { MachineStatusKind } from '@emdash/ui/react/components';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import { deriveMachineStatusKind } from './components/machine-status-kind';
-import { useRemoteMachineServerState } from './use-remote-machine-server-state';
+import { useHostServerState } from './use-host-server-state';
 
 export function useMachineStatusKind({
   machineId,
@@ -11,7 +11,7 @@ export function useMachineStatusKind({
   connectionState: ConnectionState;
 }): MachineStatusKind {
   const connected = connectionState === 'connected';
-  const workspaceServer = useRemoteMachineServerState({
+  const workspaceServer = useHostServerState({
     machineId,
     enabled: !!machineId && connected,
     connected,

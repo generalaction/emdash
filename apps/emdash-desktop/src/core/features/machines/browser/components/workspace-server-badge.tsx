@@ -1,10 +1,7 @@
 import { Pill } from '@emdash/ui/react/components';
-import type {
-  RemoteMachineServerState,
-  RemoteMachineServerStatus,
-} from '@core/services/hosts/api';
+import type { HostServerState, HostServerStatus } from '@core/services/hosts/api';
 
-const statusLabels: Record<RemoteMachineServerStatus, string> = {
+const statusLabels: Record<HostServerStatus, string> = {
   'not-installed': 'Not found',
   stopped: 'Stopped',
   booting: 'Booting',
@@ -13,7 +10,7 @@ const statusLabels: Record<RemoteMachineServerStatus, string> = {
   failed: 'Error',
 };
 
-function variantForStatus(status: RemoteMachineServerStatus): {
+function variantForStatus(status: HostServerStatus): {
   variant: 'neutral' | 'success' | 'info' | 'error';
   pulsing: boolean;
 } {
@@ -29,10 +26,7 @@ function variantForStatus(status: RemoteMachineServerStatus): {
   return { variant: 'neutral', pulsing: false };
 }
 
-function labelForStatus(
-  status: RemoteMachineServerStatus,
-  error: RemoteMachineServerState['error']
-): string {
+function labelForStatus(status: HostServerStatus, error: HostServerState['error']): string {
   if (status === 'healthy' && error !== undefined) return 'Running';
   return statusLabels[status];
 }
@@ -52,8 +46,8 @@ export function WorkspaceServerBadge({
   status,
   error,
 }: {
-  status: RemoteMachineServerStatus;
-  error?: RemoteMachineServerState['error'];
+  status: HostServerStatus;
+  error?: HostServerState['error'];
 }) {
   const { variant, pulsing } = variantForStatus(status);
 

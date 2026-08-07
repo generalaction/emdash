@@ -15,7 +15,7 @@ or shell-profile code.
   versioning, and workspace-server-specific APIs
 - `src/core/services/ssh/` — desktop SSH connection management, credentials, config
   parsing, and transport setup
-- `src/core/services/workspace-server/` — managed remote install/ensure flow and the
+- `src/core/services/hosts/` — managed remote install/ensure flow and the
   reconnecting Wire client over SSH streamlocal forwarding
 - `src/main/core/wire-workers/` — desktop-local wire runtime workers for local
   projects while remote runtimes are served by the workspace server

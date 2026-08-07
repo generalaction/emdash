@@ -12,28 +12,28 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { RemoteMachineService } from '@core/services/hosts/node';
+import type { HostService } from '@core/services/hosts/node';
 import type { DesktopRuntimeClients } from './desktop-workers';
 
 export function createDesktopRuntimeBroker(
   clients: DesktopRuntimeClients,
-  remoteRuntimes: RemoteMachineService
+  hosts: HostService
 ): RuntimeBroker {
   return new RuntimeBroker({
-    resolve: (host) => resolveDesktopRuntimeClient(host, clients, remoteRuntimes),
+    resolve: (host) => resolveDesktopRuntimeClient(host, clients, hosts),
   });
 }
 
 async function resolveDesktopRuntimeClient(
   host: HostRef,
   clients: DesktopRuntimeClients,
-  remoteRuntimes: RemoteMachineService
+  hosts: HostService
 ): Promise<Result<HostRuntimesClient, RuntimeResolveError>> {
   if (!hostRefEquals(host, LOCAL_HOST_REF)) {
     const connectionId = sshConnectionIdOf(host);
     if (connectionId) {
       try {
-        const connection = await remoteRuntimes.client(connectionId);
+        const connection = await hosts.client(connectionId);
         return ok(connection.client);
       } catch (error) {
         return err(

@@ -1,5 +1,1 @@
-export {
-  createRemoteMachineService,
-  type CreateRemoteMachineServiceDeps,
-  type RemoteMachineService,
-} from './host-service';
+export { createHostService, type CreateHostServiceDeps, type HostService } from './host-service';

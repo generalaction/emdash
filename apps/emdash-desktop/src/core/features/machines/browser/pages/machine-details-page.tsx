@@ -39,8 +39,8 @@ import { deriveMachineStatusKind } from '../components/machine-status-kind';
 import { MachineSystemDependenciesCard } from '../components/machine-system-dependencies';
 import { WorkspaceRuntimeRow } from '../components/workspace-server-card';
 import { WorkspacesListView } from '../components/workspaces-list-view';
+import { useHostServerState } from '../use-host-server-state';
 import { useMachineMetrics } from '../use-machine-metrics';
-import { useRemoteMachineServerState } from '../use-remote-machine-server-state';
 import { WorkspaceDetailPage } from './workspace-detail-page';
 
 type MachineDetailsSection =
@@ -118,7 +118,7 @@ export const MachineDetailsPage = observer(function MachineDetailsPage({
   const [deleting, setDeleting] = useState(false);
   const [section, setSection] = useState<MachineDetailsSection>('system');
   const renameFieldRef = useRef<HTMLInputElement>(null);
-  const workspaceServer = useRemoteMachineServerState({
+  const workspaceServer = useHostServerState({
     machineId: machine?.id,
     enabled: !!machine,
     connected,

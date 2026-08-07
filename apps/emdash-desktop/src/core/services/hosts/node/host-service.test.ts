@@ -2,7 +2,7 @@ import { createScope } from '@emdash/shared/concurrency';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api';
 import type { SshWorkspaceServerTarget } from '../api/targets';
-import { createRemoteMachineService } from './host-service';
+import { createHostService } from './host-service';
 import type { WorkspaceServerConnection } from './workspace-server/connect/wire-connection-manager';
 
 const mocks = vi.hoisted(() => ({
@@ -63,7 +63,7 @@ beforeEach(() => {
   mocks.client.mockResolvedValue(connection());
 });
 
-describe('RemoteMachineService', () => {
+describe('HostService', () => {
   it('ensures the remote server before resolving the pinned Wire client', async () => {
     const fixture = createFixture();
 
@@ -174,7 +174,7 @@ describe('RemoteMachineService', () => {
 });
 
 function createFixture() {
-  const parentScope = createScope({ label: 'remote-machine-service-test' });
+  const parentScope = createScope({ label: 'host-service-test' });
   let sshEventListener: ((event: SshConnectionManagerEvent) => void) | undefined;
   let machineMutationListener: ((event: { connectionId: string }) => void) | undefined;
   const manager = {
@@ -184,7 +184,7 @@ function createFixture() {
     off: vi.fn(),
     getProxy: vi.fn(),
   };
-  const service = createRemoteMachineService({
+  const service = createHostService({
     scope: parentScope,
     ssh: {
       manager: manager as never,

@@ -1,6 +1,6 @@
 import type { WireTransport } from '@emdash/wire/rpc';
-import type { WorkspaceServerSshPort } from '../ports';
 import type { SshWorkspaceServerTarget } from '../../../api/targets';
+import type { WorkspaceServerSshPort } from '../ports';
 import { ownedStreamTransport } from './owned-stream-transport';
 
 export async function openSshWorkspaceServerTransport(

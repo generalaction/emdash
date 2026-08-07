@@ -20,7 +20,7 @@ export async function bootRuntimes(
       scope,
       getFilesSettings: () => database.appSettings.get('files'),
     });
-    const broker = createDesktopRuntimeBroker(workers.clients, infrastructure.remoteMachine);
+    const broker = createDesktopRuntimeBroker(workers.clients, infrastructure.hosts);
     runMementosOrphanPruning(database, workers.clients.mementos);
     return desktopRuntimes(workers, broker, scope);
   } catch (error) {

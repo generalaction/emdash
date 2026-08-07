@@ -1,7 +1,7 @@
 import type { WireInitializeResult } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
 import { retry, retrySchedules, systemClock, type Clock } from '@emdash/shared/scheduling';
-import type { RemoteMachineStateModel } from './state-model';
+import type { HostStateModel } from './state-model';
 import { WorkspaceServerProtocolError } from './workspace-server/connect/protocol';
 import type { WireConnectionManager } from './workspace-server/connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from './workspace-server/layout';
@@ -16,9 +16,9 @@ import {
 } from './workspace-server/provision/installer';
 import { sshWorkspaceServerTarget } from './workspace-server/targets';
 
-type RemoteMachineServerOperationsDeps = {
+type HostServerOperationsDeps = {
   scope: Scope;
-  state: RemoteMachineStateModel;
+  state: HostStateModel;
   host: Pick<RemoteHostProbe, 'probe'>;
   installer: Pick<WorkspaceServerInstaller, 'availableVersion' | 'installedVersion' | 'install'>;
   daemon: Pick<RemoteWorkspaceServerDaemon, 'start' | 'stop'>;
@@ -45,12 +45,12 @@ type LatestVersionCacheEntry = {
 const serverReadyRetrySchedule = retrySchedules.sequence([100, 250, 500, 1_000, 2_000]);
 const latestVersionCacheTtlMs = 5 * 60_000;
 
-export class RemoteMachineServerOperations {
+export class HostServerOperations {
   private readonly operations = new Map<string, PendingOperation>();
   private readonly latestVersions = new Map<string, LatestVersionCacheEntry>();
   private readonly clock: Clock;
 
-  constructor(private readonly deps: RemoteMachineServerOperationsDeps) {
+  constructor(private readonly deps: HostServerOperationsDeps) {
     this.clock = deps.clock ?? systemClock;
   }
 
@@ -220,10 +220,7 @@ export class RemoteMachineServerOperations {
     const version = await this.deps.installer.installedVersion(connectionId, layout, signal);
     if (!version) {
       this.deps.state.set(connectionId, { status: 'not-installed' });
-      throw new RemoteMachineServerOperationError(
-        'not-installed',
-        'The workspace server is not installed'
-      );
+      throw new HostServerOperationError('not-installed', 'The workspace server is not installed');
     }
     return { layout, version };
   }
@@ -336,8 +333,8 @@ export class RemoteMachineServerOperations {
   }
 }
 
-class RemoteMachineServerOperationError extends Error {
-  readonly name = 'RemoteMachineServerOperationError';
+class HostServerOperationError extends Error {
+  readonly name = 'HostServerOperationError';
 
   constructor(
     readonly code: string,
@@ -348,7 +345,7 @@ class RemoteMachineServerOperationError extends Error {
 }
 
 function operationFailure(error: unknown): { code: string; message: string } {
-  if (error instanceof RemoteMachineServerOperationError) {
+  if (error instanceof HostServerOperationError) {
     return { code: error.code, message: error.message };
   }
   if (error instanceof WorkspaceServerInstallError) {

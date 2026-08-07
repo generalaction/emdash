@@ -8,7 +8,7 @@ import {
   type Clock,
 } from '@emdash/shared/scheduling';
 import type { SshWorkspaceServerTarget } from '../../../api/targets';
-import type { RemoteMachineStateModel } from '../../state-model';
+import type { HostStateModel } from '../../state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
 import type { WireConnectionManager } from '../connect/wire-connection-manager';
 import { workspaceServerLayout, type WorkspaceServerLayout } from '../layout';
@@ -44,7 +44,7 @@ type WorkspaceServerProvisionerDeps = {
   host: RemoteHostProbe;
   installer: WorkspaceServerInstaller;
   daemon: RemoteWorkspaceServerDaemon;
-  model: RemoteMachineStateModel;
+  model: HostStateModel;
   wire: Pick<WireConnectionManager, 'dialOnce'>;
   devAutoUpdate?: boolean;
   logger?: { warn(message: string, metadata?: Record<string, unknown>): void };

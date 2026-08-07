@@ -4,10 +4,7 @@ import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
 import type { SshService } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { sshConnections } from '@core/services/app-db/node/schema';
-import {
-  createRemoteMachineService,
-  type RemoteMachineService,
-} from '@core/services/hosts/node';
+import { createHostService, type HostService } from '@core/services/hosts/node';
 import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { createSshService } from '@main/bootstrap/core/ssh-service-factory';
 import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
@@ -19,7 +16,7 @@ import type { DatabaseBundle } from './database';
 
 export type InfrastructureBundle = {
   readonly ssh: SshServiceHandle;
-  readonly remoteMachine: RemoteMachineService;
+  readonly hosts: HostService;
 };
 
 export async function bootInfrastructure(database: DatabaseBundle): Promise<InfrastructureBundle> {
@@ -31,19 +28,19 @@ export async function bootInfrastructure(database: DatabaseBundle): Promise<Infr
     telemetry: telemetryService,
   });
   void reconnectIntendedSshConnections(database.db, ssh.ssh);
-  const remoteMachineSettings = await database.appSettings.get('remoteMachine');
+  const hostSettings = await database.appSettings.get('remoteMachine');
   const clientId = await getDesktopClientId();
-  const remoteMachine = createRemoteMachineService({
+  const hosts = createHostService({
     scope: appScope,
     ssh: { manager: ssh.manager, connect: ssh.ssh },
     machineEvents: ssh.machines,
-    installBaseUrl: remoteMachineSettings.installBaseUrl,
-    installCommand: remoteMachineSettings.installCommand ?? undefined,
+    installBaseUrl: hostSettings.installBaseUrl,
+    installCommand: hostSettings.installCommand ?? undefined,
     devAutoUpdate: process.env['EMDASH_WORKSPACE_SERVER_DEV_AUTO_UPDATE'] === '1',
     client: { id: clientId, appVersion: app.getVersion() },
     logger: log,
   });
-  return { ssh, remoteMachine };
+  return { ssh, hosts };
 }
 
 async function reconnectIntendedSshConnections(db: AppDb, ssh: SshService): Promise<void> {
