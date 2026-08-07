@@ -8,9 +8,10 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { Resizable, useResizablePanelRef } from '@emdash/ui/react/primitives';
+import { Resizable, useCollapsiblePanelBinding } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { taskPanelLayoutsMemento } from '@core/features/tasks/contributions/mementos';
 import {
   isTerminalDrawerDragData,
   type TerminalDrawerDragData,
@@ -18,6 +19,7 @@ import {
 import { TerminalsPanel } from '@core/features/terminals/api/browser/task-terminal/terminal-panel';
 import { PaneProvider } from '@core/features/workbench/api/browser/tabs/pane-provider';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { createLayoutStorage } from '@core/primitives/mementos/browser';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
@@ -28,20 +30,34 @@ type ActiveDrag =
   | { kind: 'tab'; tabId: string }
   | { kind: 'terminal'; terminal: TerminalDrawerDragData };
 
+// Drag-to-close threshold for the bottom drawer, in percent of the column.
+// Below ~10% only the drawer tab bar and a row or two of terminal remain
+// visible, so a drag settling there reads as intent to close rather than a
+// resize. Deliberately under the drawer's old 15% resize floor, so every
+// height the previous UI could persist stays a plain restore, never a close.
+const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
+
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
-  const bottomPanelRef = useResizablePanelRef();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
 
-  useEffect(() => {
-    if (taskView.isTerminalDrawerOpen) {
-      bottomPanelRef.current?.expand();
-    } else {
-      bottomPanelRef.current?.collapse();
-    }
-  }, [taskView.isTerminalDrawerOpen, bottomPanelRef]);
+  // One storage facade per composition. TaskMainColumn renders below the task
+  // view's space.isHydrated gate, so synchronous reads are safe by contract.
+  const layoutStorage = useMemo(
+    () => createLayoutStorage(taskView.space, taskPanelLayoutsMemento),
+    [taskView.space]
+  );
+  const drawerBinding = useCollapsiblePanelBinding({
+    storageKey: 'task-main-vertical',
+    storage: layoutStorage,
+    panelIds: ['task-main-content', 'task-terminal-drawer'],
+    collapsiblePanelId: 'task-terminal-drawer',
+    open: taskView.isTerminalDrawerOpen,
+    onCloseRequest: () => taskView.chrome.commands.closeTerminalDrawer(),
+    closeThreshold: TERMINAL_DRAWER_CLOSE_THRESHOLD,
+  });
 
   const handleDragStart = (event: DragStartEvent) => {
     const terminalDragData = event.active.data.current;
@@ -80,29 +96,25 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <Resizable.Group orientation="vertical" id="task-main-vertical">
+      <Resizable.Group orientation="vertical" id="task-main-vertical" {...drawerBinding.groupProps}>
         <Resizable.Panel id="task-main-content" minSize="30%">
           <SplitPaneLayout />
         </Resizable.Panel>
-        <Resizable.Handle hidden={!taskView.isTerminalDrawerOpen} />
-        <Resizable.Panel
-          id="task-terminal-drawer"
-          panelRef={bottomPanelRef}
-          collapsible
-          collapsedSize="0%"
-          defaultSize="25%"
-          minSize="15%"
-          onResize={(_panelSize, _id, prevPanelSize) => {
-            if (prevPanelSize === undefined) return;
-            if (bottomPanelRef.current?.isCollapsed()) {
-              taskView.chrome.commands.closeTerminalDrawer();
-            } else {
-              taskView.chrome.commands.openTerminalDrawer();
-            }
-          }}
-        >
-          <TerminalsPanel />
-        </Resizable.Panel>
+        {/* Closed = panel AND handle unmounted (sync contract: never program
+            the panels). Terminal content survives the unmount because each
+            PTY session's xterm DOM is reparented to the off-screen host, not
+            disposed (see usePty). */}
+        {taskView.isTerminalDrawerOpen && (
+          <>
+            <Resizable.Handle />
+            <Resizable.Panel
+              {...drawerBinding.collapsiblePanelProps}
+              defaultSize={drawerBinding.collapsiblePanelProps.defaultSize ?? '25%'}
+            >
+              <TerminalsPanel />
+            </Resizable.Panel>
+          </>
+        )}
       </Resizable.Group>
       <DragOverlay dropAnimation={null}>
         {activeDrag?.kind === 'tab' ? (
