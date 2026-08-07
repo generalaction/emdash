@@ -24,9 +24,9 @@ import type {
   FileTabResource,
 } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { searchContract } from '@core/features/search/api';
+import { getSearchClient } from '@core/features/search/api/client';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
   countContentSearchOccurrences,
   mergeContentSearchFiles,
@@ -68,11 +68,11 @@ export function FileContentSearchResults({
 
     void (async () => {
       try {
-        const client = await getDesktopWireClient();
+        const client = await getSearchClient();
         if (disposed) return;
         const jobs = createLiveJobReplicaCache(
           searchContract.searchWorkspaceContent,
-          client.search.searchWorkspaceContent
+          client.searchWorkspaceContent
         );
         let lease: Awaited<ReturnType<typeof jobs.start>> | undefined;
         let unsubscribe: (() => void) | undefined;
