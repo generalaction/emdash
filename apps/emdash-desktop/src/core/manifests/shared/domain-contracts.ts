@@ -20,7 +20,6 @@ import { searchContract, searchDomain } from '@core/features/search/api';
 import { skillsContract, skillsDomain } from '@core/features/skills/api';
 import { sourceControlContract, sourceControlDomain } from '@core/features/source-control/api';
 import { tasksDomain, tasksWireContract } from '@core/features/tasks/api';
-import { telemetryContract, telemetryDomain } from '@core/features/telemetry/api';
 import { terminalsContract, terminalsDomain } from '@core/features/terminals/api';
 import { updatesContract, updatesDomain } from '@core/features/updates/api';
 import { desktopHostContract, desktopHostDomain } from '@core/features/workbench/api';
@@ -36,6 +35,7 @@ import {
 } from '@core/features/workspaces/api';
 import { loggingDomain, loggingWireContract } from '@core/primitives/logging/api/wire-contract';
 import { mementosDomain, mementosWireContract } from '@core/primitives/mementos/api';
+import { telemetryContract, telemetryDomain } from '@core/primitives/telemetry/api/wire-contract';
 import { hostsContract, hostsDomain } from '@core/services/hosts/api';
 import { appSettingsContract, appSettingsDomain } from '@core/services/settings/api';
 import { sshContract, sshDomain } from '@core/services/ssh/api';

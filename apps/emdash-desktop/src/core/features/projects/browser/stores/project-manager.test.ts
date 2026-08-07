@@ -100,7 +100,7 @@ vi.mock('@core/features/conversations/browser/acp/acp-chat-panel', () => ({
   AcpChatPanel: () => null,
 }));
 
-vi.mock('@renderer/utils/telemetryClient', () => ({
+vi.mock('@core/primitives/telemetry/browser/telemetry-client', () => ({
   captureTelemetry: vi.fn(),
 }));
 

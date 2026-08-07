@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { viewCatalog, type ViewId } from '@core/manifests/browser/view-catalog';
 import type { NavigationStore } from '@core/primitives/navigation/browser/navigation-store';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 
 type ViewTelemetryEvent = NonNullable<(typeof viewCatalog.defs)[number]['telemetryEvent']>;
 

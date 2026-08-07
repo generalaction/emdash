@@ -7,7 +7,7 @@ import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { getSkillsClient } from '../client';
 
 export function CreateSkillModal({ host = LOCAL_HOST_REF }: { host?: HostRef }) {

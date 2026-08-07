@@ -39,7 +39,7 @@ vi.mock('@core/features/machines/contributions/app-stores', () => ({
   getMachinesStore: () => ({ healthFor: vi.fn(() => ({ status: 'ok' })) }),
 }));
 
-vi.mock('@renderer/utils/telemetry-scope', () => ({
+vi.mock('@core/primitives/telemetry/browser/telemetry-scope', () => ({
   setTelemetryConversationScope: vi.fn(),
 }));
 
