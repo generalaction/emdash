@@ -152,7 +152,7 @@ Use Shared subpaths directly for generic foundations:
   and `retry()`.
 - `@emdash/shared/requests`: request handler composition, timeout, retry,
   in-flight deduplication, and request scheduling.
-- `@emdash/shared/testing`: `ManualClock`, `createDeferred()`, `waitFor()`, and
+- `@emdash/shared/testing`: `createManualClock()`, `deferred()`, `waitFor()`, and
   stub logger helpers.
 - `@emdash/shared/util`: stable utility helpers such as `stableStringify()`.
 
