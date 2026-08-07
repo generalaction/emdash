@@ -147,11 +147,17 @@ function ComboboxItem({
   className,
   children,
   showCheck = true,
+  hoverableWhenDisabled = false,
   ...props
-}: ComboboxPrimitive.Item.Props & { showCheck?: boolean }) {
+}: ComboboxPrimitive.Item.Props & {
+  showCheck?: boolean;
+  /** Keep a disabled item pointer-accessible for hover-only secondary UI. */
+  hoverableWhenDisabled?: boolean;
+}) {
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
+      data-hoverable-when-disabled={hoverableWhenDisabled || undefined}
       className={cx(styles.comboboxItem, className)}
       {...props}
     >

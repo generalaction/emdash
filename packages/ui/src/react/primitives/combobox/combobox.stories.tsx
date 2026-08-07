@@ -115,6 +115,35 @@ export const Disabled: Story = {
   ),
 };
 
+export const HoverableDisabledItem: Story = {
+  render: function Render() {
+    const [hovered, setHovered] = React.useState(false);
+
+    return (
+      <Box className={s.w64}>
+        <Combobox.Root defaultOpen>
+          <Combobox.Input placeholder="Search agents…" showTrigger />
+          <Combobox.Content>
+            <Combobox.List>
+              <Combobox.Item value="installed">Installed agent</Combobox.Item>
+              <Combobox.Item
+                value="uninstalled"
+                disabled
+                hoverableWhenDisabled
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
+              >
+                Uninstalled agent
+              </Combobox.Item>
+            </Combobox.List>
+          </Combobox.Content>
+        </Combobox.Root>
+        <Box>{hovered ? 'Showing uninstalled agent details' : 'Hover the disabled item'}</Box>
+      </Box>
+    );
+  },
+};
+
 export const ContentAtLeastTriggerWidth: Story = {
   render: () => (
     <Box className={s.w48}>

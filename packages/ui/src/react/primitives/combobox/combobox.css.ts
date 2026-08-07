@@ -61,6 +61,10 @@ export const comboboxItem = style([
       '&[data-selected]': { backgroundColor: vars.surfaceSelected },
       '&[data-highlighted]': { color: vars.foreground },
       '&[data-disabled]': { pointerEvents: 'none', opacity: 0.5 },
+      '&[data-disabled][data-hoverable-when-disabled]': {
+        pointerEvents: 'auto',
+        cursor: 'not-allowed',
+      },
     },
   },
 ]);
