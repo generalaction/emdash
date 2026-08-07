@@ -5,8 +5,8 @@ import { NavButtons } from '@core/features/workbench/browser/nav-buttons';
 import { WindowControls } from '@core/features/workbench/browser/window-controls';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
+import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useWorkspaceLayoutContext } from '@core/primitives/workbench-shell/browser/layout-provider';
 
 const platform = detectPlatformContext().os;
 const isMac = platform === 'mac';

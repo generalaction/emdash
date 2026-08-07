@@ -6,7 +6,7 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import {
   getDraggedFilePaths,
   hasDraggedFiles,
-} from '@core/primitives/desktop-runtime/browser/drag-files';
+} from '@core/primitives/drag-files/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';

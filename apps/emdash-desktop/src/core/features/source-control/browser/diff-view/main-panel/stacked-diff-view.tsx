@@ -17,7 +17,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
-import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { StackedDiffPanelStore, type DiffSlotStore } from '../stores/stacked-diff-panel-store';
 import { isMissingFileError } from './missing-file-error';

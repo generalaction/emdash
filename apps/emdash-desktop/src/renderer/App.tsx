@@ -1,26 +1,26 @@
 import { Tooltip } from '@emdash/ui/react/primitives';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
+import { useAccountSession } from '@core/features/account/api/browser/useAccount';
+import { GithubContextProvider } from '@core/features/github/api/browser/github-context-provider';
 import { IntegrationsProvider } from '@core/features/integrations/contributions/browser/integrations-provider';
+import { useLegacyPortStatus } from '@core/features/legacy-port/api/browser/useLegacyPort';
 import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-pool-provider';
+import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
-import { WorkspaceLayoutContextProvider } from '@core/primitives/workbench-shell/browser/layout-provider';
+import { WorkspaceLayoutContextProvider } from '@core/primitives/layouts/react/layout-provider';
+import { queryClient } from '@core/primitives/query/browser/query-client';
 import { RightSidebarProvider } from '@renderer/lib/layout/right-sidebar';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
-import { useAccountSession } from './lib/hooks/useAccount';
-import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalRenderer } from './lib/modal/modal-renderer';
-import { confirmOpenExternalLink } from './lib/open-external-link';
 import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
-import { GithubContextProvider } from './lib/providers/github-context-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
-import { queryClient } from './lib/query-client';
 
 export const HAS_SEEN_ONBOARDING = 'emdash:has-seen-onboarding:v1';
 

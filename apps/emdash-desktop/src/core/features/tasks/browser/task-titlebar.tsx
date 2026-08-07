@@ -46,7 +46,7 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
-import { formatDiffLineCount } from '@core/primitives/git/api/format-diff-line-count';
+import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';

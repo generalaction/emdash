@@ -6,7 +6,7 @@ import {
   getDraggedWorkspaceFile,
   hasDraggedFiles,
   hasDraggedWorkspaceFile,
-} from '@core/primitives/desktop-runtime/browser/drag-files';
+} from '@core/primitives/drag-files/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';
 
 /**

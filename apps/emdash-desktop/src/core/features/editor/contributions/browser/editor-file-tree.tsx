@@ -63,7 +63,7 @@ import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import {
   clearDraggedWorkspaceFile,
   setDraggedWorkspaceFile,
-} from '@core/primitives/desktop-runtime/browser/drag-files';
+} from '@core/primitives/drag-files/browser/drag-files';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';

@@ -25,7 +25,7 @@ import {
 } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
-import { getDraggedWorkspaceFile } from '@core/primitives/desktop-runtime/browser/drag-files';
+import { getDraggedWorkspaceFile } from '@core/primitives/drag-files/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';

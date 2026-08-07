@@ -27,13 +27,13 @@ import {
   agentSupportsInitialPromptDelivery,
   agentSupportsAutoApprove,
 } from '@core/primitives/agents/api';
-import { useLocalStorage } from '@core/primitives/hooks/browser/useLocalStorage';
 import {
   extractIssueMentionTargets,
   issueMentionToken,
   parseIssueMentionToken,
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 type RenderMentionIcon = NonNullable<Parameters<typeof ChatComposer>[0]['renderMentionIcon']>;

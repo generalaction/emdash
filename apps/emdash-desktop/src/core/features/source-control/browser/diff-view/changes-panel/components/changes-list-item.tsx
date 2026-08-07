@@ -4,7 +4,7 @@ import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'l
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { splitPath } from '@core/features/tasks/api/browser/utils';
-import { formatDiffLineCount } from '@core/primitives/git/api/format-diff-line-count';
+import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { displayPathForChange } from './changes-tree-utils';
 
