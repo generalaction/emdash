@@ -325,9 +325,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 size="sm"
                 icon
                 pressed={taskView.isTerminalDrawerOpen}
-                onPressedChange={() =>
-                  taskView.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen)
-                }
+                onPressedChange={() => taskView.chrome.commands.toggleTerminalDrawer()}
               >
                 <Terminal className="size-3.5" />
               </Toggle>
@@ -342,10 +340,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             value={taskView.isSidebarCollapsed ? [] : [taskView.sidebarTab]}
             onValueChange={([tab]) => {
               if (!tab) {
-                taskView.setSidebarCollapsed(true);
+                taskView.chrome.commands.collapseSidebar();
               } else {
-                taskView.setSidebarTab(tab as SidebarTab);
-                taskView.setSidebarCollapsed(false);
+                taskView.chrome.commands.openSidebarTab(tab as SidebarTab);
               }
             }}
             className="bg-transparent"

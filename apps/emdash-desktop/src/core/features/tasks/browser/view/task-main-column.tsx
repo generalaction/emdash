@@ -94,7 +94,11 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
           minSize="15%"
           onResize={(_panelSize, _id, prevPanelSize) => {
             if (prevPanelSize === undefined) return;
-            taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed());
+            if (bottomPanelRef.current?.isCollapsed()) {
+              taskView.chrome.commands.closeTerminalDrawer();
+            } else {
+              taskView.chrome.commands.openTerminalDrawer();
+            }
           }}
         >
           <TerminalsPanel />

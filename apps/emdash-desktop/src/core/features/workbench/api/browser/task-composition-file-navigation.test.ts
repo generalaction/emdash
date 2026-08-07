@@ -4,25 +4,21 @@ import { TaskComposition } from './task-composition';
 function createTaskCompositionHarness() {
   const open = vi.fn();
   const requestRevealFile = vi.fn();
-  const setFocusedRegion = vi.fn();
-  const setSidebarCollapsed = vi.fn();
-  const setSidebarTab = vi.fn();
+  const focusRegion = vi.fn();
+  const openSidebarTab = vi.fn();
   const taskView = Object.create(TaskComposition.prototype) as TaskComposition;
 
   Object.defineProperties(taskView, {
     editorView: { value: { requestRevealFile } },
     paneLayout: { value: { open } },
-    setFocusedRegion: { value: setFocusedRegion },
-    setSidebarCollapsed: { value: setSidebarCollapsed },
-    setSidebarTab: { value: setSidebarTab },
+    chrome: { value: { commands: { focusRegion, openSidebarTab } } },
   });
 
   return {
     open,
     requestRevealFile,
-    setFocusedRegion,
-    setSidebarCollapsed,
-    setSidebarTab,
+    focusRegion,
+    openSidebarTab,
     taskView,
   };
 }
@@ -38,9 +34,8 @@ describe('TaskComposition workspace file navigation', () => {
       { path: '/repo/src/chat-link.ts' },
       { preview: false, target: 'right' }
     );
-    expect(harness.setFocusedRegion).toHaveBeenCalledWith('main');
-    expect(harness.setSidebarTab).toHaveBeenCalledWith('files');
-    expect(harness.setSidebarCollapsed).toHaveBeenCalledWith(false);
+    expect(harness.focusRegion).toHaveBeenCalledWith('main');
+    expect(harness.openSidebarTab).toHaveBeenCalledWith('files');
     expect(harness.requestRevealFile).toHaveBeenCalledWith('/repo/src/chat-link.ts');
   });
 
@@ -50,8 +45,7 @@ describe('TaskComposition workspace file navigation', () => {
     harness.taskView.revealWorkspaceFile('/repo/src/already-open.ts');
 
     expect(harness.open).not.toHaveBeenCalled();
-    expect(harness.setSidebarTab).toHaveBeenCalledWith('files');
-    expect(harness.setSidebarCollapsed).toHaveBeenCalledWith(false);
+    expect(harness.openSidebarTab).toHaveBeenCalledWith('files');
     expect(harness.requestRevealFile).toHaveBeenCalledWith('/repo/src/already-open.ts');
   });
 });

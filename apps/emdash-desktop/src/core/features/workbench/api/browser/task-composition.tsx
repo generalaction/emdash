@@ -11,18 +11,21 @@ import {
   gitCheckoutStoreToken,
 } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { PreviewServerStore } from '@core/features/tasks/api/browser/stores/preview-server-store';
+import {
+  taskChromeStore,
+  type TaskChromeStore,
+  type TaskFocusedRegion,
+} from '@core/features/tasks/api/browser/stores/task-chrome-store';
 import { TaskNavigationParticipant } from '@core/features/tasks/api/browser/stores/task-navigation-participant';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
 import {
-  taskChromeMemento,
   taskDiffPreferencesMemento,
   taskDiffSelectionMemento,
   taskEditorTreeMemento,
   taskPaneLayoutMemento,
   taskTerminalSelectionMemento,
   type TabDescriptor,
-  type TaskChromeState,
   type TaskDiffPreferencesState,
   type TaskDiffSelectionState,
   type TaskPaneLayoutState,
@@ -38,6 +41,7 @@ import { taskTabView } from '@core/features/workbench/api/browser/task-tab-regis
 import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { createChromeStore } from '@core/primitives/chrome-stores/browser';
 import {
   sanitizedMemento,
   type MementoHandle,
@@ -66,8 +70,9 @@ export type RendererKind =
  * attached to TaskStore.
  */
 export class TaskComposition {
-  focusedRegion: 'main' | 'bottom';
   readonly space: SubjectSpace<'task'>;
+  /** Task chrome command store — the only mutation path for chrome facts. */
+  readonly chrome: TaskChromeStore;
   readonly paneLayout: ReturnType<typeof taskTabView.createPaneLayoutStore>;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: EditorViewStore;
@@ -89,7 +94,6 @@ export class TaskComposition {
   private _paneHydrated = false;
   private _initializing = false;
 
-  private readonly _chromeHandle: MementoHandle<TaskChromeState>;
   private readonly _terminalSelectionHandle: MementoHandle<TaskTerminalSelectionState>;
   private readonly _diffPreferencesHandle: MementoHandle<TaskDiffPreferencesState>;
   private readonly _diffSelectionHandle: MementoHandle<TaskDiffSelectionState>;
@@ -103,9 +107,8 @@ export class TaskComposition {
     private readonly _conversations: ConversationManagerStore,
     private readonly _gitRepository: GitRepositoryStore
   ) {
-    this.focusedRegion = 'main';
     this.space = getMementoClient().subject(taskSubject({ taskId }));
-    this._chromeHandle = this.space.handle(taskChromeMemento);
+    this.chrome = createChromeStore(taskChromeStore, this.space);
     this._terminalSelectionHandle = sanitizedMemento(
       this.space.handle(taskTerminalSelectionMemento),
       {
@@ -165,10 +168,7 @@ export class TaskComposition {
 
     makeAutoObservable<
       TaskComposition,
-      | '_chromeHandle'
-      | '_diffPreferencesHandle'
-      | '_diffSelectionHandle'
-      | '_terminalSelectionHandle'
+      '_diffPreferencesHandle' | '_diffSelectionHandle' | '_terminalSelectionHandle'
     >(this, {
       paneLayout: false,
       terminalTabs: false,
@@ -176,7 +176,7 @@ export class TaskComposition {
       diffView: observable.ref,
       activeRenderer: computed,
       space: false,
-      _chromeHandle: false,
+      chrome: false,
       _terminalSelectionHandle: false,
       _diffPreferencesHandle: false,
       _diffSelectionHandle: false,
@@ -199,20 +199,30 @@ export class TaskComposition {
         }),
         () => this.syncWorkspace(),
         { fireImmediately: true }
+      ),
+      // focusedRegion is mutated only inside chrome commands; the analytics
+      // transition observes the ephemeral field so every path is reported.
+      reaction(
+        () => this.chrome.ephemeral.focusedRegion,
+        (region) => focusTracker.transition({ focusedRegion: region }, 'region_switch')
       )
     );
   }
 
   get sidebarTab(): SidebarTab {
-    return this._chromeHandle.value.sidebarTab;
+    return this.chrome.state.sidebarTab;
   }
 
   get isSidebarCollapsed(): boolean {
-    return this._chromeHandle.value.sidebarCollapsed;
+    return this.chrome.state.sidebarCollapsed;
   }
 
   get isTerminalDrawerOpen(): boolean {
-    return this._chromeHandle.value.terminalDrawerOpen;
+    return this.chrome.state.terminalDrawerOpen;
+  }
+
+  get focusedRegion(): TaskFocusedRegion {
+    return this.chrome.ephemeral.focusedRegion;
   }
 
   get terminalDrawerActiveItem(): TerminalDrawerActiveItem | undefined {
@@ -385,7 +395,7 @@ export class TaskComposition {
             (previous === undefined || previous.terminalCount > 0 || !previous.isLoaded)
           ) {
             runInAction(() => {
-              this.setTerminalDrawerOpen(false);
+              this.chrome.commands.closeTerminalDrawer();
               this._terminalSelectionHandle.update((current) => ({
                 ...current,
                 activeItem: undefined,
@@ -468,33 +478,16 @@ export class TaskComposition {
   }
 
   revealWorkspaceFile(path: string): void {
-    this.setSidebarTab('files');
-    this.setSidebarCollapsed(false);
+    this.chrome.commands.openSidebarTab('files');
     this.editorView.requestRevealFile(path);
-  }
-
-  setSidebarTab(value: SidebarTab): void {
-    this._chromeHandle.update((current) => ({ ...current, sidebarTab: value }));
-  }
-
-  setSidebarCollapsed(collapsed: boolean): void {
-    this._chromeHandle.update((current) => ({ ...current, sidebarCollapsed: collapsed }));
   }
 
   get isChangesPanelVisible(): boolean {
     return !this.isSidebarCollapsed && this.sidebarTab === 'changes';
   }
 
-  setFocusedRegion(region: 'main' | 'bottom'): void {
-    if (this.focusedRegion !== region) {
-      focusTracker.transition({ focusedRegion: region }, 'region_switch');
-    }
-    this.focusedRegion = region;
-  }
-
-  setTerminalDrawerOpen(open: boolean): void {
-    this._chromeHandle.update((current) => ({ ...current, terminalDrawerOpen: open }));
-    this.setFocusedRegion(open ? 'bottom' : 'main');
+  setFocusedRegion(region: TaskFocusedRegion): void {
+    this.chrome.commands.focusRegion(region);
   }
 
   setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
@@ -502,8 +495,7 @@ export class TaskComposition {
   }
 
   async openNewTerminal(shell?: TerminalShellId): Promise<string | undefined> {
-    this._chromeHandle.update((current) => ({ ...current, terminalDrawerOpen: true }));
-    this.setFocusedRegion('bottom');
+    this.chrome.commands.openTerminalDrawer();
     const terminalId = await this.createDefaultTerminal(shell);
     if (!terminalId) return undefined;
     runInAction(() => {

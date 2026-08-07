@@ -286,9 +286,10 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
           maxSize="50%"
           collapsible
           collapsedSize={SIDEBAR_COLLAPSED_SIZE}
-          onResize={() =>
-            taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
-          }
+          onResize={() => {
+            if (sidebarPanelRef.current?.isCollapsed()) taskView.chrome.commands.collapseSidebar();
+            else taskView.chrome.commands.expandSidebar();
+          }}
         >
           <TaskSidebar />
         </Resizable.Panel>

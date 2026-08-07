@@ -31,7 +31,7 @@ export const LifecycleScriptPill = observer(function LifecycleScriptPill() {
       onClick={() => {
         scripts.setActiveTab(script.data.id);
         taskView.setTerminalDrawerActiveItem({ kind: 'script', id: script.data.id });
-        taskView.setTerminalDrawerOpen(true);
+        taskView.chrome.commands.openTerminalDrawer();
       }}
     >
       {failed ? <ScrollText className="size-3 shrink-0" /> : <Spinner size="sm" />}

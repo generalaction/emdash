@@ -119,7 +119,10 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
           taskView
             ? {
                 isCollapsed: taskView.isSidebarCollapsed,
-                setCollapsed: (collapsed) => taskView.setSidebarCollapsed(collapsed),
+                setCollapsed: (collapsed) => {
+                  if (collapsed) taskView.chrome.commands.collapseSidebar();
+                  else taskView.chrome.commands.expandSidebar();
+                },
               }
             : undefined
         );
