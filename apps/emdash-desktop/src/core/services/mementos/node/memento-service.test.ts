@@ -1,4 +1,6 @@
 import { createScope } from '@emdash/shared/concurrency';
+import { waitFor } from '@emdash/shared/testing';
+import type { LiveSource } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineSubject } from '@core/primitives/subjects/api';
@@ -75,11 +77,15 @@ describe('MementoService', () => {
       success: true,
       data: { deleted: 2 },
     });
-    expect(
-      await Promise.all(
-        states.map((state) => Promise.resolve(state.snapshot()).then(({ data }) => data))
-      )
-    ).toEqual([null, null, { version: '1', data: '{}', updatedAt: 1_000 }]);
+    // Deletes invalidate live mementos through pokes, so convergence is async.
+    await waitFor(async () =>
+      (await snapshotData(states.slice(0, 2))).every((data) => data === null)
+    );
+    expect(await snapshotData(states)).toEqual([
+      null,
+      null,
+      { version: '1', data: '{}', updatedAt: 1_000 },
+    ]);
 
     await Promise.all(leases.map((lease) => lease.release()));
   });
@@ -101,11 +107,8 @@ describe('MementoService', () => {
     }
 
     expect(service.deleteAll()).toEqual({ success: true, data: { deleted: 2 } });
-    expect(
-      await Promise.all(
-        states.map((state) => Promise.resolve(state.snapshot()).then(({ data }) => data))
-      )
-    ).toEqual([null, null]);
+    await waitFor(async () => (await snapshotData(states)).every((data) => data === null));
+    expect(await snapshotData(states)).toEqual([null, null]);
 
     await Promise.all(leases.map((lease) => lease.release()));
   });
@@ -131,11 +134,8 @@ describe('MementoService', () => {
       success: true,
       data: { deleted: 1 },
     });
-    expect(
-      await Promise.all(
-        states.map((state) => Promise.resolve(state.snapshot()).then(({ data }) => data))
-      )
-    ).toEqual([
+    await waitFor(async () => (await snapshotData([states[1]!]))[0] === null);
+    expect(await snapshotData(states)).toEqual([
       { version: '1', data: '{}', updatedAt: 1_000 },
       null,
       { version: '1', data: '{}', updatedAt: 1_000 },
@@ -144,6 +144,10 @@ describe('MementoService', () => {
     await Promise.all(leases.map((lease) => lease.release()));
   });
 });
+
+async function snapshotData(states: readonly LiveSource[]): Promise<unknown[]> {
+  return await Promise.all(states.map(async (state) => (await state.snapshot()).data));
+}
 
 async function createService(): Promise<MementoService> {
   const handle = await mementosSqliteStore.openTemp();

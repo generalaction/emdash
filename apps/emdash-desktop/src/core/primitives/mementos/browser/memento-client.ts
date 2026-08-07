@@ -4,6 +4,7 @@ import {
   observe,
   optimistic,
   remote,
+  snapshot,
   whenReady,
   type OptimisticView,
   type RemoteModel,
@@ -332,6 +333,20 @@ class PersistentMementoModel {
     return this.loading;
   }
 
+  /**
+   * Pulls the view's current snapshot into the MobX mirror synchronously. The
+   * state kernel delivers observer notifications a microtask later, so callers
+   * that just changed the view (e.g. applied an optimistic patch) use this to
+   * keep dependent observables from reading a stale value in between.
+   */
+  syncFromView(): void {
+    const current = snapshot(this.view);
+    runInAction(() => {
+      this.value = current.value;
+      this.loading = current.status === 'loading';
+    });
+  }
+
   async dispose(): Promise<void> {
     await this.scope.dispose();
   }
@@ -461,13 +476,24 @@ class PersistentMementoHandle<TValue> implements MementoHandle<TValue> {
 
   private async flushDirty(dirty: DirtyValue<TValue>): Promise<void> {
     try {
-      const pendingInvocation = this.lease.model.member.mutations.save(dirty.row);
+      // view.run applies the row as a synchronous optimistic patch; syncing
+      // the mirror before dropping the local draft keeps the observable value
+      // from flapping back to the stale row while the write is in flight.
+      const pendingResult = this.lease.model.view.run(
+        this.lease.model.member.mutations.save,
+        dirty.row,
+        (_current, row) => row
+      );
+      this.lease.model.syncFromView();
+      runInAction(() => {
+        const patchVisible = this.lease.model.value?.data === dirty.row.data;
+        if (this.dirty?.revision === dirty.revision && patchVisible) this.dirty = undefined;
+      });
+      const result = await pendingResult;
+      if (!result.success) throw new Error(result.error.message);
       runInAction(() => {
         if (this.dirty?.revision === dirty.revision) this.dirty = undefined;
       });
-      const invocation = await pendingInvocation;
-      if (!invocation.result.success) throw new Error(invocation.result.error.message);
-      await invocation.settled;
     } catch (error) {
       runInAction(() => {
         if (!this.dirty && this.revision === dirty.revision) this.dirty = dirty;
