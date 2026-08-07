@@ -2,7 +2,10 @@ import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
-import { BranchSelector, type BranchLabelRemoteMode } from './branch-selector';
+import {
+  BranchSelector,
+  type BranchLabelRemoteMode,
+} from '@core/features/source-control/browser/components/branch-selector';
 
 export interface ProjectBranchSelectorProps {
   projectId: string;

@@ -12,6 +12,14 @@ import {
   inspectProjectPath,
 } from '@core/features/source-control/api/browser/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { GitStatusSection } from '@core/features/source-control/browser/diff-view/changes-panel/git-status-section';
+import {
+  SECTION_HEADER_HEIGHT,
+  usePanelLayout,
+} from '@core/features/source-control/browser/diff-view/changes-panel/hooks/use-panel-layout';
+import { PullRequestsSection } from '@core/features/source-control/browser/diff-view/changes-panel/pr-section';
+import { StagedSection } from '@core/features/source-control/browser/diff-view/changes-panel/staged-section';
+import { UnstagedSection } from '@core/features/source-control/browser/diff-view/changes-panel/unstaged-section';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
@@ -20,14 +28,6 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import type { InitializeRepositoryError } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { GitStatusSection } from '../../../../browser/diff-view/changes-panel/git-status-section';
-import {
-  SECTION_HEADER_HEIGHT,
-  usePanelLayout,
-} from '../../../../browser/diff-view/changes-panel/hooks/use-panel-layout';
-import { PullRequestsSection } from '../../../../browser/diff-view/changes-panel/pr-section';
-import { StagedSection } from '../../../../browser/diff-view/changes-panel/staged-section';
-import { UnstagedSection } from '../../../../browser/diff-view/changes-panel/unstaged-section';
 
 export const ChangesPanel = observer(function ChangesPanel() {
   const { projectId } = useTaskViewContext();

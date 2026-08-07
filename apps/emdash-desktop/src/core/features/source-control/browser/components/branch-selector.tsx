@@ -8,18 +8,21 @@ import {
 } from '@emdash/ui/react/primitives';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
-import { cn } from '@core/primitives/styling/browser/cn';
 import {
   filterBranchesForPicker,
   getBranchLabel,
   prioritizeExactBranchMatches,
   type BranchLabelRemoteMode,
-} from './branch-selector-utils';
-import { RemoteSelectContent } from './remote-select-content';
+} from '@core/features/source-control/api/browser/components/branch-selector-utils';
+import { RemoteSelectContent } from '@core/features/source-control/contributions/browser/remote-select-content';
+import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 type BranchSelectorTab = 'local' | 'remote';
-export { getBranchLabel, type BranchLabelRemoteMode } from './branch-selector-utils';
+export {
+  getBranchLabel,
+  type BranchLabelRemoteMode,
+} from '@core/features/source-control/api/browser/components/branch-selector-utils';
 
 interface BranchSelectorProps {
   branches: GitBranchRef[];
