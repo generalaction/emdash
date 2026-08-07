@@ -3,7 +3,7 @@ import type { BrowserWindow } from 'electron';
 import type {
   ActiveSessionSummary,
   DesktopHostEvent,
-} from '@core/features/workbench/api/host-contract';
+} from '@core/primitives/desktop-host/api/host-contract';
 import { log } from '@main/lib/logger';
 
 const CONFIRMATION_DEADLINE_MS = 60_000;

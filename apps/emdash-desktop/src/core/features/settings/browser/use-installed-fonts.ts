@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 
 const dedupeAndSort = (fonts: string[]): string[] =>
   Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean))).sort((a, b) =>

@@ -19,7 +19,7 @@ vi.mock('./use-linked-issue-urls', () => ({
   getLinkedIssueMap: () => new Map(),
 }));
 
-vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   openExternal: vi.fn(),
 }));
 

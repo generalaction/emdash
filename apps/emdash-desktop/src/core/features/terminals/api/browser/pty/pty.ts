@@ -5,7 +5,7 @@ import {
   isPrimaryMouseButton,
 } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
-import { copyTextToClipboard } from '@core/features/workbench/api/browser/host-client';
+import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-client';
 import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { log } from '@core/primitives/logging/browser/logger';
 import { cssColorToHex, cssVar } from '@core/primitives/styling/browser/cssVars';

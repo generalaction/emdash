@@ -27,7 +27,7 @@ import {
 import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';

@@ -22,7 +22,7 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   }),
 }));
 
-vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   getHostClient: async () => ({
     checkInstalledApps: mocks.checkInstalledApps,
     getPlatform: mocks.getPlatform,

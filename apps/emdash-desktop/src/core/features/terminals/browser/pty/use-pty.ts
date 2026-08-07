@@ -6,7 +6,7 @@ import type { FrontendPty, SessionTheme } from '@core/features/terminals/api/bro
 import { TERMINAL_PADDING_PX } from '@core/features/terminals/api/browser/pty/pty';
 import { measureDimensions } from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
 import type { AppSettings } from '@core/services/settings/api';

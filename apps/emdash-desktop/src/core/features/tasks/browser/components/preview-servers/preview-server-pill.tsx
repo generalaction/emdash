@@ -12,7 +12,7 @@ import { observer } from 'mobx-react-lite';
 import {
   copyTextToClipboard,
   openExternal,
-} from '@core/features/workbench/api/browser/host-client';
+} from '@core/primitives/desktop-host/browser/host-client';
 import {
   usePreviewServers,
   useTaskComposition,

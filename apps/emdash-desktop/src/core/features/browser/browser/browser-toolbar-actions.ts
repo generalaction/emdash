@@ -1,6 +1,6 @@
 import { toast } from '@emdash/ui/react/primitives';
 import { getBrowserClient } from '@core/features/browser/api/browser/client';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
 import {
   normalizeBrowserUrl,

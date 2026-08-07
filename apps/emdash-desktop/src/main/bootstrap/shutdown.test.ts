@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   ActiveSessionSummary,
   DesktopHostEvent,
-} from '@core/features/workbench/api/host-contract';
+} from '@core/primitives/desktop-host/api/host-contract';
 import * as databaseInstance from '@main/db/instance';
 import {
   createShutdownCoordinator,

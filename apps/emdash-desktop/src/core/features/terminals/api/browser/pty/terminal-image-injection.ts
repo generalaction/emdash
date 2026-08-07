@@ -2,7 +2,7 @@ import {
   isHeicLikeFile,
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { log } from '@core/primitives/logging/browser/logger';
 
 const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;

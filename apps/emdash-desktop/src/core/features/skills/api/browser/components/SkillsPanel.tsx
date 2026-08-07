@@ -1,7 +1,7 @@
 import { LOCAL_HOST_REF, sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import { useCallback, useState } from 'react';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSkills } from '../../../browser/components/useSkills';
 import { SkillsList } from './SkillsList';

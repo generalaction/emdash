@@ -47,7 +47,7 @@ import { gitCheckoutStoreToken } from '@core/features/source-control/contributio
 import {
   copyTextToClipboard,
   getHostClient,
-} from '@core/features/workbench/api/browser/host-client';
+} from '@core/primitives/desktop-host/browser/host-client';
 import {
   useTaskComposition,
   useWorkspace,

@@ -1,6 +1,6 @@
 import type { ContractClient } from '@emdash/wire/rpc';
 import { domainClient } from '@core/primitives/wire/browser/connection';
-import { desktopHostContract, desktopHostDomain } from '../host-contract';
+import { desktopHostContract, desktopHostDomain } from '../api/host-contract';
 
 export type HostClient = ContractClient<typeof desktopHostContract>;
 

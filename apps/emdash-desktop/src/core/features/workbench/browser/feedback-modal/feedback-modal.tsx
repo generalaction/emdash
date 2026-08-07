@@ -12,7 +12,7 @@ import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';

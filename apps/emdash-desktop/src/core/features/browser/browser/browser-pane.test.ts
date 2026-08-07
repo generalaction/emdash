@@ -25,7 +25,7 @@ vi.mock('@core/features/browser/api/browser/client', () => ({
   getBrowserClient: async () => browserRpc,
 }));
 
-vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   getHostClient: async () => ({
     events: {
       subscribe: vi.fn(async () => () => {}),

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { resolveDroppedFile } from '@core/features/terminals/api/browser/pty/terminal-image-injection';
 import { formatTerminalImagePaths } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import {
   getDraggedWorkspaceFile,
   hasDraggedFiles,
