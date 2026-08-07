@@ -46,12 +46,44 @@
     "typescript/no-useless-default-assignment": "off",
     "typescript/restrict-template-expressions": "off",
     "typescript/unbound-method": "off",
+    "emdash/core-host-boundaries": "error",
     "emdash/core-module-boundaries": "error",
     "emdash/no-dynamic-imports": "error"
   },
   "overrides": [
     {
-      "files": ["src/**/*.{ts,tsx}"],
+      "files": ["apps/emdash-desktop/src/core/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@core/services/app-db/node/schema",
+                "importNames": ["workspaces"],
+                "message": "The Workspace Registry is the sole writer. Import workspaceRegistryTable/liveWorkspaces from @core/features/workspaces/api/node/registry."
+              },
+              {
+                "name": "@core/services/app-db/node/schema",
+                "importNames": ["conversations"],
+                "message": "The Conversation Registry is the sole writer. Import conversationRegistryTable/liveConversations from @core/features/conversations/api/node/registry."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "apps/emdash-desktop/src/core/features/workspaces/api/node/registry/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/core/features/conversations/api/node/registry/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["apps/emdash-desktop/src/**/*.{ts,tsx}"],
       "rules": {
         "typescript/no-floating-promises": "warn",
         "typescript/no-misused-promises": [
@@ -67,19 +99,16 @@
     },
     {
       "files": [
-        "src/entry/**/*.{ts,tsx}",
-        "src/main/**/*.{ts,tsx}",
-        "src/renderer/**/*.{ts,tsx}"
+        "apps/emdash-desktop/src/entry/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/renderer/**/*.{ts,tsx}"
       ],
       "rules": {
         "emdash/no-tooling-imports": "error"
       }
     },
     {
-      "files": [
-        "src/main/**/*.{ts,tsx}",
-        "apps/emdash-desktop/src/main/**/*.{ts,tsx}"
-      ],
+      "files": ["apps/emdash-desktop/src/main/**/*.{ts,tsx}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -96,11 +125,6 @@
     },
     {
       "files": [
-        "src/main/host/**/*.{ts,tsx}",
-        "src/main/gateway/**/*.{ts,tsx}",
-        "src/main/bootstrap/**/*.{ts,tsx}",
-        "src/main/core/**/*.{ts,tsx}",
-        "src/main/db/**/*.{ts,tsx}",
         "apps/emdash-desktop/src/main/host/**/*.{ts,tsx}",
         "apps/emdash-desktop/src/main/gateway/**/*.{ts,tsx}",
         "apps/emdash-desktop/src/main/bootstrap/**/*.{ts,tsx}",
@@ -109,6 +133,38 @@
       ],
       "rules": {
         "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["apps/emdash-desktop/src/renderer/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@emdash/core/services/host-dependencies/api",
+                  "@emdash/core/services/host-dependencies/api/*"
+                ],
+                "message": "Import dependency types from @core/primitives/agents/api instead of @emdash/core/services/host-dependencies/api*."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "apps/emdash-desktop/src/entry/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/bootstrap/**/*.{ts,tsx}",
+        "apps/emdash-desktop/src/main/host/recovery/**/*.{ts,tsx}",
+        "apps/emdash-desktop/scripts/**",
+        "apps/workspace-server/scripts/**",
+        "packages/ui/src/react/components/markdown/highlight.ts"
+      ],
+      "rules": {
+        "emdash/no-dynamic-imports": "off"
       }
     },
     {

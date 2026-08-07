@@ -26,7 +26,17 @@ function normalizeEntry(entry, repoRoot) {
   );
 }
 
+/**
+ * When set, boundary rules report allowlisted violations too. The allowlist
+ * ratchet (tooling/oxlint/scripts/check-allowlists.mjs) uses this to compare
+ * the full violation set against the allowlist files.
+ */
+export function isBoundaryAllowlistingDisabled(env = process.env) {
+  return env.EMDASH_DISABLE_BOUNDARY_ALLOWLISTS === '1';
+}
+
 export function loadBoundaryAllowlists(allowlistPath = DEFAULT_BOUNDARY_ALLOWLIST_PATH) {
+  if (isBoundaryAllowlistingDisabled()) return EMPTY_ALLOWLISTS;
   try {
     const parsed = JSON.parse(fs.readFileSync(allowlistPath, 'utf8'));
     return {
