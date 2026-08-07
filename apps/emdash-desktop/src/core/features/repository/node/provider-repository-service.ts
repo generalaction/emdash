@@ -1,4 +1,4 @@
-import { err, Result } from '@emdash/shared/result';
+import { err, Result } from '@emdash/shared';
 import { match } from 'ts-pattern';
 import { githubRepositoryResolver } from '@core/features/github/api/node/services/github-repository-resolver';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';

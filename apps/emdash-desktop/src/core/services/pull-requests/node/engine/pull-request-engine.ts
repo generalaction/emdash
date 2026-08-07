@@ -9,7 +9,7 @@ import {
   type RateGate,
   type RequestScheduler,
 } from '@emdash/shared/requests';
-import { err, ok, type Result } from '@emdash/shared/result';
+import { err, ok, type Result } from '@emdash/shared';
 import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { Octokit } from '@octokit/rest';

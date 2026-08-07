@@ -1,5 +1,4 @@
-import { err, ok, toSerializedError, type Result } from '@emdash/shared';
-import { Result as ResultUtil } from '@emdash/shared/result';
+import { err, ok, Result as ResultUtil, toSerializedError, type Result } from '@emdash/shared';
 import {
   type AccountNotSignedInError,
   type AccountSessionPersistenceError,

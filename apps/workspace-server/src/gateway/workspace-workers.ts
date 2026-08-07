@@ -36,7 +36,7 @@ import {
 import { pluginRegistry } from '@emdash/plugins/agents';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
-import { ok } from '@emdash/shared/result';
+import { ok } from '@emdash/shared';
 import { createController, type ContractClient } from '@emdash/wire/rpc';
 import { createWireWorkerHost } from '@emdash/wire/worker';
 import { childProcessSpawner } from '@emdash/wire/worker/node';

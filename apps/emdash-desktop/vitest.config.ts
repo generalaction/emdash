@@ -56,7 +56,6 @@ const alias = {
   '@emdash/shared/perf': resolve(__dirname, '../../packages/shared/src/perf/index.ts'),
   '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
   '@emdash/shared/requests': resolve(__dirname, '../../packages/shared/src/requests/index.ts'),
-  '@emdash/shared/result': resolve(__dirname, '../../packages/shared/src/result/index.ts'),
   '@emdash/shared/scheduling': resolve(__dirname, '../../packages/shared/src/scheduling/index.ts'),
   '@emdash/shared/concurrency': resolve(
     __dirname,

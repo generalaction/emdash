@@ -63,7 +63,6 @@ const workspaceAliases = {
   '@emdash/shared/markdown': resolve('../../packages/shared/src/markdown/index.ts'),
   '@emdash/shared/plugins': resolve('../../packages/shared/src/plugins/index.ts'),
   '@emdash/shared/requests': resolve('../../packages/shared/src/requests/index.ts'),
-  '@emdash/shared/result': resolve('../../packages/shared/src/result/index.ts'),
   '@emdash/shared/scheduling': resolve('../../packages/shared/src/scheduling/index.ts'),
   '@emdash/shared/concurrency': resolve('../../packages/shared/src/concurrency/index.ts'),
   '@emdash/shared/util': resolve('../../packages/shared/src/util/index.ts'),
