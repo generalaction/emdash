@@ -41,7 +41,9 @@ export function isBoundaryAllowlistingDisabled(env = process.env) {
  * Loads the boundary allowlists. A category key that is absent from the
  * allowlist file is valid and means "no exceptions": the missing key is not
  * synthesized, `isBoundaryFileAllowlisted` returns false for it, and every
- * violation of that boundary is a hard lint error.
+ * violation of that boundary is a hard lint error. A missing allowlist file
+ * means the same for every boundary category (core-boundaries.json was
+ * deleted once all core boundary exceptions were drained).
  */
 export function loadBoundaryAllowlists(allowlistPath = DEFAULT_BOUNDARY_ALLOWLIST_PATH) {
   if (isBoundaryAllowlistingDisabled()) return EMPTY_ALLOWLISTS;

@@ -11,7 +11,7 @@ import { useConfirmDeleteProject } from '@core/features/projects/contributions/b
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';

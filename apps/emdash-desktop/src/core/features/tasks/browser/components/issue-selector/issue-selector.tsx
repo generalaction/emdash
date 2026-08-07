@@ -10,7 +10,7 @@ import {
 import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';

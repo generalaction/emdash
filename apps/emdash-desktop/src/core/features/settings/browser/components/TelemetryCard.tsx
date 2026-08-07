@@ -1,8 +1,8 @@
 import { Button, Switch } from '@emdash/ui/react/primitives';
 import { ArrowUpRight } from 'lucide-react';
 import React from 'react';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { useTelemetryConsent } from '@core/primitives/telemetry/browser/useTelemetryConsent';
 import { SettingRow } from './SettingRow';

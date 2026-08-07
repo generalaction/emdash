@@ -23,7 +23,7 @@ import {
   PaneSizingContextProvider,
   usePaneSizingContext,
 } from '@core/features/terminals/contributions/browser/pty/pane-sizing-context';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
 import { getDraggedWorkspaceFile } from '@core/primitives/drag-files/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';

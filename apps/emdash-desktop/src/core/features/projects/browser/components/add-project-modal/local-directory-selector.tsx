@@ -1,6 +1,6 @@
 import { DirectoryField as DirectoryFieldPrimitive } from '@emdash/ui/react/primitives';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { type Strategy } from './add-project-modal';
 import { type ProjectDirectoryPickerClient } from './project-directory-picker';
 

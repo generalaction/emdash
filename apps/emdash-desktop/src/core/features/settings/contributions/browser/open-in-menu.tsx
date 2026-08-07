@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useOpenInApps } from '@core/features/settings/api/browser/useOpenInApps';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {
   getAppById,

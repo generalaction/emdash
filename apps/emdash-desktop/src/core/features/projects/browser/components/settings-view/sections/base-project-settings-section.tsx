@@ -12,7 +12,7 @@ import {
   RemoteSelectContent,
   RemoteSelectItem,
 } from '@core/features/source-control/contributions/browser/remote-select-content';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { FormState, FormUpdate } from '../project-settings-form-model';

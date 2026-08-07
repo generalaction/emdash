@@ -37,6 +37,7 @@ export default defineConfig({
           exclude: [
             '**/_*/**',
             '**/*.db.test.ts',
+            '**/*.browser.test.ts',
             'src/renderer/tests/browser/**',
             'src/main/db/tests/migrations/**',
             'src/main/db/legacy-port/**/*.test.ts',
@@ -96,8 +97,10 @@ export default defineConfig({
         },
       },
       {
-        // Renderer terminal tests that need a real browser environment
-        // (real CSS layout, ResizeObserver, requestAnimationFrame, WebGL).
+        // Renderer tests that need a real browser environment (real CSS
+        // layout, ResizeObserver, requestAnimationFrame, WebGL), plus
+        // slice-isolation tests colocated with core slices as
+        // *.browser.test.{ts,tsx}.
         extends: true,
         test: {
           name: 'browser',
@@ -107,7 +110,10 @@ export default defineConfig({
             headless: true,
             instances: [{ browser: 'chromium' }],
           },
-          include: ['src/renderer/tests/browser/**/*.test.{ts,tsx}'],
+          include: [
+            'src/renderer/tests/browser/**/*.test.{ts,tsx}',
+            'src/core/**/*.browser.test.{ts,tsx}',
+          ],
         },
       },
     ],

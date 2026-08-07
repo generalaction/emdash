@@ -1,8 +1,8 @@
 import { Spinner, toast } from '@emdash/ui/react/primitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import type { ActiveSessionSummary } from '@core/features/workbench/api';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import type { ActiveSessionSummary } from '@core/primitives/desktop-host/api/host-contract';
 import { log } from '@core/primitives/logging/browser/logger';
 import { useMementoClient } from '@core/primitives/mementos/react';
 import { modalStore } from '@core/primitives/modals/react/modal-store';

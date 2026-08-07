@@ -23,7 +23,7 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => ({
   toast: mocks.toast,
 }));
 
-vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   copyTextToClipboard: mocks.clipboardWriteText,
   openExternal: mocks.openExternal,
 }));

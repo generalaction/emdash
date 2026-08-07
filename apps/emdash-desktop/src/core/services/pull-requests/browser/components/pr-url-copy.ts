@@ -1,5 +1,5 @@
 import { toast } from '@emdash/ui/react/primitives';
-import { copyTextToClipboard } from '@core/features/workbench/api/browser/host-client';
+import { copyTextToClipboard } from '@core/primitives/desktop-host/browser/host-client';
 
 export async function copyPrUrl(url: string): Promise<boolean> {
   try {

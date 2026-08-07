@@ -4,7 +4,7 @@ import {
   type ContractImpl,
   type Controller,
 } from '@emdash/wire/rpc';
-import { desktopHostContract } from '../api';
+import { desktopHostContract } from '@core/primitives/desktop-host/api/host-contract';
 import { desktopHostEvents } from './event-host';
 
 type ContractDefinitionsOf<TContract> =

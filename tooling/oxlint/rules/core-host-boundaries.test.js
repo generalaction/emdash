@@ -95,6 +95,52 @@ test('reports both process-direction boundaries and respects generated allowlist
   }
 });
 
+test('missing coreToHost key and missing allowlist file both mean no exceptions', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'emdash-core-host-boundaries-strict-'));
+  try {
+    const coreRoot = path.join(tempRoot, 'src/core');
+    const corePath = path.join(coreRoot, 'features/tasks/node/controller.ts');
+    const allowlistPath = path.join(tempRoot, 'allowlists.json');
+    const configPath = path.join(tempRoot, '.oxlintrc.json');
+
+    await mkdir(path.dirname(corePath), { recursive: true });
+    await writeFile(corePath, "import { logger } from '@main/lib/logger';\n");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        plugins: ['eslint', 'typescript'],
+        jsPlugins: [path.join(repoRoot, 'tooling/oxlint/index.js')],
+        env: { node: true, es2020: true },
+        rules: {
+          'emdash/core-host-boundaries': [
+            'error',
+            {
+              allowlistPath,
+              repoRoot: tempRoot,
+              coreSrcRoot: coreRoot,
+              mainCoreSrcRoot: path.join(tempRoot, 'src/main/core'),
+            },
+          ],
+        },
+      })
+    );
+
+    // Allowlist file present but without a coreToHost key: hard error.
+    await writeFile(allowlistPath, JSON.stringify({ crossSlice: [] }));
+    const missingKeyResult = await runOxlint(configPath, corePath);
+    assert.notEqual(missingKeyResult.code, 0);
+    assert.match(missingKeyResult.output, /@main\/lib\/logger/);
+
+    // Allowlist file deleted entirely: still a hard error (ENOENT -> no exceptions).
+    await rm(allowlistPath);
+    const missingFileResult = await runOxlint(configPath, corePath);
+    assert.notEqual(missingFileResult.code, 0);
+    assert.match(missingFileResult.output, /@main\/lib\/logger/);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 function runOxlint(config, file) {
   return new Promise((resolve, reject) => {
     const child = spawn('pnpm', ['exec', 'oxlint', '--config', config, file], {

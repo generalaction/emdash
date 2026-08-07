@@ -1,6 +1,6 @@
 import { Copy, Minus, Square, X } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 

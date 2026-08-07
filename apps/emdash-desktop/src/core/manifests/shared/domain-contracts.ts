@@ -22,7 +22,6 @@ import { sourceControlContract, sourceControlDomain } from '@core/features/sourc
 import { tasksDomain, tasksWireContract } from '@core/features/tasks/api';
 import { terminalsContract, terminalsDomain } from '@core/features/terminals/api';
 import { updatesContract, updatesDomain } from '@core/features/updates/api';
-import { desktopHostContract, desktopHostDomain } from '@core/features/workbench/api';
 import {
   projectSettingsContract,
   projectSettingsDomain,
@@ -33,6 +32,10 @@ import {
   workspacesDomain,
   workspacesWireContract,
 } from '@core/features/workspaces/api';
+import {
+  desktopHostContract,
+  desktopHostDomain,
+} from '@core/primitives/desktop-host/api/host-contract';
 import { loggingDomain, loggingWireContract } from '@core/primitives/logging/api/wire-contract';
 import { mementosDomain, mementosWireContract } from '@core/primitives/mementos/api';
 import { telemetryContract, telemetryDomain } from '@core/primitives/telemetry/api/wire-contract';

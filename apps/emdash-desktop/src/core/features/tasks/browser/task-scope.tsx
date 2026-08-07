@@ -17,11 +17,11 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import {
   disabled,

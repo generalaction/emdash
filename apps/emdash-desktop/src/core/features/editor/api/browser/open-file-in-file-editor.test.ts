@@ -35,7 +35,7 @@ vi.mock('@core/features/workspaces/api/browser/stores/workspace-registry', () =>
   workspaceRegistry: { get: mocks.getWorkspace },
 }));
 
-vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   getHostClient: async () => ({ openPath: mocks.openPath }),
 }));
 

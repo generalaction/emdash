@@ -51,7 +51,7 @@ vi.mock('@core/features/settings/api/browser/useOpenInApps', () => ({
   }),
 }));
 
-vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   getHostClient: async () => ({ openIn: mocks.openIn }),
 }));
 

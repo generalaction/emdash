@@ -1,12 +1,12 @@
 import { toast } from '@emdash/ui/react/primitives';
 import { getBrowserClient } from '@core/features/browser/api/browser/client';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
 import {
   normalizeBrowserUrl,
   type BrowserDataClearKind,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function openBrowserUrlExternally(url: string): void {

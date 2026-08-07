@@ -2,7 +2,7 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { FILE_CONTENT_TYPES } from './file-content-types';
 
 interface FileContentPreviewProps {

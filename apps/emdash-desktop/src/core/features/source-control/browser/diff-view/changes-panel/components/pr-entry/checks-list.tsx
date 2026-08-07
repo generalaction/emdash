@@ -9,7 +9,7 @@ import {
   type CheckRun,
   type CheckRunBucket,
 } from '@core/features/github/api/browser/checks';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 import { useSyncCheckRuns } from '../../../state/use-check-runs';
 import { CommentsList } from './comments-list';

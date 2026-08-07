@@ -13,8 +13,8 @@ import {
 } from '@core/features/settings/browser/search/settings-search';
 import { SettingsSearchProvider } from '@core/features/settings/browser/search/settings-search-context';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { settingsPageContributions } from '@core/manifests/browser/settings-page-contributions';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { chord, detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
   isTextInputFocusTarget,

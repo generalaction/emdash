@@ -3,7 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';

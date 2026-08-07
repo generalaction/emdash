@@ -40,7 +40,7 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import {
   useTaskComposition,
   useWorkspace,

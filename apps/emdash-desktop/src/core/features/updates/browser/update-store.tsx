@@ -3,7 +3,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { DesktopUpdateEvent } from '@core/features/updates/api';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { getUpdatesClient } from '../api/browser/client';
 

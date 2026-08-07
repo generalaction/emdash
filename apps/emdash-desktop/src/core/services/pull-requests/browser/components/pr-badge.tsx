@@ -1,6 +1,6 @@
 import { Button, Popover, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from './pr-merge-line';

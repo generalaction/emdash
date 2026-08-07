@@ -48,7 +48,7 @@ import {
   isHeicLikeFile,
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';

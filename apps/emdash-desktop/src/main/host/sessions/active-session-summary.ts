@@ -1,6 +1,6 @@
 import { formatHostRef, isLocalHostRef, type HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import type { ActiveSessionSummary } from '@core/features/workbench/api';
+import type { ActiveSessionSummary } from '@core/primitives/desktop-host/api/host-contract';
 import { log } from '@main/lib/logger';
 
 const SESSION_READ_DEADLINE_MS = 500;

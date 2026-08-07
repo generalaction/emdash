@@ -2,7 +2,7 @@ import { Markdown } from '@emdash/ui/react/components';
 import { RelativeTime } from '@emdash/ui/react/primitives';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
+import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
