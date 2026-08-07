@@ -22,13 +22,11 @@ vi.mock('@core/features/settings/api/browser/use-app-settings-key', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
-    app: {
-      checkInstalledApps: mocks.checkInstalledApps,
-      getPlatform: mocks.getPlatform,
-    },
-  },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  getHostClient: async () => ({
+    checkInstalledApps: mocks.checkInstalledApps,
+    getPlatform: mocks.getPlatform,
+  }),
 }));
 
 const { useOpenInApps } = await import('./useOpenInApps');

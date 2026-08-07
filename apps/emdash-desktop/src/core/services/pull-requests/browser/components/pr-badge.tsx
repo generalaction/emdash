@@ -1,7 +1,7 @@
 import { Button, Popover, RelativeTime, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink } from 'lucide-react';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
 import { PrMergeLine } from './pr-merge-line';
 import { PrNumberBadge } from './pr-number-badge';
@@ -63,7 +63,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                     size="xs"
                     icon
                     className="cursor-pointer"
-                    onClick={() => rpc.app.openExternal(pr.url)}
+                    onClick={() => openExternal(pr.url)}
                   >
                     <ExternalLink className="size-3.5" />
                   </Button>

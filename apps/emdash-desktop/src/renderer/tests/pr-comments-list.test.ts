@@ -22,15 +22,8 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
   },
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: {
-    on: vi.fn(() => () => {}),
-  },
-  rpc: {
-    app: {
-      openExternal: vi.fn(),
-    },
-  },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  openExternal: vi.fn(),
 }));
 
 function makeComment(

@@ -19,15 +19,8 @@ vi.mock('./use-linked-issue-urls', () => ({
   getLinkedIssueMap: () => new Map(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: {
-    on: vi.fn(() => () => {}),
-  },
-  rpc: {
-    app: {
-      openExternal: vi.fn(),
-    },
-  },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  openExternal: vi.fn(),
 }));
 
 vi.mock('@core/features/integrations/api/browser/integrations-provider', () => {

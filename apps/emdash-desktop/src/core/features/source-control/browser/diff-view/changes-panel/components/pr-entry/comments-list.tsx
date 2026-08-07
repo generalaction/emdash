@@ -2,9 +2,9 @@ import { Markdown } from '@emdash/ui/react/components';
 import { RelativeTime } from '@emdash/ui/react/primitives';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import {
   sortPullRequestConversationItems,
   type PullRequestConversationItem,
@@ -75,7 +75,7 @@ function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
       </div>
       <button
         className="absolute top-2 right-3 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
-        onClick={() => void rpc.app.openExternal(comment.url)}
+        onClick={() => void openExternal(comment.url)}
       >
         <ExternalLink className="size-3.5" />
       </button>

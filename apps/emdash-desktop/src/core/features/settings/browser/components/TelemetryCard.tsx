@@ -1,9 +1,9 @@
 import { Button, Switch } from '@emdash/ui/react/primitives';
 import { ArrowUpRight } from 'lucide-react';
 import React from 'react';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
 import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { SettingRow } from './SettingRow';
 
@@ -24,7 +24,7 @@ const TelemetryCard: React.FC = () => {
               variant="link"
               size="sm"
               className="group text-muted-foreground inline-flex h-auto items-center gap-1 px-0 text-sm font-normal hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
-              onClick={() => rpc.app.openExternal('https://docs.emdash.sh/telemetry')}
+              onClick={() => openExternal('https://docs.emdash.sh/telemetry')}
             >
               <span className="transition-colors group-hover:text-foreground">
                 Telemetry information

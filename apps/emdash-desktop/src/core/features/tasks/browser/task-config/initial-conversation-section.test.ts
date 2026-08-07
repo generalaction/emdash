@@ -101,15 +101,6 @@ vi.mock('@core/features/agents/api/browser/use-agents', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
-    issues: {
-      searchIssues: vi.fn(),
-      getIssueContext: vi.fn(),
-    },
-  },
-}));
-
 vi.mock('@renderer/utils/logger', () => ({
   log: { warn: vi.fn() },
 }));

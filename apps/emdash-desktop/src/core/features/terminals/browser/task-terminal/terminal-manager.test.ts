@@ -18,18 +18,6 @@ vi.mock('@core/features/settings/api/browser/app-settings-client', () => ({
   getAppSettingValueSnapshot,
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: { on: () => () => {} },
-  rpc: {
-    app: {
-      openPath: vi.fn(),
-    },
-    fs: {
-      fileExists: vi.fn(),
-    },
-  },
-}));
-
 vi.mock('@core/features/terminals/api/browser/client', () => ({
   getTerminalsClient: async () => ({
     create: createTerminal,

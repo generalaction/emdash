@@ -19,6 +19,7 @@ import {
   formatTerminalImagePaths,
   isNearDuplicatePaste,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
@@ -28,7 +29,6 @@ import {
   PaneDimensionProvider,
 } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { log } from '@renderer/utils/logger';
 import { type PasteFromClipboardHandler, usePty } from '../../../browser/pty/use-pty';
 
@@ -67,7 +67,7 @@ async function injectTerminalImagePaths(args: {
 }): Promise<void> {
   if (args.paths.length === 0) return;
 
-  const platform = (await rpc.app.getPlatform()) as NodeJS.Platform;
+  const platform = await (await getHostClient()).getPlatform();
   const payload = buildTerminalImageInjection(args.paths, platform);
   args.sendInput(`${payload} `, { track: false });
   args.focus();
@@ -99,7 +99,7 @@ async function pasteClipboardImageOrText(args: {
   }
 
   try {
-    const result = await rpc.app.persistClipboardImage();
+    const result = await (await getHostClient()).persistClipboardImage();
     if (result.success && result.path) {
       if (args.shouldInjectImage && !args.shouldInjectImage()) return false;
       await injectTerminalImagePaths({ ...args, paths: [result.path] });
@@ -299,7 +299,7 @@ const PtyPaneInner = forwardRef<{ focus: () => void }, Props>(
             try {
               const platform =
                 draggedWorkspaceFile.targetPlatform ??
-                ((await rpc.app.getPlatform()) as NodeJS.Platform);
+                (await (await getHostClient()).getPlatform());
               // Plain text, not bracketed paste: Claude Code swallows externally
               // injected paste markers, and the escaped single-line path needs
               // no paste protection in shells or other agent TUIs.

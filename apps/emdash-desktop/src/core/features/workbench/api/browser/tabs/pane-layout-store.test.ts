@@ -1,16 +1,6 @@
 import { intercept, makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  events: {
-    on: vi.fn(() => () => {}),
-  },
-  rpc: {
-    app: { readUserFile: vi.fn() },
-    browser: { unregisterSession: vi.fn() },
-  },
-}));
-
 vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
   getDesktopWireClient: async () => ({
     browser: {

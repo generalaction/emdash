@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import {
   getResolvedIconPath,
   getResolvedLabel,
@@ -9,7 +10,6 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 const iconModules = import.meta.glob('../../../assets/images/*', {
   eager: true,
@@ -39,14 +39,14 @@ export function useOpenInApps(): UseOpenInAppsResult {
 
   const { data: platform, isLoading: platformLoading } = useQuery({
     queryKey: ['app', 'platform'],
-    queryFn: () => rpc.app.getPlatform() as Promise<PlatformKey>,
+    queryFn: async () => (await (await getHostClient()).getPlatform()) as PlatformKey,
     staleTime: Infinity,
   });
 
   const { data: availability = {}, isLoading: availabilityLoading } = useQuery({
     queryKey: ['app', 'installedApps'],
     queryFn: async () => {
-      const apps = await rpc.app.checkInstalledApps();
+      const apps = await (await getHostClient()).checkInstalledApps();
       return (apps ?? {}) as Record<string, boolean>;
     },
     staleTime: 5 * 60 * 1000,

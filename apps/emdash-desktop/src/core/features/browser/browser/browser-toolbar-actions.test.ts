@@ -17,12 +17,8 @@ const mocks = vi.hoisted(() => ({
   toast: Object.assign(vi.fn(), { error: vi.fn() }),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
-    app: {
-      openExternal: mocks.openExternal,
-    },
-  },
+vi.mock('@core/features/workbench/api/browser/host-client', () => ({
+  openExternal: mocks.openExternal,
 }));
 
 vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({

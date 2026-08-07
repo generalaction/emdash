@@ -17,6 +17,7 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
@@ -30,7 +31,6 @@ import {
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import type { ResolvedTab } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { toggleTaskSidebarTab } from './toggle-task-sidebar';
 
@@ -211,7 +211,7 @@ const taskScopeImplementation = {
       if (!session) return;
       const normalized = normalizeBrowserUrl(session.currentUrl);
       if (normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:')) {
-        void rpc.app.openExternal(normalized.url);
+        void openExternal(normalized.url);
       }
     },
   }),

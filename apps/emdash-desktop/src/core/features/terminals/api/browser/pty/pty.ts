@@ -5,8 +5,8 @@ import {
   isPrimaryMouseButton,
 } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { copyTextToClipboard } from '@core/features/workbench/api/browser/host-client';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { decodeOsc52ClipboardData } from '../../../browser/pty/pty-clipboard';
@@ -145,7 +145,7 @@ export class FrontendPty {
       const text = decodeOsc52ClipboardData(data);
       if (text === null) return false;
 
-      void rpc.app.clipboardWriteText(text).catch((error) => {
+      void copyTextToClipboard(text).catch((error) => {
         log.warn('FrontendPty: failed to write OSC 52 clipboard payload', { error });
       });
       return true;

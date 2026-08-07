@@ -1,8 +1,8 @@
 import { LOCAL_HOST_REF, sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import { useCallback, useState } from 'react';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { useSkills } from '../../../browser/components/useSkills';
 import { SkillsList } from './SkillsList';
 import { SkillsToolbar } from './SkillsToolbar';
@@ -20,12 +20,14 @@ export function SkillsPanel({ host = LOCAL_HOST_REF, header }: SkillsPanelProps)
 
   const handleOpenTerminal = useCallback(
     (skillPath: string) => {
-      void rpc.app.openIn({
-        app: 'terminal',
-        path: skillPath,
-        isRemote: sshConnectionId !== undefined,
-        sshConnectionId,
-      });
+      void getHostClient().then((client) =>
+        client.openIn({
+          app: 'terminal',
+          path: skillPath,
+          isRemote: sshConnectionId !== undefined,
+          sshConnectionId,
+        })
+      );
     },
     [sshConnectionId]
   );

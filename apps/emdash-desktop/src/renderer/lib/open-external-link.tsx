@@ -1,7 +1,10 @@
 import { toast } from '@emdash/ui/react/primitives';
+import {
+  copyTextToClipboard,
+  openExternal,
+} from '@core/features/workbench/api/browser/host-client';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
 
@@ -27,7 +30,7 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
       taskView?.setFocusedRegion('main');
       return;
     }
-    void rpc.app.openExternal(normalizedUrl).catch((error) => {
+    void openExternal(normalizedUrl).catch((error) => {
       onError?.(error);
     });
   });
@@ -35,7 +38,7 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
 
 async function copyExternalLink(url: string): Promise<boolean> {
   try {
-    const result = await rpc.app.clipboardWriteText(url);
+    const result = await copyTextToClipboard(url);
     if (!result.success) {
       showCopyFailure();
       return false;

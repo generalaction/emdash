@@ -31,17 +31,6 @@ vi.mock('@core/features/source-control/api/browser/client', () => ({
   getSourceControlClient: async () => runtimeClients.git,
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
-  rpc: {
-    workspace: {
-      editor: {
-        clearBuffer: vi.fn().mockResolvedValue(undefined),
-        saveBuffer: vi.fn().mockResolvedValue(undefined),
-      },
-    },
-  },
-}));
-
 class FakeModel {
   private value: string;
   private disposed = false;

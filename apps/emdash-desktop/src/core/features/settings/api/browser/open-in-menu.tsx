@@ -2,6 +2,7 @@ import { Select, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {
   getAppById,
@@ -11,7 +12,6 @@ import {
 import { cn } from '@core/primitives/styling/browser/cn';
 import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
-import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 interface OpenInMenuProps {
   path: string;
@@ -46,7 +46,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
     async (appId: OpenInAppId) => {
       const label = labels[appId] || appId;
       try {
-        const res = await rpc.app.openIn({
+        const res = await (
+          await getHostClient()
+        ).openIn({
           app: appId,
           path,
           isRemote,
