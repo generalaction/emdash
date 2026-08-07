@@ -1,6 +1,6 @@
-import type { HostAbsolutePath } from '@primitives/path/api';
-import type { TreeKey } from '@runtimes/files/api';
 import { describe, expect, it } from 'vitest';
+import type { HostAbsolutePath } from '#primitives/path/api';
+import type { TreeKey } from '#runtimes/files/api';
 import { resolveRootIdentity, treeIdentity } from './identity';
 
 describe('resolveRootIdentity', () => {

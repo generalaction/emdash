@@ -1,12 +1,12 @@
+import type Database from 'better-sqlite3';
+import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import {
   parsePortableRelativePath,
   portableRelativePathBasename,
   type PortableRelativePath,
-} from '@primitives/path/api';
-import type { StoreHandle } from '@primitives/sqlite-store/api';
-import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
-import type Database from 'better-sqlite3';
-import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
+} from '#primitives/path/api';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
+import type { PathEntryKind, PathSearchHit } from '#runtimes/file-search/api';
 import type {
   PathIndexBuild,
   PathIndexEntry,

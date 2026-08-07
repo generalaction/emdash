@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
+import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   MAX_STATUS_FILES,
   StatusParser,
@@ -10,9 +10,9 @@ import {
   type FileStatus,
   type GitChangeStatus,
   type GitStatusCode,
-} from '@runtimes/git/api';
-import { gitFailure } from '@runtimes/git/node/exec/errors';
-import type { BoundExec } from '@services/exec/api';
+} from '#runtimes/git/api';
+import { gitFailure } from '#runtimes/git/node/exec/errors';
+import type { BoundExec } from '#services/exec/api';
 
 /**
  * Computes checkout status from `git status --porcelain=v2`.

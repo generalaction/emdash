@@ -1,7 +1,7 @@
 import { createPluginRegistry } from '@emdash/shared/plugins';
-import { SESSION_IDLE_MS } from '@primitives/io-activity/api';
-import type { CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
+import { SESSION_IDLE_MS } from '#primitives/io-activity/api';
+import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
 import { ACP_CONNECTION_IDLE_TTL_MS, acpWorkerSpec, type AcpWorkerSpecInput } from './worker-spec';
 
 describe('acpWorkerSpec', () => {

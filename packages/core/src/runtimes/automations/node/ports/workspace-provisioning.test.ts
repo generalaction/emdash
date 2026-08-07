@@ -3,8 +3,9 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { cell, expose } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
-import { LOCAL_HOST_REF } from '@primitives/host/api';
-import { hostFileRef, parseAbsolute } from '@primitives/path/api';
+import { describe, expect, it } from 'vitest';
+import { LOCAL_HOST_REF } from '#primitives/host/api';
+import { hostFileRef, parseAbsolute } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- exercises the port against the registry verb contract it provisions through (operation-log retirement §5)
 import {
   workspaceRegistryContract,
@@ -14,8 +15,7 @@ import {
   type CreateWorktreeInput,
   type WorkspaceRecord,
   type WorkspaceRecords,
-} from '@runtimes/workspace-registry/api';
-import { describe, expect, it } from 'vitest';
+} from '#runtimes/workspace-registry/api';
 import type {
   WorkspaceCreationAdmissionContract,
   WorkspaceCreationRefusal,

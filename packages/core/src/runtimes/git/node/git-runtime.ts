@@ -1,12 +1,12 @@
 import { KeyedMutex } from '@emdash/shared/concurrency';
-import { GitAllocationGraph } from '@runtimes/git/node/allocation/allocation-graph';
-import { GitCheckoutRuntime } from '@runtimes/git/node/checkout/checkout-runtime';
-import { createGitExec } from '@runtimes/git/node/exec/git-exec';
-import { GitRepositoryProvisioner } from '@runtimes/git/node/repository/repository-provisioner';
-import { GitRepositoryRuntime } from '@runtimes/git/node/repository/repository-runtime';
-import type { BoundExec } from '@services/exec/api';
-import type { IWatchService } from '@services/fs-watch/api';
-import { createNativeWatchService } from '@services/fs-watch/node';
+import { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
+import { GitCheckoutRuntime } from '#runtimes/git/node/checkout/checkout-runtime';
+import { createGitExec } from '#runtimes/git/node/exec/git-exec';
+import { GitRepositoryProvisioner } from '#runtimes/git/node/repository/repository-provisioner';
+import { GitRepositoryRuntime } from '#runtimes/git/node/repository/repository-runtime';
+import type { BoundExec } from '#services/exec/api';
+import type { IWatchService } from '#services/fs-watch/api';
+import { createNativeWatchService } from '#services/fs-watch/node';
 
 export type GitRuntimeOptions = Readonly<{
   watcher?: IWatchService;

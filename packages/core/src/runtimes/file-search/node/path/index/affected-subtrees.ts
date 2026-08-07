@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '@primitives/path/api';
-import type { WatchEvent } from '@services/fs-watch/api';
+import { ROOT_RELATIVE_PATH, type PortableRelativePath } from '#primitives/path/api';
+import type { WatchEvent } from '#services/fs-watch/api';
 import type { FileSearchExclusions } from '../../exclusions';
 import { containsNativePath, portableRelativePathFromNative } from '../../native-paths';
 

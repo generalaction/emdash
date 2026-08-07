@@ -1,5 +1,5 @@
-import { gitFilePathSchema } from '@runtimes/git/api/checkout/schemas';
 import { z } from 'zod';
+import { gitFilePathSchema } from '#runtimes/git/api/checkout/schemas';
 
 export const gitStatusCodeSchema = z.enum([
   'unmodified',

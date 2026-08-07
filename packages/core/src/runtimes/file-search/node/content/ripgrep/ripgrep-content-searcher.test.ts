@@ -2,11 +2,11 @@ import { spawnSync } from 'node:child_process';
 import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   type ContentSearchProgress,
-} from '@runtimes/file-search/api';
-import { afterEach, describe, expect, it } from 'vitest';
+} from '#runtimes/file-search/api';
 import { DefaultFileSearchExclusions } from '../../exclusions';
 import { hostPath as absolute } from '../../testing/paths';
 import { RipgrepContentSearcher } from './ripgrep-content-searcher';

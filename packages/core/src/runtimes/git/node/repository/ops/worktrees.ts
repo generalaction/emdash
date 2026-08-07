@@ -1,5 +1,5 @@
-import type { HostAbsolutePath } from '@primitives/path/api';
-import type { WorktreeHeadSummary, WorktreeSummary } from '@runtimes/git/api';
+import type { HostAbsolutePath } from '#primitives/path/api';
+import type { WorktreeHeadSummary, WorktreeSummary } from '#runtimes/git/api';
 
 const UNBORN_OID = /^0+$/;
 

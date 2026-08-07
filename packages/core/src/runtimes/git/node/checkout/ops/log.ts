@@ -1,13 +1,13 @@
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   toRefString,
   type Commit,
   type CommitFile,
   type GitLogOptions,
   type GitLogResult,
-} from '@runtimes/git/api';
-import { checkoutFailures } from '@runtimes/git/node/checkout/errors';
-import type { BoundExec } from '@services/exec/api';
+} from '#runtimes/git/api';
+import { checkoutFailures } from '#runtimes/git/node/checkout/errors';
+import type { BoundExec } from '#services/exec/api';
 import { mapGitChangeStatus } from './status';
 
 export type Numstat = Map<string, { additions: number; deletions: number }>;

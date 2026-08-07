@@ -9,13 +9,13 @@ import type {
   InitializeFailedError,
   NormalizedEvent,
   SpawnFailedError,
-} from '@runtimes/acp/api';
-import { acpErr, decodeSessionUpdate } from '@runtimes/acp/api';
+} from '#runtimes/acp/api';
+import { acpErr, decodeSessionUpdate } from '#runtimes/acp/api';
 import type {
   AcpAgentApi,
   AgentHostAcpSpawn,
   IAcpBehavior,
-} from '@services/agent-plugins/api/plugins';
+} from '#services/agent-plugins/api/plugins';
 
 type AcpAgentProcessHost = Pick<AcpProcessHost, 'spawn' | 'spawnTerminal'>;
 

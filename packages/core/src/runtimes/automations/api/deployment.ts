@@ -1,9 +1,9 @@
-import { hostAbsolutePathSchema, hostFileRefSchema } from '@primitives/path/api';
+import { z } from 'zod';
+import { hostAbsolutePathSchema, hostFileRefSchema } from '#primitives/path/api';
 import {
   acpSessionStartInputSchema,
   tuiSessionStartInputSchema,
-} from '@services/session-start/api';
-import { z } from 'zod';
+} from '#services/session-start/api';
 
 const nonBlankStringSchema = z.string().trim().min(1);
 

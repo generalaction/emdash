@@ -1,6 +1,6 @@
-import { portableRelativePathDirname, type PortableRelativePath } from '@primitives/path/api';
-import type { FileTreeModel } from '@runtimes/files/api';
-import type { RootChange } from '@runtimes/files/node/root/root-resource';
+import { portableRelativePathDirname, type PortableRelativePath } from '#primitives/path/api';
+import type { FileTreeModel } from '#runtimes/files/api';
+import type { RootChange } from '#runtimes/files/node/root/root-resource';
 
 export type TreeWatchEffects = {
   resync: boolean;

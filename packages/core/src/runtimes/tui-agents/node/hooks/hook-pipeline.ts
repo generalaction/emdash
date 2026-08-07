@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
-import type { CanonicalHookEvent, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
-import { defaultHookEventParser } from '@services/agent-plugins/api/plugins/helpers';
+import type { CanonicalHookEvent, ResolvedTuiProvider } from '#services/agent-plugins/api/plugins';
+import { defaultHookEventParser } from '#services/agent-plugins/api/plugins/helpers';
 import type { RawHookRequest } from './types';
 
 export type HookConversationConfig = {

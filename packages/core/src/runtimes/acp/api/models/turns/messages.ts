@@ -1,5 +1,5 @@
-import { attachmentRefSchema } from '@runtimes/acp/api/models/attachments';
 import { z } from 'zod';
+import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
 
 export const transcriptMessageSchema = z.object({
   kind: z.literal('message'),

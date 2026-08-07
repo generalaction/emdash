@@ -1,5 +1,5 @@
-import { hostAbsolutePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '#primitives/path/api';
 
 /**
  * Narrow, transport-level mirror of the workspace-host runtime surface that

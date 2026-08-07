@@ -77,6 +77,9 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   deps: {
+    // Package subpath imports (#runtimes/*, ...) point at package-internal src
+    // and must be bundled; dist output has to stay self-contained.
+    alwaysBundle: [/^#/],
     neverBundle: [
       '@agentclientprotocol/sdk',
       '@emdash/shared',

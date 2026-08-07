@@ -1,5 +1,5 @@
 import { LiveLogSource } from '@emdash/wire/live';
-import type { AgentTerminalHooks } from '@runtimes/acp/node/agent-ports/terminal-manager';
+import type { AgentTerminalHooks } from '#runtimes/acp/node/agent-ports/terminal-manager';
 
 type TerminalRecord = {
   conversationId: string;

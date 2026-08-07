@@ -13,7 +13,7 @@ import {
   type TerminalShellAvailability,
   type TerminalShellId,
   type TerminalShellResolver,
-} from '@primitives/terminal-shell/api';
+} from '#primitives/terminal-shell/api';
 
 export class ShellUnavailableError extends Error {
   constructor(

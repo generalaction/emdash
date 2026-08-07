@@ -1,5 +1,5 @@
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
 
 export const rootKeySchema = z.object({ root: hostAbsolutePathSchema });
 export const pathKeySchema = rootKeySchema.extend({ relative: portableRelativePathSchema });

@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { IWatchService, WatchEvent, WatchOptions } from '@services/fs-watch/api';
 import { describe, expect, it } from 'vitest';
+import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
 import {
   DEFAULT_ACTIVE_SCAN_DEBOUNCE_MS,
   DEFAULT_SCAN_DEBOUNCE_MS,

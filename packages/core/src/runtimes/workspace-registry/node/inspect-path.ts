@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { createBoundExec, ExecError } from '@services/exec/api';
+import { createBoundExec, ExecError } from '#services/exec/api';
 
 /** What the host found at a canonical directory path (kind is host-detected, ADR 0005). */
 export type PathInspection =

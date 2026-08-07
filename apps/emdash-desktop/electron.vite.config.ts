@@ -35,55 +35,34 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error;
 }
 
-const workspaceAliases = {
-  '@emdash/core/runtimes': resolve('../../packages/core/src/runtimes'),
-  '@emdash/core/services': resolve('../../packages/core/src/services'),
-  '@emdash/core/primitives': resolve('../../packages/core/src/primitives'),
-  '@emdash/core/workspace-server': resolve('../../packages/core/src/workspace-server'),
-  '@services/notifications': resolve('src/services/notifications'),
-  '@runtimes': resolve('../../packages/core/src/runtimes'),
-  '@services': resolve('../../packages/core/src/services'),
-  '@primitives': resolve('../../packages/core/src/primitives'),
-  '@workspace-server': resolve('../../packages/core/src/workspace-server'),
-  '@emdash/core/services/fs-watch/api': resolve(
-    '../../packages/core/src/services/fs-watch/api/index.ts'
-  ),
-  '@emdash/core/services/fs-watch/node': resolve(
-    '../../packages/core/src/services/fs-watch/node/index.ts'
-  ),
-  '@emdash/plugins/agents/types': resolve('../../packages/plugins/src/agents/types.ts'),
-  '@emdash/plugins/agents': resolve('../../packages/plugins/src/agents/registry.ts'),
-  '@emdash/shared/config': resolve('../../packages/shared/src/config/index.ts'),
-  '@emdash/shared/logger/context-node': resolve('../../packages/shared/src/logger/context-node.ts'),
-  '@emdash/shared/logger/context': resolve('../../packages/shared/src/logger/context.ts'),
-  '@emdash/shared/logger/node': resolve('../../packages/shared/src/logger/node/index.ts'),
-  '@emdash/shared/logger/pino': resolve('../../packages/shared/src/logger/pino/index.ts'),
-  '@emdash/shared/logger/transport': resolve('../../packages/shared/src/logger/transport/index.ts'),
-  '@emdash/shared/logger': resolve('../../packages/shared/src/logger/index.ts'),
-  '@emdash/shared/markdown': resolve('../../packages/shared/src/markdown/index.ts'),
-  '@emdash/shared/plugins': resolve('../../packages/shared/src/plugins/index.ts'),
-  '@emdash/shared/requests': resolve('../../packages/shared/src/requests/index.ts'),
-  '@emdash/shared/result': resolve('../../packages/shared/src/result/index.ts'),
-  '@emdash/shared/scheduling': resolve('../../packages/shared/src/scheduling/index.ts'),
-  '@emdash/shared/concurrency': resolve('../../packages/shared/src/concurrency/index.ts'),
-  '@emdash/shared/util': resolve('../../packages/shared/src/util/index.ts'),
-  '@emdash/shared/testing': resolve('../../packages/shared/src/testing/index.ts'),
-  '@emdash/shared': resolve('../../packages/shared/src/index.ts'),
-  '@emdash/wire/rpc': resolve('../../packages/wire/src/rpc/index.ts'),
-  '@emdash/wire/live': resolve('../../packages/wire/src/live/index.ts'),
-  '@emdash/wire/state': resolve('../../packages/wire/src/state/index.ts'),
-  '@emdash/wire/mobx': resolve('../../packages/wire/src/live/mobx/index.ts'),
-  '@emdash/wire/testing': resolve('../../packages/wire/src/testing/index.ts'),
-  '@emdash/wire/worker/node': resolve('../../packages/wire/src/worker/node/index.ts'),
-  '@emdash/wire/worker': resolve('../../packages/wire/src/worker/index.ts'),
-};
+// Workspace packages must be bundled (not externalized) in main/preload builds:
+// externalized modules are resolved by Node at runtime, where the `development`
+// export condition is off, so dev runs would silently load stale dists.
+const workspacePackages = [
+  '@emdash/chat-ui',
+  '@emdash/core',
+  '@emdash/plugins',
+  '@emdash/shared',
+  '@emdash/theme',
+  '@emdash/ui',
+  '@emdash/wire',
+];
 
 export default defineConfig({
   main: {
     root: 'src/main',
     envDir: resolve('.'),
     plugins: [copyAdapterAssetsPlugin()],
+    // formidable (bundled via @emdash/plugins -> asana) reassigns `require`
+    // behind a `global.GENTLY` guard, which Rollup rejects. Defining it false
+    // makes the branch dead code so the bundle builds.
+    define: {
+      'global.GENTLY': 'false',
+    },
     build: {
+      externalizeDeps: {
+        exclude: workspacePackages,
+      },
       rollupOptions: {
         input: {
           index: resolve('src/entry/main.ts'),
@@ -100,13 +79,15 @@ export default defineConfig({
         '@core': resolve('src/core'),
         '@main': resolve('src/main'),
         '@root': resolve('.'),
-        ...workspaceAliases,
       },
     },
   },
   preload: {
     root: 'src/entry',
     build: {
+      externalizeDeps: {
+        exclude: workspacePackages,
+      },
       rollupOptions: {
         input: {
           index: resolve('src/entry/preload.ts'),
@@ -116,7 +97,6 @@ export default defineConfig({
     resolve: {
       alias: {
         '@root': resolve('.'),
-        ...workspaceAliases,
       },
     },
   },
@@ -129,7 +109,6 @@ export default defineConfig({
         '@core': resolve('src/core'),
         '@renderer': resolve('src/renderer'),
         '@root': resolve('.'),
-        ...workspaceAliases,
         // cli-agent-plugins metadata/icons chunks transitively reference node:buffer
         // (through hook-config helpers bundled in the same tsdown chunk), even though
         // those helpers never run in the renderer. Alias to the browser-safe polyfill.

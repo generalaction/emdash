@@ -5,7 +5,7 @@ import {
   type ExecOptions,
   type ExecResult,
   type ExecSpawnOptions,
-} from '@services/exec/api';
+} from '#services/exec/api';
 
 export type CreateGitExecOptions = {
   cwd: string;

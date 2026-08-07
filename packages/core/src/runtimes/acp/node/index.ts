@@ -26,5 +26,5 @@ export type { AcpProcedures, StartSessionInput } from './api/procedures';
 export { acpComponentConfigSchema, createAcpComponent } from './component';
 export { AgentTerminalManager } from './agent-ports/terminal-manager';
 export type { AgentTerminalHooks as AgentTerminalListener } from './agent-ports/terminal-manager';
-export type { AcpRuntimeError } from '@runtimes/acp/api';
+export type { AcpRuntimeError } from '#runtimes/acp/api';
 export { ACP_CONNECTION_IDLE_TTL_MS, acpWorkerSpec, type AcpWorkerSpecInput } from './worker-spec';

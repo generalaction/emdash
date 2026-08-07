@@ -1,7 +1,7 @@
 import { definePluginCapability } from '@emdash/shared/plugins';
-import type { McpServerRegistration } from '@primitives/mcp/api';
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import z from 'zod';
+import type { McpServerRegistration } from '#primitives/mcp/api';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 
 export type IMcpBehavior = {
   readServers(fs: PluginFs): Promise<McpServerRegistration[]>;
@@ -9,7 +9,7 @@ export type IMcpBehavior = {
   removeServer(fs: PluginFs, name: string): Promise<void>;
 };
 
-export type { McpServerRegistration } from '@primitives/mcp/api';
+export type { McpServerRegistration } from '#primitives/mcp/api';
 
 export const mcpCapability = definePluginCapability<IMcpBehavior>()(
   'mcp',

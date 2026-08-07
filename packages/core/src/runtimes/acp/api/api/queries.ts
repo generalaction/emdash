@@ -1,5 +1,5 @@
-import { transcriptTurnSchema } from '@runtimes/acp/api/models/turns';
 import { z } from 'zod';
+import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 
 export const historyPageInputSchema = z.object({
   conversationId: z.string(),

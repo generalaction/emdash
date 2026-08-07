@@ -1,6 +1,6 @@
-import type { CheckoutHeadState } from '@runtimes/git/api';
-import { checkoutFailures } from '@runtimes/git/node/checkout/errors';
-import type { BoundExec } from '@services/exec/api';
+import type { CheckoutHeadState } from '#runtimes/git/api';
+import { checkoutFailures } from '#runtimes/git/node/checkout/errors';
+import type { BoundExec } from '#services/exec/api';
 
 /** Throws when the path is not a git repository; callers keep the previous state. */
 export async function computeHeadState(exec: BoundExec): Promise<CheckoutHeadState> {

@@ -2,18 +2,18 @@ import { ok } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock, type ManualClock } from '@emdash/shared/testing';
 import { peek } from '@emdash/wire/state';
-import type { TuiAgentStartInput } from '@runtimes/tui-agents/api';
+import { describe, expect, it, vi } from 'vitest';
+import type { TuiAgentStartInput } from '#runtimes/tui-agents/api';
 import type {
   AgentPluginHost,
   ITrustBehavior,
   ResolvedTuiProvider,
-} from '@services/agent-plugins/api/plugins';
-import type { ConversationLifecycleReporter } from '@services/conversation-reports/node';
-import { createRecordingConversationLifecycleReporter } from '@services/conversation-reports/node/testing';
-import type { IExecutionContext } from '@services/exec/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
-import { createMemorySessionIntentStore } from '@services/session-intents/api';
-import { describe, expect, it, vi } from 'vitest';
+} from '#services/agent-plugins/api/plugins';
+import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
+import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
+import type { IExecutionContext } from '#services/exec/api';
+import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import { TuiAgentsRuntime } from './runtime';
 
 class FakePtyProcess implements PtyProcess {

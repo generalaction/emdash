@@ -1,9 +1,9 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { relativePath, runtimeRoot } from '@runtimes/files/node/testing/paths';
-import type { IWatchService, WatchOptions } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
+import type { IWatchService, WatchOptions } from '#services/fs-watch/api';
 import { FilesAllocationGraph } from './allocation-graph';
 
 const roots: string[] = [];

@@ -5,7 +5,7 @@ import {
   type ContentSearchError,
   type ContentSearchInput,
   type ContentSearchResult,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 import type { RegisteredRoot } from '../root/registered-root';
 import { resolveContentScope } from './content-scope';
 import type { ContentSearchContext, FileContentSearcher } from './content-searcher';

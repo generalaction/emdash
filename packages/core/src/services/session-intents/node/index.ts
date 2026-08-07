@@ -1,11 +1,11 @@
-export * from '@services/session-intents/api';
+export * from '#services/session-intents/api';
 
-import { createJsonFileKeyValueStore } from '@primitives/kv/node';
+import { createJsonFileKeyValueStore } from '#primitives/kv/node';
 import {
   createKvSessionIntentStore,
   type SessionIntentScope,
   type SessionIntentStore,
-} from '@services/session-intents/api';
+} from '#services/session-intents/api';
 
 export type FileSessionIntentStoreOptions = {
   path: string;

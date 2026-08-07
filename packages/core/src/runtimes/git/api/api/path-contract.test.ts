@@ -1,6 +1,6 @@
-import { parseAbsolute } from '@primitives/path/api';
-import { gitFileContentKeySchema } from '@runtimes/git/api/checkout/file-content-key';
 import { describe, expect, it } from 'vitest';
+import { parseAbsolute } from '#primitives/path/api';
+import { gitFileContentKeySchema } from '#runtimes/git/api/checkout/file-content-key';
 import { checkoutSelectorSchema, repositorySelectorSchema } from './selectors';
 
 function root(input: string) {

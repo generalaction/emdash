@@ -6,8 +6,8 @@ import {
   createPathProfile,
   formatAbsolute,
   type HostAbsolutePath,
-} from '@primitives/path/api';
-import type { FileSearchRegisterRootError } from '@runtimes/file-search/api';
+} from '#primitives/path/api';
+import type { FileSearchRegisterRootError } from '#runtimes/file-search/api';
 import { rootUnavailable, toExpectedRootOrIndexError } from '../error-mapping';
 import { hostAbsolutePathFromNative } from '../native-paths';
 

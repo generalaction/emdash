@@ -1,11 +1,11 @@
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
-import type { ContentKey, FsError, RootKey, TreeKey } from '@runtimes/files/api';
-import { FsException } from '@runtimes/files/node/api/errors';
-import { ContentResource } from '@runtimes/files/node/content/content-resource';
-import { RootResource, type RootChange } from '@runtimes/files/node/root/root-resource';
-import { TreeResource } from '@runtimes/files/node/tree/tree-resource';
-import type { IWatchService } from '@services/fs-watch/api';
+import type { ContentKey, FsError, RootKey, TreeKey } from '#runtimes/files/api';
+import { FsException } from '#runtimes/files/node/api/errors';
+import { ContentResource } from '#runtimes/files/node/content/content-resource';
+import { RootResource, type RootChange } from '#runtimes/files/node/root/root-resource';
+import { TreeResource } from '#runtimes/files/node/tree/tree-resource';
+import type { IWatchService } from '#services/fs-watch/api';
 import {
   contentIdentity,
   resolveRootIdentity,

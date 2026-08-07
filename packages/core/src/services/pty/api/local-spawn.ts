@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { formatCommandLine, quoteArg } from '@primitives/exec/api';
+import { formatCommandLine, quoteArg } from '#primitives/exec/api';
 import { buildTmuxShellLine } from './tmux';
 
 export type ResolvedPtyShellProfile = {

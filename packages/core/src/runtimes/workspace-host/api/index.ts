@@ -1,7 +1,7 @@
 export {
   workspaceHostContract,
   type WorkspaceHostContract,
-} from '@runtimes/workspace-host/api/contract';
+} from '#runtimes/workspace-host/api/contract';
 export {
   workspaceHostErrorSchema,
   workspaceHostInitializeRequestSchema,
@@ -25,5 +25,5 @@ export {
   type WorkspaceHostRunScriptResult,
   type WorkspaceHostUsage,
   type WorkspaceHostUsageError,
-} from '@runtimes/workspace-host/api/schemas';
+} from '#runtimes/workspace-host/api/schemas';
 export { workspaceHostWorker } from './worker';

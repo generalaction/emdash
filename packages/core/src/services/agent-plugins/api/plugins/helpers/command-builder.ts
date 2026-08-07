@@ -1,4 +1,4 @@
-import type { AgentCommand } from '@services/agent-plugins/api/plugins/capabilities/prompt';
+import type { AgentCommand } from '#services/agent-plugins/api/plugins/capabilities/prompt';
 
 export class CommandBuilder {
   private _args: string[] = [];

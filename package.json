@@ -18,7 +18,6 @@
   },
   "devDependencies": {
     "nx": "^23.0.0",
-    "ts-morph": "^28.0.0",
     "tsx": "^4.22.4"
   },
   "engines": {

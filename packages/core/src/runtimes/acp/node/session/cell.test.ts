@@ -1,8 +1,8 @@
 import type { PermissionOptionKind } from '@agentclientprotocol/sdk';
 import { isOk } from '@emdash/shared';
 import { noopLogger } from '@emdash/shared/logger';
-import { FakeAcpAgent } from '@runtimes/acp/node/acp-test-support';
 import { describe, expect, it, vi } from 'vitest';
+import { FakeAcpAgent } from '#runtimes/acp/node/acp-test-support';
 import { SessionCell } from './cell';
 
 function makeCell(agent = new FakeAcpAgent()) {

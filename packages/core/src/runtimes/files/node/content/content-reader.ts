@@ -1,15 +1,15 @@
 import { constants } from 'node:fs';
 import { access, open } from 'node:fs/promises';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { FileContentModel, FsError } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { FileContentModel, FsError } from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
 import {
   etagForStat,
   mimeTypeForPath,
   normalizeMaxBytes,
   readStrongSnapshot,
-} from '@runtimes/files/node/fs/metadata';
-import type { RootPathPolicy } from '@runtimes/files/node/fs/path-policy';
+} from '#runtimes/files/node/fs/metadata';
+import type { RootPathPolicy } from '#runtimes/files/node/fs/path-policy';
 
 const BINARY_SAMPLE_BYTES = 8 * 1024;
 

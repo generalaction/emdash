@@ -1,6 +1,6 @@
-import { result } from '@workspace-server/shared/schemas';
-import { runtimeUnavailableErrorSchema } from '@workspace-server/shared/schemas';
 import { z } from 'zod';
+import { result } from '#workspace-server/shared/schemas';
+import { runtimeUnavailableErrorSchema } from '#workspace-server/shared/schemas';
 
 export const tuiAgentStartInputSchema = z.object({
   /** Logical session key — used as the PTY registry key and emitted on events. */

@@ -1,5 +1,5 @@
-import { hostRef, LOCAL_HOST_REF } from '@primitives/host/api';
 import { describe, expect, it } from 'vitest';
+import { hostRef, LOCAL_HOST_REF } from '#primitives/host/api';
 import {
   containsHostFileRef,
   decodeResourceUri,

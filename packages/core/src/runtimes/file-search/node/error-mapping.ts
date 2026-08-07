@@ -1,11 +1,11 @@
-import type { HostAbsolutePath } from '@primitives/path/api';
+import type { HostAbsolutePath } from '#primitives/path/api';
 import type {
   ContentSearchError,
   FileSearchRegisterRootError,
   FileSearchRootUnavailableReason,
   FileSearchUnregisterRootError,
   PathSearchError,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 import {
   errorMessage,
   isExpectedContentScopeNodeError,

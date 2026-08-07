@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
-import type { HostAbsolutePath } from '@primitives/path/api';
+import type { HostAbsolutePath } from '#primitives/path/api';
 import {
   computeBaseRef,
   gitErr,
@@ -10,12 +10,12 @@ import {
   type EnsureRepositoryOptions,
   type GitPathInspection,
   type GitRepositoryInfo,
-} from '@runtimes/git/api';
-import { toHostAbsolutePath, toNativeAbsolutePath } from '@runtimes/git/node/allocation/paths';
-import { gitFailure } from '@runtimes/git/node/exec/errors';
-import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
-import { execGitWithProgress } from '@runtimes/git/node/exec/transfer-progress';
-import { ExecError, type BoundExec } from '@services/exec/api';
+} from '#runtimes/git/api';
+import { toHostAbsolutePath, toNativeAbsolutePath } from '#runtimes/git/node/allocation/paths';
+import { gitFailure } from '#runtimes/git/node/exec/errors';
+import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
+import { execGitWithProgress } from '#runtimes/git/node/exec/transfer-progress';
+import { ExecError, type BoundExec } from '#services/exec/api';
 import { repositoryFailures } from './errors';
 
 /** Executes Git operations that happen before a canonical repository mount exists. */

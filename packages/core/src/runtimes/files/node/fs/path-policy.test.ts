@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { resolveRootIdentity } from '@runtimes/files/node/allocation/identity';
 import { afterEach, describe, expect, it } from 'vitest';
+import { resolveRootIdentity } from '#runtimes/files/node/allocation/identity';
 import { RootPathPolicy, normalizeRelativePath } from './path-policy';
 
 const roots: string[] = [];

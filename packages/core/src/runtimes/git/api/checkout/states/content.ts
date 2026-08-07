@@ -1,6 +1,6 @@
-import { gitCommandErrorSchema } from '@runtimes/git/api/api/errors';
-import { gitFilePathSchema, gitFileSourceSchema } from '@runtimes/git/api/checkout/schemas';
 import { z } from 'zod';
+import { gitCommandErrorSchema } from '#runtimes/git/api/api/errors';
+import { gitFilePathSchema, gitFileSourceSchema } from '#runtimes/git/api/checkout/schemas';
 
 const gitFileContentBaseSchema = z.object({
   path: gitFilePathSchema,

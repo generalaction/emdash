@@ -20,7 +20,7 @@ import {
   type IdleSweeper,
   type IoActivitySnapshot,
   type IoActivityTracker,
-} from '@primitives/io-activity/api';
+} from '#primitives/io-activity/api';
 import type {
   AcpCancelTurnError,
   AcpChangeQueuePromptOrderError,
@@ -49,12 +49,12 @@ import type {
   SessionUsage,
   TerminalState,
   TranscriptTurn,
-} from '@runtimes/acp/api';
-import { acpErr, acpStartInputSchema } from '@runtimes/acp/api';
-import type { InboundRouter } from '@runtimes/acp/node/agent-ports/agent-client';
-import type { FsPort } from '@runtimes/acp/node/agent-ports/fs-port';
-import type { AgentTerminalManager } from '@runtimes/acp/node/agent-ports/terminal-manager';
-import type { TerminalPort } from '@runtimes/acp/node/agent-ports/terminal-port';
+} from '#runtimes/acp/api';
+import { acpErr, acpStartInputSchema } from '#runtimes/acp/api';
+import type { InboundRouter } from '#runtimes/acp/node/agent-ports/agent-client';
+import type { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
+import type { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
+import type { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
 import {
   isAcpConnectionError,
   type AcpConnectionEntry,
@@ -62,10 +62,10 @@ import {
   type AcpConnectionKey,
   type AcpConnectionSource,
   type PooledAcpProcess,
-} from '@runtimes/acp/node/connection/source';
-import { projectSessionState } from '@runtimes/acp/node/machine/machine';
-import { SessionCell, type AcpChatHistory } from '@runtimes/acp/node/session/cell';
-import type { SessionCellCallbacks } from '@runtimes/acp/node/session/cell-deps';
+} from '#runtimes/acp/node/connection/source';
+import { projectSessionState } from '#runtimes/acp/node/machine/machine';
+import { SessionCell, type AcpChatHistory } from '#runtimes/acp/node/session/cell';
+import type { SessionCellCallbacks } from '#runtimes/acp/node/session/cell-deps';
 import {
   createAcpSessionLiveHost,
   createAcpSessionsLiveHost,
@@ -77,11 +77,11 @@ import {
   type AcpSessionsLiveHost,
   type SessionLiveModels,
   type SessionsListModel,
-} from '@runtimes/acp/node/state/live-models';
+} from '#runtimes/acp/node/state/live-models';
 import {
   noopConversationLifecycleReporter,
   type ConversationLifecycleReporter,
-} from '@services/conversation-reports/node';
+} from '#services/conversation-reports/node';
 import { registrationsToAcpMcpServers, summarizeAcpMcpServers } from './mcp-servers';
 import type { AcpRuntimeDeps, AcpStartInput, SendPromptInput } from './types';
 

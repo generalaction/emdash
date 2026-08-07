@@ -1,8 +1,8 @@
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { BoundExec } from '@services/exec/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { BoundExec } from '#services/exec/api';
 import { copyPreservedFiles } from './copy-preserved-files';
 
 describe('copyPreservedFiles', () => {

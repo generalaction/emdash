@@ -1,5 +1,5 @@
-import type { BoundExec } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import type { BoundExec } from '#services/exec/api';
 import { bindGitDir, gitEnv } from './git-exec';
 
 describe('gitEnv', () => {

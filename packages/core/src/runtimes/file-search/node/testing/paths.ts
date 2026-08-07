@@ -4,7 +4,7 @@ import {
   parsePortableRelativePath,
   type HostAbsolutePath,
   type PortableRelativePath,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 
 export function hostPath(input: string): HostAbsolutePath {
   const parsed = parseAbsolute(input, {

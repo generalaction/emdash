@@ -1,4 +1,4 @@
-import { createBoundExec, type BoundExec } from '@services/exec/api';
+import { createBoundExec, type BoundExec } from '#services/exec/api';
 
 export type GitExecFactory = (cwd: string) => BoundExec;
 

@@ -1,6 +1,6 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import { parse, stringify } from 'smol-toml';
 import type { z } from 'zod';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 
 export interface ConfigFile<T> {
   read(fs: PluginFs, path: string): Promise<T>;

@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { recordSpawn } from '@emdash/shared/perf';
-import { normalizeTerminalHttpUrl } from '@runtimes/terminals/api';
+import { normalizeTerminalHttpUrl } from '#runtimes/terminals/api';
 
 /**
  * Adaptive probe cadence: fast (1 s) until the port first responds — a

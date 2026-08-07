@@ -1,6 +1,6 @@
 import { createPluginRegistry } from '@emdash/shared/plugins';
-import type { CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
 import { describe, expect, it } from 'vitest';
+import type { CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
 import { agentConfigWorkerSpec, type AgentConfigWorkerSpecInput } from './worker-spec';
 
 describe('agentConfigWorkerSpec', () => {

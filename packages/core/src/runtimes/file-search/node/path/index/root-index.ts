@@ -4,9 +4,9 @@ import {
   ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
   type PortableRelativePath,
-} from '@primitives/path/api';
-import type { PathSearchError } from '@runtimes/file-search/api';
-import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
+} from '#primitives/path/api';
+import type { PathSearchError } from '#runtimes/file-search/api';
+import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
 import { toExpectedRootOrIndexError } from '../../error-mapping';
 import type { FileSearchExclusions } from '../../exclusions';
 import { hostAbsolutePathFromNative } from '../../native-paths';

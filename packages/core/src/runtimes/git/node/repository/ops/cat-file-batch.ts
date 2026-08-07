@@ -1,6 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { Disposable } from '@emdash/shared/concurrency';
-import type { BoundExec } from '@services/exec/api';
+import type { BoundExec } from '#services/exec/api';
 
 const REQUEST_TIMEOUT_MS = 5_000;
 

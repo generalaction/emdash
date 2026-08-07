@@ -1,6 +1,6 @@
 import { isErr, isOk } from '@emdash/shared';
-import type { AcpPermissionRequest } from '@runtimes/acp/api';
 import { describe, expect, it } from 'vitest';
+import type { AcpPermissionRequest } from '#runtimes/acp/api';
 import type { SessionMachineState } from './machine';
 import {
   activeTurnFromPhase,

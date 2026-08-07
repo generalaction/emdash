@@ -1,21 +1,21 @@
 import { lstat, readdir, readlink, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import type { ExclusionMatcher } from '@primitives/lib/api';
+import type { ExclusionMatcher } from '#primitives/lib/api';
 import {
   joinPortableRelativePath,
   portableRelativePathParent,
   type PortableRelativePath,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 import {
   isExpandableFileEntry,
   type FileEntry,
   type FsError,
   type SymlinkTargetKind,
-} from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
-import { etagForStat } from '@runtimes/files/node/fs/metadata';
-import { containsPath, type RootPathPolicy } from '@runtimes/files/node/fs/path-policy';
+} from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
+import { etagForStat } from '#runtimes/files/node/fs/metadata';
+import { containsPath, type RootPathPolicy } from '#runtimes/files/node/fs/path-policy';
 
 export class TreeDirectoryReader {
   constructor(

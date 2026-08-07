@@ -1,4 +1,4 @@
-import type { HostDependencyDefinition } from '@primitives/host-dependencies/api';
+import type { HostDependencyDefinition } from '#primitives/host-dependencies/api';
 import { aptInstallCommand } from './apt-commands';
 
 const aptInstallOption = (packages: string) => ({

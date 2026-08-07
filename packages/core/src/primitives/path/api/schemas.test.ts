@@ -1,5 +1,5 @@
-import { hostRefSchema, LOCAL_HOST_REF } from '@primitives/host/api';
 import { describe, expect, it } from 'vitest';
+import { hostRefSchema, LOCAL_HOST_REF } from '#primitives/host/api';
 import {
   absolutePathInputSchema,
   hostAbsolutePathSchema,

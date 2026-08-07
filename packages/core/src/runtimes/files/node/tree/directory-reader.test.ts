@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { isExpandableFileEntry } from '@runtimes/files/api';
-import { RootPathPolicy } from '@runtimes/files/node/fs/path-policy';
-import { relativePath } from '@runtimes/files/node/testing/paths';
 import { afterEach, describe, expect, it } from 'vitest';
+import { isExpandableFileEntry } from '#runtimes/files/api';
+import { RootPathPolicy } from '#runtimes/files/node/fs/path-policy';
+import { relativePath } from '#runtimes/files/node/testing/paths';
 import { TreeDirectoryReader } from './directory-reader';
 
 const roots: string[] = [];

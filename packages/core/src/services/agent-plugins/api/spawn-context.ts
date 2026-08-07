@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { buildAllowlistedAgentEnv } from '@primitives/agent-env/api';
+import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
 
 export type SpawnContext = {
   cli: string;

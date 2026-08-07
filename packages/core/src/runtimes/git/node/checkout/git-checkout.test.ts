@@ -3,11 +3,11 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { CheckoutStatusState } from '@runtimes/git/api';
-import type { CheckoutIdentity } from '@runtimes/git/node/allocation/identity';
-import { gitPath } from '@runtimes/git/node/testing/paths';
-import { createBoundExec } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import type { CheckoutStatusState } from '#runtimes/git/api';
+import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
+import { gitPath } from '#runtimes/git/node/testing/paths';
+import { createBoundExec } from '#services/exec/api';
 import { GitCheckout, type GitObjectReader } from './git-checkout';
 
 const execFileAsync = promisify(execFile);

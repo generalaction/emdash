@@ -1,6 +1,6 @@
 import type { LiveModelMutationCtx } from '@emdash/wire/rpc';
-import type { PortableRelativePath } from '@primitives/path/api';
 import { describe, expect, it } from 'vitest';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   optimisticCreateDirectory,
   optimisticCreateFile,

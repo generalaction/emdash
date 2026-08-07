@@ -4,8 +4,8 @@ import path from 'node:path';
 import { ok } from '@emdash/shared';
 import { ConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
-import type { ContentSearchResult } from '@runtimes/file-search/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { ContentSearchResult } from '#runtimes/file-search/api';
 import type { RegisteredRoot } from '../root/registered-root';
 import { hostPath as absolute } from '../testing/paths';
 import type {

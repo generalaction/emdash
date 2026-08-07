@@ -1,5 +1,5 @@
-import { fileContentModelSchema } from '@runtimes/files/api/content/state';
 import { describe, expect, it } from 'vitest';
+import { fileContentModelSchema } from '#runtimes/files/api/content/state';
 import { fileStatSchema } from './schemas';
 
 describe('files schemas', () => {

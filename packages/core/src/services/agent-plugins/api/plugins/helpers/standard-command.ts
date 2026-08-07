@@ -1,8 +1,8 @@
-import { formatCommandLine, quoteArg } from '@primitives/exec/api';
+import { formatCommandLine, quoteArg } from '#primitives/exec/api';
 import type {
   AgentCommand,
   CommandContext,
-} from '@services/agent-plugins/api/plugins/capabilities/prompt';
+} from '#services/agent-plugins/api/plugins/capabilities/prompt';
 
 /** Wrap a command with stdin pipe delivery for an initial prompt. */
 export function wrapWithStdinPipe(cmd: AgentCommand, prompt: string): AgentCommand {

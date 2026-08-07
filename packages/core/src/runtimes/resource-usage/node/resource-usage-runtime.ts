@@ -1,6 +1,6 @@
 import { statfs } from 'node:fs/promises';
 import { cpus, freemem, homedir, totalmem, type CpuInfo } from 'node:os';
-import type { ResourceUsageSample } from '@runtimes/resource-usage/api';
+import type { ResourceUsageSample } from '#runtimes/resource-usage/api';
 
 const FIRST_SAMPLE_INTERVAL_MS = 100;
 

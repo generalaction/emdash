@@ -1,7 +1,7 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { snapshot } from '@emdash/wire/state';
-import { gitPath } from '@runtimes/git/node/testing/paths';
 import { describe, expect, it } from 'vitest';
+import { gitPath } from '#runtimes/git/node/testing/paths';
 import { FileDiffRegistry } from './file-diff-registry';
 
 describe('FileDiffRegistry', () => {

@@ -1,5 +1,5 @@
-import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostElevation, Platform, ProbeResult } from '@primitives/host-dependencies/api';
+import type { IExecutionContext } from '#primitives/exec/api';
+import type { HostElevation, Platform, ProbeResult } from '#primitives/host-dependencies/api';
 
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;

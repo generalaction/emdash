@@ -1,8 +1,8 @@
 import { ok } from '@emdash/shared';
 import { ManualClock } from '@emdash/shared/testing';
-import { LOCAL_HOST_REF } from '@primitives/host/api';
-import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LOCAL_HOST_REF } from '#primitives/host/api';
+import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import type { AutomationDeployment } from '../api/deployment';
 import { AutomationDeploymentStore } from './persistence/deployment-store';
 import type { AutomationsDb } from './persistence/store';

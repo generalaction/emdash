@@ -1,10 +1,10 @@
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { err, ok, type Result } from '@emdash/shared';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { FsError, WritePrecondition } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
-import type { RootResource } from '@runtimes/files/node/root/root-resource';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { FsError, WritePrecondition } from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
+import type { RootResource } from '#runtimes/files/node/root/root-resource';
 import { strongEtagForHandle } from './metadata';
 
 export async function writeFileContent(

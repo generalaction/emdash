@@ -1,4 +1,4 @@
-import type { HostDependencyDefinition } from '@primitives/host-dependencies/api';
+import type { HostDependencyDefinition } from '#primitives/host-dependencies/api';
 import type { CLIAgentPluginProvider } from './index';
 
 export function buildDescriptorFromProvider(

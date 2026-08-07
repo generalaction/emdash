@@ -1,4 +1,4 @@
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   toRangeString,
   toRefString,
@@ -7,9 +7,9 @@ import {
   type DiffTarget,
   type FileDiff,
   type GitChange,
-} from '@runtimes/git/api';
-import { checkoutFailures } from '@runtimes/git/node/checkout/errors';
-import { ExecError, type BoundExec } from '@services/exec/api';
+} from '#runtimes/git/api';
+import { checkoutFailures } from '#runtimes/git/node/checkout/errors';
+import { ExecError, type BoundExec } from '#services/exec/api';
 import { parseNumstat } from './log';
 import { mapGitChangeStatus } from './status';
 

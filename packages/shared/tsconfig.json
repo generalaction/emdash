@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["development"],
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -12,16 +13,7 @@
     "forceConsistentCasingInFileNames": true,
     "jsx": "react",
     "lib": ["ES2022"],
-    "types": ["node"],
-    "paths": {
-      "@emdash/shared/scheduling": ["./src/scheduling/index.ts"],
-      "@emdash/shared/concurrency": ["./src/concurrency/index.ts"],
-      "@emdash/shared/util": ["./src/util/index.ts"],
-      "@emdash/shared/testing": ["./src/testing/index.ts"],
-      "@emdash/shared/logger": ["./src/logger/index.ts"],
-      "@emdash/shared/result": ["./src/result/index.ts"],
-      "@emdash/shared": ["./src/index.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist"]

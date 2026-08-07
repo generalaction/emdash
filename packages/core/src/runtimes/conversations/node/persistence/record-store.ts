@@ -1,5 +1,5 @@
-import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { eq } from 'drizzle-orm';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { ConversationRecord } from '../../api/schemas';
 import {
   parseConfigPayload,

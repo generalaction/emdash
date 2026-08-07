@@ -13,7 +13,7 @@ import {
   type SessionUsage,
   type TerminalState,
   type TranscriptTurn,
-} from '@runtimes/acp/api';
+} from '#runtimes/acp/api';
 
 export type SessionLiveModels = {
   states: {

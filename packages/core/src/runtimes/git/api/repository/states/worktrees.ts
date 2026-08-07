@@ -1,5 +1,5 @@
-import { hostAbsolutePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '#primitives/path/api';
 
 export const worktreeHeadSummarySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('branch'), name: z.string() }),

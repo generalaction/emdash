@@ -4,14 +4,14 @@ import path from 'node:path';
 import { ManualClock } from '@emdash/shared/testing';
 import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
-import type { TempStoreHandle } from '@primitives/sqlite-store/api';
-import { conversationsContract } from '@runtimes/conversations/api';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TempStoreHandle } from '#primitives/sqlite-store/api';
+import { conversationsContract } from '#runtimes/conversations/api';
 import {
   conversationsStore,
   type ConversationsDb,
-} from '@runtimes/conversations/node/persistence/store';
-import { ConversationsRuntime } from '@runtimes/conversations/node/runtime';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+} from '#runtimes/conversations/node/persistence/store';
+import { ConversationsRuntime } from '#runtimes/conversations/node/runtime';
 import { createConversationsController } from './controller';
 
 // Contract-seam tests for the host conversation index (spec §3–4), against real SQLite

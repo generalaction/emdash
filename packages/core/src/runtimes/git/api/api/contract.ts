@@ -1,8 +1,8 @@
 import { defineContract, fallible, liveJob, procedure } from '@emdash/wire/rpc';
-import { hostAbsolutePathSchema } from '@primitives/path/api';
-import { gitCheckoutContract } from '@runtimes/git/api/checkout/contract';
-import { gitRepositoryContract } from '@runtimes/git/api/repository/contract';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '#primitives/path/api';
+import { gitCheckoutContract } from '#runtimes/git/api/checkout/contract';
+import { gitRepositoryContract } from '#runtimes/git/api/repository/contract';
 import { cloneRepositoryErrorSchema, ensureRepositoryErrorSchema } from './errors';
 import {
   cloneRepositoryJobInputSchema,

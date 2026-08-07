@@ -1,5 +1,5 @@
-import { ExecError, type BoundExec } from '@services/exec/api';
 import { describe, expect, it, vi } from 'vitest';
+import { ExecError, type BoundExec } from '#services/exec/api';
 import { createWorkspaceScriptRunner } from './script-runner';
 
 function fakeExec(exec: BoundExec['exec']): BoundExec {

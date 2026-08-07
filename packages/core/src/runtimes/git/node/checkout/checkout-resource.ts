@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire/state';
-import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
+import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   type gitCheckoutContract,
   type BlameResult,
@@ -20,12 +20,12 @@ import {
   type GitLogOptions,
   type GitLogResult,
   type ImageReadResult,
-} from '@runtimes/git/api';
-import type { CheckoutIdentity } from '@runtimes/git/node/allocation/identity';
-import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
-import type { RepositoryResource } from '@runtimes/git/node/repository/repository-resource';
-import type { WorktreeWatchEffects } from '@runtimes/git/node/repository/watch-classifier';
-import type { IWatchService, WatchHandle } from '@services/fs-watch/api';
+} from '#runtimes/git/api';
+import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
+import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
+import type { RepositoryResource } from '#runtimes/git/node/repository/repository-resource';
+import type { WorktreeWatchEffects } from '#runtimes/git/node/repository/watch-classifier';
+import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 import { GitFileContentRegistry } from './file-content-registry';
 import { FileDiffRegistry } from './file-diff-registry';
 import type { GitCheckout } from './git-checkout';

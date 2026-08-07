@@ -1,6 +1,6 @@
 import { definePluginCapability } from '@emdash/shared/plugins';
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import z from 'zod';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { ConfigRootResolver } from '../helpers/config-root';
 
 export type PluginScope = { kind: 'global' } | { kind: 'workspace'; path: string };

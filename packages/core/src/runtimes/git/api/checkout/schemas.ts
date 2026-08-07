@@ -1,7 +1,7 @@
-import { portableRelativePathSchema } from '@primitives/path/api';
-import { checkoutSelectorSchema } from '@runtimes/git/api/api/selectors';
-import { gitBranchRefSchema } from '@runtimes/git/api/repository/states/refs';
 import { z } from 'zod';
+import { portableRelativePathSchema } from '#primitives/path/api';
+import { checkoutSelectorSchema } from '#runtimes/git/api/api/selectors';
+import { gitBranchRefSchema } from '#runtimes/git/api/repository/states/refs';
 
 /**
  * Checkout subdomain schemas: the read/diff/history vocabulary and the option

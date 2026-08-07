@@ -1,5 +1,5 @@
-import type { BoundExec } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import type { BoundExec } from '#services/exec/api';
 import { computeRemotesState } from './remotes';
 
 function createRemoteExec(stdout: string): BoundExec {

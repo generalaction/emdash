@@ -1,11 +1,11 @@
 import type { Scope } from '@emdash/shared/concurrency';
 import { cell, type Cell } from '@emdash/wire/state';
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import type {
   BoundFileDiffKey,
   FileDiffStalenessReason,
   NormalizedDiffTarget,
-} from '@runtimes/git/api';
+} from '#runtimes/git/api';
 
 export type FileDiffRegistryOptions = Readonly<{
   maxEntries?: number;

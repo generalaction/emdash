@@ -1,5 +1,5 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
-import type { ITrustBehavior } from '@services/agent-plugins/api/plugins/capabilities/trust';
+import type { PluginFs } from '#primitives/plugin-fs/api';
+import type { ITrustBehavior } from '#services/agent-plugins/api/plugins/capabilities/trust';
 
 export type JsonConfigTrustBehaviorOptions = {
   configName: string;

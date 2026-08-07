@@ -1,9 +1,9 @@
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   type ContentSearchFileResult,
   type ContentSearchLineMatch,
   type ContentSearchResult,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 import type { ContentSearchContext } from '../content-searcher';
 
 const PROGRESS_MATCH_BATCH_SIZE = 50;

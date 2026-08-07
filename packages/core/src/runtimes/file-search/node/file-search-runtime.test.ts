@@ -1,10 +1,10 @@
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { StoreHandle } from '@primitives/sqlite-store/api';
-import type { IWatchService } from '@services/fs-watch/api';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
+import type { IWatchService } from '#services/fs-watch/api';
 import { FileSearchRuntime } from './file-search-runtime';
 import { fileSearchStore, type FileSearchDb } from './storage/store';
 import { hostPath as absolute } from './testing/paths';

@@ -18,20 +18,24 @@
   ],
   "exports": {
     ".": {
+      "development": "./src/core/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
     "./manifest": {
+      "development": "./src/themes/registry.ts",
       "types": "./dist/manifest.d.mts",
       "default": "./dist/manifest.mjs"
     },
     "./densities": {
+      "development": "./src/densities/registry.ts",
       "types": "./dist/densities.d.mts",
       "default": "./dist/densities.mjs"
     },
     "./theme.css": "./src/__generated__/theme.css",
     "./semantic.css": "./src/__generated__/semantic.css",
     "./shiki-themes": {
+      "development": "./src/__generated__/shiki-themes.gen.ts",
       "types": "./dist/shiki-themes.d.mts",
       "default": "./dist/shiki-themes.mjs"
     },

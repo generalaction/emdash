@@ -1,6 +1,6 @@
 import type { ContractImpl } from '@emdash/wire/rpc';
-import type { GitContract } from '@runtimes/git/api';
-import type { GitRepositoryRuntime } from '@runtimes/git/node/repository/repository-runtime';
+import type { GitContract } from '#runtimes/git/api';
+import type { GitRepositoryRuntime } from '#runtimes/git/node/repository/repository-runtime';
 
 type RepositoryImplementation = NonNullable<ContractImpl<GitContract>['repository']>;
 

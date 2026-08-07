@@ -5,14 +5,14 @@ import path from 'node:path';
 import { ManualClock } from '@emdash/shared/testing';
 import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
-import type { TempStoreHandle } from '@primitives/sqlite-store/api';
-import { workspaceRegistryContract } from '@runtimes/workspace-registry/api';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { TempStoreHandle } from '#primitives/sqlite-store/api';
+import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
 import {
   workspaceRegistryStore,
   type WorkspaceRegistryDb,
-} from '@runtimes/workspace-registry/node/persistence/store';
-import { WorkspaceRegistryRuntime } from '@runtimes/workspace-registry/node/runtime';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+} from '#runtimes/workspace-registry/node/persistence/store';
+import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
 import { createWorkspaceRegistryController } from './controller';
 
 // Contract-seam tests for deleteWorktree (ADR 0005): one call that deactivates

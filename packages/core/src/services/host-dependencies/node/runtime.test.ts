@@ -1,14 +1,14 @@
 import { deferred } from '@emdash/shared/testing';
 import type { LiveSource } from '@emdash/wire/rpc';
 import { flushStateTurn } from '@emdash/wire/state';
-import type { IExecutionContext } from '@primitives/exec/api';
+import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '#primitives/exec/api';
 import type {
   HostDependencyDefinition,
   HostDependencySnapshot,
   HostElevation,
-} from '@primitives/host-dependencies/api';
-import { createMemoryKeyValueStore } from '@primitives/kv/api';
-import { describe, expect, it, vi } from 'vitest';
+} from '#primitives/host-dependencies/api';
+import { createMemoryKeyValueStore } from '#primitives/kv/api';
 import { HostDependenciesRuntime } from './runtime';
 
 const aptCommandPrefix = 'DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=60';

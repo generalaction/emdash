@@ -1,6 +1,6 @@
 import type { ContractImpl } from '@emdash/wire/rpc';
-import { filesContract, type FilesContract } from '@runtimes/files/api';
-import type { FilesRuntime } from '@runtimes/files/node/files-runtime';
+import { filesContract, type FilesContract } from '#runtimes/files/api';
+import type { FilesRuntime } from '#runtimes/files/node/files-runtime';
 
 export type FilesProcedures = ContractImpl<FilesContract>;
 

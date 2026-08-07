@@ -1,5 +1,5 @@
 import type { Result } from '@emdash/shared';
-import type { GitResolutionError, GitSelector } from '@runtimes/git/api';
+import type { GitResolutionError, GitSelector } from '#runtimes/git/api';
 
 type Brand<Value, Name extends string> = Value & { readonly __brand: Name };
 

@@ -1,12 +1,12 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
-import { formatAbsolute, type HostFileRef } from '@primitives/path/api';
+import { formatAbsolute, type HostFileRef } from '#primitives/path/api';
 import type {
   ConversationIndexContract,
   CreateConversationIndexRecordInput,
-} from '@services/conversation-index/api';
-import type { AcpSessionStartContract, TuiSessionStartContract } from '@services/session-start/api';
-import type { WorkspaceHostActionsContract } from '@services/workspace-host-actions/api';
+} from '#services/conversation-index/api';
+import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
+import type { WorkspaceHostActionsContract } from '#services/workspace-host-actions/api';
 import type { AutomationAgentConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
 

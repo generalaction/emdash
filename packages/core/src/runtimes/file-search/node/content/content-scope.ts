@@ -1,8 +1,8 @@
 import { lstat, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { portableRelativePathParts } from '@primitives/path/api';
-import type { ContentSearchError, ContentSearchInput } from '@runtimes/file-search/api';
+import { portableRelativePathParts } from '#primitives/path/api';
+import type { ContentSearchError, ContentSearchInput } from '#runtimes/file-search/api';
 import { rootUnavailable, toExpectedContentScopeError } from '../error-mapping';
 import { containsNativePath, isPortablePathHostCompatible, sameNativePath } from '../native-paths';
 

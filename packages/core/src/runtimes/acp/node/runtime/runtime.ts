@@ -27,17 +27,17 @@ import type {
   SessionState,
   TerminalState,
   TranscriptTurn,
-} from '@runtimes/acp/api';
-import { acpErr } from '@runtimes/acp/api';
-import { buildAgentClient } from '@runtimes/acp/node/agent-ports/agent-client';
-import { FsPort } from '@runtimes/acp/node/agent-ports/fs-port';
-import { AgentTerminalManager } from '@runtimes/acp/node/agent-ports/terminal-manager';
-import { TerminalPort } from '@runtimes/acp/node/agent-ports/terminal-port';
+} from '#runtimes/acp/api';
+import { acpErr } from '#runtimes/acp/api';
+import { buildAgentClient } from '#runtimes/acp/node/agent-ports/agent-client';
+import { FsPort } from '#runtimes/acp/node/agent-ports/fs-port';
+import { AgentTerminalManager } from '#runtimes/acp/node/agent-ports/terminal-manager';
+import { TerminalPort } from '#runtimes/acp/node/agent-ports/terminal-port';
 import {
   createAcpConnectionSource,
   type AcpConnectionSource,
-} from '@runtimes/acp/node/connection/source';
-import type { SessionLiveModels, SessionsListModel } from '@runtimes/acp/node/state/live-models';
+} from '#runtimes/acp/node/connection/source';
+import type { SessionLiveModels, SessionsListModel } from '#runtimes/acp/node/state/live-models';
 import type { StoredAttachment } from './attachment-store';
 import { SessionManager, type HistoryPage } from './session-manager';
 import { TerminalLiveRegistry } from './terminal-live-registry';

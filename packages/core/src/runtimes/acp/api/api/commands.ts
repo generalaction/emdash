@@ -1,11 +1,11 @@
-import { attachmentRefSchema } from '@runtimes/acp/api/models/attachments';
-import { permissionDecisionSchema } from '@runtimes/acp/api/models/permissions';
+import { z } from 'zod';
+import { attachmentRefSchema } from '#runtimes/acp/api/models/attachments';
+import { permissionDecisionSchema } from '#runtimes/acp/api/models/permissions';
 import {
   promptDraftUpdateSchema,
   promptInputSchema,
   queuedPromptSchema,
-} from '@runtimes/acp/api/models/prompt';
-import { z } from 'zod';
+} from '#runtimes/acp/api/models/prompt';
 
 export const acpStartInputSchema = z.object({
   conversationId: z.string(),

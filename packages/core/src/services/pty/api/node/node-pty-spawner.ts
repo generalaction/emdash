@@ -1,4 +1,5 @@
 import { recordSpawn } from '@emdash/shared/perf';
+import * as nodePty from 'node-pty';
 import {
   normalizeSignal,
   PosixPtyTerminator,
@@ -6,8 +7,7 @@ import {
   type PtyProcess,
   type PtySpawner,
   type PtySpawnSpec,
-} from '@services/pty/api';
-import * as nodePty from 'node-pty';
+} from '#services/pty/api';
 
 const MIN_COLS = 2;
 const MIN_ROWS = 1;

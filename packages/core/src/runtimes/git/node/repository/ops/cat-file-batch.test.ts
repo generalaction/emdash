@@ -3,9 +3,9 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { bindGitDir, createGitExec } from '@runtimes/git/node/exec/git-exec';
-import type { BoundExec } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import { bindGitDir, createGitExec } from '#runtimes/git/node/exec/git-exec';
+import type { BoundExec } from '#services/exec/api';
 import { CatFileBatch } from './cat-file-batch';
 
 const execFileAsync = promisify(execFile);

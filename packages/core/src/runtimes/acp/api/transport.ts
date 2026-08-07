@@ -1,5 +1,5 @@
 import type { Readable, Writable } from 'node:stream';
-import type { TerminalExit } from '@runtimes/acp/api/models/terminals';
+import type { TerminalExit } from '#runtimes/acp/api/models/terminals';
 
 /** Exit status of a terminal command — mirrors the ACP WaitForTerminalExitResponse shape. */
 export type AcpTerminalExit = TerminalExit;

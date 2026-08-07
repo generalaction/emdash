@@ -1,11 +1,11 @@
 import { defineContract, fallible, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
-import { terminalShellAvailabilityListSchema } from '@primitives/terminal-shell/api';
+import { z } from 'zod';
+import { terminalShellAvailabilityListSchema } from '#primitives/terminal-shell/api';
 import {
   scriptWorkflowsDefinitions,
   terminalErrorSchema,
   terminalScopeInputSchema,
-} from '@services/script-workflows/api';
-import { z } from 'zod';
+} from '#services/script-workflows/api';
 import {
   startTerminalInputSchema,
   scriptWorkflowStateSchema,

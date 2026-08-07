@@ -1,4 +1,4 @@
-import type { AcpProcessHost, TerminalState } from '@runtimes/acp/api';
+import type { AcpProcessHost, TerminalState } from '#runtimes/acp/api';
 import { ManagedAgentTerminal } from './managed-terminal';
 
 type TerminalHost = Pick<AcpProcessHost, 'spawnTerminal'>;

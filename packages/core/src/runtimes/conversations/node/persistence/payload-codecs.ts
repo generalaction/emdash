@@ -1,5 +1,5 @@
-import { defineVersionedSchema } from '@primitives/versioned-schema/api';
 import { z } from 'zod';
+import { defineVersionedSchema } from '#primitives/versioned-schema/api';
 import {
   conversationConfigSchema,
   conversationIdRegimeSchema,

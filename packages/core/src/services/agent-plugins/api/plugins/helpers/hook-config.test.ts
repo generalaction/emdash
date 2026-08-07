@@ -1,5 +1,5 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import { describe, expect, it, vi } from 'vitest';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 import {
   buildFlatJsonHookConfig,
   buildFlatTomlHookConfig,

@@ -6,6 +6,7 @@ import {
   liveState,
   mutation,
 } from '@emdash/wire/rpc';
+import { z } from 'zod';
 import {
   commitErrorSchema,
   gitCommandErrorSchema,
@@ -15,14 +16,13 @@ import {
   rebaseErrorSchema,
   switchErrorSchema,
   syncErrorSchema,
-} from '@runtimes/git/api/api/errors';
-import { syncProgressSchema, transferProgressSchema } from '@runtimes/git/api/api/schemas';
-import { checkoutSelectorSchema } from '@runtimes/git/api/api/selectors';
-import { gitFileContentStateSchema } from '@runtimes/git/api/checkout/states/content';
-import { fileDiffStalenessStateSchema } from '@runtimes/git/api/checkout/states/file-diff-staleness';
-import { checkoutHeadStateSchema } from '@runtimes/git/api/checkout/states/head';
-import { checkoutStatusStateSchema } from '@runtimes/git/api/checkout/states/status';
-import { z } from 'zod';
+} from '#runtimes/git/api/api/errors';
+import { syncProgressSchema, transferProgressSchema } from '#runtimes/git/api/api/schemas';
+import { checkoutSelectorSchema } from '#runtimes/git/api/api/selectors';
+import { gitFileContentStateSchema } from '#runtimes/git/api/checkout/states/content';
+import { fileDiffStalenessStateSchema } from '#runtimes/git/api/checkout/states/file-diff-staleness';
+import { checkoutHeadStateSchema } from '#runtimes/git/api/checkout/states/head';
+import { checkoutStatusStateSchema } from '#runtimes/git/api/checkout/states/status';
 import { gitFileContentKeySchema } from './file-content-key';
 import { fileDiffKeySchema } from './file-diff-key';
 import {

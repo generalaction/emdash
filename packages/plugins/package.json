@@ -9,18 +9,22 @@
   "sideEffects": false,
   "exports": {
     "./agents": {
+      "development": "./src/agents/registry.ts",
       "types": "./dist/agents.d.mts",
       "default": "./dist/agents.mjs"
     },
     "./agents/types": {
+      "development": "./src/agents/types.ts",
       "types": "./dist/agents/types.d.mts",
       "default": "./dist/agents/types.mjs"
     },
     "./integrations": {
+      "development": "./src/integrations/index.ts",
       "types": "./dist/integrations.d.mts",
       "default": "./dist/integrations.mjs"
     },
     "./issues": {
+      "development": "./src/issues/index.ts",
       "types": "./dist/issues.d.mts",
       "default": "./dist/issues.mjs"
     }

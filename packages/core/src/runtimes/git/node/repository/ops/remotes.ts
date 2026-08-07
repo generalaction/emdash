@@ -1,5 +1,5 @@
-import type { GitRemote, GitRemotesState } from '@runtimes/git/api';
-import type { BoundExec } from '@services/exec/api';
+import type { GitRemote, GitRemotesState } from '#runtimes/git/api';
+import type { BoundExec } from '#services/exec/api';
 
 export async function computeRemotesState(exec: BoundExec): Promise<GitRemotesState> {
   const { stdout } = await exec.exec(['remote', '-v']);

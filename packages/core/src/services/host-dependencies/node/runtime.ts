@@ -4,7 +4,8 @@ import { KeyedMutex } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { expose, peek, query, revisionOf, type Query } from '@emdash/wire/state';
-import type { IExecutionContext } from '@primitives/exec/api';
+import { z } from 'zod';
+import type { IExecutionContext } from '#primitives/exec/api';
 import {
   hostDependencySelectionSchema,
   type DependencyId,
@@ -17,24 +18,23 @@ import {
   type HostDependencyViewResult,
   type InstallMethod,
   type PathCandidate,
-} from '@primitives/host-dependencies/api';
-import type { KeyValueStore } from '@primitives/kv/api';
+} from '#primitives/host-dependencies/api';
+import type { KeyValueStore } from '#primitives/kv/api';
 import {
   hostDependenciesContract,
   type HostDependencyInstallBatchResult,
   type HostDependencyInstallRequest,
   type HostDependencyOperationProgress,
-} from '@services/host-dependencies/api';
+} from '#services/host-dependencies/api';
 import {
   APT_UPDATE_COMMAND,
   aptInstallPackagesCommand,
-} from '@services/host-dependencies/api/apt-commands';
+} from '#services/host-dependencies/api/apt-commands';
 import {
   probeHostElevation,
   resolveAllCommandPaths,
   resolveRealpath,
-} from '@services/host-dependencies/api/runtime/probe';
-import { z } from 'zod';
+} from '#services/host-dependencies/api/runtime/probe';
 import {
   aptBatchElevation,
   aptBatchPackages,

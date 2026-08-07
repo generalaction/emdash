@@ -6,19 +6,19 @@ import {
   type CapabilityDescriptors,
   type ResolvedCapabilityDescriptors,
 } from '@emdash/shared/plugins';
-import { hostDependencyCapability } from '@primitives/host-dependencies/api';
-import { acpCapability } from '@services/agent-plugins/api/plugins/capabilities/acp';
-import { authCapability } from '@services/agent-plugins/api/plugins/capabilities/auth';
-import { autoApproveCapability } from '@services/agent-plugins/api/plugins/capabilities/auto-approve';
-import { effortCapability } from '@services/agent-plugins/api/plugins/capabilities/effort';
-import { hooksCapability } from '@services/agent-plugins/api/plugins/capabilities/hooks';
-import { mcpCapability } from '@services/agent-plugins/api/plugins/capabilities/mcp';
-import { modelsCapability } from '@services/agent-plugins/api/plugins/capabilities/models';
-import { pluginsCapability } from '@services/agent-plugins/api/plugins/capabilities/plugins';
-import { promptCapability } from '@services/agent-plugins/api/plugins/capabilities/prompt';
-import { sessionsCapability } from '@services/agent-plugins/api/plugins/capabilities/sessions';
-import { trustCapability } from '@services/agent-plugins/api/plugins/capabilities/trust';
 import z from 'zod';
+import { hostDependencyCapability } from '#primitives/host-dependencies/api';
+import { acpCapability } from '#services/agent-plugins/api/plugins/capabilities/acp';
+import { authCapability } from '#services/agent-plugins/api/plugins/capabilities/auth';
+import { autoApproveCapability } from '#services/agent-plugins/api/plugins/capabilities/auto-approve';
+import { effortCapability } from '#services/agent-plugins/api/plugins/capabilities/effort';
+import { hooksCapability } from '#services/agent-plugins/api/plugins/capabilities/hooks';
+import { mcpCapability } from '#services/agent-plugins/api/plugins/capabilities/mcp';
+import { modelsCapability } from '#services/agent-plugins/api/plugins/capabilities/models';
+import { pluginsCapability } from '#services/agent-plugins/api/plugins/capabilities/plugins';
+import { promptCapability } from '#services/agent-plugins/api/plugins/capabilities/prompt';
+import { sessionsCapability } from '#services/agent-plugins/api/plugins/capabilities/sessions';
+import { trustCapability } from '#services/agent-plugins/api/plugins/capabilities/trust';
 
 export const PLUGIN_CAPABILITIES = {
   acp: acpCapability,
@@ -86,14 +86,14 @@ export type {
 export type {
   AgentCommand,
   CommandContext,
-} from '@services/agent-plugins/api/plugins/capabilities/prompt';
+} from '#services/agent-plugins/api/plugins/capabilities/prompt';
 export type {
   CanonicalHookEvent,
   HookEvent,
   HookRegistration,
   NotificationType,
-} from '@services/agent-plugins/api/plugins/capabilities/hooks-types';
-export type { PluginFs } from '@primitives/plugin-fs/api';
+} from '#services/agent-plugins/api/plugins/capabilities/hooks-types';
+export type { PluginFs } from '#primitives/plugin-fs/api';
 // Capability behavior interfaces — needed for dts portability
 export type {
   IAcpBehavior,
@@ -102,27 +102,27 @@ export type {
   AcpProcessIo,
   AcpAgentApi,
   AcpClientFactory,
-} from '@services/agent-plugins/api/plugins/capabilities/acp';
-export { agentAuthStatusSchema } from '@services/agent-plugins/api/plugins/capabilities/auth';
+} from '#services/agent-plugins/api/plugins/capabilities/acp';
+export { agentAuthStatusSchema } from '#services/agent-plugins/api/plugins/capabilities/auth';
 export type {
   AgentAuthContext,
   AgentAuthDescriptor,
   AgentAuthMethod,
   AgentAuthStatus,
   IAgentAuthBehavior,
-} from '@services/agent-plugins/api/plugins/capabilities/auth';
-export type { IHostDependencyBehavior } from '@primitives/host-dependencies/api';
-export type { IHooksBehavior } from '@services/agent-plugins/api/plugins/capabilities/hooks';
+} from '#services/agent-plugins/api/plugins/capabilities/auth';
+export type { IHostDependencyBehavior } from '#primitives/host-dependencies/api';
+export type { IHooksBehavior } from '#services/agent-plugins/api/plugins/capabilities/hooks';
 export type {
   IMcpBehavior,
   McpServerRegistration,
-} from '@services/agent-plugins/api/plugins/capabilities/mcp';
-export type { IPlugins } from '@services/agent-plugins/api/plugins/capabilities/plugins';
-export type { ISessionsBehavior } from '@services/agent-plugins/api/plugins/capabilities/sessions';
+} from '#services/agent-plugins/api/plugins/capabilities/mcp';
+export type { IPlugins } from '#services/agent-plugins/api/plugins/capabilities/plugins';
+export type { ISessionsBehavior } from '#services/agent-plugins/api/plugins/capabilities/sessions';
 export type {
   ITrustBehavior,
   TrustContext,
-} from '@services/agent-plugins/api/plugins/capabilities/trust';
+} from '#services/agent-plugins/api/plugins/capabilities/trust';
 export { AgentPluginHost } from './plugin-host';
 export { buildDescriptorFromProvider } from './host-dependency-descriptor';
 export type {

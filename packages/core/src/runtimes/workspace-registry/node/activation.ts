@@ -6,7 +6,7 @@ import {
   EMDASH_CONFIG_FILE,
   parseEmdashConfig,
   type EmdashScriptsConfig,
-} from '@primitives/emdash-config/api';
+} from '#primitives/emdash-config/api';
 import type { WorkspaceRuntimeOverlay } from '../api/schemas';
 import {
   createWorkspaceScriptRunner,

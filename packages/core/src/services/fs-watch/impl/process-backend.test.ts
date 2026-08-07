@@ -9,16 +9,16 @@ import {
   type WorkerParentPort,
   type WorkerSupervision,
 } from '@emdash/wire/worker';
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import {
   fsWatchContract,
   type IWatchService,
   type WatchEvent,
   type WatchHandle,
   type WatchOptions,
-} from '@services/fs-watch/api';
-import { fsWatchComponent } from '@services/fs-watch/node/component';
-import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
+} from '#services/fs-watch/api';
+import { fsWatchComponent } from '#services/fs-watch/node/component';
 import { createFsWatchController } from './controller';
 import { processWatchBackend } from './process-backend';
 import { createWatchService } from './watch-service';

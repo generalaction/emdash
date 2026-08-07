@@ -1,12 +1,12 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { LifecycleRegistry, type Scope } from '@emdash/shared/concurrency';
-import { canonicalExclusionPatterns } from '@primitives/lib/api';
-import type { HostAbsolutePath } from '@primitives/path/api';
+import { canonicalExclusionPatterns } from '#primitives/lib/api';
+import type { HostAbsolutePath } from '#primitives/path/api';
 import type {
   FileSearchRegisterRootError,
   FileSearchRootInput,
   FileSearchUnregisterRootError,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 import {
   rootNotRegistered,
   toExpectedRootOrIndexError,

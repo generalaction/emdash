@@ -2,25 +2,25 @@ import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
-import { tuiAgentsContract } from '@runtimes/tui-agents/api';
-import { createTuiAgentsController } from '@runtimes/tui-agents/node/api/controller';
-import { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
-import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
-import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
-import { conversationReportsContract } from '@services/conversation-reports/api';
-import { createConversationLifecycleReporter } from '@services/conversation-reports/node';
-import { NodeExecutionContext } from '@services/exec/api';
+import { z } from 'zod';
+import { idlePolicyConfigSchema } from '#primitives/io-activity/api';
+import { tuiAgentsContract } from '#runtimes/tui-agents/api';
+import { createTuiAgentsController } from '#runtimes/tui-agents/node/api/controller';
+import { TuiAgentsRuntime } from '#runtimes/tui-agents/node/runtime/runtime';
+import { AgentPluginHost, type CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
+import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
+import { conversationReportsContract } from '#services/conversation-reports/api';
+import { createConversationLifecycleReporter } from '#services/conversation-reports/node';
+import { NodeExecutionContext } from '#services/exec/api';
 import {
   createHostDependencyResolverFromDependency,
   hostDependencyResolverContract,
-} from '@services/host-dependencies/node';
-import { NodePtySpawner } from '@services/pty/node';
+} from '#services/host-dependencies/node';
+import { NodePtySpawner } from '#services/pty/node';
 import {
   createFileSessionIntentStore,
   createNoopSessionIntentStore,
-} from '@services/session-intents/node';
-import { z } from 'zod';
+} from '#services/session-intents/node';
 
 export const tuiAgentsComponentConfigSchema = z.object({
   intentsFilePath: z.string().min(1).optional(),

@@ -3,7 +3,7 @@ import {
   parsePortableRelativePath,
   type HostAbsolutePath,
   type PortableRelativePath,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 import {
   gitErr,
   type AddWorktreeOptions,
@@ -21,31 +21,31 @@ import {
   type GitWorktreesState,
   type PushError,
   type WorktreeSummary,
-} from '@runtimes/git/api';
-import type { RepositoryIdentity } from '@runtimes/git/node/allocation/identity';
+} from '#runtimes/git/api';
+import type { RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
 import {
   realpathOrResolve,
   toHostAbsolutePath,
   toNativeAbsolutePath,
-} from '@runtimes/git/node/allocation/paths';
-import { commandFailed, pushFailed } from '@runtimes/git/node/exec/errors';
-import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
+} from '#runtimes/git/node/allocation/paths';
+import { commandFailed, pushFailed } from '#runtimes/git/node/exec/errors';
+import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
   execGitWithProgress,
   throwIfGitOpAborted,
-} from '@runtimes/git/node/exec/transfer-progress';
+} from '#runtimes/git/node/exec/transfer-progress';
 import {
   CatFileBatch,
   CatFileBatchProcessError,
-} from '@runtimes/git/node/repository/ops/cat-file-batch';
-import { computeRefsState } from '@runtimes/git/node/repository/ops/refs';
+} from '#runtimes/git/node/repository/ops/cat-file-batch';
+import { computeRefsState } from '#runtimes/git/node/repository/ops/refs';
 import {
   computeRemotesState,
   remoteNameForRepositoryUrl,
-} from '@runtimes/git/node/repository/ops/remotes';
-import { computeStashesState } from '@runtimes/git/node/repository/ops/stashes';
-import { parseWorktreeList } from '@runtimes/git/node/repository/ops/worktrees';
-import { ExecError, type BoundExec } from '@services/exec/api';
+} from '#runtimes/git/node/repository/ops/remotes';
+import { computeStashesState } from '#runtimes/git/node/repository/ops/stashes';
+import { parseWorktreeList } from '#runtimes/git/node/repository/ops/worktrees';
+import { ExecError, type BoundExec } from '#services/exec/api';
 import { repositoryFailures } from './errors';
 
 type GitRepositoryOptions = {

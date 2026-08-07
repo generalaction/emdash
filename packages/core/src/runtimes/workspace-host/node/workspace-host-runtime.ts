@@ -4,8 +4,8 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
-import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
-import type { GitExecFactory } from '@services/exec/node/git-exec';
+import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
+import type { GitExecFactory } from '#services/exec/node/git-exec';
 import {
   workspaceHostContract,
   type WorkspaceHostError,

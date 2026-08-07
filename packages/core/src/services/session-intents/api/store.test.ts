@@ -1,5 +1,5 @@
-import { createMemoryKeyValueStore } from '@primitives/kv/api';
 import { describe, expect, it } from 'vitest';
+import { createMemoryKeyValueStore } from '#primitives/kv/api';
 import { createKvSessionIntentStore } from './store';
 
 describe('createKvSessionIntentStore', () => {

@@ -1,11 +1,11 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { gitContract } from '@runtimes/git/api';
-import { createGitController } from '@runtimes/git/node/api/controller';
-import { GitRuntime } from '@runtimes/git/node/git-runtime';
-import { fsWatchContract } from '@services/fs-watch/api';
-import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
-import { hostDependencyResolverContract } from '@services/host-dependencies/api';
 import { z } from 'zod';
+import { gitContract } from '#runtimes/git/api';
+import { createGitController } from '#runtimes/git/node/api/controller';
+import { GitRuntime } from '#runtimes/git/node/git-runtime';
+import { fsWatchContract } from '#services/fs-watch/api';
+import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
+import { hostDependencyResolverContract } from '#services/host-dependencies/api';
 
 export const gitComponentConfigSchema = z.object({
   executable: z.string().min(1).optional(),

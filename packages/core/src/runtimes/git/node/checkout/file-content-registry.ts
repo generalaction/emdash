@@ -1,7 +1,7 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { query, type Query } from '@emdash/wire/state';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { BoundGitFileContentKey, GitFileContentState, GitFileSource } from '@runtimes/git/api';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { BoundGitFileContentKey, GitFileContentState, GitFileSource } from '#runtimes/git/api';
 import type { GitCheckout } from './git-checkout';
 
 type ContentInvalidation = 'index' | 'refs' | 'history';

@@ -1,6 +1,6 @@
 import { resultSchema as result } from '@emdash/shared';
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
 
 const messageError = <Type extends string>(type: Type) =>
   z.object({ type: z.literal(type), message: z.string() });

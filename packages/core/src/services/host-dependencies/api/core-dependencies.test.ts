@@ -1,5 +1,5 @@
-import { hostDependencyDefinitionSchema } from '@primitives/host-dependencies/api';
 import { describe, expect, it } from 'vitest';
+import { hostDependencyDefinitionSchema } from '#primitives/host-dependencies/api';
 import {
   CORE_DEPENDENCIES,
   GIT_DEPENDENCY_DESCRIPTOR,

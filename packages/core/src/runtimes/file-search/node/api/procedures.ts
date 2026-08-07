@@ -1,6 +1,6 @@
 import type { ContractImpl } from '@emdash/wire/rpc';
-import type { FileSearchContract } from '@runtimes/file-search/api';
-import type { FileSearchRuntime } from '@runtimes/file-search/node/file-search-runtime';
+import type { FileSearchContract } from '#runtimes/file-search/api';
+import type { FileSearchRuntime } from '#runtimes/file-search/node/file-search-runtime';
 
 export type FileSearchProcedures = ContractImpl<FileSearchContract>;
 

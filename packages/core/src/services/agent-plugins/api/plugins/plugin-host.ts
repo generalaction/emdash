@@ -2,30 +2,30 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { compose, deduplicate } from '@emdash/shared/requests';
-import { buildAllowlistedAgentEnv } from '@primitives/agent-env/api';
-import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostDependencyResolver, Platform } from '@primitives/host-dependencies/api';
-import type { PluginFs } from '@primitives/plugin-fs/api';
+import { buildAllowlistedAgentEnv } from '#primitives/agent-env/api';
+import type { IExecutionContext } from '#primitives/exec/api';
+import type { HostDependencyResolver, Platform } from '#primitives/host-dependencies/api';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 import type {
   AcpSpawnResult,
   IAcpBehavior,
-} from '@services/agent-plugins/api/plugins/capabilities/acp';
+} from '#services/agent-plugins/api/plugins/capabilities/acp';
 import type {
   AgentAuthDescriptor,
   AgentAuthStatus,
   IAgentAuthBehavior,
-} from '@services/agent-plugins/api/plugins/capabilities/auth';
-import type { McpServerRegistration } from '@services/agent-plugins/api/plugins/capabilities/mcp';
+} from '#services/agent-plugins/api/plugins/capabilities/auth';
+import type { McpServerRegistration } from '#services/agent-plugins/api/plugins/capabilities/mcp';
 import type {
   AgentCommand,
   CommandContext,
-} from '@services/agent-plugins/api/plugins/capabilities/prompt';
+} from '#services/agent-plugins/api/plugins/capabilities/prompt';
 import {
   createSpawnContextResolver,
   type SpawnContext,
   type SpawnContextError,
   type SpawnContextResolver,
-} from '@services/agent-plugins/api/spawn-context';
+} from '#services/agent-plugins/api/spawn-context';
 import type { ConfigRootContext } from './helpers/config-root';
 import type { CLIAgentPluginProvider } from './index';
 

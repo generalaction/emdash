@@ -2,10 +2,10 @@ import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire/live';
-import { joinPortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
-import type { FileEnumerationOptions, FsError, PathBatch, PathList } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
-import type { RootResource } from '@runtimes/files/node/root/root-resource';
+import { joinPortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
+import type { FileEnumerationOptions, FsError, PathBatch, PathList } from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
+import type { RootResource } from '#runtimes/files/node/root/root-resource';
 import { containsPath } from './path-policy';
 
 const PROGRESS_BATCH_SIZE = 100;

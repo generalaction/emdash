@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { hostRefEquals, hostRefKey, type HostRef } from '@primitives/host/api';
+import { hostRefEquals, hostRefKey, type HostRef } from '#primitives/host/api';
 import { formatAbsolute, joinAbsolute } from './absolute';
 import { type PathError } from './errors';
 import {

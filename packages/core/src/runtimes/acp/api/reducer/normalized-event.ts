@@ -3,4 +3,4 @@ export type {
   NormalizedDiff,
   NormalizedEvent,
   NormalizedToolStatus,
-} from '@primitives/acp-transcript/api';
+} from '#primitives/acp-transcript/api';

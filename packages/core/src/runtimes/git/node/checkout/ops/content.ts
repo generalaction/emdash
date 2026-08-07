@@ -1,8 +1,8 @@
-import type { PortableRelativePath } from '@primitives/path/api';
-import { toRefString, type GitFileContentState, type GitFileSource } from '@runtimes/git/api';
-import { checkoutFailures } from '@runtimes/git/node/checkout/errors';
-import { commandFailed, gitFailure, isMissingObject } from '@runtimes/git/node/exec/errors';
-import type { BoundExec } from '@services/exec/api';
+import type { PortableRelativePath } from '#primitives/path/api';
+import { toRefString, type GitFileContentState, type GitFileSource } from '#runtimes/git/api';
+import { checkoutFailures } from '#runtimes/git/node/checkout/errors';
+import { commandFailed, gitFailure, isMissingObject } from '#runtimes/git/node/exec/errors';
+import type { BoundExec } from '#services/exec/api';
 
 const MAX_CONTENT_BYTES = 10 * 1024 * 1024;
 

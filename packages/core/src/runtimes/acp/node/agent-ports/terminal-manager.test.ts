@@ -1,9 +1,9 @@
+import { describe, it, expect } from 'vitest';
 import {
   FakeAcpProcessHost,
   FakeAcpTerminalProcess,
   createRecordingListener,
-} from '@runtimes/acp/node/acp-test-support';
-import { describe, it, expect } from 'vitest';
+} from '#runtimes/acp/node/acp-test-support';
 import { AgentTerminalManager } from './terminal-manager';
 
 function makeManager() {

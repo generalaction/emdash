@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '@emdash/shared';
 import type { Logger } from '@emdash/shared/logger';
-import { formatCommandLine } from '@primitives/exec/api';
-import type { IExecutionContext } from '@primitives/exec/api';
+import { formatCommandLine } from '#primitives/exec/api';
+import type { IExecutionContext } from '#primitives/exec/api';
 import type {
   DependencyId,
   ElevationPolicy,
@@ -15,11 +15,11 @@ import type {
   PathCandidate,
   PermissionDeniedError,
   Platform,
-} from '@primitives/host-dependencies/api';
+} from '#primitives/host-dependencies/api';
 import {
   probeHostElevation,
   resolveCommandPath,
-} from '@services/host-dependencies/api/runtime/probe';
+} from '#services/host-dependencies/api/runtime/probe';
 
 export type InstallCommandKind = 'install' | 'update';
 export type InstallCommandMode = 'plain' | 'sudo' | 'sudo-interactive';

@@ -1,6 +1,6 @@
 import { createController } from '@emdash/wire/rpc';
-import { tuiAgentsContract } from '@runtimes/tui-agents/api';
-import type { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
+import { tuiAgentsContract } from '#runtimes/tui-agents/api';
+import type { TuiAgentsRuntime } from '#runtimes/tui-agents/node/runtime/runtime';
 import { createTuiAgentsProcedures } from './procedures';
 
 export function createTuiAgentsController(runtime: TuiAgentsRuntime) {

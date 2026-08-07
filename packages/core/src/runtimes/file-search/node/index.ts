@@ -1,11 +1,11 @@
 export {
   createFileSearchController,
   type FileSearchControllerOptions,
-} from '@runtimes/file-search/node/api/controller';
+} from '#runtimes/file-search/node/api/controller';
 export {
   createFileSearchProcedures,
   type FileSearchProcedures,
-} from '@runtimes/file-search/node/api/procedures';
+} from '#runtimes/file-search/node/api/procedures';
 export {
   fileSearchComponent,
   fileSearchComponentConfigSchema,

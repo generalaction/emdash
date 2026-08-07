@@ -12,12 +12,12 @@ import {
   streamTransport,
   type LiveUpdate,
 } from '@emdash/wire/rpc';
-import type { PortableRelativePath } from '@primitives/path/api';
-import { filesContract } from '@runtimes/files/api';
-import { FilesRuntime } from '@runtimes/files/node/files-runtime';
-import { relativePath, runtimeRoot } from '@runtimes/files/node/testing/paths';
-import type { IWatchService, WatchEvent, WatchOptions } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { PortableRelativePath } from '#primitives/path/api';
+import { filesContract } from '#runtimes/files/api';
+import { FilesRuntime } from '#runtimes/files/node/files-runtime';
+import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
+import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
 import { createFilesController } from './controller';
 
 const roots: string[] = [];

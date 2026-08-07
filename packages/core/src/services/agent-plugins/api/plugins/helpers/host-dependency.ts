@@ -3,8 +3,8 @@ import type {
   InstallCommandsInput,
   InstallCommandOption,
   HostDependencyUpdateCommand,
-} from '@primitives/host-dependencies/api';
-import { installCommandsSchema } from '@primitives/host-dependencies/api';
+} from '#primitives/host-dependencies/api';
+import { installCommandsSchema } from '#primitives/host-dependencies/api';
 
 export function homebrewOption(opts: {
   formula: string;

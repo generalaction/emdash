@@ -3,75 +3,12 @@ import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 const alias = {
-  '@emdash/core/runtimes': resolve(__dirname, '../../packages/core/src/runtimes'),
-  '@emdash/core/services': resolve(__dirname, '../../packages/core/src/services'),
-  '@emdash/core/primitives': resolve(__dirname, '../../packages/core/src/primitives'),
-  '@emdash/core/workspace-server': resolve(__dirname, '../../packages/core/src/workspace-server'),
-  '@services/notifications': resolve(__dirname, 'src/services/notifications'),
-  '@runtimes': resolve(__dirname, '../../packages/core/src/runtimes'),
-  '@services': resolve(__dirname, '../../packages/core/src/services'),
-  '@primitives': resolve(__dirname, '../../packages/core/src/primitives'),
-  '@workspace-server': resolve(__dirname, '../../packages/core/src/workspace-server'),
   '@': resolve(__dirname, 'src'),
   '@core': resolve(__dirname, 'src/core'),
   '@root': resolve(__dirname, '.'),
-  '@shared': resolve(__dirname, 'src/shared'),
   '@renderer': resolve(__dirname, 'src/renderer'),
   '@main': resolve(__dirname, 'src/main'),
   '@tooling': resolve(__dirname, 'tooling'),
-  '@emdash/core/services/fs-watch/api': resolve(
-    __dirname,
-    '../../packages/core/src/services/fs-watch/api/index.ts'
-  ),
-  '@emdash/core/services/fs-watch/node': resolve(
-    __dirname,
-    '../../packages/core/src/services/fs-watch/node/index.ts'
-  ),
-  '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
-  '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
-  '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
-  '@emdash/shared/logger/context-node': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/context-node.ts'
-  ),
-  '@emdash/shared/logger/context': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/context.ts'
-  ),
-  '@emdash/shared/logger/node': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/node/index.ts'
-  ),
-  '@emdash/shared/logger/pino': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/pino/index.ts'
-  ),
-  '@emdash/shared/logger/transport': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/transport/index.ts'
-  ),
-  '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
-  '@emdash/shared/markdown': resolve(__dirname, '../../packages/shared/src/markdown/index.ts'),
-  '@emdash/shared/perf/node': resolve(__dirname, '../../packages/shared/src/perf/node/index.ts'),
-  '@emdash/shared/perf': resolve(__dirname, '../../packages/shared/src/perf/index.ts'),
-  '@emdash/shared/plugins': resolve(__dirname, '../../packages/shared/src/plugins/index.ts'),
-  '@emdash/shared/requests': resolve(__dirname, '../../packages/shared/src/requests/index.ts'),
-  '@emdash/shared/result': resolve(__dirname, '../../packages/shared/src/result/index.ts'),
-  '@emdash/shared/scheduling': resolve(__dirname, '../../packages/shared/src/scheduling/index.ts'),
-  '@emdash/shared/concurrency': resolve(
-    __dirname,
-    '../../packages/shared/src/concurrency/index.ts'
-  ),
-  '@emdash/shared/util': resolve(__dirname, '../../packages/shared/src/util/index.ts'),
-  '@emdash/shared/testing': resolve(__dirname, '../../packages/shared/src/testing/index.ts'),
-  '@emdash/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
-  '@emdash/wire/rpc': resolve(__dirname, '../../packages/wire/src/rpc/index.ts'),
-  '@emdash/wire/live': resolve(__dirname, '../../packages/wire/src/live/index.ts'),
-  '@emdash/wire/state': resolve(__dirname, '../../packages/wire/src/state/index.ts'),
-  '@emdash/wire/mobx': resolve(__dirname, '../../packages/wire/src/live/mobx/index.ts'),
-  '@emdash/wire/testing': resolve(__dirname, '../../packages/wire/src/testing/index.ts'),
-  '@emdash/wire/worker/node': resolve(__dirname, '../../packages/wire/src/worker/node/index.ts'),
-  '@emdash/wire/worker': resolve(__dirname, '../../packages/wire/src/worker/index.ts'),
 };
 
 // For fixture and migration Vitest projects, redirect better-sqlite3 to an

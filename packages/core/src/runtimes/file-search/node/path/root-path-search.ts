@@ -4,7 +4,7 @@ import {
   type PathSearchError,
   type PathSearchInput,
   type PathSearchResult,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 import { indexNotReady, toExpectedStoreError } from '../error-mapping';
 import type { RegisteredRoot } from '../root/registered-root';
 import type { PathIndexStore } from './index/path-index-store';

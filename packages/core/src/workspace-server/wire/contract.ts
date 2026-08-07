@@ -1,6 +1,6 @@
 import { defineContract, fallible, procedure } from '@emdash/wire/rpc';
-import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
+import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
 import { portForwardsContract } from '../port-forwards/contract';
 import {
   wireHealthSchema,

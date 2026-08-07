@@ -5,18 +5,18 @@ import path from 'node:path';
 import { ManualClock } from '@emdash/shared/testing';
 import { remote, snapshot } from '@emdash/wire/state';
 import { createTestWire, type TestWire } from '@emdash/wire/testing';
-import type { TempStoreHandle } from '@primitives/sqlite-store/api';
-import { workspaceRegistryContract } from '@runtimes/workspace-registry/api';
-import { WorkspaceRecordStore } from '@runtimes/workspace-registry/node/persistence/record-store';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { TempStoreHandle } from '#primitives/sqlite-store/api';
+import { workspaceRegistryContract } from '#runtimes/workspace-registry/api';
+import { WorkspaceRecordStore } from '#runtimes/workspace-registry/node/persistence/record-store';
 import {
   workspaceRegistryStore,
   type WorkspaceRegistryDb,
-} from '@runtimes/workspace-registry/node/persistence/store';
-import { WorkspaceRegistryRuntime } from '@runtimes/workspace-registry/node/runtime';
-import { WorkspaceScanScheduler } from '@runtimes/workspace-registry/node/scan/scheduler';
-import { nativeWatchBackend } from '@services/fs-watch/impl/native-backend';
-import { createWatchService } from '@services/fs-watch/impl/watch-service';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+} from '#runtimes/workspace-registry/node/persistence/store';
+import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import { WorkspaceScanScheduler } from '#runtimes/workspace-registry/node/scan/scheduler';
+import { nativeWatchBackend } from '#services/fs-watch/impl/native-backend';
+import { createWatchService } from '#services/fs-watch/impl/watch-service';
 import { createWorkspaceRegistryController } from './controller';
 
 async function eventually(assertion: () => Promise<void>, timeoutMs = 10_000): Promise<void> {

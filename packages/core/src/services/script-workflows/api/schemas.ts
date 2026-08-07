@@ -1,5 +1,5 @@
-import { hostFileRefSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostFileRefSchema } from '#primitives/path/api';
 
 export const terminalSizeSchema = z.object({
   cols: z.number().int().positive(),

@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["development"],
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -12,23 +13,7 @@
     "forceConsistentCasingInFileNames": true,
     "jsx": "react",
     "lib": ["ES2022"],
-    "types": ["node"],
-    "paths": {
-      "@emdash/shared/scheduling": ["../shared/src/scheduling/index.ts"],
-      "@emdash/shared/concurrency": ["../shared/src/concurrency/index.ts"],
-      "@emdash/shared/util": ["../shared/src/util/index.ts"],
-      "@emdash/shared/testing": ["../shared/src/testing/index.ts"],
-      "@emdash/wire/rpc": ["../wire/src/rpc/index.ts"],
-      "@emdash/wire/live": ["../wire/src/live/index.ts"],
-      "@emdash/wire/state": ["../wire/src/state/index.ts"],
-      "@emdash/wire/testing": ["../wire/src/testing/index.ts"],
-      "@emdash/wire/worker": ["../wire/src/worker/index.ts"],
-      "@emdash/wire/worker/node": ["../wire/src/worker/node/index.ts"],
-      "@runtimes/*": ["./src/runtimes/*"],
-      "@services/*": ["./src/services/*"],
-      "@primitives/*": ["./src/primitives/*"],
-      "@workspace-server/*": ["./src/workspace-server/*"]
-    }
+    "types": ["node"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist"]

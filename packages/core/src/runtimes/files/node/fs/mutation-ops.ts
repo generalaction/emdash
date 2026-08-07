@@ -1,10 +1,10 @@
 import { cp, lstat, mkdir, open, rename, rm, rmdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { FsError } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
-import type { RootChange, RootResource } from '@runtimes/files/node/root/root-resource';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { FsError } from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
+import type { RootChange, RootResource } from '#runtimes/files/node/root/root-resource';
 
 export async function createFileInRoot(
   root: RootResource,

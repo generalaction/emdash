@@ -1,7 +1,7 @@
 import {
   CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   type ContentSearchRange,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 
 export const DEFAULT_CONTENT_PREVIEW_CHARS_PER_MATCH = 1_000;
 export const DEFAULT_CONTENT_PREVIEW_MAX_LENGTH = CONTENT_SEARCH_MAX_PREVIEW_LENGTH;

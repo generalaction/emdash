@@ -1,4 +1,4 @@
-import type { FsError } from '@runtimes/files/api';
+import type { FsError } from '#runtimes/files/api';
 
 export class FsException extends Error {
   constructor(readonly error: FsError) {
