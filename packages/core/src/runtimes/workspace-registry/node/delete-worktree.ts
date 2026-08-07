@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import { worktreeWriteLocks } from './git-schedule';
 import { createRegistryGitExec } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';
 
@@ -28,7 +29,11 @@ export type DeleteWorktreeExecutionResult =
 export async function executeDeleteWorktree(
   execution: DeleteWorktreeExecution
 ): Promise<DeleteWorktreeExecutionResult> {
-  const exec = createRegistryGitExec(execution.repositoryPath);
+  // Interactive tier: a user-initiated delete never waits behind background work.
+  const exec = createRegistryGitExec(execution.repositoryPath, {
+    tier: 'activation',
+    repository: execution.repositoryPath,
+  });
 
   const safe = await validateWorktreePath({
     repoPath: execution.repositoryPath,
@@ -43,19 +48,28 @@ export async function executeDeleteWorktree(
     ? ((await currentBranch(execution.worktreePath)) ?? execution.branchHint)
     : null;
 
-  if (await pathExists(execution.worktreePath)) {
-    try {
-      await exec.exec(['worktree', 'remove', '--force', execution.worktreePath]);
-    } catch (error) {
-      return {
-        status: 'failed',
-        class: 'transient',
-        message: error instanceof Error ? error.message : String(error),
-      };
+  // The writer lock (spec: git concurrency model): removal mutates this worktree's
+  // checkout, so probes of it wait rather than observing a half-removed tree.
+  const removal = await worktreeWriteLocks.withWriter(
+    execution.worktreePath,
+    async (): Promise<DeleteWorktreeExecutionResult | null> => {
+      if (await pathExists(execution.worktreePath)) {
+        try {
+          await exec.exec(['worktree', 'remove', '--force', execution.worktreePath]);
+        } catch (error) {
+          return {
+            status: 'failed',
+            class: 'transient',
+            message: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+      // Clears leftover admin data for worktrees whose directory vanished out-of-band.
+      await exec.exec(['worktree', 'prune']).catch(() => undefined);
+      return null;
     }
-  }
-  // Clears leftover admin data for worktrees whose directory vanished out-of-band.
-  await exec.exec(['worktree', 'prune']).catch(() => undefined);
+  );
+  if (removal !== null) return removal;
 
   if (branch) {
     try {

@@ -39,6 +39,7 @@ import { readWorkspaceConfig, type WorkspaceConfigEntry } from './config-model';
 import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
+import { hostGitSchedule } from './git-schedule';
 import {
   BACKGROUND_STEP_IDS,
   buildCreationLifecycle,
@@ -101,8 +102,12 @@ export class WorkspaceRegistryRuntime {
   private readonly overlays = new Map<string, WorkspaceRuntimeOverlay>();
   private readonly recordsCell: Cell<WorkspaceRecords>;
   private mutationQueue: Promise<unknown> = Promise.resolve();
-  /** Exclusive per-repository claim: concurrent same-repo creations wait, never error. */
-  private readonly repositoryClaims = new KeyedMutex();
+  /**
+   * The scan lane: serializes scans among themselves, off the mutation queue, so a
+   * slow repository observation never blocks creation/activation verbs (spec: git
+   * concurrency model). Scan results land through short re-validated mutation blocks.
+   */
+  private scanQueue: Promise<unknown> = Promise.resolve();
   /** Exclusive per-workspace claim: activate/deactivate/delete on one record serialize. */
   private readonly workspaceClaims = new KeyedMutex();
   /** Per-record untracked line-count caches; evicted when the record vanishes. */
@@ -266,13 +271,12 @@ export class WorkspaceRegistryRuntime {
   /**
    * Deactivate + force-remove the worktree artifact (+ branch when asked) + unregister,
    * as one call. Held under the per-workspace claim (serializing against activate/
-   * deactivate/delete on this record) and the per-repository claim (serializing against
-   * createWorktree on the same repository). A removal failure leaves the record
-   * registered so the delete stays retryable.
+   * deactivate/delete on this record); the removal itself takes the per-worktree
+   * writer lock so probes of that worktree wait (spec: git concurrency model — no
+   * repository-level serialization against creations, git's own locking suffices).
+   * A removal failure leaves the record registered so the delete stays retryable.
    */
   async deleteWorktree(input: DeleteWorktreeInput): Promise<Result<void, DeleteWorktreeError>> {
-    // The repository key is resolved before claiming so acquisition keeps the fixed
-    // repo-before-workspace order (spec locking rule) shared with createWorktree.
     const record = this.store.get(input.id);
     if (!record) return ok(undefined);
     if (record.kind !== 'worktree') {
@@ -305,39 +309,38 @@ export class WorkspaceRegistryRuntime {
       });
     }
 
-    return this.repositoryClaims.runExclusive(parent?.id ?? repositoryPath, () =>
-      this.workspaceClaims.runExclusive(input.id, async () => {
-        const current = this.store.get(input.id);
-        if (!current) return ok(undefined);
-        const teardownFailure = await this.deactivateForRemoval(current);
-        if (teardownFailure) return err(teardownFailure);
-        const result = await executeDeleteWorktree({
-          repositoryPath,
-          worktreePath: current.path,
-          deleteBranch: input.deleteBranch,
-          branchHint: current.git?.branch ?? current.creation?.branch ?? null,
-        });
-        if (result.status === 'failed') {
-          return err(
-            await this.recordRemovalFailure(input.id, {
-              stage: 'remove',
-              class: result.class,
-              message: result.message,
-            })
-          );
-        }
-        return await this.enqueue(() =>
-          Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+    return this.workspaceClaims.runExclusive(input.id, async () => {
+      const current = this.store.get(input.id);
+      if (!current) return ok(undefined);
+      const teardownFailure = await this.deactivateForRemoval(current);
+      if (teardownFailure) return err(teardownFailure);
+      const result = await executeDeleteWorktree({
+        repositoryPath,
+        worktreePath: current.path,
+        deleteBranch: input.deleteBranch,
+        branchHint: current.git?.branch ?? current.creation?.branch ?? null,
+      });
+      if (result.status === 'failed') {
+        return err(
+          await this.recordRemovalFailure(input.id, {
+            stage: 'remove',
+            class: result.class,
+            message: result.message,
+          })
         );
-      })
-    );
+      }
+      return await this.enqueue(() =>
+        Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
+      );
+    });
   }
 
   /**
    * One plain RPC end-to-end: durable registration (outcome 'started') happens under
-   * the writer queue; the long-running stage pipeline runs under the per-repository
-   * claim so unrelated registry work is never blocked; the durable outcome lands under
-   * the writer queue again. Progress is only visible through the records overlay.
+   * the writer queue; the long-running stage pipeline runs unserialized — concurrent
+   * creations against one repository are safe (spec: git concurrency model) and the
+   * repo-hold only keeps idle-gated scans away; the durable outcome lands under the
+   * writer queue again. Progress is only visible through the records overlay.
    */
   async createWorktree(
     input: CreateWorktreeInput
@@ -351,7 +354,7 @@ export class WorkspaceRegistryRuntime {
     }
     const repository = registration.data.repository;
 
-    const created = await this.repositoryClaims.runExclusive(repository.id, async () => {
+    const created = await hostGitSchedule.withRepoHold(repository.path, async () => {
       const startedAt = this.clock.now();
       const stageStarts: CreationStageTimeline = [];
       this.updateOverlay(input.id, (overlay) => ({
@@ -387,7 +390,7 @@ export class WorkspaceRegistryRuntime {
   }
 
   refresh(input: RefreshWorkspacesInput): Promise<Result<void, WorkspaceNotFoundError>> {
-    return this.enqueue(() => this.refreshLocked(input));
+    return this.enqueueScan(() => this.executeRefresh(input));
   }
 
   /**
@@ -504,11 +507,17 @@ export class WorkspaceRegistryRuntime {
     return inspection.kind === 'worktree' ? inspection.repositoryPath : null;
   }
 
-  /** Scheduler entry point: executes one coalesced scan request under the writer lock. */
+  /**
+   * Scheduler entry point: executes one coalesced scan request on the scan lane.
+   * Idle-gated (spec: git concurrency model): the scan defers while its repository
+   * has creation/activation/background work queued or in flight, with the poll floor
+   * as the anti-starvation deadline.
+   */
   executeScanRequest(request: ScanRequest): Promise<void> {
-    return this.enqueue(async () => {
+    return this.enqueueScan(async () => {
       const record = this.store.get(request.id);
       if (!record) return;
+      await hostGitSchedule.whenIdle(this.repositoryKeyFor(record), SCAN_IDLE_DEADLINE_MS);
       if (request.kind === 'repository') {
         await this.scanRepository(record, this.store.list());
         return;
@@ -519,6 +528,15 @@ export class WorkspaceRegistryRuntime {
       }
       await this.scanRecord(record);
     });
+  }
+
+  /** The idle-gate key: the owning repository's path (a record's own path otherwise). */
+  private repositoryKeyFor(record: DurableWorkspaceRecord): string {
+    if (record.kind === 'worktree' && record.parentId !== null) {
+      const parent = this.store.get(record.parentId);
+      if (parent) return parent.path;
+    }
+    return record.path;
   }
 
   /** The scheduler's view of the registry: present paths to watch, staleness to bound. */
@@ -807,21 +825,25 @@ export class WorkspaceRegistryRuntime {
     const baseRef = record.creation?.baseRef ?? null;
     const lifecycle = record.lifecycle;
 
-    const work: Array<Promise<void>> = [];
-    if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
-      const copy = this.executeCopyStep(id, repositoryPath, record.path).finally(() => {
-        this.copyRuns.delete(id);
-      });
-      this.copyRuns.set(id, copy);
-      work.push(copy);
-    }
-    if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
-      work.push(this.executePushStep(id, repositoryPath, branch));
-    }
-    if (baseRef !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'fetch-refs'))) {
-      work.push(this.executeFetchStep(id, repositoryPath, baseRef));
-    }
-    await Promise.all(work);
+    // The whole chain holds the repository's idle gate (spec: scan minimization —
+    // registry-owned background steps suppress idle-gated scans like creation does).
+    await hostGitSchedule.withRepoHold(repositoryPath, async () => {
+      const work: Array<Promise<void>> = [];
+      if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
+        const copy = this.executeCopyStep(id, repositoryPath, record.path).finally(() => {
+          this.copyRuns.delete(id);
+        });
+        this.copyRuns.set(id, copy);
+        work.push(copy);
+      }
+      if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
+        work.push(this.executePushStep(id, repositoryPath, branch));
+      }
+      if (baseRef !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'fetch-refs'))) {
+        work.push(this.executeFetchStep(id, repositoryPath, baseRef));
+      }
+      await Promise.all(work);
+    });
   }
 
   private async executeCopyStep(
@@ -1007,7 +1029,8 @@ export class WorkspaceRegistryRuntime {
   // source of truth — records follow it, never the other way around.
   // -------------------------------------------------------------------------
 
-  private async refreshLocked(
+  /** The refresh verb's body; runs on the scan lane. */
+  private async executeRefresh(
     input: RefreshWorkspacesInput
   ): Promise<Result<void, WorkspaceNotFoundError>> {
     if (input.id !== undefined) {
@@ -1018,11 +1041,15 @@ export class WorkspaceRegistryRuntime {
       await this.scanRecord(record);
       return ok(undefined);
     }
-    await this.scanHost();
+    await this.scanHostUnqueued();
     return ok(undefined);
   }
 
-  async scanHost(): Promise<void> {
+  scanHost(): Promise<void> {
+    return this.enqueueScan(() => this.scanHostUnqueued());
+  }
+
+  private async scanHostUnqueued(): Promise<void> {
     const records = this.store.list();
     const repositories = records.filter((record) => record.kind === 'repository');
     const reconciledWorktreeIds = new Set<string>();
@@ -1068,7 +1095,7 @@ export class WorkspaceRegistryRuntime {
     const now = this.clock.now();
 
     if (!(await isDirectory(repository.path))) {
-      this.recordVanished(repository, now);
+      await this.applyVanished(repository.id, now);
       return settled;
     }
 
@@ -1081,7 +1108,7 @@ export class WorkspaceRegistryRuntime {
       this.logger.warn?.(
         `workspace registry scan of '${repository.path}' failed: ${String(error)}`
       );
-      this.saveRecord({ ...repository, observedStatus: 'present', git: null }, now);
+      await this.applyObservation(repository.id, { observedStatus: 'present', git: null }, now);
       return settled;
     }
 
@@ -1106,9 +1133,9 @@ export class WorkspaceRegistryRuntime {
       const child = byPath ?? byAdmin;
       if (child) {
         settled.add(child.id);
-        this.saveRecord(
+        await this.applyObservation(
+          child.id,
           {
-            ...child,
             // Moved worktrees relink by admin name: identity survives, path follows.
             path: canonicalPath,
             gitAdminName: listing.adminName ?? child.gitAdminName,
@@ -1145,10 +1172,10 @@ export class WorkspaceRegistryRuntime {
         updatedAt: now,
         lastObservedAt: now,
       };
-      settled.add(adopted.id);
-      this.store.insert(adopted);
-      this.publish(adopted);
-      await this.refreshConfig(adopted.id, adopted.path);
+      if (await this.applyAdoption(adopted)) {
+        settled.add(adopted.id);
+        await this.refreshConfig(adopted.id, adopted.path);
+      }
     }
 
     for (const child of children) {
@@ -1157,9 +1184,9 @@ export class WorkspaceRegistryRuntime {
       if (await isDirectory(child.path)) {
         // On disk but no longer listed by the repository (e.g. pruned admin data):
         // observe it directly rather than asserting it gone.
-        this.saveRecord(
+        await this.applyObservation(
+          child.id,
           {
-            ...child,
             observedStatus: 'present',
             git: await observeWorkspaceGit(child.path, undefined, {
               untrackedCache: this.untrackedCacheFor(child.id),
@@ -1170,12 +1197,12 @@ export class WorkspaceRegistryRuntime {
         await this.refreshConfig(child.id, child.path);
         continue;
       }
-      this.recordVanished(child, now);
+      await this.applyVanished(child.id, now);
     }
 
-    this.saveRecord(
+    await this.applyObservation(
+      repository.id,
       {
-        ...repository,
         observedStatus: 'present',
         git: await observeWorkspaceGit(repository.path, undefined, {
           untrackedCache: this.untrackedCacheFor(repository.id),
@@ -1192,18 +1219,18 @@ export class WorkspaceRegistryRuntime {
     const now = this.clock.now();
     if (record.kind === 'directory') return;
     if (!(await isDirectory(record.path))) {
-      this.recordVanished(record, now);
+      await this.applyVanished(record.id, now);
       return;
     }
     const git = await observeWorkspaceGitRefs(record.path, record.git);
-    this.saveRecord({ ...record, observedStatus: 'present', git }, now);
+    await this.applyObservation(record.id, { observedStatus: 'present', git }, now);
   }
 
   /** Presence + observations for a record outside any repository reconciliation. */
   private async scanStandalone(record: DurableWorkspaceRecord): Promise<void> {
     const now = this.clock.now();
     if (!(await isDirectory(record.path))) {
-      this.recordVanished(record, now);
+      await this.applyVanished(record.id, now);
       return;
     }
     const git =
@@ -1212,11 +1239,48 @@ export class WorkspaceRegistryRuntime {
         : await observeWorkspaceGit(record.path, undefined, {
             untrackedCache: this.untrackedCacheFor(record.id),
           });
-    this.saveRecord({ ...record, observedStatus: 'present', git }, now);
+    await this.applyObservation(record.id, { observedStatus: 'present', git }, now);
     await this.refreshConfig(record.id, record.path);
   }
 
-  /** Adopted records follow the disk; registered records survive as 'missing'. */
+  /**
+   * Lands one scan observation on the mutation lane, re-validated against the live
+   * store: a record deleted while the observation ran stays deleted — the scan never
+   * resurrects it (spec: scan lane with re-validated landings).
+   */
+  private applyObservation(
+    id: string,
+    patch: Partial<DurableWorkspaceRecord>,
+    now: number
+  ): Promise<void> {
+    return this.enqueue(() => {
+      const current = this.store.get(id);
+      if (!current) return;
+      this.saveRecord({ ...current, ...patch } as DurableWorkspaceRecord, now);
+    });
+  }
+
+  /** The vanished landing, re-validated like {@link applyObservation}. */
+  private applyVanished(id: string, now: number): Promise<void> {
+    return this.enqueue(() => {
+      const current = this.store.get(id);
+      if (!current) return;
+      this.recordVanished(current, now);
+    });
+  }
+
+  /** Adoption landing; false when the id or path got claimed while the scan observed. */
+  private applyAdoption(adopted: DurableWorkspaceRecord): Promise<boolean> {
+    return this.enqueue(() => {
+      if (this.store.get(adopted.id)) return false;
+      if (this.store.getByPath(adopted.path)) return false;
+      this.store.insert(adopted);
+      this.publish(adopted);
+      return true;
+    });
+  }
+
+  /** Adopted records follow the disk; registered records survive as 'missing'. Mutation-lane only. */
   private recordVanished(record: DurableWorkspaceRecord, now: number): void {
     this.untrackedCaches.delete(record.id);
     this.configs.delete(record.id);
@@ -1329,9 +1393,16 @@ export class WorkspaceRegistryRuntime {
     return parent.id;
   }
 
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+  private enqueue<T>(operation: () => Promise<T> | T): Promise<T> {
     const next = this.mutationQueue.then(operation, operation);
     this.mutationQueue = next.catch(() => undefined);
+    return next;
+  }
+
+  /** The scan lane's serializer; see the `scanQueue` field for the design intent. */
+  private enqueueScan<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.scanQueue.then(operation, operation);
+    this.scanQueue = next.catch(() => undefined);
     return next;
   }
 
@@ -1387,6 +1458,8 @@ export class WorkspaceRegistryRuntime {
 }
 
 const FETCH_DEBOUNCE_MS = 5 * 60_000;
+/** Idle-gate anti-starvation deadline; mirrors the scan scheduler's poll floor. */
+const SCAN_IDLE_DEADLINE_MS = 5 * 60_000;
 
 function hasIncompleteBackgroundSteps(record: DurableWorkspaceRecord): boolean {
   const lifecycle = record.lifecycle;

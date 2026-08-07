@@ -4,6 +4,7 @@ import { cp, glob, lstat, mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { EMDASH_CONFIG_FILE } from '#primitives/emdash-config/api';
+import { hostGitSchedule } from './git-schedule';
 import { createRegistryGitExec } from './scan/observe-git';
 
 const execFileAsync = promisify(execFile);
@@ -83,7 +84,12 @@ export async function executeCopyArtifacts(
       warnings.push(`Skipped unsafe preserve destination "${entry}"`);
       continue;
     }
-    const outcome = await cloneEntry(input.repositoryPath, input.worktreePath, entry);
+    // Each entry's copy subprocess takes a background-tier budget slot (spec: the
+    // budget governs artifact-copy processes too).
+    const outcome = await hostGitSchedule.run(
+      { tier: 'background', repository: input.repositoryPath },
+      () => cloneEntry(input.repositoryPath, input.worktreePath, entry)
+    );
     if (outcome === 'failed-terminally') {
       errors.push(entry);
       continue;
@@ -142,18 +148,22 @@ async function resolvePatternMatches(
  */
 async function filterIgnored(repositoryPath: string, candidates: string[]): Promise<string[]> {
   if (candidates.length === 0) return [];
-  const git = createRegistryGitExec(repositoryPath);
-  const child = git.spawn(['check-ignore', '--stdin', '-z']);
-  const stdoutChunks: Buffer[] = [];
-  child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-  child.stderr.resume();
-  child.stdin.end(candidates.join('\0') + '\0');
-  const [exitCode] = (await once(child, 'close')) as [number | null];
-  if (exitCode !== 0 && exitCode !== 1) {
-    throw new Error(`git check-ignore exited with ${exitCode}`);
-  }
-  const ignored = new Set(
-    Buffer.concat(stdoutChunks).toString('utf8').split('\0').filter(Boolean)
+  // spawn bypasses the exec-level budget wrapping; take the slot around it here.
+  const ignored = await hostGitSchedule.run(
+    { tier: 'background', repository: repositoryPath },
+    async () => {
+      const git = createRegistryGitExec(repositoryPath);
+      const child = git.spawn(['check-ignore', '--stdin', '-z']);
+      const stdoutChunks: Buffer[] = [];
+      child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+      child.stderr.resume();
+      child.stdin.end(candidates.join('\0') + '\0');
+      const [exitCode] = (await once(child, 'close')) as [number | null];
+      if (exitCode !== 0 && exitCode !== 1) {
+        throw new Error(`git check-ignore exited with ${exitCode}`);
+      }
+      return new Set(Buffer.concat(stdoutChunks).toString('utf8').split('\0').filter(Boolean));
+    }
   );
   return candidates.filter((candidate) => ignored.has(candidate));
 }

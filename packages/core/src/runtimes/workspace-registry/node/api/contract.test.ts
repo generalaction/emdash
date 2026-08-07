@@ -404,6 +404,40 @@ describe('workspace registry contract', () => {
     expect(git(created.data.path, 'status', '--porcelain')).toBe('');
   });
 
+  it('concurrent worktree creations against one repository both succeed unserialized', async () => {
+    // Spec (git concurrency model): per-repository creation serialization is dropped;
+    // git's own locking suffices for parallel `worktree add` calls.
+    const repoPath = await makeRepo(root, 'repo');
+    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+
+    const [first, second] = await Promise.all([
+      wire.client.createWorktree({
+        id: 'wt-first',
+        repositoryId: 'ws-repo',
+        branch: 'parallel/first',
+        baseRef: 'main',
+        path: path.join(root, 'parallel-first'),
+        preservePatterns: [],
+        pushBranch: false,
+      }),
+      wire.client.createWorktree({
+        id: 'wt-second',
+        repositoryId: 'ws-repo',
+        branch: 'parallel/second',
+        baseRef: 'main',
+        path: path.join(root, 'parallel-second'),
+        preservePatterns: [],
+        pushBranch: false,
+      }),
+    ]);
+
+    expect(first).toMatchObject({ success: true, data: { observedStatus: 'present' } });
+    expect(second).toMatchObject({ success: true, data: { observedStatus: 'present' } });
+    const worktrees = git(repoPath, 'worktree', 'list', '--porcelain');
+    expect(worktrees).toContain('parallel-first');
+    expect(worktrees).toContain('parallel-second');
+  });
+
   it('createWorktree failure records the stage durably and keeps the record', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
