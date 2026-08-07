@@ -4,11 +4,11 @@ import {
   isValidSkillName,
   parseFrontmatter,
   type CatalogSkill,
-} from '@primitives/skills/api';
-import type { AgentConfigSkillsError } from '@runtimes/agent-config/api';
-import type { AgentConfigSkillsModel } from '@runtimes/agent-config/node/state/live-models';
-import { publishLiveModelState } from '@runtimes/agent-config/node/state/live-models';
-import type { PluginFs } from '@services/agent-plugins/api/plugins';
+} from '#primitives/skills/api';
+import type { AgentConfigSkillsError } from '#runtimes/agent-config/api';
+import type { AgentConfigSkillsModel } from '#runtimes/agent-config/node/state/live-models';
+import { publishLiveModelState } from '#runtimes/agent-config/node/state/live-models';
+import type { PluginFs } from '#services/agent-plugins/api/plugins';
 import type { AgentConfigRuntimeDeps } from './types';
 
 const SKILLS_ROOT = '.agentskills';

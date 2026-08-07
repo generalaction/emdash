@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ok, type Result } from '@emdash/shared';
-import { parsePortableRelativePath, type PortableRelativePath } from '@primitives/path/api';
+import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
 import {
   gitErr,
   type BlameResult,
@@ -35,33 +35,33 @@ import {
   type SwitchError,
   type SwitchOptions,
   type SyncError,
-} from '@runtimes/git/api';
-import type { CheckoutIdentity } from '@runtimes/git/node/allocation/identity';
-import { blame as readBlame } from '@runtimes/git/node/checkout/ops/blame';
-import { readGitFileContent } from '@runtimes/git/node/checkout/ops/content';
+} from '#runtimes/git/api';
+import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
+import { blame as readBlame } from '#runtimes/git/node/checkout/ops/blame';
+import { readGitFileContent } from '#runtimes/git/node/checkout/ops/content';
 import {
   extractHunkPatch,
   getChangedFiles as readChangedFiles,
   getUntrackedFileDiff,
   parseUnifiedFileDiff,
   resolveDiffTarget,
-} from '@runtimes/git/node/checkout/ops/diff';
-import { computeHeadState } from '@runtimes/git/node/checkout/ops/head';
-import { getImageBlob } from '@runtimes/git/node/checkout/ops/images';
+} from '#runtimes/git/node/checkout/ops/diff';
+import { computeHeadState } from '#runtimes/git/node/checkout/ops/head';
+import { getImageBlob } from '#runtimes/git/node/checkout/ops/images';
 import {
   getCommit as readCommit,
   getCommitFiles as readCommitFiles,
   getLog as readLog,
-} from '@runtimes/git/node/checkout/ops/log';
-import { computeStatusState } from '@runtimes/git/node/checkout/ops/status';
-import { pushFailed } from '@runtimes/git/node/exec/errors';
-import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
+} from '#runtimes/git/node/checkout/ops/log';
+import { computeStatusState } from '#runtimes/git/node/checkout/ops/status';
+import { pushFailed } from '#runtimes/git/node/exec/errors';
+import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
 import {
   execGitWithProgress,
   syncStepProgress,
   throwIfGitOpAborted,
-} from '@runtimes/git/node/exec/transfer-progress';
-import type { BoundExec } from '@services/exec/api';
+} from '#runtimes/git/node/exec/transfer-progress';
+import type { BoundExec } from '#services/exec/api';
 import { checkoutFailures, InvalidCheckoutPathError } from './errors';
 
 export type GitObjectReader = {

@@ -7,8 +7,8 @@ import type {
   AcpProcessHandle,
   AcpTerminalExit,
   AcpTerminalProcess,
-} from '@runtimes/acp/api';
-import type { AcpRuntimeProcessHost } from '@runtimes/acp/node/runtime/types';
+} from '#runtimes/acp/api';
+import type { AcpRuntimeProcessHost } from '#runtimes/acp/node/runtime/types';
 
 class ChildProcessHandle implements AcpProcessHandle {
   constructor(private readonly child: ReturnType<typeof spawn>) {}

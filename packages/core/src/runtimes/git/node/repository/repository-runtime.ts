@@ -3,7 +3,7 @@ import type { Scope } from '@emdash/shared/concurrency';
 import { type LiveJobContext } from '@emdash/wire/live';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { expose, type Query } from '@emdash/wire/state';
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   gitContract,
   type gitRepositoryContract,
@@ -17,9 +17,9 @@ import {
   type GitWorktreesState,
   type PublishBranchJobInput,
   type RepositorySelector,
-} from '@runtimes/git/api';
-import type { GitAllocationGraph } from '@runtimes/git/node/allocation/allocation-graph';
-import { expectedGitCommandError } from '@runtimes/git/node/api/errors';
+} from '#runtimes/git/api';
+import type { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
+import { expectedGitCommandError } from '#runtimes/git/node/api/errors';
 import type { RepositoryResource } from './repository-resource';
 
 type RepositoryModel = typeof gitRepositoryContract.model;

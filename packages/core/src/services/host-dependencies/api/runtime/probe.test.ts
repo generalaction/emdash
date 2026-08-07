@@ -1,5 +1,5 @@
-import type { IExecutionContext } from '@primitives/exec/api';
 import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '#primitives/exec/api';
 import { probeHostElevation } from './probe';
 
 describe('probeHostElevation', () => {

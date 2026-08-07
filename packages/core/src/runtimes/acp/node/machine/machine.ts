@@ -9,8 +9,8 @@ import type {
   SessionLifecycle,
   SessionState,
   StopReason,
-} from '@runtimes/acp/api';
-import { acpErr, makeTurnId } from '@runtimes/acp/api';
+} from '#runtimes/acp/api';
+import { acpErr, makeTurnId } from '#runtimes/acp/api';
 
 export type SessionPhase =
   | { kind: 'starting' }

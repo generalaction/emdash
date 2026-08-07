@@ -30,21 +30,21 @@ import type {
   ToolNode,
   TranscriptTurn,
   TranscriptTurnOutcome,
-} from '@runtimes/acp/api';
+} from '#runtimes/acp/api';
 import {
   AcpTranscriptParser,
   acpErr,
   createToolCallItem,
   makeToolId,
   SESSION_PLAN_ID,
-} from '@runtimes/acp/api';
+} from '#runtimes/acp/api';
 import {
   type Command,
   type DomainEvent,
   type Effect,
   SessionMachine,
   type SessionMachineContext,
-} from '@runtimes/acp/node/machine/machine';
+} from '#runtimes/acp/node/machine/machine';
 import type { SessionCellDeps, SessionPromptResult } from './cell-deps';
 import { PermissionBroker } from './permission-broker';
 import { RawAcpLog, type RawAcpEvent } from './raw-log';

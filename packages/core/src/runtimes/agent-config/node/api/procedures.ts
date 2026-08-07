@@ -1,15 +1,15 @@
 import type { Result } from '@emdash/shared';
-import type { McpServer } from '@primitives/mcp/api';
-import type { CatalogSkill } from '@primitives/skills/api';
+import type { McpServer } from '#primitives/mcp/api';
+import type { CatalogSkill } from '#primitives/skills/api';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
   AgentConfigRefreshError,
   AgentConfigSkillsError,
   HooksStatus,
-} from '@runtimes/agent-config/api';
-import type { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';
-import type { AgentAuthStatus } from '@services/agent-plugins/api/plugins';
+} from '#runtimes/agent-config/api';
+import type { AgentConfigRuntime } from '#runtimes/agent-config/node/runtime/runtime';
+import type { AgentAuthStatus } from '#services/agent-plugins/api/plugins';
 
 export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
   return {

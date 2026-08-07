@@ -5,7 +5,7 @@ import type { Clock } from '@emdash/shared/scheduling';
 import { LiveLogSource, type LiveJobContext } from '@emdash/wire/live';
 import { type LeasedLiveModelProvider, type LiveSource } from '@emdash/wire/rpc';
 import { cell, expose, family, peek, type Cell } from '@emdash/wire/state';
-import type { IExecutionContext } from '@primitives/exec/api';
+import type { IExecutionContext } from '#primitives/exec/api';
 import {
   compileIdlePolicy,
   createIdleSweeper,
@@ -15,21 +15,21 @@ import {
   type IdleSweeper,
   type IoActivitySnapshot,
   type IoActivityTracker,
-} from '@primitives/io-activity/api';
-import { resourceKeyFromFileRef, type HostFileRef } from '@primitives/path/api';
+} from '#primitives/io-activity/api';
+import { resourceKeyFromFileRef, type HostFileRef } from '#primitives/path/api';
 import type {
   ResolvedShellProfile,
   TerminalShellAvailability,
   TerminalShellId,
   TerminalShellResolver,
-} from '@primitives/terminal-shell/api';
+} from '#primitives/terminal-shell/api';
 import {
   createWorkflow,
   type Workflow,
   type WorkflowError,
   type WorkflowNodeDefinition,
   type WorkflowState,
-} from '@primitives/workflow/api';
+} from '#primitives/workflow/api';
 import {
   terminalsContract,
   type KillTmuxSessionsInput,
@@ -41,12 +41,12 @@ import {
   type TerminalKey,
   type TerminalSessionState,
   type TmuxSessionActivity,
-} from '@runtimes/terminals/api';
+} from '#runtimes/terminals/api';
 import {
   wireTerminalUrlDetector,
   type DetectedPreviewUrl,
   type TerminalPortProbe,
-} from '@runtimes/terminals/node/preview/url-detector';
+} from '#runtimes/terminals/node/preview/url-detector';
 import {
   buildTerminalEnv,
   killTmuxSession,
@@ -56,7 +56,7 @@ import {
   PtyRegistry,
   type PtySession,
   type PtySpawner,
-} from '@services/pty/api';
+} from '#services/pty/api';
 import {
   type RunScriptWorkflowInput,
   type ScriptNode,
@@ -64,7 +64,7 @@ import {
   type ScriptWorkflowResult,
   type TerminalError,
   type TerminalExit,
-} from '@services/script-workflows/api';
+} from '#services/script-workflows/api';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;

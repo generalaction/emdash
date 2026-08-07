@@ -1,5 +1,5 @@
-import type { HostAbsolutePath } from '@primitives/path/api';
 import { describe, expect, it } from 'vitest';
+import type { HostAbsolutePath } from '#primitives/path/api';
 import { parseWorktreeList } from './worktrees';
 
 const parsePath = (filePath: string) => filePath as unknown as HostAbsolutePath;

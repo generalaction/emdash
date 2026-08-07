@@ -1,7 +1,7 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { workspaceHostContract } from '@runtimes/workspace-host/api';
-import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
+import { workspaceHostContract } from '#runtimes/workspace-host/api';
+import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
 import { createWorkspaceHostController } from './controller';
 import { WorkspaceHostSessionGc } from './session/session-gc';
 import { WorkspaceHostRuntime } from './workspace-host-runtime';

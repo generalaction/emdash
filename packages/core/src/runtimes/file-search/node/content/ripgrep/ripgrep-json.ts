@@ -3,7 +3,7 @@ import {
   CONTENT_SEARCH_MAX_PREVIEW_LENGTH,
   type ContentSearchLineMatch,
   type ContentSearchRange,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 import { createContentSearchPreview } from './content-preview';
 
 export type ParsedRipgrepMatch = Readonly<

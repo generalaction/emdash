@@ -1,7 +1,7 @@
 import { defineWireComponent } from '@emdash/wire/worker';
-import { fsWatchContract } from '@services/fs-watch/api';
-import { createFsWatchController } from '@services/fs-watch/impl/controller';
 import { z } from 'zod';
+import { fsWatchContract } from '#services/fs-watch/api';
+import { createFsWatchController } from '#services/fs-watch/impl/controller';
 
 export const fsWatchComponentConfigSchema = z.object({});
 

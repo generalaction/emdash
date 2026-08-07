@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import type { IWatchService, WatchEvent, WatchHandle } from '@services/fs-watch/api';
+import type { IWatchService, WatchEvent, WatchHandle } from '#services/fs-watch/api';
 import type { WorkspaceKind } from '../../api/schemas';
 
 /** What the scheduler asks the runtime to do. Repository scans reconcile worktree sets. */

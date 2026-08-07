@@ -1,8 +1,8 @@
 import { ok, type Result } from '@emdash/shared';
-import type { HostAbsolutePath } from '@primitives/path/api';
-import { gitErr, type GitResolutionError, type GitSelector } from '@runtimes/git/api';
-import { gitFailure } from '@runtimes/git/node/exec/errors';
-import type { BoundExec } from '@services/exec/api';
+import type { HostAbsolutePath } from '#primitives/path/api';
+import { gitErr, type GitResolutionError, type GitSelector } from '#runtimes/git/api';
+import { gitFailure } from '#runtimes/git/node/exec/errors';
+import type { BoundExec } from '#services/exec/api';
 import type {
   CheckoutId,
   CheckoutIdentity,

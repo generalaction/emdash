@@ -1,9 +1,9 @@
-import type { DurableSqliteStore } from '@primitives/sqlite-store/api';
-import { betterSqlite3Driver, defineDurableSqliteStore } from '@primitives/sqlite-store/node';
-import { assertSqliteStoreInvariants } from '@primitives/sqlite-store/testing';
 import type Database from 'better-sqlite3';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { DurableSqliteStore } from '#primitives/sqlite-store/api';
+import { betterSqlite3Driver, defineDurableSqliteStore } from '#primitives/sqlite-store/node';
+import { assertSqliteStoreInvariants } from '#primitives/sqlite-store/testing';
 import { ensureFileSearchFtsSchema } from './fts-schema';
 import { migrations } from './migrations/migrations.generated';
 import * as schema from './schema';

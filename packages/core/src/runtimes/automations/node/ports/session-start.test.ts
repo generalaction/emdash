@@ -1,11 +1,11 @@
 import { err, ok } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
-import { LOCAL_HOST_REF } from '@primitives/host/api';
-import { hostFileRef, parseAbsolute } from '@primitives/path/api';
-import type { ConversationIndexContract } from '@services/conversation-index/api';
-import type { AcpSessionStartContract, TuiSessionStartContract } from '@services/session-start/api';
-import type { WorkspaceHostActionsContract } from '@services/workspace-host-actions/api';
 import { describe, expect, it, vi } from 'vitest';
+import { LOCAL_HOST_REF } from '#primitives/host/api';
+import { hostFileRef, parseAbsolute } from '#primitives/path/api';
+import type { ConversationIndexContract } from '#services/conversation-index/api';
+import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
+import type { WorkspaceHostActionsContract } from '#services/workspace-host-actions/api';
 import { createSessionPortFromDependencies } from './session-start';
 
 const cwd = absolute('/tmp/workspace');

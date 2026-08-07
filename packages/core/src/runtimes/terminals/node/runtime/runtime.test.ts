@@ -1,23 +1,23 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
 import { createManualClock } from '@emdash/shared/testing';
-import type { IExecutionContext } from '@primitives/exec/api';
-import { LOCAL_HOST_REF } from '@primitives/host/api';
+import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '#primitives/exec/api';
+import { LOCAL_HOST_REF } from '#primitives/host/api';
 import {
   hostFileRef,
   parseAbsolute,
   resourceKeyFromFileRef,
   type HostFileRef,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 import type {
   ResolvedShellProfile,
   ShellFallbackEvent,
   TerminalShellAvailability,
   TerminalShellId,
   TerminalShellResolver,
-} from '@primitives/terminal-shell/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
-import { describe, expect, it, vi } from 'vitest';
+} from '#primitives/terminal-shell/api';
+import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
 import { TerminalsRuntime } from './runtime';
 
 class FakePtyProcess implements PtyProcess {

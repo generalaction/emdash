@@ -3,14 +3,14 @@ import { isOk, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { createManualClock } from '@emdash/shared/testing';
 import { observe, peek } from '@emdash/wire/state';
+import { describe, expect, it, vi } from 'vitest';
 import {
   FakeAcpTerminalProcess,
   makeAcpHarness,
   makeStartInput,
-} from '@runtimes/acp/node/acp-test-support';
-import { createRecordingConversationLifecycleReporter } from '@services/conversation-reports/node/testing';
-import { createMemorySessionIntentStore } from '@services/session-intents/api';
-import { describe, expect, it, vi } from 'vitest';
+} from '#runtimes/acp/node/acp-test-support';
+import { createRecordingConversationLifecycleReporter } from '#services/conversation-reports/node/testing';
+import { createMemorySessionIntentStore } from '#services/session-intents/api';
 import { AcpRuntime } from './runtime';
 
 async function startHarness(conversationId = 'conv-1') {

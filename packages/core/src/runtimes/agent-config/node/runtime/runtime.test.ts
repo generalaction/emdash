@@ -2,18 +2,18 @@ import { ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { noopLogger } from '@emdash/shared/logger';
-import type { McpServer } from '@primitives/mcp/api';
+import { describe, expect, it, vi } from 'vitest';
+import type { McpServer } from '#primitives/mcp/api';
 import type {
   AgentAuthContext,
   AgentAuthStatus,
   CLIAgentPluginProvider,
   McpServerRegistration,
   PluginFs,
-} from '@services/agent-plugins/api/plugins';
-import { AgentPluginHost, createPluginRegistry } from '@services/agent-plugins/api/plugins';
-import type { ExecContextOptions, IExecutionContext } from '@services/exec/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
-import { describe, expect, it, vi } from 'vitest';
+} from '#services/agent-plugins/api/plugins';
+import { AgentPluginHost, createPluginRegistry } from '#services/agent-plugins/api/plugins';
+import type { ExecContextOptions, IExecutionContext } from '#services/exec/api';
+import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
 import { AgentConfigRuntime } from './runtime';
 
 class FakeExecutionContext implements IExecutionContext {

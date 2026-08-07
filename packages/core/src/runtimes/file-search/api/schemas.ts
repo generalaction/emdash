@@ -1,5 +1,5 @@
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
 import { pathEntryKinds } from './path-entry-kind';
 
 export const PATH_SEARCH_MAX_LIMIT = 200;

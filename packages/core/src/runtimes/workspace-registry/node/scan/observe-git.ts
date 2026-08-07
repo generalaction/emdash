@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { createBoundExec, type BoundExec } from '@services/exec/api';
+import { createBoundExec, type BoundExec } from '#services/exec/api';
 import type { WorkspaceGitObservations } from '../../api/schemas';
 
 const GIT_ENV = {

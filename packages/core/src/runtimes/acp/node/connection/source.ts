@@ -3,13 +3,13 @@ import { isErr, toSerializedError } from '@emdash/shared';
 import { createResourceCache, type ResourceCache, type Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
-import type { AcpProcessHost } from '@runtimes/acp/api';
-import { acpErr } from '@runtimes/acp/api';
+import type { AcpProcessHost } from '#runtimes/acp/api';
+import { acpErr } from '#runtimes/acp/api';
 import type {
   AcpAgentApi,
   AgentHostError,
   AgentPluginHost,
-} from '@services/agent-plugins/api/plugins';
+} from '#services/agent-plugins/api/plugins';
 import {
   createAcpAgentConnection,
   type AcpConnectionError,

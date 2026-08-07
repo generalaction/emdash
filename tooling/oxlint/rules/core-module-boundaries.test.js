@@ -65,7 +65,7 @@ test('classifies core module source files', () => {
 test('classifies alias, package, and relative imports', () => {
   const fromFile = path.join(coreSrcRoot, 'services/agent-plugins/api/plugins/index.ts');
 
-  assert.deepEqual(classifyImportSpecifier('@runtimes/acp/api', fromFile, coreSrcRoot), {
+  assert.deepEqual(classifyImportSpecifier('#runtimes/acp/api', fromFile, coreSrcRoot), {
     type: 'runtimes',
     moduleName: 'acp',
     surface: 'api',
@@ -212,9 +212,9 @@ test('oxlint visitor reports imports, re-exports, and dynamic imports', async ()
     await writeFile(
       path.join(serviceDir, 'invalid.ts'),
       [
-        "import { x } from '@runtimes/git/api';",
-        "export { y } from '@runtimes/files/api';",
-        "await import('@runtimes/acp/api');",
+        "import { x } from '#runtimes/git/api';",
+        "export { y } from '#runtimes/files/api';",
+        "await import('#runtimes/acp/api');",
       ].join('\n'),
       'utf8'
     );

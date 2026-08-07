@@ -1,6 +1,6 @@
 import { type Result, ok } from '@emdash/shared';
-import { parseAbsolute, containsAbsolute, type HostAbsolutePath } from '@primitives/path/api';
-import type { HostRuntimesClient } from '@services/runtime-broker/api';
+import { parseAbsolute, containsAbsolute, type HostAbsolutePath } from '#primitives/path/api';
+import type { HostRuntimesClient } from '#services/runtime-broker/api';
 import type { WorkspaceHostError } from '../../api';
 
 export type WorkspaceHostSessionClients = Pick<

@@ -1,7 +1,7 @@
 import { ok, err } from '@emdash/shared';
-import { LOCAL_HOST_REF } from '@primitives/host/api';
-import type { TempStoreHandle } from '@primitives/sqlite-store/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LOCAL_HOST_REF } from '#primitives/host/api';
+import type { TempStoreHandle } from '#primitives/sqlite-store/api';
 import type { AutomationRun } from '../../api/run';
 import { AutomationRunStore } from '../persistence/run-store';
 import type { AutomationsDb } from '../persistence/store';

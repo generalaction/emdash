@@ -1,6 +1,7 @@
 import { isOk } from '@emdash/shared';
 import { peek, remote, snapshot } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
+import { describe, expect, it, vi } from 'vitest';
 import {
   acpApiContract,
   acpRuntimeErrorSchema,
@@ -10,10 +11,9 @@ import {
   sessionUsageSchema,
   transcriptTurnSchema,
   uploadAttachmentCommandSchema,
-} from '@runtimes/acp/api';
-import { makeAcpHarness, makeStartInput } from '@runtimes/acp/node/acp-test-support';
-import { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
-import { describe, expect, it, vi } from 'vitest';
+} from '#runtimes/acp/api';
+import { makeAcpHarness, makeStartInput } from '#runtimes/acp/node/acp-test-support';
+import { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
 import { createAcpController } from './controller';
 
 describe('ACP API contract schemas', () => {

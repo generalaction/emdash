@@ -1,7 +1,7 @@
 import type { Logger } from '@emdash/shared/logger';
-import type { AgentPluginHost } from '@services/agent-plugins/api/plugins';
-import type { PluginScope } from '@services/agent-plugins/api/plugins/capabilities/plugins';
-import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
+import type { AgentPluginHost } from '#services/agent-plugins/api/plugins';
+import type { PluginScope } from '#services/agent-plugins/api/plugins/capabilities/plugins';
+import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
 
 export type HookInstallationStatus = {
   state: 'installed' | 'pending-install';

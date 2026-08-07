@@ -4,10 +4,10 @@ import {
   mcpServerToRegistration,
   registrationToMcpServer,
   type McpServer,
-} from '@primitives/mcp/api';
-import type { AgentConfigMcpError } from '@runtimes/agent-config/api';
-import type { AgentConfigMcpModel } from '@runtimes/agent-config/node/state/live-models';
-import { publishLiveModelState } from '@runtimes/agent-config/node/state/live-models';
+} from '#primitives/mcp/api';
+import type { AgentConfigMcpError } from '#runtimes/agent-config/api';
+import type { AgentConfigMcpModel } from '#runtimes/agent-config/node/state/live-models';
+import { publishLiveModelState } from '#runtimes/agent-config/node/state/live-models';
 import type { AgentConfigRuntimeDeps } from './types';
 
 export class AgentMcpConfigManager {

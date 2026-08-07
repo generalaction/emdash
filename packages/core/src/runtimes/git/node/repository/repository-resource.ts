@@ -2,18 +2,18 @@ import type { Unsubscribe } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import type { KeyedMutex } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query } from '@emdash/wire/state';
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   type gitRepositoryContract,
   type GitRefsState,
   type GitRemotesState,
   type GitStashesState,
   type GitWorktreesState,
-} from '@runtimes/git/api';
-import type { CheckoutId, RepositoryIdentity } from '@runtimes/git/node/allocation/identity';
-import type { CheckoutResource } from '@runtimes/git/node/checkout/checkout-resource';
-import type { GitOperationContext } from '@runtimes/git/node/exec/operation-context';
-import type { IWatchService, WatchHandle } from '@services/fs-watch/api';
+} from '#runtimes/git/api';
+import type { CheckoutId, RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
+import type { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
+import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
+import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 import type { GitRepository } from './git-repository';
 import { RepositoryFamilyLane } from './repository-family-lane';
 import { classifyGitWatchEvents, type WorktreeWatchEffects } from './watch-classifier';

@@ -1,14 +1,14 @@
 import type { Logger } from '@emdash/shared/logger';
 import { createController } from '@emdash/wire/rpc';
 import { defineWireComponent } from '@emdash/wire/worker';
-import type { IExecutionContext } from '@primitives/exec/api';
+import { z } from 'zod';
+import type { IExecutionContext } from '#primitives/exec/api';
 import {
   hostDependencyDefinitionSchema,
   type HostDependencyError,
-} from '@primitives/host-dependencies/api';
-import type { KeyValueStore } from '@primitives/kv/api';
-import { hostDependenciesContract } from '@services/host-dependencies/api';
-import { z } from 'zod';
+} from '#primitives/host-dependencies/api';
+import type { KeyValueStore } from '#primitives/kv/api';
+import { hostDependenciesContract } from '#services/host-dependencies/api';
 import { HostDependenciesRuntime } from './runtime';
 
 export const hostDependenciesComponentConfigSchema = z.object({

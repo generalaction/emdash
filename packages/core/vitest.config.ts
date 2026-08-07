@@ -4,25 +4,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@runtimes': resolve(__dirname, 'src/runtimes'),
-      '@services': resolve(__dirname, 'src/services'),
-      '@primitives': resolve(__dirname, 'src/primitives'),
-      '@workspace-server': resolve(__dirname, 'src/workspace-server'),
       'better-sqlite3': resolve(
         __dirname,
         '../../apps/emdash-desktop/tooling/node-deps/node_modules/better-sqlite3'
       ),
-      '@emdash/shared/requests': resolve(__dirname, '../shared/src/requests/index.ts'),
-      '@emdash/shared/scheduling': resolve(__dirname, '../shared/src/scheduling/index.ts'),
-      '@emdash/shared/concurrency': resolve(__dirname, '../shared/src/concurrency/index.ts'),
-      '@emdash/shared/util': resolve(__dirname, '../shared/src/util/index.ts'),
-      '@emdash/shared/testing': resolve(__dirname, '../shared/src/testing/index.ts'),
-      '@emdash/wire/rpc': resolve(__dirname, '../wire/src/rpc/index.ts'),
-      '@emdash/wire/live': resolve(__dirname, '../wire/src/live/index.ts'),
-      '@emdash/wire/state': resolve(__dirname, '../wire/src/state/index.ts'),
-      '@emdash/wire/testing': resolve(__dirname, '../wire/src/testing/index.ts'),
-      '@emdash/wire/worker/node': resolve(__dirname, '../wire/src/worker/node/index.ts'),
-      '@emdash/wire/worker': resolve(__dirname, '../wire/src/worker/index.ts'),
     },
   },
   test: {

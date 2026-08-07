@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
-import type { PromptAttachment, QueuedPrompt } from '@runtimes/acp/api';
-import type { AcpAgentApi } from '@services/agent-plugins/api/plugins';
+import type { PromptAttachment, QueuedPrompt } from '#runtimes/acp/api';
+import type { AcpAgentApi } from '#services/agent-plugins/api/plugins';
 
 export interface ResolvedPromptAttachment {
   data: string;

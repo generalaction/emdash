@@ -1,5 +1,5 @@
 import type { Err } from '@emdash/shared';
-import type { PortableRelativePath } from '@primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   gitErr,
   type CommitError,
@@ -8,7 +8,7 @@ import {
   type PullError,
   type RebaseError,
   type SwitchError,
-} from '@runtimes/git/api';
+} from '#runtimes/git/api';
 import {
   commandFailed,
   commandFailure,
@@ -16,7 +16,7 @@ import {
   isAuthFailed,
   isAuthRequired,
   isNetworkFailure,
-} from '@runtimes/git/node/exec/errors';
+} from '#runtimes/git/node/exec/errors';
 
 export class InvalidCheckoutPathError extends Error {
   override readonly name = 'InvalidCheckoutPathError';

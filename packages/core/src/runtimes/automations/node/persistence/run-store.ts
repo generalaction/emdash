@@ -1,5 +1,5 @@
-import type { StoreHandle } from '@primitives/sqlite-store/api';
 import { and, desc, eq, gt, inArray, isNotNull, lt, lte, ne, sql } from 'drizzle-orm';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { AutomationId } from '../../api/deployment';
 import {
   automationRunSchema,

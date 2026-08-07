@@ -1,4 +1,4 @@
-import { hostRefKey } from '@primitives/host/api';
+import { hostRefKey } from '#primitives/host/api';
 import { resolveScopedPath } from './resource';
 import { comparisonKeyForAbsolutePath, createPathProfile } from './semantics';
 import type { HostFileRef, ResourceKey, ResourceKeyOptions, ScopedPath } from './types';

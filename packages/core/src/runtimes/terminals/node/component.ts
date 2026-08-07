@@ -1,9 +1,9 @@
 import { defineWireComponent } from '@emdash/wire/worker';
-import { idlePolicyConfigSchema } from '@primitives/io-activity/api';
-import { terminalsContract } from '@runtimes/terminals/api';
-import { NodeExecutionContext } from '@services/exec/api';
-import { createNodeTerminalShellResolver, NodePtySpawner } from '@services/pty/node';
 import { z } from 'zod';
+import { idlePolicyConfigSchema } from '#primitives/io-activity/api';
+import { terminalsContract } from '#runtimes/terminals/api';
+import { NodeExecutionContext } from '#services/exec/api';
+import { createNodeTerminalShellResolver, NodePtySpawner } from '#services/pty/node';
 import { createTerminalsController } from './api/controller';
 import { TerminalsRuntime } from './runtime/runtime';
 

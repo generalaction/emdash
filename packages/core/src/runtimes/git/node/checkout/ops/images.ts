@@ -1,6 +1,6 @@
-import type { ImageReadResult } from '@runtimes/git/api';
-import { gitFailure, isMissingObject } from '@runtimes/git/node/exec/errors';
-import type { BoundExec } from '@services/exec/api';
+import type { ImageReadResult } from '#runtimes/git/api';
+import { gitFailure, isMissingObject } from '#runtimes/git/node/exec/errors';
+import type { BoundExec } from '#services/exec/api';
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
 const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');

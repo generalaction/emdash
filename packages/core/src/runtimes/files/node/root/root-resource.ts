@@ -1,9 +1,9 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { KeyedMutex } from '@emdash/shared/concurrency';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { RootIdentity } from '@runtimes/files/node/allocation/identity';
-import { RootPathPolicy, normalizeRelativePath } from '@runtimes/files/node/fs/path-policy';
-import type { IWatchService, WatchHandle } from '@services/fs-watch/api';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { RootIdentity } from '#runtimes/files/node/allocation/identity';
+import { RootPathPolicy, normalizeRelativePath } from '#runtimes/files/node/fs/path-policy';
+import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 
 const WATCH_DEBOUNCE_MS = 50;
 

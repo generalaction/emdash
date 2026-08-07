@@ -1,7 +1,7 @@
 import { createController } from '@emdash/wire/rpc';
 import { defineWireComponent } from '@emdash/wire/worker';
-import { resourceUsageContract } from '@runtimes/resource-usage/api';
 import { z } from 'zod';
+import { resourceUsageContract } from '#runtimes/resource-usage/api';
 import { ResourceUsageRuntime } from './resource-usage-runtime';
 
 export const resourceUsageComponent = defineWireComponent({

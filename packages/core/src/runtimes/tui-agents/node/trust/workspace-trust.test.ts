@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createStubLogger, deferred } from '@emdash/shared/testing';
-import type { AgentPluginHost, ITrustBehavior } from '@services/agent-plugins/api/plugins';
 import { describe, expect, it, vi } from 'vitest';
+import type { AgentPluginHost, ITrustBehavior } from '#services/agent-plugins/api/plugins';
 import { TuiWorkspaceTrust } from './workspace-trust';
 
 describe('TuiWorkspaceTrust', () => {

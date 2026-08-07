@@ -131,16 +131,18 @@ import { parseAbsolute, type HostAbsolutePath } from '@emdash/core/primitives/pa
 Avoid ambiguous module-root exports such as `@emdash/core/runtimes/git`.
 Consumers should choose `api`, `node`, or `browser` explicitly.
 
-Inside `packages/core/src`, short aliases are used for cross-directory imports:
+Inside `packages/core/src`, package subpath imports (the `imports` field in
+`package.json`) are used for cross-directory imports:
 
 ```ts
-import { parseAbsolute } from '@primitives/path/api';
-import { createNativeWatchService } from '@services/fs-watch/node';
-import { gitContract } from '@runtimes/git/api';
+import { parseAbsolute } from '#primitives/path/api';
+import { createNativeWatchService } from '#services/fs-watch/node';
+import { gitContract } from '#runtimes/git/api';
 ```
 
-Those aliases are internal to Core source. Code outside Core should import
-through public `@emdash/core/...` subpaths.
+Those subpath imports are internal to Core source and resolve through Core's
+own `package.json`, so consumers need no extra configuration. Code outside
+Core should import through public `@emdash/core/...` subpaths.
 
 ## More Details
 

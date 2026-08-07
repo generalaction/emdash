@@ -7,7 +7,7 @@ import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
-import type { StoreHandle } from '@primitives/sqlite-store/api';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
   ActivateWorkspaceError,

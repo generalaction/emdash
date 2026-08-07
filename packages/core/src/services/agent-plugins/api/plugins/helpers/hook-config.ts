@@ -1,6 +1,6 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
-import type { HookRegistration } from '@services/agent-plugins/api/plugins/capabilities/hooks';
 import * as toml from 'smol-toml';
+import type { PluginFs } from '#primitives/plugin-fs/api';
+import type { HookRegistration } from '#services/agent-plugins/api/plugins/capabilities/hooks';
 import { EMDASH_MARKER, filterUserHooks } from './hooks';
 
 export type { HookCommandOptions } from './hooks';

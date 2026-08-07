@@ -1,6 +1,6 @@
 import { definePluginCapability } from '@emdash/shared/plugins';
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import z from 'zod';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 
 const cliLoginMethodSchema = z.object({
   kind: z.literal('cli-login'),

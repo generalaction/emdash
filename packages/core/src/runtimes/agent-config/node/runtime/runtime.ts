@@ -1,14 +1,14 @@
 import type { Result } from '@emdash/shared';
 import type { LiveLogSource } from '@emdash/wire/live';
-import type { McpServer } from '@primitives/mcp/api';
-import type { CatalogSkill } from '@primitives/skills/api';
+import type { McpServer } from '#primitives/mcp/api';
+import type { CatalogSkill } from '#primitives/skills/api';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
   AgentConfigRefreshError,
   AgentConfigSkillsError,
   HooksStatus,
-} from '@runtimes/agent-config/api';
+} from '#runtimes/agent-config/api';
 import {
   createAgentConfigAgentsLiveHost,
   createAgentConfigAgentsModel,
@@ -19,9 +19,9 @@ import {
   type AgentConfigAgentsLiveHost,
   type AgentConfigMcpLiveHost,
   type AgentConfigSkillsLiveHost,
-} from '@runtimes/agent-config/node/state/live-models';
-import type { AgentAuthStatus } from '@services/agent-plugins/api/plugins';
-import { AgentHookInstaller } from '@services/agent-plugins/node';
+} from '#runtimes/agent-config/node/state/live-models';
+import type { AgentAuthStatus } from '#services/agent-plugins/api/plugins';
+import { AgentHookInstaller } from '#services/agent-plugins/node';
 import { AgentAuthManager } from './auth';
 import { AgentInstallManager } from './install';
 import { AgentMcpConfigManager } from './mcp';

@@ -4,7 +4,7 @@ import {
   tuiAgentsContract,
   type TuiAgentStateList,
   type TuiSessionList,
-} from '@runtimes/tui-agents/api';
+} from '#runtimes/tui-agents/api';
 
 export type TuiSessionsListModel = { states: { list: Cell<TuiSessionList> } };
 export type TuiAgentStatesListModel = { states: { list: Cell<TuiAgentStateList> } };

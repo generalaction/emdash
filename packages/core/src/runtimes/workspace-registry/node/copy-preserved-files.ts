@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { chmod, link, lstat, mkdir, open, readdir, realpath, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import type { BoundExec } from '@services/exec/api';
+import type { BoundExec } from '#services/exec/api';
 
 /**
  * Called only while the create-worktree operation holds exclusive repository and worktree claims.

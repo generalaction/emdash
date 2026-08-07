@@ -4,11 +4,11 @@ import type {
   ElevationPolicy,
   HostDependencyDefinition,
   InstallCommandOption,
-} from '@primitives/host-dependencies/api';
+} from '#primitives/host-dependencies/api';
 import type {
   HostDependencyInstallBatchResult,
   HostDependencyInstallRequest,
-} from '@services/host-dependencies/api';
+} from '#services/host-dependencies/api';
 import { installOptionsForPlatform, selectInstallOption } from './install-execution';
 
 export type ResolvedBatchRequest = {

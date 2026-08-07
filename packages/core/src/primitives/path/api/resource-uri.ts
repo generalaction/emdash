@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { hostRef, type HostRef } from '@primitives/host/api';
+import { hostRef, type HostRef } from '#primitives/host/api';
 import { invalidUri, type PathError } from './errors';
 import { hostFileRef } from './resource';
 import { validateSegment } from './segments';

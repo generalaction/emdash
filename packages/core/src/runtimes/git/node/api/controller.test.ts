@@ -14,11 +14,11 @@ import {
   serve,
   type LiveUpdate,
 } from '@emdash/wire/rpc';
-import { gitContract } from '@runtimes/git/api';
-import { GitRuntime } from '@runtimes/git/node/git-runtime';
-import { gitPath, hostPath } from '@runtimes/git/node/testing/paths';
-import type { IWatchService, WatchEvent, WatchOptions } from '@services/fs-watch/api';
 import { describe, expect, it } from 'vitest';
+import { gitContract } from '#runtimes/git/api';
+import { GitRuntime } from '#runtimes/git/node/git-runtime';
+import { gitPath, hostPath } from '#runtimes/git/node/testing/paths';
+import type { IWatchService, WatchEvent, WatchOptions } from '#services/fs-watch/api';
 import { createGitController } from './controller';
 import { createGitProcedures } from './procedures';
 

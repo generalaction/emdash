@@ -1,4 +1,4 @@
-export { NodePtySpawner } from '@services/pty/api/node';
+export { NodePtySpawner } from '#services/pty/api/node';
 export {
   createNodeTerminalShellResolver,
   getLocalTerminalShellAvailability,

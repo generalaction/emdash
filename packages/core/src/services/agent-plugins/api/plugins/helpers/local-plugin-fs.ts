@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
-import type { PluginFs } from '@primitives/plugin-fs/api';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 
 function isFileNotFoundException(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('code' in error)) return false;

@@ -1,8 +1,8 @@
 import { ok } from '@emdash/shared';
-import { hostPath } from '@runtimes/git/node/testing/paths';
-import type { BoundExec } from '@services/exec/api';
-import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { hostPath } from '#runtimes/git/node/testing/paths';
+import type { BoundExec } from '#services/exec/api';
+import type { IWatchService } from '#services/fs-watch/api';
 import { GitAllocationGraph } from './allocation-graph';
 import type { CheckoutIdentity, GitIdentityResolver } from './identity';
 

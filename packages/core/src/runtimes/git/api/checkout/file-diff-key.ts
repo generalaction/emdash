@@ -1,5 +1,5 @@
-import { checkoutSelectorSchema } from '@runtimes/git/api/api/selectors';
 import { z } from 'zod';
+import { checkoutSelectorSchema } from '#runtimes/git/api/api/selectors';
 import { gitFilePathSchema, normalizedDiffTargetSchema } from './schemas';
 
 export const boundFileDiffKeySchema = z.object({

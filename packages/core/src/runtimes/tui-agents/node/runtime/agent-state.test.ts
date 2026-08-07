@@ -1,12 +1,12 @@
 import { peek } from '@emdash/wire/state';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createTuiAgentStatesLiveModel,
   createTuiAgentStatesListModel,
   createTuiSessionsLiveModel,
   createTuiSessionsListModel,
   produceCell,
-} from '@runtimes/tui-agents/node/state/live-models';
-import { describe, expect, it, vi } from 'vitest';
+} from '#runtimes/tui-agents/node/state/live-models';
 import { TuiAgentStates } from './agent-state';
 
 function createTracker() {

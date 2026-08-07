@@ -1,7 +1,7 @@
 import type {
   CanonicalHookEvent,
   NotificationType,
-} from '@services/agent-plugins/api/plugins/capabilities/hooks-types';
+} from '#services/agent-plugins/api/plugins/capabilities/hooks-types';
 
 const NOTIFICATION_TYPES = new Set<string>([
   'permission_prompt',

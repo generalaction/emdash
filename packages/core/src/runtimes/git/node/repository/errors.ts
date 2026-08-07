@@ -1,5 +1,5 @@
 import type { Err } from '@emdash/shared';
-import type { HostAbsolutePath } from '@primitives/path/api';
+import type { HostAbsolutePath } from '#primitives/path/api';
 import {
   gitErr,
   type CloneRepositoryError,
@@ -7,7 +7,7 @@ import {
   type DeleteBranchError,
   type FetchError,
   type FetchPrForReviewError,
-} from '@runtimes/git/api';
+} from '#runtimes/git/api';
 import {
   commandFailure,
   gitFailure,
@@ -15,7 +15,7 @@ import {
   isAuthRequired,
   isMissingObject,
   isNetworkFailure,
-} from '@runtimes/git/node/exec/errors';
+} from '#runtimes/git/node/exec/errors';
 
 export const repositoryFailures = {
   clone(error: unknown, targetPath: HostAbsolutePath): Err<CloneRepositoryError> {

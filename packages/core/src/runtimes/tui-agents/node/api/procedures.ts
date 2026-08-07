@@ -7,8 +7,8 @@ import type {
   TuiSessionControlError,
   TuiStartOutcome,
   TuiStartSessionError,
-} from '@runtimes/tui-agents/api';
-import type { TuiAgentsRuntime } from '@runtimes/tui-agents/node/runtime/runtime';
+} from '#runtimes/tui-agents/api';
+import type { TuiAgentsRuntime } from '#runtimes/tui-agents/node/runtime/runtime';
 
 export type StartTuiSessionInput = TuiAgentStartInput;
 

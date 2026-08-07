@@ -1,5 +1,5 @@
-import type { GitSyncProgress, GitTransferProgress } from '@runtimes/git/api';
-import type { BoundExec, ExecResult } from '@services/exec/api';
+import type { GitSyncProgress, GitTransferProgress } from '#runtimes/git/api';
+import type { BoundExec, ExecResult } from '#services/exec/api';
 import type { GitOperationContext } from './operation-context';
 
 const DEFAULT_THROTTLE_MS = 250;

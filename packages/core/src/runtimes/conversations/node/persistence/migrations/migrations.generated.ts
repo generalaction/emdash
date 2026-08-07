@@ -1,5 +1,5 @@
 // AUTO-GENERATED — do not edit. Re-run the bundle-drizzle-migrations script.
-import type { BundledMigration } from '@primitives/sqlite-store/api';
+import type { BundledMigration } from '#primitives/sqlite-store/api';
 
 export const migrations: readonly BundledMigration[] = [
   {

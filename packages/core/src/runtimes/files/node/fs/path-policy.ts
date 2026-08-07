@@ -5,9 +5,9 @@ import {
   parsePortableRelativePath,
   ROOT_RELATIVE_PATH,
   type PortableRelativePath,
-} from '@primitives/path/api';
-import type { FsError } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
+} from '#primitives/path/api';
+import type { FsError } from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
 
 export type ResolvedEntryPath = {
   path: PortableRelativePath;

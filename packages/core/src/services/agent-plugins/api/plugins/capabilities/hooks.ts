@@ -1,6 +1,6 @@
 import { definePluginCapability } from '@emdash/shared/plugins';
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import z from 'zod';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 import type { ConfigRootContext } from '../helpers/config-root';
 import type { CanonicalHookEvent, HookRegistration } from './hooks-types';
 

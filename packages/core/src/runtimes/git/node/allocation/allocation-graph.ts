@@ -1,14 +1,14 @@
 import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import { KeyedMutex } from '@emdash/shared/concurrency';
-import type { CheckoutSelector, GitResolutionError, RepositorySelector } from '@runtimes/git/api';
-import { CheckoutResource } from '@runtimes/git/node/checkout/checkout-resource';
-import { GitCheckout } from '@runtimes/git/node/checkout/git-checkout';
-import { bindGitDir } from '@runtimes/git/node/exec/git-exec';
-import { GitRepository } from '@runtimes/git/node/repository/git-repository';
-import { RepositoryResource } from '@runtimes/git/node/repository/repository-resource';
-import type { BoundExec } from '@services/exec/api';
-import type { IWatchService } from '@services/fs-watch/api';
+import type { CheckoutSelector, GitResolutionError, RepositorySelector } from '#runtimes/git/api';
+import { CheckoutResource } from '#runtimes/git/node/checkout/checkout-resource';
+import { GitCheckout } from '#runtimes/git/node/checkout/git-checkout';
+import { bindGitDir } from '#runtimes/git/node/exec/git-exec';
+import { GitRepository } from '#runtimes/git/node/repository/git-repository';
+import { RepositoryResource } from '#runtimes/git/node/repository/repository-resource';
+import type { BoundExec } from '#services/exec/api';
+import type { IWatchService } from '#services/fs-watch/api';
 import {
   repositoryIdentityOf,
   type CheckoutIdentity,

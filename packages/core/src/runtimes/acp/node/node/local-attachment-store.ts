@@ -1,10 +1,10 @@
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { AttachmentMimeType, AttachmentRef } from '@runtimes/acp/api';
+import type { AttachmentMimeType, AttachmentRef } from '#runtimes/acp/api';
 import type {
   AttachmentStore,
   StoredAttachment,
-} from '@runtimes/acp/node/runtime/attachment-store';
+} from '#runtimes/acp/node/runtime/attachment-store';
 
 type AttachmentRecord = {
   ref: AttachmentRef;

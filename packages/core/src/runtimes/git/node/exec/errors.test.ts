@@ -1,5 +1,5 @@
-import { ExecError } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import { ExecError } from '#services/exec/api';
 import { gitFailure, isMissingObject, pushFailed } from './errors';
 
 function execError(stderr: string, exitCode = 128, stdout = ''): ExecError {

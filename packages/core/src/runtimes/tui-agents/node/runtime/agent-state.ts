@@ -1,13 +1,13 @@
 import { peek } from '@emdash/wire/state';
-import type { TuiAgentState } from '@runtimes/tui-agents/api';
+import type { TuiAgentState } from '#runtimes/tui-agents/api';
 import {
   produceCell,
   type TuiAgentStatesListModel,
   type TuiSessionsListModel,
-} from '@runtimes/tui-agents/node/state/live-models';
-import type { ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
-import type { CanonicalHookEvent } from '@services/agent-plugins/api/plugins';
-import { defaultHookEventParser } from '@services/agent-plugins/api/plugins/helpers';
+} from '#runtimes/tui-agents/node/state/live-models';
+import type { ResolvedTuiProvider } from '#services/agent-plugins/api/plugins';
+import type { CanonicalHookEvent } from '#services/agent-plugins/api/plugins';
+import { defaultHookEventParser } from '#services/agent-plugins/api/plugins/helpers';
 
 const ATTENTION_NOTIFICATION_TYPES = new Set([
   'permission_prompt',

@@ -18,8 +18,8 @@ import type {
   WriteTextFileRequest,
   WriteTextFileResponse,
 } from '@agentclientprotocol/sdk';
-import type { NormalizedEvent } from '@runtimes/acp/api';
-import type { AcpConnectionContext } from '@runtimes/acp/node/connection/source';
+import type { NormalizedEvent } from '#runtimes/acp/api';
+import type { AcpConnectionContext } from '#runtimes/acp/node/connection/source';
 import type { FsPort } from './fs-port';
 import type { TerminalPort } from './terminal-port';
 

@@ -1,7 +1,7 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
-import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@primitives/lib/api';
+import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '#primitives/lib/api';
 import {
   comparisonKeyForAbsolutePath,
   createPathProfile,
@@ -9,9 +9,9 @@ import {
   parseAbsolute,
   type HostAbsolutePath,
   type PortableRelativePath,
-} from '@primitives/path/api';
-import type { ContentKey, FsError, TreeKey } from '@runtimes/files/api';
-import { toFsError } from '@runtimes/files/node/api/errors';
+} from '#primitives/path/api';
+import type { ContentKey, FsError, TreeKey } from '#runtimes/files/api';
+import { toFsError } from '#runtimes/files/node/api/errors';
 
 export type RootIdentity = {
   rootId: string;

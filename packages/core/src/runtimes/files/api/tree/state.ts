@@ -1,5 +1,5 @@
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
 
 export const fileEntryKindSchema = z.enum(['file', 'directory', 'symlink']);
 export const symlinkTargetKindSchema = z.enum([

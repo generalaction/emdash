@@ -1,5 +1,5 @@
-import { toolCallItemSchema } from '@runtimes/acp/api/models/turns/tool-calls';
 import { z } from 'zod';
+import { toolCallItemSchema } from '#runtimes/acp/api/models/turns/tool-calls';
 
 export const acpPermissionOptionSchema = z.object({
   optionId: z.string(),

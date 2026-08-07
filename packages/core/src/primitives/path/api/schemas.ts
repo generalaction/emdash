@@ -1,5 +1,5 @@
-import { hostRefSchema } from '@primitives/host/api';
 import { z } from 'zod';
+import { hostRefSchema } from '#primitives/host/api';
 import { parseAbsolute, type ParseAbsoluteOptions } from './absolute';
 import type { PathError } from './errors';
 import { parsePortableRelativePath, type ParseRelativeOptions } from './relative';

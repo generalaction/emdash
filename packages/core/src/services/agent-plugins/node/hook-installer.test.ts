@@ -3,17 +3,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { createScope } from '@emdash/shared/concurrency';
 import { createStubLogger, deferred } from '@emdash/shared/testing';
-import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostDependencyResolver } from '@primitives/host-dependencies/api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '#primitives/exec/api';
+import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import {
   AgentPluginHost,
   createPluginRegistry,
   type CLIAgentPluginProvider,
   type IHooksBehavior,
   type IPlugins,
-} from '@services/agent-plugins/api/plugins';
-import { configRoots, envConfigRoot } from '@services/agent-plugins/api/plugins/helpers';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+} from '#services/agent-plugins/api/plugins';
+import { configRoots, envConfigRoot } from '#services/agent-plugins/api/plugins/helpers';
 import { AgentHookInstaller } from './hook-installer';
 
 const tempDirs: string[] = [];

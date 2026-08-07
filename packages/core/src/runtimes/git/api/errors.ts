@@ -1,5 +1,5 @@
 import { err, type Err } from '@emdash/shared';
-import type { HostAbsolutePath, PortableRelativePath } from '@primitives/path/api';
+import type { HostAbsolutePath, PortableRelativePath } from '#primitives/path/api';
 import type {
   CreateBranchError,
   DeleteBranchError,
@@ -9,7 +9,7 @@ import type {
   GitOperationError,
   GitResolutionError,
   SwitchError,
-} from '@runtimes/git/api/api/errors';
+} from '#runtimes/git/api/api/errors';
 
 type TaggedError<Type extends GitOperationError['type']> = Extract<
   GitOperationError,

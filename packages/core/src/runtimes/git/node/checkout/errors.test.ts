@@ -1,6 +1,6 @@
-import { gitPath } from '@runtimes/git/node/testing/paths';
-import { ExecError } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import { gitPath } from '#runtimes/git/node/testing/paths';
+import { ExecError } from '#services/exec/api';
 import { checkoutFailures } from './errors';
 
 function execError(stderr: string, exitCode = 128): ExecError {

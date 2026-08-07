@@ -1,6 +1,6 @@
-import { hostAbsolutePathSchema } from '@primitives/path/api';
-import { repositorySelectorSchema } from '@runtimes/git/api/api/selectors';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '#primitives/path/api';
+import { repositorySelectorSchema } from '#runtimes/git/api/api/selectors';
 
 /**
  * Repository subdomain schemas: option shapes for branch / tag / worktree

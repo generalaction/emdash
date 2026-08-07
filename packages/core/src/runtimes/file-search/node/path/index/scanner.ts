@@ -5,7 +5,7 @@ import {
   joinPortableRelativePath,
   portableRelativePathParts,
   type PortableRelativePath,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 import type { FileSearchExclusions } from '../../exclusions';
 import { containsNativePath, sameNativePath } from '../../native-paths';
 import type { PathIndexEntry } from './path-index-store';

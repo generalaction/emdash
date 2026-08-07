@@ -1,5 +1,5 @@
 import { dirname } from 'node:path';
-import type { AcpFs } from '@runtimes/acp/api';
+import type { AcpFs } from '#runtimes/acp/api';
 
 /** Read a UTF-8 file via an AcpFs adapter, wrapping errors with the file path. */
 export async function readTextFile(fs: AcpFs, path: string): Promise<string> {

@@ -1,10 +1,10 @@
 import { link, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { FilesRuntime } from '@runtimes/files/node/files-runtime';
-import { relativePath, runtimeRoot } from '@runtimes/files/node/testing/paths';
-import type { IWatchService } from '@services/fs-watch/api';
 import { afterEach, describe, expect, it } from 'vitest';
+import { FilesRuntime } from '#runtimes/files/node/files-runtime';
+import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
+import type { IWatchService } from '#services/fs-watch/api';
 
 const roots: string[] = [];
 

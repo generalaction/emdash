@@ -1,4 +1,4 @@
-import type { AttachmentMimeType, AttachmentRef } from '@runtimes/acp/api';
+import type { AttachmentMimeType, AttachmentRef } from '#runtimes/acp/api';
 
 export interface StoredAttachment {
   ref: AttachmentRef;

@@ -1,7 +1,8 @@
 import type { Result } from '@emdash/shared';
 import { ConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
-import { DEFAULT_SEARCH_EXCLUDE } from '@primitives/lib/api';
-import type { StoreHandle } from '@primitives/sqlite-store/api';
+import type Database from 'better-sqlite3';
+import { DEFAULT_SEARCH_EXCLUDE } from '#primitives/lib/api';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type {
   ContentSearchError,
   ContentSearchInput,
@@ -12,9 +13,8 @@ import type {
   PathSearchError,
   PathSearchInput,
   PathSearchResult,
-} from '@runtimes/file-search/api';
-import type { IWatchService } from '@services/fs-watch/api';
-import type Database from 'better-sqlite3';
+} from '#runtimes/file-search/api';
+import type { IWatchService } from '#services/fs-watch/api';
 import type { ContentSearchContext } from './content/content-searcher';
 import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-searcher';
 import { searchRootContent } from './content/root-content-search';

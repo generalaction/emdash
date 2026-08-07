@@ -1,5 +1,5 @@
 import type { McpServer as AcpMcpServer } from '@agentclientprotocol/sdk';
-import type { McpServerRegistration } from '@primitives/mcp/api';
+import type { McpServerRegistration } from '#primitives/mcp/api';
 
 export interface AcpMcpCapabilities {
   http: boolean;

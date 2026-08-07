@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
+import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 
 export function realpathOrResolve(filePath: string): string {
   try {

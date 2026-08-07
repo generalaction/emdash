@@ -1,5 +1,5 @@
-import { defineVersionedSchema } from '@primitives/versioned-schema/api';
 import { z } from 'zod';
+import { defineVersionedSchema } from '#primitives/versioned-schema/api';
 import { automationDeploymentSchema, type AutomationDeployment } from '../../api/deployment';
 import { automationRunSchema, type AutomationRun } from '../../api/run';
 

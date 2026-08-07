@@ -10,9 +10,9 @@ import {
 const MODULE_TYPES = new Set(['runtimes', 'services', 'primitives', 'features']);
 const SHARED_INFRA_SERVICES = new Set(['app-db', 'operations']);
 const ALIAS_PREFIXES = {
-  '@runtimes/': 'runtimes',
-  '@services/': 'services',
-  '@primitives/': 'primitives',
+  '#runtimes/': 'runtimes',
+  '#services/': 'services',
+  '#primitives/': 'primitives',
   '@core/services/': 'services',
   '@core/primitives/': 'primitives',
   '@core/features/': 'features',

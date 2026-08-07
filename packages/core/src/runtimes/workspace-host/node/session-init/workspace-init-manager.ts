@@ -6,7 +6,7 @@ import {
   EMDASH_CONFIG_FILE,
   parseEmdashConfig,
   type EmdashConfig,
-} from '@primitives/emdash-config/api';
+} from '#primitives/emdash-config/api';
 import {
   createWorkspaceScriptRunner,
   type WorkspaceScriptRunOutcome,

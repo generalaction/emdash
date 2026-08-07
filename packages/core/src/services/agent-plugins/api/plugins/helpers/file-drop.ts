@@ -1,5 +1,5 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
-import type { PluginScope } from '@services/agent-plugins/api/plugins/capabilities/plugins';
+import type { PluginFs } from '#primitives/plugin-fs/api';
+import type { PluginScope } from '#services/agent-plugins/api/plugins/capabilities/plugins';
 import type { ConfigRootResolver } from './config-root';
 
 export function createFileDropPlugin(opts: {

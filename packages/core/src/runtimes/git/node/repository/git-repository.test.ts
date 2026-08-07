@@ -3,12 +3,12 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { RepositoryIdentity } from '@runtimes/git/node/allocation/identity';
-import { bindGitDir } from '@runtimes/git/node/exec/git-exec';
-import { gitPath, hostPath } from '@runtimes/git/node/testing/paths';
-import { createBoundExec, ExecError, type BoundExec } from '@services/exec/api';
 import { describe, expect, it } from 'vitest';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { RepositoryIdentity } from '#runtimes/git/node/allocation/identity';
+import { bindGitDir } from '#runtimes/git/node/exec/git-exec';
+import { gitPath, hostPath } from '#runtimes/git/node/testing/paths';
+import { createBoundExec, ExecError, type BoundExec } from '#services/exec/api';
 import { GitRepository } from './git-repository';
 
 const execFileAsync = promisify(execFile);

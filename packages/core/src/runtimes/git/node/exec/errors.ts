@@ -1,6 +1,6 @@
 import type { Err } from '@emdash/shared';
-import { gitErr, type GitCommandError, type PushError } from '@runtimes/git/api';
-import { ExecError } from '@services/exec/api';
+import { gitErr, type GitCommandError, type PushError } from '#runtimes/git/api';
+import { ExecError } from '#services/exec/api';
 
 export type GitFailure = Readonly<{
   exitCode: number | null;

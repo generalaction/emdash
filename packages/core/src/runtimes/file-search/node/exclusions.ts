@@ -1,5 +1,5 @@
-import { DEFAULT_SEARCH_EXCLUDE, ExclusionPolicy } from '@primitives/lib/api';
-import type { PortableRelativePath } from '@primitives/path/api';
+import { DEFAULT_SEARCH_EXCLUDE, ExclusionPolicy } from '#primitives/lib/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 
 /** One semantic exclusion policy compiled for scanners, watchers, and ripgrep. */
 export interface FileSearchExclusions {

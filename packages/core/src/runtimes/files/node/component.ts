@@ -1,10 +1,10 @@
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { filesContract } from '@runtimes/files/api';
-import { createFilesController } from '@runtimes/files/node/api/controller';
-import { FilesRuntime } from '@runtimes/files/node/files-runtime';
-import { fsWatchContract } from '@services/fs-watch/api';
-import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
 import { z } from 'zod';
+import { filesContract } from '#runtimes/files/api';
+import { createFilesController } from '#runtimes/files/node/api/controller';
+import { FilesRuntime } from '#runtimes/files/node/files-runtime';
+import { fsWatchContract } from '#services/fs-watch/api';
+import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
 
 export const filesComponentConfigSchema = z.object({
   idleTtlMs: z.number().nonnegative().optional(),

@@ -1,5 +1,5 @@
-import { LOCAL_HOST_REF } from '@primitives/host/api';
 import { describe, expect, it } from 'vitest';
+import { LOCAL_HOST_REF } from '#primitives/host/api';
 import { automationDeploymentSchema, automationRunConfigSnapshotSchema } from './deployment';
 
 const repository = {

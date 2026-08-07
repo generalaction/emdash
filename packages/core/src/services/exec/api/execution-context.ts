@@ -2,4 +2,4 @@ export type {
   ExecContextOptions,
   ExecStreamingResult,
   IExecutionContext,
-} from '@primitives/exec/api';
+} from '#primitives/exec/api';

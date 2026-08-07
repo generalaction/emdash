@@ -1,5 +1,5 @@
-import type { PortableRelativePath } from '@primitives/path/api';
 import { Minimatch } from 'minimatch';
+import type { PortableRelativePath } from '#primitives/path/api';
 
 export const DEFAULT_SEARCH_EXCLUDE = [
   '.git',

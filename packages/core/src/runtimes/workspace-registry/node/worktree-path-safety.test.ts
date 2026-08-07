@@ -1,5 +1,5 @@
-import type { BoundExec } from '@services/exec/api';
 import { describe, expect, it, vi } from 'vitest';
+import type { BoundExec } from '#services/exec/api';
 import { validateWorktreePath } from './worktree-path-safety';
 
 describe('validateWorktreePath', () => {

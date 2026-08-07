@@ -1,4 +1,4 @@
-import type { HostFileRef } from '@primitives/path/api';
+import type { HostFileRef } from '#primitives/path/api';
 import type {
   AutomationRun,
   AutomationRunError,

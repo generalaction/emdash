@@ -1,4 +1,4 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 
 export type ConfigLayer<T> = {
   root: string;

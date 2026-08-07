@@ -1,6 +1,6 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
 import { parse as parseTOML } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
+import type { PluginFs } from '#primitives/plugin-fs/api';
 import {
   ampMcpAdapter,
   codexMcpAdapter,

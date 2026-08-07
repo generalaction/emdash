@@ -1,15 +1,15 @@
 import { createScope } from '@emdash/shared/concurrency';
-import type { IExecutionContext } from '@primitives/exec/api';
-import type { HostDependencyResolver } from '@primitives/host-dependencies/api';
-import type { IAcpBehavior } from '@services/agent-plugins/api/plugins/capabilities/acp';
-import type { IAgentAuthBehavior } from '@services/agent-plugins/api/plugins/capabilities/auth';
-import type { CanonicalHookEvent } from '@services/agent-plugins/api/plugins/capabilities/hooks';
-import type { McpServerRegistration } from '@services/agent-plugins/api/plugins/capabilities/mcp';
+import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '#primitives/exec/api';
+import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
+import type { IAcpBehavior } from '#services/agent-plugins/api/plugins/capabilities/acp';
+import type { IAgentAuthBehavior } from '#services/agent-plugins/api/plugins/capabilities/auth';
+import type { CanonicalHookEvent } from '#services/agent-plugins/api/plugins/capabilities/hooks';
+import type { McpServerRegistration } from '#services/agent-plugins/api/plugins/capabilities/mcp';
 import type {
   AgentCommand,
   CommandContext,
-} from '@services/agent-plugins/api/plugins/capabilities/prompt';
-import { describe, expect, it, vi } from 'vitest';
+} from '#services/agent-plugins/api/plugins/capabilities/prompt';
 import { AgentPluginHost, createPluginRegistry, type CLIAgentPluginProvider } from './index';
 
 describe('AgentPluginHost', () => {

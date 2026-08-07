@@ -10,16 +10,17 @@ import { PassThrough } from 'node:stream';
 import type { Client } from '@agentclientprotocol/sdk';
 import { createScope } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
-import type { HostDependencyResolver } from '@primitives/host-dependencies/api';
+import { vi } from 'vitest';
+import type { HostDependencyResolver } from '#primitives/host-dependencies/api';
 import type {
   AcpFs,
   AcpProcessHandle,
   AcpProcessHost,
   AcpTerminalExit,
   AcpTerminalProcess,
-} from '@runtimes/acp/api';
-import type { AgentTerminalHooks } from '@runtimes/acp/node/agent-ports/terminal-manager';
-import type { AcpRuntimeDeps, AcpStartInput } from '@runtimes/acp/node/runtime/types';
+} from '#runtimes/acp/api';
+import type { AgentTerminalHooks } from '#runtimes/acp/node/agent-ports/terminal-manager';
+import type { AcpRuntimeDeps, AcpStartInput } from '#runtimes/acp/node/runtime/types';
 import {
   AgentPluginHost,
   createPluginRegistry,
@@ -27,11 +28,10 @@ import {
   type CLIAgentPluginProvider,
   type IAcpBehavior,
   type ResolvedAuthProvider,
-} from '@services/agent-plugins/api/plugins';
-import type { IExecutionContext } from '@services/exec/api';
-import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '@services/pty/api';
-import { createMemorySessionIntentStore } from '@services/session-intents/api';
-import { vi } from 'vitest';
+} from '#services/agent-plugins/api/plugins';
+import type { IExecutionContext } from '#services/exec/api';
+import type { PtyExitInfo, PtyProcess, PtySpawnSpec, PtySpawner } from '#services/pty/api';
+import { createMemorySessionIntentStore } from '#services/session-intents/api';
 
 /**
  * Creates recording terminal hooks.

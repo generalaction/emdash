@@ -2,7 +2,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { createEventStreamHost, type EventStreamHost } from '@emdash/wire/live';
-import type { StoreHandle } from '@primitives/sqlite-store/api';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import { automationsContract } from '../api/contract';
 import type { AutomationId } from '../api/deployment';
 import type {

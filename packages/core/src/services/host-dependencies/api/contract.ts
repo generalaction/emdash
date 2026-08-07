@@ -6,6 +6,7 @@ import {
   mutation,
   procedure,
 } from '@emdash/wire/rpc';
+import { z } from 'zod';
 import {
   dependencyIdSchema,
   hostDependencyErrorSchema,
@@ -15,8 +16,7 @@ import {
   hostDependencyViewResultSchema,
   hostDependencyViewSchema,
   installMethodSchema,
-} from '@primitives/host-dependencies/api';
-import { z } from 'zod';
+} from '#primitives/host-dependencies/api';
 
 const depInput = z.object({ id: dependencyIdSchema });
 export const hostDependencyInstallRequestSchema = depInput.extend({

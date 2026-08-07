@@ -2,18 +2,18 @@ import os from 'node:os';
 import type { Logger } from '@emdash/shared/logger';
 import type { PluginRegistry } from '@emdash/shared/plugins';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { agentConfigContract } from '@runtimes/agent-config/api';
-import { createAgentConfigController } from '@runtimes/agent-config/node/api/controller';
-import { AgentConfigRuntime } from '@runtimes/agent-config/node/runtime/runtime';
-import { AgentPluginHost, type CLIAgentPluginProvider } from '@services/agent-plugins/api/plugins';
-import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
-import { NodeExecutionContext } from '@services/exec/api';
+import { z } from 'zod';
+import { agentConfigContract } from '#runtimes/agent-config/api';
+import { createAgentConfigController } from '#runtimes/agent-config/node/api/controller';
+import { AgentConfigRuntime } from '#runtimes/agent-config/node/runtime/runtime';
+import { AgentPluginHost, type CLIAgentPluginProvider } from '#services/agent-plugins/api/plugins';
+import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
+import { NodeExecutionContext } from '#services/exec/api';
 import {
   createHostDependencyResolverFromDependency,
   hostDependencyResolverContract,
-} from '@services/host-dependencies/node';
-import { NodePtySpawner } from '@services/pty/node';
-import { z } from 'zod';
+} from '#services/host-dependencies/node';
+import { NodePtySpawner } from '#services/pty/node';
 
 export const agentConfigComponentConfigSchema = z.object({});
 

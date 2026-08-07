@@ -1,9 +1,9 @@
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { RootPathPolicy } from '@runtimes/files/node/fs/path-policy';
-import { relativePath } from '@runtimes/files/node/testing/paths';
 import { afterEach, describe, expect, it } from 'vitest';
+import { RootPathPolicy } from '#runtimes/files/node/fs/path-policy';
+import { relativePath } from '#runtimes/files/node/testing/paths';
 import { ContentReader } from './content-reader';
 
 const roots: string[] = [];

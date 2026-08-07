@@ -2,13 +2,13 @@ import type { Client } from '@agentclientprotocol/sdk';
 import { err, isErr, isOk } from '@emdash/shared';
 import { acquireResourceAsResult } from '@emdash/shared/concurrency';
 import { noopLogger } from '@emdash/shared/logger';
+import { describe, expect, it, vi } from 'vitest';
 import {
   FakeAcpAgent,
   FakeAcpProcessHost,
   testPluginHost,
-} from '@runtimes/acp/node/acp-test-support';
-import type { AgentPluginHost, IAcpBehavior } from '@services/agent-plugins/api/plugins';
-import { describe, expect, it, vi } from 'vitest';
+} from '#runtimes/acp/node/acp-test-support';
+import type { AgentPluginHost, IAcpBehavior } from '#services/agent-plugins/api/plugins';
 import { createAcpConnectionSource, isAcpConnectionError, makeAcpConnectionKey } from './source';
 
 function makeBehavior(agent: FakeAcpAgent): IAcpBehavior {

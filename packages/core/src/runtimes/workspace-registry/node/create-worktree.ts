@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { BoundExec } from '@services/exec/api';
+import type { BoundExec } from '#services/exec/api';
 import { copyPreservedFiles } from './copy-preserved-files';
 import { createRegistryGitExec } from './scan/observe-git';
 import { validateWorktreePath } from './worktree-path-safety';

@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { fileSearchContract } from '@runtimes/file-search/api';
-import { createFileSearchController } from '@runtimes/file-search/node/api/controller';
-import { FileSearchRuntime } from '@runtimes/file-search/node/file-search-runtime';
-import { fsWatchContract } from '@services/fs-watch/api';
-import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
 import { z } from 'zod';
+import { fileSearchContract } from '#runtimes/file-search/api';
+import { createFileSearchController } from '#runtimes/file-search/node/api/controller';
+import { FileSearchRuntime } from '#runtimes/file-search/node/file-search-runtime';
+import { fsWatchContract } from '#services/fs-watch/api';
+import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
 import { fileSearchStore } from './storage/store';
 
 export const fileSearchComponentConfigSchema = z.object({

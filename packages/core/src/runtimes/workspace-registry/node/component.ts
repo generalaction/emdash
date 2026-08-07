@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { defineWireComponent, requireContract } from '@emdash/wire/worker';
-import { fsWatchContract } from '@services/fs-watch/api';
-import { createProcessWatchServiceFromDependency } from '@services/fs-watch/node/process-watch-service';
-import { hostRuntimesDefinitions } from '@services/runtime-broker/api';
 import { z } from 'zod';
+import { fsWatchContract } from '#services/fs-watch/api';
+import { createProcessWatchServiceFromDependency } from '#services/fs-watch/node/process-watch-service';
+import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
 import { workspaceRegistryContract } from '../api';
 import { createWorkspaceRegistryController } from './api/controller';
 import { workspaceRegistryStore } from './persistence/store';

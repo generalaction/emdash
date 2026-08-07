@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { Platform } from '@primitives/host-dependencies/api';
+import type { Platform } from '#primitives/host-dependencies/api';
 
 export type ConfigRootContext = {
   env: Record<string, string | undefined>;

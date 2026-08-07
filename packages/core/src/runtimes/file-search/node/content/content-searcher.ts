@@ -4,7 +4,7 @@ import type {
   ContentSearchInput,
   ContentSearchProgress,
   ContentSearchResult,
-} from '@runtimes/file-search/api';
+} from '#runtimes/file-search/api';
 
 export type ContentSearchExecutionError = Extract<
   ContentSearchError,

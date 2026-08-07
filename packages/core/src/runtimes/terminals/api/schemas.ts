@@ -1,12 +1,12 @@
-import { hostFileRefSchema } from '@primitives/path/api';
-import { terminalShellIdSchema } from '@primitives/terminal-shell/api';
+import { z } from 'zod';
+import { hostFileRefSchema } from '#primitives/path/api';
+import { terminalShellIdSchema } from '#primitives/terminal-shell/api';
 import {
   scriptWorkflowKindSchema,
   terminalErrorSchema,
   terminalExitSchema,
   terminalSizeSchema,
-} from '@services/script-workflows/api';
-import { z } from 'zod';
+} from '#services/script-workflows/api';
 
 export const terminalKeySchema = z.object({
   workspace: hostFileRefSchema,

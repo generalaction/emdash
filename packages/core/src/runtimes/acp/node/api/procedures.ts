@@ -25,8 +25,8 @@ import type {
   PromptDraftUpdate,
   PromptInput,
   ResumeResult,
-} from '@runtimes/acp/api';
-import type { AcpRuntime } from '@runtimes/acp/node/runtime/runtime';
+} from '#runtimes/acp/api';
+import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
 
 export type StartSessionInput = AcpStartInputWire;
 

@@ -1,4 +1,4 @@
-import { createBoundExec, ExecError, type BoundExec } from '@services/exec/api';
+import { createBoundExec, ExecError, type BoundExec } from '#services/exec/api';
 
 export const DEFAULT_WORKSPACE_SCRIPT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_OUTPUT_TAIL_LENGTH = 8_000;

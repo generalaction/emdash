@@ -9,10 +9,10 @@ import {
   procedure,
   uploadFile,
 } from '@emdash/wire/rpc';
-import { hostAbsolutePathSchema, portableRelativePathSchema } from '@primitives/path/api';
-import { fileContentModelSchema } from '@runtimes/files/api/content/state';
-import { fileTreeModelSchema } from '@runtimes/files/api/tree/state';
 import { z } from 'zod';
+import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/path/api';
+import { fileContentModelSchema } from '#runtimes/files/api/content/state';
+import { fileTreeModelSchema } from '#runtimes/files/api/tree/state';
 import { fsErrorSchema } from './errors';
 import {
   contentKeySchema,

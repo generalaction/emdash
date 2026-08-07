@@ -4,12 +4,13 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire/live';
 import type { BlobSource, WireFile } from '@emdash/wire/rpc';
+import { glob } from 'glob';
 import {
   joinPortableRelativePath,
   parseAbsolute,
   type HostAbsolutePath,
   type PortableRelativePath,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 import type {
   CopyInput,
   CreateDirectoryInput,
@@ -31,12 +32,11 @@ import type {
   UploadFileInput,
   UploadFileResult,
   WriteFileInput,
-} from '@runtimes/files/api';
-import type { FilesAllocationGraph } from '@runtimes/files/node/allocation/allocation-graph';
-import { expectedFsError, toFsError } from '@runtimes/files/node/api/errors';
-import type { RootResource } from '@runtimes/files/node/root/root-resource';
-import { measureAbsolutePathUsage } from '@services/fs-usage/node';
-import { glob } from 'glob';
+} from '#runtimes/files/api';
+import type { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
+import { expectedFsError, toFsError } from '#runtimes/files/node/api/errors';
+import type { RootResource } from '#runtimes/files/node/root/root-resource';
+import { measureAbsolutePathUsage } from '#services/fs-usage/node';
 import { enumerateFiles } from './enumerate';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
 import {

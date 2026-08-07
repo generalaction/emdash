@@ -1,6 +1,6 @@
 import type { SessionUpdate } from '@agentclientprotocol/sdk';
-import { transcriptTurnSchema } from '@runtimes/acp/api/models/turns';
 import { describe, expect, it } from 'vitest';
+import { transcriptTurnSchema } from '#runtimes/acp/api/models/turns';
 import { AcpTranscriptParser } from '../reducer/parser';
 import { agentStateSchema } from './agents';
 import { sessionConfigStateSchema, sessionUsageSchema } from './config';

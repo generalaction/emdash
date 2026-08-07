@@ -3,7 +3,7 @@ import { KeyedMutex } from '@emdash/shared/concurrency';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
-import { formatCommandLine } from '@primitives/exec/api';
+import { formatCommandLine } from '#primitives/exec/api';
 import {
   compileIdlePolicy,
   createIdleSweeper,
@@ -12,7 +12,7 @@ import {
   type IdleSweeper,
   type IoActivitySnapshot,
   type IoActivityTracker,
-} from '@primitives/io-activity/api';
+} from '#primitives/io-activity/api';
 import type {
   TuiAgentStartInput,
   TuiInputError,
@@ -22,10 +22,10 @@ import type {
   TuiSessionState,
   TuiStartOutcome,
   TuiStartSessionError,
-} from '@runtimes/tui-agents/api';
-import { persistedTuiAgentStartInputSchema } from '@runtimes/tui-agents/api';
-import { TuiHookPipeline } from '@runtimes/tui-agents/node/hooks/hook-pipeline';
-import { TuiHookServer } from '@runtimes/tui-agents/node/hooks/hook-server';
+} from '#runtimes/tui-agents/api';
+import { persistedTuiAgentStartInputSchema } from '#runtimes/tui-agents/api';
+import { TuiHookPipeline } from '#runtimes/tui-agents/node/hooks/hook-pipeline';
+import { TuiHookServer } from '#runtimes/tui-agents/node/hooks/hook-server';
 import {
   createTuiAgentStatesLiveModel,
   createTuiAgentStatesListModel,
@@ -36,14 +36,14 @@ import {
   type TuiAgentStatesListModel,
   type TuiSessionsLiveModel,
   type TuiSessionsListModel,
-} from '@runtimes/tui-agents/node/state/live-models';
-import { TuiWorkspaceTrust } from '@runtimes/tui-agents/node/trust/workspace-trust';
-import type { AgentCommand, ResolvedTuiProvider } from '@services/agent-plugins/api/plugins';
-import { AgentHookInstaller } from '@services/agent-plugins/node';
+} from '#runtimes/tui-agents/node/state/live-models';
+import { TuiWorkspaceTrust } from '#runtimes/tui-agents/node/trust/workspace-trust';
+import type { AgentCommand, ResolvedTuiProvider } from '#services/agent-plugins/api/plugins';
+import { AgentHookInstaller } from '#services/agent-plugins/node';
 import {
   noopConversationLifecycleReporter,
   type ConversationLifecycleReporter,
-} from '@services/conversation-reports/node';
+} from '#services/conversation-reports/node';
 import {
   buildTmuxShellLine,
   killTmuxSession,
@@ -52,7 +52,7 @@ import {
   type PtyExitInfo,
   type PtySession,
   type PtySpawnSpec,
-} from '@services/pty/api';
+} from '#services/pty/api';
 import { TuiAgentStates } from './agent-state';
 import type { TuiAgentsRuntimeDeps, TuiSessionConfig } from './types';
 

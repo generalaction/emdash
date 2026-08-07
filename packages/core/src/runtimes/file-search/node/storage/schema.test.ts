@@ -1,7 +1,7 @@
-import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import { pathEntries, registeredRoots } from './schema';
 import { fileSearchStore, type FileSearchDb } from './store';
 

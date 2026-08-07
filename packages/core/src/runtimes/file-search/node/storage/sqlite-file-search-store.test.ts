@@ -1,7 +1,7 @@
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { StoreHandle } from '@primitives/sqlite-store/api';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { StoreHandle } from '#primitives/sqlite-store/api';
 import { relativePath as relative } from '../testing/paths';
 import { SqliteFileSearchStore } from './sqlite-file-search-store';
 import { fileSearchStore, type FileSearchDb } from './store';

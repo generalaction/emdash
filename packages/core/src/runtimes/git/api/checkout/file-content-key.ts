@@ -1,5 +1,5 @@
-import { checkoutSelectorSchema } from '@runtimes/git/api/api/selectors';
 import { z } from 'zod';
+import { checkoutSelectorSchema } from '#runtimes/git/api/api/selectors';
 import { gitFilePathSchema, gitFileSourceSchema } from './schemas';
 
 export const boundGitFileContentKeySchema = z.object({

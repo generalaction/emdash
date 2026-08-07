@@ -2,9 +2,9 @@ import type { Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { expose } from '@emdash/wire/state';
-import { filesContract, type FilesContract } from '@runtimes/files/api';
-import type { FilesAllocationGraph } from '@runtimes/files/node/allocation/allocation-graph';
-import { expectedFsError } from '@runtimes/files/node/api/errors';
+import { filesContract, type FilesContract } from '#runtimes/files/api';
+import type { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
+import { expectedFsError } from '#runtimes/files/node/api/errors';
 import type { ContentResource } from './content-resource';
 
 type ContentModel = FilesContract['content'];

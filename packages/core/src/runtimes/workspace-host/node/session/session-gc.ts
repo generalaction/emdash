@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import type { Scope } from '@emdash/shared/concurrency';
-import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
+import { formatAbsolute, parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
 import { killSessionsUnderPath, type WorkspaceHostSessionClients } from './session-cleanup';
 
 export interface WorkspaceHostSessionGcOptions {

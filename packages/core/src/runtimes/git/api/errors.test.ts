@@ -1,4 +1,5 @@
-import { parseAbsolute } from '@primitives/path/api';
+import { describe, expect, it } from 'vitest';
+import { parseAbsolute } from '#primitives/path/api';
 import {
   createBranchErrorSchema,
   deleteBranchErrorSchema,
@@ -6,8 +7,7 @@ import {
   gitCommandErrorSchema,
   gitResolutionErrorSchema,
   switchErrorSchema,
-} from '@runtimes/git/api/api/errors';
-import { describe, expect, it } from 'vitest';
+} from '#runtimes/git/api/api/errors';
 import { gitErr } from './errors';
 
 describe('gitErr', () => {

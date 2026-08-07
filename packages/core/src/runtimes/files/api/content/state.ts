@@ -1,6 +1,6 @@
-import { portableRelativePathSchema } from '@primitives/path/api';
-import { fsErrorSchema } from '@runtimes/files/api/api/errors';
 import { z } from 'zod';
+import { portableRelativePathSchema } from '#primitives/path/api';
+import { fsErrorSchema } from '#runtimes/files/api/api/errors';
 
 const fileContentBaseSchema = z.object({
   path: portableRelativePathSchema,

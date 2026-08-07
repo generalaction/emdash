@@ -1,4 +1,4 @@
-import type { SqliteConnection } from '@primitives/sqlite-store/api';
+import type { SqliteConnection } from '#primitives/sqlite-store/api';
 
 const ftsSchemaSql = `
   CREATE VIRTUAL TABLE path_entries_fts USING fts5(

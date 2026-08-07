@@ -1,5 +1,5 @@
-import type { PortableRelativePath } from '@primitives/path/api';
-import type { PathEntryKind, PathSearchHit } from '@runtimes/file-search/api';
+import type { PortableRelativePath } from '#primitives/path/api';
+import type { PathEntryKind, PathSearchHit } from '#runtimes/file-search/api';
 
 export type PathIndexEntry = Readonly<{
   path: PortableRelativePath;

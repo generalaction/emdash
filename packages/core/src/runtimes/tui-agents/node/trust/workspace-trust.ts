@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Logger } from '@emdash/shared/logger';
-import type { AgentPluginHost, ITrustBehavior } from '@services/agent-plugins/api/plugins';
-import { createLocalPluginFs } from '@services/agent-plugins/api/plugins/helpers';
+import type { AgentPluginHost, ITrustBehavior } from '#services/agent-plugins/api/plugins';
+import { createLocalPluginFs } from '#services/agent-plugins/api/plugins/helpers';
 
 export type TuiWorkspaceTrustOptions = {
   agentHost: AgentPluginHost;

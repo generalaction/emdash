@@ -18,8 +18,8 @@ import type {
   SetSessionModeResponse,
 } from '@agentclientprotocol/sdk';
 import { definePluginCapability } from '@emdash/shared/plugins';
-import type { EnrichHook } from '@primitives/acp-transcript/api';
 import z from 'zod';
+import type { EnrichHook } from '#primitives/acp-transcript/api';
 
 export type AcpSpawnContext = {
   /** Absolute path to the worktree / task directory. */

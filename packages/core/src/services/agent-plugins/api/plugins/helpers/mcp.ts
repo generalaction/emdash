@@ -1,6 +1,6 @@
-import type { PluginFs } from '@primitives/plugin-fs/api';
-import type { McpServerRegistration } from '@services/agent-plugins/api/plugins/capabilities/mcp';
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
+import type { PluginFs } from '#primitives/plugin-fs/api';
+import type { McpServerRegistration } from '#services/agent-plugins/api/plugins/capabilities/mcp';
 
 // ── Internal helpers ────────────────────────────────────────────────────────
 

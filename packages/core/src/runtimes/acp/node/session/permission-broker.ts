@@ -1,5 +1,5 @@
 import type { RequestPermissionResponse } from '@agentclientprotocol/sdk';
-import type { AcpPermissionRequest } from '@runtimes/acp/api';
+import type { AcpPermissionRequest } from '#runtimes/acp/api';
 
 type PermissionResolver = (response: RequestPermissionResponse) => void;
 

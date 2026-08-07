@@ -1,5 +1,5 @@
-import { stopReasonSchema } from '@runtimes/acp/api/models/session';
 import { z } from 'zod';
+import { stopReasonSchema } from '#runtimes/acp/api/models/session';
 import { transcriptMessageSchema } from './messages';
 import { transcriptThinkingSchema } from './thinking';
 import { toolNodeSchema } from './tool-calls';

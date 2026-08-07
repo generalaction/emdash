@@ -1,5 +1,5 @@
-import { hostFileRefSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostFileRefSchema } from '#primitives/path/api';
 import { automationIdSchema, automationRunConfigSnapshotSchema } from './deployment';
 
 const nonBlankStringSchema = z.string().trim().min(1);

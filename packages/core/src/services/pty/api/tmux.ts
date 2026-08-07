@@ -1,4 +1,4 @@
-import type { IExecutionContext } from '@primitives/exec/api';
+import type { IExecutionContext } from '#primitives/exec/api';
 
 export const TMUX_SESSION_PREFIX = 'emdash-';
 const TMUX_HISTORY_LIMIT = 100_000;

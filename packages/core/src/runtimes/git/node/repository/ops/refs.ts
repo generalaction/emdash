@@ -1,5 +1,5 @@
-import type { GitBranch, GitRefsState, GitRemote, GitTag } from '@runtimes/git/api';
-import type { BoundExec } from '@services/exec/api';
+import type { GitBranch, GitRefsState, GitRemote, GitTag } from '#runtimes/git/api';
+import type { BoundExec } from '#services/exec/api';
 
 const FIELD_SEPARATOR = '\u0000';
 

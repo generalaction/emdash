@@ -8,20 +8,20 @@ import {
   type ExposedMutationContext,
   type Revision,
 } from '@emdash/wire/state';
-import { DEFAULT_TREE_EXCLUDE, ExclusionPolicy } from '@primitives/lib/api';
+import { DEFAULT_TREE_EXCLUDE, ExclusionPolicy } from '#primitives/lib/api';
 import {
   parsePortableRelativePath,
   ROOT_RELATIVE_PATH,
   type PortableRelativePath,
-} from '@primitives/path/api';
+} from '#primitives/path/api';
 import {
   isExpandableFileEntry,
   type FileEntry,
   type FileTreeModel,
   type FsError,
   type filesContract,
-} from '@runtimes/files/api';
-import type { TreeIdentity } from '@runtimes/files/node/allocation/identity';
+} from '#runtimes/files/api';
+import type { TreeIdentity } from '#runtimes/files/node/allocation/identity';
 import {
   copyInRoot,
   createDirectoryInRoot,
@@ -29,8 +29,8 @@ import {
   deleteInRoot,
   moveInRoot,
   renameInRoot,
-} from '@runtimes/files/node/fs/mutation-ops';
-import type { RootChange, RootResource } from '@runtimes/files/node/root/root-resource';
+} from '#runtimes/files/node/fs/mutation-ops';
+import type { RootChange, RootResource } from '#runtimes/files/node/root/root-resource';
 import { TreeDirectoryReader } from './directory-reader';
 import { classifyTreeChanges } from './watch-classifier';
 

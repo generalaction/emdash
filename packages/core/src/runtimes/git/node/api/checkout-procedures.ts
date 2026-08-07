@@ -1,6 +1,6 @@
 import type { ContractImpl } from '@emdash/wire/rpc';
-import type { GitContract } from '@runtimes/git/api';
-import type { GitCheckoutRuntime } from '@runtimes/git/node/checkout/checkout-runtime';
+import type { GitContract } from '#runtimes/git/api';
+import type { GitCheckoutRuntime } from '#runtimes/git/node/checkout/checkout-runtime';
 
 type CheckoutImplementation = NonNullable<ContractImpl<GitContract>['checkout']>;
 

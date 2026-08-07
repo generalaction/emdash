@@ -1,12 +1,12 @@
-import { mcpServerSchema } from '@primitives/mcp/api';
+import { z } from 'zod';
+import { mcpServerSchema } from '#primitives/mcp/api';
 import {
   catalogSkillSchema,
   createSkillInputSchema,
   skillInstallPayloadSchema,
-} from '@primitives/skills/api';
-import { agentAuthStatusSchema } from '@services/agent-plugins/api/plugins/capabilities/auth';
-import { runtimeUnavailableErrorSchema } from '@workspace-server/shared/schemas';
-import { z } from 'zod';
+} from '#primitives/skills/api';
+import { agentAuthStatusSchema } from '#services/agent-plugins/api/plugins/capabilities/auth';
+import { runtimeUnavailableErrorSchema } from '#workspace-server/shared/schemas';
 
 export const installCommandErrorSchema = z.union([
   z.object({

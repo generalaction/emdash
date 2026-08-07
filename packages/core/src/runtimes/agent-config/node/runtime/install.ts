@@ -3,9 +3,9 @@ import type {
   AgentConfigEntry,
   AgentConfigList,
   AgentConfigRefreshError,
-} from '@runtimes/agent-config/api';
-import type { AgentConfigAgentsModel } from '@runtimes/agent-config/node/state/live-models';
-import { publishLiveModelState } from '@runtimes/agent-config/node/state/live-models';
+} from '#runtimes/agent-config/api';
+import type { AgentConfigAgentsModel } from '#runtimes/agent-config/node/state/live-models';
+import { publishLiveModelState } from '#runtimes/agent-config/node/state/live-models';
 import type { AgentConfigRuntimeDeps } from './types';
 
 export class AgentInstallManager {

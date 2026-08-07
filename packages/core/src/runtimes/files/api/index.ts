@@ -2,8 +2,8 @@ export {
   filesContract,
   MAX_FILE_UPLOAD_BYTES,
   type FilesContract,
-} from '@runtimes/files/api/api/contract';
-export { fsErrorSchema, type FsError } from '@runtimes/files/api/api/errors';
+} from '#runtimes/files/api/api/contract';
+export { fsErrorSchema, type FsError } from '#runtimes/files/api/api/errors';
 export {
   contentKeySchema,
   copyInputSchema,
@@ -57,9 +57,9 @@ export {
   type WriteFileInput,
   type WriteContentInput,
   type WritePrecondition,
-} from '@runtimes/files/api/api/schemas';
-export { fileContentModelSchema, type FileContentModel } from '@runtimes/files/api/content/state';
-export { copyNameForConflict } from '@runtimes/files/api/tree/copy-name';
+} from '#runtimes/files/api/api/schemas';
+export { fileContentModelSchema, type FileContentModel } from '#runtimes/files/api/content/state';
+export { copyNameForConflict } from '#runtimes/files/api/tree/copy-name';
 export {
   fileEntryKindSchema,
   fileEntrySchema,
@@ -71,6 +71,6 @@ export {
   type FileEntryKind,
   type FileTreeModel,
   type SymlinkTargetKind,
-} from '@runtimes/files/api/tree/state';
+} from '#runtimes/files/api/tree/state';
 
 export { filesWorker } from './worker';

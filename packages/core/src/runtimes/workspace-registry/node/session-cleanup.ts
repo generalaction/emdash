@@ -1,6 +1,6 @@
 import type { Logger } from '@emdash/shared/logger';
-import { containsAbsolute, parseAbsolute, type HostAbsolutePath } from '@primitives/path/api';
-import type { HostRuntimesClient } from '@services/runtime-broker/api';
+import { containsAbsolute, parseAbsolute, type HostAbsolutePath } from '#primitives/path/api';
+import type { HostRuntimesClient } from '#services/runtime-broker/api';
 
 export type WorkspaceSessionClients = Pick<HostRuntimesClient, 'acp' | 'terminals' | 'tuiAgents'>;
 

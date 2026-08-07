@@ -3,12 +3,12 @@ import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { gitContract } from '@runtimes/git/api';
-import { createGitExec } from '@runtimes/git/node/exec/git-exec';
-import { gitPath, hostPath } from '@runtimes/git/node/testing/paths';
-import { ExecError, type BoundExec } from '@services/exec/api';
-import type { IWatchService } from '@services/fs-watch/api';
 import { describe, expect, it } from 'vitest';
+import { gitContract } from '#runtimes/git/api';
+import { createGitExec } from '#runtimes/git/node/exec/git-exec';
+import { gitPath, hostPath } from '#runtimes/git/node/testing/paths';
+import { ExecError, type BoundExec } from '#services/exec/api';
+import type { IWatchService } from '#services/fs-watch/api';
 import { GitRuntime } from './index';
 
 const execFileAsync = promisify(execFile);

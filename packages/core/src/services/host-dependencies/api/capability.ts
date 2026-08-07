@@ -1,1 +1,1 @@
-export * from '@primitives/host-dependencies/api';
+export * from '#primitives/host-dependencies/api';

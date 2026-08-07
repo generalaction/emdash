@@ -1,5 +1,5 @@
-import { hostAbsolutePathSchema } from '@primitives/path/api';
 import { z } from 'zod';
+import { hostAbsolutePathSchema } from '#primitives/path/api';
 
 /** A host-local, reconnect-stable path supplied by the client. */
 export const gitPathSelectorSchema = z.object({ path: hostAbsolutePathSchema });

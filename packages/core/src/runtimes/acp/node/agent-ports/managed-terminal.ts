@@ -1,5 +1,5 @@
 import { StringDecoder } from 'node:string_decoder';
-import type { AcpTerminalExit, AcpTerminalProcess, TerminalState } from '@runtimes/acp/api';
+import type { AcpTerminalExit, AcpTerminalProcess, TerminalState } from '#runtimes/acp/api';
 
 /** Default per-terminal output byte cap (4 MB). */
 const DEFAULT_OUTPUT_BYTE_LIMIT = 4 * 1024 * 1024;

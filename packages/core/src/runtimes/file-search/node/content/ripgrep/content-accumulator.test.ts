@@ -1,5 +1,5 @@
-import { CONTENT_SEARCH_MAX_PREVIEW_LENGTH } from '@runtimes/file-search/api';
 import { describe, expect, it, vi } from 'vitest';
+import { CONTENT_SEARCH_MAX_PREVIEW_LENGTH } from '#runtimes/file-search/api';
 import { relativePath as relative } from '../../testing/paths';
 import {
   CONTENT_SEARCH_MAX_ACCUMULATED_PREVIEW_LENGTH,
