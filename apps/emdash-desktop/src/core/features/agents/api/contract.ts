@@ -32,6 +32,8 @@ const agentsRefreshErrorSchema = z.union([
   runtimeResolveErrorSchema,
 ]);
 
+export const agentsDomain = 'agents' as const;
+
 export const agentsContract = defineContract({
   list: fallible({
     input: hostInputSchema,

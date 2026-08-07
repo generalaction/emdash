@@ -110,6 +110,8 @@ export type ProjectListData = {
   projects: Project[];
 };
 
+export const projectsDomain = 'projects' as const;
+
 export const projectsWireContract = defineContract({
   createProject: procedure({
     input: z.custom<CreateProjectParams>(),

@@ -11,6 +11,8 @@ import { z } from 'zod';
 const hostInputSchema = z.object({ host: hostRefSchema });
 const skillsErrorSchema = z.union([agentConfigSkillsErrorSchema, runtimeResolveErrorSchema]);
 
+export const skillsDomain = 'skills' as const;
+
 export const skillsContract = defineContract({
   installed: liveModel({
     key: hostInputSchema,

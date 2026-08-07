@@ -1,1 +1,1 @@
-export { sourceControlContract, type SourceControlContract } from './contract';
+export { sourceControlContract, sourceControlDomain, type SourceControlContract } from './contract';

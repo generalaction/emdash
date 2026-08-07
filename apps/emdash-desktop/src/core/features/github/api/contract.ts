@@ -26,6 +26,8 @@ type CreateRepositoryResult =
 
 const voidInput = z.void();
 
+export const githubDomain = 'github' as const;
+
 export const githubContract = defineContract({
   getAccountState: procedure({ input: voidInput, output: z.custom<GitHubAccountState>() }),
   auth: procedure({ input: voidInput, output: z.custom<GitHubAuthResponse>() }),

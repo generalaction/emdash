@@ -21,4 +21,4 @@ export {
   type MementoMutationError,
   type MementoRow,
 } from './schemas';
-export { mementosWireContract, type MementosWireContract } from './wire-contract';
+export { mementosDomain, mementosWireContract, type MementosWireContract } from './wire-contract';

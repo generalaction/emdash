@@ -30,6 +30,8 @@ import {
 const projectIdField = z.object({ projectId: z.string() });
 const automationIdInputSchema = z.object({ automationId: z.string() });
 
+export const automationsDomain = 'automations' as const;
+
 export const automationsContract = defineContract({
   list: procedure({
     input: z.object({ projectId: z.string().optional() }),

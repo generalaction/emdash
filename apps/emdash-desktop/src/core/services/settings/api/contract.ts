@@ -2,6 +2,8 @@ import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import type { AppSettings, AppSettingsKey, SettingsMeta } from './types';
 
+export const appSettingsDomain = 'appSettings' as const;
+
 export const appSettingsContract = defineContract({
   get: procedure({
     input: z.object({ key: z.custom<AppSettingsKey>() }),

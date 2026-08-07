@@ -20,6 +20,8 @@ import {
   syncStateSchema,
 } from './schemas';
 
+export const pullRequestsDomain = 'pullRequests' as const;
+
 export const pullRequestsContract = defineContract({
   listPullRequests: fallible({
     input: listPullRequestsInputSchema,

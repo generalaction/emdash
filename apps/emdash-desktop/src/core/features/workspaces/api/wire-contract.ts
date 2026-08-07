@@ -39,6 +39,8 @@ export const archiveWorkspaceInputSchema = z.object({
   branchName: z.string().optional(),
 });
 
+export const workspacesDomain = 'workspaces' as const;
+
 export const workspacesWireContract = defineContract({
   /**
    * Activates a task workspace: gates on registry/outbox state, initializes

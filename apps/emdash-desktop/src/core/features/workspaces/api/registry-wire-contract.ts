@@ -23,6 +23,8 @@ export const listWorkspacesInputSchema = z.object({
 });
 export type ListWorkspacesInput = z.infer<typeof listWorkspacesInputSchema>;
 
+export const workspaceRegistryDomain = 'workspaceRegistry' as const;
+
 /**
  * The consolidated renderer workspace API (ADR 0005): list from the mirror, call any
  * lifecycle verb against any reachable host, untrack rows for hosts the desktop can no

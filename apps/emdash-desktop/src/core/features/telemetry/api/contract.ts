@@ -1,6 +1,8 @@
 import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
 
+export const telemetryDomain = 'telemetry' as const;
+
 export const telemetryContract = defineContract({
   capture: procedure({
     input: z.object({

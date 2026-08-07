@@ -25,6 +25,8 @@ const connectionRuntimeSchema = z.record(
 
 export type SshConnectionsRuntime = z.infer<typeof connectionRuntimeSchema>;
 
+export const sshDomain = 'ssh' as const;
+
 export const sshContract = defineContract({
   connections: liveModel({
     key: z.void(),

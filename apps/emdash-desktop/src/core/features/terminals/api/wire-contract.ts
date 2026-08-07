@@ -87,6 +87,8 @@ export const runTerminalScriptWorkflowInputSchema = z.object({
 
 export const terminalSliceErrorSchema = z.union([runtimeResolveErrorSchema, terminalErrorSchema]);
 
+export const terminalsDomain = 'terminals' as const;
+
 export const terminalsContract = defineContract({
   list: fallible({
     input: terminalTaskInputSchema,
