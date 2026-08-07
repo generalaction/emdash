@@ -96,13 +96,21 @@ const runtimeOverlayV1 = z.object({
    */
   lifecycle: z.array(lifecycleStepV1).nullable().optional(),
   notices: z.array(
-    z.object({
-      id: z.string(),
-      kind: z.literal('script-failed'),
-      script: z.enum(['prepare', 'setup', 'run', 'teardown']),
-      message: z.string(),
-      at: z.number(),
-    })
+    z.union([
+      z.object({
+        id: z.string(),
+        kind: z.literal('script-failed'),
+        script: z.enum(['prepare', 'setup', 'run', 'teardown']),
+        message: z.string(),
+        at: z.number(),
+      }),
+      z.object({
+        id: z.string(),
+        kind: z.literal('config-invalid'),
+        message: z.string(),
+        at: z.number(),
+      }),
+    ])
   ),
   activation: z
     .object({

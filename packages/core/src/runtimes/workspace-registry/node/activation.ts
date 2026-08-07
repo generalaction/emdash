@@ -1,13 +1,8 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
 import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import {
-  EMDASH_CONFIG_FILE,
-  parseEmdashConfig,
-  type EmdashScriptsConfig,
-} from '#primitives/emdash-config/api';
+import { type EmdashScriptsConfig } from '#primitives/emdash-config/api';
 import type { WorkspaceRuntimeOverlay } from '../api/schemas';
+import { readWorkspaceConfig } from './config-model';
 import {
   createWorkspaceScriptRunner,
   DEFAULT_WORKSPACE_SCRIPT_TIMEOUT_MS,
@@ -56,7 +51,12 @@ export type WorkspaceActivationManagerOptions = {
    */
   awaitArtifacts?: (id: string) => Promise<void>;
   runner?: WorkspaceScriptRunner;
-  readScripts?: (workspacePath: string) => Promise<EmdashScriptsConfig>;
+  /**
+   * Script resolution seam: the registry runtime serves this from its config live
+   * model so no filesystem read sits inside the activation verb. The default reads
+   * the file directly (standalone/test use only).
+   */
+  readScripts?: (id: string, workspacePath: string) => Promise<EmdashScriptsConfig>;
   clock?: Clock;
   logger?: Logger;
   teardownTimeoutMs?: number;
@@ -80,7 +80,7 @@ export class WorkspaceActivationManager {
   private readonly options: WorkspaceActivationManagerOptions;
   private readonly runner: WorkspaceScriptRunner;
   private readonly awaitArtifacts: (id: string) => Promise<void>;
-  private readonly readScripts: (workspacePath: string) => Promise<EmdashScriptsConfig>;
+  private readonly readScripts: (id: string, workspacePath: string) => Promise<EmdashScriptsConfig>;
   private readonly clock: Clock;
   private readonly logger: Logger;
   private readonly teardownTimeoutMs: number;
@@ -104,7 +104,7 @@ export class WorkspaceActivationManager {
   async activate(id: string, workspacePath: string): Promise<void> {
     if (this.active.has(id)) return;
 
-    const scripts = await this.readScripts(workspacePath);
+    const scripts = await this.readScripts(id, workspacePath);
     // Overwrite, not append: the durable timeline shows this activation's runs only.
     this.options.resetScriptSteps(
       id,
@@ -168,7 +168,7 @@ export class WorkspaceActivationManager {
     await state.background;
 
     let teardownFailure: { message: string } | null = null;
-    const scripts = await this.readScripts(state.workspacePath);
+    const scripts = await this.readScripts(id, state.workspacePath);
     if (scripts.teardown) {
       const outcome = await this.runner.run({
         id: 'teardown',
@@ -288,13 +288,10 @@ export class WorkspaceActivationManager {
   }
 }
 
-async function readWorkspaceScripts(workspacePath: string): Promise<EmdashScriptsConfig> {
-  let content: string;
-  try {
-    content = await readFile(path.join(workspacePath, EMDASH_CONFIG_FILE), 'utf8');
-  } catch {
-    return {};
-  }
+async function readWorkspaceScripts(
+  _id: string,
+  workspacePath: string
+): Promise<EmdashScriptsConfig> {
   // Lenient by design: an unparseable .emdash.json must never block activation.
-  return parseEmdashConfig(content).data.scripts ?? {};
+  return (await readWorkspaceConfig(workspacePath)).config.scripts ?? {};
 }

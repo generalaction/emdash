@@ -136,17 +136,45 @@ export const workspaceGitObservationsSchema = z.object({
 export type WorkspaceGitObservations = z.infer<typeof workspaceGitObservationsSchema>;
 
 /**
- * Non-fatal session-plane event (a failed lifecycle script), carried on the runtime
- * overlay — informational with a re-run affordance, never a verb failure.
+ * Non-fatal session-plane event (a failed lifecycle script, an unparseable
+ * `.emdash.json`), carried on the runtime overlay — informational, never a verb
+ * failure.
  */
-export const workspaceNoticeSchema = z.object({
-  id: z.string().min(1),
-  kind: z.literal('script-failed'),
-  script: z.enum(['prepare', 'setup', 'run', 'teardown']),
-  message: z.string(),
-  at: z.number(),
-});
+export const workspaceNoticeSchema = z.union([
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal('script-failed'),
+    script: z.enum(['prepare', 'setup', 'run', 'teardown']),
+    message: z.string(),
+    at: z.number(),
+  }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal('config-invalid'),
+    message: z.string(),
+    at: z.number(),
+  }),
+]);
 export type WorkspaceNotice = z.infer<typeof workspaceNoticeSchema>;
+
+/**
+ * The registry's config live model, projected per record: which scripts the
+ * workspace's own `.emdash.json` defines and its preserve patterns — enough for the
+ * desktop to render script availability without its own filesystem reads. Null until
+ * the model's first read lands (boot and scans fill it off the blocking path).
+ */
+export const workspaceConfigSummarySchema = z.object({
+  scripts: z.object({
+    prepare: z.boolean(),
+    setup: z.boolean(),
+    run: z.boolean(),
+    teardown: z.boolean(),
+  }),
+  preservePatterns: z.array(z.string()),
+  /** True when the file exists but did not parse; the empty default applied. */
+  parseError: z.boolean(),
+});
+export type WorkspaceConfigSummary = z.infer<typeof workspaceConfigSummarySchema>;
 
 /**
  * In-memory host state merged into `records` when publishing; absent after a daemon
@@ -222,6 +250,8 @@ export const workspaceRecordSchema = z.object({
   updatedAt: z.number(),
   /** Staleness is displayed, not hidden. */
   lastObservedAt: z.number(),
+  /** The config live model's summary; null until the first read lands. */
+  config: workspaceConfigSummarySchema.nullable(),
   /** In-memory overlay; null when nothing is running (or after a daemon restart). */
   runtime: workspaceRuntimeOverlaySchema.nullable(),
 });

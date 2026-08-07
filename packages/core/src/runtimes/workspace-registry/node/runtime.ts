@@ -35,6 +35,7 @@ import type {
 } from '../api/schemas';
 import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
 import { executeFetchRefs, executePushBranch } from './background-steps';
+import { readWorkspaceConfig, type WorkspaceConfigEntry } from './config-model';
 import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
@@ -112,6 +113,15 @@ export class WorkspaceRegistryRuntime {
   private readonly copyRuns = new Map<string, Promise<void>>();
   /** Debounce stamps for the advisory fetch-refs step, keyed by repository path. */
   private readonly lastFetchAt = new Map<string, number>();
+  /**
+   * The `.emdash.json` live model (spec: workspace-lifecycle-v2): one parsed entry per
+   * present record, filled at boot / creation / scans — never read from disk inside a
+   * creation or activation verb. Worktrees carry their own entry (branches diverge).
+   */
+  private readonly configs = new Map<string, WorkspaceConfigEntry>();
+  /** Coalesces concurrent config reads per record id. */
+  private readonly configReads = new Map<string, Promise<WorkspaceConfigEntry>>();
+  private disposed = false;
   private readonly killSessions: SessionKiller;
   private readonly activationManager: WorkspaceActivationManager;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
@@ -190,6 +200,12 @@ export class WorkspaceRegistryRuntime {
         }),
       runner: options.activation?.runner,
       teardownTimeoutMs: options.activation?.teardownTimeoutMs,
+      // Scripts come from the config live model — no filesystem read inside the
+      // activation verb. A missing entry (startup race) fills the model once.
+      readScripts: async (id, workspacePath) => {
+        const entry = this.configs.get(id) ?? (await this.refreshConfig(id, workspacePath));
+        return entry.config.scripts ?? {};
+      },
       // The artifact gate (dependency gating): prepare/setup wait for the background
       // copy to settle; a terminal copy failure opens the gates anyway.
       awaitArtifacts: (id) => this.awaitCopyArtifacts(id),
@@ -208,14 +224,19 @@ export class WorkspaceRegistryRuntime {
 
     // Restart replay: background steps left pending/running (a daemon killed mid-step)
     // re-run exactly once; terminal statuses (failed/succeeded/skipped) are respected.
+    // The config live model boots alongside: one read per present record, off every
+    // blocking path.
     queueMicrotask(() => {
+      if (this.disposed) return;
       for (const record of this.store.list()) {
         if (hasIncompleteBackgroundSteps(record)) void this.runBackgroundSteps(record.id);
+        if (record.observedStatus === 'present') void this.refreshConfig(record.id, record.path);
       }
     });
   }
 
   dispose(): void {
+    this.disposed = true;
     this.activationManager.dispose();
     this.recordsHost.dispose();
   }
@@ -581,6 +602,7 @@ export class WorkspaceRegistryRuntime {
     };
     this.store.insert(record);
     this.publish(record);
+    void this.refreshConfig(record.id, record.path);
     return ok(this.toWire(record));
   }
 
@@ -690,8 +712,21 @@ export class WorkspaceRegistryRuntime {
     }
 
     // Every settled pipeline writes its lifecycle facts — success and failure alike;
-    // the failed step carries the stage's message for the Activity timeline.
-    const lifecycle = buildCreationLifecycle(input, result, stages, now);
+    // the failed step carries the stage's message for the Activity timeline. Preserve
+    // patterns union the caller's selection with the source repository's `.emdash.json`
+    // entry from the config live model (spec: patterns resolve against the source
+    // checkout); the model lookup only falls back to a read on a boot race.
+    const repository = this.store.get(input.repositoryId);
+    const repositoryEntry =
+      this.configs.get(input.repositoryId) ??
+      (repository ? await this.refreshConfig(input.repositoryId, repository.path) : null);
+    const preservePatterns = [
+      ...new Set([
+        ...input.preservePatterns,
+        ...(repositoryEntry?.config.preservePatterns ?? []),
+      ]),
+    ];
+    const lifecycle = buildCreationLifecycle({ ...input, preservePatterns }, result, stages, now);
 
     if (result.status === 'failed') {
       const failed: DurableWorkspaceRecord = {
@@ -737,6 +772,7 @@ export class WorkspaceRegistryRuntime {
     };
     this.store.update(succeeded);
     this.publish(succeeded);
+    void this.refreshConfig(succeeded.id, succeeded.path);
     return ok(this.toWire(succeeded));
   }
 
@@ -953,6 +989,7 @@ export class WorkspaceRegistryRuntime {
     if (deleted) {
       this.overlays.delete(input.id);
       this.untrackedCaches.delete(input.id);
+      this.configs.delete(input.id);
       this.recordsCell.update((previous) => {
         const next = { ...previous };
         delete next[input.id];
@@ -1082,6 +1119,7 @@ export class WorkspaceRegistryRuntime {
           },
           now
         );
+        await this.refreshConfig(child.id, canonicalPath);
         continue;
       }
 
@@ -1110,6 +1148,7 @@ export class WorkspaceRegistryRuntime {
       settled.add(adopted.id);
       this.store.insert(adopted);
       this.publish(adopted);
+      await this.refreshConfig(adopted.id, adopted.path);
     }
 
     for (const child of children) {
@@ -1128,9 +1167,10 @@ export class WorkspaceRegistryRuntime {
           },
           now
         );
-      } else {
-        this.recordVanished(child, now);
+        await this.refreshConfig(child.id, child.path);
+        continue;
       }
+      this.recordVanished(child, now);
     }
 
     this.saveRecord(
@@ -1143,6 +1183,7 @@ export class WorkspaceRegistryRuntime {
       },
       now
     );
+    await this.refreshConfig(repository.id, repository.path);
     return settled;
   }
 
@@ -1172,16 +1213,66 @@ export class WorkspaceRegistryRuntime {
             untrackedCache: this.untrackedCacheFor(record.id),
           });
     this.saveRecord({ ...record, observedStatus: 'present', git }, now);
+    await this.refreshConfig(record.id, record.path);
   }
 
   /** Adopted records follow the disk; registered records survive as 'missing'. */
   private recordVanished(record: DurableWorkspaceRecord, now: number): void {
     this.untrackedCaches.delete(record.id);
+    this.configs.delete(record.id);
     if (record.origin === 'adopted') {
       this.deleteWorkspaceLocked({ id: record.id });
       return;
     }
     this.saveRecord({ ...record, observedStatus: 'missing', git: null }, now);
+  }
+
+  /**
+   * (Re)reads one workspace's `.emdash.json` into the live model. Runs at boot, at
+   * creation finalize/adoption, and on full scans (the working-tree watchers feed
+   * those) — the blocking creation/activation paths only ever read the map. A parse
+   * failure degrades to the empty config plus a visible notice; a change republishes
+   * the record so the wire summary stays fresh.
+   */
+  private refreshConfig(id: string, workspacePath: string): Promise<WorkspaceConfigEntry> {
+    const inFlight = this.configReads.get(id);
+    if (inFlight) return inFlight;
+    const read = (async () => {
+      const entry = await readWorkspaceConfig(workspacePath);
+      // The read is often fire-and-forget; never touch a closed store after dispose.
+      if (this.disposed) return entry;
+      const previous = this.configs.get(id);
+      this.configs.set(id, entry);
+      const changed = !previous || JSON.stringify(previous) !== JSON.stringify(entry);
+      if (changed) {
+        if (entry.parseError !== (previous?.parseError ?? false)) {
+          this.updateOverlay(id, (overlay) => ({
+            ...overlay,
+            notices: [
+              ...overlay.notices.filter((notice) => notice.id !== 'config-invalid'),
+              ...(entry.parseError
+                ? [
+                    {
+                      id: 'config-invalid',
+                      kind: 'config-invalid' as const,
+                      message: `Could not parse .emdash.json in '${workspacePath}'; using defaults`,
+                      at: this.clock.now(),
+                    },
+                  ]
+                : []),
+            ],
+          }));
+        } else {
+          const record = this.store.get(id);
+          if (record) this.publish(record);
+        }
+      }
+      return entry;
+    })().finally(() => {
+      this.configReads.delete(id);
+    });
+    this.configReads.set(id, read);
+    return read;
   }
 
   private untrackedCacheFor(id: string): UntrackedLinesCache {
@@ -1252,6 +1343,19 @@ export class WorkspaceRegistryRuntime {
 
   private toWire(record: DurableWorkspaceRecord): WorkspaceRecord {
     const overlay = this.overlays.get(record.id);
+    const configEntry = this.configs.get(record.id);
+    const config = configEntry
+      ? {
+          scripts: {
+            prepare: configEntry.config.scripts?.prepare !== undefined,
+            setup: configEntry.config.scripts?.setup !== undefined,
+            run: configEntry.config.scripts?.run !== undefined,
+            teardown: configEntry.config.scripts?.teardown !== undefined,
+          },
+          preservePatterns: configEntry.config.preservePatterns ?? [],
+          parseError: configEntry.parseError,
+        }
+      : null;
     // The durable lifecycle section rides the overlay so clients keep one progress
     // surface; unlike the rest of the overlay it survives daemon restarts. While the
     // foreground pipeline runs, its current stage rides along as a synthetic running
@@ -1278,7 +1382,7 @@ export class WorkspaceRegistryRuntime {
             lifecycle,
           }
         : null;
-    return { ...record, runtime };
+    return { ...record, config, runtime };
   }
 }
 

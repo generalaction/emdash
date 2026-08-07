@@ -428,6 +428,7 @@ function stubRecord(id: string, path: string, kind: 'repository' | 'worktree'): 
     createdAt: 0,
     updatedAt: 0,
     lastObservedAt: 0,
+    config: null,
     runtime: null,
   };
 }

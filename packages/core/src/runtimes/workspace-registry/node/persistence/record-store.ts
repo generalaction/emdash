@@ -22,7 +22,8 @@ type Row = typeof workspaceRecords.$inferSelect;
  * A durable workspace record: everything on the wire record except the in-memory
  * runtime overlay, which the runtime merges in when publishing.
  */
-export type DurableWorkspaceRecord = Omit<WorkspaceRecord, 'runtime'>;
+/** The persisted row shape: no runtime overlay, no config-model projection. */
+export type DurableWorkspaceRecord = Omit<WorkspaceRecord, 'runtime' | 'config'>;
 
 export class WorkspaceRecordStore {
   constructor(private readonly handle: StoreHandle<WorkspaceRegistryDb>) {}

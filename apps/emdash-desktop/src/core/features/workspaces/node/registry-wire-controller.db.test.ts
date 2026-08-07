@@ -35,6 +35,7 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
     updatedAt: Date.parse('2026-01-01T00:00:00.000Z'),
     lastObservedAt: Date.parse('2026-01-01T00:00:00.000Z'),
+    config: null,
     runtime: null,
     ...overrides,
   };

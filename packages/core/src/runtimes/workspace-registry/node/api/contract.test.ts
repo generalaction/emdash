@@ -137,6 +137,7 @@ describe('workspace registry contract', () => {
         createdAt: 10_000,
         updatedAt: 10_000,
         lastObservedAt: 10_000,
+        config: null,
         runtime: null,
       },
     });
@@ -189,7 +190,12 @@ describe('workspace registry contract', () => {
     const repoPath = await makeRepo(root, 'repo');
     const first = await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
     const replay = await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
-    expect(replay).toEqual(first);
+    if (!first.success || !replay.success) throw new Error('createWorkspace failed');
+    // The config summary is a live-model projection and may fill in between the two
+    // calls; replay idempotency is a property of the durable record.
+    const { config: _firstConfig, ...firstRest } = first.data;
+    const { config: _replayConfig, ...replayRest } = replay.data;
+    expect(replayRest).toEqual(firstRest);
 
     const other = path.join(root, 'other');
     await fs.mkdir(other);
