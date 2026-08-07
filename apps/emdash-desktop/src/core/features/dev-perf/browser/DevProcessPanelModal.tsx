@@ -69,7 +69,7 @@ export function DevProcessPanelModal() {
       <div className="flex items-center gap-4">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() => void handleCaptureTrace()}
           disabled={trace.kind === 'recording'}

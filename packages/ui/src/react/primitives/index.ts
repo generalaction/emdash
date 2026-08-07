@@ -110,5 +110,7 @@ export {
 
 // ── Utility / recipe re-exports ───────────────────────────────────────────────
 export { resolveFileIconClass } from '../lib/file-icons';
-export { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
-export { inputVariants, type InputVariantProps } from '@styles/recipes/input';
+// Relative re-exports: the dts emitter rewrites aliased (`@styles/*`) imports
+// to a dangling relative path, silently degrading the exported types.
+export { controlVariants, type ControlVariantProps } from '../../styles/recipes/control';
+export { inputVariants, type InputVariantProps } from '../../styles/recipes/input';

@@ -1,7 +1,11 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
-import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { controlVariants } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// broken relative path, silently degrading the variant prop types. Keep this
+// relative until that is fixed.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import * as buttonStyles from './button.css';
 
 export type ButtonVariant = NonNullable<ControlVariantProps['variant']> | 'destructive' | 'link';

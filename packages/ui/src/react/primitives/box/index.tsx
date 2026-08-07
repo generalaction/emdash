@@ -17,8 +17,10 @@
 import type { SurfaceScopeName, SurfaceStatusName } from '@emdash/theme';
 import { cx } from '@styles/utilities/cx';
 import React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the sprinkle prop types.
+import type { Sprinkles } from '../../../styles/utilities/sprinkles.css';
 import { sx } from '@styles/utilities/sprinkles.css';
-import type { Sprinkles } from '@styles/utilities/sprinkles.css';
 
 export type SurfaceProp = SurfaceScopeName | 'emphasis' | SurfaceStatusName;
 

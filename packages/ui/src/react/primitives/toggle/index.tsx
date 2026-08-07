@@ -1,8 +1,11 @@
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle';
 import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group';
-import { controlVariants, type ControlVariantProps } from '@styles/recipes/control';
+import { controlVariants } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import { toggleGroup as toggleGroupClass } from './toggle.css';
 
 // ── Toggle ────────────────────────────────────────────────────────────────────

@@ -1,8 +1,10 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select';
-import type { ControlVariantProps } from '@styles/recipes/control';
 import { cx } from '@styles/utilities/cx';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import * as React from 'react';
+// Relative type import: the dts emitter rewrites `@styles/*` type imports to a
+// dangling relative path, silently degrading the variant prop types.
+import type { ControlVariantProps } from '../../../styles/recipes/control';
 import { TriggerButton } from '../trigger-button';
 import * as styles from './select.css';
 

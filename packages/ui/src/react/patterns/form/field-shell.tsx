@@ -1,5 +1,7 @@
-import { Field, type FieldVariants } from '@react/primitives/field';
 import * as React from 'react';
+// Relative import: the dts emitter rewrites aliased imports to a dangling
+// relative path, silently degrading the prop types.
+import { Field, type FieldVariants } from '../../primitives/field';
 import { useFieldContext } from './form-context';
 
 export type FieldOrientation = NonNullable<FieldVariants['orientation']>;
