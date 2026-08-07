@@ -1,12 +1,12 @@
 import { Button, RelativeTime, Spinner, toast } from '@emdash/ui/react/primitives';
 import { AlertTriangleIcon } from 'lucide-react';
 import { useState } from 'react';
+import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
-import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
 
 type RemovalAction = 'retry' | 'untrack';
 

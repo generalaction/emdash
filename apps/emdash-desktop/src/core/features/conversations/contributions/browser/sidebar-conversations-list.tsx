@@ -24,7 +24,11 @@ import type {
   ConversationStore,
 } from '@core/features/conversations/api/browser/conversation-manager';
 import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
+import { getAcpChatResourceManager } from '@core/features/conversations/browser/acp/acp-chat-resource-manager';
+import { ConversationAgentIcon } from '@core/features/conversations/browser/conversation-agent-icon';
+import { ConversationSelectionControl } from '@core/features/conversations/browser/conversation-selection-control';
 import { conversationTabKind } from '@core/features/conversations/browser/conversation-tab-kind';
+import { deleteConversationBatch } from '@core/features/conversations/browser/delete-conversation-batch';
 // TODO(conversations-extraction): Pass task scope into the sidebar instead of importing task hooks.
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
@@ -36,10 +40,6 @@ import { useTabSelection } from '@core/features/workbench/api/browser/task-tab-r
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getAcpChatResourceManager } from '@core/features/conversations/browser/acp/acp-chat-resource-manager';
-import { ConversationAgentIcon } from '@core/features/conversations/browser/conversation-agent-icon';
-import { ConversationSelectionControl } from '@core/features/conversations/browser/conversation-selection-control';
-import { deleteConversationBatch } from '@core/features/conversations/browser/delete-conversation-batch';
 
 const ROW_HEIGHT = 32;
 const SECTION_HEADER_HEIGHT = 32;

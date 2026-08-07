@@ -12,8 +12,8 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
-import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
+import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
   isUnmountedProject,
   isUnregisteredProject,
