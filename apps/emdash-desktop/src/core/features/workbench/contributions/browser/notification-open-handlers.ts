@@ -1,3 +1,4 @@
+import { createScope } from '@emdash/shared/concurrency';
 import { when } from 'mobx';
 import { useEffect } from 'react';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
@@ -10,7 +11,9 @@ export function useRegisterNotificationOpenHandlers(): void {
   const { navigate } = useNavigate();
 
   useEffect(() => {
-    const disposers = new Set<() => void>();
+    // Disposal registry, not event dispatch: `when` disposers accumulate per
+    // handled notification and are only torn down together on unmount.
+    const scope = createScope({ label: 'notification-open-handlers' });
     const unregisterTask = registerNotificationOpenHandler('task', (target) => {
       navigate(taskViewDef({ projectId: target.projectId, taskId: target.taskId }));
       const { conversationId } = target;
@@ -27,7 +30,7 @@ export function useRegisterNotificationOpenHandlers(): void {
         },
         { timeout: 10_000 }
       );
-      disposers.add(dispose);
+      scope.add(dispose);
     });
 
     const unregisterUpdate = registerNotificationOpenHandler('update', () => {
@@ -39,8 +42,7 @@ export function useRegisterNotificationOpenHandlers(): void {
       unregisterTask();
       unregisterUpdate();
       unregisterNone();
-      disposers.forEach((dispose) => dispose());
-      disposers.clear();
+      void scope.dispose();
     };
   }, [navigate]);
 }

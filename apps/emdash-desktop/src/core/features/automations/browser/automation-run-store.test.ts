@@ -236,3 +236,28 @@ describe('AutomationRunStore overview', () => {
     releaseAgain();
   });
 });
+
+describe('AutomationRunStore change subscription', () => {
+  it('keeps notifying later listeners when an earlier listener throws', async () => {
+    mocks.getRunOverview.mockResolvedValue({ success: true, data: overview(null) });
+    const store = new AutomationRunStore('project-1', 'automation-1');
+    const release = store.acquire();
+    await vi.waitFor(() => expect(mocks.getRunOverview).toHaveBeenCalledOnce());
+
+    const throwing = vi.fn(() => {
+      throw new Error('listener failed');
+    });
+    const later = vi.fn();
+    const unsubscribeThrowing = store.subscribe(throwing);
+    const unsubscribeLater = store.subscribe(later);
+
+    mocks.onEvent?.({ run: runFixture() });
+
+    expect(throwing).toHaveBeenCalled();
+    expect(later).toHaveBeenCalled();
+
+    unsubscribeThrowing();
+    unsubscribeLater();
+    release();
+  });
+});
