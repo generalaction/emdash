@@ -9,8 +9,8 @@ import type { WorkspaceChromeStore } from '@core/features/projects/api/browser/s
 import { projectPanelLayoutsMemento } from '@core/features/projects/contributions/mementos';
 import { workspaceChromeStoreToken } from '@core/features/projects/contributions/project-stores';
 import { createLayoutStorage } from '@core/primitives/mementos/browser';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { ViewRef } from '@core/primitives/views/api';
-import { appState } from '@renderer/lib/stores/app-state';
 
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
@@ -70,7 +70,7 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
   // The active project is sticky: leaving for a project-less view (settings,
   // home) keeps the last project's chrome instead of resetting the sidebar.
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(() =>
-    projectIdFromRef(appState.navigation.currentRef)
+    projectIdFromRef(getNavigation().currentRef)
   );
   // Ephemeral chrome for the no-project / pre-hydration window, so the
   // sidebar toggle still works on a fresh install's home view. Not a shadow
@@ -78,7 +78,7 @@ export const WorkspaceLayoutContextProvider = observer(function WorkspaceLayoutC
   const [fallbackLeftOpen, setFallbackLeftOpen] = useState(true);
 
   useEffect(() => {
-    return appState.navigation.onDidNavigate.subscribe((event) => {
+    return getNavigation().onDidNavigate.subscribe((event) => {
       // The implicit exit-on-navigation cleanup became this explicit command
       // at the navigation site. Only user navigation ('traversal' to another
       // view ref) exits zen; the startup 'restoration' commit does not, so

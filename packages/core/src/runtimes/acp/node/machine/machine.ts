@@ -1,6 +1,6 @@
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { ok } from '@emdash/shared';
-import { createMachine, type Machine, type MachineBatch } from '@primitives/machine/api';
+import { createMachine, type Machine, type MachineBatch } from '#primitives/machine/api';
 import type {
   AcpPermissionRequest,
   AcpRuntimeError,

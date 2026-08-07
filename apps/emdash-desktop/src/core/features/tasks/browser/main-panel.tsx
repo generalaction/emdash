@@ -12,9 +12,9 @@ import { useTaskViewContext } from '@core/features/tasks/contributions/browser/t
 import { taskPanelLayoutsMemento } from '@core/features/tasks/contributions/mementos';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
+import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import { createLayoutStorage } from '@core/primitives/mementos/browser';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 

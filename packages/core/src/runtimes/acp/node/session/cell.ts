@@ -8,7 +8,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
-import { createMachineEffectDriver, type MachineEffectDriver } from '@primitives/machine/api';
+import { createMachineEffectDriver, type MachineEffectDriver } from '#primitives/machine/api';
 import type {
   AcpCancelTurnError,
   AcpPermissionRequest,

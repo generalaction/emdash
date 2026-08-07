@@ -1,6 +1,6 @@
 import { err, ok, type Result } from '@emdash/shared';
 import { retry, retrySchedules, systemClock, type RetryAttempt } from '@emdash/shared/scheduling';
-import { createMachine, createMachineEffectDriver } from '@primitives/machine/api';
+import { createMachine, createMachineEffectDriver } from '#primitives/machine/api';
 import { compileWorkflow } from './compile';
 import { createWorkflowMachineDefinition, initialWorkflowState } from './machine';
 import type {

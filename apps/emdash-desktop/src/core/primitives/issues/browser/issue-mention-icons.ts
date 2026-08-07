@@ -1,9 +1,9 @@
-import type { AgentIconAsset } from '@core/primitives/agents/api';
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 import { pickIconVariant } from '@core/primitives/agents/browser/agent-icon-variant';
 
 type IntegrationIconInput = {
   id: string;
-  icon?: AgentIconAsset;
+  icon?: PluginIconAsset;
   features?: string[];
 };
 
@@ -22,7 +22,7 @@ export function issueMentionIconUrl(provider: string): string | undefined {
   return issueProviderIconUrls.get(provider);
 }
 
-function iconAssetToUrl(id: string, icon: AgentIconAsset): string | null {
+function iconAssetToUrl(id: string, icon: PluginIconAsset): string | null {
   const variant = pickIconVariant(icon.variants, 16);
   const content = variant.light;
   if (!content) return null;

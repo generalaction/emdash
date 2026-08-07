@@ -3,9 +3,9 @@ import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { NavButtons } from '@core/features/workbench/browser/nav-buttons';
 import { WindowControls } from '@core/features/workbench/browser/window-controls';
+import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
 import { cn } from '@core/primitives/styling/browser/cn';
 
 const platform = detectPlatformContext().os;

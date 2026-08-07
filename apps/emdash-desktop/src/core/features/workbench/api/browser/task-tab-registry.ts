@@ -1,5 +1,3 @@
-import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
-import { TaskTabViewPersistor } from '@core/features/workbench/api/browser/tabs/task-tab-view-persistor';
 /**
  * Task-view tab registry.
  *

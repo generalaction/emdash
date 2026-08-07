@@ -1,6 +1,6 @@
 import { Resizable, useCollapsiblePanelBinding } from '@emdash/ui/react/primitives';
 import { type ReactNode } from 'react';
-import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
+import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 
 const LEFT_PANEL_DEFAULT_SIZE = '20%';
 const LEFT_SIDEBAR_MAX_SIZE = '30%';

@@ -5,12 +5,11 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { toggleAppTheme } from '@core/features/settings/api/browser/theme-toggle';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
-import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { applyHistoryEntry } from '@core/features/workbench/browser/nav-buttons';
+import { useWorkspaceLayoutContext } from '@core/features/workbench/contributions/browser/layout-provider';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
-import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
 import {
   useViewParams,
   useWorkspaceSlots,

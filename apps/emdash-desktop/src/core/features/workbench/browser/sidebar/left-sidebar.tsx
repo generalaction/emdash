@@ -5,8 +5,6 @@ import { automationsViewDef } from '@core/features/automations/contributions/vie
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
-import { cn } from '@core/primitives/styling/browser/cn';
 import {
   isCurrentView,
   useNavigate,

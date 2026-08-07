@@ -33,7 +33,6 @@ import {
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import type { ResolvedTab } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
-import { toggleTaskSidebarTab } from './toggle-task-sidebar';
 
 type TaskScopeParams = { readonly projectId: string; readonly taskId: string };
 

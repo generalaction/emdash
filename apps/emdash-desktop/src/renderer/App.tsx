@@ -9,11 +9,9 @@ import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-p
 import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
 import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
+import { WorkspaceLayoutContextProvider } from '@core/features/workbench/contributions/browser/layout-provider';
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
-import { WorkspaceLayoutContextProvider } from '@core/primitives/layouts/react/layout-provider';
 import { queryClient } from '@core/primitives/query/browser/query-client';
-import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
-import { RightSidebarProvider } from '@renderer/lib/layout/right-sidebar';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';
