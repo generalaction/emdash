@@ -24,7 +24,7 @@ type HostAttachmentRegistryLogger = {
 
 export type HostAttachmentRegistryOptions = {
   scope?: Scope;
-  ssh: Pick<SshConnectionManager, 'on' | 'off'>;
+  ssh: Pick<SshConnectionManager, 'getConnectionIds' | 'isConnected' | 'off' | 'on'>;
   hosts: Pick<HostService, 'onInvalidate'>;
   logger?: HostAttachmentRegistryLogger;
 };
@@ -45,6 +45,11 @@ export class HostAttachmentRegistry {
 
   constructor(private readonly options: HostAttachmentRegistryOptions) {
     options.ssh.on('connection-event', this.handleSshEvent);
+    for (const connectionId of options.ssh.getConnectionIds()) {
+      if (options.ssh.isConnected(connectionId)) {
+        this.attachHost(hostRef('remote', connectionId));
+      }
+    }
     this.unsubscribeInvalidation = options.hosts.onInvalidate(({ connectionId }) => {
       this.detachHost(hostRef('remote', connectionId));
     });

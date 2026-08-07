@@ -5,6 +5,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { HostAttachmentRegistry } from './host-attachment-registry';
 
 describe('HostAttachmentRegistry', () => {
+  it('replays SSH hosts that connected before registry construction', async () => {
+    const fixture = createFixture({ connectedIds: ['ssh-1'] });
+    const attach = vi.fn();
+
+    fixture.registry.register({ label: 'late', attach, detach: vi.fn() });
+
+    await vi.waitFor(() => {
+      expect(attach).toHaveBeenCalledWith(LOCAL_HOST_REF);
+      expect(attach).toHaveBeenCalledWith(hostRef('remote', 'ssh-1'));
+    });
+    await fixture.registry.dispose();
+  });
+
   it('replays attached hosts to late participants', async () => {
     const fixture = createFixture();
     const attach = vi.fn();
@@ -90,8 +103,13 @@ describe('HostAttachmentRegistry', () => {
   });
 });
 
-function createFixture() {
+function createFixture({ connectedIds = [] }: { connectedIds?: string[] } = {}) {
   const ssh = new EventEmitter();
+  const connected = new Set(connectedIds);
+  Object.assign(ssh, {
+    getConnectionIds: () => [...connected],
+    isConnected: (connectionId: string) => connected.has(connectionId),
+  });
   let invalidate = (_event: { connectionId: string; reason: 'connection-lost' }): void => {};
   const logger = { warn: vi.fn() };
   const registry = new HostAttachmentRegistry({
