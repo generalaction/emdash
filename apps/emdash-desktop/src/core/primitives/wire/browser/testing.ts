@@ -15,7 +15,10 @@ export function seedSliceWire(
   const wire = createInProcessWire(
     // oxlint-disable-next-line typescript/no-explicit-any -- generic harness over any slice contract
     defineContract({ [domain]: contract } as any),
-    { [domain]: impl }
+    { [domain]: impl },
+    // Explicit policy: slice tests always validate fully, and the default
+    // policy reads process.env, which does not exist in real-browser tests.
+    { validate: 'full' }
   );
   resetWireConnection();
   seedWireConnection(async () => wire.connection);

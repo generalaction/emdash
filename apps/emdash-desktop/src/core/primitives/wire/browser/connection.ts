@@ -1,4 +1,4 @@
-import { client, type Connection, type ContractDefinitions } from '@emdash/wire/rpc';
+import { client, defineContract, type Connection, type ContractDefinitions } from '@emdash/wire/rpc';
 
 type WireConnectionSource = () => Promise<Connection>;
 
@@ -42,15 +42,20 @@ export function resetWireConnection(): void {
 /**
  * The wire entry point feature clients use. `contract` is the slice's own contract;
  * `domain` is the slice's exported domain constant (single-sourced into the manifests).
- * Routes identically to the aggregate client: paths are `${domain}.${method}`.
+ * Routes identically to the aggregate client: the slice contract is re-nested under
+ * its domain key so every endpoint kind carries the `${domain}.` prefix — call paths
+ * AND live topics (a bare `pathPrefix` would prefix only call paths, leaving live
+ * model/log/job topics unroutable through the desktop routing controller).
  */
 export function domainClient<C>(domain: string, contract: ContractDefinitions): Promise<C> {
   let entry = domainClients.get(domain);
   if (!entry) {
-    entry = getWireConnection().then(
+    entry = getWireConnection().then((connection) => {
       // oxlint-disable-next-line typescript/no-explicit-any -- generic seam over any slice contract
-      (connection) => client(contract as any, connection, { pathPrefix: domain }) as C
-    );
+      const nested = defineContract({ [domain]: contract } as any) as Record<string, unknown>;
+      // oxlint-disable-next-line typescript/no-explicit-any -- generic seam over any slice contract
+      return (client(nested as any, connection) as Record<string, unknown>)[domain] as C;
+    });
     domainClients.set(domain, entry);
   }
   return entry as Promise<C>;
