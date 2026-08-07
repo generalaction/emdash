@@ -1,7 +1,9 @@
 /**
  * Canonical abort-reason mapping: an Error reason passes through; otherwise the
  * fallback message becomes an Error; otherwise the raw reason or a DOMException.
- * Rejections stay Errors whenever possible.
+ * Rejections stay Errors whenever possible. Note that DOMException is an Error
+ * in modern Node, so a default abort reason passes through and the fallback
+ * only beats genuinely non-Error reasons.
  */
 export function abortReason(signal: AbortSignal, fallback?: string): unknown {
   if (signal.reason instanceof Error) return signal.reason;
