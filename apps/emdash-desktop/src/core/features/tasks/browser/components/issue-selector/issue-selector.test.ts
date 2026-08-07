@@ -97,11 +97,12 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/components/inline-markdown', async () => {
+vi.mock('@emdash/ui/react/components', async (importOriginal) => {
   const React = await import('react');
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
-    InlineMarkdown: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('span', {}, children),
+    ...actual,
+    InlineMarkdown: ({ content }: { content: string }) => React.createElement('span', {}, content),
   };
 });
 

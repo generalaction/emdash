@@ -42,10 +42,14 @@ describe('createDevServerBridgeInstaller', () => {
 
   it('shares an in-flight installation', async () => {
     const scope = createScope();
-    const ready = Promise.withResolvers<{
-      success: true;
-      data: { terminals: object };
-    }>();
+    type ClientResult = { success: true; data: { terminals: object } };
+    let resolveReady!: (value: ClientResult) => void;
+    const ready = {
+      promise: new Promise<ClientResult>((resolve) => {
+        resolveReady = resolve;
+      }),
+      resolve: (value: ClientResult) => resolveReady(value),
+    };
     const client = vi.fn(() => ready.promise);
     const runtimes = { client } as unknown as Pick<RuntimeBroker, 'client'>;
     const createBridge = vi.fn(async () => ({ dispose: async () => {} }));

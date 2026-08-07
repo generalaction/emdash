@@ -42,7 +42,7 @@ export const normalizeLatexDelimiters = (content: string) => {
       FENCE_RE.lastIndex = index;
       const fenceMatch = FENCE_RE.exec(content);
       if (fenceMatch) {
-        const marker = fenceMatch[2];
+        const marker = fenceMatch[2]!;
         if (!inFence) {
           inFence = true;
           fenceMarker = marker;

@@ -1,4 +1,5 @@
 import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
+import { Markdown } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
@@ -19,13 +20,13 @@ import {
   useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
 import {
   getDraftCommentTargetKey,
   type DraftCommentTarget,
 } from '@core/primitives/line-comments/api';
-import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
@@ -273,6 +274,18 @@ const DiffContentPreview = observer(function DiffContentPreview({
   const status = useModelStatus(contentUri);
   void modelRegistry.bufferVersions.get(contentUri);
 
+  const openWorkspaceLink = (href: string): boolean => {
+    const target = resolveWorkspaceResourcePath({
+      workspacePath,
+      containingFilePath: tab.path,
+      resourcePath: href,
+    });
+    if (!target) return false;
+    pane.open('file', { path: target }, { preview: false });
+    return true;
+  };
+  const openLink = useMarkdownLinkOpener(openWorkspaceLink);
+
   if (tab.status === 'deleted') {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
@@ -306,25 +319,14 @@ const DiffContentPreview = observer(function DiffContentPreview({
     return result.success && !result.data.truncated ? result.data.dataUrl : null;
   };
 
-  const openWorkspaceLink = (href: string): boolean => {
-    const target = resolveWorkspaceResourcePath({
-      workspacePath,
-      containingFilePath: tab.path,
-      resourcePath: href,
-    });
-    if (!target) return false;
-    pane.open('file', { path: target }, { preview: false });
-    return true;
-  };
-
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
-      <MarkdownRenderer
+      <Markdown
         content={content}
         variant="full"
         className="w-full max-w-3xl px-8 py-8"
         resolveImage={resolveImage}
-        onOpenLink={openWorkspaceLink}
+        onOpenLink={openLink}
       />
     </div>
   );

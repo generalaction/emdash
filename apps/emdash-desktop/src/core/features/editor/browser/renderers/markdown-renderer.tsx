@@ -1,3 +1,4 @@
+import { Markdown } from '@emdash/ui/react/components';
 import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
@@ -10,7 +11,7 @@ import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import { MarkdownRenderer } from '@core/primitives/ui/browser/markdown-renderer';
+import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 
@@ -65,6 +66,8 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
     [workspacePath, tab.path, pane]
   );
 
+  const openLink = useMarkdownLinkOpener(tab.isExternal ? undefined : openWorkspaceLink);
+
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
       {tab.isExternal && tab.isLoading ? (
@@ -78,12 +81,12 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           Could not load file: {tab.externalError}
         </div>
       ) : (
-        <MarkdownRenderer
+        <Markdown
           content={content}
           variant="full"
           className="w-full max-w-3xl px-8 py-8"
           resolveImage={tab.isExternal ? undefined : resolveImage}
-          onOpenLink={tab.isExternal ? undefined : openWorkspaceLink}
+          onOpenLink={openLink}
         />
       )}
     </div>
