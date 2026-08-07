@@ -8,10 +8,7 @@ import {
   GitHubAccountSelectLabel,
 } from '@core/features/projects/contributions/browser/github-account-select';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
-import {
-  RemoteSelectContent,
-  RemoteSelectItem,
-} from '@core/features/source-control/contributions/browser/remote-select-content';
+import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
@@ -44,8 +41,6 @@ export function BaseProjectSettingsSection({
 }: BaseProjectSettingsSectionProps) {
   const baseRemoteValue = form.baseRemote || 'origin';
   const pushRemoteValue = form.pushRemote || SAME_AS_BASE_REMOTE;
-  const selectedBaseRemote = remotes.find((remote) => remote.name === baseRemoteValue);
-  const selectedPushRemote = remotes.find((remote) => remote.name === pushRemoteValue);
   const { data: githubAccounts = [] } = useGitHubAccounts();
   const githubAccountSelect = useMemo(
     () => createProjectGitHubAccountSelectState(form.githubAccountId, githubAccounts),
@@ -177,19 +172,12 @@ export function BaseProjectSettingsSection({
           Used for fetching remote branches, choosing task base branches and targeting pull
           requests.
         </Field.Description>
-        <Select.Root
+        <RemoteSelector
+          remotes={remotes}
           value={baseRemoteValue}
-          onValueChange={(value) => update('baseRemote', value ?? '')}
-        >
-          <Select.Trigger className="w-full min-w-0">
-            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <span className="min-w-0 truncate">
-                {selectedBaseRemote?.name ?? baseRemoteValue}
-              </span>
-            </div>
-          </Select.Trigger>
-          <RemoteSelectContent remotes={remotes} />
-        </Select.Root>
+          onValueChange={(value) => update('baseRemote', value)}
+          className="w-full"
+        />
       </Field.Root>
 
       <Separator />
@@ -199,30 +187,15 @@ export function BaseProjectSettingsSection({
         <Field.Description className="text-foreground-muted">
           Used when publishing task branches and pushing commits.
         </Field.Description>
-        <Select.Root
+        <RemoteSelector
+          remotes={remotes}
           value={pushRemoteValue}
           onValueChange={(value) =>
-            update('pushRemote', value === SAME_AS_BASE_REMOTE ? '' : (value ?? ''))
+            update('pushRemote', value === SAME_AS_BASE_REMOTE ? '' : value)
           }
-        >
-          <Select.Trigger className="w-full min-w-0">
-            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <span className="min-w-0 truncate">
-                {pushRemoteValue === SAME_AS_BASE_REMOTE
-                  ? 'Same as base remote'
-                  : (selectedPushRemote?.name ?? pushRemoteValue)}
-              </span>
-            </div>
-          </Select.Trigger>
-          <Select.Content align="start" alignItemWithTrigger={false} sideOffset={6}>
-            <Select.Item value={SAME_AS_BASE_REMOTE} className="py-2">
-              <span className="relative -top-px shrink-0 font-medium">Same as base remote</span>
-            </Select.Item>
-            {remotes.map((remote) => (
-              <RemoteSelectItem key={remote.name} remote={remote} />
-            ))}
-          </Select.Content>
-        </Select.Root>
+          specialOptions={[{ value: SAME_AS_BASE_REMOTE, label: 'Same as base remote' }]}
+          className="w-full"
+        />
       </Field.Root>
 
       <Separator />

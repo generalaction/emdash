@@ -5,7 +5,6 @@ import {
   Dialog,
   Field,
   Input,
-  Select,
   Separator,
   SplitButton,
   Textarea,
@@ -17,7 +16,7 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { BranchDisplay } from '@core/features/source-control/contributions/browser/branch-display';
 import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
-import { RemoteSelectContent } from '@core/features/source-control/contributions/browser/remote-select-content';
+import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { useModalController } from '@core/manifests/browser/modal-api';
@@ -88,8 +87,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       targetRemote?.remote.name ?? projectRemoteName
     );
 
-  const handleTargetRemoteChange = (remoteName: string | null) => {
-    if (!remoteName) return;
+  const handleTargetRemoteChange = (remoteName: string) => {
     setSelectedTargetRemoteName(remoteName);
     setSelectedBaseOverride(undefined);
   };
@@ -166,11 +164,12 @@ export const CreatePrModal = observer(function CreatePrModal({
             className="rounded-md border border-border"
           />
           {targetRemotes.length > 1 && targetRemote ? (
-            <Select.Root value={targetRemote.remote.name} onValueChange={handleTargetRemoteChange}>
-              <Select.Trigger
-                showChevron={false}
-                className="flex min-h-[58px] w-full items-center justify-between gap-2 rounded-md border border-border p-2 text-left outline-none data-[size=default]:h-auto"
-              >
+            <RemoteSelector
+              remotes={targetRemotes.map(({ remote }) => remote)}
+              value={targetRemote.remote.name}
+              onValueChange={handleTargetRemoteChange}
+              className="min-h-[58px] w-full"
+              renderTrigger={(selected) => (
                 <div className="flex flex-col gap-0.5 text-left text-sm">
                   <span className="text-xs text-foreground-passive">Target</span>
                   <span className="flex items-center gap-1">
@@ -179,13 +178,13 @@ export const CreatePrModal = observer(function CreatePrModal({
                       strokeWidth={2}
                       className="size-3.5 shrink-0 text-foreground-muted"
                     />
-                    <span className="min-w-0 truncate">{targetRemote.remote.name}</span>
+                    <span className="min-w-0 truncate">
+                      {selected?.label ?? targetRemote.remote.name}
+                    </span>
                   </span>
                 </div>
-                <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-              </Select.Trigger>
-              <RemoteSelectContent remotes={targetRemotes.map(({ remote }) => remote)} />
-            </Select.Root>
+              )}
+            />
           ) : null}
           <ProjectBranchSelector
             projectId={projectId}

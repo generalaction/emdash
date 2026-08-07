@@ -1,11 +1,4 @@
-import {
-  Badge,
-  Combobox,
-  InputGroup,
-  Select,
-  ToggleGroup,
-  Tooltip,
-} from '@emdash/ui/react/primitives';
+import { Badge, Combobox, InputGroup, ToggleGroup, Tooltip } from '@emdash/ui/react/primitives';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import {
@@ -14,7 +7,7 @@ import {
   prioritizeExactBranchMatches,
   type BranchLabelRemoteMode,
 } from '@core/features/source-control/api/browser/components/branch-selector-utils';
-import { RemoteSelectContent } from '@core/features/source-control/contributions/browser/remote-select-content';
+import { RemoteSelector } from '@core/features/source-control/contributions/browser/remote-selector';
 import type { GitBranchRef, GitRemote } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 
@@ -62,7 +55,6 @@ export function BranchSelector({
   const keepOpenForRemoteSelectRef = React.useRef(false);
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [remoteSelectOpen, setRemoteSelectOpen] = useState(false);
   const [draftRemoteName, setDraftRemoteName] = useState<string | undefined>(undefined);
   const showRemoteFooter = selectedRemoteName !== undefined;
   const activeRemoteName =
@@ -207,10 +199,10 @@ export function BranchSelector({
         </Combobox.Empty>
         {showRemoteFooter && (
           <div className="border-t border-border">
-            <Select.Root
-              open={remoteSelectOpen}
+            <RemoteSelector
+              remotes={remotes ?? []}
+              value={activeRemoteName ?? selectedRemoteName ?? 'origin'}
               onOpenChange={(nextOpen) => {
-                setRemoteSelectOpen(nextOpen);
                 keepOpenForRemoteSelectRef.current = true;
                 if (nextOpen) {
                   setOpen(true);
@@ -220,9 +212,7 @@ export function BranchSelector({
                   });
                 }
               }}
-              value={activeRemoteName}
               onValueChange={(remoteName) => {
-                if (!remoteName) return;
                 keepOpenForRemoteSelectRef.current = true;
                 setDraftRemoteName(remoteName);
                 setTabOverride({ tab: 'remote', valueKey });
@@ -233,17 +223,14 @@ export function BranchSelector({
                   keepOpenForRemoteSelectRef.current = false;
                 });
               }}
-            >
-              <Select.Trigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0">
+              appearance="control"
+              className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0"
+              renderTrigger={(selected) => (
                 <span className="min-w-0 flex-1 truncate text-left text-foreground-muted">
-                  {activeRemoteName}
+                  {selected?.label ?? activeRemoteName}
                 </span>
-              </Select.Trigger>
-              <RemoteSelectContent
-                remotes={remotes ?? []}
-                fallbackRemoteName={activeRemoteName ?? selectedRemoteName}
-              />
-            </Select.Root>
+              )}
+            />
           </div>
         )}
       </Combobox.Content>
