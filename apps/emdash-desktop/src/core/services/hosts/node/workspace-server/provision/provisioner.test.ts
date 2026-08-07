@@ -2,7 +2,7 @@ import { PROTOCOL_VERSION, type WireInitializeResult } from '@emdash/core/worksp
 import { createScope } from '@emdash/shared/concurrency';
 import { snapshot } from '@emdash/wire/state';
 import { describe, expect, it, vi } from 'vitest';
-import { RemoteMachineStateModel } from '@core/services/remote-machine/node/state-model';
+import { RemoteMachineStateModel } from '../../state-model';
 import { WorkspaceServerProtocolError } from '../connect/protocol';
 import { WorkspaceServerInstallError } from './installer';
 import { WorkspaceServerProvisioner } from './provisioner';

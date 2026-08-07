@@ -1,23 +1,20 @@
 import type { WireInitializeResult } from '@emdash/core/workspace-server';
 import type { Scope } from '@emdash/shared/concurrency';
 import { retry, retrySchedules, systemClock, type Clock } from '@emdash/shared/scheduling';
-import { WorkspaceServerProtocolError } from '../../workspace-server/node/connect/protocol';
-import type { WireConnectionManager } from '../../workspace-server/node/connect/wire-connection-manager';
-import {
-  workspaceServerLayout,
-  type WorkspaceServerLayout,
-} from '../../workspace-server/node/layout';
+import type { RemoteMachineStateModel } from './state-model';
+import { WorkspaceServerProtocolError } from './workspace-server/connect/protocol';
+import type { WireConnectionManager } from './workspace-server/connect/wire-connection-manager';
+import { workspaceServerLayout, type WorkspaceServerLayout } from './workspace-server/layout';
 import {
   WorkspaceServerDaemonError,
   type RemoteWorkspaceServerDaemon,
-} from '../../workspace-server/node/provision/daemon-control';
-import type { RemoteHostProbe } from '../../workspace-server/node/provision/host-probe';
+} from './workspace-server/provision/daemon-control';
+import type { RemoteHostProbe } from './workspace-server/provision/host-probe';
 import {
   WorkspaceServerInstallError,
   type WorkspaceServerInstaller,
-} from '../../workspace-server/node/provision/installer';
-import { sshWorkspaceServerTarget } from '../../workspace-server/node/targets';
-import type { RemoteMachineStateModel } from './state-model';
+} from './workspace-server/provision/installer';
+import { sshWorkspaceServerTarget } from './workspace-server/targets';
 
 type RemoteMachineServerOperationsDeps = {
   scope: Scope;

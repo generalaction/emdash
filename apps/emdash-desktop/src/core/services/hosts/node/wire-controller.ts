@@ -1,6 +1,6 @@
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { remoteMachineContract } from '../api';
-import type { RemoteMachineService } from './remote-machine-service';
+import type { RemoteMachineService } from './host-service';
 
 export function createRemoteMachineWireController(service: RemoteMachineService): Controller {
   return createController(remoteMachineContract, {

@@ -1,6 +1,6 @@
 import { createConnection, type Socket } from 'node:net';
 import type { WireTransport } from '@emdash/wire/rpc';
-import type { LocalWorkspaceServerTarget } from '../targets';
+import type { LocalWorkspaceServerTarget } from '../../../api/targets';
 import { ownedStreamTransport } from './owned-stream-transport';
 
 export type OpenLocalWorkspaceServerTransportOptions = {

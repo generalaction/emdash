@@ -12,9 +12,10 @@ import type { z } from 'zod';
 import {
   createTestRuntimeClients,
   createTestWorkspaceWireController,
-} from '../../../../../../../workspace-server/src/testing/controller';
-import { serveSocket } from '../../../../../../../workspace-server/src/wire/serve-socket';
-import { workspaceServerTargetKey, type LocalWorkspaceServerTarget } from '../targets';
+} from '../../../../../../../../workspace-server/src/testing/controller';
+import { serveSocket } from '../../../../../../../../workspace-server/src/wire/serve-socket';
+import type { LocalWorkspaceServerTarget } from '../../../api/targets';
+import { workspaceServerTargetKey } from '../targets';
 import { openLocalWorkspaceServerTransport } from './local-socket-transport';
 import {
   createWireConnectionManager,

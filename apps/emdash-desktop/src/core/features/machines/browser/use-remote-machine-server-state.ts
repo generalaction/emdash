@@ -5,7 +5,7 @@ import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-mo
 import {
   remoteMachineContract,
   type RemoteMachineServerState,
-} from '@core/services/remote-machine/api';
+} from '@core/services/hosts/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 type ServerAction =

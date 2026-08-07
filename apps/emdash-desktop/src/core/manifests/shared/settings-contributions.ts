@@ -19,7 +19,7 @@ import {
 } from '@core/features/workbench/contributions/settings';
 import type { SettingsValues } from '@core/primitives/settings/api';
 import { notificationSettingsContribution } from '@core/services/notifications/contributions/settings';
-import { remoteMachineSettingsContribution } from '@core/services/remote-machine/contributions/settings';
+import { remoteMachineSettingsContribution } from '@core/services/hosts/contributions/settings';
 
 export const appSettingsContributions = {
   localProject: localProjectSettingsContribution,

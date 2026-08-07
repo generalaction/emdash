@@ -1,4 +1,10 @@
-import type { WorkspaceServerTarget } from '../../workspace-server/node/targets';
+import type { WorkspaceServerTarget } from './targets';
+
+export type {
+  LocalWorkspaceServerTarget,
+  SshWorkspaceServerTarget,
+  WorkspaceServerTarget,
+} from './targets';
 
 export {
   remoteMachineContract,

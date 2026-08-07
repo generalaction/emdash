@@ -1,9 +1,9 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api';
-import type { WorkspaceServerConnection } from '../../workspace-server/node/connect/wire-connection-manager';
-import type { SshWorkspaceServerTarget } from '../../workspace-server/node/targets';
-import { createRemoteMachineService } from './remote-machine-service';
+import type { SshWorkspaceServerTarget } from '../api/targets';
+import { createRemoteMachineService } from './host-service';
+import type { WorkspaceServerConnection } from './workspace-server/connect/wire-connection-manager';
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(async () => {}),
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     | undefined,
 }));
 
-vi.mock('../../workspace-server/node/connect/wire-connection-manager', () => ({
+vi.mock('./workspace-server/connect/wire-connection-manager', () => ({
   createWireConnectionManager: () => ({
     client: mocks.client,
     dialOnce: vi.fn(),
@@ -32,13 +32,13 @@ vi.mock('../../workspace-server/node/connect/wire-connection-manager', () => ({
   }),
 }));
 
-vi.mock('../../workspace-server/node/provision/host-probe', () => ({
+vi.mock('./workspace-server/provision/host-probe', () => ({
   RemoteHostProbe: class {
     drop = mocks.drop;
   },
 }));
 
-vi.mock('../../workspace-server/node/provision/provisioner', () => ({
+vi.mock('./workspace-server/provision/provisioner', () => ({
   WorkspaceServerProvisioner: class {
     ensure = mocks.ensure;
     cancel = mocks.cancel;

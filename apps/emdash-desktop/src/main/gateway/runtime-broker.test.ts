@@ -1,7 +1,7 @@
 import { hostRef } from '@emdash/core/primitives/host/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
 import { describe, expect, it, vi } from 'vitest';
-import type { RemoteMachineService } from '@core/services/remote-machine/node';
+import type { RemoteMachineService } from '@core/services/hosts/node';
 import { createDesktopRuntimeBroker } from './runtime-broker';
 
 describe('desktop runtime broker remote sessions', () => {

@@ -29,7 +29,7 @@ import { SkillsPanel } from '@core/features/skills/api/browser/components/Skills
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { isServerUsable } from '@core/services/remote-machine/api';
+import { isServerUsable } from '@core/services/hosts/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { appState } from '@renderer/lib/stores/app-state';
 import { MachineConnectionRow } from '../components/machine-connection-card';

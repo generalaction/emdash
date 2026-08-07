@@ -12,7 +12,7 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { RemoteMachineService } from '@core/services/remote-machine/node';
+import type { RemoteMachineService } from '@core/services/hosts/node';
 import type { DesktopRuntimeClients } from './desktop-workers';
 
 export function createDesktopRuntimeBroker(

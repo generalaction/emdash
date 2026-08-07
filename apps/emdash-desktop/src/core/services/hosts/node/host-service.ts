@@ -5,18 +5,18 @@ import type {
   SshConnectionManagerEvent,
   SshService,
 } from '@core/primitives/ssh/api';
-import {
-  createWireConnectionManager,
-  type WorkspaceServerConnection,
-} from '../../workspace-server/node/connect/wire-connection-manager';
-import type { WorkspaceServerSshPort } from '../../workspace-server/node/ports';
-import { RemoteWorkspaceServerDaemon } from '../../workspace-server/node/provision/daemon-control';
-import { RemoteHostProbe } from '../../workspace-server/node/provision/host-probe';
-import { WorkspaceServerInstaller } from '../../workspace-server/node/provision/installer';
-import { WorkspaceServerProvisioner } from '../../workspace-server/node/provision/provisioner';
 import type { MachineMutationEvents, RemoteMachineInvalidation } from '../api';
 import { RemoteMachineServerOperations } from './server-operations';
 import { RemoteMachineStateModel } from './state-model';
+import {
+  createWireConnectionManager,
+  type WorkspaceServerConnection,
+} from './workspace-server/connect/wire-connection-manager';
+import type { WorkspaceServerSshPort } from './workspace-server/ports';
+import { RemoteWorkspaceServerDaemon } from './workspace-server/provision/daemon-control';
+import { RemoteHostProbe } from './workspace-server/provision/host-probe';
+import { WorkspaceServerInstaller } from './workspace-server/provision/installer';
+import { WorkspaceServerProvisioner } from './workspace-server/provision/provisioner';
 
 type RemoteMachineServiceLog = {
   warn(message: string, metadata?: Record<string, unknown>): void;

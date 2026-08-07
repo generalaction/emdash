@@ -2,7 +2,7 @@ import { Pill } from '@emdash/ui/react/components';
 import type {
   RemoteMachineServerState,
   RemoteMachineServerStatus,
-} from '@core/services/remote-machine/api';
+} from '@core/services/hosts/api';
 
 const statusLabels: Record<RemoteMachineServerStatus, string> = {
   'not-installed': 'Not found',

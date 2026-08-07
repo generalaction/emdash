@@ -7,7 +7,7 @@ import {
 } from '@emdash/core/primitives/host/api';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { SshConnectionManager, SshConnectionManagerEvent } from '@core/primitives/ssh/api';
-import type { RemoteMachineService } from '@core/services/remote-machine/node';
+import type { RemoteMachineService } from '@core/services/hosts/node';
 
 export type HostAttachmentParticipant = {
   label: string;

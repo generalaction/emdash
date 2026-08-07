@@ -7,10 +7,10 @@ import { deferred } from '@emdash/shared/testing';
 import { createLiveJobReplicaCache } from '@emdash/wire/live';
 import type { ConnectConfig } from 'ssh2';
 import { describe, expect, it } from 'vitest';
-import { createRemoteMachineService } from '@core/services/remote-machine/node';
+import { createRemoteMachineService } from '@core/services/hosts/node';
+import { workspaceServerLayout } from '@core/services/hosts/node/workspace-server/layout';
 import { SshConnectionManager } from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
-import { createDesktopRuntimeBroker } from '@main/gateway/runtime-broker';
-import { workspaceServerLayout } from './layout';
+import { createDesktopRuntimeBroker } from './runtime-broker';
 
 const remoteTestEnabled = process.env['EMDASH_TEST_REMOTE_WSS'] === '1';
 const defaultRemoteInstallBaseUrl = 'http://minio:9000/emdash-releases/workspace-server';

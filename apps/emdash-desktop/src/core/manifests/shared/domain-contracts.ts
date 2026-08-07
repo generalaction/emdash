@@ -35,7 +35,7 @@ import {
   workspacesWireContract,
 } from '@core/features/workspaces/api';
 import { mementosDomain, mementosWireContract } from '@core/primitives/mementos/api';
-import { remoteMachineContract, remoteMachineDomain } from '@core/services/remote-machine/api';
+import { remoteMachineContract, remoteMachineDomain } from '@core/services/hosts/api';
 import { appSettingsContract, appSettingsDomain } from '@core/services/settings/api';
 import { sshContract, sshDomain } from '@core/services/ssh/api';
 import {

@@ -1,6 +1,6 @@
 import type { MachineStatusKind } from '@emdash/ui/react/components';
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import type { RemoteMachineServerStatus } from '@core/services/remote-machine/api';
+import type { RemoteMachineServerStatus } from '@core/services/hosts/api';
 
 export function deriveMachineStatusKind({
   connectionState,

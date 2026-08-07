@@ -7,7 +7,7 @@ import { sshConnections } from '@core/services/app-db/node/schema';
 import {
   createRemoteMachineService,
   type RemoteMachineService,
-} from '@core/services/remote-machine/node';
+} from '@core/services/hosts/node';
 import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
 import { createSshService } from '@main/bootstrap/core/ssh-service-factory';
 import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';

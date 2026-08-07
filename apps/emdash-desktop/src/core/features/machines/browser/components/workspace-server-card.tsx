@@ -2,7 +2,7 @@ import { UpdateCard, type UpdateStatus } from '@emdash/ui/react/components';
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Button, SplitButton } from '@emdash/ui/react/primitives';
 import { DownloadIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react';
-import type { RemoteMachineServerState } from '@core/services/remote-machine/api';
+import type { RemoteMachineServerState } from '@core/services/hosts/api';
 import { WorkspaceServerBadge } from './workspace-server-badge';
 
 type WorkspaceServerActions = {
