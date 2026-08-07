@@ -1,5 +1,5 @@
 import type { Client, ClientChannel } from 'ssh2';
-import type { SshExecOptions, SshExecResult } from '@core/primitives/ssh/api';
+import type { SshExecOptions, SshExecResult } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 
 export class SshExecTimeoutError extends Error {
   readonly name = 'SshExecTimeoutError';

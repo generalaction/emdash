@@ -1,5 +1,5 @@
 import type { McpProvidersResponse } from '@emdash/core/primitives/mcp/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { Button, Field } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
 import React from 'react';

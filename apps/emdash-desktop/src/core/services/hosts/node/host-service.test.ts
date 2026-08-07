@@ -1,6 +1,6 @@
 import { createScope } from '@emdash/shared/concurrency';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api';
+import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { SshWorkspaceServerTarget } from '../api/targets';
 import { createHostService } from './host-service';
 import type { WorkspaceServerConnection } from './workspace-server/connect/wire-connection-manager';

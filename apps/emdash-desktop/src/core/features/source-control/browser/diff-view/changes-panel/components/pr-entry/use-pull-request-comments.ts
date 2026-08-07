@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import {
   getPrNumber,
   pullRequestErrorMessage,
   type PullRequest,
-} from '@root/src/core/services/pull-requests/api';
+} from '@core/services/pull-requests/api';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 
 export function usePullRequestComments(projectId: string, pr: PullRequest) {
   const prNumber = getPrNumber(pr);

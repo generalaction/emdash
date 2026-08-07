@@ -18,7 +18,7 @@ import type {
   AcpProcessHost,
   AcpTerminalExit,
   AcpTerminalProcess,
-} from '#runtimes/acp/api';
+} from '#runtimes/acp/api/transport';
 import type { AgentTerminalHooks } from '#runtimes/acp/node/agent-ports/terminal-manager';
 import type { AcpRuntimeDeps, AcpStartInput } from '#runtimes/acp/node/runtime/types';
 import {

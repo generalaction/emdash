@@ -13,6 +13,10 @@ setAutoFreeze(readNodeEnv() !== 'production');
 
 export { applyPatches, produceWithPatches, type Patch };
 
+// Structural declaration keeps this browser-reachable file free of node
+// ambient types; the typeof guard already handles environments without it.
+declare const process: { env: Record<string, string | undefined> } | undefined;
+
 function readNodeEnv(): string | undefined {
   return typeof process !== 'undefined' ? process.env['NODE_ENV'] : undefined;
 }

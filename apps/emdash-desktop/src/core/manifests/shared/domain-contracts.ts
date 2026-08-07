@@ -40,16 +40,10 @@ import { loggingDomain, loggingWireContract } from '@core/primitives/logging/api
 import { mementosDomain, mementosWireContract } from '@core/primitives/mementos/api';
 import { telemetryContract, telemetryDomain } from '@core/primitives/telemetry/api/wire-contract';
 import { hostsContract, hostsDomain } from '@core/services/hosts/api';
+import { notificationsContract, notificationsDomain } from '@core/services/notifications/api';
+import { pullRequestsContract, pullRequestsDomain } from '@core/services/pull-requests/api';
 import { appSettingsContract, appSettingsDomain } from '@core/services/settings/api';
 import { sshContract, sshDomain } from '@core/services/ssh/api';
-import {
-  notificationsContract,
-  notificationsDomain,
-} from '@root/src/core/services/notifications/api';
-import {
-  pullRequestsContract,
-  pullRequestsDomain,
-} from '@root/src/core/services/pull-requests/api';
 
 export const desktopDomainContracts = {
   [accountDomain]: accountContract,

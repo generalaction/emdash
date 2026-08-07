@@ -6,7 +6,7 @@ import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/
 import { useWorkspaceConfig } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 import { getIssueTaskName } from './issue-task-name';
 
 export type LinkedType = 'issue' | 'pr' | null;

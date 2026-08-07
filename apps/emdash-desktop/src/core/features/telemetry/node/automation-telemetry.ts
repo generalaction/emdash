@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { isValidProviderId } from '@core/features/agents/api/node/plugin-registry';
 import type {
   AutomationRun,

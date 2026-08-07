@@ -1,12 +1,10 @@
 import { EventEmitter } from 'node:events';
 import ssh2, { type Client } from 'ssh2';
+import type { ConnectionState, SshConnectionEvent, SshHealthState } from '@core/primitives/ssh/api';
 import type {
-  ConnectionState,
-  SshConnectionEvent,
   SshConnectionManager as SshConnectionManagerContract,
   SshConnectionManagerEvent,
-  SshHealthState,
-} from '@core/primitives/ssh/api';
+} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
 import { SshClientProxy } from './ssh-client-proxy';
 

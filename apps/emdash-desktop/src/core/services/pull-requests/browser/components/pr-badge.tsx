@@ -2,7 +2,7 @@ import { Button, Popover, RelativeTime, Tooltip } from '@emdash/ui/react/primiti
 import { ExternalLink } from 'lucide-react';
 import { openExternal } from '@core/primitives/desktop-host/browser/host-client';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { getPrNumber, type PullRequest } from '@core/services/pull-requests/api';
 import { PrMergeLine } from './pr-merge-line';
 import { PrNumberBadge } from './pr-number-badge';
 import { StatusIcon } from './pr-status-icon';

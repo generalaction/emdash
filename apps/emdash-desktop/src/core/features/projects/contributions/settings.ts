@@ -1,10 +1,10 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { z } from 'zod';
 import type { LocalProjectSettings, ProjectSettings } from '@core/primitives/app-settings/api';
-import { defineSettingsContribution } from '@core/primitives/settings/api';
+import {
+  defineSettingsContribution,
+  defineSettingsSchemaContribution,
+} from '@core/primitives/settings/api';
 import { normalizeBranchPrefix } from '@core/primitives/tasks/api';
-import { getDefaultLocalWorktreeDirectory } from '../node/worktree-defaults';
 
 const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
@@ -29,14 +29,13 @@ export const projectSettingsContribution = defineSettingsContribution<'project',
   },
 });
 
-export const localProjectSettingsContribution = defineSettingsContribution<
+// Defaults are computed from the local home directory, so the full
+// contribution (schema + defaults) lives in ../node/settings; only the
+// environment-neutral schema is contributed here.
+export const localProjectSettingsSchemaContribution = defineSettingsSchemaContribution<
   'localProject',
   LocalProjectSettings
 >({
   key: 'localProject',
   schema: localProjectSettingsSchema,
-  defaults: () => ({
-    defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
-    defaultWorktreeDirectory: getDefaultLocalWorktreeDirectory(),
-  }),
 });

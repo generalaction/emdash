@@ -31,6 +31,16 @@ import {
 } from '@core/primitives/mementos/api';
 import type { Subject, SubjectDef } from '@core/primitives/subjects/api';
 
+// The mementos node integration test pulls this file into the node program
+// (no DOM lib), so `window` is declared structurally here; the runtime guards
+// below already made the beforeunload registration environment-neutral.
+declare const window:
+  | {
+      addEventListener?: (type: 'beforeunload', listener: () => void) => void;
+      removeEventListener?: (type: 'beforeunload', listener: () => void) => void;
+    }
+  | undefined;
+
 type MementosClientContract = ContractClient<typeof mementosWireContract>;
 type PersistentRemote = RemoteModel<typeof mementosWireContract.memento>;
 type PersistentMember = RemoteMember<typeof mementosWireContract.memento>;

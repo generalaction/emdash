@@ -3,7 +3,7 @@ import type { InitialConversationState } from '@core/features/tasks/contribution
 import { extractIssueMentionTargets } from '@core/primitives/issues/api';
 import type { TaskConfig } from '@core/primitives/tasks/api';
 import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 import { buildFinalPrompt } from './initial-conversation-text';
 import type { LinkedType } from './use-create-task-state';
 

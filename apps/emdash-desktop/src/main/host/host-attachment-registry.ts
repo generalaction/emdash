@@ -6,7 +6,10 @@ import {
   type SerializedHostRef,
 } from '@emdash/core/primitives/host/api';
 import type { Scope } from '@emdash/shared/concurrency';
-import type { SshConnectionManager, SshConnectionManagerEvent } from '@core/primitives/ssh/api';
+import type {
+  SshConnectionManager,
+  SshConnectionManagerEvent,
+} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { HostService } from '@core/services/hosts/node';
 
 export type HostAttachmentParticipant = {

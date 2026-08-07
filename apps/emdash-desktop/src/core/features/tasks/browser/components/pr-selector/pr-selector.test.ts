@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 import { PrSelector } from './pr-selector';
 
 (
@@ -22,7 +22,7 @@ vi.mock('@core/services/pull-requests/api/client', () => ({
   }),
 }));
 
-vi.mock('@root/src/core/services/pull-requests/browser/components/pr-status-icon', async () => {
+vi.mock('@core/services/pull-requests/browser/components/pr-status-icon', async () => {
   const React = await import('react');
   return {
     StatusIcon: () => React.createElement('span', { 'data-testid': 'status-icon' }),

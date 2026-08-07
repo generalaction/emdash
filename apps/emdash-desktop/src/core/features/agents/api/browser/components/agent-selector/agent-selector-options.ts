@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { agentSupportsAcp, type AgentPayload } from '@core/primitives/agents/api';
 import { getAgentInstallActionState } from './agent-install';
 

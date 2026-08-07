@@ -1,11 +1,10 @@
 {
-  "extends": "../../tsconfig.base.json",
+  // Union view for the editor's tsserver only — cross-seam go-to-definition
+  // stays intact. Typecheck runs the per-environment programs instead:
+  // tsconfig.browser.json and tsconfig.node.json.
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "allowJs": false,
-    "noEmit": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
     "types": ["react", "react-dom", "electron-vite/node", "node"],
     "paths": {
       "@core/*": ["./src/core/*"],
@@ -22,7 +21,6 @@
     "src/renderer/**/*",
     "src/core/**/*",
     "src/types/**/*",
-    "src/test/**/*",
     "tooling/**/*"
   ],
   "exclude": ["node_modules", "dist", "out", "**/_*/**"]

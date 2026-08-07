@@ -1,10 +1,7 @@
 import { ok, type Result } from '@emdash/shared/result';
 import { createController, type Controller } from '@emdash/wire/rpc';
 import { normalizeRepositoryHost } from '@core/primitives/repository/api';
-import {
-  githubAuthContract,
-  type GitHubAuthError,
-} from '@root/src/core/services/pull-requests/api';
+import { githubAuthContract, type GitHubAuthError } from '@core/services/pull-requests/api';
 
 type GitHubTokenService = {
   getToken(

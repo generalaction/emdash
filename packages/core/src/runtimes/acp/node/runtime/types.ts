@@ -1,12 +1,8 @@
 import type { Logger } from '@emdash/shared/logger';
 import type { Clock } from '@emdash/shared/scheduling';
 import type { IdlePolicyConfig } from '#primitives/io-activity/api';
-import type {
-  AcpProcessHost,
-  AcpStartInputWire,
-  PromptAttachment,
-  PromptInput,
-} from '#runtimes/acp/api';
+import type { AcpStartInputWire, PromptAttachment, PromptInput } from '#runtimes/acp/api';
+import type { AcpProcessHost } from '#runtimes/acp/api/transport';
 import type { AgentPluginHost, ResolvedAcpProvider } from '#services/agent-plugins/api/plugins';
 import type { ConversationLifecycleReporter } from '#services/conversation-reports/node';
 import type { SessionIntentStore } from '#services/session-intents/api';

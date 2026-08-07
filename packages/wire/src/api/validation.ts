@@ -23,7 +23,13 @@ export type ValidatePolicy = 'none' | 'inputs' | 'full';
  * identically to bare controllers, component instances, component workers, and
  * tests.
  */
-export function defaultValidatePolicy(env: NodeJS.ProcessEnv = process.env): ValidatePolicy {
+// Bundlers statically replace `process.env.NODE_ENV` in browser builds; the
+// structural declaration keeps this file free of node ambient types.
+declare const process: { env: Record<string, string | undefined> };
+
+export function defaultValidatePolicy(
+  env: Record<string, string | undefined> = process.env
+): ValidatePolicy {
   return env.NODE_ENV === 'production' ? 'inputs' : 'full';
 }
 

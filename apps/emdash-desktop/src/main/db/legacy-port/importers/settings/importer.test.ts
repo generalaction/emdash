@@ -4,7 +4,7 @@ import path from 'node:path';
 import { isDeepEqual } from '@emdash/shared';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getDefaultForKey } from '@core/manifests/shared/settings-contributions';
+import { getDefaultForKey } from '@core/manifests/node/settings-contributions';
 import type { PromptLibraryPrompt } from '@core/primitives/prompt-library/api';
 import type { AppSettings, AppSettingsKey } from '@core/services/settings/api';
 import { computeDelta, isPlainObject, mergeDeep } from '@core/services/settings/node/utils';

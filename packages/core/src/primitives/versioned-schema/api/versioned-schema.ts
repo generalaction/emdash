@@ -4,6 +4,10 @@ import z from 'zod';
 // Environment
 // ---------------------------------------------------------------------------
 
+// Structural declaration keeps this browser-reachable api file free of node
+// ambient types; the typeof guard below already handles environments without it.
+declare const process: { env: { NODE_ENV?: string } } | undefined;
+
 /**
  * Whether to run full (dev-only) schema validation. In dev we validate stored
  * data against its declared schema to catch drift; in production we trust the

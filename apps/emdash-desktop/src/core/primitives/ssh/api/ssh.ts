@@ -65,18 +65,6 @@ export interface ConnectionTestResult {
 }
 
 /**
- * Host key info
- * Contains information about a server's host key for verification
- */
-export interface HostKeyInfo {
-  host: string;
-  port: number;
-  fingerprint: string;
-  algorithm: string;
-  key: Buffer;
-}
-
-/**
  * SSH Config Host entry parsed from ~/.ssh/config
  */
 export interface SshConfigHost {

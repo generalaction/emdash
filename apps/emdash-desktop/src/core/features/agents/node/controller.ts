@@ -6,7 +6,7 @@ import type {
 import { hostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
 import type { HostDependenciesContract } from '@emdash/core/services/host-dependencies/node';
 import { runtimeResolveErrorAsError } from '@emdash/core/services/runtime-broker/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import type { Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
 import type { InstallMethod } from '@core/primitives/agents/api';

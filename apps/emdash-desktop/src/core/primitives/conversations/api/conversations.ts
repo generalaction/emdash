@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import type { AgentStatus } from '@core/primitives/agents/api';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;

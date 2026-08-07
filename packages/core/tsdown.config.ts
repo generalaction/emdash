@@ -37,6 +37,8 @@ export default defineConfig({
     'services-agent-plugins-api-plugins': 'src/services/agent-plugins/api/plugins/index.ts',
     'services-agent-plugins-api-plugins-helpers':
       'src/services/agent-plugins/api/plugins/helpers/index.ts',
+    'services-agent-plugins-api-plugins-capabilities-auth':
+      'src/services/agent-plugins/api/plugins/capabilities/auth.ts',
     'services-agent-plugins-api-spawn-context': 'src/services/agent-plugins/api/spawn-context.ts',
     'services-agent-plugins-node': 'src/services/agent-plugins/node/index.ts',
     'services-session-intents-api': 'src/services/session-intents/api/index.ts',
@@ -54,6 +56,7 @@ export default defineConfig({
     'runtimes-file-search-node': 'src/runtimes/file-search/node/index.ts',
     'runtimes-acp-api': 'src/runtimes/acp/api/index.ts',
     'runtimes-acp-api-client': 'src/runtimes/acp/api/client.ts',
+    'runtimes-acp-api-transport': 'src/runtimes/acp/api/transport.ts',
     'runtimes-acp-node': 'src/runtimes/acp/node/index.ts',
     'runtimes-agent-config-api': 'src/runtimes/agent-config/api/index.ts',
     'runtimes-agent-config-node': 'src/runtimes/agent-config/node/index.ts',

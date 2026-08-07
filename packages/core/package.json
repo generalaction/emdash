@@ -205,6 +205,11 @@
       "types": "./dist/services-agent-plugins-api-plugins-helpers.d.mts",
       "default": "./dist/services-agent-plugins-api-plugins-helpers.mjs"
     },
+    "./services/agent-plugins/api/plugins/capabilities/auth": {
+      "development": "./src/services/agent-plugins/api/plugins/capabilities/auth.ts",
+      "types": "./dist/services-agent-plugins-api-plugins-capabilities-auth.d.mts",
+      "default": "./dist/services-agent-plugins-api-plugins-capabilities-auth.mjs"
+    },
     "./services/agent-plugins/api/spawn-context": {
       "development": "./src/services/agent-plugins/api/spawn-context.ts",
       "types": "./dist/services-agent-plugins-api-spawn-context.d.mts",
@@ -289,6 +294,11 @@
       "development": "./src/runtimes/acp/api/client.ts",
       "types": "./dist/runtimes-acp-api-client.d.mts",
       "default": "./dist/runtimes-acp-api-client.mjs"
+    },
+    "./runtimes/acp/api/transport": {
+      "development": "./src/runtimes/acp/api/transport.ts",
+      "types": "./dist/runtimes-acp-api-transport.d.mts",
+      "default": "./dist/runtimes-acp-api-transport.mjs"
     },
     "./runtimes/acp/node": {
       "development": "./src/runtimes/acp/node/index.ts",

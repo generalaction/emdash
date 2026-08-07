@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import type { ClientChannel } from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
-import type { SshClientProxy } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import { openSshWorkspaceServerTransport } from './ssh-streamlocal-transport';
 
 describe('openSshWorkspaceServerTransport', () => {

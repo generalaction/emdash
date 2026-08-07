@@ -6,7 +6,7 @@ import type {
   MergeStateStatus,
   PullRequest,
   PullRequestCheck,
-} from '@root/src/core/services/pull-requests/api';
+} from '@core/services/pull-requests/api';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState, deriveMergeCheckState, type MergeUiState } from './merge-ui-state';
 

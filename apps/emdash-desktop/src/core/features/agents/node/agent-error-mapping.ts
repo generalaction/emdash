@@ -1,5 +1,5 @@
 import type { HostDependencyError } from '@emdash/core/primitives/host-dependencies/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import type { AgentUpdateError } from '@core/primitives/agents/api';
 
 export function toAgentUpdateError(

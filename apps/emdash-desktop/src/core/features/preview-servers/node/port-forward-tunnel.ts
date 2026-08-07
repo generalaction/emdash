@@ -1,6 +1,6 @@
 import net from 'node:net';
 import type { ClientChannel } from 'ssh2';
-import type { SshClientProxy } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 
 const LOCAL_BIND_HOST = '127.0.0.1';
 // A dev server may bind to the IPv4 loopback, the IPv6 loopback, or both. A

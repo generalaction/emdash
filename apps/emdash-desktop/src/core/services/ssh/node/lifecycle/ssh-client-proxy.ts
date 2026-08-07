@@ -4,7 +4,7 @@ import type {
   SshClientProxy as SshClientProxyContract,
   SshExecOptions,
   SshExecResult,
-} from '@core/primitives/ssh/api';
+} from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import { execOnClient } from '../operations/exec';
 import { forwardOutStreamLocalOnClient } from '../operations/streamlocal';
 

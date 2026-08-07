@@ -6,7 +6,7 @@ import type {
   HostDependencySnapshot,
   HostDependencyView,
 } from '@emdash/core/services/host-dependencies/node';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { getPlugin, listPlugins } from '@core/features/agents/api/node/plugin-registry';
 import type {
   AgentInstallationStatus,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SshClientProxy } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import { RemoteHostProbe } from './host-probe';
 
 describe('RemoteHostProbe', () => {

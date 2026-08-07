@@ -7,7 +7,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
-import { getPrNumber, type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { getPrNumber, type PullRequest } from '@core/services/pull-requests/api';
 import { activeDiffEntry } from '../../../pane-selectors';
 import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';

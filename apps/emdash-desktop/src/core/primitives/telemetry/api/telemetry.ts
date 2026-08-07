@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import type { SpawnPurpose } from '@emdash/shared/perf';
 import type {
   AutomationRunStatus,

@@ -1,3 +1,5 @@
+import { NODE_PLATFORMS, type NodePlatform } from '@core/primitives/desktop-host/api/host-contract';
+
 export function hasDraggedFiles(dataTransfer: DataTransfer): boolean {
   return dataTransfer.types.includes('Files');
 }
@@ -20,14 +22,14 @@ export type DraggedWorkspaceFile = {
   /** Absolute paths in the workspace environment where the target agent runs. */
   targetPaths: string[];
   /** Remote workspaces are Linux targets even when the renderer runs elsewhere. */
-  targetPlatform?: NodeJS.Platform;
+  targetPlatform?: NodePlatform;
 };
 
 type DraggedWorkspaceFileInput = {
   workspaceId: string;
   /** Absolute paths in the workspace environment where the target agent runs. */
   targetPaths: string[];
-  targetPlatform?: NodeJS.Platform;
+  targetPlatform?: NodePlatform;
 };
 
 // Electron/Chromium can mangle custom-MIME payloads on drop (getData returns
@@ -64,22 +66,10 @@ export function hasDraggedWorkspaceFile(dataTransfer: DataTransfer): boolean {
   return dataTransfer.types.includes(WORKSPACE_FILE_DRAG_TYPE);
 }
 
-const NODE_PLATFORMS = new Set<NodeJS.Platform>([
-  'aix',
-  'android',
-  'darwin',
-  'freebsd',
-  'haiku',
-  'linux',
-  'openbsd',
-  'sunos',
-  'win32',
-  'cygwin',
-  'netbsd',
-]);
+const nodePlatforms = new Set<NodePlatform>(NODE_PLATFORMS);
 
-function isNodePlatform(value: unknown): value is NodeJS.Platform {
-  return typeof value === 'string' && NODE_PLATFORMS.has(value as NodeJS.Platform);
+function isNodePlatform(value: unknown): value is NodePlatform {
+  return typeof value === 'string' && nodePlatforms.has(value as NodePlatform);
 }
 
 function isDraggedWorkspaceFile(value: unknown): value is DraggedWorkspaceFile {

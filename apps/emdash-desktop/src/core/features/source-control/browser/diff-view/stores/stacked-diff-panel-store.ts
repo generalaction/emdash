@@ -11,7 +11,7 @@ import {
 import type { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
-import { getPrNumber } from '@root/src/core/services/pull-requests/api';
+import { getPrNumber } from '@core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
 
 type DiffType = 'disk' | 'staged' | 'git' | 'pr';

@@ -5,7 +5,7 @@ import {
 } from '@core/features/browser/contributions/settings';
 import { filesSettingsContribution } from '@core/features/editor/contributions/settings';
 import {
-  localProjectSettingsContribution,
+  localProjectSettingsSchemaContribution,
   projectSettingsContribution,
 } from '@core/features/projects/contributions/settings';
 import { changesViewModeSettingsContribution } from '@core/features/source-control/contributions/settings';
@@ -18,11 +18,18 @@ import {
   themeSettingsContribution,
 } from '@core/features/workbench/contributions/settings';
 import type { SettingsValues } from '@core/primitives/settings/api';
-import { hostSettingsContribution } from '@core/services/hosts/contributions/settings';
+import { hostSettingsSchemaContribution } from '@core/services/hosts/contributions/settings';
 import { notificationSettingsContribution } from '@core/services/notifications/contributions/settings';
 
-export const appSettingsContributions = {
-  localProject: localProjectSettingsContribution,
+/**
+ * Schema-level view of every settings contribution: this manifest is shared
+ * between the browser and node programs, so contributions whose defaults need
+ * node APIs (localProject, remoteMachine) appear here as schema contributions
+ * only. The node settings manifest overlays the full contributions with
+ * defaults for the settings store.
+ */
+export const appSettingsSchemaContributions = {
+  localProject: localProjectSettingsSchemaContribution,
   project: projectSettingsContribution,
   tasks: taskSettingsContribution,
   files: filesSettingsContribution,
@@ -36,15 +43,10 @@ export const appSettingsContributions = {
   browserPreview: browserPreviewSettingsContribution,
   browser: browserSettingsContribution,
   changesViewMode: changesViewModeSettingsContribution,
-  remoteMachine: hostSettingsContribution,
+  remoteMachine: hostSettingsSchemaContribution,
 } as const;
 
-export type AppSettings = SettingsValues<typeof appSettingsContributions>;
+export type AppSettings = SettingsValues<typeof appSettingsSchemaContributions>;
 export type AppSettingsKey = keyof AppSettings;
 
-export const AppSettingsKeys = Object.keys(appSettingsContributions) as AppSettingsKey[];
-
-export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {
-  const defaults = appSettingsContributions[key].defaults;
-  return (typeof defaults === 'function' ? defaults() : defaults) as AppSettings[K];
-}
+export const AppSettingsKeys = Object.keys(appSettingsSchemaContributions) as AppSettingsKey[];

@@ -3,6 +3,26 @@ import { z } from 'zod';
 import type { TabNavigationDirection } from '@core/primitives/keybindings/api';
 import type { OpenInAppId } from '@core/primitives/open-in-apps/api/open-in-apps';
 
+/**
+ * The members of node's `process.platform` union, spelled out so this
+ * isomorphic contract (and its browser consumers) need no node ambient types.
+ */
+export const NODE_PLATFORMS = [
+  'aix',
+  'android',
+  'cygwin',
+  'darwin',
+  'freebsd',
+  'haiku',
+  'linux',
+  'netbsd',
+  'openbsd',
+  'sunos',
+  'win32',
+] as const;
+
+export type NodePlatform = (typeof NODE_PLATFORMS)[number];
+
 export interface ActiveSessionSummary {
   acpSessions: number;
   localTuiSessions: number;
@@ -152,7 +172,7 @@ export const desktopHostContract = defineContract({
   isWindowMaximized: procedure({ input: z.void(), output: z.boolean() }),
   getAppVersion: procedure({ input: z.void(), output: z.string() }),
   getElectronVersion: procedure({ input: z.void(), output: z.string() }),
-  getPlatform: procedure({ input: z.void(), output: z.custom<NodeJS.Platform>() }),
+  getPlatform: procedure({ input: z.void(), output: z.custom<NodePlatform>() }),
   getPlatformDisplayName: procedure({ input: z.void(), output: z.string() }),
   getDiagnosticLogAttachment: procedure({
     input: z.void(),

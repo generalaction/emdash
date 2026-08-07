@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { useEffect, useMemo, useState } from 'react';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
 import {
