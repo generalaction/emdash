@@ -1,5 +1,5 @@
 import type { ChatContext } from '@emdash/chat-ui';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
 import { advertisedCommandProvider } from './advertised-command-provider';
 import { chatMentionProvider, registerIssueMentionIcons } from './chat-mention-provider';
 import { getChatUiRuntime } from './chat-ui-runtime';
@@ -37,8 +37,8 @@ export function getSharedChatContext(): ChatContext {
 function preloadIssueMentionIcons(): void {
   if (didPreloadIssueMentionIcons) return;
   didPreloadIssueMentionIcons = true;
-  void getDesktopWireClient()
-    .then((client) => client.integrations.list(undefined))
+  void getIntegrationsClient()
+    .then((client) => client.list(undefined))
     .then(registerIssueMentionIcons)
     .catch(() => {
       // IntegrationsProvider also refreshes the registry after React mounts.

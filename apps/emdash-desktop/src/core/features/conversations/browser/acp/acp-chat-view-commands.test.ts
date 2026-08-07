@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatView } from '@renderer/lib/chat/chat-transcript';
+import type { ChatView } from '@core/features/conversations/api/browser/chat/chat-transcript';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';
 
 describe('acp chat view commands', () => {

@@ -20,15 +20,15 @@ import { toast } from '@emdash/ui/react/primitives';
 import type { BlobSource } from '@emdash/wire/rpc';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getAgentsClient } from '@core/features/agents/api/browser/client';
-import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { getHostClient } from '@core/features/workbench/api/browser/host-client';
-import { log } from '@core/primitives/logging/browser/logger';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
-} from '@renderer/lib/chat/advertised-command-provider';
-import { getChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
-import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
+} from '@core/features/conversations/api/browser/chat/advertised-command-provider';
+import { getChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
+import { getSharedChatContext } from '@core/features/conversations/api/browser/chat/shared-chat-context';
+import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
+import { log } from '@core/primitives/logging/browser/logger';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 

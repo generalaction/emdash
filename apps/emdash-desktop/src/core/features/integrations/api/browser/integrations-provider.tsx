@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { registerIssueMentionIcons } from '@core/features/conversations/api/browser/chat/chat-mention-provider';
 import type { IntegrationListItem } from '@core/features/integrations/api';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
-import { registerIssueMentionIcons } from '@renderer/lib/chat/chat-mention-provider';
 import type { IntegrationFormInput } from '../../browser/types';
 import { getIntegrationsClient } from './client';
 
