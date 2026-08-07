@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
+import { useGitHubRepositoryOwnerSelect } from '@core/features/github/api/browser/useGithubRepositoryOwners';
 
 export function usePickMode() {
   const [path, setPath] = useState('');

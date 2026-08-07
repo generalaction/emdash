@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import type {
   PullRequestFilters,

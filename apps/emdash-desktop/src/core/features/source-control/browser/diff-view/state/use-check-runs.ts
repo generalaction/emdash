@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
+import { computeCheckRunsSummary, type CheckRun } from '@core/features/github/api/browser/checks';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
-import { computeCheckRunsSummary, type CheckRun } from '@renderer/utils/github';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 
 export function useSyncCheckRuns(pr: PullRequest) {

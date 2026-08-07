@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getGithubClient } from './client';
 
 export type GitHubOwnerOption = { value: string; label: string; avatarUrl: string };
 
@@ -19,7 +19,7 @@ export function useGitHubRepositoryOwnerSelect(githubAccountId: string | null) {
   const query = useQuery({
     queryKey: ['owners', githubAccountId],
     queryFn: async () =>
-      (await getDesktopWireClient()).github.getOwners({
+      (await getGithubClient()).getOwners({
         accountId: githubAccountId ?? undefined,
       }),
     enabled: githubAccountId !== null,

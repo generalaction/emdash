@@ -2,14 +2,14 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import {
   computeCheckBucket,
   formatCheckDuration,
   sortCheckRunsByLatest,
   type CheckRun,
   type CheckRunBucket,
-} from '@renderer/utils/github';
+} from '@core/features/github/api/browser/checks';
+import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
 import { useSyncCheckRuns } from '../../../state/use-check-runs';
 import { CommentsList } from './comments-list';
