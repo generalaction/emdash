@@ -1,6 +1,4 @@
-import { Emitter } from '../emitter';
-import type { Unsubscribe } from '../lifecycle';
-import { ok, type Result } from '../result';
+import { Emitter, ok, type Result, type Unsubscribe } from '@emdash/shared';
 
 export type MachineEvolveResult<State, Effect> = {
   state: State;

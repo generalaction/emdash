@@ -1,7 +1,7 @@
 import type { Result } from '@emdash/shared';
-import type { Machine } from '@emdash/shared/concurrency';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Clock, RetrySchedule } from '@emdash/shared/scheduling';
+import type { Machine } from '@primitives/machine/api';
 
 export type WorkflowFailureClass = 'transient' | 'conflict' | 'permanent';
 

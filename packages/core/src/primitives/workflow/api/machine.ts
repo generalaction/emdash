@@ -1,5 +1,5 @@
 import { err, ok } from '@emdash/shared';
-import type { MachineDefinition, MachineEvolveResult } from '@emdash/shared/concurrency';
+import type { MachineDefinition, MachineEvolveResult } from '@primitives/machine/api';
 import type {
   CompiledWorkflow,
   WorkflowCommand,
