@@ -4,7 +4,7 @@ import { isIssueIntegration } from '@core/features/integrations/api/browser/inte
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import type { AgentIconAsset } from '@core/primitives/agents/api';
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 import type { ConnectionStatus, IssueProviderType } from '@core/primitives/issue-providers/api';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
@@ -14,7 +14,7 @@ export type IntegrationItem = {
   id: IssueProviderType;
   name: string;
   description: string;
-  icon: AgentIconAsset;
+  icon: PluginIconAsset;
   features: string[];
   isConfigured: boolean;
   isConfigurationKnown: boolean;

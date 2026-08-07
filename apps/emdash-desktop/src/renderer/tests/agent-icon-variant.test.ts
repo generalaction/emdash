@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { pickIconVariant } from '@core/features/agents/api/browser/components/agent-icon-variant';
-import type { AgentIconVariant } from '@core/primitives/agents/api';
+import type { PluginIconVariant } from '@emdash/shared/plugins';
 
-const small: AgentIconVariant = { minSize: 0, light: '<svg>mark</svg>' };
-const large: AgentIconVariant = { minSize: 24, light: '<svg>wordmark</svg>' };
+const small: PluginIconVariant = { minSize: 0, light: '<svg>mark</svg>' };
+const large: PluginIconVariant = { minSize: 24, light: '<svg>wordmark</svg>' };
 
 describe('pickIconVariant', () => {
   it('returns the single variant regardless of size', () => {
@@ -23,7 +23,7 @@ describe('pickIconVariant', () => {
   });
 
   it('falls back to the first variant when none fit', () => {
-    const oversized: AgentIconVariant = { minSize: 24, light: '<svg></svg>' };
+    const oversized: PluginIconVariant = { minSize: 24, light: '<svg></svg>' };
     expect(pickIconVariant([oversized], 16)).toBe(oversized);
   });
 });
