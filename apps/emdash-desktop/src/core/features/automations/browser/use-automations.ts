@@ -1,13 +1,13 @@
 import type { Result } from '@emdash/shared';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
+import { getAutomationsClient } from '@core/features/automations/api/browser/client';
 import type {
   AutomationAdoptionError,
   AutomationDefinitionError,
   CreateAutomationParams,
   UpdateAutomationPatch,
 } from '@core/primitives/automations/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getAutomationRunStore, type RunHistoryFilter } from './automation-run-store';
 
 const AUTOMATIONS_QUERY_KEY = ['automations'] as const;
@@ -15,7 +15,7 @@ const AUTOMATIONS_QUERY_KEY = ['automations'] as const;
 export function useAutomations(projectId?: string) {
   return useQuery({
     queryKey: [...AUTOMATIONS_QUERY_KEY, projectId],
-    queryFn: async () => (await getDesktopWireClient()).automations.list({ projectId }),
+    queryFn: async () => (await getAutomationsClient()).list({ projectId }),
     placeholderData: keepPreviousData,
   });
 }
@@ -24,7 +24,7 @@ export function useCreateAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: CreateAutomationParams) => {
-      const result = await (await getDesktopWireClient()).automations.create(params);
+      const result = await (await getAutomationsClient()).create(params);
       return unwrapAutomationResult(result);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY }),
@@ -35,7 +35,7 @@ export function useUpdateAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: UpdateAutomationPatch }) => {
-      const result = await (await getDesktopWireClient()).automations.update({ id, patch });
+      const result = await (await getAutomationsClient()).update({ id, patch });
       return unwrapAutomationResult(result);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY }),
@@ -46,7 +46,7 @@ export function useDeleteAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (automationId: string) => {
-      const result = await (await getDesktopWireClient()).automations.delete({ automationId });
+      const result = await (await getAutomationsClient()).delete({ automationId });
       return unwrapAutomationResult(result);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY }),
@@ -62,9 +62,7 @@ export function useRunAutomationNow() {
       projectId: string;
       automationId: string;
     }) => {
-      const result = await (
-        await getDesktopWireClient()
-      ).automations.startRun({ projectId, automationId });
+      const result = await (await getAutomationsClient()).startRun({ projectId, automationId });
       if (!result.success) throw new Error(result.error.message);
       return result.data.run;
     },
@@ -83,8 +81,8 @@ export function useStopAutomationRun() {
       runId: string;
     }) => {
       const result = await (
-        await getDesktopWireClient()
-      ).automations.cancelRun({
+        await getAutomationsClient()
+      ).cancelRun({
         projectId,
         automationId,
         runId,
@@ -97,9 +95,7 @@ export function useStopAutomationRun() {
 export function useAdoptAutomationRun() {
   return useMutation({
     mutationFn: async ({ automationId, runId }: { automationId: string; runId: string }) => {
-      const result = await (
-        await getDesktopWireClient()
-      ).automations.adoptRun({ automationId, runId });
+      const result = await (await getAutomationsClient()).adoptRun({ automationId, runId });
       return unwrapAutomationResult(result);
     },
   });
@@ -108,8 +104,7 @@ export function useAdoptAutomationRun() {
 export function useAutomationTargetAvailability(projectId?: string) {
   return useQuery({
     queryKey: [...AUTOMATIONS_QUERY_KEY, 'target-availability', projectId],
-    queryFn: async () =>
-      (await getDesktopWireClient()).automations.getTargetAvailability({ projectId }),
+    queryFn: async () => (await getAutomationsClient()).getTargetAvailability({ projectId }),
   });
 }
 

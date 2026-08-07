@@ -24,7 +24,7 @@ import {
   type CreateConversationParams,
 } from '@core/primitives/conversations/api';
 import { makePtySessionId } from '@core/primitives/pty/api';
-import { getConversationsClient } from '../../browser/client';
+import { getConversationsClient } from './client';
 
 export class ConversationManagerStore implements Disposable {
   private offAgentStatusChanged: (() => void) | null = null;

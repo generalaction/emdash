@@ -44,10 +44,10 @@ import type {
   TaskRow,
   TaskStatsData,
 } from '@core/primitives/tasks/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
 import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
 import { appState } from '@renderer/lib/stores/app-state';
+import { getTasksWireClient } from '../client';
 
 type TaskMutationInvocation<Data, Error> = {
   result: SharedResult<{ data: Data; cursors: unknown[] }, Error>;
@@ -180,12 +180,12 @@ export class TaskManagerStore {
   private async _ensureTaskListModels(): Promise<void> {
     if (this._taskListView) return;
     const attemptScope = this._taskListScope.child('task-list-models');
-    const client = await getDesktopWireClient();
-    const taskListRemote = remote(tasksWireContract.taskList, client.tasks.taskList, {
+    const client = await getTasksWireClient();
+    const taskListRemote = remote(tasksWireContract.taskList, client.taskList, {
       scope: attemptScope,
       lingerMs: 15_000,
     });
-    const taskStatsRemote = remote(tasksWireContract.taskStats, client.tasks.taskStats, {
+    const taskStatsRemote = remote(tasksWireContract.taskStats, client.taskStats, {
       scope: attemptScope,
       lingerMs: 15_000,
     });
@@ -336,9 +336,9 @@ export class TaskManagerStore {
       );
     });
 
-    const result = await getDesktopWireClient()
+    const result = await getTasksWireClient()
       .then((client) =>
-        client.tasks.createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
+        client.createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
       )
       .catch((e: unknown) => {
         const message = e instanceof Error ? e.message : String(e);
@@ -520,8 +520,8 @@ export class TaskManagerStore {
       }
     });
 
-    const promise = getDesktopWireClient()
-      .then((client) => client.tasks.teardownTask({ projectId: this.projectId, taskId }))
+    const promise = getTasksWireClient()
+      .then((client) => client.teardownTask({ projectId: this.projectId, taskId }))
       .then(() => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
@@ -695,7 +695,7 @@ export class TaskManagerStore {
 
   async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
     const removed = new Map<string, TaskStore>();
-    const tasksClient = (await getDesktopWireClient()).tasks;
+    const tasksClient = await getTasksWireClient();
 
     runInAction(() => {
       for (const id of taskIds) {

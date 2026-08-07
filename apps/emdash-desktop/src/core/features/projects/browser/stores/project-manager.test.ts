@@ -34,21 +34,10 @@ const mocks = vi.hoisted(() => ({
   sshStateFor: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    github: {
-      createRepository: mocks.createGithubRepository,
-      deleteRepository: mocks.deleteGithubRepository,
-    },
-    projects: {
-      createProject: mocks.createProject,
-      getProjects: vi.fn(async () => []),
-      inspectProjectPath: mocks.inspectProjectPath,
-      resolveRepositoryDestination: mocks.resolveRepositoryDestination,
-      openProject: mocks.openProject,
-      patchProjectSettings: mocks.patchProjectSettings,
-      updateProjectSettings: mocks.updateProjectSettings,
-    },
+vi.mock('@core/features/github/api/browser/client', () => ({
+  getGithubClient: async () => ({
+    createRepository: mocks.createGithubRepository,
+    deleteRepository: mocks.deleteGithubRepository,
   }),
 }));
 
@@ -60,8 +49,18 @@ vi.mock('@emdash/wire/live', async (importOriginal) => {
   };
 });
 
-vi.mock('@renderer/lib/runtime/projects-wire-client', () => ({
-  getProjectsWireClient: async () => ({ create: {}, delete: mocks.projectWireDelete }),
+vi.mock('@core/features/projects/api/browser/client', () => ({
+  getProjectsWireClient: async () => ({
+    create: {},
+    createProject: mocks.createProject,
+    delete: mocks.projectWireDelete,
+    getProjects: vi.fn(async () => []),
+    inspectProjectPath: mocks.inspectProjectPath,
+    resolveRepositoryDestination: mocks.resolveRepositoryDestination,
+    openProject: mocks.openProject,
+    patchProjectSettings: mocks.patchProjectSettings,
+    updateProjectSettings: mocks.updateProjectSettings,
+  }),
 }));
 
 vi.mock('@core/primitives/mementos/browser', () => ({

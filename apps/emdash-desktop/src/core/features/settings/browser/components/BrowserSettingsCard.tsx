@@ -3,6 +3,7 @@ import { Check, ChevronDown, Ellipsis, Eraser, Pencil, Plus, Trash2, X } from 'l
 import { useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { getBrowserClient } from '@core/features/browser/api/browser/client';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
@@ -16,7 +17,6 @@ import {
   type BrowsingDataKind,
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { SettingRow } from './SettingRow';
 
 export function BrowserSettingsCard() {
@@ -76,7 +76,7 @@ export function BrowserSettingsCard() {
   const runClearBrowsingData = async (kind: BrowsingDataKind, label: string) => {
     setIsClearingBrowsingData(true);
     try {
-      const result = await (await getDesktopWireClient()).browser.clearBrowsingData({ kind });
+      const result = await (await getBrowserClient()).clearBrowsingData({ kind });
       if (!result.success) {
         toast.error('Could not clear browsing data', {
           description: 'Try again, or reload the browser view manually.',
@@ -441,7 +441,7 @@ function reloadAllBrowserSessions(): void {
 
 async function clearProfileStorageAndReload(profileId: string): Promise<void> {
   try {
-    const result = await (await getDesktopWireClient()).browser.clearProfileStorage({ profileId });
+    const result = await (await getBrowserClient()).clearProfileStorage({ profileId });
     if (!result.success) {
       toast.error('Could not clear browser storage', {
         description: 'The browser profile no longer exists or could not be cleared.',
@@ -468,8 +468,8 @@ async function deleteProfileAfterStorageClear({
   let storageCleared = false;
   try {
     const clearResult = await (
-      await getDesktopWireClient()
-    ).browser.clearProfileStorage({
+      await getBrowserClient()
+    ).clearProfileStorage({
       profileId: deletedProfileId,
     });
     if (!clearResult.success) {

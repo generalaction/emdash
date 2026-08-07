@@ -1,10 +1,9 @@
-import {
-  getDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { skillsContract, skillsDomain } from '@core/features/skills/api/contract';
+import { domainClient } from '@core/primitives/wire/browser/connection';
 
-export type SkillsRpcClient = DesktopWireClient['skills'];
+export type SkillsRpcClient = ContractClient<typeof skillsContract>;
 
-export async function getSkillsClient(): Promise<SkillsRpcClient> {
-  return (await getDesktopWireClient()).skills;
+export function getSkillsClient(): Promise<SkillsRpcClient> {
+  return domainClient<SkillsRpcClient>(skillsDomain, skillsContract);
 }

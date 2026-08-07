@@ -1,16 +1,9 @@
 import { toast } from '@emdash/ui/react/primitives';
-import type { ContractClient } from '@emdash/wire/rpc';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useEffect } from 'react';
-import { domainClient } from '@core/primitives/wire/browser/connection';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
-import { hostsContract, hostsDomain, type HostServerState } from '@core/services/hosts/api';
-
-type HostsClient = ContractClient<typeof hostsContract>;
-
-function getHostsClient(): Promise<HostsClient> {
-  return domainClient<HostsClient>(hostsDomain, hostsContract);
-}
+import { hostsContract, type HostServerState } from '@core/services/hosts/api';
+import { getHostsClient } from '@core/services/hosts/api/client';
 
 type ServerAction =
   | 'installServer'

@@ -1,40 +1,34 @@
 import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
 import type { CheckoutHeadState } from '@emdash/core/runtimes/git/api';
 import { createScope } from '@emdash/shared/concurrency';
+import type { ContractClient } from '@emdash/wire/rpc';
 import { observe, pin, remote } from '@emdash/wire/state';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import type {
   InitializeRepositoryResult,
   InspectProjectPathParams,
   ProjectPathInspection,
 } from '@core/primitives/projects/api';
-import {
-  getDesktopWireClient,
-  resetDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
-import { sourceControlContract } from '..';
+import { domainClient } from '@core/primitives/wire/browser/connection';
+import { sourceControlContract, sourceControlDomain } from '../contract';
 
-export type SourceControlClient = DesktopWireClient['sourceControl'];
+export type SourceControlClient = ContractClient<typeof sourceControlContract>;
 
-export async function getSourceControlClient(): Promise<SourceControlClient> {
-  return (await getDesktopWireClient()).sourceControl;
+export function getSourceControlClient(): Promise<SourceControlClient> {
+  return domainClient<SourceControlClient>(sourceControlDomain, sourceControlContract);
 }
 
 export async function inspectProjectPath(
   input: InspectProjectPathParams
 ): Promise<ProjectPathInspection> {
-  return (await getDesktopWireClient()).projects.inspectProjectPath(input);
+  return (await getProjectsWireClient()).inspectProjectPath(input);
 }
 
 export async function initializeProjectRepository(
   projectId: string
 ): Promise<InitializeRepositoryResult> {
-  return (await getDesktopWireClient()).projects.initializeRepository({ projectId });
-}
-
-export function resetSourceControlClient(): void {
-  resetDesktopWireClient();
+  return (await getProjectsWireClient()).initializeRepository({ projectId });
 }
 
 export function repositorySelector(projectId: string): { projectId: string } {

@@ -1,5 +1,5 @@
 import type { AutomationRun, GetRunOverviewResult } from '@emdash/core/runtimes/automations/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getAutomationsClient } from '@core/features/automations/api/browser/client';
 
 export type RunHistoryFilter = 'all' | 'done' | 'failed' | 'skipped' | 'cancelled';
 
@@ -132,8 +132,8 @@ export class AutomationRunStore {
   private async connect(): Promise<void> {
     const reconnectCursor = this.cursor;
     const reconnecting = this.hasConnected;
-    const client = await getDesktopWireClient();
-    const unsubscribe = await client.automations.runEvents.subscribe(
+    const client = await getAutomationsClient();
+    const unsubscribe = await client.runEvents.subscribe(
       { projectId: this.projectId, automationId: this.automationId },
       {
         onEvent: ({ run }) => {
@@ -177,10 +177,10 @@ export class AutomationRunStore {
   }
 
   private async catchUpOnce(initialSeq: number): Promise<void> {
-    const client = await getDesktopWireClient();
+    const client = await getAutomationsClient();
     let sinceSeq = initialSeq;
     for (;;) {
-      const result = await client.automations.listChangedRuns({
+      const result = await client.listChangedRuns({
         projectId: this.projectId,
         automationId: this.automationId,
         sinceSeq,
@@ -202,8 +202,8 @@ export class AutomationRunStore {
       this.overviewError = null;
       this.notify();
       try {
-        const client = await getDesktopWireClient();
-        const result = await client.automations.getRunOverview({
+        const client = await getAutomationsClient();
+        const result = await client.getRunOverview({
           projectId: this.projectId,
           automationId: this.automationId,
         });
@@ -236,8 +236,8 @@ export class AutomationRunStore {
             .map((id) => this.runs.get(id)?.seq)
             .filter((seq): seq is number => seq !== undefined)
             .at(-1);
-      const client = await getDesktopWireClient();
-      const result = await client.automations.listRuns({
+      const client = await getAutomationsClient();
+      const result = await client.listRuns({
         projectId: this.projectId,
         automationId: this.automationId,
         status: filter === 'all' ? undefined : filter,

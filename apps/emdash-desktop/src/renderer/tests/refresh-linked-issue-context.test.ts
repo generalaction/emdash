@@ -6,11 +6,9 @@ const mocks = vi.hoisted(() => ({
   getIssueContext: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    issues: {
-      getIssueContext: mocks.getIssueContext,
-    },
+vi.mock('@core/features/issues/api/browser/client', () => ({
+  getIssuesClient: async () => ({
+    getIssueContext: mocks.getIssueContext,
   }),
 }));
 

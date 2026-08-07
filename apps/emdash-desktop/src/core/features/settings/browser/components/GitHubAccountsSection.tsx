@@ -1,5 +1,6 @@
 import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import {
   GitHubCredentialSourceBadge,
   GitHubDefaultAccountBadge,
@@ -12,7 +13,6 @@ import {
   useRemoveGitHubAccount,
   useSetDefaultGitHubAccount,
 } from '@renderer/lib/hooks/useGithubAccounts';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();
@@ -95,8 +95,8 @@ export function GitHubAccountRows({ accounts }: { accounts: GitHubAccountSummary
     let description = 'This removes the saved GitHub token from Emdash.';
     try {
       const count = await (
-        await getDesktopWireClient()
-      ).projects.countProjectsUsingGithubAccount({ accountId: account.accountId });
+        await getProjectsWireClient()
+      ).countProjectsUsingGithubAccount({ accountId: account.accountId });
       if (count > 0) {
         const projectLabel = count === 1 ? '1 project' : `${count} projects`;
         description = `This account is used by ${projectLabel}. Removing it will disable GitHub features for those projects until another GitHub account is assigned.`;

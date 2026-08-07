@@ -25,7 +25,7 @@ import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-butt
 import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { resolveInitialBaseBranch } from './base-branch';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';

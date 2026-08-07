@@ -3,7 +3,9 @@ import { Button, Combobox, Dialog, ModalLayout } from '@emdash/ui/react/primitiv
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
-import { getMachinesPageWireClient } from '@core/features/machines/api/browser/client';
+import { getMachinesClient } from '@core/features/machines/api/browser/client';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
+import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 
@@ -25,15 +27,15 @@ function useHostProjects(connectionId: string | null) {
   return useQuery({
     queryKey: ['linkConversationProjects', connectionId ?? 'local'],
     queryFn: async (): Promise<PickerOption[]> => {
-      const client = await getMachinesPageWireClient();
       if (connectionId !== null) {
-        const usage = await client.machines.getMachineUsage(undefined);
+        const usage = await (await getMachinesClient()).getMachineUsage(undefined);
         return (usage[connectionId] ?? []).map((project) => ({
           id: project.id,
           name: project.name,
         }));
       }
-      const projectList = await client.projects.projectList.state(undefined, 'list').snapshot();
+      const projectsClient = await getProjectsWireClient();
+      const projectList = await projectsClient.projectList.state(undefined, 'list').snapshot();
       return projectList.data.projects
         .filter((project) => project.type === 'local')
         .map((project) => ({ id: project.id, name: project.name }));
@@ -46,8 +48,8 @@ function useProjectTasks(projectId: string | null) {
   return useQuery({
     queryKey: ['linkConversationTasks', projectId],
     queryFn: async (): Promise<PickerOption[]> => {
-      const client = await getMachinesPageWireClient();
-      const list = await client.tasks.taskList.state({ projectId: projectId! }, 'list').snapshot();
+      const client = await getTasksWireClient();
+      const list = await client.taskList.state({ projectId: projectId! }, 'list').snapshot();
       return list.data.tasks.map((task) => ({ id: task.id, name: task.name }));
     },
     enabled: projectId !== null,

@@ -1,15 +1,14 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';
-import {
-  getDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { domainClient } from '@core/primitives/wire/browser/connection';
+import { agentsContract, agentsDomain } from '../contract';
 
-export type AgentsRpcClient = DesktopWireClient['agents'];
+export type AgentsRpcClient = ContractClient<typeof agentsContract>;
 
-export async function getAgentsClient(): Promise<AgentsRpcClient> {
-  return (await getDesktopWireClient()).agents;
+export function getAgentsClient(): Promise<AgentsRpcClient> {
+  return domainClient<AgentsRpcClient>(agentsDomain, agentsContract);
 }
 
 export async function unwrapAgentsResult<T>(

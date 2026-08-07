@@ -13,7 +13,7 @@ import {
   type WriteProjectConfigRequest,
 } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getProjectsWireClient } from '../client';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;
@@ -26,9 +26,7 @@ export class ProjectSettingsStore {
     repositoryWorkspaceId?: string
   ) {
     this.pageData = new Resource(async () => {
-      const result = await (
-        await getDesktopWireClient()
-      ).projects.getProjectSettingsPage({ projectId });
+      const result = await (await getProjectsWireClient()).getProjectSettingsPage({ projectId });
       if (!result.success) {
         throw new Error(
           result.error.type === 'project-not-found'
@@ -51,8 +49,8 @@ export class ProjectSettingsStore {
     }
 
     let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.projects.events.subscribe(undefined, {
+    void getProjectsWireClient().then(async (client) => {
+      const nextUnsubscribe = await client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.projectId === projectId) this.pageData.invalidate();
         },
@@ -97,8 +95,8 @@ export class ProjectSettingsStore {
     settings: ProjectSettings
   ): Promise<Result<ProjectSettings, UpdateProjectSettingsError>> {
     const result = await (
-      await getDesktopWireClient()
-    ).projects.updateProjectSettings({
+      await getProjectsWireClient()
+    ).updateProjectSettings({
       projectId: this.projectId,
       settings,
     });
@@ -114,8 +112,8 @@ export class ProjectSettingsStore {
     request: WriteProjectConfigRequest
   ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
     const result = await (
-      await getDesktopWireClient()
-    ).projects.shareProjectSettingsToConfig({
+      await getProjectsWireClient()
+    ).shareProjectSettingsToConfig({
       projectId: this.projectId,
       request,
     });
@@ -129,8 +127,8 @@ export class ProjectSettingsStore {
     request: MigrateProjectConfigRequest
   ): Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>> {
     const result = await (
-      await getDesktopWireClient()
-    ).projects.migrateProjectConfig({
+      await getProjectsWireClient()
+    ).migrateProjectConfig({
       projectId: this.projectId,
       request,
     });

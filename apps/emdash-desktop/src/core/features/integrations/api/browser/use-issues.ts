@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;
@@ -65,8 +65,8 @@ export function useIssues(
       if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
 
       const result = await (
-        await getDesktopWireClient()
-      ).issues.listIssues({
+        await getIssuesClient()
+      ).listIssues({
         provider,
         options: { limit: initialLimit, projectId, projectPath, repositoryUrl },
       });
@@ -97,8 +97,8 @@ export function useIssues(
       if (!provider) return { success: true as const, data: [] as LinkedIssue[] };
 
       const result = await (
-        await getDesktopWireClient()
-      ).issues.searchIssues({
+        await getIssuesClient()
+      ).searchIssues({
         provider,
         options: {
           limit: searchLimit,

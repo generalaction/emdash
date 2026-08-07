@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { IntegrationListItem } from '@core/features/integrations/api';
+import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { ConnectionStatus } from '@core/primitives/issue-providers/api';
 import { registerIssueMentionIcons } from '@renderer/lib/chat/chat-mention-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { IntegrationFormInput } from '../../browser/types';
+import { getIntegrationsClient } from './client';
 
 export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
 export const INTEGRATIONS_LIST_QUERY_KEY = ['integrations:list'] as const;
@@ -54,7 +55,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
 
   const { data: integrations = [] } = useQuery({
     queryKey: INTEGRATIONS_LIST_QUERY_KEY,
-    queryFn: async () => (await getDesktopWireClient()).integrations.list(undefined),
+    queryFn: async () => (await getIntegrationsClient()).list(undefined),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -65,7 +66,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
 
   const { data: statusData, isFetching: isCheckingConnections } = useQuery({
     queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY,
-    queryFn: async () => (await getDesktopWireClient()).issues.checkAllConnections(undefined),
+    queryFn: async () => (await getIssuesClient()).checkAllConnections(undefined),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -73,8 +74,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   const { data: configuredConnections = {}, isFetching: isCheckingConfiguredConnections } =
     useQuery({
       queryKey: [...ISSUE_CONNECTION_STATUS_QUERY_KEY, 'configured'],
-      queryFn: async () =>
-        (await getDesktopWireClient()).issues.checkConfiguredConnections(undefined),
+      queryFn: async () => (await getIssuesClient()).checkConfiguredConnections(undefined),
       staleTime: Infinity,
       refetchOnWindowFocus: false,
     });
@@ -123,8 +123,8 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
       runConnectionMutation(
         integrationId,
         () =>
-          getDesktopWireClient().then((client) =>
-            client.integrations.connect({ integrationId, credentials: input })
+          getIntegrationsClient().then((client) =>
+            client.connect({ integrationId, credentials: input })
           ),
         'Failed to connect.'
       ),
@@ -135,10 +135,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     async (integrationId: string) =>
       runConnectionMutation(
         integrationId,
-        () =>
-          getDesktopWireClient().then((client) =>
-            client.integrations.disconnect({ integrationId })
-          ),
+        () => getIntegrationsClient().then((client) => client.disconnect({ integrationId })),
         'Failed to disconnect.'
       ),
     [runConnectionMutation]

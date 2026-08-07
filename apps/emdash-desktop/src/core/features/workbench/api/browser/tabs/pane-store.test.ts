@@ -8,16 +8,14 @@ const { browserEventListeners } = vi.hoisted(() => ({
   browserEventListeners: [] as Array<(event: BrowserEvent) => void>,
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    browser: {
-      unregisterSession: vi.fn(),
-      events: {
-        subscribe: vi.fn(async (_key, observer: { onEvent: (event: BrowserEvent) => void }) => {
-          browserEventListeners.push(observer.onEvent);
-          return () => {};
-        }),
-      },
+vi.mock('@core/features/browser/api/browser/client', () => ({
+  getBrowserClient: async () => ({
+    unregisterSession: vi.fn(),
+    events: {
+      subscribe: vi.fn(async (_key, observer: { onEvent: (event: BrowserEvent) => void }) => {
+        browserEventListeners.push(observer.onEvent);
+        return () => {};
+      }),
     },
   }),
 }));

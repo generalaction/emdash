@@ -7,8 +7,8 @@ import type {
   TabHandle,
   TabResource,
 } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { BrowserState } from '../../browser/browser-tab-provider';
+import { getBrowserClient } from './client';
 
 /**
  * Domain resource for a single open browser tab.
@@ -59,8 +59,8 @@ export class BrowserTabResource implements TabResource {
     this._disposeSessionSync();
     browserDiagnosticsStore.clearBrowser(this.browserId);
     browserSessionStore.removeSession(this.browserId);
-    void getDesktopWireClient().then((client) =>
-      client.browser.unregisterSession({ browserId: this.browserId })
+    void getBrowserClient().then((client) =>
+      client.unregisterSession({ browserId: this.browserId })
     );
   }
 
@@ -70,8 +70,8 @@ export class BrowserTabResource implements TabResource {
   }
 
   private async _subscribeOpenInNewTab(handle: TabHandle): Promise<void> {
-    const client = await getDesktopWireClient();
-    const unsubscribe = await client.browser.events.subscribe(undefined, {
+    const client = await getBrowserClient();
+    const unsubscribe = await client.events.subscribe(undefined, {
       onEvent: (event) => {
         if (event.type !== 'open-in-new-tab' || event.sourceBrowserId !== this.browserId) return;
         handle.open('browser', { initialUrl: event.url });

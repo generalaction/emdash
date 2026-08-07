@@ -42,10 +42,8 @@ vi.mock('@core/features/conversations/browser/acp/acp-chat-panel', () => ({
   AcpChatPanel: () => null,
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    tasks: wire!.client,
-  }),
+vi.mock('@core/features/tasks/api/browser/client', () => ({
+  getTasksWireClient: async () => wire!.client,
 }));
 
 vi.mock('@core/primitives/mementos/browser', () => ({

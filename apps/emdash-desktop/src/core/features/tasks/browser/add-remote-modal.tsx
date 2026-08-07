@@ -10,13 +10,13 @@ import {
 } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { getGithubClient } from '@core/features/github/api/browser/client';
 import { getProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export type AddRemoteModalArgs = {
   projectId: string;
@@ -95,8 +95,8 @@ export const AddRemoteModal = observer(function AddRemoteModal({
         }
 
         const result = await (
-          await getDesktopWireClient()
-        ).github.createRepository({
+          await getGithubClient()
+        ).createRepository({
           name: repositoryName.trim(),
           owner: owner.value,
           isPrivate: visibility === 'private',

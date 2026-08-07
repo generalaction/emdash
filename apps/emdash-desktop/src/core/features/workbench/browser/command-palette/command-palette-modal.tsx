@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { getSearchClient } from '@core/features/search/api/client';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
@@ -23,7 +24,6 @@ import type { BoundCommand } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getCommandIcon } from './command-icons';
 import { openCommandPaletteFile } from './open-command-palette-file';
 import { PaletteConversationItem } from './palette-conversation-item';
@@ -203,8 +203,8 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
     void queryClient.prefetchQuery({
       queryKey: ['cmdk-search', '', projectId, taskId, workspaceId],
       queryFn: () =>
-        getDesktopWireClient().then((client) =>
-          client.search.commandPalette({
+        getSearchClient().then((client) =>
+          client.commandPalette({
             query: '',
             context: { projectId, taskId, workspaceId },
           })
@@ -217,8 +217,8 @@ export function CommandPaletteModal({ projectId, taskId, workspaceId }: CommandP
   const { data: dbResults = [] } = useQuery({
     queryKey: ['cmdk-search', debouncedQuery, projectId, taskId, workspaceId],
     queryFn: () =>
-      getDesktopWireClient().then((client) =>
-        client.search.commandPalette({
+      getSearchClient().then((client) =>
+        client.commandPalette({
           query: debouncedQuery,
           context: { projectId, taskId, workspaceId },
         })

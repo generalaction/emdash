@@ -2,7 +2,7 @@ import type { HostDependencySnapshot } from '@emdash/core/services/host-dependen
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { useCallback, useMemo } from 'react';
 import { machinesContract, type MachineSystemDependencyStatus } from '@core/features/machines/api';
-import { getMachinesPageWireClient } from '@core/features/machines/api/browser/client';
+import { getMachinesClient } from '@core/features/machines/api/browser/client';
 import { mapSystemDependencySnapshot } from '@core/features/machines/api/system-dependencies';
 import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
 import { useRemoteModelState } from '@core/primitives/wire/browser/use-remote-model-state';
@@ -56,8 +56,8 @@ export function useSystemDependencySnapshot(
 }
 
 async function refreshSystemDependencies(machineId: string | undefined): Promise<void> {
-  const client = await getMachinesPageWireClient();
-  const result = await client.machines.systemDependencies.mutate('refresh', {
+  const client = await getMachinesClient();
+  const result = await client.systemDependencies.mutate('refresh', {
     key: { machineId },
     input: undefined,
   });
@@ -69,8 +69,8 @@ async function refreshSystemDependencies(machineId: string | undefined): Promise
 function getSystemDependenciesRemote(): Promise<
   RemoteModel<typeof machinesContract.systemDependencies>
 > {
-  systemDependenciesRemotePromise ??= getMachinesPageWireClient().then((client) =>
-    remote(machinesContract.systemDependencies, client.machines.systemDependencies, {
+  systemDependenciesRemotePromise ??= getMachinesClient().then((client) =>
+    remote(machinesContract.systemDependencies, client.systemDependencies, {
       lingerMs: 15_000,
     })
   );

@@ -14,12 +14,10 @@ const mocks = vi.hoisted(() => ({
   searchIssues: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    issues: {
-      listIssues: mocks.listIssues,
-      searchIssues: mocks.searchIssues,
-    },
+vi.mock('@core/features/issues/api/browser/client', () => ({
+  getIssuesClient: async () => ({
+    listIssues: mocks.listIssues,
+    searchIssues: mocks.searchIssues,
   }),
 }));
 

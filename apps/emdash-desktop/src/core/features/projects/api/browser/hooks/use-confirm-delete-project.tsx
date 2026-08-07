@@ -1,11 +1,11 @@
+import { getAutomationsClient } from '@core/features/automations/api/browser/client';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 async function listProjectAutomations(projectId: string): Promise<Automation[]> {
-  return getDesktopWireClient()
-    .then((client) => client.automations.list({ projectId }))
+  return getAutomationsClient()
+    .then((client) => client.list({ projectId }))
     .catch(() => []);
 }
 

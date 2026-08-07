@@ -7,7 +7,7 @@ import type { TaskManagerStore } from '@core/features/tasks/api/browser/stores/t
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import type { Task } from '@core/primitives/tasks/api';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { pullRequestsContract } from '@root/src/core/services/pull-requests/api';
 
 export class TaskPrSyncCoordinator {

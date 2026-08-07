@@ -5,8 +5,8 @@ import { AlertCircle, Github } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
 import {
   pullRequestErrorMessage,
   type PullRequest,

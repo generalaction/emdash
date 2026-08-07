@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { getBrowserClient } from '@core/features/browser/api/browser/client';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import {
@@ -33,7 +34,6 @@ import {
 } from '@core/primitives/browser/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
   canOpenBrowserUrlExternally,
   captureBrowserScreenshot,
@@ -127,9 +127,7 @@ export function BrowserToolbar({
   };
 
   const openDevTools = () => {
-    void getDesktopWireClient().then((client) =>
-      client.browser.openDevTools({ browserId: session.browserId })
-    );
+    void getBrowserClient().then((client) => client.openDevTools({ browserId: session.browserId }));
   };
 
   const confirmClearStorage = () => {

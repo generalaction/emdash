@@ -8,8 +8,10 @@ import {
   type RemoteModel,
 } from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
-import type { DesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import {
+  getNotificationsClient,
+  type NotificationsClient,
+} from '@core/services/notifications/api/client';
 import {
   notificationsContract,
   reduceDismiss,
@@ -30,9 +32,9 @@ export class NotificationsFeedStore {
   private readonly readyPromise: Promise<void>;
   private list: NotificationList = {};
 
-  constructor(client: DesktopWireClient) {
+  constructor(client: NotificationsClient) {
     this.scope = createScope({ label: 'notifications-feed-store' });
-    this.remoteModel = remote(notificationsContract.feed, client.notifications.feed, {
+    this.remoteModel = remote(notificationsContract.feed, client.feed, {
       scope: this.scope,
       lingerMs: 15_000,
     });
@@ -91,7 +93,7 @@ export class NotificationsFeedStore {
 let storePromise: Promise<NotificationsFeedStore> | null = null;
 
 export function getNotificationsFeedStore(): Promise<NotificationsFeedStore> {
-  storePromise ??= getDesktopWireClient().then((client) => {
+  storePromise ??= getNotificationsClient().then((client) => {
     const store = new NotificationsFeedStore(client);
     return store.ready.then(() => store);
   });

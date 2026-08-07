@@ -1,5 +1,6 @@
 import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as WorkspacesClientModule from '@core/features/workspaces/api/browser/client';
 import {
   LifecycleScriptsStore,
   LifecycleScriptStore,
@@ -26,22 +27,27 @@ vi.mock('@core/features/editor/api/browser/files', () => ({
 vi.mock('@core/features/terminals/api/browser/client', () => ({
   getTerminalsClient: vi.fn(() => new Promise(() => {})),
 }));
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    projectSettings: {
+vi.mock('@core/features/workspaces/api/browser/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof WorkspacesClientModule>();
+  return {
+    ...actual,
+    getProjectSettingsClient: async () => ({
       getSettings,
-    },
-    projects: {
-      events: {
-        subscribe: async (
-          _key: undefined,
-          observer: {
-            onEvent: (event: { type: 'settings-changed'; projectId: string }) => void;
-          }
-        ) => {
-          projectEvents.handler = observer.onEvent;
-          return offEvent;
-        },
+    }),
+  };
+});
+
+vi.mock('@core/features/projects/api/browser/client', () => ({
+  getProjectsWireClient: async () => ({
+    events: {
+      subscribe: async (
+        _key: undefined,
+        observer: {
+          onEvent: (event: { type: 'settings-changed'; projectId: string }) => void;
+        }
+      ) => {
+        projectEvents.handler = observer.onEvent;
+        return offEvent;
       },
     },
   }),

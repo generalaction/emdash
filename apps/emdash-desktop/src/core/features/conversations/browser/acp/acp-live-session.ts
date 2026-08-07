@@ -24,8 +24,11 @@ import { ReplicaLog, createLineLogStore } from '@emdash/wire/live';
 import { type BlobSource } from '@emdash/wire/rpc';
 import { observe, remote, whenReady, type Readable } from '@emdash/wire/state';
 import { z } from 'zod';
+import {
+  getConversationsClient,
+  type ConversationsClient,
+} from '@core/features/conversations/api/browser/client';
 import { conversationsContract } from '../../api';
-import { getConversationsClient, type ConversationsClient } from '../client';
 
 export interface LiveValueSource<T> {
   getSnapshot(): T;

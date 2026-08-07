@@ -9,8 +9,10 @@ import {
 } from '@emdash/wire/live';
 import { remote, type RemoteModel } from '@emdash/wire/state';
 import { makeObservable, observable, runInAction } from 'mobx';
+import { getGithubClient } from '@core/features/github/api/browser/client';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import { projectsWireContract, type ProjectCreationProgress } from '@core/features/projects/api';
+import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import {
   MountedProject,
   createUnmountedProject,
@@ -30,8 +32,6 @@ import { log } from '@core/primitives/logging/browser/logger';
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { getProjectsWireClient } from '@renderer/lib/runtime/projects-wire-client';
 import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
 import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -170,8 +170,8 @@ export class ProjectManagerStore {
       data.mode === 'pick'
         ? ok(data.path)
         : await (
-            await getDesktopWireClient()
-          ).projects.resolveRepositoryDestination({
+            await getProjectsWireClient()
+          ).resolveRepositoryDestination({
             host: isSsh ? hostRef('remote', projectType.connectionId) : LOCAL_HOST_REF,
             name: data.name,
             chosenDir: data.path,
@@ -197,8 +197,8 @@ export class ProjectManagerStore {
     }
     const targetPath = targetPathResult.data;
     const inspection = await (
-      await getDesktopWireClient()
-    ).projects.inspectProjectPath(
+      await getProjectsWireClient()
+    ).inspectProjectPath(
       isSsh
         ? { type: 'ssh', path: targetPath, connectionId: projectType.connectionId }
         : { type: 'local', path: targetPath }
@@ -235,7 +235,7 @@ export class ProjectManagerStore {
     projectId: string,
     targetPath: string
   ): Promise<ProjectCreationCompletion> {
-    const projectsClient = (await getDesktopWireClient()).projects;
+    const projectsClient = await getProjectsWireClient();
     const isSsh = projectType.type === 'ssh';
     const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
     const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
@@ -300,8 +300,8 @@ export class ProjectManagerStore {
 
         case 'new': {
           const repoResult = await (
-            await getDesktopWireClient()
-          ).github.createRepository({
+            await getGithubClient()
+          ).createRepository({
             name: data.repositoryName,
             owner: data.repositoryOwner,
             isPrivate: data.repositoryVisibility === 'private',
@@ -379,8 +379,8 @@ export class ProjectManagerStore {
       project.unmounted = { kind: 'opening' };
     });
 
-    const promise = getDesktopWireClient()
-      .then((client) => client.projects.openProject({ projectId }))
+    const promise = getProjectsWireClient()
+      .then((client) => client.openProject({ projectId }))
       .then(async (openResult) => {
         if (!openResult.success) {
           runInAction(() => {
@@ -574,8 +574,8 @@ export class ProjectManagerStore {
 
   async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
     await (
-      await getDesktopWireClient()
-    ).projects.updateProjectConnection({
+      await getProjectsWireClient()
+    ).updateProjectConnection({
       projectId,
       connectionId: newConnectionId,
     });
@@ -635,8 +635,8 @@ export class ProjectManagerStore {
     if (githubAccountId === undefined) return;
 
     const result = await (
-      await getDesktopWireClient()
-    ).projects.patchProjectSettings({
+      await getProjectsWireClient()
+    ).patchProjectSettings({
       projectId,
       patch: { githubAccountId },
     });
@@ -655,8 +655,8 @@ export class ProjectManagerStore {
     try {
       const { owner, repo } = splitNameWithOwner(nameWithOwner);
       const result = await (
-        await getDesktopWireClient()
-      ).github.deleteRepository({
+        await getGithubClient()
+      ).deleteRepository({
         owner,
         name: repo,
         accountId: githubAccountId ?? undefined,

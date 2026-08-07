@@ -3,9 +3,9 @@ import { Combobox, Tooltip } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
+import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 function workspaceLabel(ws: ProjectWorkspace): string {
   if (ws.kind === 'repository') return 'Repository root';
@@ -72,7 +72,7 @@ export function ExistingWorkspacePicker({
   const { data: workspaces = [], isLoading } = useQuery({
     queryKey: ['projectWorkspaces', projectId],
     queryFn: async () =>
-      (await getDesktopWireClient()).tasks.getProjectWorkspaces({ projectId: projectId! }),
+      (await getTasksWireClient()).getProjectWorkspaces({ projectId: projectId! }),
     enabled: !!projectId,
     refetchOnWindowFocus: false,
   });
@@ -156,7 +156,7 @@ export function useProjectWorkspaces(projectId: string | undefined) {
   return useQuery({
     queryKey: ['projectWorkspaces', projectId],
     queryFn: async () =>
-      (await getDesktopWireClient()).tasks.getProjectWorkspaces({ projectId: projectId! }),
+      (await getTasksWireClient()).getProjectWorkspaces({ projectId: projectId! }),
     enabled: !!projectId,
     refetchOnWindowFocus: false,
   });

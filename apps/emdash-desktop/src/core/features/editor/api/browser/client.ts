@@ -1,15 +1,9 @@
-import {
-  getDesktopWireClient,
-  resetDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { domainClient } from '@core/primitives/wire/browser/connection';
+import { editorContract, editorDomain } from '../contract';
 
-export type EditorClient = DesktopWireClient['editor'];
+export type EditorClient = ContractClient<typeof editorContract>;
 
-export async function getEditorClient(): Promise<EditorClient> {
-  return (await getDesktopWireClient()).editor;
-}
-
-export function resetEditorClient(): void {
-  resetDesktopWireClient();
+export function getEditorClient(): Promise<EditorClient> {
+  return domainClient<EditorClient>(editorDomain, editorContract);
 }

@@ -2,11 +2,11 @@ import { Button, Checkbox, Dialog } from '@emdash/ui/react/primitives';
 import { useQuery } from '@tanstack/react-query';
 import { TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export type DeleteTaskModalArgs = {
   projectId: string;
@@ -36,9 +36,8 @@ export function DeleteTaskModal({ projectId, tasks }: DeleteTaskModalArgs) {
     staleTime: Infinity,
     queryFn: async () => {
       try {
-        return (
-          await (await getDesktopWireClient()).tasks.getDeletePreflight({ projectId, taskIds })
-        ).tasks;
+        return (await (await getTasksWireClient()).getDeletePreflight({ projectId, taskIds }))
+          .tasks;
       } catch {
         return [];
       }

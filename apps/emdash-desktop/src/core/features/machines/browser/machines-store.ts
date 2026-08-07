@@ -1,7 +1,10 @@
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { type ContractClient } from '@emdash/wire/rpc';
 import { observe, remote, whenReady } from '@emdash/wire/state';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import {
+  getMachinesClient as getMachinesDomainClient,
+  type MachinesClient,
+} from '@core/features/machines/api/browser/client';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { getHostDependencyErrorMessage } from '@core/primitives/host-dependencies/browser/error-message';
 import type {
@@ -13,7 +16,7 @@ import type {
 } from '@core/primitives/ssh/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sshContract, type SshConnectionsRuntime } from '@core/services/ssh/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getSshClient as getSshDomainClient, type SshClient } from '@core/services/ssh/api/client';
 import { machinesContract } from '../api';
 import type {
   InstallMachineSystemDependenciesInput,
@@ -22,8 +25,6 @@ import type {
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
   Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
-type SshClient = ContractClient<typeof sshContract>;
-type MachinesClient = ContractClient<typeof machinesContract>;
 export type SystemDependenciesStore = Pick<MachinesStore, 'installSystemDependencies'>;
 
 export type MachinesStoreOptions = {
@@ -210,14 +211,14 @@ export class MachinesStore {
   private getSshClient(): Promise<SshClient> {
     this.sshClientPromise ??= this.sshClientOverride
       ? Promise.resolve(this.sshClientOverride)
-      : getDesktopWireClient().then((desktopClient) => desktopClient.ssh);
+      : getSshDomainClient();
     return this.sshClientPromise;
   }
 
   private getMachinesClient(): Promise<MachinesClient> {
     this.machinesClientPromise ??= this.machinesClientOverride
       ? Promise.resolve(this.machinesClientOverride)
-      : getDesktopWireClient().then((desktopClient) => desktopClient.machines);
+      : getMachinesDomainClient();
     return this.machinesClientPromise;
   }
 
@@ -297,7 +298,7 @@ export class MachinesStore {
 export function createSystemDependenciesStore(): SystemDependenciesStore {
   return {
     installSystemDependencies: async (input: InstallMachineSystemDependenciesInput) =>
-      await runSystemDependencyInstall((await getDesktopWireClient()).machines, input),
+      await runSystemDependencyInstall(await getMachinesDomainClient(), input),
   };
 }
 

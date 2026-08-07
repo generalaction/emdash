@@ -3,6 +3,8 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browserControlsRegistry } from '@core/features/browser/api/browser/browser-controls-registry';
 import { browserSessionStore } from '@core/features/browser/api/browser/browser-session-store';
+import { getBrowserClient } from '@core/features/browser/api/browser/client';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { usePreviewServers } from '@core/features/workbench/api/browser/task-composition-context';
 import {
   cycleNextTabCommand,
@@ -10,7 +12,6 @@ import {
 } from '@core/features/workbench/contributions/commands';
 import { normalizeBrowserUrl, normalizeBrowserZoomFactor } from '@core/primitives/browser/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
   browserLoadErrorCode,
   describeBrowserLoadError,
@@ -86,9 +87,9 @@ export const BrowserPane = observer(function BrowserPane({
     if (!sessionBrowserId || !sessionPartition) return;
     let disposed = false;
     setIsRegistered(false);
-    void getDesktopWireClient()
+    void getBrowserClient()
       .then((client) =>
-        client.browser.registerSession({
+        client.registerSession({
           browserId: sessionBrowserId,
           partition: sessionPartition,
         })
@@ -104,16 +105,14 @@ export const BrowserPane = observer(function BrowserPane({
 
   useEffect(() => {
     return () => {
-      void getDesktopWireClient().then((client) =>
-        client.browser.setActiveBrowser({ browserId: null })
-      );
+      void getBrowserClient().then((client) => client.setActiveBrowser({ browserId: null }));
     };
   }, []);
 
   useEffect(() => {
     if (!visible || !sessionBrowserId || adapter === null) return;
-    void getDesktopWireClient().then((client) =>
-      client.browser.setActiveBrowser({ browserId: sessionBrowserId })
+    void getBrowserClient().then((client) =>
+      client.setActiveBrowser({ browserId: sessionBrowserId })
     );
   }, [adapter, sessionBrowserId, visible]);
 
@@ -121,8 +120,8 @@ export const BrowserPane = observer(function BrowserPane({
     if (!visible || !sessionBrowserId) return;
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.host.events.subscribe(undefined, {
+    void getHostClient().then(async (client) => {
+      const nextUnsubscribe = await client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (
             event.type !== 'tab-navigation-shortcut' ||
@@ -250,8 +249,8 @@ export const BrowserPane = observer(function BrowserPane({
         if (webviewRef.current !== webviewElement) return;
         // Browsers can share profile partitions, so the main process cannot infer
         // which browser a webview belongs to; bind it explicitly.
-        void getDesktopWireClient().then((client) =>
-          client.browser.bindWebContents({
+        void getBrowserClient().then((client) =>
+          client.bindWebContents({
             browserId: sessionBrowserId,
             webContentsId: webviewElement.getWebContentsId(),
           })

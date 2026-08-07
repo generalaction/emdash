@@ -10,7 +10,7 @@ import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { commitRef, mergeBaseRange } from '@core/primitives/git/api';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 import type { Task } from '@core/primitives/tasks/api';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
   getPrNumber,
