@@ -3,6 +3,7 @@ import { ok } from '@emdash/shared';
 import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
 import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { sourceControlContract } from '../../api';
 import { GitCheckoutStore } from './git-checkout-store';
@@ -17,13 +18,18 @@ let statusState: ReturnType<typeof cell<CheckoutStatusState>>;
 let headState: ReturnType<typeof cell<CheckoutHeadState>>;
 let wire: ReturnType<typeof createSourceControlWire> | undefined;
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    sourceControl: wire!.client,
-    editor: {
-      filesystem: {
-        readFileText: mocks.readFileText,
-      },
+vi.mock('@core/features/source-control/api/browser/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof SourceControlClientModule>();
+  return {
+    ...actual,
+    getSourceControlClient: async () => wire!.client,
+  };
+});
+
+vi.mock('@core/features/editor/api/browser/client', () => ({
+  getEditorClient: async () => ({
+    filesystem: {
+      readFileText: mocks.readFileText,
     },
   }),
 }));

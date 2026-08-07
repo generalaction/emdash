@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import {
   getPrNumber,
   pullRequestErrorMessage,

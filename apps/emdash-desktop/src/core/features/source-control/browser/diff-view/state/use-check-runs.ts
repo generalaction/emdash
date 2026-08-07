@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import { computeCheckRunsSummary, type CheckRun } from '@renderer/utils/github';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 

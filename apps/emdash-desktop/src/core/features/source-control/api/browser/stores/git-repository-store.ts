@@ -11,6 +11,7 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { ProjectSettingsStore } from '@core/features/projects/api/browser/stores/project-settings-store';
+import { getRepositoryClient } from '@core/features/repository/api/client';
 import {
   getSourceControlClient,
   repositorySelector,
@@ -25,7 +26,6 @@ import {
 import type { ProviderRepository, ProviderRepositoryResult } from '@core/primitives/repository/api';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { sourceControlContract } from '../..';
 
 type RepositoryModel = typeof sourceControlContract.repository.model;
@@ -52,8 +52,7 @@ export class GitRepositoryStore {
     private readonly baseRef: string
   ) {
     this.providerRepositoryInfo = new Resource<ProviderRepositoryResult>(
-      () =>
-        getDesktopWireClient().then((client) => client.repository.resolveProvider({ projectId })),
+      () => getRepositoryClient().then((client) => client.resolveProvider({ projectId })),
       [{ kind: 'demand' }]
     );
     this.gitDefaultBranchInfo = new Resource(
