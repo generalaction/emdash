@@ -12,6 +12,6 @@ export function createWorkspaceRegistryController(runtime: WorkspaceRegistryRunt
     deleteWorkspace: (input) => runtime.deleteWorkspace(input),
     deleteWorktree: (input) => runtime.deleteWorktree(input),
     refresh: (input) => runtime.refresh(input),
-    retryPushBranch: (input) => runtime.retryPushBranch(input),
+    retryStep: (input) => runtime.retryStep(input),
   });
 }

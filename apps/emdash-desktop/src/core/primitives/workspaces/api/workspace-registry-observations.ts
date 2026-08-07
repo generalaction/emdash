@@ -67,28 +67,34 @@ export const workspaceScriptOutcomes = defineVersionedSchema()
   .build();
 export type WorkspaceScriptOutcomes = typeof workspaceScriptOutcomes.Type;
 
-const backgroundStepV1 = z.object({
+const lifecycleStepV1 = z.object({
+  id: z.enum([
+    'adopt-worktree',
+    'fetch-remote-base',
+    'create-worktree',
+    'copy-artifacts',
+    'push-branch',
+    'fetch-refs',
+    'prepare',
+    'setup',
+    'run',
+  ]),
   status: z.enum(['pending', 'running', 'succeeded', 'failed', 'skipped']),
-  at: z.number(),
-  /** Present for failed steps. */
+  startedAt: z.number().nullable(),
+  finishedAt: z.number().nullable(),
+  /** Present for failed steps (and skip reasons). */
   message: z.string().optional(),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
 });
 
 const runtimeOverlayV1 = z.object({
   version: z.literal('1'),
   creation: z.object({ stage: z.string(), startedAt: z.number() }).nullable(),
   /**
-   * Background creation-step statuses (registry contract): unlike the rest of the
-   * overlay this is projected from durable host state and survives daemon restarts.
+   * Lifecycle steps (registry contract): unlike the rest of the overlay these are
+   * projected from durable host state and survive daemon restarts.
    */
-  background: z
-    .object({
-      cloneArtifacts: backgroundStepV1.nullable(),
-      pushBranch: backgroundStepV1.nullable(),
-      fetchRefs: backgroundStepV1.nullable(),
-    })
-    .nullable()
-    .optional(),
+  lifecycle: z.array(lifecycleStepV1).nullable().optional(),
   notices: z.array(
     z.object({
       id: z.string(),

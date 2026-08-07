@@ -5,6 +5,7 @@ import {
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
+  retryableLifecycleStepSchema,
   workspaceNotFoundErrorSchema,
   workspaceRecordSchema,
 } from '@emdash/core/runtimes/workspace-registry/api';
@@ -100,9 +101,9 @@ export const workspaceRegistryWireContract = defineContract({
     error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
   }),
 
-  /** Manual retry of a durably failed background branch push ("branch not pushed"). */
-  retryPushBranch: fallible({
-    input: workspaceKeyInput,
+  /** Manual retry of a durably failed lifecycle step (copy-artifacts | push-branch). */
+  retryStep: fallible({
+    input: workspaceKeyInput.extend({ step: retryableLifecycleStepSchema }),
     data: workspaceRecordSchema,
     error: z.union([workspaceNotFoundErrorSchema, runtimeResolveErrorSchema]),
   }),

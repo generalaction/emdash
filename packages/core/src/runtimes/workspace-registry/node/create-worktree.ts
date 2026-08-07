@@ -15,7 +15,13 @@ export type CreateWorktreeExecution = {
 };
 
 export type CreateWorktreeExecutionResult =
-  | { status: 'succeeded'; finalPath: string; createdWorktree: boolean }
+  | {
+      status: 'succeeded';
+      finalPath: string;
+      createdWorktree: boolean;
+      /** True when the branch was created by this run (vs reusing an existing branch). */
+      createdBranch: boolean;
+    }
   | { status: 'failed'; stage: string; message: string };
 
 /**
@@ -136,7 +142,7 @@ export async function executeCreateWorktree(
     return await fail('verify', error);
   }
 
-  return { status: 'succeeded', finalPath, createdWorktree };
+  return { status: 'succeeded', finalPath, createdWorktree, createdBranch };
 }
 
 /**

@@ -73,6 +73,14 @@ async function makeWorktree(repoPath: string, root: string, name: string): Promi
   return await fs.realpath(worktreePath);
 }
 
+/** One lifecycle step from a wire record's runtime projection, by id. */
+function lifecycleStep(
+  record: { runtime: { lifecycle?: Array<{ id: string }> | null } | null } | undefined,
+  id: string
+) {
+  return record?.runtime?.lifecycle?.find((step) => step.id === id);
+}
+
 describe('workspace registry contract', () => {
   let root: string;
   let handle: TempStoreHandle<WorkspaceRegistryDb>;
@@ -122,7 +130,7 @@ describe('workspace registry contract', () => {
         observedStatus: 'present',
         creation: null,
         lastCreateOutcome: null,
-        background: null,
+        lifecycle: null,
         lastRemovalAttempt: null,
         scriptOutcomes: null,
         git: null,
@@ -367,9 +375,11 @@ describe('workspace registry contract', () => {
     // The background steps settle: artifacts cloned, branch pushed, statuses durable.
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-new']?.runtime?.background).toMatchObject({
-        cloneArtifacts: { status: 'succeeded' },
-        pushBranch: { status: 'succeeded' },
+      expect(lifecycleStep(records['ws-new'], 'copy-artifacts')).toMatchObject({
+        status: 'succeeded',
+      });
+      expect(lifecycleStep(records['ws-new'], 'push-branch')).toMatchObject({
+        status: 'succeeded',
       });
     });
     await fs.access(path.join(created.data.path, '.env'));
@@ -404,7 +414,10 @@ describe('workspace registry contract', () => {
     expect(records['ws-doomed']).toMatchObject({
       observedStatus: 'missing',
       lastCreateOutcome: { status: 'failed', stage: 'add-worktree' },
-      runtime: null,
+    });
+    // The failed pipeline leaves a failed lifecycle step carrying git's message.
+    expect(lifecycleStep(records['ws-doomed'], 'create-worktree')).toMatchObject({
+      status: 'failed',
     });
   });
 
@@ -432,8 +445,8 @@ describe('workspace registry contract', () => {
     // The push failure is a durable, non-blocking "branch not pushed" state.
     await eventually(async () => {
       const records = await listRecords();
-      expect(records['ws-retry']?.runtime?.background).toMatchObject({
-        pushBranch: { status: 'failed' },
+      expect(lifecycleStep(records['ws-retry'], 'push-branch')).toMatchObject({
+        status: 'failed',
       });
     });
 
@@ -447,11 +460,10 @@ describe('workspace registry contract', () => {
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
-    const retried = await wire.client.retryPushBranch({ id: 'ws-retry' });
-    expect(retried).toMatchObject({
-      success: true,
-      data: { runtime: { background: { pushBranch: { status: 'succeeded' } } } },
-    });
+    const retried = await wire.client.retryStep({ id: 'ws-retry', step: 'push-branch' });
+    expect(retried).toMatchObject({ success: true });
+    if (!retried.success) throw new Error('expected success');
+    expect(lifecycleStep(retried.data, 'push-branch')).toMatchObject({ status: 'succeeded' });
     expect(git(repoPath, 'ls-remote', '--heads', 'origin', 'feature/retry')).toContain(
       'refs/heads/feature/retry'
     );
@@ -481,7 +493,7 @@ describe('workspace registry contract', () => {
       observedStatus: 'missing',
       creation: { branch: 'feature/interrupted', baseRef: 'main', requestedPath: worktreePath },
       lastCreateOutcome: { status: 'started', at: 9_000 },
-      background: null,
+      lifecycle: null,
       lastRemovalAttempt: null,
       scriptOutcomes: null,
       git: null,

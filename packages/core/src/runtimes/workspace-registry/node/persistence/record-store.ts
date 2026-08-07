@@ -2,16 +2,16 @@ import { eq } from 'drizzle-orm';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type { WorkspaceRecord } from '../../api/schemas';
 import {
-  parseBackgroundPayload,
   parseCreateOutcomePayload,
   parseCreationPayload,
   parseGitObservationsPayload,
+  parseLifecyclePayload,
   parseRemovalAttemptPayload,
   parseScriptOutcomesPayload,
-  serializeBackgroundPayload,
   serializeCreateOutcomePayload,
   serializeCreationPayload,
   serializeGitObservationsPayload,
+  serializeLifecyclePayload,
   serializeRemovalAttemptPayload,
   serializeScriptOutcomesPayload,
 } from './payload-codecs';
@@ -78,7 +78,8 @@ function rowToRecord(row: Row): DurableWorkspaceRecord {
     creation: row.creation === null ? null : parseCreationPayload(row.creation),
     lastCreateOutcome:
       row.lastCreateOutcome === null ? null : parseCreateOutcomePayload(row.lastCreateOutcome),
-    background: row.background === null ? null : parseBackgroundPayload(row.background),
+    // The background column stores the lifecycle payload (v1 rows upgrade in the codec).
+    lifecycle: row.background === null ? null : parseLifecyclePayload(row.background),
     lastRemovalAttempt:
       row.lastRemovalAttempt === null ? null : parseRemovalAttemptPayload(row.lastRemovalAttempt),
     scriptOutcomes:
@@ -105,7 +106,7 @@ function recordToRow(record: DurableWorkspaceRecord): Row {
       record.lastCreateOutcome === null
         ? null
         : serializeCreateOutcomePayload(record.lastCreateOutcome),
-    background: record.background === null ? null : serializeBackgroundPayload(record.background),
+    background: record.lifecycle === null ? null : serializeLifecyclePayload(record.lifecycle),
     lastRemovalAttempt:
       record.lastRemovalAttempt === null
         ? null

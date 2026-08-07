@@ -22,7 +22,7 @@ import type {
   RenameTaskSuccess,
   Task,
   TaskLifecycleStatus,
-  WorkspaceBackgroundInfo,
+  WorkspaceLifecycleStepInfo,
 } from '@core/primitives/tasks/api';
 
 export type TaskStoreMutations = {
@@ -52,8 +52,8 @@ export class TaskStore implements TaskState {
     stage?: string;
     message?: string;
   } | null = null;
-  /** Background creation-step statuses (artifact clone, branch push, ref fetch). */
-  workspaceBackground: WorkspaceBackgroundInfo | null = null;
+  /** Lifecycle steps (creation, background, and script steps) from the host overlay. */
+  workspaceLifecycle: WorkspaceLifecycleStepInfo[] | null = null;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -86,7 +86,7 @@ export class TaskStore implements TaskState {
       workspaceObservedStatus: observable,
       workspaceCreation: observable,
       workspaceCreateOutcome: observable,
-      workspaceBackground: observable,
+      workspaceLifecycle: observable,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
@@ -106,13 +106,13 @@ export class TaskStore implements TaskState {
       stage?: string;
       message?: string;
     } | null;
-    background?: WorkspaceBackgroundInfo | null;
+    lifecycle?: WorkspaceLifecycleStepInfo[] | null;
   }): void {
     this.workspacePath = projection?.path ?? this.workspacePath;
     this.workspaceObservedStatus = projection?.observedStatus ?? null;
     this.workspaceCreation = projection?.creation ?? null;
     this.workspaceCreateOutcome = projection?.lastCreateOutcome ?? null;
-    this.workspaceBackground = projection?.background ?? null;
+    this.workspaceLifecycle = projection?.lifecycle ?? null;
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {

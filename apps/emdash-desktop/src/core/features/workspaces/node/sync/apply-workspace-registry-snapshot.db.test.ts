@@ -18,7 +18,7 @@ function hostRecord(overrides: Partial<WorkspaceRecord> & { id: string }): Works
     lastCreateOutcome: null,
     lastRemovalAttempt: null,
     scriptOutcomes: null,
-    background: null,
+    lifecycle: null,
     git: {
       branch: 'feature/x',
       dirty: true,

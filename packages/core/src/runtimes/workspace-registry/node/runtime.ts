@@ -25,8 +25,8 @@ import type {
   DeleteWorkspaceInput,
   DeleteWorktreeInput,
   RefreshWorkspacesInput,
-  RetryPushBranchInput,
-  WorkspaceBackgroundStep,
+  RetryStepInput,
+  WorkspaceLifecycleStep,
   WorkspaceRecord,
   WorkspaceRecords,
   WorkspaceRemovalAttempt,
@@ -37,6 +37,16 @@ import { executeFetchRefs, executePushBranch } from './background-steps';
 import { executeCloneArtifacts } from './clone-artifacts';
 import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
+import {
+  BACKGROUND_STEP_IDS,
+  buildCreationLifecycle,
+  getLifecycleStep,
+  isIncompleteStep,
+  stepIdForStage,
+  withLifecycleStep,
+  type BackgroundStepId,
+  type CreationStageTimeline,
+} from './lifecycle';
 import {
   canonicalizeWorkspacePath,
   inspectWorkspacePath,
@@ -302,7 +312,7 @@ export class WorkspaceRegistryRuntime {
 
     const created = await this.repositoryClaims.runExclusive(repository.id, async () => {
       const startedAt = this.clock.now();
-      const stageStarts: Array<{ stage: string; at: number }> = [];
+      const stageStarts: CreationStageTimeline = [];
       this.updateOverlay(input.id, (overlay) => ({
         ...overlay,
         creation: { stage: 'inspect', startedAt },
@@ -325,7 +335,7 @@ export class WorkspaceRegistryRuntime {
       this.logStageTimings(input.id, stageStarts, result.status);
 
       return await this.enqueue(() =>
-        Promise.resolve(this.finalizeWorktreeCreation(input, result))
+        Promise.resolve(this.finalizeWorktreeCreation(input, result, stageStarts))
       );
     });
 
@@ -541,7 +551,7 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'present',
       creation: null,
       lastCreateOutcome: null,
-      background: null,
+      lifecycle: null,
       lastRemovalAttempt: null,
       scriptOutcomes: null,
       git: null,
@@ -598,10 +608,11 @@ export class WorkspaceRegistryRuntime {
         return ok({ execute: false, record: existing, repository });
       }
       // Failed or interrupted: re-execute under a fresh 'started' outcome. The
-      // background section is (re)initialized when the fresh artifact finalizes.
+      // lifecycle section clears — the fresh attempt writes its own steps at finalize.
       const restarted: DurableWorkspaceRecord = {
         ...existing,
         lastCreateOutcome: { status: 'started', at: now },
+        lifecycle: null,
         updatedAt: now,
       };
       this.store.update(restarted);
@@ -627,7 +638,7 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'missing',
       creation: { branch: input.branch, baseRef: input.baseRef, requestedPath: input.path },
       lastCreateOutcome: { status: 'started', at: now },
-      background: null,
+      lifecycle: null,
       lastRemovalAttempt: null,
       scriptOutcomes: null,
       git: null,
@@ -644,7 +655,8 @@ export class WorkspaceRegistryRuntime {
   /** The durable tail of createWorktree: outcome lands, overlay clears, record settles. */
   private async finalizeWorktreeCreation(
     input: CreateWorktreeInput,
-    result: Awaited<ReturnType<typeof executeCreateWorktree>>
+    result: Awaited<ReturnType<typeof executeCreateWorktree>>,
+    stages: CreationStageTimeline
   ): Promise<Result<WorkspaceRecord, CreateWorktreeError>> {
     const id = input.id;
     this.updateOverlay(id, (overlay) => ({ ...overlay, creation: null }));
@@ -659,6 +671,10 @@ export class WorkspaceRegistryRuntime {
       });
     }
 
+    // Every settled pipeline writes its lifecycle facts — success and failure alike;
+    // the failed step carries the stage's message for the Activity timeline.
+    const lifecycle = buildCreationLifecycle(input, result, stages, now);
+
     if (result.status === 'failed') {
       const failed: DurableWorkspaceRecord = {
         ...record,
@@ -668,6 +684,7 @@ export class WorkspaceRegistryRuntime {
           stage: result.stage,
           message: result.message,
         },
+        lifecycle,
         updatedAt: now,
       };
       this.store.update(failed);
@@ -687,24 +704,12 @@ export class WorkspaceRegistryRuntime {
         // The scan will fill the admin name on its next pass.
       }
     }
-    // Fresh background section for the fresh artifact. Adopting an already-checked-out
-    // worktree skips the clone — its artifacts must not be overwritten.
-    const background: DurableWorkspaceRecord['background'] = {
-      steps: {
-        cloneArtifacts: result.createdWorktree
-          ? { status: 'pending', at: now }
-          : { status: 'skipped', at: now },
-        pushBranch: input.pushBranch ? { status: 'pending', at: now } : null,
-        fetchRefs: { status: 'pending', at: now },
-      },
-      preservePatterns: input.preservePatterns,
-    };
     const succeeded: DurableWorkspaceRecord = {
       ...record,
       path: result.finalPath,
       gitAdminName,
       observedStatus: 'present',
-      background,
+      lifecycle,
       lastCreateOutcome: { status: 'succeeded', at: now },
       git: await observeWorkspaceGit(result.finalPath, undefined, {
         untrackedCache: this.untrackedCacheFor(record.id),
@@ -740,26 +745,26 @@ export class WorkspaceRegistryRuntime {
 
   private async executeBackgroundSteps(id: string): Promise<void> {
     const record = this.store.get(id);
-    if (!record?.background || record.lastCreateOutcome?.status !== 'succeeded') return;
+    if (!record?.lifecycle || record.lastCreateOutcome?.status !== 'succeeded') return;
     const parent = record.parentId === null ? null : this.store.get(record.parentId);
     if (!parent) return;
     const repositoryPath = parent.path;
     const branch = record.creation?.branch ?? null;
     const baseRef = record.creation?.baseRef ?? null;
-    const steps = record.background.steps;
+    const lifecycle = record.lifecycle;
 
     const work: Array<Promise<void>> = [];
-    if (isIncomplete(steps.cloneArtifacts)) {
+    if (isIncompleteStep(getLifecycleStep(lifecycle, 'copy-artifacts'))) {
       const clone = this.executeCloneStep(id, repositoryPath, record.path).finally(() => {
         this.cloneRuns.delete(id);
       });
       this.cloneRuns.set(id, clone);
       work.push(clone);
     }
-    if (branch !== null && isIncomplete(steps.pushBranch)) {
+    if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
       work.push(this.executePushStep(id, repositoryPath, branch));
     }
-    if (baseRef !== null && isIncomplete(steps.fetchRefs)) {
+    if (baseRef !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'fetch-refs'))) {
       work.push(this.executeFetchStep(id, repositoryPath, baseRef));
     }
     await Promise.all(work);
@@ -770,12 +775,12 @@ export class WorkspaceRegistryRuntime {
     repositoryPath: string,
     worktreePath: string
   ): Promise<void> {
-    const preservePatterns = this.store.get(id)?.background?.preservePatterns ?? [];
-    await this.updateBackgroundStep(id, 'cloneArtifacts', { status: 'running' });
+    const preservePatterns = this.store.get(id)?.lifecycle?.preservePatterns ?? [];
+    await this.updateLifecycleStep(id, 'copy-artifacts', { status: 'running' });
     const startedAt = Date.now();
     const outcome = await executeCloneArtifacts({ repositoryPath, worktreePath, preservePatterns });
     this.logger.info?.(
-      `clone-artifacts for '${id}': ${outcome.status} in ${Date.now() - startedAt}ms`,
+      `copy-artifacts for '${id}': ${outcome.status} in ${Date.now() - startedAt}ms`,
       {
         ...(outcome.status === 'succeeded'
           ? { engine: outcome.engine, entries: outcome.entries, warnings: outcome.warnings }
@@ -783,13 +788,16 @@ export class WorkspaceRegistryRuntime {
         ...(outcome.status === 'failed' ? { message: outcome.message } : {}),
       }
     );
-    await this.updateBackgroundStep(id, 'cloneArtifacts', toStepState(outcome));
+    await this.updateLifecycleStep(id, 'copy-artifacts', {
+      ...toStepState(outcome),
+      ...(outcome.status === 'succeeded' ? { params: { fileCount: outcome.entries } } : {}),
+    });
   }
 
   private async executePushStep(id: string, repositoryPath: string, branch: string): Promise<void> {
-    await this.updateBackgroundStep(id, 'pushBranch', { status: 'running' });
+    await this.updateLifecycleStep(id, 'push-branch', { status: 'running' });
     const outcome = await executePushBranch({ repositoryPath, branch });
-    await this.updateBackgroundStep(id, 'pushBranch', toStepState(outcome));
+    await this.updateLifecycleStep(id, 'push-branch', toStepState(outcome));
   }
 
   private async executeFetchStep(
@@ -800,67 +808,90 @@ export class WorkspaceRegistryRuntime {
     const last = this.lastFetchAt.get(repositoryPath);
     const now = Date.now();
     if (last !== undefined && now - last < FETCH_DEBOUNCE_MS) {
-      await this.updateBackgroundStep(id, 'fetchRefs', { status: 'skipped' });
+      await this.updateLifecycleStep(id, 'fetch-refs', {
+        status: 'skipped',
+        message: 'A recent fetch already freshened this repository',
+      });
       return;
     }
     this.lastFetchAt.set(repositoryPath, now);
-    await this.updateBackgroundStep(id, 'fetchRefs', { status: 'running' });
+    await this.updateLifecycleStep(id, 'fetch-refs', { status: 'running' });
     const outcome = await executeFetchRefs({ repositoryPath, baseRef });
     // Advisory by contract: a failed fetch is recorded, never surfaced as an error.
-    await this.updateBackgroundStep(id, 'fetchRefs', toStepState(outcome));
+    await this.updateLifecycleStep(id, 'fetch-refs', toStepState(outcome));
   }
 
   /**
-   * The activation artifact gate: resolves once the artifact clone settled (succeeded,
+   * The activation artifact gate: resolves once the artifact copy settled (succeeded,
    * failed, or skipped — a terminal failure opens the gates anyway) so dependency-
    * consuming steps run against whatever exists. Incomplete durable state without an
    * in-flight run (post-restart) triggers a replay first.
    */
   private async awaitCloneArtifacts(id: string): Promise<void> {
     const record = this.store.get(id);
-    if (!record?.background) return;
-    if (!isIncomplete(record.background.steps.cloneArtifacts)) return;
+    if (!record?.lifecycle) return;
+    if (!isIncompleteStep(getLifecycleStep(record.lifecycle, 'copy-artifacts'))) return;
     if (!this.cloneRuns.has(id)) void this.runBackgroundSteps(id);
     // A rejected clone run (e.g. a store write failure) still opens the gate —
     // dependents proceed and a real install is the graceful degradation.
     await (this.cloneRuns.get(id) ?? Promise.resolve()).catch(() => undefined);
   }
 
-  /** Manual retry of a durably failed branch push — the one user-retryable step. */
-  async retryPushBranch(
-    input: RetryPushBranchInput
-  ): Promise<Result<WorkspaceRecord, WorkspaceNotFoundError>> {
+  /**
+   * Manual retry of a durably failed lifecycle step. 'failed' is the only status a
+   * retry re-runs; anything else (succeeded, skipped, or an in-flight run) is a
+   * no-op returning the current record.
+   */
+  async retryStep(input: RetryStepInput): Promise<Result<WorkspaceRecord, WorkspaceNotFoundError>> {
     const record = this.store.get(input.id);
     if (!record) {
       return err({ type: 'workspace-not-found', workspaceId: input.id });
     }
-    const branch = record.creation?.branch ?? null;
+    const step = getLifecycleStep(record.lifecycle, input.step);
     const parent = record.parentId === null ? null : this.store.get(record.parentId);
-    // 'failed' is the only terminal state a retry re-runs; anything else (succeeded,
-    // skipped, or an in-flight run) is a no-op returning the current record.
-    if (record.background?.steps.pushBranch?.status === 'failed' && branch !== null && parent) {
-      await this.executePushStep(input.id, parent.path, branch);
+    if (step?.status === 'failed' && parent) {
+      if (input.step === 'push-branch') {
+        const branch = record.creation?.branch ?? null;
+        if (branch !== null) await this.executePushStep(input.id, parent.path, branch);
+      } else {
+        await this.executeCloneStep(input.id, parent.path, record.path);
+      }
     }
     const current = this.store.get(input.id) ?? record;
     return ok(this.toWire(current));
   }
 
-  /** Durable step-status writer; publishing folds the change into the records overlay. */
-  private updateBackgroundStep(
+  /**
+   * Durable step writer; publishing folds the change into the records overlay.
+   * 'running' stamps startedAt; terminal statuses stamp finishedAt (skips that never
+   * started keep startedAt null).
+   */
+  private updateLifecycleStep(
     id: string,
-    step: 'cloneArtifacts' | 'pushBranch' | 'fetchRefs',
-    state: Omit<WorkspaceBackgroundStep, 'at'>
+    stepId: BackgroundStepId,
+    state: {
+      status: WorkspaceLifecycleStep['status'];
+      message?: string;
+      params?: WorkspaceLifecycleStep['params'];
+    }
   ): Promise<void> {
     return this.enqueue(async () => {
       const record = this.store.get(id);
-      if (!record?.background) return;
+      if (!record?.lifecycle) return;
       const now = this.clock.now();
+      const previous = getLifecycleStep(record.lifecycle, stepId);
+      const terminal = state.status !== 'pending' && state.status !== 'running';
+      const step: WorkspaceLifecycleStep = {
+        id: stepId,
+        status: state.status,
+        startedAt: state.status === 'running' ? now : (previous?.startedAt ?? null),
+        finishedAt: terminal ? now : null,
+        ...(state.message !== undefined ? { message: state.message } : {}),
+        params: state.params ?? previous?.params ?? {},
+      };
       const updated: DurableWorkspaceRecord = {
         ...record,
-        background: {
-          ...record.background,
-          steps: { ...record.background.steps, [step]: { ...state, at: now } },
-        },
+        lifecycle: withLifecycleStep(record.lifecycle, step),
         updatedAt: now,
       };
       this.store.update(updated);
@@ -1048,7 +1079,7 @@ export class WorkspaceRegistryRuntime {
         observedStatus: 'present',
         creation: null,
         lastCreateOutcome: null,
-        background: null,
+        lifecycle: null,
         lastRemovalAttempt: null,
         scriptOutcomes: null,
         git: await observeWorkspaceGit(canonicalPath, listing, {
@@ -1177,7 +1208,7 @@ export class WorkspaceRegistryRuntime {
       observedStatus: 'present',
       creation: null,
       lastCreateOutcome: null,
-      background: null,
+      lifecycle: null,
       lastRemovalAttempt: null,
       scriptOutcomes: null,
       git: null,
@@ -1205,16 +1236,30 @@ export class WorkspaceRegistryRuntime {
 
   private toWire(record: DurableWorkspaceRecord): WorkspaceRecord {
     const overlay = this.overlays.get(record.id);
-    const background = record.background?.steps ?? null;
-    // The durable background section rides the overlay so clients keep one progress
-    // surface; unlike the rest of the overlay it survives daemon restarts.
+    // The durable lifecycle section rides the overlay so clients keep one progress
+    // surface; unlike the rest of the overlay it survives daemon restarts. While the
+    // foreground pipeline runs, its current stage rides along as a synthetic running
+    // step so the timeline is live before any durable step lands.
+    let lifecycle = record.lifecycle?.steps ?? null;
+    if (overlay?.creation) {
+      const running: WorkspaceLifecycleStep = {
+        id: stepIdForStage(overlay.creation.stage),
+        status: 'running',
+        startedAt: overlay.creation.startedAt,
+        finishedAt: null,
+        params: record.creation
+          ? { branch: record.creation.branch, base: record.creation.baseRef }
+          : {},
+      };
+      lifecycle = [...(lifecycle ?? []).filter((step) => step.id !== running.id), running];
+    }
     const runtime =
-      overlay !== undefined || background !== null
+      overlay !== undefined || lifecycle !== null
         ? {
             creation: overlay?.creation ?? null,
             notices: overlay?.notices ?? [],
             activation: overlay?.activation ?? null,
-            background,
+            lifecycle,
           }
         : null;
     return { ...record, runtime };
@@ -1223,26 +1268,17 @@ export class WorkspaceRegistryRuntime {
 
 const FETCH_DEBOUNCE_MS = 5 * 60_000;
 
-/** Pending/running steps are incomplete and replay; terminal statuses never re-run. */
-function isIncomplete(step: WorkspaceBackgroundStep | null): boolean {
-  return step !== null && (step.status === 'pending' || step.status === 'running');
-}
-
 function hasIncompleteBackgroundSteps(record: DurableWorkspaceRecord): boolean {
-  if (!record.background || record.lastCreateOutcome?.status !== 'succeeded') return false;
-  const steps = record.background.steps;
-  return (
-    isIncomplete(steps.cloneArtifacts) ||
-    isIncomplete(steps.pushBranch) ||
-    isIncomplete(steps.fetchRefs)
-  );
+  const lifecycle = record.lifecycle;
+  if (!lifecycle || record.lastCreateOutcome?.status !== 'succeeded') return false;
+  return BACKGROUND_STEP_IDS.some((id) => isIncompleteStep(getLifecycleStep(lifecycle, id)));
 }
 
 function toStepState(outcome: {
   status: 'succeeded' | 'skipped' | 'failed';
   message?: string;
   reason?: string;
-}): Omit<WorkspaceBackgroundStep, 'at'> {
+}): { status: 'succeeded' | 'skipped' | 'failed'; message?: string } {
   if (outcome.status === 'failed') return { status: 'failed', message: outcome.message };
   if (outcome.status === 'skipped') return { status: 'skipped', message: outcome.reason };
   return { status: 'succeeded' };

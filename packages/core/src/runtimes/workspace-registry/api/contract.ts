@@ -16,7 +16,7 @@ import {
   deleteWorkspaceInputSchema,
   deleteWorktreeInputSchema,
   refreshWorkspacesInputSchema,
-  retryPushBranchInputSchema,
+  retryStepInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
 } from './schemas';
@@ -73,11 +73,12 @@ export const workspaceRegistryContract = defineContract({
   }),
 
   /**
-   * Manual retry of a durably failed background branch push ("branch not pushed").
-   * One fresh attempt; the outcome lands on the record's background section.
+   * Manual retry of a durably failed lifecycle step (copy-artifacts | push-branch).
+   * One fresh attempt; the outcome lands on the record's lifecycle section. Only a
+   * failed step re-runs — anything else is a no-op returning the current record.
    */
-  retryPushBranch: fallible({
-    input: retryPushBranchInputSchema,
+  retryStep: fallible({
+    input: retryStepInputSchema,
     data: workspaceRecordSchema,
     error: workspaceNotFoundErrorSchema,
   }),

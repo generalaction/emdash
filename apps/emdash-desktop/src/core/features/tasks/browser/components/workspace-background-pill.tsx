@@ -27,11 +27,11 @@ export const WorkspaceBackgroundPill = observer(function WorkspaceBackgroundPill
 }) {
   const taskStore = getTaskStore(projectId, taskId);
   const [isRetrying, setIsRetrying] = useState(false);
-  const background = taskStore?.workspaceBackground;
-  if (!taskStore || !background) return null;
+  const lifecycle = taskStore?.workspaceLifecycle;
+  if (!taskStore || !lifecycle) return null;
 
-  const clone = background.cloneArtifacts;
-  const push = background.pushBranch;
+  const clone = lifecycle.find((step) => step.id === 'copy-artifacts');
+  const push = lifecycle.find((step) => step.id === 'push-branch');
 
   if (clone?.status === 'pending' || clone?.status === 'running') {
     return (
@@ -59,9 +59,10 @@ export const WorkspaceBackgroundPill = observer(function WorkspaceBackgroundPill
       setIsRetrying(true);
       try {
         const client = await getWorkspaceRegistryWireClient();
-        const result = await client.retryPushBranch({
+        const result = await client.retryStep({
           host: projectHostRef(project.data),
           workspaceId,
+          step: 'push-branch',
         });
         if (!result.success) {
           throw new Error(
