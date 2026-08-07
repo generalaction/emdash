@@ -65,14 +65,11 @@ export function createAsyncCache<K, T>(options: CreateAsyncCacheOptions<K, T>): 
       return load(keyId, key, existing);
     },
     peek(key): T | undefined {
-      const keyId = options.key(key);
-      const entry = entries.get(keyId);
+      // A genuinely side-effect-free read: no expired-entry delete, no LRU
+      // bump. Cleanup stays lazy on get/set.
+      const entry = entries.get(options.key(key));
       if (!entry?.hasValue) return undefined;
-      if (entry.expiresAt <= now()) {
-        entries.delete(keyId);
-        return undefined;
-      }
-      touch(keyId, entry);
+      if (entry.expiresAt <= now()) return undefined;
       return entry.value as T;
     },
     set(key, value): void {

@@ -1,3 +1,4 @@
+import { log } from '@emdash/shared/logger';
 import { ConcurrencyLimiter } from './concurrency-limiter';
 
 export type KeyedLanes = {
@@ -61,7 +62,8 @@ export function createKeyedLanes(options: CreateKeyedLanesOptions = {}): KeyedLa
       try {
         await pending.run();
       } catch (error) {
-        pending.onError?.(error);
+        if (pending.onError) pending.onError(error);
+        else log.warn('keyed lane coalesce failed', { key, error });
       }
     }
     lane.coalesceRunning = false;

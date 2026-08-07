@@ -101,6 +101,9 @@ class MailboxImpl<T> implements Mailbox<T> {
   }
 
   tryOffer(value: T): MailboxOfferResult<T> {
+    if (value === undefined) {
+      throw new Error('Mailbox cannot accept undefined values');
+    }
     if (this.stateValue !== 'open') return { kind: 'closed' };
     if (this.pendingTake && this.buffer.size === 0) {
       const take = this.pendingTake;
@@ -116,6 +119,9 @@ class MailboxImpl<T> implements Mailbox<T> {
   }
 
   offer(value: T, options: { signal?: AbortSignal } = {}): Promise<MailboxOfferResult<T>> {
+    if (value === undefined) {
+      return Promise.reject(new Error('Mailbox cannot accept undefined values'));
+    }
     if (this.overflow !== 'suspend') return Promise.resolve(this.tryOffer(value));
     const immediate = this.tryOffer(value);
     if (immediate.kind !== 'full') return Promise.resolve(immediate);

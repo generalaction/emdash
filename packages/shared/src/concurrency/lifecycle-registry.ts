@@ -157,6 +157,9 @@ export class LifecycleRegistry<
         this.transition(entry, { kind: 'start-failed', error: result.error });
         return err(result.error);
       } catch (error) {
+        // Observers must never see a permanent 'starting': surface the thrown
+        // failure before the scope teardown and rethrow.
+        this.transition(entry, { kind: 'start-failed', error: error as StartError });
         await scope.dispose(error);
         entry.scope = undefined;
         throw error;

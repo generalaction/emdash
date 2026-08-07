@@ -117,6 +117,36 @@ describe('LifecycleRegistry', () => {
     });
   });
 
+  it('transitions to start-failed before disposing the scope when start throws', async () => {
+    const cleanup = vi.fn();
+    const thrown = new Error('start threw');
+    const observed: Array<{ current: string; cleanupCallsSoFar: number }> = [];
+    const registry = new LifecycleRegistry<{ id: string }, Resource, unknown>({
+      keyOf: (input) => input.id,
+      start: async (_input, scope: Scope) => {
+        scope.add(cleanup);
+        throw thrown;
+      },
+      stop: async () => ok(),
+      onStateChanged: (change) => {
+        observed.push({
+          current: change.current.kind,
+          cleanupCallsSoFar: cleanup.mock.calls.length,
+        });
+      },
+    });
+
+    await expect(registry.start({ id: 'task-1' })).rejects.toBe(thrown);
+
+    // Observers never see a permanent 'starting': the thrown failure is visible.
+    expect(observed.map((entry) => entry.current)).toEqual(['starting', 'start-failed']);
+    expect(registry.state('task-1')).toEqual({ kind: 'start-failed', error: thrown });
+
+    // The transition happens before the scope dispose (and its cleanups) run.
+    expect(observed[1]?.cleanupCallsSoFar).toBe(0);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
   it('retains ownership after failed stop until retry succeeds', async () => {
     let shouldFail = true;
     const resource = { id: 'task-1', generation: 1 };
