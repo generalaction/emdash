@@ -1,6 +1,6 @@
+import type { PluginIconVariant } from '@emdash/shared/plugins';
 import { describe, expect, it } from 'vitest';
 import { pickIconVariant } from '@core/features/agents/api/browser/components/agent-icon-variant';
-import type { PluginIconVariant } from '@emdash/shared/plugins';
 
 const small: PluginIconVariant = { minSize: 0, light: '<svg>mark</svg>' };
 const large: PluginIconVariant = { minSize: 24, light: '<svg>wordmark</svg>' };

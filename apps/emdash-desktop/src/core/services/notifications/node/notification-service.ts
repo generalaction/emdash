@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { Logger } from '@emdash/shared/logger';
 import { err, ok } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import { createEventStreamHost, type EventStreamHost } from '@emdash/wire/live';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, peek, produce, revisionOf, type Cell } from '@emdash/wire/state';

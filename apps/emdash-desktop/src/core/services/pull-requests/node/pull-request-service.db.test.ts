@@ -1,6 +1,6 @@
+import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
 import { requestPriorities } from '@emdash/shared/requests';
-import { err, ok } from '@emdash/shared';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';

@@ -1,5 +1,9 @@
 import { err, ok, type Result } from '@emdash/shared';
-import { createLifecycleRegistry, type LifecycleRegistry, type Scope } from '@emdash/shared/concurrency';
+import {
+  createLifecycleRegistry,
+  type LifecycleRegistry,
+  type Scope,
+} from '@emdash/shared/concurrency';
 import { canonicalExclusionPatterns } from '@primitives/lib/api';
 import type { HostAbsolutePath } from '@primitives/path/api';
 import type {

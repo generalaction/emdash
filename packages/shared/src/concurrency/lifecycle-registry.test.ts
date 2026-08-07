@@ -62,13 +62,15 @@ describe('LifecycleRegistry', () => {
     const start = vi.fn(async (input: { id: string; generation: number }) =>
       ok({ id: input.id, generation: input.generation })
     );
-    const registry = createLifecycleRegistry<{ id: string; generation: number }, Resource, TestError>(
-      {
-        keyOf: (input) => input.id,
-        start,
-        stop: async () => stopDeferred.promise,
-      }
-    );
+    const registry = createLifecycleRegistry<
+      { id: string; generation: number },
+      Resource,
+      TestError
+    >({
+      keyOf: (input) => input.id,
+      start,
+      stop: async () => stopDeferred.promise,
+    });
     const initial = { id: 'task-1', generation: 1 };
     await registry.register('task-1', initial);
 

@@ -1,4 +1,9 @@
-import { createConcurrencyLimiter, createMailbox, type Disposable, type Scope } from '../concurrency';
+import {
+  createConcurrencyLimiter,
+  createMailbox,
+  type Disposable,
+  type Scope,
+} from '../concurrency';
 import { abortableWait, abortReason, throwIfAborted } from '../scheduling';
 import type { RateGate } from './rate-gate';
 

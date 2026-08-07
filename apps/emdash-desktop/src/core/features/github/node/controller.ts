@@ -1,5 +1,5 @@
-import type { Logger } from '@emdash/shared/logger';
 import { Result } from '@emdash/shared';
+import type { Logger } from '@emdash/shared/logger';
 import { githubEvents } from '@core/features/github/node';
 import type { GitHubAccountService } from '@core/features/github/node/accounts/github-account-service';
 import type { GitHubDeviceFlowService } from '@core/features/github/node/services/github-device-flow-service';

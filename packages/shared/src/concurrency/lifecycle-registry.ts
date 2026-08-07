@@ -80,9 +80,13 @@ export interface LifecycleRegistry<
   onStateChanged(observer: LifecycleRegistryObserver<Value, StartError, StopError>): Unsubscribe;
 }
 
-class LifecycleRegistryImpl<StartInput, Value, StartError, StopContext = void, StopError = StartError>
-  implements LifecycleRegistry<StartInput, Value, StartError, StopContext, StopError>
-{
+class LifecycleRegistryImpl<
+  StartInput,
+  Value,
+  StartError,
+  StopContext = void,
+  StopError = StartError,
+> implements LifecycleRegistry<StartInput, Value, StartError, StopContext, StopError> {
   private readonly _scope: Scope;
   private readonly _entries = new Map<string, RegistryEntry<Value, StartError, StopError>>();
   private readonly _observers = new Set<LifecycleRegistryObserver<Value, StartError, StopError>>();

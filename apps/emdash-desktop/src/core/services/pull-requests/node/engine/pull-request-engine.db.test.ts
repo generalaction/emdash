@@ -1,3 +1,4 @@
+import { ok } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
   requestPriorities,
@@ -6,7 +7,6 @@ import {
   type RequestScheduler,
   type ScheduledRequest,
 } from '@emdash/shared/requests';
-import { ok } from '@emdash/shared';
 import { retrySchedules } from '@emdash/shared/scheduling';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';

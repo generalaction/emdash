@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import {
@@ -9,7 +10,6 @@ import {
   type RateGate,
   type RequestScheduler,
 } from '@emdash/shared/requests';
-import { err, ok, type Result } from '@emdash/shared';
 import { retry, retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { Octokit } from '@octokit/rest';

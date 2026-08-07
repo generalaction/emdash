@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
-import { recordSpawn } from '@emdash/shared/perf';
 import { err, ok, type Result } from '@emdash/shared';
+import { recordSpawn } from '@emdash/shared/perf';
 import { SHELL_ENV_CAPTURE_GUARD, type ShellEnvCapture, type ShellEnvCaptureError } from './types';
 
 export type CaptureShellEnvOptions = {
