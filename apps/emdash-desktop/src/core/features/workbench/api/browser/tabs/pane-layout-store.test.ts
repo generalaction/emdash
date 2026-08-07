@@ -1,4 +1,12 @@
-import { intercept, makeObservable, observable, runInAction } from 'mobx';
+import {
+  comparer,
+  intercept,
+  makeObservable,
+  observable,
+  reaction,
+  runInAction,
+  type IReactionDisposer,
+} from 'mobx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
@@ -79,6 +87,10 @@ import type {
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
+import type {
+  PaneLayoutSnapshotDocument,
+  PaneLayoutSnapshotMemento,
+} from '@core/primitives/workbench-shell/browser/tabs/persistence';
 
 const testCtx = {
   viewId: 'task-1',
@@ -90,6 +102,65 @@ const testCtx = {
 
 function createLayout(opts?: { onActiveTabChange?: (tabId: string | undefined) => void }) {
   return new PaneLayoutStore(taskTabView.registry, testCtx, undefined, opts);
+}
+
+const emptyDocument: PaneLayoutSnapshotDocument = {
+  version: '1',
+  groups: [{ groupId: 'default', tabManager: { tabs: [], activeTabId: undefined } }],
+  activeGroupId: 'default',
+  paneSizes: [100],
+};
+
+/**
+ * In-memory snapshot memento whose `ready` promise resolves only when the
+ * test calls `finishHydration()`, simulating slow memento hydration.
+ */
+class FakeSnapshotMemento implements PaneLayoutSnapshotMemento {
+  readonly ready: Promise<void>;
+  readonly persisted: PaneLayoutSnapshotDocument[] = [];
+  hasStoredValue = false;
+  value: PaneLayoutSnapshotDocument = emptyDocument;
+  private _resolveReady!: () => void;
+
+  constructor() {
+    this.ready = new Promise((resolve) => {
+      this._resolveReady = resolve;
+    });
+  }
+
+  /** Completes hydration, optionally with a stored document. */
+  finishHydration(stored?: PaneLayoutSnapshotDocument): void {
+    if (stored) {
+      this.value = stored;
+      this.hasStoredValue = true;
+    }
+    this._resolveReady();
+  }
+
+  read(): PaneLayoutSnapshotDocument {
+    return this.value;
+  }
+
+  autoPersist(read: () => PaneLayoutSnapshotDocument): IReactionDisposer {
+    return reaction(
+      read,
+      (value) => {
+        this.value = value;
+        this.hasStoredValue = true;
+        this.persisted.push(value);
+      },
+      { equals: comparer.structural }
+    );
+  }
+}
+
+/** Builds a valid stored document by snapshotting a real layout with open tabs. */
+function storedDocumentWithTabs(tabCount: number): PaneLayoutSnapshotDocument {
+  const layout = createLayout();
+  for (let i = 0; i < tabCount; i++) layout.open('browser', {});
+  const document = { version: '1', ...layout.snapshot };
+  layout.dispose();
+  return document;
 }
 
 class FakeTerminalManagerStore {
@@ -349,5 +420,85 @@ describe('PaneLayoutStore: onActiveTabChange callback', () => {
     layout.dispose();
     // Open on the already-disposed pane shouldn't trigger (reactions are stopped).
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaneLayoutStore: memento-backed snapshot hydration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browserSessionStore.clear();
+  });
+
+  it('restores a stored snapshot even when memento hydration resolves after hydrate() is called', async () => {
+    // The former hasStoredValue race: a synchronous load before the memento
+    // finished hydrating saw hasStoredValue === false and silently skipped
+    // restore. hydrate() must instead wait for hydration and then restore.
+    const stored = storedDocumentWithTabs(2);
+    const memento = new FakeSnapshotMemento();
+    const layout = new PaneLayoutStore(taskTabView.registry, testCtx, memento);
+
+    const pending = layout.hydrate();
+    // Hydration still in flight: nothing restored yet.
+    expect(layout.focusedPane.tabOrder).toHaveLength(0);
+
+    memento.finishHydration(stored);
+
+    await expect(pending).resolves.toBe(true);
+    expect(layout.activePaneId).toBe(stored.activeGroupId);
+    expect(layout.focusedPane.tabOrder).toHaveLength(2);
+    layout.dispose();
+  });
+
+  it('keeps the fresh initial pane when hydration completes with nothing stored', async () => {
+    const memento = new FakeSnapshotMemento();
+    const layout = new PaneLayoutStore(taskTabView.registry, testCtx, memento);
+    const initialPaneId = layout.activePaneId;
+
+    const pending = layout.hydrate();
+    memento.finishHydration();
+
+    await expect(pending).resolves.toBe(false);
+    expect(layout.activePaneId).toBe(initialPaneId);
+    expect(layout.focusedPane.tabOrder).toHaveLength(0);
+    layout.dispose();
+  });
+
+  it('round-trips groups, tabs, active tab, and preview flags across hydrate/persist', async () => {
+    // First "session": open tabs and persist through the memento.
+    const memento = new FakeSnapshotMemento();
+    memento.finishHydration();
+    const first = new PaneLayoutStore(taskTabView.registry, testCtx, memento);
+    await first.hydrate();
+    first.startPersistence();
+
+    first.open('browser', {});
+    first.open('browser', {});
+    runInAction(() => first.open('browser', {}, { preview: true }));
+
+    expect(memento.persisted.length).toBeGreaterThan(0);
+    const persistedDocument = memento.value;
+    expect(persistedDocument.version).toBe('1');
+    const firstSnapshot = first.snapshot;
+    first.dispose();
+
+    // Second "session": hydrate a fresh layout from the persisted document.
+    const rehydrated = new FakeSnapshotMemento();
+    const second = new PaneLayoutStore(taskTabView.registry, testCtx, rehydrated);
+    const pending = second.hydrate();
+    rehydrated.finishHydration(persistedDocument);
+    await expect(pending).resolves.toBe(true);
+
+    expect(second.snapshot.groups.map((g) => g.groupId)).toEqual(
+      firstSnapshot.groups.map((g) => g.groupId)
+    );
+    expect(second.snapshot.activeGroupId).toBe(firstSnapshot.activeGroupId);
+    expect(second.focusedPane.tabOrder).toHaveLength(3);
+    expect(second.snapshot.groups[0]!.tabManager.activeTabId).toBe(
+      firstSnapshot.groups[0]!.tabManager.activeTabId
+    );
+    expect(second.snapshot.groups[0]!.tabManager.tabs.map((t) => [t.tabId, t.isPreview])).toEqual(
+      firstSnapshot.groups[0]!.tabManager.tabs.map((t) => [t.tabId, t.isPreview])
+    );
+    second.dispose();
   });
 });

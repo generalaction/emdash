@@ -8,12 +8,11 @@
  *
  * Usage:
  *
- *   const myView = createTabView(
- *     [fooProvider, barProvider] as const,
- *     { makePersistor: (ctx) => new MyPersistor(ctx.viewId) }
- *   );
+ *   const myView = createTabView([fooProvider, barProvider] as const);
  *
- *   const paneLayout = myView.createPaneLayoutStore(ctx);
+ *   const paneLayout = myView.createPaneLayoutStore(ctx, {
+ *     snapshotMemento: myLayoutMementoHandle,
+ *   });
  *   paneLayout.open('foo', { ... });   // typed ✓
  */
 
@@ -29,20 +28,9 @@ import {
 } from './core/tab-provider-registry';
 import { PaneLayoutProvider, usePaneLayoutContext } from './pane-layout-context';
 import { PaneLayoutStore } from './pane-layout-store';
-import type { TabPersistenceAdapter } from './persistence';
+import type { PaneLayoutSnapshotMemento } from './persistence';
 
-export interface TabViewFactoryOptions {
-  /**
-   * Called once per `createPaneLayoutStore` invocation to create the
-   * feature-specific persistence adapter. Absent means no persistence.
-   */
-  makePersistor?: (ctx: TabViewContext) => TabPersistenceAdapter;
-}
-
-export function createTabView<const P extends readonly AnyTabProvider[]>(
-  providers: P,
-  factoryOpts?: TabViewFactoryOptions
-) {
+export function createTabView<const P extends readonly AnyTabProvider[]>(providers: P) {
   type R = TypedTabRegistry<P>;
 
   const registry = createTabRegistry(providers);
@@ -50,9 +38,13 @@ export function createTabView<const P extends readonly AnyTabProvider[]>(
   /** Creates a typed PaneLayoutStore suitable for threading into a MobX state tree. */
   function createPaneLayoutStore(
     ctx: TabViewContext,
-    opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
+    opts?: {
+      /** Memento document to hydrate from and persist to. Absent means no persistence. */
+      snapshotMemento?: PaneLayoutSnapshotMemento;
+      onActiveTabChange?: (tabId: string | undefined) => void;
+    }
   ): PaneLayoutStore<R> {
-    return new PaneLayoutStore<R>(registry, ctx, factoryOpts?.makePersistor?.(ctx), opts);
+    return new PaneLayoutStore<R>(registry, ctx, opts?.snapshotMemento, opts);
   }
 
   /**

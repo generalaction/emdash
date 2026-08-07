@@ -1,4 +1,4 @@
-import { action, computed, makeObservable, observable, reaction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, untracked } from 'mobx';
 import { PaneStore } from '@core/primitives/workbench-shell/browser/tabs/pane-store';
 import type { OpenTarget, TabViewContext } from './core/tab-provider';
 import type {
@@ -8,7 +8,7 @@ import type {
   TabOpenOptions,
   TabRegistry,
 } from './core/tab-provider-registry';
-import type { TabGroupsSnapshot, TabPersistenceAdapter } from './persistence';
+import type { PaneLayoutSnapshotMemento, TabGroupsSnapshot } from './persistence';
 
 const MAX_PANE_COUNT = 8;
 
@@ -46,7 +46,7 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
 
   private readonly _registry: R;
   private readonly _ctx: TabViewContext;
-  private readonly _persistor: TabPersistenceAdapter | undefined;
+  private readonly _snapshotMemento: PaneLayoutSnapshotMemento | undefined;
   private _persistDisposer: (() => void) | null = null;
   private readonly _autoCloseDisposers = new Map<string, () => void>();
   private readonly _onActiveTabChange: ((tabId: string | undefined) => void) | undefined;
@@ -55,12 +55,12 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   constructor(
     registry: R,
     ctx: TabViewContext,
-    persistor?: TabPersistenceAdapter,
+    snapshotMemento?: PaneLayoutSnapshotMemento,
     opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
   ) {
     this._registry = registry;
     this._ctx = ctx;
-    this._persistor = persistor;
+    this._snapshotMemento = snapshotMemento;
     this._onActiveTabChange = opts?.onActiveTabChange;
 
     const initial = this._createPane();
@@ -327,19 +327,35 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
         : this._evenSizes(snapshot.groups.length);
   }
 
-  hydrate(): boolean {
-    const saved = this._persistor?.load();
-    if (saved) {
-      this.restoreSnapshot(saved);
-      return true;
-    }
-    return false;
+  /**
+   * Restores the persisted snapshot from the memento, resolving true when a
+   * stored layout was applied. Awaiting the memento's `ready` makes restore
+   * ordering a store guarantee: a hydrate() racing a slow memento hydration
+   * waits for the stored value instead of silently skipping the restore.
+   */
+  async hydrate(): Promise<boolean> {
+    const memento = this._snapshotMemento;
+    if (!memento) return false;
+    await memento.ready;
+    if (!memento.hasStoredValue) return false;
+    const snapshot = memento.read();
+    if (snapshot.groups.length === 0) return false;
+    this.restoreSnapshot(snapshot);
+    return true;
   }
 
+  /** Starts persisting snapshot changes. Call after hydrate() so the baseline
+   * does not trigger a spurious save. */
   startPersistence(): void {
-    if (!this._persistor) return;
+    const memento = this._snapshotMemento;
+    if (!memento) return;
     this._persistDisposer?.();
-    this._persistDisposer = this._persistor.start(() => this.snapshot);
+    this._persistDisposer = memento.autoPersist(() => {
+      const snapshot = this.snapshot;
+      // Carry document fields the store does not own (the schema version tag)
+      // without tracking the memento's own value in this reaction.
+      return { ...untracked(() => memento.read()), ...snapshot };
+    });
   }
 
   stopPersistence(): void {

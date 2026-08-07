@@ -21,6 +21,7 @@ import {
   taskEditorTreeMemento,
   taskPaneLayoutMemento,
   taskTerminalSelectionMemento,
+  type TabDescriptor,
   type TaskChromeState,
   type TaskDiffPreferencesState,
   type TaskDiffSelectionState,
@@ -36,6 +37,7 @@ import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/t
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import {
   sanitizedMemento,
   type MementoHandle,
@@ -117,13 +119,19 @@ export class TaskComposition {
 
     const taskRef = taskViewDef({ projectId, taskId });
     const getWorkspacePath = () => this._workspace?.path;
-    const paneLayoutMemento = sanitizedMemento(this.space.handle(taskPaneLayoutMemento), {
-      deps: () =>
-        this._conversations.list.data
-          ? new Set(this._conversations.conversations.keys())
-          : undefined,
-      sanitize: sanitizePaneLayoutConversations,
-    });
+    const paneLayoutMemento = sanitizedMemento(
+      sanitizedMemento(this.space.handle(taskPaneLayoutMemento), {
+        deps: () =>
+          this._conversations.list.data
+            ? new Set(this._conversations.conversations.keys())
+            : undefined,
+        sanitize: sanitizePaneLayoutConversations,
+      }),
+      {
+        deps: getWorkspacePath,
+        sanitize: resolvePaneLayoutPaths,
+      }
+    );
     const taskCtx: TaskTabContext = {
       viewId: taskId,
       projectId,
@@ -134,9 +142,9 @@ export class TaskComposition {
       },
       modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
-      paneLayoutMemento,
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
+      snapshotMemento: paneLayoutMemento,
       onActiveTabChange: (tabId) => {
         if (tabId) appState.navigation.reportLocation(taskRef, { tabId });
       },
@@ -232,8 +240,10 @@ export class TaskComposition {
     await this._conversations.list.load();
     // Persisted pane state must be loaded before hydrate() reads it; the
     // conversations-list await above is not a reliable ordering guarantee.
+    // hydrate() also awaits the memento's own ready internally, so restore
+    // can never silently skip on slow hydration.
     await this.space.ready;
-    this.paneLayout.hydrate();
+    await this.paneLayout.hydrate();
     this._paneHydrated = true;
 
     if (this.paneLayout.focusedPane.tabOrder.length !== 0) return;
@@ -531,6 +541,36 @@ function sanitizeTerminalSelection(
       ? undefined
       : value.activeItem;
   return { ...value, tabOrder, activeTabId, activeItem };
+}
+
+/**
+ * Resolves persisted workspace-relative file/diff tab paths against the
+ * mounted workspace path (skipped until the workspace is acquired).
+ */
+function resolvePaneLayoutPaths(
+  value: TaskPaneLayoutState,
+  workspacePath: string
+): TaskPaneLayoutState {
+  return {
+    ...value,
+    groups: value.groups.map((group) => ({
+      ...group,
+      tabManager: {
+        ...group.tabManager,
+        tabs: group.tabManager.tabs.map((tab) => resolveTabDescriptorPath(tab, workspacePath)),
+      },
+    })),
+  };
+}
+
+function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
+  if (tab.kind === 'file' && !tab.isExternal) {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  if (tab.kind === 'diff' && tab.diffGroup !== 'pr') {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  return tab;
 }
 
 function sanitizePaneLayoutConversations(
