@@ -220,7 +220,8 @@ pnpm run test
 - `packages/ui`, `packages/shared`, and `packages/plugins` run their package-local tests.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
 - CI runs `.github/workflows/code-consistency-check.yml` with `nx affected` for
-  `format:check`, `typecheck`, and `lint` on touched projects and dependents.
+  `format:check`, `typecheck`, `lint`, and `test` on touched projects and
+  dependents; the Playwright-backed `browser` Vitest projects are skipped there.
 - Tests are still expected locally before merge even where CI coverage is narrower.
 
 ## Security & Compliance

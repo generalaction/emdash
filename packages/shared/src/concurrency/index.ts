@@ -6,35 +6,19 @@ export {
   type BoundedBufferOverflow,
   type CreateBoundedBufferOptions,
 } from './bounded-buffer';
-export { ConcurrencyLimiter } from './concurrency-limiter';
+export { createConcurrencyLimiter, type ConcurrencyLimiter } from './concurrency-limiter';
 export { createDurableQueue, type DurableQueue, type DurableQueueOptions } from './durable-queue';
 export { createKeyedLanes, type CreateKeyedLanesOptions, type KeyedLanes } from './keyed-lanes';
 export { KeyedMutex } from './keyed-mutex';
 export {
-  LifecycleRegistry,
+  createLifecycleRegistry,
+  type LifecycleRegistry,
   type LifecycleRegistryObserver,
   type LifecycleRegistryObserverError,
   type LifecycleRegistryOptions,
   type LifecycleRegistryState,
   type LifecycleRegistryStateChange,
 } from './lifecycle-registry';
-export {
-  createMachineEffectDriver,
-  type MachineEffectDrain,
-  type MachineEffectDriver,
-  type MachineEffectDriverContext,
-  type MachineEffectDriverError,
-  type MachineEffectDriverOptions,
-} from './machine-effects';
-export {
-  createMachine,
-  type Machine,
-  type MachineBatch,
-  type MachineBatchTrigger,
-  type MachineDefinition,
-  type MachineEvolveResult,
-  type MachineOptions,
-} from './machine';
 export {
   createMailbox,
   MailboxClosedError,
@@ -70,4 +54,3 @@ export {
   type CreateSharedResourceOptions,
   type SharedResource,
 } from './shared-resource';
-export type { Lease, PendingLease, Unsubscribe } from '../lifecycle';

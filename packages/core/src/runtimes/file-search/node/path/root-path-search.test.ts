@@ -1,7 +1,7 @@
-import { ConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import type { HostAbsolutePath } from '#primitives/path/api';
 import type { IWatchService } from '#services/fs-watch/api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DefaultFileSearchExclusions } from '../exclusions';
 import { createRegisteredRoot } from '../root/registered-root';
 import { hostPath as absolute } from '../testing/paths';
@@ -118,7 +118,7 @@ function createRoot(
     exclusions: new DefaultFileSearchExclusions({ caseSensitive: true }),
     exclusionsFingerprint: '[]',
     scope,
-    scanLimiter: new ConcurrencyLimiter(1),
+    scanLimiter: createConcurrencyLimiter(1),
   });
   return { root, store };
 }

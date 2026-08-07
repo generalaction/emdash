@@ -122,13 +122,13 @@ const withoutDedupe = expose(api.session, states, { mutations, idempotency: fals
 ```
 
 The client never retries mutations automatically. Callers opt in per call with
-an explicit backoff schedule; retries reuse the same `mutationId`, so the
+an explicit retry schedule; retries reuse the same `mutationId`, so the
 server-side cache deduplicates them:
 
 ```ts
 await session.addNote(input, {
   mutationId: 'add-note-1',
-  retry: { schedule: backoffSchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
+  retry: { schedule: retrySchedule({ delaysMs: [250, 1_000], maxRetries: 2 }) },
 });
 ```
 

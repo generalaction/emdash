@@ -1,5 +1,5 @@
 import { toast } from '@emdash/ui/react/primitives';
-import { useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { useLayoutEffect, type ReactNode } from 'react';
 import { captureDevPerfTrace } from '@core/features/dev-perf/api/browser/capture-trace';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { toggleAppTheme } from '@core/features/settings/api/browser/theme-toggle';
@@ -26,7 +26,7 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
   const { currentView } = useWorkspaceSlots();
   const taskParams = useViewParams(taskViewDef);
   const projectParams = useViewParams(projectViewDef);
-  const { exitZenMode, toggleLeft, toggleZenMode } = useWorkspaceLayoutContext();
+  const { toggleLeftSidebar, toggleZenMode } = useWorkspaceLayoutContext();
 
   const currentProjectId =
     currentView === 'task'
@@ -97,7 +97,7 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
       execute: () => confirmRegistry.current?.trigger(),
     }),
     'workbench.toggleLeftSidebar': () => ({
-      execute: () => toggleLeft(),
+      execute: () => toggleLeftSidebar(),
     }),
     'devPerf.processPanel': () => ({
       execute: () => {
@@ -114,21 +114,10 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
         );
       },
     }),
+    // Zen is workspace-chrome data; the task sidebar hides while zen is
+    // active as a derived condition (no task-chrome mutation).
     'workbench.zenMode': () => ({
-      execute: () => {
-        const taskView =
-          currentProjectId && currentTaskId
-            ? getTaskComposition(currentProjectId, currentTaskId)
-            : undefined;
-        toggleZenMode(
-          taskView
-            ? {
-                isCollapsed: taskView.isSidebarCollapsed,
-                setCollapsed: (collapsed) => taskView.setSidebarCollapsed(collapsed),
-              }
-            : undefined
-        );
-      },
+      execute: () => toggleZenMode(),
     }),
   } satisfies ViewScopeImpl<typeof windowScope>;
 
@@ -137,8 +126,6 @@ export function WindowScope({ children }: { readonly children: ReactNode }) {
   useLayoutEffect(() => {
     if (instance) scopes.activate(instance);
   }, [instance]);
-
-  useEffect(() => () => exitZenMode(), [currentProjectId, currentTaskId, currentView, exitZenMode]);
 
   if (!instance) return null;
   return <ViewScopeInstanceProvider instance={instance}>{children}</ViewScopeInstanceProvider>;

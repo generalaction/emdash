@@ -1,10 +1,10 @@
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 import { PluginIcon } from '@core/features/agents/contributions/browser/plugin-icon';
 import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
-import type { AgentIconAsset } from '@core/primitives/agents/api';
 
 type IntegrationIconProps = {
   provider: string;
-  icon?: AgentIconAsset;
+  icon?: PluginIconAsset;
   size?: number;
   className?: string;
 };

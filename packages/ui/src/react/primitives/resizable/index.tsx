@@ -15,9 +15,6 @@ export type ResizableHandleProps = ResizablePrimitive.SeparatorProps & {
   variant?: 'hairline' | 'ghost';
 };
 
-/** Imperative handle for a Panel, obtained via `useResizablePanelRef`. */
-export type ResizablePanelHandle = ResizablePrimitive.PanelImperativeHandle;
-
 /**
  * Layout container for resizable panels. Renders panels side by side when
  * `orientation="horizontal"` (default) and stacked when `"vertical"`.
@@ -86,9 +83,20 @@ export const Resizable = {
   Handle: ResizableHandle,
 };
 
-// Panel-management hooks and persistence helper, exposed here so consumers
-// depend on @emdash/ui rather than on react-resizable-panels directly.
+// Layout-persistence helper, exposed here so consumers depend on @emdash/ui
+// rather than on react-resizable-panels directly. The hook accepts any
+// `Storage`-shaped object (including `localStorage`, the library default when
+// none is passed); the emdash app always passes an explicit memento-backed
+// `LayoutStorage` facade (`createLayoutStorage`) — no localStorage layout
+// persistence in app code. Imperative panel handles (`usePanelRef`,
+// collapse/expand/resize) are deliberately not re-exported: visibility is
+// store-driven conditional rendering via `useCollapsiblePanelBinding`, never
+// programmatic panel writes.
+export { useDefaultLayout as useResizableDefaultLayout } from 'react-resizable-panels';
+
 export {
-  useDefaultLayout as useResizableDefaultLayout,
-  usePanelRef as useResizablePanelRef,
-} from 'react-resizable-panels';
+  useCollapsiblePanelBinding,
+  type CollapsiblePanelBinding,
+  type CollapsiblePanelBindingOptions,
+  type LayoutStorage,
+} from './use-collapsible-panel-binding';

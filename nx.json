@@ -41,7 +41,10 @@
         "^build"
       ],
       "inputs": [
-        "default"
+        "default",
+        {
+          "env": "EMDASH_TEST_SKIP_BROWSER"
+        }
       ],
       "cache": true
     },

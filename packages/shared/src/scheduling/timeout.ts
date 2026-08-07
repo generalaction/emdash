@@ -1,5 +1,5 @@
-import { abortReason, systemClock, type Clock } from './clock';
-import type { TimerHandle } from './timer-handle';
+import { abortableWait, abortReason } from './abortable-wait';
+import { systemClock, type Clock } from './clock';
 
 export type RunWithTimeoutOptions = {
   timeoutMs: number;
@@ -24,46 +24,30 @@ export function runWithTimeout<T>(
   const clock = options.clock ?? systemClock;
   const controller = new AbortController();
 
-  return new Promise<T>((resolve, reject) => {
-    let settled = false;
-
-    const finish = (complete: () => void): void => {
-      if (settled) return;
-      settled = true;
-      timer.dispose();
-      options.signal?.removeEventListener('abort', onAbort);
-      complete();
-    };
-
-    const fail = (error: unknown, abortChild: boolean): void => {
-      finish(() => {
-        if (abortChild && !controller.signal.aborted) controller.abort(error);
-        reject(error);
-      });
-    };
-
-    const onAbort = (): void => {
-      fail(abortReason(options.signal as AbortSignal), true);
-    };
-
-    options.signal?.addEventListener('abort', onAbort, { once: true });
-    const timer: TimerHandle = clock.schedule(
+  return abortableWait<T>({ signal: options.signal }, (settle) => {
+    const timer = clock.schedule(
       options.timeoutMs,
       () => {
-        fail(new TimeoutError(options.timeoutMs), true);
+        const error = new TimeoutError(options.timeoutMs);
+        if (!controller.signal.aborted) controller.abort(error);
+        settle.reject(error);
       },
       { unref: true }
     );
 
     try {
-      Promise.resolve(work(controller.signal)).then(
-        (value) => finish(() => resolve(value)),
-        (error: unknown) => fail(error, false)
-      );
+      Promise.resolve(work(controller.signal)).then(settle.resolve, settle.reject);
     } catch (error) {
-      fail(error, false);
+      settle.reject(error);
     }
 
-    if (options.signal?.aborted) onAbort();
+    return () => {
+      timer.dispose();
+      // An outer abort must cancel the in-flight work; success/failure
+      // settlements leave the child controller untouched.
+      if (options.signal?.aborted && !controller.signal.aborted) {
+        controller.abort(abortReason(options.signal));
+      }
+    };
   });
 }

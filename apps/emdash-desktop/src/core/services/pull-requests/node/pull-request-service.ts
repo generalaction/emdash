@@ -1,7 +1,7 @@
+import { err, ok, type Result } from '@emdash/shared';
 import type { Run, Scope } from '@emdash/shared/concurrency';
 import type { Logger } from '@emdash/shared/logger';
 import { requestPriorities } from '@emdash/shared/requests';
-import { err, ok, type Result } from '@emdash/shared/result';
 import { type ContractClient, type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, family, type Cell, type Family } from '@emdash/wire/state';
 import {

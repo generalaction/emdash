@@ -313,7 +313,7 @@ class RunImpl<A> implements Run<A> {
   }
 
   private reportFailure(error: unknown): void {
-    this.logger.warn('wire scope run failed', {
+    this.logger.warn('scope run failed', {
       label: this.label,
       error,
       closeScope: this.onFailure === 'close-scope',
@@ -338,7 +338,7 @@ function cancelledRun<A>(label: string, startedAt: number, reason: unknown): Run
 }
 
 function defaultCleanupErrorHandler(error: unknown, scope: ScopeCleanupErrorContext): void {
-  scope.logger.warn('wire scope cleanup failed', {
+  scope.logger.warn('scope cleanup failed', {
     label: scope.label,
     labelPath: scope.labelPath,
     error,

@@ -79,3 +79,32 @@ export const retrySchedules = {
     };
   },
 };
+
+export type RetryScheduleOptions = {
+  /**
+   * Delay before each retry, walked in order. With `repeatLast` the final
+   * delay repeats forever; without it the schedule exhausts past the end.
+   */
+  delaysMs: readonly number[];
+  /** Repeat the final delay indefinitely instead of exhausting the schedule. */
+  repeatLast?: boolean;
+  /** Cap on the number of retries; omit for no cap beyond the sequence itself. */
+  maxRetries?: number;
+  /** Randomize each delay; inject a deterministic `random` in tests. */
+  jitter?: JitterOptions;
+};
+
+/**
+ * Builds a {@link RetrySchedule} from a delay sequence — the one-stop
+ * constructor beside the `retrySchedules` combinators. Callers with needs
+ * beyond a sequence (e.g. exponential growth) can compose `retrySchedules`
+ * directly — the result is the same vocabulary.
+ */
+export function retrySchedule(options: RetryScheduleOptions): RetrySchedule {
+  let schedule = retrySchedules.sequence(options.delaysMs, { repeatLast: options.repeatLast });
+  if (options.maxRetries !== undefined) {
+    schedule = retrySchedules.limit(options.maxRetries, schedule);
+  }
+  if (options.jitter) schedule = retrySchedules.jitter(schedule, options.jitter);
+  return schedule;
+}

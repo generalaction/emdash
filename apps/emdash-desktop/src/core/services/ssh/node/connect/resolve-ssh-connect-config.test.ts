@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import { secret } from '@emdash/shared';
 import type { BaseAgent, ParsedKey, SignCallback } from 'ssh2';
 import { utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
@@ -26,7 +27,7 @@ function baseConfig(partial: Partial<SshConfig> = {}): SshConfig {
 function deps(overrides: Partial<SshConnectDeps> = {}): SshConnectDeps {
   return {
     readFile: async () => 'PRIVATE KEY',
-    getPassword: async () => 'stored-password',
+    getPassword: async () => secret('stored-password'),
     getPassphrase: async () => null,
     resolveSshConfig: async () => ({
       hostname: 'resolved.internal',
@@ -672,7 +673,7 @@ describe('resolveSshConnectConfig', () => {
   it('creates a production resolver with explicit credential dependencies', async () => {
     const resolver = createSshConnectConfigResolver({
       ...deps(),
-      getPassword: async (id) => `password-for-${id}`,
+      getPassword: async (id) => secret(`password-for-${id}`),
     });
 
     await expect(
@@ -747,7 +748,7 @@ describe('resolveSshConnectConfig', () => {
           readFiles.push(path);
           return 'KEY DATA';
         },
-        getPassphrase: async (id) => `passphrase-for-${id}`,
+        getPassphrase: async (id) => secret(`passphrase-for-${id}`),
         resolveSshConfig: async () => ({
           hostname: 'dev.internal',
           user: 'deploy',

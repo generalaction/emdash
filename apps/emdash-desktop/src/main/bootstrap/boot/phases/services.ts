@@ -120,6 +120,7 @@ import { browserWebContentsRegistry } from '@main/host/browser/browser-webconten
 import { HostAttachmentRegistry } from '@main/host/host-attachment-registry';
 import { createSystemNotificationSink } from '@main/host/notifications/system-notification-sink';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';
+import { toPlaintextSecretStore } from '@main/host/secrets/plaintext-secret-store';
 import { installUpdateNotifications } from '@main/host/updates/update-notifications';
 import { applyNativeTheme, isAppFocused } from '@main/host/window';
 import { log } from '@main/lib/logger';
@@ -347,7 +348,10 @@ export async function bootServices(
   installAutomationTelemetry(telemetryService, automationsService);
   installTaskTelemetry(telemetryService, taskService, taskSessionManager);
 
-  const accountCredentials = new AccountCredentialStore(encryptedAppSecretsStore, log);
+  // Unmigrated string-typed consumers get the documented plaintext view over
+  // the Secret-typed secrets store (see toPlaintextSecretStore).
+  const plaintextSecrets = toPlaintextSecretStore(encryptedAppSecretsStore);
+  const accountCredentials = new AccountCredentialStore(plaintextSecrets, log);
   const accountService = createEmdashAccountService({
     authServerClient: new AccountAuthServerClient(),
     credentials: accountCredentials,
@@ -377,7 +381,7 @@ export async function bootServices(
   const integrationCredentialStore = new IntegrationCredentialStore(
     providerAccountRegistry,
     {
-      secrets: encryptedAppSecretsStore,
+      secrets: plaintextSecrets,
       kv: {
         jira: new KV<JiraKVSchema>('jira'),
         gitlab: new KV<InstanceKVSchema>('gitlab'),
@@ -392,7 +396,7 @@ export async function bootServices(
     new IntegrationConnectionService(integrationCredentialStore, telemetryService, log)
   );
   const githubKV = new KV<GitHubKVSchema>('github');
-  const legacyGitHubTokens = new LegacyGitHubTokenMigrationStore(encryptedAppSecretsStore, {
+  const legacyGitHubTokens = new LegacyGitHubTokenMigrationStore(plaintextSecrets, {
     getTokenSource: () => githubKV.get('tokenSource'),
     clearTokenSource: () => githubKV.del('tokenSource'),
   });

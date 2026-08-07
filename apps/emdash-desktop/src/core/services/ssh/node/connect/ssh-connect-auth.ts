@@ -122,8 +122,13 @@ export async function buildAuthConfig(
 ): Promise<AuthResult> {
   switch (base.authType) {
     case 'password': {
+      // Boundary disclosure: stored credentials leave Secret via .expose()
+      // only here, where the ssh2 connect config is assembled. Transient
+      // credentials arrive as plain strings straight off the wire.
       const password =
-        input.kind === 'transient' ? input.config.password : await deps.getPassword(input.row.id);
+        input.kind === 'transient'
+          ? input.config.password
+          : (await deps.getPassword(input.row.id))?.expose();
       if (!password) throw new Error(`No password found for SSH connection '${base.name}'`);
       return { config: { password } };
     }
@@ -133,10 +138,11 @@ export async function buildAuthConfig(
       if (!keyPath)
         throw new Error(`Private key path is required for SSH connection '${base.name}'`);
       const privateKey = await deps.readFile(expandTilde(keyPath), 'utf-8');
+      // Boundary disclosure: same contract as the password case above.
       const passphrase =
         input.kind === 'transient'
           ? input.config.passphrase
-          : await deps.getPassphrase(input.row.id);
+          : (await deps.getPassphrase(input.row.id))?.expose();
       return { config: { privateKey, ...(passphrase ? { passphrase } : {}) } };
     }
 

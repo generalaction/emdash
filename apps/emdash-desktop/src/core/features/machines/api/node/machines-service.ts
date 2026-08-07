@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { secret, type Secret } from '@emdash/shared';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import {
   createConversationRegistry,
@@ -25,8 +26,8 @@ import {
 import type { SaveMachineInput } from '..';
 
 type MachinesCredentials = {
-  storePassword(connectionId: string, password: string): Promise<void>;
-  storePassphrase(connectionId: string, passphrase: string): Promise<void>;
+  storePassword(connectionId: string, password: Secret<string>): Promise<void>;
+  storePassphrase(connectionId: string, passphrase: Secret<string>): Promise<void>;
   deleteAllCredentials(connectionId: string): Promise<void>;
 };
 
@@ -117,11 +118,19 @@ export class MachinesService implements Hookable<MachinesServiceHooks> {
       );
     }
 
+    // Wrap wire-fresh credential strings into Secret at first touch; they
+    // stay wrapped through the credential service and secrets store.
     if (config.password) {
-      await this.deps.credentials.storePassword(connectionId, config.password);
+      await this.deps.credentials.storePassword(
+        connectionId,
+        secret(config.password, 'ssh-password')
+      );
     }
     if (config.passphrase) {
-      await this.deps.credentials.storePassphrase(connectionId, config.passphrase);
+      await this.deps.credentials.storePassphrase(
+        connectionId,
+        secret(config.passphrase, 'ssh-passphrase')
+      );
     }
 
     const { password: _password, passphrase: _passphrase, ...dbConfig } = config;

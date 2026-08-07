@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { retrySchedules, type RetrySchedule } from '@emdash/shared/scheduling';
 import ssh2, { type Client } from 'ssh2';
 import type { ConnectionState, SshConnectionEvent, SshHealthState } from '@core/primitives/ssh/api';
 import type {
@@ -35,8 +36,10 @@ export class SshConnectionError extends Error {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Delays (ms) between successive reconnect attempts. Length = max attempts. */
-const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 20_000];
+/** Delays between successive reconnect attempts; exhausting the sequence gives up. */
+const RECONNECT_SCHEDULE: RetrySchedule = retrySchedules.sequence([
+  1_000, 2_000, 5_000, 10_000, 20_000,
+]);
 
 interface ReconnectState {
   attempt: number;
@@ -421,7 +424,8 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
     const state = this.reconnecting.get(id) ?? { attempt: 0, timer: undefined };
     const attempt = state.attempt + 1;
 
-    if (attempt > RECONNECT_DELAYS_MS.length) {
+    const delayMs = RECONNECT_SCHEDULE.delayFor(attempt - 1);
+    if (delayMs === undefined) {
       this.deps.log.error('SshConnectionManager: max reconnect attempts reached', {
         connectionId: id,
       });
@@ -432,8 +436,6 @@ export class SshConnectionManager extends EventEmitter implements SshConnectionM
       );
       return;
     }
-
-    const delayMs = RECONNECT_DELAYS_MS[attempt - 1]!;
 
     this.deps.log.info('SshConnectionManager: scheduling reconnect', {
       connectionId: id,

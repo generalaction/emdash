@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ok } from '@emdash/shared';
-import { ConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
+import { createConcurrencyLimiter, createScope } from '@emdash/shared/concurrency';
 import { deferred } from '@emdash/shared/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ContentSearchResult } from '#runtimes/file-search/api';
@@ -32,7 +32,7 @@ describe('searchRootContent', () => {
         root,
         { root: absolute(rootPath), query: 'term' },
         { signal: new AbortController().signal, onProgress: () => {} },
-        { limiter: new ConcurrencyLimiter(1), searcher }
+        { limiter: createConcurrencyLimiter(1), searcher }
       )
     ).resolves.toEqual({ success: true, data: emptyContentResult() });
     expect(searcher.inputs).toEqual([
@@ -48,7 +48,7 @@ describe('searchRootContent', () => {
       root,
       { root: absolute(rootPath), query: 'term' },
       { signal: new AbortController().signal, onProgress: () => {} },
-      { limiter: new ConcurrencyLimiter(1), searcher }
+      { limiter: createConcurrencyLimiter(1), searcher }
     );
     void search.catch(() => {});
     await searcher.started.promise;

@@ -1,4 +1,4 @@
-import { err, ok } from '@emdash/shared/result';
+import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { createPullRequestsGitHubAuthController } from '@core/services/pull-requests/node/pull-requests-auth';
 

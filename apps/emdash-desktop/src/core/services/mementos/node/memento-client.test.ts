@@ -109,6 +109,23 @@ describe('MementoClient', () => {
     });
   });
 
+  it('flips the observable isHydrated from false to true when ready resolves', async () => {
+    const setup = await createSetup(cleanups, { catalog: [drawerMemento] });
+    const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
+    expect(space.isHydrated).toBe(false);
+    const observed: boolean[] = [];
+    const dispose = reaction(
+      () => space.isHydrated,
+      (value) => observed.push(value)
+    );
+
+    await space.ready;
+
+    expect(space.isHydrated).toBe(true);
+    expect(observed).toEqual([true]);
+    dispose();
+  });
+
   it('falls back to the default for missing, invalid, and future-version rows', async () => {
     const setup = await createSetup(cleanups);
     const missing = setup.client.subject(taskSubject({ taskId: 'missing' }));
@@ -142,7 +159,7 @@ describe('MementoClient', () => {
     const setup = await createSetup(cleanups, { debounceMs: 50 });
     const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
     const handle = space.handle(drawerMemento);
-    await handle.ready;
+    await readyWithFakeTimers(handle.ready);
     const observed: unknown[] = [];
     const disposeReaction = reaction(
       () => handle.value,
@@ -155,8 +172,8 @@ describe('MementoClient', () => {
     expect(setup.persistence.snapshot()).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(50);
-    await waitFor(() => setup.persistence.snapshot().length === 1);
 
+    expect(setup.persistence.snapshot()).toHaveLength(1);
     expect(handle.value).toBe(next);
     expect(observed).toEqual([next]);
     disposeReaction();
@@ -278,7 +295,7 @@ describe('MementoClient', () => {
     const setup = await createSetup(cleanups, { debounceMs: 50 });
     const subject = taskSubject({ taskId: 'task-1' });
     const handle = setup.client.subject(subject).handle(drawerMemento);
-    await handle.ready;
+    await readyWithFakeTimers(handle.ready);
     handle.update({ version: '2', open: true, height: 10 });
 
     await setup.client.deleteBySubject(subject);
@@ -294,7 +311,7 @@ describe('MementoClient', () => {
     const subject = taskSubject({ taskId: 'task-1' });
     const space = setup.client.subject(subject);
     const handle = space.handle(drawerMemento);
-    await handle.ready;
+    await readyWithFakeTimers(handle.ready);
     handle.update({ version: '2', open: true, height: 10 });
 
     const externalDelete = await setup.wire.client.deleteBySubject(subject);
@@ -311,7 +328,7 @@ describe('MementoClient', () => {
     const setup = await createSetup(cleanups, { debounceMs: 50 });
     const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
     const handle = space.handle(drawerMemento);
-    await handle.ready;
+    await readyWithFakeTimers(handle.ready);
 
     handle.update({ version: '2', open: true, height: 320 });
     const release = space.release();
@@ -347,6 +364,8 @@ describe('MementoClient', () => {
 
     await expect(setup.client.deleteAll()).resolves.toBe(1);
 
+    // Persisted invalidation arrives via a poke-driven refetch, so it is async.
+    await waitFor(() => persisted.value === drawerMemento.default);
     expect(persisted.value).toBe(drawerMemento.default);
     expect(transient.value).toBe(transientMemento.default);
     expect(setup.persistence.snapshot()).toEqual([]);
@@ -369,6 +388,7 @@ describe('MementoClient', () => {
 
     await expect(setup.client.deleteOrphans('task', ['keep'])).resolves.toBe(1);
 
+    await waitFor(() => orphanPersisted.value === drawerMemento.default);
     expect(keptPersisted.value.open).toBe(true);
     expect(orphanPersisted.value).toBe(drawerMemento.default);
     expect(keptTransient.value.height).toBe(30);
@@ -429,6 +449,22 @@ describe('MementoClient', () => {
     disposeAutorun();
   });
 });
+
+/**
+ * Awaits handle readiness under fake timers. The service-side query schedules
+ * its initial fetch on a zero-delay timer, so fake timers must be pumped for
+ * the ready promise to resolve.
+ */
+async function readyWithFakeTimers(ready: Promise<void>): Promise<void> {
+  let settled = false;
+  const tracked = ready.then(() => {
+    settled = true;
+  });
+  for (let attempt = 0; attempt < 20 && !settled; attempt += 1) {
+    await vi.advanceTimersByTimeAsync(0);
+  }
+  await tracked;
+}
 
 async function createSetup(
   cleanups: Array<() => Promise<void>>,

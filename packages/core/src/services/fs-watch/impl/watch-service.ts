@@ -1,4 +1,4 @@
-import { Emitter } from '@emdash/shared';
+import { createEmitter, type Emitter } from '@emdash/shared';
 import { createResourceCache, createScope, type Scope } from '@emdash/shared/concurrency';
 import type { IWatchService, WatchEvent } from '#services/fs-watch/api';
 import type { WatchBackend, WatchKey, WatchOnError } from './backend';
@@ -30,8 +30,8 @@ export function createWatchService(options: CreateWatchServiceOptions): IWatchSe
     idleTtlMs: options.graceMs ?? 0,
     onError: (error, key) => options.onError?.(`watch ${key}`, error),
     create: async (key, scope) => {
-      const events = new Emitter<WatchEvent[]>();
-      const resync = new Emitter<void>();
+      const events = createEmitter<WatchEvent[]>();
+      const resync = createEmitter<void>();
       scope.add(() => {
         events.clear();
         resync.clear();

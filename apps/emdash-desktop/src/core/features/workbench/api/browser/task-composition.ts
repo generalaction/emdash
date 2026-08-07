@@ -11,17 +11,22 @@ import {
   gitCheckoutStoreToken,
 } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { PreviewServerStore } from '@core/features/tasks/api/browser/stores/preview-server-store';
+import {
+  taskChromeStore,
+  type TaskChromeStore,
+  type TaskFocusedRegion,
+} from '@core/features/tasks/api/browser/stores/task-chrome-store';
 import { TaskNavigationParticipant } from '@core/features/tasks/api/browser/stores/task-navigation-participant';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
 import {
-  taskChromeMemento,
   taskDiffPreferencesMemento,
   taskDiffSelectionMemento,
   taskEditorTreeMemento,
   taskPaneLayoutMemento,
+  taskPanelLayoutsMemento,
   taskTerminalSelectionMemento,
-  type TaskChromeState,
+  type TabDescriptor,
   type TaskDiffPreferencesState,
   type TaskDiffSelectionState,
   type TaskPaneLayoutState,
@@ -34,11 +39,17 @@ import type { TerminalManagerStore } from '@core/features/terminals/api/browser/
 import { TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
-import { sanitizeDiffSelection } from '@core/features/workbench/browser/task-composition-state';
+import {
+  deleteSplitPaneLayoutEntries,
+  sanitizeDiffSelection,
+} from '@core/features/workbench/browser/task-composition-state';
 import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { createChromeStore } from '@core/primitives/chrome-stores/browser';
 import { log } from '@core/primitives/logging/browser/logger';
 import {
+  createLayoutStorage,
   sanitizedMemento,
   type MementoHandle,
   type SubjectSpace,
@@ -64,8 +75,9 @@ export type RendererKind =
  * attached to TaskStore.
  */
 export class TaskComposition {
-  focusedRegion: 'main' | 'bottom';
   readonly space: SubjectSpace<'task'>;
+  /** Task chrome command store — the only mutation path for chrome facts. */
+  readonly chrome: TaskChromeStore;
   readonly paneLayout: ReturnType<typeof taskTabView.createPaneLayoutStore>;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: EditorViewStore;
@@ -87,7 +99,6 @@ export class TaskComposition {
   private _paneHydrated = false;
   private _initializing = false;
 
-  private readonly _chromeHandle: MementoHandle<TaskChromeState>;
   private readonly _terminalSelectionHandle: MementoHandle<TaskTerminalSelectionState>;
   private readonly _diffPreferencesHandle: MementoHandle<TaskDiffPreferencesState>;
   private readonly _diffSelectionHandle: MementoHandle<TaskDiffSelectionState>;
@@ -101,9 +112,8 @@ export class TaskComposition {
     private readonly _conversations: ConversationManagerStore,
     private readonly _gitRepository: GitRepositoryStore
   ) {
-    this.focusedRegion = 'main';
     this.space = getMementoClient().subject(taskSubject({ taskId }));
-    this._chromeHandle = this.space.handle(taskChromeMemento);
+    this.chrome = createChromeStore(taskChromeStore, this.space);
     this._terminalSelectionHandle = sanitizedMemento(
       this.space.handle(taskTerminalSelectionMemento),
       {
@@ -117,13 +127,19 @@ export class TaskComposition {
 
     const taskRef = taskViewDef({ projectId, taskId });
     const getWorkspacePath = () => this._workspace?.path;
-    const paneLayoutMemento = sanitizedMemento(this.space.handle(taskPaneLayoutMemento), {
-      deps: () =>
-        this._conversations.list.data
-          ? new Set(this._conversations.conversations.keys())
-          : undefined,
-      sanitize: sanitizePaneLayoutConversations,
-    });
+    const paneLayoutMemento = sanitizedMemento(
+      sanitizedMemento(this.space.handle(taskPaneLayoutMemento), {
+        deps: () =>
+          this._conversations.list.data
+            ? new Set(this._conversations.conversations.keys())
+            : undefined,
+        sanitize: sanitizePaneLayoutConversations,
+      }),
+      {
+        deps: getWorkspacePath,
+        sanitize: resolvePaneLayoutPaths,
+      }
+    );
     const taskCtx: TaskTabContext = {
       viewId: taskId,
       projectId,
@@ -134,11 +150,23 @@ export class TaskComposition {
       },
       modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
-      paneLayoutMemento,
     };
+    // Split-pane sizes live on the shared panel-layouts storage (spec:
+    // pane-layout ownership); when a pane group is destroyed its persisted
+    // entries are dropped so a later re-split starts fresh from defaults.
+    const panelLayoutsHandle = this.space.handle(taskPanelLayoutsMemento);
+    const panelLayoutsStorage = createLayoutStorage(this.space, taskPanelLayoutsMemento);
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
+      snapshotMemento: paneLayoutMemento,
       onActiveTabChange: (tabId) => {
         if (tabId) getNavigation().reportLocation(taskRef, { tabId });
+      },
+      onPaneDestroyed: (paneId) => {
+        deleteSplitPaneLayoutEntries(
+          panelLayoutsStorage,
+          Object.keys(panelLayoutsHandle.value.layouts),
+          paneId
+        );
       },
     });
     this._disposers.push(
@@ -157,10 +185,7 @@ export class TaskComposition {
 
     makeAutoObservable<
       TaskComposition,
-      | '_chromeHandle'
-      | '_diffPreferencesHandle'
-      | '_diffSelectionHandle'
-      | '_terminalSelectionHandle'
+      '_diffPreferencesHandle' | '_diffSelectionHandle' | '_terminalSelectionHandle'
     >(this, {
       paneLayout: false,
       terminalTabs: false,
@@ -168,7 +193,7 @@ export class TaskComposition {
       diffView: observable.ref,
       activeRenderer: computed,
       space: false,
-      _chromeHandle: false,
+      chrome: false,
       _terminalSelectionHandle: false,
       _diffPreferencesHandle: false,
       _diffSelectionHandle: false,
@@ -191,20 +216,30 @@ export class TaskComposition {
         }),
         () => this.syncWorkspace(),
         { fireImmediately: true }
+      ),
+      // focusedRegion is mutated only inside chrome commands; the analytics
+      // transition observes the ephemeral field so every path is reported.
+      reaction(
+        () => this.chrome.ephemeral.focusedRegion,
+        (region) => focusTracker.transition({ focusedRegion: region }, 'region_switch')
       )
     );
   }
 
   get sidebarTab(): SidebarTab {
-    return this._chromeHandle.value.sidebarTab;
+    return this.chrome.state.sidebarTab;
   }
 
   get isSidebarCollapsed(): boolean {
-    return this._chromeHandle.value.sidebarCollapsed;
+    return this.chrome.state.sidebarCollapsed;
   }
 
   get isTerminalDrawerOpen(): boolean {
-    return this._chromeHandle.value.terminalDrawerOpen;
+    return this.chrome.state.terminalDrawerOpen;
+  }
+
+  get focusedRegion(): TaskFocusedRegion {
+    return this.chrome.ephemeral.focusedRegion;
   }
 
   get terminalDrawerActiveItem(): TerminalDrawerActiveItem | undefined {
@@ -230,7 +265,12 @@ export class TaskComposition {
   private async hydrateAndSeedPaneLayout(): Promise<void> {
     if (this._paneHydrated) return;
     await this._conversations.list.load();
-    this.paneLayout.hydrate();
+    // Persisted pane state must be loaded before hydrate() reads it; the
+    // conversations-list await above is not a reliable ordering guarantee.
+    // hydrate() also awaits the memento's own ready internally, so restore
+    // can never silently skip on slow hydration.
+    await this.space.ready;
+    await this.paneLayout.hydrate();
     this._paneHydrated = true;
 
     if (this.paneLayout.focusedPane.tabOrder.length !== 0) return;
@@ -372,7 +412,7 @@ export class TaskComposition {
             (previous === undefined || previous.terminalCount > 0 || !previous.isLoaded)
           ) {
             runInAction(() => {
-              this.setTerminalDrawerOpen(false);
+              this.chrome.commands.closeTerminalDrawer();
               this._terminalSelectionHandle.update((current) => ({
                 ...current,
                 activeItem: undefined,
@@ -455,33 +495,12 @@ export class TaskComposition {
   }
 
   revealWorkspaceFile(path: string): void {
-    this.setSidebarTab('files');
-    this.setSidebarCollapsed(false);
+    this.chrome.commands.openSidebarTab('files');
     this.editorView.requestRevealFile(path);
   }
 
-  setSidebarTab(value: SidebarTab): void {
-    this._chromeHandle.update((current) => ({ ...current, sidebarTab: value }));
-  }
-
-  setSidebarCollapsed(collapsed: boolean): void {
-    this._chromeHandle.update((current) => ({ ...current, sidebarCollapsed: collapsed }));
-  }
-
-  get isChangesPanelVisible(): boolean {
-    return !this.isSidebarCollapsed && this.sidebarTab === 'changes';
-  }
-
-  setFocusedRegion(region: 'main' | 'bottom'): void {
-    if (this.focusedRegion !== region) {
-      focusTracker.transition({ focusedRegion: region }, 'region_switch');
-    }
-    this.focusedRegion = region;
-  }
-
-  setTerminalDrawerOpen(open: boolean): void {
-    this._chromeHandle.update((current) => ({ ...current, terminalDrawerOpen: open }));
-    this.setFocusedRegion(open ? 'bottom' : 'main');
+  setFocusedRegion(region: TaskFocusedRegion): void {
+    this.chrome.commands.focusRegion(region);
   }
 
   setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
@@ -489,8 +508,7 @@ export class TaskComposition {
   }
 
   async openNewTerminal(shell?: TerminalShellId): Promise<string | undefined> {
-    this._chromeHandle.update((current) => ({ ...current, terminalDrawerOpen: true }));
-    this.setFocusedRegion('bottom');
+    this.chrome.commands.openTerminalDrawer();
     const terminalId = await this.createDefaultTerminal(shell);
     if (!terminalId) return undefined;
     runInAction(() => {
@@ -528,6 +546,36 @@ function sanitizeTerminalSelection(
       ? undefined
       : value.activeItem;
   return { ...value, tabOrder, activeTabId, activeItem };
+}
+
+/**
+ * Resolves persisted workspace-relative file/diff tab paths against the
+ * mounted workspace path (skipped until the workspace is acquired).
+ */
+function resolvePaneLayoutPaths(
+  value: TaskPaneLayoutState,
+  workspacePath: string
+): TaskPaneLayoutState {
+  return {
+    ...value,
+    groups: value.groups.map((group) => ({
+      ...group,
+      tabManager: {
+        ...group.tabManager,
+        tabs: group.tabManager.tabs.map((tab) => resolveTabDescriptorPath(tab, workspacePath)),
+      },
+    })),
+  };
+}
+
+function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
+  if (tab.kind === 'file' && !tab.isExternal) {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  if (tab.kind === 'diff' && tab.diffGroup !== 'pr') {
+    return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
+  }
+  return tab;
 }
 
 function sanitizePaneLayoutConversations(

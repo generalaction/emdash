@@ -12,6 +12,7 @@ import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/windo
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
 import { WorkspaceLayoutContextProvider } from '@core/primitives/layouts/react/layout-provider';
 import { queryClient } from '@core/primitives/query/browser/query-client';
+import { FramelessTitlebarOverlay } from '@core/features/workbench/browser/window-controls';
 import { RightSidebarProvider } from '@renderer/lib/layout/right-sidebar';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
@@ -102,15 +103,13 @@ function AppContent() {
             <IntegrationsProvider>
               <WorkspaceViewProvider>
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
-                <RightSidebarProvider>
-                  <ExternalLinkProvider openExternalLink={confirmOpenExternalLink}>
-                    <ThemeProvider>
-                      <ModalRenderer />
-                      <AppShutdownLifecycle />
-                      {renderContent()}
-                    </ThemeProvider>
-                  </ExternalLinkProvider>
-                </RightSidebarProvider>
+                <ExternalLinkProvider openExternalLink={confirmOpenExternalLink}>
+                  <ThemeProvider>
+                    <ModalRenderer />
+                    <AppShutdownLifecycle />
+                    {renderContent()}
+                  </ThemeProvider>
+                </ExternalLinkProvider>
               </WorkspaceViewProvider>
             </IntegrationsProvider>
           </GithubContextProvider>

@@ -77,11 +77,6 @@ export const registerPluginBehavior: (
   behavior: CapabilityBehaviors<Capabilities>
 ) => CLIAgentPluginProvider = pluginFramework.registerPluginBehavior;
 
-export type {
-  PluginIconAsset as AgentIconAsset,
-  PluginIconVariant as AgentIconVariant,
-} from '@emdash/shared/plugins';
-
 // Convenience re-exports for impl packages
 export type {
   AgentCommand,

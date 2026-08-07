@@ -16,29 +16,31 @@ export type TabGroupsSnapshot = {
     tabManager: TabManagerSnapshot;
   }>;
   activeGroupId: string;
-  paneSizes: number[];
 };
 
 /**
- * Implemented by a domain-level class that knows how to load and persist the
- * tab layout snapshot for a single view.
- *
- * `features/tabs` depends only on this interface; the concrete implementation
- * (`TaskTabViewPersistor`) lives in `features/tasks`.
+ * The persisted memento document backing a PaneLayoutStore: the snapshot plus
+ * whatever versioned-schema envelope the owning feature defines. The store
+ * only reads/writes the snapshot fields; envelope fields (e.g. `version`) are
+ * carried through unchanged on persist.
  */
-export interface TabPersistenceAdapter {
-  /**
-   * Synchronously load a saved snapshot.
-   *
-   * @returns The snapshot to restore, or `null` when nothing is saved.
-   */
-  load(): TabGroupsSnapshot | null;
+export type PaneLayoutSnapshotDocument = TabGroupsSnapshot & { version: string };
 
+/**
+ * The slice of a memento handle that PaneLayoutStore needs to hydrate and
+ * persist its snapshot. A feature's `MementoHandle` for its versioned
+ * pane-layout document satisfies this structurally — no adapter class.
+ */
+export interface PaneLayoutSnapshotMemento {
+  /** Resolves once the memento's initial hydration has settled. */
+  readonly ready: Promise<void>;
+  /** True when a persisted document exists. Accurate only after `ready`. */
+  readonly hasStoredValue: boolean;
+  read(): PaneLayoutSnapshotDocument;
   /**
-   * Start watching `getSnapshot()` and persisting changes.
-   *
-   * Call this after `load()` so the baseline does not trigger a spurious save.
+   * Start persisting `read()` through the memento's debounced write path,
+   * re-running on observable changes with structural equality.
    * @returns A disposer — call it to stop persistence.
    */
-  start(getSnapshot: () => TabGroupsSnapshot): () => void;
+  autoPersist(read: () => PaneLayoutSnapshotDocument): () => void;
 }

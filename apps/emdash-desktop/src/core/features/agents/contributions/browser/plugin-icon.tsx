@@ -1,11 +1,11 @@
-import type { AgentIconAsset } from '@core/primitives/agents/api';
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 import { pickIconVariant } from '@core/primitives/agents/browser/agent-icon-variant';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useTheme } from '@core/primitives/theme/browser';
 
 type PluginIconProps = {
   id: string;
-  icon: AgentIconAsset;
+  icon: PluginIconAsset;
   size?: number;
   className?: string;
   grayscale?: boolean;

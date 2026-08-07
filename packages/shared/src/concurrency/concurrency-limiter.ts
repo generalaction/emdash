@@ -1,13 +1,14 @@
-import { abortReason } from '../scheduling/clock';
+import { abortableWait, abortReason } from '../scheduling';
 
 /** FIFO limiter that bounds concurrent work without rejecting excess callers. */
-export class ConcurrencyLimiter {
+export interface ConcurrencyLimiter {
+  run<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T>;
+}
+
+class ConcurrencyLimiterImpl implements ConcurrencyLimiter {
   private active = 0;
   private readonly waiting: Array<{
-    signal: AbortSignal;
     resolve: (release: () => void) => void;
-    reject: (error: unknown) => void;
-    onAbort: () => void;
   }> = [];
 
   constructor(private readonly limit: number) {
@@ -32,19 +33,13 @@ export class ConcurrencyLimiter {
       return Promise.resolve(this.releaseOnce());
     }
 
-    return new Promise((resolve, reject) => {
-      const waiter = {
-        signal,
-        resolve,
-        reject,
-        onAbort: () => {
-          const index = this.waiting.indexOf(waiter);
-          if (index >= 0) this.waiting.splice(index, 1);
-          reject(abortReason(signal, 'Operation cancelled'));
-        },
-      };
-      signal.addEventListener('abort', waiter.onAbort, { once: true });
+    return abortableWait<() => void>({ signal, fallback: 'Operation cancelled' }, (settle) => {
+      const waiter = { resolve: settle.resolve };
       this.waiting.push(waiter);
+      return () => {
+        const index = this.waiting.indexOf(waiter);
+        if (index >= 0) this.waiting.splice(index, 1);
+      };
     });
   }
 
@@ -59,15 +54,16 @@ export class ConcurrencyLimiter {
   }
 
   private drain(): void {
+    // Aborted waiters are removed synchronously by their wait's cleanup, so
+    // every queued waiter here is still live.
     while (this.active < this.limit && this.waiting.length > 0) {
       const waiter = this.waiting.shift()!;
-      waiter.signal.removeEventListener('abort', waiter.onAbort);
-      if (waiter.signal.aborted) {
-        waiter.reject(abortReason(waiter.signal, 'Operation cancelled'));
-        continue;
-      }
       this.active += 1;
       waiter.resolve(this.releaseOnce());
     }
   }
+}
+
+export function createConcurrencyLimiter(limit: number): ConcurrencyLimiter {
+  return new ConcurrencyLimiterImpl(limit);
 }

@@ -1,4 +1,4 @@
-import { ConcurrencyLimiter } from './concurrency-limiter';
+import { createConcurrencyLimiter } from './concurrency-limiter';
 import type { Scope } from './scope';
 
 export type DurableQueue = {
@@ -20,7 +20,7 @@ export type DurableQueueOptions<Row> = {
 
 export function createDurableQueue<Row>(options: DurableQueueOptions<Row>): DurableQueue {
   const maxConcurrentLanes = options.maxConcurrentLanes ?? 4;
-  const limiter = new ConcurrencyLimiter(maxConcurrentLanes);
+  const limiter = createConcurrencyLimiter(maxConcurrentLanes);
   const activeLanes = new Map<string, Promise<void>>();
   let drainRequested = false;
   let schedulerPromise: Promise<void> | undefined;

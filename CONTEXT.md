@@ -176,3 +176,31 @@ The adapter pair carrying kernel state over the live-model wire protocol: `expos
 **Wire seam**:
 The seeded-connection seam in `primitives/wire/browser` — the single point where a host process hands core its wire connection. The host bootstrap calls `seedWireConnection` once; everything else reaches the wire through `domainClient`.
 _Avoid_: Acquiring a connection anywhere else in core, reaching the wire through renderer-owned clients (the aggregate desktop wire client is renderer-internal)
+
+### Shared vocabulary
+
+Roles in `packages/shared`, settled by the shared-architecture naming pass.
+
+**Prelude**:
+The root entrypoint (`@emdash/shared`) — the single home for the blessed cross-cutting core: the result module, `Unsubscribe`, `Emitter`, the lifecycle leases, `isDeepEqual`, the serialization/error family, and `Secret`. One home per symbol package-wide: domain modules stay subpath-only, and nothing is importable from both the root and a subpath.
+_Avoid_: Re-exporting a prelude symbol from a subpath, aliasing a shared type under a domain name
+
+**Scope**:
+The ownership primitive: cancellation, cleanup ordering, child ownership, and tracked async work that must not outlive its feature. Registries, caches, and runs hang off a Scope rather than inventing their own teardown.
+_Avoid_: Hand-rolled dispose lists, work that outlives its owner
+
+**Clock**:
+The time seam. No raw `Date.now`/`setTimeout` outside `scheduling/clock.ts`; anything time-dependent (`async-cache`, `resource-cache`, retry, timeouts) takes a `Clock` so tests drive time with `createManualClock`.
+_Avoid_: Direct timer calls in primitives, fake-timer test hacks where a `Clock` parameter exists
+
+**RetrySchedule**:
+The one retry/backoff word. The `retrySchedule(options)` constructor lives beside the `retrySchedules` combinator namespace in `@emdash/shared/scheduling`; a schedule maps a retry index to a delay or `undefined` (stop).
+_Avoid_: Backoff/BackoffSchedule (dissolved), per-package retry vocabularies
+
+**Secret**:
+The wrapper for secret-adjacent values (`secret`, `isSecret`, `reveal`, `REDACTED`), exported from the prelude. Values stay wrapped through internal plumbing and logging (the logger replaces them with `[REDACTED]`); `reveal` only at true boundaries — the process env of a spawn, an HTTP header, OS keychain writes.
+_Avoid_: Revealing early and passing plaintext through layers, logging revealed values
+
+**Package conventions**:
+Ownership-drop: a primitive that takes ownership of a value fires `onDrop` exactly once for every taken-then-discarded value, and rejecting a value never fires it (the caller kept ownership). Never-silent: optional failure hooks default to logger-backed reporting rather than swallowing.
+_Avoid_: Silent drops, failure hooks whose omission loses the error

@@ -81,7 +81,7 @@ scope.add(() => {
   throw new Error('cleanup failed');
 });
 
-await scope.dispose(); // logger.warn('wire scope cleanup failed', ...)
+await scope.dispose(); // logger.warn('scope cleanup failed', ...)
 ```
 
 Custom cleanup handlers receive `{ label, labelPath, logger }`:
@@ -141,10 +141,10 @@ started and stopped by explicit commands and callers need observable lifecycle
 state:
 
 ```ts
-import { LifecycleRegistry } from '@emdash/shared/concurrency';
-import { ok } from '@emdash/shared/result';
+import { createLifecycleRegistry } from '@emdash/shared/concurrency';
+import { ok } from '@emdash/shared';
 
-const runtimes = new LifecycleRegistry<
+const runtimes = createLifecycleRegistry<
   { workspaceId: string },
   Runtime,
   StartRuntimeError,

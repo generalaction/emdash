@@ -1,4 +1,4 @@
-import { action, computed, makeObservable, observable, reaction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, untracked } from 'mobx';
 import { PaneStore } from '@core/primitives/workbench-shell/browser/tabs/pane-store';
 import type { OpenTarget, TabViewContext } from './core/tab-provider';
 import type {
@@ -8,7 +8,7 @@ import type {
   TabOpenOptions,
   TabRegistry,
 } from './core/tab-provider-registry';
-import type { TabGroupsSnapshot, TabPersistenceAdapter } from './persistence';
+import type { PaneLayoutSnapshotMemento, TabGroupsSnapshot } from './persistence';
 
 const MAX_PANE_COUNT = 8;
 
@@ -18,8 +18,9 @@ export interface Pane<R extends TabRegistry = TabRegistry> {
 }
 
 /**
- * Owns the ordered array of per-pane PaneStore instances, the active
- * pane, and the pane size layout.
+ * Owns the ordered array of per-pane PaneStore instances and the active
+ * pane. Pixel sizes are library-owned (sync contract): the split-pane view
+ * persists them through the shared layout storage, never through this store.
  *
  * Cross-pane concerns handled here:
  * - mount:'single' cardinality — at most one tab per dedupKey across ALL panes
@@ -29,7 +30,6 @@ export interface Pane<R extends TabRegistry = TabRegistry> {
 export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   readonly groups: Pane<R>[] = [];
   activePaneId: string;
-  paneSizes: number[];
 
   /**
    * True when the owning task view is the currently active route.
@@ -46,32 +46,41 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
 
   private readonly _registry: R;
   private readonly _ctx: TabViewContext;
-  private readonly _persistor: TabPersistenceAdapter | undefined;
+  private readonly _snapshotMemento: PaneLayoutSnapshotMemento | undefined;
   private _persistDisposer: (() => void) | null = null;
   private readonly _autoCloseDisposers = new Map<string, () => void>();
   private readonly _onActiveTabChange: ((tabId: string | undefined) => void) | undefined;
+  private readonly _onPaneDestroyed: ((paneId: string) => void) | undefined;
   private readonly _activeTabDisposer: () => void;
 
   constructor(
     registry: R,
     ctx: TabViewContext,
-    persistor?: TabPersistenceAdapter,
-    opts?: { onActiveTabChange?: (tabId: string | undefined) => void }
+    snapshotMemento?: PaneLayoutSnapshotMemento,
+    opts?: {
+      onActiveTabChange?: (tabId: string | undefined) => void;
+      /**
+       * Called when a pane group is destroyed (user close or auto-close), so
+       * the owner can drop the group's persisted layout-storage entries. Not
+       * called for the fresh constructor pane replaced during snapshot
+       * restore, nor on dispose (the view is going away, not the groups).
+       */
+      onPaneDestroyed?: (paneId: string) => void;
+    }
   ) {
     this._registry = registry;
     this._ctx = ctx;
-    this._persistor = persistor;
+    this._snapshotMemento = snapshotMemento;
     this._onActiveTabChange = opts?.onActiveTabChange;
+    this._onPaneDestroyed = opts?.onPaneDestroyed;
 
     const initial = this._createPane();
     this.groups.push(initial);
     this.activePaneId = initial.paneId;
-    this.paneSizes = [100];
 
     makeObservable(this, {
       groups: observable,
       activePaneId: observable,
-      paneSizes: observable,
       isViewActive: computed,
       focusedPane: computed,
       splitRight: action,
@@ -80,7 +89,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       handleDragEnd: action,
       setActiveGroup: action,
       setViewActive: action,
-      setPaneSizes: action,
       restoreSnapshot: action,
       open: action,
     });
@@ -114,7 +122,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const newGroup = this._createPane();
     const insertAt = focusedIndex === -1 ? this.groups.length : focusedIndex + 1;
     this.groups.splice(insertAt, 0, newGroup);
-    this._redistributeSizes();
 
     this.moveTab(activeTabId, sourceGroup.paneId, newGroup.paneId);
   }
@@ -135,11 +142,12 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     closing.pane.dispose();
 
     this.groups.splice(index, 1);
-    this._redistributeSizes();
 
     if (this.activePaneId === paneId) {
       this.activePaneId = adjacent.paneId;
     }
+
+    this._onPaneDestroyed?.(paneId);
   }
 
   /**
@@ -195,12 +203,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
   setActiveGroup(paneId: string): void {
     if (this.groups.some((g) => g.paneId === paneId)) {
       this.activePaneId = paneId;
-    }
-  }
-
-  setPaneSizes(sizes: number[]): void {
-    if (sizes.length === this.groups.length) {
-      this.paneSizes = sizes;
     }
   }
 
@@ -300,7 +302,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
         tabManager: g.pane.snapshot,
       })),
       activeGroupId: this.activePaneId,
-      paneSizes: [...this.paneSizes],
     };
   }
 
@@ -320,26 +321,37 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     this.activePaneId = snapshot.groups.some((g) => g.groupId === snapshot.activeGroupId)
       ? snapshot.activeGroupId
       : (snapshot.groups[0]?.groupId ?? this.activePaneId);
-
-    this.paneSizes =
-      snapshot.paneSizes.length === snapshot.groups.length
-        ? [...snapshot.paneSizes]
-        : this._evenSizes(snapshot.groups.length);
   }
 
-  hydrate(): boolean {
-    const saved = this._persistor?.load();
-    if (saved) {
-      this.restoreSnapshot(saved);
-      return true;
-    }
-    return false;
+  /**
+   * Restores the persisted snapshot from the memento, resolving true when a
+   * stored layout was applied. Awaiting the memento's `ready` makes restore
+   * ordering a store guarantee: a hydrate() racing a slow memento hydration
+   * waits for the stored value instead of silently skipping the restore.
+   */
+  async hydrate(): Promise<boolean> {
+    const memento = this._snapshotMemento;
+    if (!memento) return false;
+    await memento.ready;
+    if (!memento.hasStoredValue) return false;
+    const snapshot = memento.read();
+    if (snapshot.groups.length === 0) return false;
+    this.restoreSnapshot(snapshot);
+    return true;
   }
 
+  /** Starts persisting snapshot changes. Call after hydrate() so the baseline
+   * does not trigger a spurious save. */
   startPersistence(): void {
-    if (!this._persistor) return;
+    const memento = this._snapshotMemento;
+    if (!memento) return;
     this._persistDisposer?.();
-    this._persistDisposer = this._persistor.start(() => this.snapshot);
+    this._persistDisposer = memento.autoPersist(() => {
+      const snapshot = this.snapshot;
+      // Carry document fields the store does not own (the schema version tag)
+      // without tracking the memento's own value in this reaction.
+      return { ...untracked(() => memento.read()), ...snapshot };
+    });
   }
 
   stopPersistence(): void {
@@ -389,7 +401,6 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
     const newGroup = this._createPane();
     const insertAt = target === 'right' ? idx + 1 : idx;
     this.groups.splice(insertAt, 0, newGroup);
-    this._redistributeSizes();
     this.activePaneId = newGroup.paneId;
     return newGroup.pane;
   }
@@ -418,16 +429,5 @@ export class PaneLayoutStore<R extends TabRegistry = TabRegistry> {
       }
     );
     this._autoCloseDisposers.set(paneId, disposer);
-  }
-
-  private _redistributeSizes(): void {
-    this.paneSizes = this._evenSizes(this.groups.length);
-  }
-
-  private _evenSizes(count: number): number[] {
-    const size = Math.floor(100 / count);
-    const sizes = new Array<number>(count).fill(size);
-    sizes[0] += 100 - sizes.reduce((a, b) => a + b, 0);
-    return sizes;
   }
 }

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { redactAll, serializeLogValue, stringifyLogValue } from '@emdash/shared/logger';
-import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/transport';
+import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/node';
 import { app } from 'electron';
 import type pinoLib from 'pino';
 
@@ -42,12 +42,13 @@ function resolveLogPath(): string | undefined {
 /**
  * Singleton file transport — shared between the pino destination and the
  * renderer log intake so there is exactly one serialized write queue.
+ * The transport applies `redactAll` to every line by default; no explicit
+ * redact wiring is needed here.
  */
 const sharedTransport = createFileTransport({
   path: resolveLogPath,
   maxBytes: MAX_LOG_BYTES,
   retainedFiles: RETAINED_LOG_FILES,
-  redact: redactAll,
 });
 
 /**

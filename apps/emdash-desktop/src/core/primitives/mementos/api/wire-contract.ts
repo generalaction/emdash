@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared/result';
+import { ok } from '@emdash/shared';
 import { defineContract, fallible, liveModel, liveState, mutation } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { subjectSchema } from '@core/primitives/subjects/api';

@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
+import { afterEach, describe, expect, it } from 'vitest';
 import { once, toPendingLease, type Lease } from './lifecycle';
+import { createStubLogger } from './testing';
 
 function leaseFor<T>(value: T, onRelease: () => void | Promise<void>): Lease<T> {
   return {
@@ -150,5 +152,30 @@ describe('toPendingLease', () => {
     await pending.release(); // one more after resolution
 
     expect(releaseCount).toBe(1);
+  });
+
+  describe('release failures', () => {
+    afterEach(() => {
+      setRootLogger(noopLogger);
+    });
+
+    it('reports release failures through the root logger instead of swallowing them', async () => {
+      const { logger, calls } = createStubLogger();
+      setRootLogger(logger);
+
+      const pending = toPendingLease(
+        Promise.resolve(
+          leaseFor('value', () => {
+            throw new Error('release boom');
+          })
+        )
+      );
+
+      await expect(pending.release()).resolves.toBeUndefined();
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.level).toBe('warn');
+      expect(calls[0]?.fields?.error).toBeInstanceOf(Error);
+    });
   });
 });

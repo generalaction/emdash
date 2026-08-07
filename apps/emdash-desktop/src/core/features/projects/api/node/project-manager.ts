@@ -4,7 +4,7 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
 import {
-  LifecycleRegistry,
+  createLifecycleRegistry,
   type Disposable,
   type LifecycleRegistryState,
   type LifecycleRegistryStateChange,
@@ -62,7 +62,7 @@ export class ProjectSessionManager implements Hookable<ProjectSessionManagerHook
   private readonly _hooks = new HookCore<ProjectSessionManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, { error: e })
   );
-  private readonly _lifecycle = new LifecycleRegistry<
+  private readonly _lifecycle = createLifecycleRegistry<
     LocalProject | SshProject,
     ProjectProvider,
     ProviderLifecycleError,

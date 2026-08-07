@@ -3,7 +3,6 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
-    result: 'src/result/index.ts',
     scheduling: 'src/scheduling/index.ts',
     concurrency: 'src/concurrency/index.ts',
     requests: 'src/requests/index.ts',
@@ -11,11 +10,7 @@ export default defineConfig({
     testing: 'src/testing/index.ts',
     config: 'src/config/index.ts',
     logger: 'src/logger/index.ts',
-    'logger-context': 'src/logger/context.ts',
-    'logger-context-node': 'src/logger/context-node.ts',
     'logger-node': 'src/logger/node/index.ts',
-    'logger-pino': 'src/logger/pino/index.ts',
-    'logger-transport': 'src/logger/transport/index.ts',
     markdown: 'src/markdown/index.ts',
     perf: 'src/perf/index.ts',
     'perf-node': 'src/perf/node/index.ts',

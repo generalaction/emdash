@@ -1,7 +1,6 @@
 // Public `@emdash/wire/rpc` entry: contracts and endpoint factories, the
 // client/serve/controller surface, transports, protocol vocabulary, provider
 // seam types, blob surface, validation, and instrumentation seam types.
-export { backoffSchedule, type BackoffSchedule, type BackoffScheduleOptions } from '../api/backoff';
 export {
   blobSourceFromBytes,
   isDownloadFileOpenResult,

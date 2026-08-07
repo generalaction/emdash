@@ -9,9 +9,10 @@ import {
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { TaskViewWrapper } from '@core/features/tasks/contributions/browser/task-view-context';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { defineViewRuntime } from '@core/primitives/views/react';
-import { TaskMainPanel } from './main-panel';
+import { TaskMainPanel, TaskViewLoadingState } from './main-panel';
 import { TaskScope } from './task-scope';
 import { TaskTitlebar } from './task-titlebar';
 
@@ -38,6 +39,18 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
       ?.provisionTask(taskId)
       .catch(() => {});
   }, [kind, projectId, taskId, taskStore]);
+
+  // Single hydration gate for the task view (spec §Hydration gating): nothing
+  // below this boundary may paint persisted view state (titlebar chrome
+  // toggles, sidebar, pane layout) before the memento space has hydrated.
+  const composition = getTaskComposition(projectId, taskId);
+  if (composition && !composition.space.isHydrated) {
+    return (
+      <div className="flex h-full flex-col bg-background text-foreground">
+        <TaskViewLoadingState />
+      </div>
+    );
+  }
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>

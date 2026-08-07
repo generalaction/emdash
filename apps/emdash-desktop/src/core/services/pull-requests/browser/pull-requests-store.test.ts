@@ -1,5 +1,5 @@
+import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { err, ok } from '@emdash/shared/result';
 import { createController, type ContractClient } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import { defineWireComponent } from '@emdash/wire/worker';

@@ -22,7 +22,31 @@ import { SectionHeader } from './components/section-header';
 import { useChangesViewMode } from './hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
-export const StagedSection = observer(function StagedSection() {
+/** Always-visible header row; rendered as a direct child of the sections group. */
+export const StagedSectionHeader = observer(function StagedSectionHeader() {
+  const taskView = useTaskComposition();
+  const workspace = useWorkspace();
+  const git = workspace.get(gitCheckoutStoreToken);
+  const changesView = taskView.diffView?.changesView;
+  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('staged');
+
+  if (!changesView) return null;
+
+  return (
+    <SectionHeader
+      label="Staged"
+      count={git.stagedFileChanges.length}
+      selectionState={changesView.stagedSelectionState}
+      onToggleAll={() => changesView.toggleAllStaged()}
+      actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Staged" />}
+      collapsed={!changesView.expandedSections.staged}
+      onToggleCollapsed={() => changesView.toggleExpanded('staged')}
+    />
+  );
+});
+
+/** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
+export const StagedSectionBody = observer(function StagedSectionBody() {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useTaskComposition();
@@ -39,7 +63,7 @@ export const StagedSection = observer(function StagedSection() {
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'staged', HEAD_REF);
 
-  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('staged');
+  const { mode: viewMode } = useChangesViewMode('staged');
 
   if (!diffView || !changesView) return null;
 
@@ -96,15 +120,6 @@ export const StagedSection = observer(function StagedSection() {
 
   return (
     <>
-      <SectionHeader
-        label="Staged"
-        count={changes.length}
-        selectionState={changesView.stagedSelectionState}
-        onToggleAll={() => changesView.toggleAllStaged()}
-        actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Staged" />}
-        collapsed={!changesView.expandedSections.staged}
-        onToggleCollapsed={() => changesView.toggleExpanded('staged')}
-      />
       {!hasChanges && (
         <EmptyState
           label="Nothing staged"

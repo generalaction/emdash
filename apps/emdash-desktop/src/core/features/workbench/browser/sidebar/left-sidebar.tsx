@@ -6,6 +6,7 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   isCurrentView,
   useNavigate,
@@ -32,7 +33,6 @@ import { useSidebarDrop } from './use-sidebar-drop';
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
-  const { isLeftOpen } = useWorkspaceLayoutContext();
 
   const openFeedbackModal = useOpenModal('feedbackModal');
   const { isDragOver, onDragOver, onDragEnter, onDragLeave, onDrop } = useSidebarDrop();
@@ -40,8 +40,9 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   return (
     <div
       className={cn(
-        'relative flex h-full flex-col bg-background-tertiary text-foreground-tertiary-muted transition-colors',
-        isLeftOpen && 'border-r border-border',
+        // Closed = unmounted (store-driven conditional rendering), so the
+        // border applies unconditionally.
+        'relative flex h-full flex-col border-r border-border bg-background-tertiary text-foreground-tertiary-muted transition-colors',
         isDragOver && 'bg-accent/10 ring-2 ring-inset ring-accent/50'
       )}
       onDragOver={onDragOver}

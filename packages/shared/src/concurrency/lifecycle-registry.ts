@@ -58,13 +58,35 @@ type RegistryEntry<Value, StartError, StopError> = {
   stopPromise: Promise<Result<void, StopError>> | undefined;
 };
 
-export class LifecycleRegistry<
+export interface LifecycleRegistry<
   StartInput,
   Value,
   StartError,
   StopContext = void,
   StopError = StartError,
 > {
+  get(key: string): Value | undefined;
+  has(key: string): boolean;
+  keys(): IterableIterator<string>;
+  values(): IterableIterator<Value>;
+  entries(): IterableIterator<[string, Value]>;
+  state(key: string): LifecycleRegistryState<Value, StartError, StopError>;
+  states(): Map<string, LifecycleRegistryState<Value, StartError, StopError>>;
+  start(input: StartInput): Promise<Result<Value, StartError>>;
+  register(key: string, value: Value): Promise<Value>;
+  stop(key: string, context?: StopContext): Promise<Result<void, StopError>>;
+  forceRemove(key: string, reason?: unknown): Promise<void>;
+  dispose(): Promise<void>;
+  onStateChanged(observer: LifecycleRegistryObserver<Value, StartError, StopError>): Unsubscribe;
+}
+
+class LifecycleRegistryImpl<
+  StartInput,
+  Value,
+  StartError,
+  StopContext = void,
+  StopError = StartError,
+> implements LifecycleRegistry<StartInput, Value, StartError, StopContext, StopError> {
   private readonly _scope: Scope;
   private readonly _entries = new Map<string, RegistryEntry<Value, StartError, StopError>>();
   private readonly _observers = new Set<LifecycleRegistryObserver<Value, StartError, StopError>>();
@@ -157,6 +179,9 @@ export class LifecycleRegistry<
         this.transition(entry, { kind: 'start-failed', error: result.error });
         return err(result.error);
       } catch (error) {
+        // Observers must never see a permanent 'starting': surface the thrown
+        // failure before the scope teardown and rethrow.
+        this.transition(entry, { kind: 'start-failed', error: error as StartError });
         await scope.dispose(error);
         entry.scope = undefined;
         throw error;
@@ -221,10 +246,6 @@ export class LifecycleRegistry<
     entry.stopPromise = promise;
     promise.catch(() => {});
     return promise;
-  }
-
-  retryStop(key: string, context?: StopContext): Promise<Result<void, StopError>> {
-    return this.stop(key, context);
   }
 
   async forceRemove(key: string, reason?: unknown): Promise<void> {
@@ -363,6 +384,18 @@ export class LifecycleRegistry<
   private assertOpen(): void {
     if (this._disposed || this._disposing) throw new Error('LifecycleRegistry is disposed');
   }
+}
+
+export function createLifecycleRegistry<
+  StartInput,
+  Value,
+  StartError,
+  StopContext = void,
+  StopError = StartError,
+>(
+  options: LifecycleRegistryOptions<StartInput, Value, StartError, StopContext, StopError>
+): LifecycleRegistry<StartInput, Value, StartError, StopContext, StopError> {
+  return new LifecycleRegistryImpl(options);
 }
 
 function valueFromState<Value, StartError, StopError>(

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { deferred } from '../testing';
+import { noopLogger, setRootLogger } from '@emdash/shared/logger';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createStubLogger, deferred } from '../testing';
 import { createKeyedLanes } from './keyed-lanes';
 
 describe('createKeyedLanes', () => {
@@ -101,5 +102,27 @@ describe('createKeyedLanes', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0]).toBeInstanceOf(Error);
     expect((errors[0] as Error).message).toBe('first failed');
+  });
+
+  describe('coalesce failures without onError', () => {
+    afterEach(() => {
+      setRootLogger(noopLogger);
+    });
+
+    it('reports the failure through the root logger instead of swallowing it', async () => {
+      const { logger, calls } = createStubLogger();
+      setRootLogger(logger);
+      const lanes = createKeyedLanes();
+
+      lanes.coalesce('workspace', async () => {
+        throw new Error('coalesce boom');
+      });
+
+      await vi.waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]?.level).toBe('warn');
+      expect(calls[0]?.fields?.key).toBe('workspace');
+      expect(calls[0]?.fields?.error).toBeInstanceOf(Error);
+      expect(lanes.depth('workspace')).toBe(0);
+    });
   });
 });

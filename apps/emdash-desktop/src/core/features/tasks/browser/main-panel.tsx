@@ -1,7 +1,7 @@
-import { Button, Resizable, toast, useResizablePanelRef } from '@emdash/ui/react/primitives';
+import { Button, Resizable, toast, useCollapsiblePanelBinding } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   getTaskManagerStore,
   getTaskStore,
@@ -9,11 +9,24 @@ import {
   taskViewKind,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
+import { taskPanelLayoutsMemento } from '@core/features/tasks/contributions/mementos';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
+import { createLayoutStorage } from '@core/primitives/mementos/browser';
+import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
+
+/** The task view's shared loading presentation: a centered spinner with an optional label. */
+export function TaskViewLoadingState({ label }: { label?: string }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+      <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
+      {label && <p className="font-sans text-xs text-foreground-muted">{label}</p>}
+    </div>
+  );
+}
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -23,12 +36,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     taskStore && 'workspaceId' in taskStore.data ? taskStore.data.workspaceId : undefined;
 
   if (kind === 'creating') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="font-sans text-xs text-foreground-muted">Creating task</p>
-      </div>
-    );
+    return <TaskViewLoadingState label="Creating task" />;
   }
 
   if (kind === 'create-error') {
@@ -45,12 +53,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'project-mounting') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="font-sans text-xs text-foreground-muted">Opening project…</p>
-      </div>
-    );
+    return <TaskViewLoadingState label="Opening project…" />;
   }
 
   if (kind === 'provisioning' && taskStore) {
@@ -86,12 +89,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'idle' || kind === 'teardown') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="font-sans text-xs text-foreground-muted">Setting up workspace…</p>
-      </div>
-    );
+    return <TaskViewLoadingState label="Setting up workspace…" />;
   }
 
   if (kind === 'teardown-error') {
@@ -262,41 +260,62 @@ function useDelayedVisible(delayMs: number): boolean {
   return visible;
 }
 
-const SIDEBAR_COLLAPSED_SIZE = '0px';
+// Drag-to-close threshold for the right sidebar, in percent of the group.
+// 280px — the old resize floor — is at least 8% of the group on any window up
+// to ~3500px wide, so every width the previous UI let a user settle at stays
+// a plain resize/restore, never a surprise close. Below 8% (~115px at 1440px)
+// the sidebar content is unusable, so a drag settling there reads as intent
+// to close rather than a resize.
+const SIDEBAR_CLOSE_THRESHOLD = 8;
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const taskView = useTaskComposition();
-  const sidebarPanelRef = useResizablePanelRef();
+  // Zen is workspace-chrome data; the task sidebar hides while zen is active
+  // as a derived condition — no task-chrome mutation, no task-side restore.
+  const { isZenActive } = useWorkspaceLayoutContext();
+  const isSidebarOpen = !taskView.isSidebarCollapsed && !isZenActive;
 
-  useEffect(() => {
-    if (taskView.isSidebarCollapsed) {
-      sidebarPanelRef.current?.collapse();
-    } else {
-      sidebarPanelRef.current?.expand();
-    }
-  }, [taskView.isSidebarCollapsed, sidebarPanelRef]);
+  // One storage facade per composition. ReadyTaskMainPanel renders below the
+  // task view's space.isHydrated gate, so synchronous reads are safe by
+  // contract.
+  const layoutStorage = useMemo(
+    () => createLayoutStorage(taskView.space, taskPanelLayoutsMemento),
+    [taskView.space]
+  );
+  const sidebarBinding = useCollapsiblePanelBinding({
+    storageKey: 'task-sidebar-layout',
+    storage: layoutStorage,
+    panelIds: ['task-main-area', 'task-sidebar'],
+    collapsiblePanelId: 'task-sidebar',
+    open: isSidebarOpen,
+    onCloseRequest: () => taskView.chrome.commands.collapseSidebar(),
+    closeThreshold: SIDEBAR_CLOSE_THRESHOLD,
+  });
 
   return (
     <taskTabView.TabLayoutProvider layout={taskView.paneLayout}>
-      <Resizable.Group orientation="horizontal" id="task-sidebar-layout">
+      <Resizable.Group
+        orientation="horizontal"
+        id="task-sidebar-layout"
+        {...sidebarBinding.groupProps}
+      >
         <Resizable.Panel id="task-main-area">
           <TaskMainColumn />
         </Resizable.Panel>
-        <Resizable.Handle />
-        <Resizable.Panel
-          id="task-sidebar"
-          panelRef={sidebarPanelRef}
-          defaultSize="25%"
-          minSize="280px"
-          maxSize="50%"
-          collapsible
-          collapsedSize={SIDEBAR_COLLAPSED_SIZE}
-          onResize={() =>
-            taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
-          }
-        >
-          <TaskSidebar />
-        </Resizable.Panel>
+        {/* Collapsed = panel AND handle unmounted (sync contract: never
+            program the panels). */}
+        {isSidebarOpen && (
+          <>
+            <Resizable.Handle />
+            <Resizable.Panel
+              {...sidebarBinding.collapsiblePanelProps}
+              defaultSize={sidebarBinding.collapsiblePanelProps.defaultSize ?? '25%'}
+              maxSize="50%"
+            >
+              <TaskSidebar />
+            </Resizable.Panel>
+          </>
+        )}
       </Resizable.Group>
     </taskTabView.TabLayoutProvider>
   );

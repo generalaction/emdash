@@ -73,11 +73,21 @@ export const taskEditorTreeMemento = defineMemento({
   },
 });
 
+const changesExpandedSectionsSchema = z.object({
+  unstaged: z.boolean(),
+  staged: z.boolean(),
+  pullRequests: z.boolean(),
+});
+
 const taskDiffPreferencesV1Schema = z.object({
   version: z.literal('1'),
   diffStyle: z.enum(['unified', 'split']),
   commitAction: z.enum(['commit', 'commit-push', 'commit-pr']).nullable(),
   prTab: z.enum(['files', 'commits', 'checks']),
+  // Changes-panel section expansion. Absent until the first git load seeds
+  // it (ChangesViewStore keeps "never set" semantics); optional-on-v1 so
+  // older app versions still parse documents written by newer ones.
+  expandedSections: changesExpandedSectionsSchema.optional(),
 });
 
 export const taskDiffPreferencesSchema = defineVersionedSchema()
@@ -96,6 +106,39 @@ export const taskDiffPreferencesMemento = defineMemento({
     prTab: 'files' as const,
   },
 });
+
+const taskPanelLayoutsV1Schema = z.object({
+  version: z.literal('1'),
+  // Serialized panel layouts keyed by the react-resizable-panels internal
+  // storage key (`react-resizable-panels:${id}[:${panelIds}]`).
+  layouts: z.record(z.string(), z.string()),
+});
+
+export const taskPanelLayoutsSchema = defineVersionedSchema()
+  .initial('1', taskPanelLayoutsV1Schema)
+  .build();
+export type TaskPanelLayoutsState = typeof taskPanelLayoutsSchema.Type;
+
+export const taskPanelLayoutsMemento = defineMemento({
+  id: 'tasks.panel-layouts',
+  subject: taskSubject,
+  schema: taskPanelLayoutsSchema,
+  default: {
+    version: '1' as const,
+    layouts: {},
+  },
+});
+
+/**
+ * Panel id for one split-pane group inside the task-main split. Split-pane
+ * sizes persist through the shared `tasks.panel-layouts` storage like every
+ * other resizable surface; the library derives the storage entry key from
+ * these ids (`react-resizable-panels:${groupId}:${panelIds...}`), so entries
+ * are keyed by the (restart-stable) pane-group id combination.
+ */
+export function splitPanePanelId(paneGroupId: string): string {
+  return `pane:${paneGroupId}`;
+}
 
 const gitRemoteSchema = z.object({
   name: z.string(),
@@ -245,7 +288,6 @@ export const taskPaneLayoutSnapshotSchema = z.object({
     )
     .min(1),
   activeGroupId: z.string().min(1),
-  paneSizes: z.array(z.number()),
 });
 
 export type TaskPaneLayoutSnapshot = z.infer<typeof taskPaneLayoutSnapshotSchema>;
@@ -255,10 +297,23 @@ export type TabManagerSnapshot = TaskPaneLayoutSnapshot['groups'][number]['tabMa
 const taskPaneLayoutV1Schema = z.object({
   version: z.literal('1'),
   ...taskPaneLayoutSnapshotSchema.shape,
+  // v1 stored split-pane sizes inside the snapshot; v2 moved them onto the
+  // shared panel-layouts storage (spec: pane-layout ownership).
+  paneSizes: z.array(z.number()),
+});
+
+const taskPaneLayoutV2Schema = z.object({
+  version: z.literal('2'),
+  ...taskPaneLayoutSnapshotSchema.shape,
 });
 
 export const taskPaneLayoutSchema = defineVersionedSchema()
   .initial('1', taskPaneLayoutV1Schema)
+  // Old paneSizes are abandoned, not migrated (spec: one-time layout reset).
+  .version('2', taskPaneLayoutV2Schema, ({ paneSizes: _paneSizes, ...v1 }) => ({
+    ...v1,
+    version: '2' as const,
+  }))
   .build();
 export type TaskPaneLayoutState = typeof taskPaneLayoutSchema.Type;
 
@@ -267,7 +322,7 @@ export const taskPaneLayoutMemento = defineMemento({
   subject: taskSubject,
   schema: taskPaneLayoutSchema,
   default: {
-    version: '1' as const,
+    version: '2' as const,
     groups: [
       {
         groupId: 'default',
@@ -278,6 +333,5 @@ export const taskPaneLayoutMemento = defineMemento({
       },
     ],
     activeGroupId: 'default',
-    paneSizes: [100],
   },
 });

@@ -5,7 +5,7 @@ import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
 
 export function SidebarSpace() {
-  const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();
+  const { isLeftOpen, toggleLeftSidebar } = useWorkspaceLayoutContext();
   return (
     <div className="flex h-10 w-full items-center justify-end gap-2 px-2 [-webkit-app-region:drag]">
       <NavButtons />
@@ -16,7 +16,7 @@ export function SidebarSpace() {
             size="sm"
             icon
             pressed={isLeftOpen}
-            onPressedChange={() => setCollapsed('left', isLeftOpen)}
+            onPressedChange={() => toggleLeftSidebar()}
           >
             <PanelLeft className="h-4 w-4" />
           </Toggle>

@@ -1,4 +1,5 @@
 import type { HostDependencyError } from '@emdash/core/primitives/host-dependencies/api';
+import type { PluginIconAsset } from '@emdash/shared/plugins';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
 
 // ---------------------------------------------------------------------------
@@ -224,23 +225,6 @@ export function agentSupportsAutoApprove(
 }
 
 // ---------------------------------------------------------------------------
-// Icon asset DTO — mirrors AgentIconAsset from @emdash/core/services/agent-plugins/api/plugins
-// ---------------------------------------------------------------------------
-
-export type AgentIconVariant = {
-  minSize: number;
-  light: string;
-  dark?: string;
-};
-
-export type AgentIconAsset = {
-  kind: 'svg' | 'image';
-  alt?: string;
-  variants: AgentIconVariant[];
-  invertInDark?: boolean;
-};
-
-// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
@@ -260,7 +244,7 @@ export type AgentMetadata = {
   name: string;
   description: string;
   websiteUrl: string;
-  icon: AgentIconAsset;
+  icon: PluginIconAsset;
   capabilities: AgentCapabilities;
   /** Link to installation documentation, null if not set by the plugin. */
   installDocs: string | null;

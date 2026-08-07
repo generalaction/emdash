@@ -1,4 +1,4 @@
-import { ok } from '@emdash/shared/result';
+import { ok } from '@emdash/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
 import { PullRequestsRegistration } from './pull-requests-registration';

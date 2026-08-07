@@ -87,22 +87,25 @@ const taskScopeImplementation = {
   'task.sidebarChanges': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskComposition(params.projectId, params.taskId);
-      if (taskView) toggleTaskSidebarTab(taskView, 'changes');
+      getTaskComposition(params.projectId, params.taskId)?.chrome.commands.toggleSidebarTab(
+        'changes'
+      );
     },
   }),
   'task.sidebarConversations': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskComposition(params.projectId, params.taskId);
-      if (taskView) toggleTaskSidebarTab(taskView, 'conversations');
+      getTaskComposition(params.projectId, params.taskId)?.chrome.commands.toggleSidebarTab(
+        'conversations'
+      );
     },
   }),
   'task.sidebarFiles': (params) => ({
     availability: () => taskAvailability(params),
     execute: () => {
-      const taskView = getTaskComposition(params.projectId, params.taskId);
-      if (taskView) toggleTaskSidebarTab(taskView, 'files');
+      getTaskComposition(params.projectId, params.taskId)?.chrome.commands.toggleSidebarTab(
+        'files'
+      );
     },
   }),
   'task.fileContentSearch': (params) => ({
@@ -110,14 +113,15 @@ const taskScopeImplementation = {
     execute: () => {
       const taskView = getTaskComposition(params.projectId, params.taskId);
       if (!taskView) return;
-      taskView.setSidebarTab('files');
-      taskView.setSidebarCollapsed(false);
+      taskView.chrome.commands.openSidebarTab('files');
       taskView.editorView.requestFileSearchFocus();
     },
   }),
   'task.viewTerminals': (params) => ({
     availability: () => taskAvailability(params),
-    execute: () => getTaskComposition(params.projectId, params.taskId)?.setTerminalDrawerOpen(true),
+    execute: () => {
+      getTaskComposition(params.projectId, params.taskId)?.chrome.commands.openTerminalDrawer();
+    },
   }),
   'task.toggleTerminalDrawer': (params) => ({
     availability: () => taskAvailability(params),
@@ -125,11 +129,11 @@ const taskScopeImplementation = {
       const taskView = getTaskComposition(params.projectId, params.taskId);
       if (!taskView) return;
       if (taskView.isTerminalDrawerOpen) {
-        taskView.setTerminalDrawerOpen(false);
+        taskView.chrome.commands.closeTerminalDrawer();
       } else if (taskView.terminalTabs.tabs.length === 0) {
         void taskView.openNewTerminal();
       } else {
-        taskView.setTerminalDrawerOpen(true);
+        taskView.chrome.commands.openTerminalDrawer();
       }
     },
   }),
@@ -142,8 +146,7 @@ const taskScopeImplementation = {
       };
     },
     execute: () => {
-      const taskView = getTaskComposition(params.projectId, params.taskId);
-      if (taskView) taskView.setSidebarCollapsed(!taskView.isSidebarCollapsed);
+      getTaskComposition(params.projectId, params.taskId)?.chrome.commands.toggleSidebar();
     },
   }),
   'task.newTerminal': (params) => ({

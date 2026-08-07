@@ -28,7 +28,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --project node --project browser",
+    "test": "vitest run --project \"!perf\"",
     "test:perf": "vitest run --project perf",
     "test:bench": "vitest bench --project browser"
   },

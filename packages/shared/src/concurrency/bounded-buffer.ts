@@ -1,3 +1,5 @@
+import { log } from '@emdash/shared/logger';
+
 export type BoundedBufferOverflow = 'reject' | 'drop-oldest' | 'drop-newest';
 
 export type BoundedBufferOfferResult<T> =
@@ -35,7 +37,7 @@ class BoundedBufferImpl<T> implements BoundedBuffer<T> {
 
   constructor(private readonly options: CreateBoundedBufferOptions<T>) {
     this.slots = new Array(Math.max(0, Math.floor(options.capacity)));
-    this.onDrop = options.onDrop;
+    this.onDrop = wrapOnDrop(options.onDrop);
   }
 
   get capacity(): number {
@@ -47,11 +49,15 @@ class BoundedBufferImpl<T> implements BoundedBuffer<T> {
   }
 
   offer(value: T): BoundedBufferOfferResult<T> {
+    if (value === undefined) {
+      throw new Error('BoundedBuffer cannot accept undefined values');
+    }
+
     if (this.capacity === 0) {
+      // Reject never fires onDrop: the caller keeps ownership of the value.
+      if (this.options.overflow === 'reject') return { kind: 'full' };
       this.onDrop?.(value);
-      return this.options.overflow === 'drop-newest'
-        ? { kind: 'dropped', value }
-        : { kind: 'full' };
+      return { kind: 'dropped', value };
     }
 
     if (this.length < this.capacity) {
@@ -105,11 +111,14 @@ class BoundedBufferImpl<T> implements BoundedBuffer<T> {
   }
 
   clear(): void {
+    // Buffered values were taken by the buffer; discarding them is a drop.
+    const dropped: T[] = this.onDrop ? this.toArray() : [];
     for (let i = 0; i < this.length; i += 1) {
       this.slots[this.indexOf(i)] = undefined;
     }
     this.start = 0;
     this.length = 0;
+    for (const value of dropped) this.onDrop?.(value);
   }
 
   toArray(): T[] {
@@ -128,4 +137,18 @@ class BoundedBufferImpl<T> implements BoundedBuffer<T> {
   private indexOf(offset: number): number {
     return (this.start + offset) % this.capacity;
   }
+}
+
+// onDrop fires exactly once per discarded value; a throwing hook must not break
+// buffer invariants or interrupt drains, so failures are reported, never rethrown.
+// The dropped value is deliberately kept out of the log fields.
+function wrapOnDrop<T>(onDrop: ((value: T) => void) | undefined): ((value: T) => void) | undefined {
+  if (!onDrop) return undefined;
+  return (value) => {
+    try {
+      onDrop(value);
+    } catch (error) {
+      log.warn('bounded buffer onDrop hook failed', { error });
+    }
+  };
 }

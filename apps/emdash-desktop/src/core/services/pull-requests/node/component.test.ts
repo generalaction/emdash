@@ -1,5 +1,5 @@
+import { err, ok } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
-import { err, ok } from '@emdash/shared/result';
 import { createController } from '@emdash/wire/rpc';
 import { FakeWorkerProcessSpawner } from '@emdash/wire/testing';
 import { createWireWorkerHost, runWireComponentWorker } from '@emdash/wire/worker';

@@ -1,6 +1,6 @@
 /**
  * Node-only pino-backed Logger implementation.
- * Import from '@emdash/shared/logger/pino' — never from the renderer bundle.
+ * Reach it through '@emdash/shared/logger/node' — never from the renderer bundle.
  */
 
 import pinoLib from 'pino';

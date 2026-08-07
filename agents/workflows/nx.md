@@ -151,8 +151,14 @@ The `code-consistency-check.yml` workflow uses `nrwl/nx-set-shas@v4` to set
 runs:
 
 ```bash
-pnpm nx affected -t format:check typecheck lint
+pnpm nx affected -t format:check typecheck lint test
 ```
+
+The test gate runs with `EMDASH_TEST_SKIP_BROWSER=1` (the Playwright-backed
+`browser` Vitest projects are skipped in CI) and after an explicit
+`pnpm --dir apps/emdash-desktop/tooling/node-deps install`, since the workflow's
+`--ignore-scripts` install skips the postinstall that normally provisions the
+native side project.
 
 This means only the projects touched by the PR (and their dependents) are checked.
 A PR that modifies only `packages/ui` will not re-run typecheck for the desktop app

@@ -1,4 +1,4 @@
-import { Emitter, type Unsubscribe } from '@emdash/shared';
+import { createEmitter, type Unsubscribe } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
 import type { JsonObject, JsonValue } from '@core/primitives/json/api';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
@@ -44,7 +44,7 @@ interface PendingLocation {
 }
 
 export class NavigationStore implements NavigationParticipantHost {
-  readonly onDidNavigate = new Emitter<NavigationEvent>();
+  readonly onDidNavigate = createEmitter<NavigationEvent>();
 
   private readonly _host: NavigationHost;
   private _currentRef: ViewRef;

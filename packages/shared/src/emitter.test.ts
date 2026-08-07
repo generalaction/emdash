@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Emitter } from './emitter';
+import { createEmitter } from './emitter';
 
 describe('Emitter', () => {
   it('delivers values to all subscribers and supports unsubscribe', () => {
-    const emitter = new Emitter<number>();
+    const emitter = createEmitter<number>();
     const first: number[] = [];
     const second: number[] = [];
 
@@ -21,7 +21,7 @@ describe('Emitter', () => {
   });
 
   it('tolerates unsubscribe during emit', () => {
-    const emitter = new Emitter<string>();
+    const emitter = createEmitter<string>();
     const seen: string[] = [];
     const unsubscribe = emitter.subscribe(() => {
       unsubscribe();
@@ -36,7 +36,7 @@ describe('Emitter', () => {
   });
 
   it('clears all subscribers', () => {
-    const emitter = new Emitter<number>();
+    const emitter = createEmitter<number>();
     const seen: number[] = [];
     emitter.subscribe((value) => seen.push(value));
 
@@ -50,7 +50,7 @@ describe('Emitter', () => {
   it('isolates subscriber failures and continues delivery', () => {
     const error = new Error('boom');
     const onSubscriberError = vi.fn();
-    const emitter = new Emitter<number>({ onSubscriberError });
+    const emitter = createEmitter<number>({ onSubscriberError });
     const seen: number[] = [];
     emitter.subscribe(() => {
       throw error;
@@ -65,7 +65,7 @@ describe('Emitter', () => {
 
   it('does not expose emitted values to the subscriber error reporter', () => {
     const onSubscriberError = vi.fn();
-    const emitter = new Emitter<{ secret: string }>({ onSubscriberError });
+    const emitter = createEmitter<{ secret: string }>({ onSubscriberError });
     emitter.subscribe(() => {
       throw new Error('boom');
     });
@@ -77,7 +77,7 @@ describe('Emitter', () => {
   });
 
   it('isolates subscriber error reporter failures', () => {
-    const emitter = new Emitter<number>({
+    const emitter = createEmitter<number>({
       onSubscriberError() {
         throw new Error('report failed');
       },

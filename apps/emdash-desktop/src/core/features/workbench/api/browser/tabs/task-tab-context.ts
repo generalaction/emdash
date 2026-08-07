@@ -1,5 +1,3 @@
-import type { TaskPaneLayoutState } from '@core/features/tasks/contributions/mementos';
-import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { TabViewContext } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 
 /**
@@ -23,5 +21,4 @@ export interface TaskTabContext extends TabViewContext {
   modelRootPath: string;
   /** Current remote connection for terminal/file-drop helpers, when this task is remote. */
   getRemoteConnectionId?: () => string | undefined;
-  paneLayoutMemento: MementoHandle<TaskPaneLayoutState>;
 }

@@ -7,7 +7,7 @@ import {
 } from '@emdash/core/services/runtime-broker/api';
 import { ok, type Result } from '@emdash/shared';
 import {
-  LifecycleRegistry,
+  createLifecycleRegistry,
   type LifecycleRegistryState,
   type LifecycleRegistryStateChange,
 } from '@emdash/shared/concurrency';
@@ -142,7 +142,7 @@ export class TaskSessionManager {
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, { error: e })
   );
-  private readonly _lifecycle = new LifecycleRegistry<
+  private readonly _lifecycle = createLifecycleRegistry<
     TaskStartInput,
     StoredTask,
     ProvisionTaskError,

@@ -8,9 +8,17 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { Resizable, useResizablePanelRef } from '@emdash/ui/react/primitives';
+import {
+  Resizable,
+  useCollapsiblePanelBinding,
+  useResizableDefaultLayout,
+} from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
+import {
+  splitPanePanelId,
+  taskPanelLayoutsMemento,
+} from '@core/features/tasks/contributions/mementos';
 import {
   isTerminalDrawerDragData,
   type TerminalDrawerDragData,
@@ -18,6 +26,7 @@ import {
 import { TerminalsPanel } from '@core/features/terminals/contributions/browser/task-terminal/terminal-panel';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { PaneProvider } from '@core/features/workbench/contributions/browser/tabs/pane-provider';
+import { createLayoutStorage, type MementoLayoutStorage } from '@core/primitives/mementos/browser';
 import { PaneContent } from '@core/primitives/workbench-shell/browser/tabs/pane-content';
 import type { Pane as PaneGroup } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
 import { TabDragPreview } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/tab-drag-preview';
@@ -28,20 +37,34 @@ type ActiveDrag =
   | { kind: 'tab'; tabId: string }
   | { kind: 'terminal'; terminal: TerminalDrawerDragData };
 
+// Drag-to-close threshold for the bottom drawer, in percent of the column.
+// Below ~10% only the drawer tab bar and a row or two of terminal remain
+// visible, so a drag settling there reads as intent to close rather than a
+// resize. Deliberately under the drawer's old 15% resize floor, so every
+// height the previous UI could persist stays a plain restore, never a close.
+const TERMINAL_DRAWER_CLOSE_THRESHOLD = 10;
+
 export const TaskMainColumn = observer(function TaskMainColumn() {
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
-  const bottomPanelRef = useResizablePanelRef();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
 
-  useEffect(() => {
-    if (taskView.isTerminalDrawerOpen) {
-      bottomPanelRef.current?.expand();
-    } else {
-      bottomPanelRef.current?.collapse();
-    }
-  }, [taskView.isTerminalDrawerOpen, bottomPanelRef]);
+  // One storage facade per composition. TaskMainColumn renders below the task
+  // view's space.isHydrated gate, so synchronous reads are safe by contract.
+  const layoutStorage = useMemo(
+    () => createLayoutStorage(taskView.space, taskPanelLayoutsMemento),
+    [taskView.space]
+  );
+  const drawerBinding = useCollapsiblePanelBinding({
+    storageKey: 'task-main-vertical',
+    storage: layoutStorage,
+    panelIds: ['task-main-content', 'task-terminal-drawer'],
+    collapsiblePanelId: 'task-terminal-drawer',
+    open: taskView.isTerminalDrawerOpen,
+    onCloseRequest: () => taskView.chrome.commands.closeTerminalDrawer(),
+    closeThreshold: TERMINAL_DRAWER_CLOSE_THRESHOLD,
+  });
 
   const handleDragStart = (event: DragStartEvent) => {
     const terminalDragData = event.active.data.current;
@@ -80,25 +103,25 @@ export const TaskMainColumn = observer(function TaskMainColumn() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <Resizable.Group orientation="vertical" id="task-main-vertical">
+      <Resizable.Group orientation="vertical" id="task-main-vertical" {...drawerBinding.groupProps}>
         <Resizable.Panel id="task-main-content" minSize="30%">
-          <SplitPaneLayout />
+          <SplitPaneLayout storage={layoutStorage} />
         </Resizable.Panel>
-        <Resizable.Handle hidden={!taskView.isTerminalDrawerOpen} />
-        <Resizable.Panel
-          id="task-terminal-drawer"
-          panelRef={bottomPanelRef}
-          collapsible
-          collapsedSize="0%"
-          defaultSize="25%"
-          minSize="15%"
-          onResize={(_panelSize, _id, prevPanelSize) => {
-            if (prevPanelSize === undefined) return;
-            taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed());
-          }}
-        >
-          <TerminalsPanel />
-        </Resizable.Panel>
+        {/* Closed = panel AND handle unmounted (sync contract: never program
+            the panels). Terminal content survives the unmount because each
+            PTY session's xterm DOM is reparented to the off-screen host, not
+            disposed (see usePty). */}
+        {taskView.isTerminalDrawerOpen && (
+          <>
+            <Resizable.Handle />
+            <Resizable.Panel
+              {...drawerBinding.collapsiblePanelProps}
+              defaultSize={drawerBinding.collapsiblePanelProps.defaultSize ?? '25%'}
+            >
+              <TerminalsPanel />
+            </Resizable.Panel>
+          </>
+        )}
       </Resizable.Group>
       <DragOverlay dropAnimation={null}>
         {activeDrag?.kind === 'tab' ? (
@@ -120,12 +143,12 @@ const SplitPane = observer(function SplitPane({
   group,
   index,
   onActivate,
-  defaultSizePct,
+  defaultSize,
 }: {
   group: PaneGroup;
   index: number;
   onActivate: () => void;
-  defaultSizePct: number;
+  defaultSize: string;
 }) {
   const taskView = useTaskComposition();
   const canSplit = group.pane.resolvedTabs.length >= 2 && taskView.paneLayout.groups.length < 3;
@@ -133,8 +156,8 @@ const SplitPane = observer(function SplitPane({
     <>
       {index > 0 && <Resizable.Handle />}
       <Resizable.Panel
-        id={`pane-${group.paneId}`}
-        defaultSize={`${defaultSizePct}%`}
+        id={splitPanePanelId(group.paneId)}
+        defaultSize={defaultSize}
         minSize="200px"
         onPointerDown={onActivate}
       >
@@ -151,19 +174,44 @@ const SplitPane = observer(function SplitPane({
 });
 
 /** Renders one vertical pane per tab group inside a Resizable.Group. */
-const SplitPaneLayout = observer(function SplitPaneLayout() {
+const SplitPaneLayout = observer(function SplitPaneLayout({
+  storage,
+}: {
+  storage: MementoLayoutStorage;
+}) {
   const taskView = useTaskComposition();
   const { paneLayout } = taskView;
 
+  // Split sizes persist through the shared layout storage like every other
+  // resizable surface (sync contract: pixel sizes belong to the library, no
+  // store write-back). The storage entry key derives from the pane-group id
+  // combination, so a stale entry for a different set of groups is never
+  // read and a re-split (fresh group id) starts from defaults; destroyed
+  // groups' entries are deleted by the store owner (task-composition).
+  const panelIds = paneLayout.groups.map((group) => splitPanePanelId(group.paneId));
+  const { defaultLayout, onLayoutChanged } = useResizableDefaultLayout({
+    id: 'task-main-split',
+    panelIds,
+    storage,
+  });
+  // `defaultLayout` covers panels present at Group mount; a panel entering
+  // later (a fresh split) falls back to an even share via `defaultSize`.
+  const evenSharePct = Math.floor(100 / paneLayout.groups.length);
+
   return (
-    <Resizable.Group orientation="horizontal" id="task-main-split">
+    <Resizable.Group
+      orientation="horizontal"
+      id="task-main-split"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
+    >
       {paneLayout.groups.map((group, i) => (
         <SplitPane
           key={group.paneId}
           group={group}
           index={i}
           onActivate={() => paneLayout.setActiveGroup(group.paneId)}
-          defaultSizePct={paneLayout.paneSizes[i] ?? Math.floor(100 / paneLayout.groups.length)}
+          defaultSize={`${defaultLayout?.[splitPanePanelId(group.paneId)] ?? evenSharePct}%`}
         />
       ))}
     </Resizable.Group>

@@ -64,6 +64,8 @@ Views use a contributions + catalog + parameterized navigation pattern.
   `NavigationHistoryStore` (app-scoped), `getNavigation()` selectors, and React hooks
   (`useNavigate`, `useViewParams`, `useCurrentViewParams`); the renderer bootstrap seeds the
   catalog through `seedRendererNavigationHost()` before the app scope creates the stores
+- `src/core/primitives/layouts/react/layout-provider.tsx` — workspace chrome context: reads
+  the per-project workspace chrome command store and exposes the layout-storage facade
 
 **Key behaviors:**
 - Calling a view definition is the only way to construct a `ViewRef`
@@ -79,6 +81,30 @@ Views use a contributions + catalog + parameterized navigation pattern.
   entity (for example per task)
 - Add new views through the owning slice's `contributions/views.ts` and register them in
   `src/core/manifests/browser/view-catalog.ts`
+
+## Workbench Layout State
+
+Workbench layout follows a strict ownership model (see
+`.scratch/workbench-state-architecture/spec.md` history for rationale):
+
+- **Chrome state lives in command stores, one per subject.** Task chrome
+  (`sidebarCollapsed`, `sidebarTab`, `terminalDrawerOpen`) and workspace chrome
+  (`leftSidebarOpen`, `zen`) are memento-backed state objects mutated only through
+  named commands (`toggleSidebar`, `openSidebarTab`, `enterZenMode`, ...) — never
+  through field setters. The shared mechanism is `defineChromeStore` in
+  `src/core/primitives/chrome-stores/`.
+- **Panel visibility is store-driven conditional rendering, never programmatic panel
+  writes.** Closed = unmounted. Collapsible surfaces bind through
+  `useCollapsiblePanelBinding` from `@emdash/ui` (next to `Resizable`), which turns
+  drag-below-threshold into a semantic close command. No `panel.collapse()` /
+  `expand()` / `resize()` / `setLayout()` calls exist in app code, and no
+  `display:none` toggling of workbench surfaces.
+- **Pixel sizes belong to react-resizable-panels alone**, persisted via
+  `useResizableDefaultLayout` with a memento-backed `LayoutStorage` facade
+  (`createLayoutStorage` in `src/core/primitives/mementos/browser/`). Sizes are never
+  MobX observables and never persisted to localStorage.
+- **Persisted view state renders below a hydration gate.** The task view gates on
+  `space.isHydrated`; the storage facade dev-asserts on reads before hydration.
 
 ## PTY Frontend (`src/core/features/terminals/`)
 
@@ -137,6 +163,9 @@ For state that must survive React unmounts or be shared across unrelated compone
   `src/core/manifests/browser/app-scoped-stores.ts`; access them through per-slice typed
   selectors (for example `getNavigation()` from
   `src/core/primitives/navigation/browser/navigation-selectors.ts`)
+- **`useSyncExternalStore`-compatible stores** — e.g., the memento hooks in
+  `src/core/primitives/mementos/react/` and the layout-storage facade in
+  `src/core/primitives/mementos/browser/`
 - **MobX task and project stores** — slice-owned; access them through selectors
   (`src/core/features/tasks/api/browser/task-state/task-selectors.ts`,
   `src/core/features/projects/api/browser/stores/project-selectors.ts`) and task view hooks,

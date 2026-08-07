@@ -1,6 +1,10 @@
 import type { Result } from '@emdash/shared';
-import { ConcurrencyLimiter, createScope, type Scope } from '@emdash/shared/concurrency';
-import type Database from 'better-sqlite3';
+import {
+  createConcurrencyLimiter,
+  createScope,
+  type ConcurrencyLimiter,
+  type Scope,
+} from '@emdash/shared/concurrency';
 import { DEFAULT_SEARCH_EXCLUDE } from '#primitives/lib/api';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
 import type {
@@ -15,6 +19,7 @@ import type {
   PathSearchResult,
 } from '#runtimes/file-search/api';
 import type { IWatchService } from '#services/fs-watch/api';
+import type Database from 'better-sqlite3';
 import type { ContentSearchContext } from './content/content-searcher';
 import { RipgrepContentSearcher } from './content/ripgrep/ripgrep-content-searcher';
 import { searchRootContent } from './content/root-content-search';
@@ -60,10 +65,10 @@ export class FileSearchRuntime {
     try {
       const defaultContentExclusions = new DefaultFileSearchExclusions();
       const scanner = new NodePathScanner();
-      const scanLimiter = new ConcurrencyLimiter(
+      const scanLimiter = createConcurrencyLimiter(
         options.maxConcurrentScans ?? DEFAULT_MAX_CONCURRENT_SCANS
       );
-      this.contentLimiter = new ConcurrencyLimiter(
+      this.contentLimiter = createConcurrencyLimiter(
         options.maxConcurrentContentSearches ?? DEFAULT_MAX_CONCURRENT_CONTENT_SEARCHES
       );
       this.contentSearcher = new RipgrepContentSearcher({

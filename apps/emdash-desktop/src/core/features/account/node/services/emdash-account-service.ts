@@ -1,6 +1,5 @@
-import { err, ok, type Result } from '@emdash/shared';
+import { err, ok, Result as ResultUtil, type Result } from '@emdash/shared';
 import { log } from '@emdash/shared/logger';
-import { Result as ResultUtil } from '@emdash/shared/result';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import {
   type AccountInitializeError,

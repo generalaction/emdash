@@ -113,7 +113,7 @@ export function createResourceCache<K, T>(
   }
 
   function createEntry(key: K, keyId: string): Entry<K, T> {
-    return {
+    const entry: Entry<K, T> = {
       key,
       keyId,
       scope: cacheScope.child(entryScopeLabel(keyId)),
@@ -124,6 +124,9 @@ export function createResourceCache<K, T>(
       disposePromise: undefined,
       idleTimer: undefined,
     };
+    // Registered once per entry; release cycles only reschedule the timer.
+    entry.scope.add(() => clearIdleTimer(entry));
+    return entry;
   }
 
   function entryScopeLabel(keyId: string): string {
@@ -191,7 +194,6 @@ export function createResourceCache<K, T>(
       },
       { unref: true }
     );
-    entry.scope.add(() => clearIdleTimer(entry));
     return Promise.resolve();
   }
 

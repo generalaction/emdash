@@ -1,5 +1,12 @@
+import type { Secret } from '@emdash/shared';
 import type { SecretStore } from '@core/primitives/secrets/api/secret-store';
 
+/**
+ * Stores and retrieves SSH passwords and passphrases as `Secret`-typed values.
+ * Plaintext never surfaces here: values arrive wrapped, pass through the
+ * Secret-typed store, and are disclosed only at the ssh2 connect-config
+ * assembly (`connect/ssh-connect-auth.ts`).
+ */
 export class SshCredentialService {
   constructor(private readonly secrets: SecretStore) {}
 
@@ -11,7 +18,7 @@ export class SshCredentialService {
     return `ssh:${connectionId}:passphrase`;
   }
 
-  async storePassword(connectionId: string, password: string): Promise<void> {
+  async storePassword(connectionId: string, password: Secret<string>): Promise<void> {
     try {
       await this.secrets.setSecret(this.passwordSecretKey(connectionId), password);
     } catch (error) {
@@ -20,7 +27,7 @@ export class SshCredentialService {
     }
   }
 
-  async getPassword(connectionId: string): Promise<string | null> {
+  async getPassword(connectionId: string): Promise<Secret<string> | null> {
     try {
       return await this.secrets.getSecret(this.passwordSecretKey(connectionId));
     } catch (error) {
@@ -47,7 +54,7 @@ export class SshCredentialService {
     }
   }
 
-  async storePassphrase(connectionId: string, passphrase: string): Promise<void> {
+  async storePassphrase(connectionId: string, passphrase: Secret<string>): Promise<void> {
     try {
       await this.secrets.setSecret(this.passphraseSecretKey(connectionId), passphrase);
     } catch (error) {
@@ -56,7 +63,7 @@ export class SshCredentialService {
     }
   }
 
-  async getPassphrase(connectionId: string): Promise<string | null> {
+  async getPassphrase(connectionId: string): Promise<Secret<string> | null> {
     try {
       return await this.secrets.getSecret(this.passphraseSecretKey(connectionId));
     } catch (error) {
@@ -85,7 +92,7 @@ export class SshCredentialService {
 
   async storeCredentials(
     connectionId: string,
-    credentials: { password?: string; passphrase?: string }
+    credentials: { password?: Secret<string>; passphrase?: Secret<string> }
   ): Promise<void> {
     const operations: Promise<void>[] = [];
     if (credentials.password) {

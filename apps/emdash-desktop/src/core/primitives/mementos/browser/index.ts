@@ -1,4 +1,9 @@
 export {
+  createLayoutStorage,
+  type MementoLayoutStorage,
+  type PanelLayoutsState,
+} from './layout-storage';
+export {
   MementoClient,
   SubjectSpace,
   type MementoClientOptions,
