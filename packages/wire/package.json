@@ -11,10 +11,7 @@
     "dist"
   ],
   "type": "module",
-  "sideEffects": [
-    "./src/live/state/immer-setup.ts",
-    "./src/state/live-immer.ts"
-  ],
+  "sideEffects": false,
   "exports": {
     "./rpc": {
       "development": "./src/rpc/index.ts",

@@ -1,2 +1,1 @@
-export { produce } from 'immer';
-import '../live/state/immer-setup';
+export { produce } from '../live/state/immer-setup';
