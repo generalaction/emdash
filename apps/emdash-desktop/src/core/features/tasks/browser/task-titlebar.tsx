@@ -51,11 +51,10 @@ import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { ActivityBadge } from './components/activity-badge';
 import { AutomationRunPill } from './components/automation-run-pill';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
-import { LifecycleScriptPill } from './components/lifecycle-script-pill';
 import { PreviewServerPills } from './components/preview-servers/preview-server-pills';
-import { WorkspaceBackgroundPill } from './components/workspace-background-pill';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -321,8 +320,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2">
-          <WorkspaceBackgroundPill projectId={projectId} taskId={taskId} />
-          <LifecycleScriptPill />
+          <ActivityBadge projectId={projectId} taskId={taskId} />
           <PreviewServerPills />
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip.Root>
