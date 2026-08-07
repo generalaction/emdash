@@ -39,7 +39,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: { app: { openPath: mocks.openPath } },
 }));
 
-vi.mock('@renderer/utils/focus-tracker', () => ({
+vi.mock('@core/primitives/telemetry/browser/focus-tracker', () => ({
   focusTracker: { transition: mocks.transition },
 }));
 

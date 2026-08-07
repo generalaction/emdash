@@ -3,12 +3,12 @@ import { SettingsPage } from '@core/features/settings/browser/components/Setting
 import { settingsScope } from '@core/features/settings/contributions/scopes';
 import { settingsViewDef, type SettingsPageTab } from '@core/features/settings/contributions/views';
 import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
+import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { defineViewRuntime } from '@core/primitives/views/react';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
-import { appState } from '@renderer/lib/stores/app-state';
 import { SettingsTabProvider, useSettingsTab } from './settings-tab-context';
 
 export function SettingsViewWrapper({
@@ -53,7 +53,7 @@ export function SettingsViewWrapper({
   );
   const implementation = {
     'settings.close': () => ({
-      execute: () => appState.navigation.toggleSettings(),
+      execute: () => getNavigation().toggleSettings(),
     }),
   } satisfies ViewScopeImpl<typeof settingsScope>;
   const { instance } = useViewScope(settingsScope(), implementation);

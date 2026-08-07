@@ -2,9 +2,10 @@ import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
+import type { FocusView } from '@core/primitives/telemetry/api/telemetry';
+import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
 import type { ViewRef } from '@core/primitives/views/api';
-import { appState } from '@renderer/lib/stores/app-state';
-import { focusTracker } from '@renderer/utils/focus-tracker';
 import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/telemetry-scope';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
@@ -33,16 +34,16 @@ export const WorkspaceViewProvider = observer(function WorkspaceViewProvider({
   children: ReactNode;
 }) {
   useEffect(() => {
-    const initialViewId = appState.navigation.currentViewId;
-    focusTracker.initialize({ view: initialViewId });
-    syncTelemetryScope(appState.navigation.currentRef);
+    const initialViewId = getNavigation().currentViewId;
+    focusTracker.initialize({ view: initialViewId as FocusView });
+    syncTelemetryScope(getNavigation().currentRef);
     const event = viewCatalog.byId(initialViewId)?.telemetryEvent;
     if (event) captureTelemetry(event, { from_view: null });
   }, []);
 
   useEffect(() => {
     return reaction(
-      () => appState.navigation.currentRef,
+      () => getNavigation().currentRef,
       (ref) => syncTelemetryScope(ref)
     );
   }, []);

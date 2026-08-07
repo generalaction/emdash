@@ -5,7 +5,7 @@ import { useAgentHooksStatus } from '@core/features/agents/api/browser/use-agent
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { AgentPayload } from '@core/primitives/agents/api';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 
 const HOME_PREFIX_RE = /^\/(?:Users|home)\/[^/]+/;
 

@@ -14,7 +14,7 @@ import {
   unmountedMountErrorMessage,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
 

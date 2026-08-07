@@ -3,8 +3,8 @@
  * Captures events and sends them to the main process via IPC.
  */
 import type { TelemetryEvent, TelemetryProperties } from '@core/primitives/telemetry/api/telemetry';
+import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
 import { getDesktopWireClient } from '../lib/runtime/desktop-wire-client';
-import { focusTracker } from './focus-tracker';
 import { getTelemetryScope } from './telemetry-scope';
 
 let cachedSessionId: string | null | undefined;

@@ -21,6 +21,7 @@ import { getTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { normalizeBrowserUrl } from '@core/primitives/browser/api';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import {
   disabled,
   enabled,
@@ -32,7 +33,6 @@ import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import type { ResolvedTab } from '@core/primitives/workbench-shell/browser/tabs/core/tab-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { appState } from '@renderer/lib/stores/app-state';
 import { toggleTaskSidebarTab } from './toggle-task-sidebar';
 
 type TaskScopeParams = { readonly projectId: string; readonly taskId: string };
@@ -350,7 +350,7 @@ const taskScopeImplementation = {
         (entry) => entry.projectId === params.projectId && entry.taskId === params.taskId
       );
       const next = entries[index + 1];
-      if (next) appState.navigation.navigate(taskViewDef(next));
+      if (next) getNavigation().navigate(taskViewDef(next));
     },
   }),
   'task.prevTask': (params) => ({
@@ -373,7 +373,7 @@ const taskScopeImplementation = {
         (entry) => entry.projectId === params.projectId && entry.taskId === params.taskId
       );
       const previous = entries[index - 1];
-      if (previous) appState.navigation.navigate(taskViewDef(previous));
+      if (previous) getNavigation().navigate(taskViewDef(previous));
     },
   }),
 } satisfies ViewScopeImpl<typeof taskViewScope>;

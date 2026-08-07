@@ -31,8 +31,8 @@ import {
   previousBrowserZoomFactor,
   type BrowserSessionSnapshot,
 } from '@core/primitives/browser/api';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import {
   canOpenBrowserUrlExternally,

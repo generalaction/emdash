@@ -30,13 +30,13 @@ import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
-import type { ConnectionState } from '@core/primitives/ssh/api';
-import { cn } from '@core/primitives/styling/browser/cn';
 import {
   useNavigate,
   useViewParams,
   useWorkspaceSlots,
-} from '@renderer/lib/layout/navigation-provider';
+} from '@core/primitives/navigation/browser/navigation-hooks';
+import type { ConnectionState } from '@core/primitives/ssh/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import {
   SidebarItemMiniButton,
   SidebarMenuAction,

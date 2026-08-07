@@ -1,8 +1,8 @@
 import { toast } from '@emdash/ui/react/primitives';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
 
 const HTTP_URL_PATTERN = /^https?:\/\//i;
@@ -53,7 +53,7 @@ function showCopyFailure(): void {
 }
 
 function getActiveTaskView() {
-  const ref = appState.navigation.currentRef;
+  const ref = getNavigation().currentRef;
   if (ref.viewId !== 'task') return undefined;
   const { projectId, taskId } = ref.params as {
     projectId?: string;

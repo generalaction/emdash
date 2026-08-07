@@ -1,9 +1,7 @@
 import { ok } from '@emdash/shared';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
-
-vi.mock('@renderer/lib/stores/app-state', () => ({ appState: {} }));
 
 afterEach(async () => {
   modalStore.dismiss();

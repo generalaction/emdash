@@ -11,8 +11,8 @@ import { IntegrationIcon } from '@core/features/integrations/api/browser/integra
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { IssueStatusIndicator, toIssueStatus } from './issue-status-indicator';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';

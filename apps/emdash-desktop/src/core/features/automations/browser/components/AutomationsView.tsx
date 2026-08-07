@@ -3,7 +3,10 @@ import { useMemo, useState } from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { Automation } from '@core/primitives/automations/api';
-import { useCurrentViewParams, useNavigate } from '@renderer/lib/layout/navigation-provider';
+import {
+  useCurrentViewParams,
+  useNavigate,
+} from '@core/primitives/navigation/browser/navigation-hooks';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';

@@ -12,8 +12,8 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
+import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 
 const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({

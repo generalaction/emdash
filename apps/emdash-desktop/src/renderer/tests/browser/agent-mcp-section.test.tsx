@@ -15,7 +15,7 @@ vi.mock('@core/features/agents/api/browser/use-agent-mcps', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/layout/navigation-provider', () => ({
+vi.mock('@core/primitives/navigation/browser/navigation-hooks', () => ({
   useNavigate: () => navigation,
 }));
 

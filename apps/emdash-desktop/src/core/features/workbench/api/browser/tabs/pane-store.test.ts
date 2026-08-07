@@ -45,10 +45,6 @@ vi.mock('@core/features/editor/api/browser/monaco/monaco-model-registry', () => 
   },
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {},
-}));
-
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   getProjectManagerStore: () => ({ projects: new Map() }),

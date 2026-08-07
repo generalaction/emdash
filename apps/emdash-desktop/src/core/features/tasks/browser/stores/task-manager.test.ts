@@ -55,17 +55,15 @@ vi.mock('@core/primitives/mementos/browser', () => ({
   }),
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {
-    navigation: {
-      currentRef: {
-        viewId: 'task',
-        params: { projectId: 'project-1', taskId: 'task-1' },
-      },
-      invalidateSubject: mocks.invalidateSubject,
-      navigate: mocks.navigate,
+vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
+  getNavigation: () => ({
+    currentRef: {
+      viewId: 'task',
+      params: { projectId: 'project-1', taskId: 'task-1' },
     },
-  },
+    invalidateSubject: mocks.invalidateSubject,
+    navigate: mocks.navigate,
+  }),
 }));
 
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({

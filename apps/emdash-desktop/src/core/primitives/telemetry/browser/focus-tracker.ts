@@ -5,7 +5,7 @@ import type {
   FocusTrigger,
   FocusView,
   TelemetryEventProperties,
-} from '@core/primitives/telemetry/api/telemetry';
+} from '../api/telemetry';
 
 interface FocusState {
   view: FocusView | null;

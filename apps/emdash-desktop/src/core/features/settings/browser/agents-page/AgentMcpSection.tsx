@@ -5,7 +5,7 @@ import { ExternalLink, Globe, Loader2, Terminal, X } from 'lucide-react';
 import React from 'react';
 import { useAgentMcps } from '@core/features/agents/api/browser/use-agent-mcps';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 
 function McpServerPill({
   server,

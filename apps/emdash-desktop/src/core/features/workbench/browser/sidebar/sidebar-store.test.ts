@@ -13,10 +13,6 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   rpc: {},
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {},
-}));
-
 vi.mock('@core/features/conversations/browser/acp/acp-chat-store', () => ({
   AcpChatStore: class {
     conversationId = '';

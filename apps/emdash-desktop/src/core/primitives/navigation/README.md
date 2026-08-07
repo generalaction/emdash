@@ -1,8 +1,17 @@
 # Navigation
 
 Navigation consumes validated view refs and optional, JSON-shaped locations.
-This phase defines only the portable contracts; stack mechanics and renderer
-lifecycles are added by the navigation engine later.
+`api/` holds the portable contracts plus the persisted navigation/history
+mementos; `browser/` owns the navigation engine: the `NavigationStore` and
+`NavigationHistoryStore` (contributed to the APP SCOPE via `app-stores.ts`),
+the `getNavigation()`/`getNavigationHistory()` selectors, and the React hooks
+in `navigation-hooks.ts`.
+
+The store never imports feature manifests: the host bootstrap (renderer
+`main.tsx`) seeds the view catalog and the well-known home/settings refs
+through `seedNavigationHost()` before the app scope creates the stores. Tests
+seed a fake catalog through `testing.ts` (`seedTestNavigationHost`), mirroring
+the wire primitive's `seedSliceWire`.
 
 A `NavigationParticipant` lets an active view capture and restore its own
 sub-location without teaching the history store about task tabs, editor

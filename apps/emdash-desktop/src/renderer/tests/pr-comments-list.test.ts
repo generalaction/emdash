@@ -13,13 +13,11 @@ vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
   getTaskView: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/stores/app-state', () => ({
-  appState: {
-    navigation: {
-      currentViewId: 'home',
-      currentRef: { viewId: 'home', params: {}, key: 'home' },
-    },
-  },
+vi.mock('@core/primitives/navigation/browser/navigation-selectors', () => ({
+  getNavigation: () => ({
+    currentViewId: 'home',
+    currentRef: { viewId: 'home', params: {}, key: 'home' },
+  }),
 }));
 
 vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({

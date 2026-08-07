@@ -1,7 +1,7 @@
 import { Button, MicroLabel } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
-import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 
 export const UpdateSection = observer(function UpdateSection() {

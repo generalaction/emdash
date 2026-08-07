@@ -3,8 +3,8 @@ import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { DesktopUpdateEvent } from '@core/features/updates/api';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { appState } from '@renderer/lib/stores/app-state';
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
 const SNOOZE_HOURS = 6;
@@ -257,7 +257,7 @@ export class UpdateStore {
           </span>
         ),
         onClick: () => {
-          appState.navigation.navigate(settingsViewDef({ tab: 'general' }));
+          getNavigation().navigate(settingsViewDef({ tab: 'general' }));
           if (this.state.status === 'available') {
             void this.download();
           }

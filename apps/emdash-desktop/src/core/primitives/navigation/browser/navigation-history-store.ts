@@ -1,6 +1,6 @@
 import { Emitter } from '@emdash/shared';
 import { makeAutoObservable, observable } from 'mobx';
-import type { HistoryEntry } from '@core/primitives/navigation/api';
+import type { HistoryEntry } from '../api';
 
 const MAX_STACK_SIZE = 50;
 

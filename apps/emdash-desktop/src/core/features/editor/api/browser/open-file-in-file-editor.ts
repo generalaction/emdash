@@ -13,8 +13,8 @@ import {
   nativePathFromHost,
   relativePathWithin,
 } from '@core/primitives/desktop-runtime/api';
+import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { focusTracker } from '@renderer/utils/focus-tracker';
 
 function resolveEditorFilePath(workspacePath: string, filePath: string): string | null {
   try {

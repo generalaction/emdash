@@ -20,7 +20,7 @@ import {
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
-import { useCurrentViewParams } from '@renderer/lib/layout/navigation-provider';
+import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import type { PullRequestSort } from '@root/src/core/services/pull-requests/api';
 import { ProjectPullRequestsProvider } from './pr-store-provider';
 import { PrSyncStatusCard } from './pr-sync-status-card';

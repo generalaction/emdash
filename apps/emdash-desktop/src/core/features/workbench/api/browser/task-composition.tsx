@@ -42,8 +42,8 @@ import {
   type SubjectSpace,
 } from '@core/primitives/mementos/browser';
 import { getMementoClient } from '@core/primitives/mementos/browser';
-import { appState } from '@renderer/lib/stores/app-state';
-import { focusTracker } from '@renderer/utils/focus-tracker';
+import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
+import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
 import { log } from '@renderer/utils/logger';
 import { sanitizeDiffSelection } from '../../browser/task-composition-state';
 
@@ -138,11 +138,11 @@ export class TaskComposition {
     };
     this.paneLayout = taskTabView.createPaneLayoutStore(taskCtx, {
       onActiveTabChange: (tabId) => {
-        if (tabId) appState.navigation.reportLocation(taskRef, { tabId });
+        if (tabId) getNavigation().reportLocation(taskRef, { tabId });
       },
     });
     this._disposers.push(
-      appState.navigation.attachParticipant(taskRef, new TaskNavigationParticipant(this.paneLayout))
+      getNavigation().attachParticipant(taskRef, new TaskNavigationParticipant(this.paneLayout))
     );
     this.terminalTabs = new TerminalTabViewStore(
       this._terminalSelectionHandle,
@@ -177,8 +177,8 @@ export class TaskComposition {
     this._disposers.push(
       reaction(
         () =>
-          appState.navigation.currentRef.viewId === 'task' &&
-          (appState.navigation.currentRef.params as { taskId?: string }).taskId === taskId,
+          getNavigation().currentRef.viewId === 'task' &&
+          (getNavigation().currentRef.params as { taskId?: string }).taskId === taskId,
         (isActive) => this.paneLayout.setViewActive(isActive),
         { fireImmediately: true }
       ),
