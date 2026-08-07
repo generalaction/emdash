@@ -1,14 +1,9 @@
-import {
-  getDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { domainClient } from '@core/primitives/wire/browser/connection';
+import { machinesContract, machinesDomain } from '../contract';
 
-/** The wire surfaces the machine pages read: machine usage plus cross-slice pickers. */
-export type MachinesPageWireClient = Pick<
-  DesktopWireClient,
-  'conversations' | 'machines' | 'projects' | 'tasks'
->;
+export type MachinesClient = ContractClient<typeof machinesContract>;
 
-export async function getMachinesPageWireClient(): Promise<MachinesPageWireClient> {
-  return await getDesktopWireClient();
+export function getMachinesClient(): Promise<MachinesClient> {
+  return domainClient<MachinesClient>(machinesDomain, machinesContract);
 }

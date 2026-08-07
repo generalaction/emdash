@@ -1,21 +1,37 @@
+import type { ContractClient } from '@emdash/wire/rpc';
+import { domainClient } from '@core/primitives/wire/browser/connection';
 import {
-  getDesktopWireClient,
-  resetDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
+  projectSettingsContract,
+  projectSettingsDomain,
+  projectWorkspacesContract,
+  projectWorkspacesDomain,
+} from '../project-contracts';
+import { workspaceRegistryDomain, workspaceRegistryWireContract } from '../registry-wire-contract';
+import { workspacesDomain, workspacesWireContract } from '../wire-contract';
 
-export type WorkspacesWireClient = DesktopWireClient['workspaces'];
+export type WorkspacesWireClient = ContractClient<typeof workspacesWireContract>;
 
-export async function getWorkspacesWireClient(): Promise<WorkspacesWireClient> {
-  return (await getDesktopWireClient()).workspaces;
+export function getWorkspacesWireClient(): Promise<WorkspacesWireClient> {
+  return domainClient<WorkspacesWireClient>(workspacesDomain, workspacesWireContract);
 }
 
-export type WorkspaceRegistryWireClient = DesktopWireClient['workspaceRegistry'];
+export type WorkspaceRegistryWireClient = ContractClient<typeof workspaceRegistryWireContract>;
 
-export async function getWorkspaceRegistryWireClient(): Promise<WorkspaceRegistryWireClient> {
-  return (await getDesktopWireClient()).workspaceRegistry;
+export function getWorkspaceRegistryWireClient(): Promise<WorkspaceRegistryWireClient> {
+  return domainClient<WorkspaceRegistryWireClient>(
+    workspaceRegistryDomain,
+    workspaceRegistryWireContract
+  );
 }
 
-export function resetWorkspacesWireClient(): void {
-  resetDesktopWireClient();
+export type ProjectWorkspacesClient = ContractClient<typeof projectWorkspacesContract>;
+
+export function getProjectWorkspacesClient(): Promise<ProjectWorkspacesClient> {
+  return domainClient<ProjectWorkspacesClient>(projectWorkspacesDomain, projectWorkspacesContract);
+}
+
+export type ProjectSettingsClient = ContractClient<typeof projectSettingsContract>;
+
+export function getProjectSettingsClient(): Promise<ProjectSettingsClient> {
+  return domainClient<ProjectSettingsClient>(projectSettingsDomain, projectSettingsContract);
 }

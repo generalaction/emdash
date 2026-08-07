@@ -1,10 +1,9 @@
-import {
-  getDesktopWireClient,
-  type DesktopWireClient,
-} from '@renderer/lib/runtime/desktop-wire-client';
+import type { ContractClient } from '@emdash/wire/rpc';
+import { domainClient } from '@core/primitives/wire/browser/connection';
+import { mcpContract, mcpDomain } from '../contract';
 
-export type McpRpcClient = DesktopWireClient['mcp'];
+export type McpRpcClient = ContractClient<typeof mcpContract>;
 
-export async function getMcpClient(): Promise<McpRpcClient> {
-  return (await getDesktopWireClient()).mcp;
+export function getMcpClient(): Promise<McpRpcClient> {
+  return domainClient<McpRpcClient>(mcpDomain, mcpContract);
 }
