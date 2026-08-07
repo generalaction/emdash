@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { ChatComposer } from '@emdash/ui/react/components';
 import type { CommandItem, MentionItem, PromptEditorRef } from '@emdash/ui/react/components';
 import { Field, Switch } from '@emdash/ui/react/primitives';

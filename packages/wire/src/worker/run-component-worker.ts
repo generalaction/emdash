@@ -25,10 +25,27 @@ import type { WorkerParentPort } from './types';
 
 const BOOTSTRAP_RETRY_MS = 50;
 
+// This module only runs in node (or Electron utility) processes, but its types
+// ride into browser programs through the worker barrel via defineWireComponent.
+// Declare the exact process surface used so no node ambient types are needed.
+declare const process: {
+  exit(code: number): never;
+  send?: (message: unknown) => void;
+  on(event: 'message', cb: (message: unknown) => void): void;
+  on(event: 'disconnect', cb: () => void): void;
+  off(event: 'message', cb: (message: unknown) => void): void;
+  off(event: 'disconnect', cb: () => void): void;
+  parentPort?: {
+    postMessage(message: unknown): void;
+    on(event: 'message', cb: (event: { data: unknown }) => void): void;
+    off(event: 'message', cb: (event: { data: unknown }) => void): void;
+  };
+};
+
 export type RunWireComponentWorkerOptions = {
   port?: WorkerParentPort;
   logger?: Logger;
-  env?: NodeJS.ProcessEnv;
+  env?: Record<string, string | undefined>;
   exit?: (code: number) => void;
 };
 
@@ -93,7 +110,7 @@ function requestBootstrap(
   };
   return new Promise((resolve, reject) => {
     let done = false;
-    let retry: NodeJS.Timeout | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const unsubscribe = port.onMessage((message) => {
       if (!isWireComponentBootstrapResponse(message) || message.componentId !== componentId) return;
       cleanup();
@@ -153,13 +170,7 @@ function buildDependencies<
 }
 
 function resolveParentPort(): WorkerParentPort {
-  const currentProcess = process as NodeJS.Process & {
-    parentPort?: {
-      postMessage(message: unknown): void;
-      on(event: 'message', cb: (event: { data: unknown }) => void): void;
-      off(event: 'message', cb: (event: { data: unknown }) => void): void;
-    };
-  };
+  const currentProcess = process;
 
   if (currentProcess.parentPort) {
     const parentPort = currentProcess.parentPort;

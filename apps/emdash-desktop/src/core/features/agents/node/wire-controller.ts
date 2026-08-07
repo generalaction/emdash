@@ -1,5 +1,5 @@
 import { sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveModelProvider, LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';

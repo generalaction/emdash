@@ -1,5 +1,5 @@
 import type { ComboboxRootChangeEventDetails } from '@base-ui/react/combobox';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { Pill } from '@emdash/ui/react/components';
 import { Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';

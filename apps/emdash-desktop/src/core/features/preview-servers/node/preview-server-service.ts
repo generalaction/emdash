@@ -15,7 +15,8 @@ import type {
   PreviewServerSource,
 } from '@core/primitives/preview-servers/api';
 import type { ConnectionState } from '@core/primitives/ssh/api';
-import type { SshClientProxy, SshConnectionManagerEvent } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
+import type { SshConnectionManagerEvent } from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import { PortForwardService, type PortForwardRecord } from './port-forward-service';
 
 export type DetectedPreviewUrl = {

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { CommentsList } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/comments-list';
 import { buildPullRequestConversationItems } from '@core/features/source-control/browser/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
-import type { PullRequest, PullRequestComment } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest, PullRequestComment } from '@core/services/pull-requests/api';
 
 vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),

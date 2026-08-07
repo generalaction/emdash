@@ -4,7 +4,7 @@ import {
   getSourceControlClient,
 } from '@core/features/source-control/api/browser/client';
 import { commitRef } from '@core/primitives/git/api';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 
 const PAGE_SIZE = 50;
 

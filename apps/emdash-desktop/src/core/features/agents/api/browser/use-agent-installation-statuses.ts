@@ -3,7 +3,7 @@ import {
   isRuntimeResolveError,
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import type { Result } from '@emdash/shared';
 import { toast } from '@emdash/ui/react/primitives';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';

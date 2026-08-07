@@ -1,6 +1,10 @@
 import { Minimatch } from 'minimatch';
 import type { PortableRelativePath } from '#primitives/path/api';
 
+// Structural declaration keeps this browser-reachable api file free of node
+// ambient types; the typeof guard below already handles environments without it.
+declare const process: { platform?: string } | undefined;
+
 export const DEFAULT_SEARCH_EXCLUDE = [
   '.git',
   '.svn',

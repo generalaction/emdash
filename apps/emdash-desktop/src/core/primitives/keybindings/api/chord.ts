@@ -215,6 +215,10 @@ export function translateCodeChord(value: Chord, map: CodeToCharMap): Chord | nu
   }
 }
 
+// Structural declaration keeps this isomorphic api file free of node ambient
+// types; the typeof guard below already handles environments without it.
+declare const process: { platform?: string } | undefined;
+
 export function detectPlatformContext(): PlatformContext {
   if (typeof navigator !== 'undefined') {
     const platform = `${navigator.platform} ${navigator.userAgent}`;

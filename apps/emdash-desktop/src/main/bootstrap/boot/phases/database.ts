@@ -7,7 +7,7 @@ import {
 } from '@core/features/editor/node/editor-buffer-service';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { createWorkspaceIdentityService } from '@core/features/workspaces/node/workspace-identity-source';
-import { appSettingsContributions } from '@core/manifests/shared/settings-contributions';
+import { appSettingsContributions } from '@core/manifests/node/settings-contributions';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { createAppSettingsService, type AppSettingsService } from '@core/services/settings/node';
 import { createDrizzleClient } from '@main/db/drizzleClient';

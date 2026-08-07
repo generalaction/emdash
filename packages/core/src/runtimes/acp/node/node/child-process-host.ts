@@ -7,7 +7,7 @@ import type {
   AcpProcessHandle,
   AcpTerminalExit,
   AcpTerminalProcess,
-} from '#runtimes/acp/api';
+} from '#runtimes/acp/api/transport';
 import type { AcpRuntimeProcessHost } from '#runtimes/acp/node/runtime/types';
 
 class ChildProcessHandle implements AcpProcessHandle {

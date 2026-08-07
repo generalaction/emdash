@@ -9,7 +9,7 @@ import type { ProjectWorkspace } from '@core/primitives/workspaces/api';
 import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
 import type { WorkspacePresetId } from '@core/primitives/workspaces/api';
 import { compileSetupSpec } from '@core/primitives/workspaces/api';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 import {
   useBranchName,
   type BranchNameState,

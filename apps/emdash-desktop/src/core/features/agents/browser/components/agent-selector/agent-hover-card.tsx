@@ -1,5 +1,5 @@
 import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { Popover } from '@emdash/ui/react/primitives';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AgentInfoCard } from '@core/features/agents/browser/components/agent-selector/agent-info-card';

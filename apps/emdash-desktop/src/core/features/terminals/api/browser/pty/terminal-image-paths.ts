@@ -1,3 +1,5 @@
+import type { NodePlatform } from '@core/primitives/desktop-host/api/host-contract';
+
 // Chromium hands out drag-temp paths under the OS temp tree (e.g.
 // /var/folders/.../T/Drops/... on macOS). Those files are deleted right after
 // drop/paste completes, before Claude/Codex can read them.
@@ -75,7 +77,7 @@ export function escapeWindowsPathForTerminal(path: string): string {
   return `"${path.replace(/"/g, '""')}"`;
 }
 
-export function formatTerminalImagePaths(paths: string[], platform: NodeJS.Platform): string {
+export function formatTerminalImagePaths(paths: string[], platform: NodePlatform): string {
   if (platform === 'win32') {
     return paths.map(escapeWindowsPathForTerminal).join(' ');
   }
@@ -86,7 +88,7 @@ export function wrapAsBracketedPaste(text: string): string {
   return `\x1b[200~${text}\x1b[201~`;
 }
 
-export function buildTerminalImageInjection(paths: string[], platform: NodeJS.Platform): string {
+export function buildTerminalImageInjection(paths: string[], platform: NodePlatform): string {
   const formatted = formatTerminalImagePaths(paths, platform);
   return wrapAsBracketedPaste(formatted);
 }

@@ -30,7 +30,7 @@ export function GithubDeviceFlowModal({ onError }: GithubDeviceFlowModalArgs) {
   const [browserOpening, setBrowserOpening] = useState(false);
   const [browserOpenCountdown, setBrowserOpenCountdown] = useState(3);
 
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasAutocopied = useRef(false);
   const hasOpenedBrowser = useRef(false);
   const authSucceededRef = useRef(false);

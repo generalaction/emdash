@@ -41,6 +41,11 @@ import { makeMessageId, makeThinkingId, makeTurnId } from './ids';
 import { foldItem, finalizeItems, type FoldEvent } from './item-fold';
 import type { EnrichHook, NormalizedEvent } from './normalized-event';
 
+// The invariant check below reads NODE_ENV, which bundlers statically replace
+// in browser builds; the structural declaration keeps this isomorphic reducer
+// free of node ambient types.
+declare const process: { env: { NODE_ENV?: string } };
+
 type SynthesizedSegmentKind = 'message:user' | 'message:assistant' | 'thinking';
 
 export interface SegmentState {

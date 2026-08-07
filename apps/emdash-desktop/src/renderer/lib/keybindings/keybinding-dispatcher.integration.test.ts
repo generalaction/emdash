@@ -1,14 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import {
   archiveTaskCommand,
   newConversationCommand,
 } from '@core/features/tasks/contributions/commands';
 import { taskViewScope } from '@core/features/tasks/contributions/scopes';
-import { settingsCommand } from '@core/features/workbench/contributions/commands';
+import {
+  commandPaletteCommand,
+  settingsCommand,
+} from '@core/features/workbench/contributions/commands';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
+import { buildBrowserClaims } from '@core/manifests/shared/browser-claims';
 import { COMMAND_CATALOG } from '@core/manifests/shared/command-catalog';
+import { matchesElectronInput } from '@core/primitives/keybindings/api';
 import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
 import {
+  defineViewScope,
   disabled,
   enabled,
   type CommandAvailability,
@@ -128,6 +135,71 @@ describe('KeybindingDispatcher catalog integration', () => {
       }).kind
     ).toBe('none');
     expect(execute).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('projects one override through dispatch, display, menu, and browser claims', () => {
+    const testScope = defineViewScope({
+      id: 'test.roundtrip',
+      params: z.object({}),
+      commands: [commandPaletteCommand] as const,
+      activation: 'logical',
+    });
+    const runtime = new ViewScopes(undefined);
+    const execute = vi.fn();
+    const instance = runtime.instantiate(testScope(), {
+      impl: {
+        'app.commandPalette': () => ({ execute }),
+      } satisfies ViewScopeImpl<typeof testScope>,
+    });
+    runtime.activate(instance);
+    const service = new KeybindingService([commandPaletteCommand], { os: 'mac' }, [
+      commandPaletteCommand,
+    ]);
+    service.setOverrides({ commandPalette: 'Meta+Shift+P' });
+    const dispatcher = new KeybindingDispatcher(service, runtime);
+    const event = (key: string, code: string, shiftKey: boolean) =>
+      ({
+        type: 'keydown',
+        key,
+        code,
+        metaKey: true,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey,
+        repeat: false,
+        isComposing: false,
+        target: null,
+        getModifierState: (modifier: string) =>
+          modifier === 'Meta' || (shiftKey && modifier === 'Shift'),
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      }) as unknown as KeyboardEvent;
+
+    expect(dispatcher.dispatch(event('k', 'KeyK', false)).kind).toBe('none');
+    expect(dispatcher.dispatch(event('p', 'KeyP', true)).kind).toBe('winner');
+    expect(service.chordFor(commandPaletteCommand.id)).toBe('Shift+Meta+P');
+    expect(service.snapshotForMenu()[0]?.accelerator).toBe('Shift+Command+P');
+
+    const claim = buildBrowserClaims({ commandPalette: 'Meta+Shift+P' }, { os: 'mac' }).find(
+      (entry) => entry.commandId === commandPaletteCommand.id
+    );
+    expect(claim?.chord).toBe('Shift+Meta+P');
+    expect(
+      claim &&
+        matchesElectronInput(
+          {
+            type: 'keyDown',
+            key: 'P',
+            code: 'KeyP',
+            meta: true,
+            shift: true,
+          },
+          claim.chord,
+          { os: 'mac' }
+        )
+    ).toBe(true);
+    expect(execute).toHaveBeenCalledOnce();
     runtime.dispose();
   });
 });

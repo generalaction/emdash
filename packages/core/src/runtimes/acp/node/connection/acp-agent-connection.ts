@@ -3,14 +3,9 @@ import type { Result } from '@emdash/shared';
 import { ok, toSerializedError } from '@emdash/shared';
 import type { Scope } from '@emdash/shared/concurrency';
 import { noopLogger, type Logger } from '@emdash/shared/logger';
-import type {
-  AcpProcessHandle,
-  AcpProcessHost,
-  InitializeFailedError,
-  NormalizedEvent,
-  SpawnFailedError,
-} from '#runtimes/acp/api';
+import type { InitializeFailedError, NormalizedEvent, SpawnFailedError } from '#runtimes/acp/api';
 import { acpErr, decodeSessionUpdate } from '#runtimes/acp/api';
+import type { AcpProcessHandle, AcpProcessHost } from '#runtimes/acp/api/transport';
 import type {
   AcpAgentApi,
   AgentHostAcpSpawn,

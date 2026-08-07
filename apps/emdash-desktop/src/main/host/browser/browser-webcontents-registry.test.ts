@@ -1,15 +1,7 @@
 import type { WebContents } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 import { browserEvents } from '@core/features/browser/node';
-import { commandPaletteCommand } from '@core/features/workbench/contributions/commands';
 import { desktopHostEvents } from '@core/features/workbench/node';
-import { buildBrowserClaims } from '@core/manifests/shared/browser-claims';
-import { matchesElectronInput } from '@core/primitives/keybindings/api';
-import { KeybindingService } from '@core/primitives/keybindings/browser/keybinding-service';
-import { defineViewScope, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
-import { ViewScopes } from '@core/primitives/view-scopes/browser';
-import { KeybindingDispatcher } from '@renderer/lib/keybindings/keybinding-dispatcher';
 import { BrowserWebContentsRegistry } from './browser-webcontents-registry';
 
 const sessionsByPartition = new Map<string, object>();
@@ -441,70 +433,5 @@ describe('BrowserWebContentsRegistry', () => {
         'webSQL',
       ],
     });
-  });
-
-  it('projects one override through dispatch, display, menu, and browser claims', () => {
-    const testScope = defineViewScope({
-      id: 'test.roundtrip',
-      params: z.object({}),
-      commands: [commandPaletteCommand] as const,
-      activation: 'logical',
-    });
-    const runtime = new ViewScopes(undefined);
-    const execute = vi.fn();
-    const instance = runtime.instantiate(testScope(), {
-      impl: {
-        'app.commandPalette': () => ({ execute }),
-      } satisfies ViewScopeImpl<typeof testScope>,
-    });
-    runtime.activate(instance);
-    const service = new KeybindingService([commandPaletteCommand], { os: 'mac' }, [
-      commandPaletteCommand,
-    ]);
-    service.setOverrides({ commandPalette: 'Meta+Shift+P' });
-    const dispatcher = new KeybindingDispatcher(service, runtime);
-    const event = (key: string, code: string, shiftKey: boolean) =>
-      ({
-        type: 'keydown',
-        key,
-        code,
-        metaKey: true,
-        ctrlKey: false,
-        altKey: false,
-        shiftKey,
-        repeat: false,
-        isComposing: false,
-        target: null,
-        getModifierState: (modifier: string) =>
-          modifier === 'Meta' || (shiftKey && modifier === 'Shift'),
-        preventDefault: vi.fn(),
-        stopPropagation: vi.fn(),
-      }) as unknown as KeyboardEvent;
-
-    expect(dispatcher.dispatch(event('k', 'KeyK', false)).kind).toBe('none');
-    expect(dispatcher.dispatch(event('p', 'KeyP', true)).kind).toBe('winner');
-    expect(service.chordFor(commandPaletteCommand.id)).toBe('Shift+Meta+P');
-    expect(service.snapshotForMenu()[0]?.accelerator).toBe('Shift+Command+P');
-
-    const claim = buildBrowserClaims({ commandPalette: 'Meta+Shift+P' }, { os: 'mac' }).find(
-      (entry) => entry.commandId === commandPaletteCommand.id
-    );
-    expect(claim?.chord).toBe('Shift+Meta+P');
-    expect(
-      claim &&
-        matchesElectronInput(
-          {
-            type: 'keyDown',
-            key: 'P',
-            code: 'KeyP',
-            meta: true,
-            shift: true,
-          },
-          claim.chord,
-          { os: 'mac' }
-        )
-    ).toBe(true);
-    expect(execute).toHaveBeenCalledOnce();
-    runtime.dispose();
   });
 });

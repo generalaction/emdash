@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
+import { getPullRequestsRuntimeClient } from '@root/src/core/services/pull-requests/api/client';
 import {
   PullRequestsStore,
   PullRequestsStoreProvider,

@@ -1,5 +1,5 @@
 import type { McpCatalogEntry, McpServer } from '@emdash/core/primitives/mcp/api';
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { CardGridItem } from '@emdash/ui/react/components';
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';

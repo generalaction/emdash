@@ -14,8 +14,8 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { pullRequestErrorMessage } from '@core/services/pull-requests/api';
 import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
-import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
 import { CommitRangeCommitsList } from './components/pr-entry/commits-list';
 import { PullRequestEntry } from './components/pr-entry/pr-entry';

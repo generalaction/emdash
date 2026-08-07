@@ -45,7 +45,7 @@
     "lint": "node --test ../../tooling/oxlint/rules/*.test.js ../../tooling/oxlint/scripts/*.test.mjs && oxlint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "typecheck": "tsgo --noEmit && tsgo --noEmit -p scripts/release/tsconfig.json"
+    "typecheck": "tsgo --noEmit -p tsconfig.browser.json && tsgo --noEmit -p tsconfig.node.json && tsgo --noEmit -p scripts/release/tsconfig.json"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.1.0",

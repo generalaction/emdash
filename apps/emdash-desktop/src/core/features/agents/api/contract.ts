@@ -6,7 +6,9 @@ import {
   agentConfigRefreshErrorSchema,
   hooksStatusSchema,
 } from '@emdash/core/runtimes/agent-config/api';
-import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins';
+// The auth capability module directly: the plugins barrel drags in the plugin
+// host and its node-only dependencies, which this isomorphic contract must not.
+import { agentAuthStatusSchema } from '@emdash/core/services/agent-plugins/api/plugins/capabilities/auth';
 import { hostDependencyOperationProgressSchema } from '@emdash/core/services/host-dependencies/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import type { Result } from '@emdash/shared';

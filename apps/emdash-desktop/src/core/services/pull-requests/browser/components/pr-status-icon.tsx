@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { type PullRequest } from '@root/src/core/services/pull-requests/api';
+import { type PullRequest } from '@core/services/pull-requests/api';
 
 type PrStatusIconInput = Pick<PullRequest, 'status' | 'isDraft'>;
 

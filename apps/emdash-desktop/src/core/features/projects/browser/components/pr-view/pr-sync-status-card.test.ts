@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   cancelSync: vi.fn(),
 }));
 
-vi.mock('@root/src/core/services/pull-requests/browser', () => ({
+vi.mock('@core/services/pull-requests/browser', () => ({
   usePullRequestsStore: () => ({
     syncState: () => mocks.syncState,
     sync: mocks.sync,

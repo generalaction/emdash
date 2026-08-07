@@ -2,7 +2,7 @@ import { EmptyState } from '@emdash/ui/react/components';
 import { ListView } from '@emdash/ui/react/patterns';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
-import type { PullRequest } from '@root/src/core/services/pull-requests/api';
+import type { PullRequest } from '@core/services/pull-requests/api';
 import { PrRow } from './pr-row';
 
 interface PrVirtualListProps {

@@ -1,10 +1,10 @@
 import type { Scope } from '@emdash/shared/concurrency';
+import type { SshService } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import type {
-  SshClientProxy,
   SshConnectionManager,
   SshConnectionManagerEvent,
-  SshService,
-} from '@core/primitives/ssh/api';
+} from '@core/primitives/ssh/api/node/ssh-connection-manager';
 import type { HostInvalidation, MachineMutationEvents } from '../api';
 import { HostServerOperations } from './server-operations';
 import { HostStateModel } from './state-model';

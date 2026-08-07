@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { isValidProviderId } from '@core/features/agents/api/node/plugin-registry';
-import { getDefaultForKey } from '@core/manifests/shared/settings-contributions';
+import { getDefaultForKey } from '@core/manifests/node/settings-contributions';
 import type { AppSettings, AppSettingsKey } from '@core/services/settings/api';
 import { isPlainObject, mergeDeep } from '@core/services/settings/node/utils';
 import {

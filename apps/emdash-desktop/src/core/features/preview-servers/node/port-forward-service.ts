@@ -1,4 +1,4 @@
-import type { SshClientProxy } from '@core/primitives/ssh/api';
+import type { SshClientProxy } from '@core/primitives/ssh/api/node/ssh-client-proxy';
 import {
   openPortForwardTunnel,
   type OpenPortForwardTunnelOptions,

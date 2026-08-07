@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   appSettingsContributions,
-  AppSettingsKeys,
   getDefaultForKey,
+} from '@core/manifests/node/settings-contributions';
+import {
+  AppSettingsKeys,
   type AppSettings,
   type AppSettingsKey,
 } from '@core/manifests/shared/settings-contributions';

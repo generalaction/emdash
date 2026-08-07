@@ -1,4 +1,4 @@
-import type { ConnectionState, SshHealthState } from './ssh';
+import type { ConnectionState, SshHealthState } from '../ssh';
 import type { SshClientProxy } from './ssh-client-proxy';
 
 /**

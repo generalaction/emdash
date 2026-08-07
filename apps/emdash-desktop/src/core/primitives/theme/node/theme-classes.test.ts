@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { THEME_MANIFEST } from '@emdash/ui/react/primitives';
+import { THEME_MANIFEST } from '@emdash/theme/manifest';
 import { describe, expect, it } from 'vitest';
+// This convergence test reads generated files from disk, so it lives in the
+// node surface even though the constants under test are browser code.
 import {
   THEME_CLASS_DARK,
   THEME_CLASS_LIGHT,
   THEME_CLASSES,
   THEME_STORAGE_KEY,
-} from './theme-classes';
+} from '../browser/theme-classes';
 
 function manifestClass(id: string): string {
   const entry = THEME_MANIFEST.find((e) => e.id === id);

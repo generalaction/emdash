@@ -11,7 +11,6 @@ import { commitRef, mergeBaseRange } from '@core/primitives/git/api';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 import type { Task } from '@core/primitives/tasks/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
-import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import {
   getPrNumber,
   isForkPr,
@@ -19,7 +18,8 @@ import {
   selectCurrentPr,
   type PullRequest,
   type PullRequestMergeOptions,
-} from '@root/src/core/services/pull-requests/api';
+} from '@core/services/pull-requests/api';
+import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import type { GitCheckoutStore } from '../../../browser/stores/git-checkout-store';
 
 export type MergeResult = { success: true } | { success: false; error: string };

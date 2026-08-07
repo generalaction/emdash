@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@emdash/plugins/agents';
+import type { AgentProviderId } from '@emdash/plugins/agents/types';
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Download, Loader2 } from 'lucide-react';
 import type React from 'react';

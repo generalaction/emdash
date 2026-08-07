@@ -6,11 +6,11 @@ import { type ReactNode, useState } from 'react';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useDebounce } from '@core/primitives/react-hooks/browser/useDebounce';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getPullRequestsRuntimeClient } from '@core/services/pull-requests/api/client';
 import {
   pullRequestErrorMessage,
   type PullRequest,
 } from '@root/src/core/services/pull-requests/api';
+import { getPullRequestsRuntimeClient } from '@root/src/core/services/pull-requests/api/client';
 import { StatusIcon } from '@root/src/core/services/pull-requests/browser/components/pr-status-icon';
 
 type StatusFilter = 'open' | 'not-open';
