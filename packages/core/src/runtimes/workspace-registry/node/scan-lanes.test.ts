@@ -85,7 +85,11 @@ describe('workspace registry scan lanes', () => {
     await makeRepoWorkspace('ws-scanned', 'scanned');
 
     observeGate.block = true;
-    const scanning = runtime.executeScanRequest({ kind: 'workspace', id: 'ws-scanned', mode: 'full' });
+    const scanning = runtime.executeScanRequest({
+      kind: 'workspace',
+      id: 'ws-scanned',
+      mode: 'full',
+    });
     await eventually(() => {
       expect(observeGate.started.length).toBeGreaterThan(0);
     });
@@ -104,7 +108,11 @@ describe('workspace registry scan lanes', () => {
     await makeRepoWorkspace('ws-doomed', 'doomed');
 
     observeGate.block = true;
-    const scanning = runtime.executeScanRequest({ kind: 'workspace', id: 'ws-doomed', mode: 'full' });
+    const scanning = runtime.executeScanRequest({
+      kind: 'workspace',
+      id: 'ws-doomed',
+      mode: 'full',
+    });
     await eventually(() => {
       expect(observeGate.started.length).toBeGreaterThan(0);
     });

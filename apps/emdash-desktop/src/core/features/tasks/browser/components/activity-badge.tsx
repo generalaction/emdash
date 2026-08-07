@@ -16,8 +16,8 @@ import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/br
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
 import { projectHostRef } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
 import type { WorkspaceLifecycleStepInfo } from '@core/primitives/tasks/api';
+import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
 
 /**
  * The workspace lifecycle timeline (spec: workspace-lifecycle-v2, Activity badge):
@@ -181,7 +181,7 @@ export function ActivityBadgeView({
                 data-step={step.id}
                 title="Open script output"
                 onClick={() => onOpenScript(step.id as ScriptStepId)}
-                className="flex items-start gap-2 rounded-md p-1.5 text-left transition-colors hover:bg-muted/30"
+                className="hover:bg-muted/30 flex items-start gap-2 rounded-md p-1.5 text-left transition-colors"
               >
                 {body}
               </button>

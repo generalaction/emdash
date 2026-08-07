@@ -9,7 +9,11 @@ import { GitSchedule, isTransientLockError, retryTransientLock } from './git-sch
 
 type Gate = { release: () => void; done: Promise<void> };
 
-function gated(schedule: GitSchedule, tier: Parameters<GitSchedule['run']>[0]['tier'], repository?: string): Gate {
+function gated(
+  schedule: GitSchedule,
+  tier: Parameters<GitSchedule['run']>[0]['tier'],
+  repository?: string
+): Gate {
   let release!: () => void;
   const blocker = new Promise<void>((resolve) => {
     release = resolve;
@@ -252,9 +256,7 @@ describe('transient lock retry', () => {
         )
       )
     ).toBe(true);
-    expect(isTransientLockError(new Error('fatal: could not lock ref refs/heads/main'))).toBe(
-      true
-    );
+    expect(isTransientLockError(new Error('fatal: could not lock ref refs/heads/main'))).toBe(true);
     expect(isTransientLockError(new Error('fatal: not a git repository'))).toBe(false);
   });
 

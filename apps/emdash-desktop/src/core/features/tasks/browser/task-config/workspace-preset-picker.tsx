@@ -1,7 +1,3 @@
-import { useTaskConfig } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
-import { cn } from '@core/primitives/styling/browser/cn';
-import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
-import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
 import { Select } from '@emdash/ui/react/primitives';
 import {
   ChevronsUpDown,
@@ -12,6 +8,10 @@ import {
   Layers,
 } from 'lucide-react';
 import React from 'react';
+import { useTaskConfig } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
+import { cn } from '@core/primitives/styling/browser/cn';
+import type { WorkspacePresetId, WorkspacePresetMeta } from '@core/primitives/workspaces/api';
+import { WORKSPACE_PRESETS } from '@core/primitives/workspaces/api';
 
 // ---------------------------------------------------------------------------
 // Icons

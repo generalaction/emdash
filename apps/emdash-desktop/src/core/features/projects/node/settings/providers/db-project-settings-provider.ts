@@ -16,13 +16,13 @@ import {
 } from '@core/primitives/project-settings/api';
 import { SHAREABLE_FIELD_ACCESSORS } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { fileKey, type FilesClientScope } from '@core/services/runtime-broker/node/files';
+import type { FilesClientScope } from '@core/services/runtime-broker/node/files';
 import {
   migrateLegacyProjectSettingsIfNeeded,
   type ProjectSettingsGitInspector,
 } from '../legacy-project-settings-migration';
 import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
-import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
+import { compactUndefined, readJson } from '../project-settings-json';
 import type { ProjectSettingsStorage } from '../project-settings-storage';
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
 

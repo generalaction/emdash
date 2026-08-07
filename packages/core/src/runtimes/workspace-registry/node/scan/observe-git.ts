@@ -68,7 +68,10 @@ export type RegistryGitExecOptions = {
  * lifetime at the caller's tier. `spawn` stays direct (its synchronous contract
  * cannot await a slot); spawn-based callers gate through `schedule.run` themselves.
  */
-export function createRegistryGitExec(cwd: string, options: RegistryGitExecOptions = {}): BoundExec {
+export function createRegistryGitExec(
+  cwd: string,
+  options: RegistryGitExecOptions = {}
+): BoundExec {
   const tier = options.tier ?? 'probe';
   const schedule = options.schedule ?? hostGitSchedule;
   const work = { tier, repository: options.repository };
@@ -91,7 +94,8 @@ export function createRegistryGitExec(cwd: string, options: RegistryGitExecOptio
       schedule.run(work, () => inner.exec(args, execOptions)),
     execStreaming: (args, onStdout, execOptions) =>
       schedule.run(work, () => inner.execStreaming(args, onStdout, execOptions)),
-    execBuffer: (args, execOptions) => schedule.run(work, () => inner.execBuffer(args, execOptions)),
+    execBuffer: (args, execOptions) =>
+      schedule.run(work, () => inner.execBuffer(args, execOptions)),
     spawn: (args, spawnOptions) => inner.spawn(args, spawnOptions),
     withCwd: (nextCwd: string) => createRegistryGitExec(nextCwd, options),
   };

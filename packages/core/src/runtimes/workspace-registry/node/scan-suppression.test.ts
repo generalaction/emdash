@@ -4,12 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TempStoreHandle } from '#primitives/sqlite-store/api';
-import type { ScanRequest } from '#runtimes/workspace-registry/node/scan/scheduler';
 import {
   workspaceRegistryStore,
   type WorkspaceRegistryDb,
 } from '#runtimes/workspace-registry/node/persistence/store';
 import { WorkspaceRegistryRuntime } from '#runtimes/workspace-registry/node/runtime';
+import type { ScanRequest } from '#runtimes/workspace-registry/node/scan/scheduler';
 
 // Self-inflicted scan suppression (spec: workspace-lifecycle-v2, scan minimization):
 // background steps hold the scheduler's mute for exactly the id they write into and
@@ -113,8 +113,9 @@ describe('background steps suppress their own scans', () => {
         { action: 'release', id: 'ws-new' },
       ]);
       // Push and fetch each hold the repository's mute once.
-      expect(muteEvents.filter((event) => event.id === 'ws-repo' && event.action === 'mute'))
-        .toHaveLength(2);
+      expect(
+        muteEvents.filter((event) => event.id === 'ws-repo' && event.action === 'mute')
+      ).toHaveLength(2);
     });
 
     // Each settled write requested its deliberate trailing scan: the copy scans the

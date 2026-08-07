@@ -69,7 +69,9 @@ export function isIncompleteStep(step: WorkspaceLifecycleStep | null): boolean {
  * base fetch surfaces as its own step.
  */
 export function stepIdForStage(stage: string): WorkspaceLifecycleStepId {
-  return stage === 'resolve-base' || stage === 'fetch-base' ? 'fetch-remote-base' : 'create-worktree';
+  return stage === 'resolve-base' || stage === 'fetch-base'
+    ? 'fetch-remote-base'
+    : 'create-worktree';
 }
 
 export type CreationStageTimeline = Array<{ stage: string; at: number }>;

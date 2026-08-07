@@ -41,6 +41,11 @@ import { executeCreateWorktree } from './create-worktree';
 import { executeDeleteWorktree } from './delete-worktree';
 import { hostGitSchedule } from './git-schedule';
 import {
+  canonicalizeWorkspacePath,
+  inspectWorkspacePath,
+  type PathInspector,
+} from './inspect-path';
+import {
   BACKGROUND_STEP_IDS,
   buildCreationLifecycle,
   getLifecycleStep,
@@ -51,11 +56,6 @@ import {
   withLifecycleStep,
   type CreationStageTimeline,
 } from './lifecycle';
-import {
-  canonicalizeWorkspacePath,
-  inspectWorkspacePath,
-  type PathInspector,
-} from './inspect-path';
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
@@ -756,10 +756,7 @@ export class WorkspaceRegistryRuntime {
       this.configs.get(input.repositoryId) ??
       (repository ? await this.refreshConfig(input.repositoryId, repository.path) : null);
     const preservePatterns = [
-      ...new Set([
-        ...input.preservePatterns,
-        ...(repositoryEntry?.config.preservePatterns ?? []),
-      ]),
+      ...new Set([...input.preservePatterns, ...(repositoryEntry?.config.preservePatterns ?? [])]),
     ];
     const lifecycle = buildCreationLifecycle({ ...input, preservePatterns }, result, stages, now);
 

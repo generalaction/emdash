@@ -105,9 +105,9 @@ describe('workspace registry config live model', () => {
     const workspacePath = path.join(root, 'plain');
     await fs.mkdir(workspacePath, { recursive: true });
     await writeConfig(workspacePath, { scripts: { prepare: 'echo one >> which-config' } });
-    expect((await wire.client.createWorkspace({ id: 'ws-plain', path: workspacePath })).success).toBe(
-      true
-    );
+    expect(
+      (await wire.client.createWorkspace({ id: 'ws-plain', path: workspacePath })).success
+    ).toBe(true);
 
     // Disk edit with no scan in between: the verb must serve the model's state.
     // (Also proves no config read happens inside the activation verb.)
@@ -236,14 +236,14 @@ describe('workspace registry config live model', () => {
     });
     expect(created.success).toBe(true);
     if (!created.success) return;
-    expect(
-      created.data.runtime?.lifecycle?.some((step) => step.id === 'copy-artifacts')
-    ).toBe(true);
+    expect(created.data.runtime?.lifecycle?.some((step) => step.id === 'copy-artifacts')).toBe(
+      true
+    );
 
     await eventually(async () => {
-      await expect(
-        fs.readFile(path.join(root, 'carried', '.env'), 'utf8')
-      ).resolves.toBe('SECRET=1\n');
+      await expect(fs.readFile(path.join(root, 'carried', '.env'), 'utf8')).resolves.toBe(
+        'SECRET=1\n'
+      );
     });
   });
 });

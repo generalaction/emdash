@@ -389,9 +389,7 @@ describe('workspace registry contract', () => {
     });
     await fs.access(path.join(created.data.path, '.env'));
     // The unnamed ignored artifact (node_modules) is deliberately not copied.
-    await expect(
-      fs.access(path.join(created.data.path, 'node_modules'))
-    ).rejects.toThrow();
+    await expect(fs.access(path.join(created.data.path, 'node_modules'))).rejects.toThrow();
     // The copy step records the matched entry count for the Activity description.
     const records = await listRecords();
     expect(lifecycleStep(records['ws-new'], 'copy-artifacts')).toMatchObject({
