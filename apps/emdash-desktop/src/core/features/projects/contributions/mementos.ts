@@ -28,3 +28,26 @@ export const projectViewMemento = defineMemento({
     taskViewTab: 'active' as const,
   },
 });
+
+const projectPanelLayoutsV1Schema = z.object({
+  version: z.literal('1'),
+  // Serialized panel layouts for workspace chrome surfaces, keyed by the
+  // react-resizable-panels internal storage key
+  // (`react-resizable-panels:${id}[:${panelIds}]`).
+  layouts: z.record(z.string(), z.string()),
+});
+
+export const projectPanelLayoutsSchema = defineVersionedSchema()
+  .initial('1', projectPanelLayoutsV1Schema)
+  .build();
+export type ProjectPanelLayoutsState = typeof projectPanelLayoutsSchema.Type;
+
+export const projectPanelLayoutsMemento = defineMemento({
+  id: 'projects.panel-layouts',
+  subject: projectSubject,
+  schema: projectPanelLayoutsSchema,
+  default: {
+    version: '1' as const,
+    layouts: {},
+  },
+});

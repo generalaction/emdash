@@ -97,6 +97,28 @@ export const taskDiffPreferencesMemento = defineMemento({
   },
 });
 
+const taskPanelLayoutsV1Schema = z.object({
+  version: z.literal('1'),
+  // Serialized panel layouts keyed by the react-resizable-panels internal
+  // storage key (`react-resizable-panels:${id}[:${panelIds}]`).
+  layouts: z.record(z.string(), z.string()),
+});
+
+export const taskPanelLayoutsSchema = defineVersionedSchema()
+  .initial('1', taskPanelLayoutsV1Schema)
+  .build();
+export type TaskPanelLayoutsState = typeof taskPanelLayoutsSchema.Type;
+
+export const taskPanelLayoutsMemento = defineMemento({
+  id: 'tasks.panel-layouts',
+  subject: taskSubject,
+  schema: taskPanelLayoutsSchema,
+  default: {
+    version: '1' as const,
+    layouts: {},
+  },
+});
+
 const gitRemoteSchema = z.object({
   name: z.string(),
   url: z.string(),

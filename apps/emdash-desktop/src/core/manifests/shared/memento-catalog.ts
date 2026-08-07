@@ -1,10 +1,14 @@
-import { projectViewMemento } from '@core/features/projects/contributions/mementos';
+import {
+  projectPanelLayoutsMemento,
+  projectViewMemento,
+} from '@core/features/projects/contributions/mementos';
 import {
   taskChromeMemento,
   taskDiffPreferencesMemento,
   taskDiffSelectionMemento,
   taskEditorTreeMemento,
   taskPaneLayoutMemento,
+  taskPanelLayoutsMemento,
   taskTerminalSelectionMemento,
 } from '@core/features/tasks/contributions/mementos';
 import {
@@ -22,12 +26,14 @@ import type { MementoCatalogEntry } from '@core/primitives/mementos/api';
  */
 export const mementoCatalog: readonly MementoCatalogEntry[] = [
   projectViewMemento,
+  projectPanelLayoutsMemento,
   taskChromeMemento,
   taskTerminalSelectionMemento,
   taskEditorTreeMemento,
   taskDiffPreferencesMemento,
   taskDiffSelectionMemento,
   taskPaneLayoutMemento,
+  taskPanelLayoutsMemento,
   workbenchSidebarMemento,
   workbenchHistoryMemento,
 ];
