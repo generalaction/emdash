@@ -7,9 +7,6 @@ export {
   type AbortableWaitSettle,
 } from './abortable-wait';
 export {
-  MAX_TIMER_DELAY_MS,
-  normalizeDelay,
-  sleepWithClock,
   systemClock,
   waitWithSignal,
   type Clock,
