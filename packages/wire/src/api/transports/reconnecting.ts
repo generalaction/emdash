@@ -1,13 +1,17 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { backoffSchedule, type BackoffSchedule } from '../backoff';
+import {
+  retrySchedule,
+  systemClock,
+  type Clock,
+  type RetrySchedule,
+} from '@emdash/shared/scheduling';
 import { WireError, type WireMessage, type WireTransport } from '../protocol';
 
 export type ReconnectingTransportOptions = {
   backoffMs?: number[];
   clock?: Clock;
-  retrySchedule?: BackoffSchedule;
+  retrySchedule?: RetrySchedule;
   /** Return false for failures, such as a protocol mismatch, that retries cannot repair. */
   shouldRetry?: (error: unknown, context: ReconnectFailureContext) => boolean;
 };
@@ -52,8 +56,8 @@ export function reconnectingTransport(
   const reconnectListeners = new Set<() => void>();
   const terminalFailureListeners = new Set<(error: unknown) => void>();
   const backoffMs = options.backoffMs ?? [100, 250, 500, 1000, 2000];
-  const retrySchedule =
-    options.retrySchedule ?? backoffSchedule({ delaysMs: backoffMs, repeatLast: true });
+  const schedule =
+    options.retrySchedule ?? retrySchedule({ delaysMs: backoffMs, repeatLast: true });
   let inner: WireTransport | null = null;
   let reconnecting = false;
   let closed = false;
@@ -106,7 +110,7 @@ export function reconnectingTransport(
               failPermanently(error);
               break;
             }
-            delay = retrySchedule.delayFor(attempt);
+            delay = schedule.delayFor(attempt);
           } catch (classificationError) {
             failPermanently(classificationError);
             break;

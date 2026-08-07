@@ -1,6 +1,10 @@
 import { log as ambientLog, type Logger } from '@emdash/shared/logger';
-import { systemClock, type Clock } from '@emdash/shared/scheduling';
-import { backoffSchedule, type BackoffSchedule } from '../api/backoff';
+import {
+  retrySchedule,
+  systemClock,
+  type Clock,
+  type RetrySchedule,
+} from '@emdash/shared/scheduling';
 import type { LiveCursor, LiveSnapshot, LiveUpdate } from '../api/channel';
 import type { WireInstrumentation, WireResyncReason } from '../api/instrumentation';
 
@@ -38,10 +42,10 @@ const DEFAULT_RESYNC_RETRY_DELAYS_MS = [250, 1_000, 2_500, 5_000];
  * Retry the snapshot refetch on a bounded backoff until it succeeds or the
  * follower is disposed. The default schedule repeats its last delay forever.
  */
-export function resyncRetry(options: { schedule?: BackoffSchedule } = {}): LiveResyncFailurePolicy {
+export function resyncRetry(options: { schedule?: RetrySchedule } = {}): LiveResyncFailurePolicy {
   const schedule =
     options.schedule ??
-    backoffSchedule({ delaysMs: DEFAULT_RESYNC_RETRY_DELAYS_MS, repeatLast: true });
+    retrySchedule({ delaysMs: DEFAULT_RESYNC_RETRY_DELAYS_MS, repeatLast: true });
   return ({ attempt }) => {
     const delayMs = schedule.delayFor(attempt - 1);
     if (delayMs === undefined) return { kind: 'give-up' };

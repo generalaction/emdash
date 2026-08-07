@@ -1,7 +1,7 @@
+import { retrySchedule } from '@emdash/shared/scheduling';
 import { createManualClock } from '@emdash/shared/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { backoffSchedule } from '../api/backoff';
 import type { LiveSnapshot, LiveUpdate } from '../api/channel';
 import type { WireResyncFailedEvent } from '../api/instrumentation';
 import { resyncMarkStale, resyncRetry } from './follower';
@@ -48,7 +48,7 @@ describe('follower resync failure policy', () => {
       {
         clock,
         onResyncFailed: resyncRetry({
-          schedule: backoffSchedule({ delaysMs: [100, 200], repeatLast: true }),
+          schedule: retrySchedule({ delaysMs: [100, 200], repeatLast: true }),
         }),
         instrumentation: { resyncFailed: (event) => failures.push(event) },
       }
@@ -228,7 +228,7 @@ describe('follower resync failure policy', () => {
       {
         clock,
         onResyncFailed: resyncRetry({
-          schedule: backoffSchedule({ delaysMs: [50], repeatLast: true }),
+          schedule: retrySchedule({ delaysMs: [50], repeatLast: true }),
         }),
       }
     );

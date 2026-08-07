@@ -123,8 +123,9 @@ import { cell, expose } from '@emdash/wire/state';
   protocol vocabulary (`WireMessage`, `WireTransport`, `WireError`,
   `LiveSource`, `LiveUpdate`, cursors), provider seam types
   (`LiveModelProvider`, `LeasedLiveModelProvider`,
-  `LiveModelMutationEnvelope`), the blob/file surface, validation, backoff
-  schedules, and the `WireInstrumentation` seam types.
+  `LiveModelMutationEnvelope`), the blob/file surface, validation, and the
+  `WireInstrumentation` seam types. Retry schedules come from
+  `@emdash/shared/scheduling`.
 - `@emdash/wire/live`: the server-side reactivity sources (`LiveLogSource`,
   `LiveJobSource`, `EventStreamSource`, `createEventStreamHost()`), the keyed
   replica caches (`createLiveLogReplicaCache()`, `createLiveJobReplicaCache()`,
