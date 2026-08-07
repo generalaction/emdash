@@ -101,8 +101,8 @@ export function CreateNewPanel({
   return (
     <div className="flex flex-col gap-6">
       <Field.Group>
-        <div className="flex items-end gap-2">
-          <Field.Root className="w-1/4 min-w-0">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,3fr)] items-end gap-2">
+          <Field.Root className="min-w-0">
             <Field.Label>Owner</Field.Label>
             <OwnerSelector
               owners={state.owners}
@@ -114,7 +114,7 @@ export function CreateNewPanel({
             />
           </Field.Root>
           <span className="pb-2 text-sm text-foreground-muted">/</span>
-          <Field.Root className="min-w-0 flex-1">
+          <Field.Root className="min-w-0">
             <Field.Label htmlFor={repositoryNameId}>Repository name</Field.Label>
             <Input
               id={repositoryNameId}
