@@ -21,6 +21,7 @@ import type { BlobSource } from '@emdash/wire/rpc';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getAgentsClient } from '@core/features/agents/api/browser/client';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
+import { log } from '@core/primitives/logging/browser/logger';
 import {
   registerConversationCommands,
   unregisterConversationCommands,
@@ -28,7 +29,6 @@ import {
 import { getChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { getSharedChatContext } from '@renderer/lib/chat/shared-chat-context';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { log } from '@renderer/utils/logger';
 import { AcpLiveSession, AcpStartError, asValueSource } from './acp-live-session';
 import { bindSessionTerminalOutputs } from './acp-terminal-output-binding';
 

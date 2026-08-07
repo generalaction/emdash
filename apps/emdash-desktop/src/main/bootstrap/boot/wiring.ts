@@ -17,6 +17,7 @@ import { setBrowserCorsRelaxationSettings } from '@main/host/browser/browser-pro
 import { browserWebContentsRegistry } from '@main/host/browser/browser-webcontents-registry';
 import { browserOperations } from '@main/host/browser/controller';
 import { createDevPerfOperations } from '@main/host/dev-perf/controller-operations';
+import { writeRendererLogEntry } from '@main/host/file-logger';
 import { updateOperations } from '@main/host/updates/controller-operations';
 import { applyNativeTheme } from '@main/host/window';
 import { log } from '@main/lib/logger';
@@ -76,7 +77,6 @@ export function createDesktopWireOptions(
       openPath: ({ path }) => appOperations.openPath(path),
       showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
       readUserFile: ({ path }) => appOperations.readUserFile(path),
-      writeRendererLog: (input) => appOperations.writeRendererLog(input),
       clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),
       persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),
       persistClipboardImage: () => appOperations.persistClipboardImage(),
@@ -107,6 +107,9 @@ export function createDesktopWireOptions(
     issueProviders: services.issueProviders,
     legacyPortOperations,
     logger: log,
+    loggingOperations: {
+      writeRendererLog: (input) => writeRendererLogEntry(input),
+    },
     notifications: services.notifications,
     projectDeletion: services.projectDeletion,
     promptLibrary: services.promptLibrary,

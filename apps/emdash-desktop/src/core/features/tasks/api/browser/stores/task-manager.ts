@@ -22,6 +22,7 @@ import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { workspacesWireContract, type WorkspaceError } from '@core/features/workspaces/api';
 import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/client';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';
 import {
   isProvisioned,
@@ -46,7 +47,6 @@ import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client'
 import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
 import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
 import { appState } from '@renderer/lib/stores/app-state';
-import { log } from '@renderer/utils/logger';
 
 type TaskMutationInvocation<Data, Error> = {
   result: SharedResult<{ data: Data; cursors: unknown[] }, Error>;

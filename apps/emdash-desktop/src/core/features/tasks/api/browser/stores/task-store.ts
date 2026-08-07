@@ -3,6 +3,7 @@ import { makeAutoObservable, observable } from 'mobx';
 import type { TaskScopedStoreContext } from '@core/features/tasks/contributions/browser/task-stores';
 import { taskStoreContributions } from '@core/manifests/browser/task-scoped-stores';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import {
   ScopedStoreHost,
   type ScopedStoreLookup,
@@ -22,7 +23,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
-import { log } from '@renderer/utils/logger';
 
 export type TaskStoreMutations = {
   rename(task: Task, name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>>;

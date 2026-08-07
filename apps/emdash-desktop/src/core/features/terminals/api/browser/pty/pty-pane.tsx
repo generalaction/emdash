@@ -20,6 +20,7 @@ import {
   isNearDuplicatePaste,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { terminalInputScope } from '@core/features/workbench/contributions/scopes';
+import { log } from '@core/primitives/logging/browser/logger';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope } from '@core/primitives/view-scopes/react';
@@ -29,7 +30,6 @@ import {
 } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
 import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { log } from '@renderer/utils/logger';
 import { type PasteFromClipboardHandler, usePty } from '../../../browser/pty/use-pty';
 
 type Props = {

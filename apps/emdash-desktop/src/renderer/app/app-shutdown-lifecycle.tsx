@@ -3,10 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import type { ActiveSessionSummary } from '@core/features/workbench/api';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { useMementoClient } from '@core/primitives/mementos/react';
 import { modalStore } from '@core/primitives/modals/react/modal-store';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { log } from '@renderer/utils/logger';
 
 export function AppShutdownLifecycle() {
   const mementoClient = useMementoClient();

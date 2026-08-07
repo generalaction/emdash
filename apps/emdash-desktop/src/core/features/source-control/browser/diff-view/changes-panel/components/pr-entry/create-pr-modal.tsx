@@ -22,10 +22,10 @@ import { gitCheckoutStoreToken } from '@core/features/source-control/contributio
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
+import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { getPullRequestsRuntimeClient } from '@renderer/lib/runtime/pull-requests-client';
-import { log } from '@renderer/utils/logger';
 import { pullRequestErrorMessage } from '@root/src/core/services/pull-requests/api';
 import { resolveInitialBaseBranch } from './base-branch';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';

@@ -6,8 +6,8 @@ import type {
   GitHubAccountSummary,
   GitHubUser,
 } from '@core/primitives/github/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
-import { log } from '@renderer/utils/logger';
 import {
   GITHUB_ACCOUNTS_QUERY_KEY,
   GITHUB_ACCOUNT_STATE_QUERY_KEY,

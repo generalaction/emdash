@@ -67,7 +67,7 @@ vi.mock('@core/features/conversations/browser/acp/acp-chat-store', () => ({
 vi.mock('@core/features/conversations/browser/acp/acp-chat-panel', () => ({
   AcpChatPanel: () => null,
 }));
-vi.mock('@renderer/utils/logger', () => ({
+vi.mock('@core/primitives/logging/browser/logger', () => ({
   log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 

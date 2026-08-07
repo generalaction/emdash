@@ -3,7 +3,7 @@
  * Configures language services to match project's tsconfig.json
  */
 import type * as monaco from 'monaco-editor';
-import { log } from '@renderer/utils/logger';
+import { log } from '@core/primitives/logging/browser/logger';
 
 const DIAGNOSTICS_OPTIONS: monaco.typescript.DiagnosticsOptions = {
   // Monaco runs without the full project/type environment here, so semantic

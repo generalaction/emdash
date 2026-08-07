@@ -11,6 +11,7 @@ import { getTerminalsClient } from '@core/features/terminals/api/browser/client'
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
+import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
@@ -22,7 +23,6 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
-import { log } from '@renderer/utils/logger';
 
 export type ScriptType = 'prepare' | 'setup' | 'run' | 'teardown';
 

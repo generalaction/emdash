@@ -12,7 +12,7 @@ import {
   persistClipboardImagePath,
   persistDroppedBlobBytes,
 } from '@main/core/app/persist-terminal-attachment';
-import { getDiagnosticLogAttachment, writeRendererLogEntry } from '@main/host/file-logger';
+import { getDiagnosticLogAttachment } from '@main/host/file-logger';
 import { setApplicationMenuKeybindings } from '@main/host/menu';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -50,7 +50,6 @@ async function getPlatformDisplayName(): Promise<string> {
 }
 
 export const appOperations = {
-  writeRendererLog: writeRendererLogEntry,
   openExternal: async (url: string) => {
     try {
       await appService.openExternal(url);
