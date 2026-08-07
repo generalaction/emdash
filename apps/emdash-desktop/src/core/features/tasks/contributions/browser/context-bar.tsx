@@ -113,9 +113,7 @@ export const ContextBar = observer(function ContextBar({
   return (
     <ContextMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
       <ContextMenu.Trigger>
-        <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
-          {contextPopover}
-        </div>
+        <div className="flex w-full items-center justify-center px-4 pb-2">{contextPopover}</div>
       </ContextMenu.Trigger>
       <ContextMenu.Content finalFocus={false}>
         <ContextMenu.Item disabled={isSavingInterfaceSettings} onClick={hideContextBar}>

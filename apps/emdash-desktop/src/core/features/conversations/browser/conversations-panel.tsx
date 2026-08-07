@@ -125,7 +125,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-(--xterm-bg)">
       <div className="flex min-h-0 flex-1">
         <div
           ref={containerRef}
