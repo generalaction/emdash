@@ -206,7 +206,8 @@ export function AddContextPopover({
       <Combobox.Content
         side={side}
         align="center"
-        className="flex min-h-[200px] max-w-[92vw] min-w-[440px] flex-col"
+        className="flex flex-col"
+        style={{ width: 'min(27rem, calc(100vw - 2rem), var(--available-width))' }}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
