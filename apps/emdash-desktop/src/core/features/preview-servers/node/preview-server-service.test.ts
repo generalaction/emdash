@@ -433,6 +433,39 @@ describe('PreviewServerService', () => {
     ]);
   });
 
+  it('retries a failed auto-forward when its SSH connection reconnects', async () => {
+    let canOpen = false;
+    let openAttempts = 0;
+    const context = createService({
+      openTunnel: async () => {
+        openAttempts++;
+        if (!canOpen) throw new Error('bind failed');
+        return { localPort: 6200, close: async () => {} };
+      },
+    });
+    const failed = await registerSsh(context.service);
+    expect(failed.status.kind).toBe('failed');
+
+    canOpen = true;
+    context.service.handleSshConnectionEvent({
+      type: 'reconnected',
+      connectionId: 'connection-1',
+    });
+
+    await vi.waitFor(() => {
+      const [server] = context.service.listForWorkspace({
+        projectId: 'project-1',
+        workspaceId: 'workspace-1',
+      });
+      expect(server).toMatchObject({
+        id: failed.id,
+        localPort: 6200,
+        status: { kind: 'ready' },
+      });
+    });
+    expect(openAttempts).toBe(2);
+  });
+
   it('marks a forwarded preview failed when later browser traffic cannot reach the remote port', async () => {
     let onConnectionError: ((error: Error) => void) | undefined;
     const context = createService({

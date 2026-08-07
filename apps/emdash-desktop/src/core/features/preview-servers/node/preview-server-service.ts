@@ -191,7 +191,19 @@ export class PreviewServerService {
 
     for (const server of this.servers.values()) {
       if (server.kind !== 'forwarded' || server.connectionId !== event.connectionId) continue;
-      if (server.localPort === undefined && server.status.kind === 'failed') continue;
+      if (server.localPort === undefined && server.status.kind === 'failed') {
+        const metadata = this.metadata.get(server.id);
+        if (event.type === 'reconnected' && metadata?.tunnelId) {
+          void this.restart(server.id).catch((error) => {
+            log.warn('PreviewServerService: failed to retry SSH preview tunnel after reconnect', {
+              serverId: server.id,
+              connectionId: server.connectionId,
+              error: String(error),
+            });
+          });
+        }
+        continue;
+      }
       if (event.type === 'reconnected' && server.localPort === undefined) continue;
 
       const next =
