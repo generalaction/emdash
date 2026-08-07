@@ -66,13 +66,13 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   const React = await import('react');
   const actual = await importOriginal<Record<string, unknown>>();
 
-  type SelectContextValue = {
+  type DropdownMenuContextValue = {
     onValueChange?: (value: string) => void;
   };
 
-  const SelectContext = React.createContext<SelectContextValue>({});
+  const DropdownMenuContext = React.createContext<DropdownMenuContextValue>({});
 
-  function MockSelectItem({
+  function MockDropdownMenuRadioItem({
     children,
     disabled,
     value,
@@ -81,7 +81,7 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
     disabled?: boolean;
     value: string;
   }) {
-    const { onValueChange } = React.useContext(SelectContext);
+    const { onValueChange } = React.useContext(DropdownMenuContext);
     return React.createElement(
       'button',
       {
@@ -96,8 +96,10 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
   return {
     ...actual,
     useToast: () => ({ toast: mocks.toast }),
-    Select: {
-      Root: ({
+    DropdownMenu: {
+      Root: ({ children }: { children: React.ReactNode }) =>
+        React.createElement('div', {}, children),
+      RadioGroup: ({
         children,
         onValueChange,
       }: {
@@ -105,13 +107,13 @@ vi.mock('@emdash/ui/react/primitives', async (importOriginal) => {
         onValueChange?: (value: string) => void;
       }) =>
         React.createElement(
-          SelectContext.Provider,
+          DropdownMenuContext.Provider,
           { value: { onValueChange } },
           React.createElement('div', {}, children)
         ),
       Content: ({ children }: { children: React.ReactNode }) =>
         React.createElement('div', {}, children),
-      Item: MockSelectItem,
+      RadioItem: MockDropdownMenuRadioItem,
       Trigger: ({ children }: { children: React.ReactNode }) =>
         React.createElement('button', {}, children),
     },
