@@ -16,7 +16,7 @@ import {
   type FileTreeRootMenuItem,
   type FileTreeRowState,
 } from '@emdash/ui/react/components';
-import { Input, toast } from '@emdash/ui/react/primitives';
+import { SearchInput, toast } from '@emdash/ui/react/primitives';
 import {
   ClipboardPaste,
   Copy,
@@ -28,10 +28,8 @@ import {
   FolderPlus,
   Link2,
   RefreshCw,
-  Search,
   Scissors,
   Trash2,
-  X,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -865,12 +863,12 @@ export const EditorFileTree = observer(function EditorFileTree() {
         onRefresh={() => void refresh()}
         isRefreshing={isRefreshing}
       />
-      <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
     </div>
   );
 });
 
-function FileTreeHeaderBar({
+export function FileTreeHeaderBar({
   context,
   searchQuery,
   setSearchQuery,
@@ -888,15 +886,15 @@ function FileTreeHeaderBar({
   return (
     <div className="shrink-0 border-b border-border px-2 py-1.5">
       <div className="flex items-center gap-1">
-        <div className="relative min-w-0 flex-1">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
-          <Input
+        <div className="min-w-0 flex-1">
+          <SearchInput
             ref={setSearchInputRef}
             value={searchQuery}
             maxLength={FILE_SEARCH_MAX_QUERY_LENGTH}
             aria-label="Search"
             placeholder="Search"
-            className="h-7 border-0 bg-transparent pr-7 pl-7 text-xs shadow-none hover:bg-background-1 focus-visible:bg-background-1 focus-visible:ring-1"
+            className="h-7 border-0 bg-transparent text-xs shadow-none hover:bg-background-1 focus-visible:bg-background-1 focus-visible:ring-1"
+            onClear={() => setSearchQuery('')}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Escape') return;
@@ -904,16 +902,6 @@ function FileTreeHeaderBar({
               else event.currentTarget.blur();
             }}
           />
-          {searchQuery && (
-            <button
-              type="button"
-              aria-label="Clear file content search"
-              className="text-muted-foreground absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm hover:text-foreground"
-              onClick={() => setSearchQuery('')}
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
         </div>
         <HeaderAction label="New file" onClick={() => context.startDraft('file')}>
           <FilePlus className="size-3.5" />
