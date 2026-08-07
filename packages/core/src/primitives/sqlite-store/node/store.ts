@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { noopLogger, type Logger } from '../../lib/api/logger';
+import { noopLogger, type Logger } from '@emdash/shared/logger';
 import type {
   DerivedSqliteStore,
   DerivedStoreConfig,

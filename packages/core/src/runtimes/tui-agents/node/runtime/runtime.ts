@@ -1,4 +1,5 @@
 import { err, ok, type Result, type Serializable } from '@emdash/shared';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { LiveLogSource } from '@emdash/wire/live';
 import { type LiveSource } from '@emdash/wire/rpc';
 import { peek } from '@emdash/wire/state';
@@ -12,7 +13,6 @@ import {
   type IoActivitySnapshot,
   type IoActivityTracker,
 } from '@primitives/io-activity/api';
-import { KeyedMutex } from '@primitives/lib/api/keyed-mutex';
 import type {
   TuiAgentStartInput,
   TuiInputError,

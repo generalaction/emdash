@@ -53,6 +53,7 @@
     "@emdash/core": "workspace:*",
     "@emdash/plugins": "workspace:*",
     "@emdash/shared": "workspace:*",
+    "@emdash/theme": "workspace:*",
     "@emdash/ui": "workspace:*",
     "@emdash/wire": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",

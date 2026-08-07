@@ -1,4 +1,4 @@
-import { KeyedMutex } from '@emdash/core/primitives/concurrency/api';
+import { KeyedMutex } from '@emdash/shared/concurrency';
 import { and, eq } from 'drizzle-orm';
 import { conversationRegistryTable as conversations } from '@core/features/conversations/api/node/registry';
 import type { EnsureConversationSessionOutcome } from '@core/features/conversations/api/node/types';

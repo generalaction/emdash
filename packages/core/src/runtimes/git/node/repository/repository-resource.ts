@@ -1,7 +1,7 @@
 import type { Unsubscribe } from '@emdash/shared';
 import { createScope } from '@emdash/shared/concurrency';
+import type { KeyedMutex } from '@emdash/shared/concurrency';
 import { query, type ExposedMutationContext, type Query } from '@emdash/wire/state';
-import type { KeyedMutex } from '@primitives/lib/api';
 import type { PortableRelativePath } from '@primitives/path/api';
 import {
   type gitRepositoryContract,

@@ -8,8 +8,6 @@ export {
   type ExclusionMatcher,
   type ExclusionPolicyOptions,
 } from './exclusion-policy';
-export { KeyedMutex } from './keyed-mutex';
-export { consoleLogger, noopLogger, type Logger } from './logger';
 
 export type Observed<T> = {
   value: T;

@@ -38,6 +38,9 @@ importers:
       '@emdash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@emdash/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@emdash/ui':
         specifier: workspace:*
         version: link:../../packages/ui
