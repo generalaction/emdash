@@ -10,7 +10,7 @@ import { RelativeTime, Spinner, toast, Tooltip } from '@emdash/ui/react/primitiv
 import { WifiOffIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, type ReactNode } from 'react';
-import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
+import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/contributions/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { SettingsPageDetailProps } from '@core/primitives/settings/api/page-contribution';
 import type {

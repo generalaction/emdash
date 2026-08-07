@@ -6,7 +6,7 @@ import {
   workspaceRemovalNeedsAttention,
   type ProjectWorkspaceRow,
 } from '@core/primitives/workspaces/api';
-import { getWorkspaceRegistryWireClient } from './client';
+import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
 
 type RemovalAction = 'retry' | 'untrack';
 

@@ -32,7 +32,7 @@ import {
   getProjectWorkspacesClient,
   getWorkspaceRegistryWireClient,
 } from '@core/features/workspaces/api/browser/client';
-import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/api/browser/removal-attention-panel';
+import { WorkspaceRemovalAttentionPanel } from '@core/features/workspaces/contributions/browser/removal-attention-panel';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
 import { projectHostRef } from '@core/primitives/projects/api';
