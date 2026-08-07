@@ -89,7 +89,7 @@ export const AutoTrustWorktreesRow: React.FC = () => {
           Auto-trust worktree directories
           <InfoTooltip
             label="More info about auto-trust worktrees"
-            content="Applies to Claude Code and GitHub Copilot. Writes trust entries before launching."
+            content="For agents that support workspace trust, Emdash writes trust entries before launching."
           />
         </div>
       }
