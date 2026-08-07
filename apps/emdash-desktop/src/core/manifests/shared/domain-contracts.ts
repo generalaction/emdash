@@ -34,6 +34,7 @@ import {
   workspacesDomain,
   workspacesWireContract,
 } from '@core/features/workspaces/api';
+import { loggingDomain, loggingWireContract } from '@core/primitives/logging/api/wire-contract';
 import { mementosDomain, mementosWireContract } from '@core/primitives/mementos/api';
 import { remoteMachineContract, remoteMachineDomain } from '@core/services/remote-machine/api';
 import { appSettingsContract, appSettingsDomain } from '@core/services/settings/api';
@@ -54,6 +55,7 @@ export const desktopDomainContracts = {
   [devPerfDomain]: devPerfContract,
   [editorDomain]: editorContract,
   [legacyPortDomain]: legacyPortContract,
+  [loggingDomain]: loggingWireContract,
   [machinesDomain]: machinesContract,
   [projectSettingsDomain]: projectSettingsContract,
   [projectWorkspacesDomain]: projectWorkspacesContract,

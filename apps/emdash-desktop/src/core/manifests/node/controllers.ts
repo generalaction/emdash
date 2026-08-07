@@ -82,6 +82,10 @@ import { desktopDomainContracts } from '@core/manifests/shared/domain-contracts'
 import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry';
 import type { AppDb } from '@core/services/app-db/node/db';
+import {
+  createLoggingWireController,
+  type LoggingControllerOperations,
+} from '@core/services/logging/node/wire-controller';
 import type { NotificationService } from '@core/services/notifications/node';
 import { createNotificationsWireController } from '@core/services/notifications/node/wire-controller';
 import type { PullRequestsRuntimeClient } from '@core/services/pull-requests/api';
@@ -116,6 +120,7 @@ export type DesktopControllerContext = {
   readonly issueProviders: IssueProviderRegistry;
   readonly legacyPortOperations: LegacyPortControllerOperations;
   readonly logger: Logger;
+  readonly loggingOperations: LoggingControllerOperations;
   readonly notifications: NotificationService;
   readonly projectDeletion: ProjectDeletionDependencies;
   readonly promptLibrary: PromptLibraryService;
@@ -190,6 +195,9 @@ export const desktopNodeControllers = {
   },
   legacyPort: {
     create: ({ legacyPortOperations }) => createLegacyPortWireController(legacyPortOperations),
+  },
+  logging: {
+    create: ({ loggingOperations }) => createLoggingWireController(loggingOperations),
   },
   machines: {
     create: ({ runtimes, ssh }) => createMachinesWireController(ssh.machines, runtimes),

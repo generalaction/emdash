@@ -1,6 +1,6 @@
 import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
-import { log } from '@renderer/utils/logger';
+import { log } from '@core/primitives/logging/browser/logger';
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 
 /**

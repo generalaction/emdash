@@ -14,9 +14,9 @@ import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
+import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { type CreateTerminalParams, type Terminal } from '@core/primitives/terminals/api';
-import { log } from '@renderer/utils/logger';
 import { nextTerminalName } from '../../../browser/task-terminal/terminal-tabs';
 
 export class TerminalManagerStore implements Disposable {

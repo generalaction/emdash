@@ -26,6 +26,7 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { taskManagerStoreToken } from '@core/features/tasks/contributions/browser/project-store-tokens';
 import { taskSubject } from '@core/features/tasks/contributions/subject';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
+import { log } from '@core/primitives/logging/browser/logger';
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { type LocalProject, type SshProject } from '@core/primitives/projects/api';
 import { splitNameWithOwner } from '@core/primitives/repository/api';
@@ -34,7 +35,6 @@ import { getProjectsWireClient } from '@renderer/lib/runtime/projects-wire-clien
 import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
 import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
 import { appState } from '@renderer/lib/stores/app-state';
-import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import type {
   ModeData,

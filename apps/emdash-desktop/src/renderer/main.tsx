@@ -20,6 +20,7 @@ import { appStoreContributions } from '@core/manifests/browser/app-scoped-stores
 import { featureViewRuntimes } from '@core/manifests/browser/browser-contributions';
 import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
+import { log } from '@core/primitives/logging/browser/logger';
 import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
 import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
 import { createAppScope } from '@core/primitives/scoped-stores/browser';
@@ -37,7 +38,6 @@ import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getMementosWireClient } from '@renderer/lib/runtime/mementos-wire-client';
 import { seedDesktopWire } from '@renderer/lib/runtime/seed-desktop-wire';
-import { log } from '@renderer/utils/logger';
 import { initRendererPerfVitals } from '@renderer/utils/perf-vitals';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';

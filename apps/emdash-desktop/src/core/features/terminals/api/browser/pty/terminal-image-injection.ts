@@ -2,8 +2,8 @@ import {
   isHeicLikeFile,
   isUnstableDropPath,
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
+import { log } from '@core/primitives/logging/browser/logger';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
-import { log } from '@renderer/utils/logger';
 
 const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;
 

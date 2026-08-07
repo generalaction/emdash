@@ -7,9 +7,9 @@ import {
 import { useToast } from '@emdash/ui/react/primitives';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
+import { log } from '@core/primitives/logging/browser/logger';
 import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
-import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { getSkillsClient } from '../client';
 import { useInstalledSkillsLiveModel } from '../live-model-hooks';

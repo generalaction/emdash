@@ -7,9 +7,9 @@ import type {
   FileTabResource,
 } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type { TaskEditorTreeState } from '@core/features/tasks/contributions/mementos';
+import { log } from '@core/primitives/logging/browser/logger';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
-import { log } from '@renderer/utils/logger';
 import { allOpenFileResources } from '../../../../browser/task-editor/pane-selectors';
 import { FilesStore } from '../../../../browser/task-editor/stores/files-store';
 

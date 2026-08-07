@@ -70,14 +70,6 @@ export const desktopHostContract = defineContract({
     input: z.object({ path: z.string() }),
     output: z.custom<ReadResult>(),
   }),
-  writeRendererLog: procedure({
-    input: z.object({
-      level: z.enum(['debug', 'info', 'warn', 'error']),
-      source: z.literal('renderer'),
-      input: z.array(z.unknown()),
-    }),
-    output: z.void(),
-  }),
   clipboardWriteText: procedure({
     input: z.object({ text: z.string() }),
     output: z.custom<ActionResult>(),

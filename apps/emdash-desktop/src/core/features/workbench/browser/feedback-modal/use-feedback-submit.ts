@@ -1,6 +1,6 @@
 import { useToast } from '@emdash/ui/react/primitives';
 import { useCallback, useState } from 'react';
-import { log } from '@renderer/utils/logger';
+import { log } from '@core/primitives/logging/browser/logger';
 import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
 const DISCORD_WEBHOOK_URL =

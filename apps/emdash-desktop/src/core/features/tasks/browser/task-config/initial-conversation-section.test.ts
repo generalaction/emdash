@@ -110,7 +110,7 @@ vi.mock('@renderer/lib/runtime/desktop-host-client', () => ({
   },
 }));
 
-vi.mock('@renderer/utils/logger', () => ({
+vi.mock('@core/primitives/logging/browser/logger', () => ({
   log: { warn: vi.fn() },
 }));
 

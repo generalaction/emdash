@@ -36,6 +36,7 @@ import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/t
 import { taskTabView } from '@core/features/workbench/api/browser/task-tab-registry';
 import type { WorkspaceStore } from '@core/features/workspaces/api/browser/stores/workspace';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
+import { log } from '@core/primitives/logging/browser/logger';
 import {
   sanitizedMemento,
   type MementoHandle,
@@ -44,7 +45,6 @@ import {
 import { getMementoClient } from '@core/primitives/mementos/browser';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
-import { log } from '@renderer/utils/logger';
 import { sanitizeDiffSelection } from '../../browser/task-composition-state';
 
 export type RendererKind =

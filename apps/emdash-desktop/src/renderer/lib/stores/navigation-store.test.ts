@@ -33,7 +33,7 @@ vi.mock('@renderer/utils/focus-tracker', () => ({
   focusTracker: { transition: vi.fn(() => null) },
 }));
 
-vi.mock('@renderer/utils/logger', () => ({
+vi.mock('@core/primitives/logging/browser/logger', () => ({
   log: { error: vi.fn() },
 }));
 

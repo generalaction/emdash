@@ -4,9 +4,9 @@ import { ChevronRight, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProviderCustomConfig } from '@core/primitives/app-settings/api';
+import { log } from '@core/primitives/logging/browser/logger';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
-import { log } from '@renderer/utils/logger';
 
 type EnvEntry = { key: string; value: string };
 
