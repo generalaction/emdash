@@ -64,10 +64,16 @@ function stepDescription(step: WorkspaceLifecycleStepInfo): string {
       return `Worktree with ${params.branch} already exists at ${params.path}`;
     case 'fetch-remote-base':
       return `Fetch remote base ${params.base}`;
-    case 'create-worktree':
-      return `Adding worktree at ${params.path} using ${
-        params.branchCreated ? 'newly created' : 'existing'
-      } branch ${params.branch}`;
+    case 'create-worktree': {
+      // While the step is still running, whether the branch is new is unknown.
+      const branchKind =
+        params.branchCreated === undefined
+          ? ''
+          : params.branchCreated
+            ? 'newly created '
+            : 'existing ';
+      return `Adding worktree at ${params.path} using ${branchKind}branch ${params.branch}`;
+    }
     case 'copy-artifacts':
       return typeof params.fileCount === 'number'
         ? `Copying ${params.fileCount} artifacts defined in preservePatterns`

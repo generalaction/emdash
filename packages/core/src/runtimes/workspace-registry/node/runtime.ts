@@ -523,9 +523,9 @@ export class WorkspaceRegistryRuntime {
   async executeScanRequest(request: ScanRequest): Promise<void> {
     // The idle wait happens before the scan lane is taken: one busy repository must
     // not stall every other repository's scans behind its gate.
-    const gated = this.store.get(request.id);
-    if (!gated) return;
-    await hostGitSchedule.whenIdle(this.repositoryKeyFor(gated), SCAN_IDLE_DEADLINE_MS);
+    const target = this.store.get(request.id);
+    if (!target) return;
+    await hostGitSchedule.whenIdle(this.repositoryKeyFor(target), SCAN_IDLE_DEADLINE_MS);
     return this.enqueueScan(async () => {
       const record = this.store.get(request.id);
       if (!record) return;
@@ -1507,7 +1507,11 @@ export class WorkspaceRegistryRuntime {
         startedAt: overlay.creation.startedAt,
         finishedAt: null,
         params: record.creation
-          ? { branch: record.creation.branch, base: record.creation.baseRef }
+          ? {
+              branch: record.creation.branch,
+              base: record.creation.baseRef,
+              path: record.creation.requestedPath,
+            }
           : {},
       };
       lifecycle = [...(lifecycle ?? []).filter((step) => step.id !== running.id), running];

@@ -49,8 +49,6 @@ export type ObserveWorkspaceGitOptions = {
   /** Per-workspace cache; the scan runtime owns it and evicts it with the record. */
   untrackedCache?: UntrackedLinesCache;
   untrackedByteBudget?: number;
-  /** Budget tier for the observation's subprocesses; defaults to 'probe'. */
-  tier?: GitWorkTier;
 };
 
 export type RegistryGitExecOptions = {
@@ -58,8 +56,6 @@ export type RegistryGitExecOptions = {
   tier?: GitWorkTier;
   /** Repository key for idle gating; only meaningful for tiers above 'probe'. */
   repository?: string;
-  /** Injectable for scheduler-level tests; defaults to the host-wide budget. */
-  schedule?: GitSchedule;
 };
 
 /**
@@ -73,7 +69,7 @@ export function createRegistryGitExec(
   options: RegistryGitExecOptions = {}
 ): BoundExec {
   const tier = options.tier ?? 'probe';
-  const schedule = options.schedule ?? hostGitSchedule;
+  const schedule = hostGitSchedule;
   const work = { tier, repository: options.repository };
   const inner = createBoundExec({
     file: 'git',
@@ -166,7 +162,7 @@ export async function observeWorkspaceGit(
   // Probes of a worktree under active plumbing/removal wait for the writer to finish
   // rather than observing a torn checkout (spec: per-worktree writer lock).
   await worktreeWriteLocks.whenUnlocked(workspacePath);
-  const exec = createRegistryGitExec(workspacePath, { tier: options.tier });
+  const exec = createRegistryGitExec(workspacePath);
   try {
     const [branch, status, divergence] = await Promise.all([
       readBranch(exec),
