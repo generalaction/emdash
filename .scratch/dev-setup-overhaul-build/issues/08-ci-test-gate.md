@@ -13,20 +13,19 @@ baseline) are fixed or quarantined — landing this gate on a red HEAD blocks ev
 **Blocked by:** 07 — Flows doc (the spec sequences this strictly last), plus the external
 precondition above.
 
-**Status:** merged-to-wss — `dev-setup-final-fd513861` merged into `wss` 2026-08-06 (clean
-merge). **The gate must not reach main/CI until the suite is green — it is still RED.**
-Post-merge verification on `wss`: `pnpm run test` fails with **10 failures**, all in the
-mementos family of `@emdash/emdash-desktop` (`memento-client` 7, `memento-service` 3);
-`@emdash/workspace-server`, `@emdash/core`, and `@emdash/plugins` failures from the earlier
-29-failure baseline are gone. Note the earlier desktop count (24) was the Electron-ABI
-better-sqlite3 crash masking the real state: those tests run in the `node` vitest project,
-which had no `tooling/node-deps` alias. Fixed post-merge (vitest.config.ts now applies
-`toolingAlias` to the `node` project); the remaining 10 are genuine wire-refactor behavioral
-failures (poke-driven invalidation after deletes, and fake-timer debounce paths time out).
+**Status:** done — `dev-setup-final-fd513861` merged into `wss` 2026-08-06 (clean merge), and
+the suite is **green** on `wss` as of 2026-08-06. The 10 memento failures from the post-merge
+baseline (`memento-client` 7, `memento-service` 3) are fixed: one product fix in the memento
+client's flush path (saves now apply an optimistic patch and sync the MobX mirror before the
+local draft is dropped, so values no longer flap across the authoritative echo) plus test
+updates for the kernel's intentionally-async poke-driven invalidation after deletes and the
+query's timer-scheduled initial fetch under fake timers. Historical context: the earlier
+desktop count (24) was the Electron-ABI better-sqlite3 crash masking the real state; the
+`node` vitest project now applies `toolingAlias` (fixed post-merge in vitest.config.ts).
 
-- [ ] `pnpm run test` green on main verified before the gate lands — **NOT MET** (10 memento
-      failures above; the gate is merged to `wss` but must not land on main until the
-      wire-refactor effort fixes or quarantines them)
+- [x] `pnpm run test` green on main verified before the gate lands — full workspace suite
+      green on `wss` 2026-08-06 (desktop: 418 test files / 2363 tests passing, 1 skipped;
+      all other packages green)
 - [ ] A PR that breaks a unit test is blocked by CI; a docs-only PR is not slowed by unrelated
       test runs (affected scoping works) — by construction (`nx affected -t … test`), but only
       demonstrable on the first real PR run; watch it
