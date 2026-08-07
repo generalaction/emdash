@@ -1,7 +1,8 @@
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import type { SoundEvent } from '@core/primitives/agents/api';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
-import { queryClient } from '../lib/query-client';
-import { getDesktopWireClient } from '../lib/runtime/desktop-wire-client';
+import { queryClient } from '@core/primitives/query/browser/query-client';
+import { getAppSettingsClient } from '@core/services/settings/api/client';
 
 let audioCtx: AudioContext | null = null;
 let settings: NotificationSettings = {
@@ -44,8 +45,8 @@ function applyMeta(meta: unknown): void {
 }
 
 export function initSoundPlayer(): () => void {
-  getDesktopWireClient()
-    .then((client) => client.appSettings.getWithMeta({ key: 'notifications' }))
+  getAppSettingsClient()
+    .then((client) => client.getWithMeta({ key: 'notifications' }))
     .then((meta) => {
       queryClient.setQueryData([...NOTIFICATIONS_QUERY_KEY], meta);
       applyMeta(meta);
@@ -133,9 +134,7 @@ function playTaskComplete(): Array<() => void> {
 async function getCustomSoundDataUrl(path: string): Promise<string | null> {
   let dataUrl = customAudioCache.get(path);
   if (!dataUrl) {
-    const result = (await (
-      await getDesktopWireClient()
-    ).host.readAudioFileDataUrl({ filePath: path })) as
+    const result = (await (await getHostClient()).readAudioFileDataUrl({ filePath: path })) as
       | { success: true; dataUrl: string }
       | { success: false; error: string };
     if (!result.success) return null;

@@ -1,4 +1,4 @@
-import { confirmOpenExternalLink } from './open-external-link';
+import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { getDesktopWireClient } from './runtime/desktop-wire-client';
 
 export function wireExternalLinkRequests() {

@@ -11,14 +11,14 @@ import {
   type PlatformKey,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
 
-const iconModules = import.meta.glob('../../../assets/images/*', {
+const iconModules = import.meta.glob('../../../../../assets/images/*', {
   eager: true,
   query: '?url',
   import: 'default',
 }) as Record<string, string>;
 
 function getIconUrl(iconPath: string): string | undefined {
-  return iconModules[`../../../assets/images/${iconPath}`];
+  return iconModules[`../../../../../assets/images/${iconPath}`];
 }
 
 export interface UseOpenInAppsResult {

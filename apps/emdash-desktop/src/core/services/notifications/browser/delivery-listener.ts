@@ -1,10 +1,13 @@
+import type { SoundEvent } from '@core/primitives/agents/api';
 import { runNotificationOpenHandler } from '@core/primitives/notifications/browser/open-handlers';
 import { getNotificationsClient } from '@core/services/notifications/api/client';
-import { soundPlayer } from '@renderer/utils/soundPlayer';
+
+/** Plays a notification sound; injected by the host bootstrap (sound playback lives outside this service). */
+export type PlayNotificationSound = (sound: SoundEvent, dedupeKey?: string) => void;
 
 let cleanup: (() => void) | null = null;
 
-export function initNotificationDeliveryListener(): () => void {
+export function initNotificationDeliveryListener(playSound: PlayNotificationSound): () => void {
   if (cleanup) return cleanup;
 
   let disposed = false;
@@ -15,7 +18,7 @@ export function initNotificationDeliveryListener(): () => void {
       client.delivery.subscribe(undefined, {
         onEvent(event) {
           if (event.type === 'sound') {
-            soundPlayer.play(event.sound, event.notificationId);
+            playSound(event.sound, event.notificationId);
           } else {
             runNotificationOpenHandler(event.target, event.notificationId);
           }
