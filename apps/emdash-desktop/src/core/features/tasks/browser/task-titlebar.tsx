@@ -21,7 +21,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { ConnectionStatusDot } from '@core/features/machines/api/browser/components/connection-status-dot';
+import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
   asMounted,
   getProjectStore,
