@@ -19,12 +19,10 @@ const wireMocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    previewServers: {
-      ...wireMocks,
-      events: { subscribe: wireMocks.subscribe },
-    },
+vi.mock('@core/features/preview-servers/api/browser/client', () => ({
+  getPreviewServersClient: async () => ({
+    ...wireMocks,
+    events: { subscribe: wireMocks.subscribe },
   }),
 }));
 

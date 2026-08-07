@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   sync: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/pull-requests-client', () => ({
+vi.mock('@core/services/pull-requests/api/client', () => ({
   getPullRequestsRuntimeClient: async () => ({
     listPullRequests: mocks.listPullRequests,
     sync: mocks.sync,

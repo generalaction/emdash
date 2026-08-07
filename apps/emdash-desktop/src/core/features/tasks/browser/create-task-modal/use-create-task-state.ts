@@ -1,11 +1,11 @@
 import type { GitBranchRef } from '@emdash/core/runtimes/git/api';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { getTasksWireClient } from '@core/features/tasks/api/browser/client';
 import { useTaskName } from '@core/features/tasks/api/browser/create-task-modal/use-task-name';
 import { useWorkspaceConfig } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskSettings';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import type { PullRequest } from '@root/src/core/services/pull-requests/api';
 import { getIssueTaskName } from './issue-task-name';
 
@@ -46,7 +46,7 @@ export function useCreateTaskState(
     (linkedType === 'issue' && linkedIssue !== null) || (linkedType === 'pr' && linkedPR !== null);
   const { data: randomName, isPending: isRandomPending } = useQuery({
     queryKey: ['generateTaskName', 'random', randomKey],
-    queryFn: async () => (await getDesktopWireClient()).tasks.generateTaskName({}),
+    queryFn: async () => (await getTasksWireClient()).generateTaskName({}),
     enabled: autoGenerateName && !hasLinkedEntity,
     refetchOnWindowFocus: false,
   });
@@ -61,7 +61,7 @@ export function useCreateTaskState(
   const { data: issueGeneratedName, isPending: isIssuePending } = useQuery({
     queryKey: ['generateTaskName', linkedIssue?.title ?? null, linkedIssue?.description ?? null],
     queryFn: async () =>
-      (await getDesktopWireClient()).tasks.generateTaskName({
+      (await getTasksWireClient()).generateTaskName({
         title: linkedIssue!.title,
         description: linkedIssue!.description,
       }),
@@ -74,7 +74,7 @@ export function useCreateTaskState(
   const { data: prGeneratedName, isPending: isPRPending } = useQuery({
     queryKey: ['generateTaskName', linkedPR?.title ?? null, linkedPR?.description ?? null],
     queryFn: async () =>
-      (await getDesktopWireClient()).tasks.generateTaskName({
+      (await getTasksWireClient()).generateTaskName({
         title: linkedPR!.title,
         description: linkedPR!.description ?? undefined,
       }),

@@ -1,5 +1,6 @@
 import { err } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
+import { getPreviewServersClient } from '@core/features/preview-servers/api/browser/client';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import type {
   ManualPreviewServerResult,
@@ -8,7 +9,6 @@ import type {
   PreviewServerProtocol,
 } from '@core/primitives/preview-servers/api';
 import { previewServerUrl } from '@core/primitives/preview-servers/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 type PreviewServerStoreOptions = {
   projectId: string;
@@ -37,8 +37,8 @@ export class PreviewServerStore implements Disposable {
     this.connectionId = connectionId;
     this.serversResource = new Resource<Map<string, PreviewServer>, PreviewServerEvent>(
       async () => {
-        const client = await getDesktopWireClient();
-        const servers = await client.previewServers.listForWorkspace({ projectId, workspaceId });
+        const client = await getPreviewServersClient();
+        const servers = await client.listForWorkspace({ projectId, workspaceId });
         return new Map(servers.map((server) => [server.id, server]));
       },
       [],
@@ -70,8 +70,8 @@ export class PreviewServerStore implements Disposable {
         message: 'Manual port forwarding requires a remote workspace',
       });
     }
-    const client = await getDesktopWireClient();
-    const result = await client.previewServers.forwardManual({
+    const client = await getPreviewServersClient();
+    const result = await client.forwardManual({
       projectId: this.projectId,
       workspaceId: this.workspaceId,
       connectionId: this.connectionId,
@@ -86,13 +86,13 @@ export class PreviewServerStore implements Disposable {
   }
 
   async restart(id: string): Promise<void> {
-    const client = await getDesktopWireClient();
-    await client.previewServers.restart({ id });
+    const client = await getPreviewServersClient();
+    await client.restart({ id });
   }
 
   async stop(id: string): Promise<void> {
-    const client = await getDesktopWireClient();
-    await client.previewServers.stop({ id });
+    const client = await getPreviewServersClient();
+    await client.stop({ id });
     const next = new Map(this.serversResource.data ?? []);
     next.delete(id);
     this.serversResource.setValue(next);
@@ -106,8 +106,8 @@ export class PreviewServerStore implements Disposable {
   }
 
   private async subscribeEvents(): Promise<void> {
-    const client = await getDesktopWireClient();
-    const unsubscribe = await client.previewServers.events.subscribe(undefined, {
+    const client = await getPreviewServersClient();
+    const unsubscribe = await client.events.subscribe(undefined, {
       onEvent: (event) => {
         const next = new Map(this.serversResource.data ?? []);
         if (event.type === 'upsert') {

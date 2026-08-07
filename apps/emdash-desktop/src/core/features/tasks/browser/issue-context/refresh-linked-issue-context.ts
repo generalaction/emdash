@@ -1,5 +1,5 @@
+import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 
 export async function refreshLinkedIssueContext(
   issue: LinkedIssue,
@@ -7,9 +7,9 @@ export async function refreshLinkedIssueContext(
 ): Promise<LinkedIssue> {
   if (!projectId) return issue;
 
-  const result = await getDesktopWireClient()
+  const result = await getIssuesClient()
     .then((client) =>
-      client.issues.getIssueContext({
+      client.getIssueContext({
         provider: issue.provider,
         options: { identifier: issue.identifier, projectId },
       })
