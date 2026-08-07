@@ -27,6 +27,8 @@ This directory is the system of record for agent-facing repo guidance. Keep topi
   - places where incorrect changes are expensive
 - `conventions/`
   - coding contracts and repo rules
+  - [`ui-kit.md`](conventions/ui-kit.md) — which UI kit to use: `@emdash/ui` for components, feature Tailwind for layout one-offs, where new primitives go, `cn()` location, theming
+  - [`ui-styling.md`](conventions/ui-styling.md) — vanilla-extract styling rules for `packages/ui`
 
 ## Maintenance Rules
 

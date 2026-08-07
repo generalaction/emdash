@@ -362,6 +362,7 @@ pnpm run test
 - [Renderer patterns](agents/conventions/renderer-patterns.md)
 - [TypeScript and React conventions](agents/conventions/typescript.md)
 - [Config file rules](agents/conventions/config-files.md)
+- [UI kit conventions](agents/conventions/ui-kit.md)
 - [UI styling conventions](agents/conventions/ui-styling.md)
 - [Versioned schema conventions](agents/conventions/versioned-schemas.md)
 - [Database risk notes](agents/risky-areas/database.md)
