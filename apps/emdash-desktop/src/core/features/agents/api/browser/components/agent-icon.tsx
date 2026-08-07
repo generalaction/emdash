@@ -1,5 +1,5 @@
 import { useAgentIcon } from '@core/features/agents/api/browser/use-agents';
-import { PluginIcon } from '@core/primitives/ui/browser/components/plugin-icon';
+import { PluginIcon } from './plugin-icon';
 
 interface AgentIconProps {
   id: string;

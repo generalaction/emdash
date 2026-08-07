@@ -1,6 +1,6 @@
+import { PluginIcon } from '@core/features/agents/api/browser/components/plugin-icon';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import type { AgentIconAsset } from '@core/primitives/agents/api';
-import { PluginIcon } from '@core/primitives/ui/browser/components/plugin-icon';
 
 type IntegrationIconProps = {
   provider: string;

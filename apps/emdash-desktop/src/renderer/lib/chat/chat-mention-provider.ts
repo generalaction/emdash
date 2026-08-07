@@ -1,7 +1,7 @@
 import type { ChatMentionMeta, MentionProvider } from '@emdash/chat-ui';
+import { pickIconVariant } from '@core/features/agents/api/browser/components/agent-icon-variant';
 import type { AgentIconAsset } from '@core/primitives/agents/api';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
-import { pickIconVariant } from '@core/primitives/ui/browser/components/agent-icon-variant';
 import { workspaceFileMentionProvider } from './workspace-file-mention-provider';
 
 type IntegrationIconInput = {

@@ -7,12 +7,12 @@ import {
   GitHubAccountSelectLabel,
 } from '@core/features/projects/api/browser/components/github-account-select';
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
-import type { Project } from '@core/primitives/projects/api';
-import { cn } from '@core/primitives/styling/browser/cn';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
-} from '@core/primitives/ui/browser/components/remote-select-content';
+} from '@core/features/source-control/api/browser/components/remote-select-content';
+import type { Project } from '@core/primitives/projects/api';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { Field, FieldDescription, FieldTitle } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import {

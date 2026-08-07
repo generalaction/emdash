@@ -13,10 +13,6 @@ import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
-  IssueStatusIndicator,
-  toIssueStatus,
-} from '@core/primitives/ui/browser/components/issue-status-indicator';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,6 +20,7 @@ import {
 } from '@core/primitives/ui/browser/select';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
+import { IssueStatusIndicator, toIssueStatus } from './issue-status-indicator';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
