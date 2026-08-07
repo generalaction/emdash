@@ -15,6 +15,16 @@ import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/c
 import { TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
 
+/** The task view's shared loading presentation: a centered spinner with an optional label. */
+export function TaskViewLoadingState({ label }: { label?: string }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+      <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
+      {label && <p className="font-sans text-xs text-foreground-muted">{label}</p>}
+    </div>
+  );
+}
+
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
@@ -23,12 +33,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     taskStore && 'workspaceId' in taskStore.data ? taskStore.data.workspaceId : undefined;
 
   if (kind === 'creating') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="font-sans text-xs text-foreground-muted">Creating task</p>
-      </div>
-    );
+    return <TaskViewLoadingState label="Creating task" />;
   }
 
   if (kind === 'create-error') {
@@ -45,12 +50,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'project-mounting') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="font-sans text-xs text-foreground-muted">Opening project…</p>
-      </div>
-    );
+    return <TaskViewLoadingState label="Opening project…" />;
   }
 
   if (kind === 'provisioning' && taskStore) {
@@ -86,12 +86,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'idle' || kind === 'teardown') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="font-sans text-xs text-foreground-muted">Setting up workspace…</p>
-      </div>
-    );
+    return <TaskViewLoadingState label="Setting up workspace…" />;
   }
 
   if (kind === 'teardown-error') {

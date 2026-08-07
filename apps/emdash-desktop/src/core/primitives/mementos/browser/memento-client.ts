@@ -240,6 +240,9 @@ export class MementoClient {
 }
 
 export class SubjectSpace<TKind extends string> {
+  /** Observable mirror of `ready`; true once the initial hydration resolved. */
+  isHydrated = false;
+
   private readonly handles = new Map<string, MementoHandle<unknown>>();
   private readonly prefetch: ModelLease[];
   private released = false;
@@ -251,6 +254,15 @@ export class SubjectSpace<TKind extends string> {
     this.prefetch = client
       .persistedDefinitionsForSubjectKind(subject.kind)
       .map((definition) => client.acquirePersistentModel(toModelKey(subject, definition.id)));
+    makeObservable(this, { isHydrated: observable });
+    void this.ready.then(
+      () => {
+        runInAction(() => {
+          this.isHydrated = true;
+        });
+      },
+      (error: unknown) => client.reportError(error)
+    );
   }
 
   get ready(): Promise<void> {

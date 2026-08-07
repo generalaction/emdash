@@ -109,6 +109,23 @@ describe('MementoClient', () => {
     });
   });
 
+  it('flips the observable isHydrated from false to true when ready resolves', async () => {
+    const setup = await createSetup(cleanups, { catalog: [drawerMemento] });
+    const space = setup.client.subject(taskSubject({ taskId: 'task-1' }));
+    expect(space.isHydrated).toBe(false);
+    const observed: boolean[] = [];
+    const dispose = reaction(
+      () => space.isHydrated,
+      (value) => observed.push(value)
+    );
+
+    await space.ready;
+
+    expect(space.isHydrated).toBe(true);
+    expect(observed).toEqual([true]);
+    dispose();
+  });
+
   it('falls back to the default for missing, invalid, and future-version rows', async () => {
     const setup = await createSetup(cleanups);
     const missing = setup.client.subject(taskSubject({ taskId: 'missing' }));

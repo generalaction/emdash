@@ -230,6 +230,9 @@ export class TaskComposition {
   private async hydrateAndSeedPaneLayout(): Promise<void> {
     if (this._paneHydrated) return;
     await this._conversations.list.load();
+    // Persisted pane state must be loaded before hydrate() reads it; the
+    // conversations-list await above is not a reliable ordering guarantee.
+    await this.space.ready;
     this.paneLayout.hydrate();
     this._paneHydrated = true;
 
