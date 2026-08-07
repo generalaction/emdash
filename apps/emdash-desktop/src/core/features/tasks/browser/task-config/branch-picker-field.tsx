@@ -1,7 +1,7 @@
 import { Collapsible, Combobox, Field, Switch } from '@emdash/ui/react/primitives';
 import { ChevronDown, GitBranch } from 'lucide-react';
-import { BranchDisplay } from '@core/features/source-control/api/browser/components/branch-display';
-import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
+import { BranchDisplay } from '@core/features/source-control/contributions/browser/branch-display';
+import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
 import type { BranchSelectionState } from '@core/features/tasks/browser/create-task-modal/use-branch-selection';
 import { cn } from '@core/primitives/styling/browser/cn';

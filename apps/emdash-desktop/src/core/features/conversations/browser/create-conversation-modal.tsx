@@ -1,8 +1,8 @@
 import { Dialog, Field, Select, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
 import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
@@ -12,10 +12,10 @@ import { useTaskSettings } from '@core/features/tasks/api/browser/hooks/useTaskS
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { agentSupportsAcp, agentSupportsAutoApprove } from '@core/primitives/agents/api';
 import type { ConversationType } from '@core/primitives/conversations/api';
+import { useLocalStorage } from '@core/primitives/hooks/browser/useLocalStorage';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   projectId,

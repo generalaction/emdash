@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import type {
   TabBarItemProps,
   ResolvedTab,

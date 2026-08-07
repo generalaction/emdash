@@ -4,8 +4,8 @@ import { Button, toast } from '@emdash/ui/react/primitives';
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,

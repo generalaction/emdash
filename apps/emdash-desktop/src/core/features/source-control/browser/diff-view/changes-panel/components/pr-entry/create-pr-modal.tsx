@@ -13,11 +13,11 @@ import {
 import { ChevronDown, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { BranchDisplay } from '@core/features/source-control/api/browser/components/branch-display';
-import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
-import { RemoteSelectContent } from '@core/features/source-control/api/browser/components/remote-select-content';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
+import { BranchDisplay } from '@core/features/source-control/contributions/browser/branch-display';
+import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
+import { RemoteSelectContent } from '@core/features/source-control/contributions/browser/remote-select-content';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { useModalController } from '@core/manifests/browser/modal-api';

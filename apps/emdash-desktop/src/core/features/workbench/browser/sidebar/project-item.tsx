@@ -12,9 +12,8 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
-import { ConnectionStatusDot } from '@core/features/machines/api/browser/components/connection-status-dot';
 import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
-import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
+import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
   isUnmountedProject,
   isUnregisteredProject,
@@ -24,6 +23,7 @@ import {
   getProjectStore,
   projectViewKind,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';

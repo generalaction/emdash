@@ -1,4 +1,4 @@
-import type { IntegrationMetadata } from '@core/features/integrations/api/browser/integrations-provider';
+import type { IntegrationMetadata } from '@core/features/integrations/contributions/browser/integrations-provider';
 import type { IssueProviderType } from '@core/primitives/issue-providers/api';
 
 export const ISSUE_FEATURE_LABELS: Record<string, string> = {

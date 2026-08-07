@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { automationsViewDef } from '@core/features/automations/contributions/views';
-import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
+import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
 import { defineViewRuntime } from '@core/primitives/views/react';
 import { AutomationsBreadcrumb } from './components/AutomationsBreadcrumb';
 import { AutomationsView } from './components/AutomationsView';

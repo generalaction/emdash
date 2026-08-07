@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { ModelStatusOverlay } from '@core/features/editor/api/browser/monaco/model-status-overlay';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
+import { ModelStatusOverlay } from '@core/features/editor/contributions/browser/monaco/model-status-overlay';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { MAX_PREVIEW_COLUMNS, MAX_PREVIEW_ROWS, parseCsv } from './csv-parser';
 

@@ -1,7 +1,7 @@
 import { makeAutoObservable, observable, reaction } from 'mobx';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import type { TaskComposition } from '@core/features/workbench/api/browser/task-composition';
 import { registeredTaskData } from '@core/primitives/task-state/browser/task-state';
-import type { TaskComposition } from './task-composition';
 
 type TaskCompositionFactory = (workspaceId: string) => TaskComposition;
 

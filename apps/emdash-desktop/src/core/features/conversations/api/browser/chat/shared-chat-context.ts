@@ -1,7 +1,8 @@
 import type { ChatContext } from '@emdash/chat-ui';
 import { getIntegrationsClient } from '@core/features/integrations/api/browser/client';
+import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
 import { advertisedCommandProvider } from './advertised-command-provider';
-import { chatMentionProvider, registerIssueMentionIcons } from './chat-mention-provider';
+import { chatMentionProvider } from './chat-mention-provider';
 import { getChatUiRuntime } from './chat-ui-runtime';
 
 let shared: ChatContext | null = null;

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  chatMentionProvider,
-  issueMentionToken,
-  parseIssueMentionToken,
-  registerIssueMentionIcons,
-} from './chat-mention-provider';
+import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
+import { registerIssueMentionIcons } from '@core/primitives/issues/browser/issue-mention-icons';
+import { chatMentionProvider } from './chat-mention-provider';
 
 describe('chatMentionProvider', () => {
   it('resolves issue tokens with provider icon URLs', () => {

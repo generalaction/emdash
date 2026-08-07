@@ -1,6 +1,6 @@
 import { Button, Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown, GitBranch, Layers } from 'lucide-react';
-import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
+import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import type { WorkspaceConfigState } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
 import { BranchNameField } from './branch-name-field';
 

@@ -1,18 +1,18 @@
 import { Button, DropdownMenu, Separator } from '@emdash/ui/react/primitives';
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   asMounted,
   getProjectStore,
   projectDisplayName,
   projectViewKind,
 } from '@core/features/projects/api/browser/stores/project-selectors';
+import { useConfirmDeleteProject } from '@core/features/projects/contributions/browser/use-confirm-delete-project';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
+import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
-import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
+import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
 import { useCurrentViewParams } from '@core/primitives/navigation/browser/navigation-hooks';
 import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 

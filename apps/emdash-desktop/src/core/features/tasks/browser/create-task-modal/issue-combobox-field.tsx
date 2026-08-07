@@ -1,5 +1,5 @@
 import { getIntegrationName } from '@core/features/integrations/api/browser/integration-display';
-import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
+import { useIntegrationsContext } from '@core/features/integrations/contributions/browser/integrations-provider';
 import {
   IssueSelector,
   type IssueSelectorTriggerContext,

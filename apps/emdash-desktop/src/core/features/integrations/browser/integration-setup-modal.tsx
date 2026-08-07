@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   useIntegrationsContext,
   type IntegrationMetadata,
-} from '@core/features/integrations/api/browser/integrations-provider';
+} from '@core/features/integrations/contributions/browser/integrations-provider';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { SetupFormShell } from './SetupFormShell';

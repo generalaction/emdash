@@ -2,13 +2,13 @@ import { observer } from 'mobx-react-lite';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
-import { TaskContextMenu } from '@core/features/tasks/api/browser/components/task-context-menu';
-import { TaskGitDiffStats } from '@core/features/tasks/api/browser/components/task-git-diff-stats';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import {
   getTaskManagerStore,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
+import { TaskContextMenu } from '@core/features/tasks/contributions/browser/task-context-menu';
+import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/task-git-diff-stats';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskWorkspace } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';

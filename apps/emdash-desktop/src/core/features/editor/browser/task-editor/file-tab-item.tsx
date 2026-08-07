@@ -1,8 +1,8 @@
 import { FolderOpen, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
 import type {

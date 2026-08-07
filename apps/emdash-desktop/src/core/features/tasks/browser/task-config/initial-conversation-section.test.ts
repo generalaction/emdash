@@ -7,7 +7,7 @@ import {
   InitialConversationField,
   useInitialConversationState,
   type InitialConversationState,
-} from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+} from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 
 (
@@ -53,7 +53,7 @@ vi.mock('@core/features/projects/api/browser/stores/project-selectors', () => ({
   getProjectViewStore: vi.fn(() => undefined),
 }));
 
-vi.mock('@core/features/integrations/api/browser/integration-icon', () => ({
+vi.mock('@core/features/integrations/contributions/browser/integration-icon', () => ({
   IntegrationIcon: () => null,
 }));
 
@@ -70,7 +70,7 @@ vi.mock('@core/features/library/api/browser/prompts/use-prompt-library', () => (
   usePromptLibrary: () => ({ value: [] }),
 }));
 
-vi.mock('@core/features/agents/api/browser/components/agent-selector/agent-selector', () => ({
+vi.mock('@core/features/agents/contributions/browser/agent-selector', () => ({
   AgentSelector: () => null,
 }));
 

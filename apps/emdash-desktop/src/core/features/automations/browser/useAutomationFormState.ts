@@ -16,7 +16,7 @@ import {
   useWorkspaceConfig,
   type WorkspaceConfigInitial,
 } from '@core/features/tasks/api/browser/create-task-modal/use-workspace-config';
-import { useInitialConversationState } from '@core/features/tasks/api/browser/task-config/initial-conversation-section';
+import { useInitialConversationState } from '@core/features/tasks/contributions/browser/task-config/initial-conversation-section';
 import { agentSupportsAcp, agentSupportsInitialPromptDelivery } from '@core/primitives/agents/api';
 import type { Automation } from '@core/primitives/automations/api';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@core/primitives/automations/api';

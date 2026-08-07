@@ -1,10 +1,10 @@
 import { McpIcon } from '@emdash/ui/react/components';
+import { McpView } from '@core/features/mcp/browser/components/McpView';
 import type { SettingsPageTab } from '@core/features/settings/contributions/views';
 import {
   defineSettingsPageContribution,
   type SettingsPageContribution,
 } from '@core/primitives/settings/api/page-contribution';
-import { McpView } from '../api/browser/components/McpView';
 
 export const mcpSettingsPage = defineSettingsPageContribution({
   id: 'mcp',

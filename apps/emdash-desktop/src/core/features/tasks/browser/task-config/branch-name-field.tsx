@@ -1,6 +1,6 @@
 import { Input, Label, Switch } from '@emdash/ui/react/primitives';
-import { useTaskConfig } from '@core/features/tasks/api/browser/task-config/task-config-context';
 import type { BranchNameState } from '@core/features/tasks/browser/create-task-modal/use-branch-name';
+import { useTaskConfig } from '@core/features/tasks/contributions/browser/task-config/task-config-context';
 
 interface BranchNameFieldProps {
   state: Pick<BranchNameState, 'branchName' | 'setBranchName' | 'branchAlreadyExists'>;

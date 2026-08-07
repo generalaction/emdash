@@ -5,11 +5,11 @@ import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { StickyDiffEditor } from '@core/features/editor/api/browser/monaco/sticky-diff-editor';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
+import { StickyDiffEditor } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
 import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
@@ -17,6 +17,7 @@ import {
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
+import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { StackedDiffPanelStore, type DiffSlotStore } from '../stores/stacked-diff-panel-store';
 import { isMissingFileError } from './missing-file-error';

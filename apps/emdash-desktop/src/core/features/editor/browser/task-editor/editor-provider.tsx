@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
 import { editorScope } from '@core/features/workbench/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';

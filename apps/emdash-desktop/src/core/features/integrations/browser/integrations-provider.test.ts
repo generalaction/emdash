@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   IntegrationsProvider,
   useIntegrationsContext,
-} from '@core/features/integrations/api/browser/integrations-provider';
+} from '@core/features/integrations/contributions/browser/integrations-provider';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }

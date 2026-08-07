@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,

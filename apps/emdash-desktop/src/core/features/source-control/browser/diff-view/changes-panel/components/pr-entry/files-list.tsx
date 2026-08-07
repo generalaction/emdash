@@ -1,6 +1,6 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,

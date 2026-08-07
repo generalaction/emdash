@@ -3,9 +3,9 @@ import {
   createUnprovisionedTask,
   createUnregisteredTask,
 } from '@core/features/tasks/api/browser/stores/task-store';
+import type { TaskComposition } from '@core/features/workbench/api/browser/task-composition';
 import type { UnregisteredTaskData } from '@core/primitives/task-state/browser/task-state';
 import type { Task } from '@core/primitives/tasks/api';
-import type { TaskComposition } from './task-composition';
 import { TaskCompositionHandle } from './task-composition-handle';
 
 vi.mock('@core/manifests/browser/task-scoped-stores', () => ({

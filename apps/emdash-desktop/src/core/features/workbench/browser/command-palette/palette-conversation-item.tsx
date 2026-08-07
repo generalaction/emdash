@@ -1,7 +1,7 @@
 import { AgentStatus } from '@emdash/ui/react/components';
 import { Command } from 'cmdk';
 import { observer } from 'mobx-react-lite';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import type { ConversationStore } from '@core/features/conversations/api/browser/conversation-manager';
 import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';

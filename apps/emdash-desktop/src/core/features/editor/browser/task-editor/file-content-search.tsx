@@ -18,11 +18,11 @@ import {
 } from '@emdash/wire/live';
 import { Loader2 } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
-import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type {
   FileSelection,
   FileTabResource,
 } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { searchContract } from '@core/features/search/api';
 import { getSearchClient } from '@core/features/search/api/client';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';

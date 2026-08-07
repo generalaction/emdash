@@ -4,11 +4,11 @@ import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { useInstalledFonts } from '@core/features/settings/browser/use-installed-fonts';
-import { TerminalShellOptionLabel } from '@core/features/terminals/api/browser/components/terminal-shell-option-label';
 import {
   DEFAULT_TERMINAL_SHELL_AVAILABILITY,
   useTerminalShellAvailability,
 } from '@core/features/terminals/api/browser/use-terminal-shell-availability';
+import { TerminalShellOptionLabel } from '@core/features/terminals/contributions/browser/terminal-shell-option-label';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,

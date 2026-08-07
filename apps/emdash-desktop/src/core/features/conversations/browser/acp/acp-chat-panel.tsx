@@ -14,25 +14,16 @@ import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
-import {
-  issueMentionToken,
-  parseIssueMentionToken,
-} from '@core/features/conversations/api/browser/chat/chat-mention-provider';
-import { ChatTranscript } from '@core/features/conversations/api/browser/chat/chat-transcript';
-import type {
-  ChatCommands,
-  ChatView,
-} from '@core/features/conversations/api/browser/chat/chat-transcript';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
   openFileInAdjacentPane,
   openFileInTaskEditor,
 } from '@core/features/editor/api/browser/open-file-in-file-editor';
-import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { useConnectedIssueProviders } from '@core/features/integrations/api/browser/use-connected-issue-providers';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { getIssuesClient } from '@core/features/issues/api/browser/client';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';
 import {
@@ -54,9 +45,12 @@ import {
 } from '@core/features/terminals/api/browser/pty/terminal-image-paths';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { issueMentionToken, parseIssueMentionToken } from '@core/primitives/issues/api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
+import { ChatTranscript } from '@core/features/conversations/api/browser/chat/chat-transcript';
+import type { ChatCommands, ChatView } from '@core/features/conversations/api/browser/chat/chat-transcript';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';

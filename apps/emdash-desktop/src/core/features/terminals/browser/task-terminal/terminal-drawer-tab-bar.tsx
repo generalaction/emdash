@@ -8,12 +8,12 @@ import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { TerminalShellOptionLabel } from '@core/features/terminals/api/browser/components/terminal-shell-option-label';
 import {
   TERMINAL_DRAWER_DRAG_TYPE,
   type TerminalDrawerDragData,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-drag';
 import { type TerminalTabViewStore } from '@core/features/terminals/api/browser/task-terminal/terminal-tab-view-store';
+import { TerminalShellOptionLabel } from '@core/features/terminals/contributions/browser/terminal-shell-option-label';
 import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,

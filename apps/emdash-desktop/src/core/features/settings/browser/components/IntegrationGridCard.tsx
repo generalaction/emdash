@@ -1,6 +1,6 @@
 import { Tooltip } from '@emdash/ui/react/primitives';
 import { CircleAlert } from 'lucide-react';
-import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import { cn } from '@core/primitives/styling/browser/cn';
 import type { IntegrationItem } from './IntegrationsCard';
 

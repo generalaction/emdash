@@ -6,12 +6,12 @@ import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAc
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
-} from '@core/features/projects/api/browser/components/github-account-select';
-import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
+} from '@core/features/projects/contributions/browser/github-account-select';
+import { ProjectBranchSelector } from '@core/features/source-control/contributions/browser/project-branch-selector';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
-} from '@core/features/source-control/api/browser/components/remote-select-content';
+} from '@core/features/source-control/contributions/browser/remote-select-content';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';

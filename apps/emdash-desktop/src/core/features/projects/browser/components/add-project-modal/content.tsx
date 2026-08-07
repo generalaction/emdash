@@ -1,7 +1,7 @@
 import { SettingsRow } from '@emdash/ui/react/patterns';
 import { Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
 import { useId } from 'react';
-import { GithubAuthDisclaimer } from '@core/features/integrations/api/browser/components/github-auth-disclaimer';
+import { GithubAuthDisclaimer } from '@core/features/integrations/contributions/browser/github-auth-disclaimer';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
 import { type Strategy } from './add-project-modal';
 import { DirectoryField } from './local-directory-selector';

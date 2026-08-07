@@ -4,17 +4,16 @@ import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
 import { readEditorImage } from '@core/features/editor/api/browser/files';
-import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
-import { ModelStatusOverlay } from '@core/features/editor/api/browser/monaco/model-status-overlay';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
-import { StickyDiffEditor } from '@core/features/editor/api/browser/monaco/sticky-diff-editor';
 import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
-import { HtmlContentRenderer } from '@core/features/editor/api/browser/renderers/html-renderer';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
+import { ModelStatusOverlay } from '@core/features/editor/contributions/browser/monaco/model-status-overlay';
+import { StickyDiffEditor } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
+import { HtmlContentRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import {
   useTaskComposition,
@@ -29,6 +28,7 @@ import {
   type DraftCommentTarget,
 } from '@core/primitives/line-comments/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
+import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
 import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 import { ImageDiffView } from './image-diff-view';

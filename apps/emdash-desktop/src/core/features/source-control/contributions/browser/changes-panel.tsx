@@ -1,0 +1,204 @@
+import { EmptyState } from '@emdash/ui/react/components';
+import { Button, Resizable, useToast } from '@emdash/ui/react/primitives';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GitBranchPlus } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import {
+  asMounted,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
+import {
+  initializeProjectRepository,
+  inspectProjectPath,
+} from '@core/features/source-control/api/browser/client';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { GitStatusSection } from '@core/features/source-control/browser/diff-view/changes-panel/git-status-section';
+import {
+  SECTION_HEADER_HEIGHT,
+  usePanelLayout,
+} from '@core/features/source-control/browser/diff-view/changes-panel/hooks/use-panel-layout';
+import { PullRequestsSection } from '@core/features/source-control/browser/diff-view/changes-panel/pr-section';
+import { StagedSection } from '@core/features/source-control/browser/diff-view/changes-panel/staged-section';
+import { UnstagedSection } from '@core/features/source-control/browser/diff-view/changes-panel/unstaged-section';
+import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
+import {
+  useTaskComposition,
+  useWorkspace,
+} from '@core/features/workbench/api/browser/task-composition-context';
+import type { InitializeRepositoryError } from '@core/primitives/projects/api';
+import { cn } from '@core/primitives/styling/browser/cn';
+
+export const ChangesPanel = observer(function ChangesPanel() {
+  const { projectId } = useTaskViewContext();
+  const taskView = useTaskComposition();
+  const workspace = useWorkspace();
+  const gitCheckout = workspace.get(gitCheckoutStoreToken);
+  const project = asMounted(getProjectStore(projectId))?.data;
+  const diffView = taskView.diffView;
+  const changesView = diffView?.changesView;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const noRepositoryQueryKey = [
+    'changesPanelRepositoryStatus',
+    projectId,
+    workspace.workspaceId,
+    workspace.path,
+  ] as const;
+  const repositoryStatusQuery = useQuery({
+    queryKey: noRepositoryQueryKey,
+    enabled: !gitCheckout.hasData && !!project,
+    queryFn: async () => {
+      if (!project) throw new Error('Project is not mounted');
+      return project.type === 'ssh'
+        ? inspectProjectPath({
+            type: 'ssh',
+            connectionId: project.connectionId,
+            path: workspace.path,
+          })
+        : inspectProjectPath({
+            type: 'local',
+            path: workspace.path,
+          });
+    },
+  });
+
+  const initializeRepositoryMutation = useMutation({
+    mutationFn: async () => {
+      return initializeProjectRepository(projectId);
+    },
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error('Failed to initialize Git repository', {
+          description: initializeRepositoryErrorMessage(result.error),
+        });
+        return;
+      }
+
+      await Promise.all([
+        gitCheckout.retry(),
+        getGitRepositoryStore(projectId)?.retry(),
+        queryClient.invalidateQueries({ queryKey: ['projectPathStatus'] }),
+        queryClient.invalidateQueries({ queryKey: noRepositoryQueryKey }),
+      ]);
+      toast('Git repository initialized');
+    },
+    onError: (error) => {
+      toast.error('Failed to initialize Git repository', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
+  const {
+    expanded,
+    toggleExpanded,
+    panelTransitionClass,
+    pointerHandlers,
+    unstagedRef,
+    stagedRef,
+    prRef,
+    spacerRef,
+    containerRef,
+  } = usePanelLayout(changesView ?? null, taskView.isChangesPanelVisible);
+
+  if (!diffView || !changesView) return null;
+  if (!gitCheckout.hasData) {
+    const status = repositoryStatusQuery.data;
+    if (status?.isDirectory && !status.error && status.isGitRepo === false) {
+      return (
+        <EmptyState
+          label="This folder is not a Git repository"
+          description="Initialize Git to enable changes, commits, branches, and worktree-based tasks."
+          action={
+            <Button
+              variant="primary"
+              type="button"
+              size="sm"
+              onClick={() => initializeRepositoryMutation.mutate()}
+              disabled={initializeRepositoryMutation.isPending}
+            >
+              <GitBranchPlus className="size-3.5" />
+              {initializeRepositoryMutation.isPending
+                ? 'Initializing…'
+                : 'Initialize Git repository'}
+            </Button>
+          }
+        />
+      );
+    }
+    return null;
+  }
+
+  return (
+    <div ref={containerRef} className="flex h-full flex-col">
+      <Resizable.Group
+        orientation="vertical"
+        className="min-h-0 flex-1"
+        id="changes-panel-group"
+        disableCursor
+      >
+        <Resizable.Panel
+          id="changes-unstaged"
+          panelRef={unstagedRef}
+          collapsible
+          collapsedSize={SECTION_HEADER_HEIGHT}
+          minSize="150px"
+          maxSize="100%"
+          defaultSize="33%"
+          className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
+        >
+          <UnstagedSection />
+        </Resizable.Panel>
+        <Resizable.Handle disabled={!expanded.unstaged || !expanded.staged} {...pointerHandlers} />
+        <Resizable.Panel
+          id="changes-staged"
+          panelRef={stagedRef}
+          collapsible
+          collapsedSize={SECTION_HEADER_HEIGHT}
+          minSize="150px"
+          maxSize="100%"
+          defaultSize="33%"
+          className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
+        >
+          <StagedSection />
+        </Resizable.Panel>
+        <Resizable.Handle
+          disabled={!expanded.staged || !expanded.pullRequests}
+          {...pointerHandlers}
+        />
+        <Resizable.Panel
+          id="changes-pr"
+          panelRef={prRef}
+          collapsible
+          collapsedSize={SECTION_HEADER_HEIGHT}
+          minSize="150px"
+          maxSize="100%"
+          defaultSize="33%"
+          className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
+        >
+          <PullRequestsSection
+            onToggleCollapsed={() => toggleExpanded('pullRequests')}
+            collapsed={!expanded.pullRequests}
+          />
+        </Resizable.Panel>
+        <Resizable.Panel
+          id="changes-spacer"
+          panelRef={spacerRef}
+          minSize="0%"
+          maxSize="100%"
+          defaultSize="0%"
+          className="border-t border-border"
+        />
+      </Resizable.Group>
+      <GitStatusSection />
+    </div>
+  );
+});
+
+function initializeRepositoryErrorMessage(error: InitializeRepositoryError): string {
+  if (error.type === 'not-repository') return `No Git repository found at ${error.path}`;
+  if ('message' in error) return error.message;
+  return 'Could not initialize Git repository';
+}

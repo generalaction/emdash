@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TaskComposition } from './task-composition';
+import { TaskComposition } from '@core/features/workbench/api/browser/task-composition';
 
 function createTaskCompositionHarness() {
   const open = vi.fn();

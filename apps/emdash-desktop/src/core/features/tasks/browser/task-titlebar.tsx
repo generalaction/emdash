@@ -21,14 +21,14 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { ConnectionStatusDot } from '@core/features/machines/api/browser/components/connection-status-dot';
+import { ConnectionStatusDot } from '@core/features/machines/contributions/browser/connection-status-dot';
 import {
   asMounted,
   getProjectStore,
   projectDisplayName,
 } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
-import { OpenInMenu } from '@core/features/settings/api/browser/open-in-menu';
+import { OpenInMenu } from '@core/features/settings/contributions/browser/open-in-menu';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
@@ -38,15 +38,15 @@ import {
   taskDisplayName,
   taskViewKind,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { type SidebarTab } from '@core/features/tasks/api/browser/types';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
-import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
-import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
+import { Titlebar } from '@core/features/workbench/contributions/browser/Titlebar';
+import { formatDiffLineCount } from '@core/primitives/git/api/format-diff-line-count';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';

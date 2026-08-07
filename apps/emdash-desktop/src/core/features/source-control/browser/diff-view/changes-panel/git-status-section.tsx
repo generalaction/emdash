@@ -9,7 +9,7 @@ import { getGitRepositoryStore } from '@core/features/source-control/api/browser
 import { getTaskGitCheckoutStore } from '@core/features/source-control/api/browser/stores/task-source-control-selectors';
 import { useGitActions } from '@core/features/source-control/api/browser/use-git-actions';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 

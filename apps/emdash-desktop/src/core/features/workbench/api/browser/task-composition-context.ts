@@ -2,7 +2,7 @@ import type { ConversationManagerStore } from '@core/features/conversations/api/
 import { getConversationsForTask } from '@core/features/conversations/api/browser/conversation-selectors';
 import type { PreviewServerStore } from '@core/features/tasks/api/browser/stores/preview-server-store';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import type { TerminalManagerStore } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import { getTerminalsForTask } from '@core/features/terminals/api/browser/terminal-selectors';
 import type { TaskComposition } from '@core/features/workbench/api/browser/task-composition';

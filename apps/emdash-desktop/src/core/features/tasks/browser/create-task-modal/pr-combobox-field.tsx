@@ -1,4 +1,4 @@
-import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
+import { IntegrationIcon } from '@core/features/integrations/contributions/browser/integration-icon';
 import {
   PrSelector,
   SelectedPrValue,

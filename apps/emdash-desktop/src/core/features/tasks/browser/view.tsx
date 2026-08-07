@@ -7,7 +7,7 @@ import {
   getTaskStore,
   taskViewKind,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { TaskViewWrapper } from '@core/features/tasks/api/browser/task-state/task-view-context';
+import { TaskViewWrapper } from '@core/features/tasks/contributions/browser/task-view-context';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { defineViewRuntime } from '@core/primitives/views/react';
