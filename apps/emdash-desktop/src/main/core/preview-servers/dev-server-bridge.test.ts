@@ -119,7 +119,7 @@ describe('createDevServerBridge', () => {
       terminalId: 'terminal-1',
       transport: 'ssh',
       connectionId: 'connection-1',
-      reason: 'local-probe-failed',
+      reason: 'source-detached',
       server: {
         protocol: 'http:',
         host: 'localhost',

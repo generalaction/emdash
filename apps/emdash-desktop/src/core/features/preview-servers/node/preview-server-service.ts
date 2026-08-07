@@ -33,7 +33,8 @@ export type PreviewTargetTransport =
 
 type PreviewSourceClosed =
   | { reason: 'pty-exit' }
-  | { reason: 'local-probe-failed'; server: DetectedPreviewUrl };
+  | { reason: 'local-probe-failed'; server: DetectedPreviewUrl }
+  | { reason: 'source-detached' };
 
 export type RegisterDetectedPreviewTarget = PreviewTargetTransport & {
   projectId: string;
@@ -225,6 +226,10 @@ export class PreviewServerService {
   }
 
   async stop(id: string): Promise<void> {
+    await this.removeServer(id, { interrupt: true });
+  }
+
+  private async removeServer(id: string, { interrupt }: { interrupt: boolean }): Promise<void> {
     const server = this.servers.get(id);
     if (!server) return;
     this.servers.delete(id);
@@ -233,7 +238,7 @@ export class PreviewServerService {
     if (metadata) this.identities.delete(metadata.identity);
     if (metadata?.tunnelId) await this.portForwards.stop(metadata.tunnelId);
     this.emit({ type: 'remove', id });
-    if (server.source.kind === 'terminal-output') {
+    if (interrupt && server.source.kind === 'terminal-output') {
       const handlerKey = server.kind === 'direct' ? 'local' : server.connectionId;
       try {
         await this.stopTerminalServerHandlers.get(handlerKey)?.(server);
@@ -420,7 +425,7 @@ export class PreviewServerService {
           matchesDetectedServer(server, input.server)
       )
       .map((server) => server.id);
-    await Promise.all(ids.map((id) => this.stop(id)));
+    await Promise.all(ids.map((id) => this.removeServer(id, { interrupt: false })));
   }
 
   private async handlePortForwardConnectionError(tunnelId: string, error: Error): Promise<void> {

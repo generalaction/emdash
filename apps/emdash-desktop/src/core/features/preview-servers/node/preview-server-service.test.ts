@@ -118,6 +118,8 @@ describe('PreviewServerService', () => {
 
   it('removes terminal-sourced previews when the source closes', async () => {
     const { service, events } = createService();
+    const stopTerminal = vi.fn();
+    service.registerStopTerminalServerHandler('local', stopTerminal);
     const server = await registerLocal(service);
 
     await service.handleTerminalSourceClosed({
@@ -138,6 +140,7 @@ describe('PreviewServerService', () => {
       service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
     ).toEqual([]);
     expect(events.at(-1)).toEqual({ type: 'remove', id: server.id });
+    expect(stopTerminal).not.toHaveBeenCalled();
   });
 
   it('stops terminal servers through the registered handler', async () => {
@@ -213,6 +216,8 @@ describe('PreviewServerService', () => {
 
   it('matches terminal closure to an auto-forwarded target by remote port and connection', async () => {
     const context = createService();
+    const stopTerminal = vi.fn();
+    context.service.registerStopTerminalServerHandler('connection-1', stopTerminal);
     const server = await registerSsh(context.service);
 
     await context.service.handleTerminalSourceClosed({
@@ -251,6 +256,8 @@ describe('PreviewServerService', () => {
     expect(
       context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
     ).toEqual([]);
+    expect(context.closedTunnelIds).toEqual([`preview:${server.id}`]);
+    expect(stopTerminal).not.toHaveBeenCalled();
   });
 
   it('stops previews by workspace and project', async () => {

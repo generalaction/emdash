@@ -46,7 +46,7 @@ export type DevServerBridgeDependencies = {
         projectId: string;
         workspaceId: string;
         terminalId: string;
-        reason: 'local-probe-failed';
+        reason: 'local-probe-failed' | 'source-detached';
         server: DetectedPreviewUrl;
       }
     ): Promise<void>;
@@ -126,7 +126,7 @@ export async function createDevServerBridge(
       await scope.dispose();
       await syncChain;
       try {
-        await syncDevServers(dependencies, previous, {}, hostContext);
+        await syncDevServers(dependencies, previous, {}, hostContext, 'source-detached');
       } finally {
         previous = new Map();
         unregisterStopHandler();
@@ -139,14 +139,15 @@ async function syncDevServers(
   dependencies: DevServerBridgeDependencies,
   previous: Map<string, TerminalDevServer>,
   nextList: TerminalDevServerList,
-  hostContext: DevServerHostContext
+  hostContext: DevServerHostContext,
+  removalReason: 'local-probe-failed' | 'source-detached' = 'local-probe-failed'
 ): Promise<void> {
   const next = new Map(Object.entries(nextList));
 
   for (const [id, server] of previous) {
     const current = next.get(id);
     if (current && sameDevServer(server, current)) continue;
-    await handleDevServerRemoved(dependencies, server, hostContext);
+    await handleDevServerRemoved(dependencies, server, hostContext, removalReason);
   }
 
   for (const [id, server] of next) {
@@ -178,7 +179,8 @@ async function handleDevServerAdded(
 async function handleDevServerRemoved(
   dependencies: DevServerBridgeDependencies,
   server: TerminalDevServer,
-  hostContext: DevServerHostContext
+  hostContext: DevServerHostContext,
+  reason: 'local-probe-failed' | 'source-detached'
 ): Promise<void> {
   const context = await resolveServerContext(dependencies, server);
   if (!context) return;
@@ -187,7 +189,7 @@ async function handleDevServerRemoved(
     workspaceId: context.workspaceId,
     terminalId: context.terminalId,
     ...hostContext,
-    reason: 'local-probe-failed',
+    reason,
     server: detectedPreviewUrl(server),
   });
 }
