@@ -245,7 +245,7 @@ const TerminalSettingsCard: React.FC = () => {
               <Combobox.Content>
                 <Combobox.Input
                   showTrigger={false}
-                  placeholder="Search or type custom font"
+                  placeholder="Search custom font"
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter') return;
                     const typed = e.currentTarget.value.trim();
