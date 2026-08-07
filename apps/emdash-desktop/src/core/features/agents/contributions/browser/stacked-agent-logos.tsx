@@ -1,5 +1,5 @@
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 
 interface StackedAgentLogosProps {
   /** Map of providerId to conversation count, same shape as task.conversationStats */

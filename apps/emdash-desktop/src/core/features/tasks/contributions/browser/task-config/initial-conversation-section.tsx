@@ -12,9 +12,9 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import type { AgentDisableReason } from '@core/features/agents/api/browser/components/agent-selector/agent-selector-options';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';
 import { IntegrationIcon } from '@core/features/integrations/api/browser/integration-icon';
 import { usePromptLibrary } from '@core/features/library/api/browser/prompts/use-prompt-library';

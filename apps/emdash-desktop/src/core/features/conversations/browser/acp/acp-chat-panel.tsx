@@ -14,8 +14,8 @@ import { ArrowDown } from 'lucide-react';
 import { observer, useObserver } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {

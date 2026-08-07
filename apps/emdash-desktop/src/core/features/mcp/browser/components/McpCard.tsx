@@ -4,8 +4,8 @@ import { CardGridItem } from '@emdash/ui/react/components';
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
 
 interface McpCardProps {

@@ -70,7 +70,7 @@ vi.mock('@core/features/library/api/browser/prompts/use-prompt-library', () => (
   usePromptLibrary: () => ({ value: [] }),
 }));
 
-vi.mock('@core/features/agents/api/browser/components/agent-selector/agent-selector', () => ({
+vi.mock('@core/features/agents/contributions/browser/agent-selector', () => ({
   AgentSelector: () => null,
 }));
 

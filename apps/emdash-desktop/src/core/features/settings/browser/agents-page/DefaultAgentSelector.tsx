@@ -1,7 +1,7 @@
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import React from 'react';
-import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import type { AppSettings } from '@core/services/settings/api';
 

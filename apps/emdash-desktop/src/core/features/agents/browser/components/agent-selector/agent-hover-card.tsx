@@ -2,7 +2,7 @@ import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover';
 import type { AgentProviderId } from '@emdash/plugins/agents';
 import { Popover } from '@emdash/ui/react/primitives';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AgentInfoCard } from './agent-info-card';
+import { AgentInfoCard } from '@core/features/agents/browser/components/agent-selector/agent-info-card';
 
 const OPEN_DELAY_MS = 500;
 const CLOSE_DELAY_MS = 200;

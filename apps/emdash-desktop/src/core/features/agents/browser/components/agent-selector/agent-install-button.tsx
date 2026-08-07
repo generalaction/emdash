@@ -2,8 +2,8 @@ import type { AgentProviderId } from '@emdash/plugins/agents';
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Download, Loader2 } from 'lucide-react';
 import type React from 'react';
+import { getAgentInstallActionState } from '@core/features/agents/api/browser/components/agent-selector/agent-install';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { getAgentInstallActionState } from './agent-install';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';
 

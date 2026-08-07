@@ -1,5 +1,5 @@
 import { MessageSquare } from 'lucide-react';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 
 /**
  * Agent provider icon with an optional MessageSquare badge overlaid in the

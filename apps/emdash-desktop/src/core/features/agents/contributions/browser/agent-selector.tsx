@@ -5,17 +5,21 @@ import { Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
-import { cn } from '@core/primitives/styling/browser/cn';
-import { AgentHoverCard, isEventInsideAgentHoverCard, useAgentHoverCard } from './agent-hover-card';
 import {
   canInstallAgentOption,
   isComboboxOptionDisabled,
   type AgentDisableReason,
   type AgentGroup,
   type AgentOption,
-} from './agent-selector-options';
-import { useAgentAvailability } from './use-agent-availability';
+} from '@core/features/agents/api/browser/components/agent-selector/agent-selector-options';
+import { useAgentAvailability } from '@core/features/agents/api/browser/components/agent-selector/use-agent-availability';
+import {
+  AgentHoverCard,
+  isEventInsideAgentHoverCard,
+  useAgentHoverCard,
+} from '@core/features/agents/browser/components/agent-selector/agent-hover-card';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 interface AgentSelectorProps {
   value: AgentProviderId | null;

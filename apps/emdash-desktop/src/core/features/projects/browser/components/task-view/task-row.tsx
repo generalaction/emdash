@@ -2,7 +2,7 @@ import { AgentStatus } from '@emdash/ui/react/components';
 import { Checkbox, RelativeTime } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import { StackedAgentLogos } from '@core/features/agents/api/browser/components/stacked-agent-logos';
+import { StackedAgentLogos } from '@core/features/agents/contributions/browser/stacked-agent-logos';
 import {
   taskAgentStatus,
   taskConversationStats,

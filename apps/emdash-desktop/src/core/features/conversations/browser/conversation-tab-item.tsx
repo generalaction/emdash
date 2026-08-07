@@ -1,6 +1,6 @@
 import { AgentStatus } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import { formatConversationTitleForDisplay } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '@core/primitives/conversations/api';
 import type {

@@ -1,8 +1,8 @@
 import { Dialog, Field, Select, Switch } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { AgentSelector } from '@core/features/agents/api/browser/components/agent-selector/agent-selector';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { AgentSelector } from '@core/features/agents/contributions/browser/agent-selector';
 import { nextDefaultConversationTitle } from '@core/features/conversations/api/browser/conversation-title-utils';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 import { useEffectiveProvider } from '@core/features/conversations/api/browser/use-effective-provider';

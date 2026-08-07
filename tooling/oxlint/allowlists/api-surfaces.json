@@ -1,13 +1,5 @@
 {
   "tsxInApi": [
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/agent-icon.test.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/agent-icon.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/agent-selector/agent-hover-card.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/agent-selector/agent-info-card.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/agent-selector/agent-install-button.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/agent-selector/agent-selector.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/plugin-icon.tsx",
-    "apps/emdash-desktop/src/core/features/agents/api/browser/components/stacked-agent-logos.tsx",
     "apps/emdash-desktop/src/core/features/conversations/api/browser/sidebar-conversations-list.tsx",
     "apps/emdash-desktop/src/core/features/editor/api/browser/monaco/model-status-overlay.tsx",
     "apps/emdash-desktop/src/core/features/editor/api/browser/monaco/sticky-diff-editor.tsx",

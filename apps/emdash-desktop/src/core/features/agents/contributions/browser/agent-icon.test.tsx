@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { AgentIcon } from './agent-icon';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 
 vi.mock('@core/primitives/theme/browser', () => ({
   useTheme: () => ({ effectiveTheme: 'emdark' }),

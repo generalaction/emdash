@@ -1,6 +1,6 @@
 import { Pill } from '@emdash/ui/react/components';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { getAgentUpdateActionState } from '@core/features/agents/api/browser/components/agent-selector/agent-install';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import {
   InstalledBadge,
   UninstalledBadge,

@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
+import { AgentIcon } from '@core/features/agents/contributions/browser/agent-icon';
 import type { AgentPayload } from '@core/primitives/agents/api';
 
 function formatSupportsText(agent: AgentPayload): string {
