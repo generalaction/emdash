@@ -14,34 +14,35 @@ export function useRegisterNotificationOpenHandlers(): void {
     // Disposal registry, not event dispatch: `when` disposers accumulate per
     // handled notification and are only torn down together on unmount.
     const scope = createScope({ label: 'notification-open-handlers' });
-    const unregisterTask = registerNotificationOpenHandler('task', (target) => {
-      navigate(taskViewDef({ projectId: target.projectId, taskId: target.taskId }));
-      const { conversationId } = target;
-      if (!conversationId) return;
+    scope.add(
+      registerNotificationOpenHandler('task', (target) => {
+        navigate(taskViewDef({ projectId: target.projectId, taskId: target.taskId }));
+        const { conversationId } = target;
+        if (!conversationId) return;
 
-      const dispose = when(
-        () => !!getTaskComposition(target.projectId, target.taskId),
-        () => {
-          getTaskComposition(target.projectId, target.taskId)?.paneLayout.open(
-            'conversation',
-            { conversationId },
-            { preview: false }
-          );
-        },
-        { timeout: 10_000 }
-      );
-      scope.add(dispose);
-    });
+        const dispose = when(
+          () => !!getTaskComposition(target.projectId, target.taskId),
+          () => {
+            getTaskComposition(target.projectId, target.taskId)?.paneLayout.open(
+              'conversation',
+              { conversationId },
+              { preview: false }
+            );
+          },
+          { timeout: 10_000 }
+        );
+        scope.add(dispose);
+      })
+    );
 
-    const unregisterUpdate = registerNotificationOpenHandler('update', () => {
-      void appState.update.install();
-    });
-    const unregisterNone = registerNotificationOpenHandler('none', () => {});
+    scope.add(
+      registerNotificationOpenHandler('update', () => {
+        void appState.update.install();
+      })
+    );
+    scope.add(registerNotificationOpenHandler('none', () => {}));
 
     return () => {
-      unregisterTask();
-      unregisterUpdate();
-      unregisterNone();
       void scope.dispose();
     };
   }, [navigate]);
