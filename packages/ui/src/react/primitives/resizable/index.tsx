@@ -92,3 +92,10 @@ export {
   useDefaultLayout as useResizableDefaultLayout,
   usePanelRef as useResizablePanelRef,
 } from 'react-resizable-panels';
+
+export {
+  useCollapsiblePanelBinding,
+  type CollapsiblePanelBinding,
+  type CollapsiblePanelBindingOptions,
+  type LayoutStorage,
+} from './use-collapsible-panel-binding';

@@ -48,8 +48,12 @@ export { Alert, type AlertProps } from './alert';
 export { Field, type FieldLegendVariants, type FieldVariants } from './field';
 export {
   Resizable,
+  useCollapsiblePanelBinding,
   useResizableDefaultLayout,
   useResizablePanelRef,
+  type CollapsiblePanelBinding,
+  type CollapsiblePanelBindingOptions,
+  type LayoutStorage,
   type ResizableGroupProps,
   type ResizableHandleProps,
   type ResizablePanelHandle,
