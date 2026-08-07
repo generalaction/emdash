@@ -356,3 +356,19 @@ export const WithFooter: Story = {
   name: 'With footer actions',
   render: () => <WithFooterStory />,
 };
+
+export const ContentAtLeastTriggerWidth: Story = {
+  render: () => (
+    <ComboboxPopover<ModelItem>
+      items={MODELS}
+      value="gpt-4o"
+      onValueChange={() => {}}
+      onOpenChange={() => {}}
+      itemToKey={(model) => model.id}
+      itemToLabel={(model) => model.name}
+      renderTrigger={(selected) => selected?.name ?? 'Pick a model'}
+      renderItem={(model) => model.name}
+      contentWidth="content-at-least-trigger"
+    />
+  ),
+};

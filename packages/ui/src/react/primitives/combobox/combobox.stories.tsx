@@ -114,3 +114,21 @@ export const Disabled: Story = {
     </Box>
   ),
 };
+
+export const ContentAtLeastTriggerWidth: Story = {
+  render: () => (
+    <Box className={s.w48}>
+      <Combobox.Root>
+        <Combobox.Input placeholder="Search fruits…" showTrigger />
+        <Combobox.Content width="content-at-least-trigger">
+          <Combobox.List>
+            <Combobox.Item value="apple">Apple</Combobox.Item>
+            <Combobox.Item value="dragon-fruit">
+              Dragon fruit with a much longer display label
+            </Combobox.Item>
+          </Combobox.List>
+        </Combobox.Content>
+      </Combobox.Root>
+    </Box>
+  ),
+};

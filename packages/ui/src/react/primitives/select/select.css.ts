@@ -32,8 +32,7 @@ export const selectContent = style({
   isolation: 'isolate',
   zIndex: 50,
   maxHeight: 'var(--available-height)',
-  width: 'var(--anchor-width)',
-  minWidth: '9rem',
+  maxWidth: 'var(--available-width)',
   transformOrigin: 'var(--transform-origin)',
   overflowX: 'hidden',
   overflowY: 'auto',
@@ -44,6 +43,18 @@ export const selectContent = style({
   boxShadow: `${vars.shadowMd}, 0 0 0 1px color-mix(in srgb, ${vars.foreground} 10%, transparent)`,
   outline: 'none',
   selectors: {
+    '&[data-width="trigger"]': {
+      width: 'var(--anchor-width)',
+      minWidth: 'var(--anchor-width)',
+    },
+    '&[data-width="content"]': {
+      width: 'max-content',
+      minWidth: '9rem',
+    },
+    '&[data-width="content-at-least-trigger"]': {
+      width: 'max-content',
+      minWidth: 'max(9rem, var(--anchor-width))',
+    },
     '&[data-open]': { animation: `${kfPopupIn} 100ms both` },
     '&[data-open][data-side="bottom"]': { animation: `${kfPopupInSlideFromTop} 100ms both` },
     '&[data-open][data-side="top"]': { animation: `${kfPopupInSlideFromBottom} 100ms both` },

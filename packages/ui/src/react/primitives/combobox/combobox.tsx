@@ -88,6 +88,7 @@ function ComboboxContent({
   sideOffset = 6,
   align = 'start',
   alignOffset = 0,
+  width = 'trigger',
   anchor,
   collisionAvoidance,
   finalFocus = false,
@@ -96,7 +97,9 @@ function ComboboxContent({
   Pick<
     ComboboxPrimitive.Positioner.Props,
     'side' | 'align' | 'sideOffset' | 'alignOffset' | 'anchor' | 'collisionAvoidance'
-  >) {
+  > & {
+    width?: 'trigger' | 'content' | 'content-at-least-trigger';
+  }) {
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner
@@ -111,6 +114,7 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           data-chips={!!anchor}
+          data-width={width}
           finalFocus={finalFocus}
           className={cx('surface-elevated', styles.comboboxContent, className)}
           {...props}
