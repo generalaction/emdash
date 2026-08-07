@@ -9,18 +9,19 @@ import {
   workspaceRegistryTable as workspaces,
 } from '@core/features/workspaces/api/node/registry';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
-import type { SshConfig, SshConnectionUsage } from '@core/primitives/ssh/api';
+import {
+  mergeSshConnectionMetadata,
+  sshConfigFromRow,
+  type SshConfig,
+  type SshConnectionMetadata,
+  type SshConnectionUsage,
+} from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
   projects,
   sshConnections as sshConnectionsTable,
   type SshConnectionInsert,
 } from '@core/services/app-db/node/schema';
-import {
-  mergeSshConnectionMetadata,
-  type SshConnectionMetadata,
-  sshConfigFromRow,
-} from '@core/services/ssh/node/config/connection-metadata';
 import type { SaveMachineInput } from '..';
 
 type MachinesCredentials = {

@@ -1,5 +1,7 @@
+import type { HostDependencySelection } from '@emdash/core/primitives/host-dependencies/api';
 import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/api';
 import z from 'zod';
+import type { SshConfig } from './ssh';
 
 // ---------------------------------------------------------------------------
 // v0 schema — unversioned legacy format
@@ -144,4 +146,95 @@ function normalizeSelection(raw: unknown): z.infer<typeof installOverrideV2Schem
   if (typeof value.path === 'string') return { kind: 'path', path: value.path };
   if (typeof value.cli === 'string') return { kind: 'cli', command: value.cli };
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Metadata merge and row-mapping helpers
+// ---------------------------------------------------------------------------
+
+type SshConnectionMetadataUpdate = {
+  sshConfigAlias?: string;
+  forwardAgent?: boolean;
+  proxyJump?: string;
+};
+
+const SSH_ALIAS_PATTERN = /^[\w.@%+:/[\]-]+$/;
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function optionalSshConfigAlias(value: unknown): string | undefined {
+  const alias = optionalString(value);
+  if (!alias) return undefined;
+  if (alias.startsWith('-') || !SSH_ALIAS_PATTERN.test(alias)) {
+    throw new Error(`Invalid SSH config alias: ${alias}`);
+  }
+  return alias;
+}
+
+export function mergeSshConnectionMetadata(
+  existing: SshConnectionMetadata,
+  update: SshConnectionMetadataUpdate
+): SshConnectionMetadata {
+  const has = (key: keyof SshConnectionMetadataUpdate) =>
+    Object.prototype.hasOwnProperty.call(update, key);
+
+  return {
+    ...existing,
+    sshConfigAlias: has('sshConfigAlias')
+      ? optionalSshConfigAlias(update.sshConfigAlias)
+      : existing.sshConfigAlias,
+    forwardAgent: has('forwardAgent') ? update.forwardAgent : existing.forwardAgent,
+    proxyJump: has('proxyJump') ? optionalString(update.proxyJump) : existing.proxyJump,
+  };
+}
+
+/** Merge a single dependency selection into the existing SSH connection metadata. */
+export function mergeDependencySelection(
+  existing: SshConnectionMetadata,
+  depId: string,
+  selection: HostDependencySelection
+): SshConnectionMetadata {
+  return {
+    ...existing,
+    dependencySelections: {
+      ...existing.dependencySelections,
+      [depId]: selection,
+    },
+  };
+}
+
+/**
+ * The `sshConnections` row fields needed to reconstruct an SshConfig. Kept
+ * structural so this primitive does not import the app-db schema (which itself
+ * consumes the metadata schema above).
+ */
+export type SshConnectionConfigRow = {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: string;
+  privateKeyPath: string | null;
+  useAgent: number;
+  metadata: SshConnectionMetadata | null;
+};
+
+export function sshConfigFromRow(row: SshConnectionConfigRow): SshConfig {
+  const metadata = row.metadata ?? {};
+  return {
+    id: row.id,
+    name: row.name,
+    host: row.host,
+    port: row.port,
+    username: row.username,
+    authType: row.authType as 'password' | 'key' | 'agent',
+    privateKeyPath: row.privateKeyPath ?? undefined,
+    useAgent: row.useAgent === 1,
+    sshConfigAlias: metadata.sshConfigAlias,
+    forwardAgent: metadata.forwardAgent,
+    proxyJump: metadata.proxyJump,
+  };
 }

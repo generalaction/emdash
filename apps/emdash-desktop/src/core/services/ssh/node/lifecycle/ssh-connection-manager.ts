@@ -1,7 +1,12 @@
 import { EventEmitter } from 'node:events';
 import ssh2, { type Client } from 'ssh2';
-import type { ConnectionState, SshHealthState } from '@core/primitives/ssh/api';
-import type { SshConnectionEvent } from '@core/primitives/ssh/api';
+import type {
+  ConnectionState,
+  SshConnectionEvent,
+  SshConnectionManager as SshConnectionManagerContract,
+  SshConnectionManagerEvent,
+  SshHealthState,
+} from '@core/primitives/ssh/api';
 import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
 import { SshClientProxy } from './ssh-client-proxy';
 
@@ -32,15 +37,6 @@ export class SshConnectionError extends Error {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SshConnectionManagerEvent =
-  | { type: 'connecting'; connectionId: string }
-  | { type: 'connected'; connectionId: string; proxy: SshClientProxy }
-  | { type: 'disconnected'; connectionId: string }
-  | { type: 'reconnecting'; connectionId: string; attempt: number; delayMs: number }
-  | { type: 'reconnected'; connectionId: string; proxy: SshClientProxy }
-  | { type: 'reconnect-failed'; connectionId: string }
-  | { type: 'error'; connectionId: string; error: Error };
-
 /** Delays (ms) between successive reconnect attempts. Length = max attempts. */
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 20_000];
 
@@ -69,7 +65,7 @@ const noopLog: SshConnectionManagerLog = {
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
-export class SshConnectionManager extends EventEmitter {
+export class SshConnectionManager extends EventEmitter implements SshConnectionManagerContract {
   private readonly deps: Required<SshConnectionManagerDeps>;
 
   constructor(deps: SshConnectionManagerDeps = {}) {

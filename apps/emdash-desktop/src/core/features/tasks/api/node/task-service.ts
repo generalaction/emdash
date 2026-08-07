@@ -31,6 +31,7 @@ import type { WorkspaceIdentityService } from '@core/features/workspaces/api/nod
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { HookCore, type Hookable } from '@core/primitives/hooks/api/hookable';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import type { HostReachabilityProbe } from '@core/primitives/ssh/api';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -46,7 +47,6 @@ import type { TelemetryService } from '@core/primitives/telemetry/api/telemetry'
 import type { AppDb } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { tasks, type WorkspaceRow } from '@core/services/app-db/node/schema';
-import type { HostReachabilityProbe } from '@core/services/ssh/node/host-reachability';
 import { archiveTask } from '../../node/operations/archiveTask';
 import { createTask } from '../../node/operations/createTask';
 import {

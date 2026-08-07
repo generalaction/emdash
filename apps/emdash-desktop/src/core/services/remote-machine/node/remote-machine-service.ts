@@ -1,10 +1,10 @@
 import type { Scope } from '@emdash/shared/concurrency';
-import type { SshClientProxy } from '@core/services/ssh/node/lifecycle/ssh-client-proxy';
 import type {
+  SshClientProxy,
   SshConnectionManager,
   SshConnectionManagerEvent,
-} from '@core/services/ssh/node/lifecycle/ssh-connection-manager';
-import type { SshService } from '@core/services/ssh/node/ssh-service';
+  SshService,
+} from '@core/primitives/ssh/api';
 import {
   createWireConnectionManager,
   type WorkspaceServerConnection,

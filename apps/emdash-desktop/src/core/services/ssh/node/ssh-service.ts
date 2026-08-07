@@ -5,6 +5,7 @@ import type {
   ConnectionTestResult,
   SshConfigHost,
   SshConfig,
+  SshService as SshServiceContract,
 } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import {
@@ -37,7 +38,7 @@ export interface SshServiceDeps {
   now?: () => number;
 }
 
-export class SshService {
+export class SshService implements SshServiceContract {
   private readonly createId: () => string;
   private readonly now: () => number;
 

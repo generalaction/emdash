@@ -1,7 +1,7 @@
 import { createController, type Controller } from '@emdash/wire/rpc';
+import type { SshService } from '@core/primitives/ssh/api';
 import { sshContract } from '../api';
 import type { SshConnectionsModel } from './connections-model';
-import type { SshService } from './ssh-service';
 
 export function createSshWireController(
   service: SshService,

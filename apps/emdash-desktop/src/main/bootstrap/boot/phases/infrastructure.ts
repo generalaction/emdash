@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { app } from 'electron';
 import type { SshServiceHandle } from '@core/manifests/node/ssh-service-handle';
+import type { SshService } from '@core/primitives/ssh/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import { sshConnections } from '@core/services/app-db/node/schema';
 import {
@@ -8,7 +9,6 @@ import {
   type RemoteMachineService,
 } from '@core/services/remote-machine/node';
 import { SshCredentialService } from '@core/services/ssh/node/credentials/ssh-credential-service';
-import type { SshService } from '@core/services/ssh/node/ssh-service';
 import { createSshService } from '@main/bootstrap/core/ssh-service-factory';
 import { getDesktopClientId } from '@main/core/runtime/desktop-client-id';
 import { encryptedAppSecretsStore } from '@main/host/secrets/encrypted-app-secrets-store';

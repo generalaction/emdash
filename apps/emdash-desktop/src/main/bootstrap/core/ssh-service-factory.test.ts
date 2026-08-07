@@ -36,9 +36,14 @@ describe('createSshService', () => {
 
     expect(handle.ssh).toBeDefined();
     expect(handle.machines).toBeDefined();
-    expect(handle.manager).toBeInstanceOf(SshConnectionManager);
+    // The handle exposes the primitive interface; narrow to the concrete class
+    // to drive the implementation-private createConnection path.
+    const manager = handle.manager;
+    if (!(manager instanceof SshConnectionManager)) {
+      throw new Error('expected the concrete SshConnectionManager');
+    }
     await expect(
-      handle.manager.createConnection('ssh-1', async () => {
+      manager.createConnection('ssh-1', async () => {
         throw new Error('Resolver failed');
       })
     ).rejects.toThrow('Resolver failed');
