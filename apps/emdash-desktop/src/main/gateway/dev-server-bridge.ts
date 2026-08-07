@@ -1,74 +1,110 @@
-import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  formatHostRef,
+  isLocalHostRef,
+  type HostRef,
+  type SerializedHostRef,
+} from '@emdash/core/primitives/host/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
 } from '@emdash/core/services/runtime-broker/api';
-import type { Scope } from '@emdash/shared/concurrency';
+import { retry, retrySchedules } from '@emdash/shared/scheduling';
 import { previewServerService } from '@core/features/preview-servers/api/node/preview-server-service-instance';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import { appScope } from '@main/bootstrap/core/app-scope';
 import {
   createDevServerBridge,
   type DevServerBridge,
+  type DevServerHostContext,
 } from '@main/core/preview-servers/dev-server-bridge';
+import type { HostAttachmentParticipant } from '@main/host/host-attachment-registry';
+import { log } from '@main/lib/logger';
 
-type DevServerBridgeInstallerOptions = {
-  readonly scope: Scope;
+type CreateBridge = (
+  client: Parameters<typeof createDevServerBridge>[0],
+  hostContext: DevServerHostContext
+) => Promise<DevServerBridge>;
+
+type DevServerBridgeParticipantOptions = {
   readonly runtimes: Pick<RuntimeBroker, 'client'>;
-  readonly createBridge: (
-    client: Parameters<typeof createDevServerBridge>[0]
-  ) => Promise<DevServerBridge>;
+  readonly createBridge: CreateBridge;
+  readonly signal?: AbortSignal;
 };
 
-export function createDevServerBridgeInstaller({
-  scope,
+export function createDevServerBridgeParticipant({
   runtimes,
   createBridge,
-}: DevServerBridgeInstallerOptions): () => Promise<void> {
-  let installed = false;
-  let installing: Promise<void> | undefined;
+  signal,
+}: DevServerBridgeParticipantOptions): HostAttachmentParticipant {
+  const bridges = new Map<SerializedHostRef, DevServerBridge>();
 
-  return function install(): Promise<void> {
-    if (installed) return Promise.resolve();
-    if (installing) return installing;
+  const attachOnce = async (host: HostRef): Promise<DevServerBridge> => {
+    const runtime = await runtimes.client(host);
+    if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+    return await createBridge(runtime.data.terminals, hostContextFor(host));
+  };
 
-    const attemptScope = scope.child('installation');
-    installing = (async () => {
-      try {
-        const runtime = await runtimes.client(LOCAL_HOST_REF);
-        if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
+  return {
+    label: 'dev-server-bridge',
+    async attach(host) {
+      const key = formatHostRef(host);
+      if (bridges.has(key)) return;
 
-        const bridge = await createBridge(runtime.data.terminals);
-        attemptScope.add(() => bridge.dispose());
-        if (attemptScope.disposed) {
-          throw new Error('Dev-server bridge installation was disposed before it completed');
-        }
-        installed = true;
-      } catch (error) {
-        await attemptScope.dispose(error);
-        throw error;
-      }
-    })().finally(() => {
-      installing = undefined;
-    });
-    return installing;
+      const bridge = isLocalHostRef(host)
+        ? await retry(() => attachOnce(host), {
+            schedule: retrySchedules.exponential({
+              initialMs: 1_000,
+              maxMs: 30_000,
+              maxRetries: 2,
+            }),
+            signal,
+            shouldRetry: isRetryableBridgeError,
+            onRetry: ({ attempt, delayMs }) =>
+              log.warn('Retrying local dev-server bridge attach after error', {
+                attempt,
+                delayMs,
+              }),
+          })
+        : await attachOnce(host);
+      bridges.set(key, bridge);
+    },
+    async detach(host) {
+      const key = formatHostRef(host);
+      const bridge = bridges.get(key);
+      if (!bridge) return;
+      bridges.delete(key);
+      await bridge.dispose();
+    },
   };
 }
 
-const bridgeScope = appScope.child('dev-server-bridge');
-
-export function createDesktopDevServerBridgeInstaller(
+export function createDesktopDevServerBridgeParticipant(
   runtimes: Pick<RuntimeBroker, 'client'>,
   workspaceIdentity: Pick<WorkspaceIdentityService, 'findByPath'>
-): () => Promise<void> {
-  return createDevServerBridgeInstaller({
-    scope: bridgeScope,
+): HostAttachmentParticipant {
+  return createDevServerBridgeParticipant({
     runtimes,
-    createBridge: (client) =>
-      createDevServerBridge(client, {
-        previewServers: previewServerService,
-        resolveWorkspace: (workspacePath, host) =>
-          workspaceIdentity.findByPath(workspacePath, host),
-      }),
+    signal: appScope.signal,
+    createBridge: (client, hostContext) =>
+      createDevServerBridge(
+        client,
+        {
+          previewServers: previewServerService,
+          resolveWorkspace: (workspacePath, host) =>
+            workspaceIdentity.findByPath(workspacePath, host),
+        },
+        hostContext
+      ),
   });
+}
+
+function hostContextFor(host: HostRef): DevServerHostContext {
+  return isLocalHostRef(host)
+    ? { transport: 'local' }
+    : { transport: 'ssh', connectionId: host.id };
+}
+
+function isRetryableBridgeError(error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status;
+  return status === undefined || status === 429 || status >= 500;
 }

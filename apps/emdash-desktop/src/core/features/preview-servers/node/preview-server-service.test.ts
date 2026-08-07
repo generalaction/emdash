@@ -78,6 +78,20 @@ function registerLocal(service: PreviewServerService, overrides: { port?: number
   });
 }
 
+function registerSsh(service: PreviewServerService, overrides: { port?: number } = {}) {
+  return service.registerDetectedTarget({
+    projectId: 'project-1',
+    workspaceId: 'workspace-1',
+    transport: 'ssh',
+    connectionId: 'connection-1',
+    source: { kind: 'terminal-output', terminalId: 'terminal-1' },
+    protocol: 'http:',
+    host: 'localhost',
+    port: overrides.port ?? 5173,
+    urlPath: '/app',
+  });
+}
+
 describe('PreviewServerService', () => {
   it('registers local detected URLs as workspace-owned direct previews', async () => {
     const { service, events } = createService();
@@ -129,12 +143,114 @@ describe('PreviewServerService', () => {
   it('stops terminal servers through the registered handler', async () => {
     const { service } = createService();
     const stopTerminal = vi.fn();
-    service.setStopTerminalServerHandler(stopTerminal);
+    service.registerStopTerminalServerHandler('local', stopTerminal);
     const server = await registerLocal(service);
 
     await service.stop(server.id);
 
     expect(stopTerminal).toHaveBeenCalledWith(server);
+  });
+
+  it('auto-forwards SSH detected targets and deduplicates repeated detections', async () => {
+    const context = createService();
+
+    const first = await registerSsh(context.service);
+    const duplicate = await registerSsh(context.service);
+
+    expect(first).toMatchObject({
+      id: 'ssh:auto:connection-1:project-1:workspace-1:http::5173',
+      kind: 'forwarded',
+      connectionId: 'connection-1',
+      remotePort: 5173,
+      localPort: 6001,
+      status: { kind: 'ready' },
+    });
+    expect(duplicate).toEqual(first);
+    expect(context.openedTunnels).toBe(1);
+    expect(context.events).toEqual([
+      {
+        type: 'upsert',
+        server: expect.objectContaining({ status: { kind: 'starting' } }),
+      },
+      { type: 'upsert', server: first },
+    ]);
+  });
+
+  it('keeps an SSH detected target as failed when tunnel opening fails', async () => {
+    const context = createService({
+      openTunnel: async () => {
+        throw new Error('bind failed');
+      },
+    });
+
+    const server = await registerSsh(context.service);
+
+    expect(server).toMatchObject({
+      kind: 'forwarded',
+      status: { kind: 'failed', message: 'Failed to open SSH port forward' },
+    });
+    expect(server).not.toHaveProperty('localPort');
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([server]);
+    expect(context.events.map((event) => event.type)).toEqual(['upsert', 'upsert']);
+  });
+
+  it('stops an auto-forwarded target through its connection handler after closing the tunnel', async () => {
+    const context = createService();
+    const localStopTerminal = vi.fn();
+    const remoteStopTerminal = vi.fn();
+    context.service.registerStopTerminalServerHandler('local', localStopTerminal);
+    context.service.registerStopTerminalServerHandler('connection-1', remoteStopTerminal);
+    const server = await registerSsh(context.service);
+
+    await context.service.stop(server.id);
+
+    expect(context.closedTunnelIds).toEqual([`preview:${server.id}`]);
+    expect(remoteStopTerminal).toHaveBeenCalledWith(server);
+    expect(localStopTerminal).not.toHaveBeenCalled();
+  });
+
+  it('matches terminal closure to an auto-forwarded target by remote port and connection', async () => {
+    const context = createService();
+    const server = await registerSsh(context.service);
+
+    await context.service.handleTerminalSourceClosed({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      terminalId: 'terminal-1',
+      transport: 'ssh',
+      connectionId: 'another-connection',
+      reason: 'local-probe-failed',
+      server: {
+        protocol: 'http:',
+        host: 'localhost',
+        port: 5173,
+        urlPath: '/app',
+      },
+    });
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([server]);
+
+    await context.service.handleTerminalSourceClosed({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      terminalId: 'terminal-1',
+      transport: 'ssh',
+      connectionId: 'connection-1',
+      reason: 'local-probe-failed',
+      server: {
+        protocol: 'http:',
+        host: '127.0.0.1',
+        port: 5173,
+        urlPath: '/ignored',
+      },
+    });
+
+    expect(
+      context.service.listForWorkspace({ projectId: 'project-1', workspaceId: 'workspace-1' })
+    ).toEqual([]);
   });
 
   it('stops previews by workspace and project', async () => {

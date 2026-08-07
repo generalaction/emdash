@@ -1,73 +1,93 @@
+import { hostRef, LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
-import { createScope } from '@emdash/shared/concurrency';
-import { describe, expect, it, vi } from 'vitest';
-import { createDevServerBridgeInstaller } from './dev-server-bridge';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createDevServerBridgeParticipant } from './dev-server-bridge';
 
-vi.mock('@main/core/preview-servers/dev-server-bridge', () => ({
-  createDevServerBridge: vi.fn(),
-}));
+describe('createDevServerBridgeParticipant', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-describe('createDevServerBridgeInstaller', () => {
-  it('cleans up failed attempts, retries, and owns the successful bridge until disposal', async () => {
-    const scope = createScope();
-    const cleanupOrder: string[] = [];
-    const terminals = {};
-    const client = vi.fn().mockResolvedValue({ success: true, data: { terminals } });
-    const runtimes = { client } as Pick<RuntimeBroker, 'client'>;
-    const bridge = {
-      dispose: vi.fn(async () => {
-        cleanupOrder.push('bridge');
-      }),
-    };
+  it('creates one bridge per attached host and disposes each bridge on detach', async () => {
+    const localTerminals = { host: 'local' };
+    const remoteTerminals = { host: 'remote' };
+    const client = vi.fn(async (host: { type: string }) => ({
+      success: true as const,
+      data: {
+        terminals: host.type === 'local' ? localTerminals : remoteTerminals,
+      },
+    }));
+    const localBridge = { dispose: vi.fn(async () => {}) };
+    const remoteBridge = { dispose: vi.fn(async () => {}) };
+    const createBridge = vi
+      .fn()
+      .mockResolvedValueOnce(localBridge)
+      .mockResolvedValueOnce(remoteBridge);
+    const participant = createDevServerBridgeParticipant({
+      runtimes: { client } as unknown as Pick<RuntimeBroker, 'client'>,
+      createBridge,
+    });
+    const remoteHost = hostRef('remote', 'connection-1');
+
+    await participant.attach(LOCAL_HOST_REF);
+    await participant.attach(remoteHost);
+
+    expect(client).toHaveBeenNthCalledWith(1, LOCAL_HOST_REF);
+    expect(client).toHaveBeenNthCalledWith(2, remoteHost);
+    expect(createBridge).toHaveBeenNthCalledWith(1, localTerminals, { transport: 'local' });
+    expect(createBridge).toHaveBeenNthCalledWith(2, remoteTerminals, {
+      transport: 'ssh',
+      connectionId: 'connection-1',
+    });
+
+    await participant.detach(remoteHost);
+    expect(remoteBridge.dispose).toHaveBeenCalledOnce();
+    expect(localBridge.dispose).not.toHaveBeenCalled();
+
+    await participant.detach(LOCAL_HOST_REF);
+    expect(localBridge.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the existing bridge when the same host attaches again', async () => {
+    const bridge = { dispose: vi.fn(async () => {}) };
+    const createBridge = vi.fn().mockResolvedValue(bridge);
+    const participant = createDevServerBridgeParticipant({
+      runtimes: {
+        client: vi.fn(async () => ({ success: true, data: { terminals: {} } })) as never,
+      },
+      createBridge,
+    });
+    const host = hostRef('remote', 'connection-1');
+
+    await participant.attach(host);
+    await participant.attach(host);
+
+    expect(createBridge).toHaveBeenCalledOnce();
+    expect(bridge.dispose).not.toHaveBeenCalled();
+    await participant.detach(host);
+    expect(bridge.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('retries a transient local bridge failure inside the attachment', async () => {
+    vi.useFakeTimers();
+    const bridge = { dispose: vi.fn(async () => {}) };
+    const client = vi.fn(async () => ({ success: true, data: { terminals: {} } }));
     const createBridge = vi
       .fn()
       .mockRejectedValueOnce(new Error('bridge unavailable'))
       .mockResolvedValueOnce(bridge);
-    const install = createDevServerBridgeInstaller({
-      scope,
-      runtimes,
+    const participant = createDevServerBridgeParticipant({
+      runtimes: { client } as unknown as Pick<RuntimeBroker, 'client'>,
       createBridge,
     });
 
-    await expect(install()).rejects.toThrow('bridge unavailable');
+    const attaching = participant.attach(LOCAL_HOST_REF);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await attaching;
 
-    await install();
     expect(client).toHaveBeenCalledTimes(2);
     expect(createBridge).toHaveBeenCalledTimes(2);
-
-    await scope.dispose();
+    await participant.detach(LOCAL_HOST_REF);
     expect(bridge.dispose).toHaveBeenCalledOnce();
-    expect(cleanupOrder).toEqual(['bridge']);
-  });
-
-  it('shares an in-flight installation', async () => {
-    const scope = createScope();
-    type ClientResult = { success: true; data: { terminals: object } };
-    let resolveReady!: (value: ClientResult) => void;
-    const ready = {
-      promise: new Promise<ClientResult>((resolve) => {
-        resolveReady = resolve;
-      }),
-      resolve: (value: ClientResult) => resolveReady(value),
-    };
-    const client = vi.fn(() => ready.promise);
-    const runtimes = { client } as unknown as Pick<RuntimeBroker, 'client'>;
-    const createBridge = vi.fn(async () => ({ dispose: async () => {} }));
-    const install = createDevServerBridgeInstaller({
-      scope,
-      runtimes,
-      createBridge,
-    });
-
-    const first = install();
-    const second = install();
-    expect(second).toBe(first);
-
-    ready.resolve({ success: true, data: { terminals: {} } });
-    await first;
-
-    expect(client).toHaveBeenCalledOnce();
-    expect(createBridge).toHaveBeenCalledOnce();
-    await scope.dispose();
   });
 });

@@ -4,8 +4,8 @@ import { createScope } from '@emdash/shared/concurrency';
 import { observe, remote, whenReady } from '@emdash/wire/state';
 import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import type {
-  DirectPreviewServer,
   DirectPreviewServerHost,
+  PreviewServer,
   PreviewServerProtocol,
   PreviewServerSource,
 } from '@core/primitives/preview-servers/api';
@@ -17,6 +17,10 @@ export type DevServerBridge = {
   dispose(): Promise<void>;
 };
 
+export type DevServerHostContext =
+  | { transport: 'local' }
+  | { transport: 'ssh'; connectionId: string };
+
 type DetectedPreviewUrl = {
   protocol: PreviewServerProtocol;
   host: DirectPreviewServerHost;
@@ -26,27 +30,30 @@ type DetectedPreviewUrl = {
 
 export type DevServerBridgeDependencies = {
   previewServers: {
-    registerDetectedTarget(target: {
-      projectId: string;
-      workspaceId: string;
-      transport: 'local';
-      source: PreviewServerSource;
-      protocol: PreviewServerProtocol;
-      host: DirectPreviewServerHost;
-      port: number;
-      urlPath: string;
-    }): Promise<DirectPreviewServer>;
-    handleTerminalSourceClosed(input: {
-      projectId: string;
-      workspaceId: string;
-      terminalId: string;
-      transport: 'local';
-      reason: 'local-probe-failed';
-      server: DetectedPreviewUrl;
-    }): Promise<void>;
-    setStopTerminalServerHandler(
-      handler: ((server: DirectPreviewServer) => Promise<void> | void) | undefined
-    ): void;
+    registerDetectedTarget(
+      target: DevServerHostContext & {
+        projectId: string;
+        workspaceId: string;
+        source: PreviewServerSource;
+        protocol: PreviewServerProtocol;
+        host: DirectPreviewServerHost;
+        port: number;
+        urlPath: string;
+      }
+    ): Promise<PreviewServer>;
+    handleTerminalSourceClosed(
+      input: DevServerHostContext & {
+        projectId: string;
+        workspaceId: string;
+        terminalId: string;
+        reason: 'local-probe-failed';
+        server: DetectedPreviewUrl;
+      }
+    ): Promise<void>;
+    registerStopTerminalServerHandler(
+      key: string,
+      handler: (server: PreviewServer) => Promise<void> | void
+    ): () => void;
   };
   resolveWorkspace(
     workspacePath: string,
@@ -56,29 +63,19 @@ export type DevServerBridgeDependencies = {
 
 export async function createDevServerBridge(
   client: TerminalsRuntimeClient,
-  dependencies: DevServerBridgeDependencies
+  dependencies: DevServerBridgeDependencies,
+  hostContext: DevServerHostContext
 ): Promise<DevServerBridge> {
   let previous = new Map<string, TerminalDevServer>();
+  let syncChain = Promise.resolve();
+  let disposed = false;
   const scope = createScope({ label: 'dev-server-bridge' });
   const devServers = remote(terminalsContract.devServers, client.devServers, {
     scope,
     lingerMs: 15_000,
   });
   const member = devServers(undefined);
-  observe(
-    member.states.list,
-    (snapshot) => {
-      const list: TerminalDevServerList = snapshot.value ?? {};
-      void syncDevServers(dependencies, previous, list).catch((error) => {
-        log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
-      });
-      previous = new Map(Object.entries(list));
-    },
-    { scope }
-  );
-  await whenReady(member.states.list, { scope });
-
-  const stopHandler = async (server: DirectPreviewServer) => {
+  const stopHandler = async (server: PreviewServer) => {
     const devServer = await findDevServerForPreview(dependencies, previous, server);
     if (!devServer) return;
     const result = await client.sendInput({ key: devServer.key, data: '\x03' });
@@ -89,13 +86,51 @@ export async function createDevServerBridge(
       });
     }
   };
-  dependencies.previewServers.setStopTerminalServerHandler(stopHandler);
+  const unregisterStopHandler = dependencies.previewServers.registerStopTerminalServerHandler(
+    stopHandlerKey(hostContext),
+    stopHandler
+  );
+
+  try {
+    observe(
+      member.states.list,
+      (snapshot) => {
+        const list: TerminalDevServerList = snapshot.value ?? {};
+        const next = new Map(Object.entries(list));
+        syncChain = syncChain
+          .then(async () => {
+            try {
+              await syncDevServers(dependencies, previous, list, hostContext);
+            } finally {
+              previous = next;
+            }
+          })
+          .catch((error) => {
+            log.warn('dev-server-bridge: failed to sync detected dev servers', { error });
+          });
+      },
+      { scope }
+    );
+    await whenReady(member.states.list, { scope });
+    await syncChain;
+  } catch (error) {
+    unregisterStopHandler();
+    await scope.dispose(error);
+    throw error;
+  }
 
   return {
     async dispose() {
-      dependencies.previewServers.setStopTerminalServerHandler(undefined);
+      if (disposed) return;
+      disposed = true;
       await scope.dispose();
-      previous = new Map();
+      await syncChain;
+      try {
+        await syncDevServers(dependencies, previous, {}, hostContext);
+      } finally {
+        previous = new Map();
+        unregisterStopHandler();
+      }
     },
   };
 }
@@ -103,33 +138,35 @@ export async function createDevServerBridge(
 async function syncDevServers(
   dependencies: DevServerBridgeDependencies,
   previous: Map<string, TerminalDevServer>,
-  nextList: TerminalDevServerList
+  nextList: TerminalDevServerList,
+  hostContext: DevServerHostContext
 ): Promise<void> {
   const next = new Map(Object.entries(nextList));
 
   for (const [id, server] of previous) {
     const current = next.get(id);
     if (current && sameDevServer(server, current)) continue;
-    await handleDevServerRemoved(dependencies, server);
+    await handleDevServerRemoved(dependencies, server, hostContext);
   }
 
   for (const [id, server] of next) {
     const old = previous.get(id);
     if (old && sameDevServer(old, server)) continue;
-    await handleDevServerAdded(dependencies, server);
+    await handleDevServerAdded(dependencies, server, hostContext);
   }
 }
 
 async function handleDevServerAdded(
   dependencies: DevServerBridgeDependencies,
-  server: TerminalDevServer
+  server: TerminalDevServer,
+  hostContext: DevServerHostContext
 ): Promise<void> {
   const context = await resolveServerContext(dependencies, server);
   if (!context) return;
   await dependencies.previewServers.registerDetectedTarget({
     projectId: context.projectId,
     workspaceId: context.workspaceId,
-    transport: 'local',
+    ...hostContext,
     source: { kind: 'terminal-output', terminalId: context.terminalId },
     protocol: server.protocol,
     host: server.host,
@@ -140,7 +177,8 @@ async function handleDevServerAdded(
 
 async function handleDevServerRemoved(
   dependencies: DevServerBridgeDependencies,
-  server: TerminalDevServer
+  server: TerminalDevServer,
+  hostContext: DevServerHostContext
 ): Promise<void> {
   const context = await resolveServerContext(dependencies, server);
   if (!context) return;
@@ -148,7 +186,7 @@ async function handleDevServerRemoved(
     projectId: context.projectId,
     workspaceId: context.workspaceId,
     terminalId: context.terminalId,
-    transport: 'local',
+    ...hostContext,
     reason: 'local-probe-failed',
     server: detectedPreviewUrl(server),
   });
@@ -188,13 +226,14 @@ function detectedPreviewUrl(server: TerminalDevServer): DetectedPreviewUrl {
 async function findDevServerForPreview(
   dependencies: DevServerBridgeDependencies,
   devServers: Map<string, TerminalDevServer>,
-  preview: DirectPreviewServer
+  preview: PreviewServer
 ): Promise<TerminalDevServer | undefined> {
   if (preview.source.kind !== 'terminal-output') return undefined;
   for (const devServer of devServers.values()) {
     if (devServer.protocol !== preview.protocol) continue;
-    if (devServer.host !== preview.host) continue;
-    if (devServer.port !== preview.port) continue;
+    if (preview.kind === 'direct' && devServer.host !== preview.host) continue;
+    if (devServer.port !== (preview.kind === 'direct' ? preview.port : preview.remotePort))
+      continue;
     const context = await resolveServerContext(dependencies, devServer);
     if (!context) continue;
     if (context.projectId !== preview.projectId) continue;
@@ -203,6 +242,10 @@ async function findDevServerForPreview(
     return devServer;
   }
   return undefined;
+}
+
+function stopHandlerKey(hostContext: DevServerHostContext): string {
+  return hostContext.transport === 'local' ? 'local' : hostContext.connectionId;
 }
 
 function sameDevServer(a: TerminalDevServer, b: TerminalDevServer): boolean {

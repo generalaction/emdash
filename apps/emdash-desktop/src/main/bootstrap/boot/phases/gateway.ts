@@ -1,4 +1,3 @@
-import { retry, retrySchedules } from '@emdash/shared/scheduling';
 import { conversationEvents } from '@core/features/conversations/api/node/conversation-events';
 import { conversationWireEvents } from '@core/features/conversations/node/event-host';
 import { loadActiveAgentStatusConversationIds } from '@core/features/conversations/node/load-active-agent-status-conversation-ids';
@@ -8,7 +7,7 @@ import { setAgentStatusConversationEventPublisher } from '@main/core/agent-statu
 import { tuiAgentStatusBridge } from '@main/core/agent-status/tui-agent-status-bridge';
 import type { DesktopRuntimes } from '@main/gateway/desktop-runtimes';
 import { installDesktopWire } from '@main/gateway/desktop-wire';
-import { createDesktopDevServerBridgeInstaller } from '@main/gateway/dev-server-bridge';
+import { createDesktopDevServerBridgeParticipant } from '@main/gateway/dev-server-bridge';
 import { log } from '@main/lib/logger';
 import { appScope } from '../../core/app-scope';
 import { runInBackground } from '../../core/background';
@@ -23,29 +22,9 @@ export function installGateway(
   runtimes: DesktopRuntimes
 ): void {
   installDesktopWire(controllers);
-  const installDevServerBridge = createDesktopDevServerBridgeInstaller(
+  const devServerBridgeParticipant = createDesktopDevServerBridgeParticipant(
     runtimes.broker,
     database.workspaceIdentity
-  );
-  runInBackground(
-    'dev-server-bridge',
-    () =>
-      retry(() => installDevServerBridge(), {
-        // Matches the former hand-rolled backoff: 1s doubling to 30s, three attempts.
-        schedule: retrySchedules.exponential({ initialMs: 1_000, maxMs: 30_000, maxRetries: 2 }),
-        signal: appScope.signal,
-        shouldRetry: (error) => {
-          // Only rate-limit (429) and server errors (5xx) are retryable;
-          // errors without a status are treated as transient.
-          const status = (error as { status?: number } | null)?.status;
-          return status === undefined || status === 429 || status >= 500;
-        },
-        onRetry: ({ attempt, delayMs }) =>
-          log.warn('Retrying dev-server bridge install after error', { attempt, delayMs }),
-      }),
-    {
-      onError: (error) => log.warn('Failed to install dev-server bridge', { error }),
-    }
   );
 
   acpAgentStatusBridge.initialize(
@@ -78,6 +57,7 @@ export function installGateway(
     loadActiveConversationIds: (host) =>
       loadActiveAgentStatusConversationIds(database.db, host, 'pty'),
   });
+  appScope.add(services.hostAttachments.register(devServerBridgeParticipant));
   appScope.add(
     services.hostAttachments.register({
       label: 'acp-agent-status',

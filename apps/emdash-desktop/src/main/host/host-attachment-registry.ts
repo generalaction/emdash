@@ -15,7 +15,7 @@ import type { HostService } from '@core/services/hosts/node';
 export type HostAttachmentParticipant = {
   label: string;
   attach(host: HostRef): Promise<void> | void;
-  detach(host: HostRef): void;
+  detach(host: HostRef): Promise<void> | void;
 };
 
 type HostAttachmentRegistryLogger = {

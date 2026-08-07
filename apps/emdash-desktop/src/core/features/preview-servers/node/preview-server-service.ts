@@ -6,6 +6,7 @@ import { log } from '@emdash/shared/logger';
 import type {
   DirectPreviewServer,
   DirectPreviewServerHost,
+  ForwardedPreviewServer,
   ManualPreviewServerError,
   ManualPreviewServerRequest,
   ManualPreviewServerResult,
@@ -26,14 +27,17 @@ export type DetectedPreviewUrl = {
   urlPath: string;
 };
 
+export type PreviewTargetTransport =
+  | { transport: 'local' }
+  | { transport: 'ssh'; connectionId: string };
+
 type PreviewSourceClosed =
   | { reason: 'pty-exit' }
   | { reason: 'local-probe-failed'; server: DetectedPreviewUrl };
 
-export type RegisterDetectedPreviewTarget = {
+export type RegisterDetectedPreviewTarget = PreviewTargetTransport & {
   projectId: string;
   workspaceId: string;
-  transport: 'local';
   source: PreviewServerSource;
   protocol: PreviewServerProtocol;
   host: DirectPreviewServerHost;
@@ -41,11 +45,10 @@ export type RegisterDetectedPreviewTarget = {
   urlPath: string;
 };
 
-export type TerminalSourceClosedInput = {
+export type TerminalSourceClosedInput = PreviewTargetTransport & {
   projectId: string;
   workspaceId: string;
   terminalId: string;
-  transport: 'local';
   reason: PreviewSourceClosed['reason'];
   server?: DetectedPreviewUrl;
 };
@@ -61,10 +64,10 @@ type PreviewSshRuntime = {
 };
 
 /**
- * Invoked when a locally detected (terminal-sourced) preview server is stopped by
- * the user, so the bridge can send an interrupt signal to the source terminal.
+ * Invoked when a detected terminal-sourced preview server is stopped by the user,
+ * so the bridge for its runtime host can interrupt the source terminal.
  */
-export type StopTerminalServerHandler = (server: DirectPreviewServer) => Promise<void> | void;
+export type StopTerminalServerHandler = (server: PreviewServer) => Promise<void> | void;
 
 export class PreviewServerService {
   private readonly servers = new Map<string, PreviewServer>();
@@ -73,7 +76,7 @@ export class PreviewServerService {
   private readonly portForwards: PortForwardService;
   private readonly emit: (event: PreviewServerEvent) => void;
   private sshRuntime: PreviewSshRuntime | undefined;
-  private stopTerminalServerHandler: StopTerminalServerHandler | undefined;
+  private readonly stopTerminalServerHandlers = new Map<string, StopTerminalServerHandler>();
 
   constructor({
     emit,
@@ -98,10 +101,10 @@ export class PreviewServerService {
     this.sshRuntime = runtime;
   }
 
-  async registerDetectedTarget(
-    target: RegisterDetectedPreviewTarget
-  ): Promise<DirectPreviewServer> {
-    return this.registerLocalTarget(target);
+  async registerDetectedTarget(target: RegisterDetectedPreviewTarget): Promise<PreviewServer> {
+    return target.transport === 'local'
+      ? this.registerLocalTarget(target)
+      : await this.registerForwardedTarget(target);
   }
 
   listForWorkspace({
@@ -212,8 +215,13 @@ export class PreviewServerService {
     await this.stopForTerminal(input);
   }
 
-  setStopTerminalServerHandler(handler: StopTerminalServerHandler | undefined): void {
-    this.stopTerminalServerHandler = handler;
+  registerStopTerminalServerHandler(key: string, handler: StopTerminalServerHandler): () => void {
+    this.stopTerminalServerHandlers.set(key, handler);
+    return () => {
+      if (this.stopTerminalServerHandlers.get(key) === handler) {
+        this.stopTerminalServerHandlers.delete(key);
+      }
+    };
   }
 
   async stop(id: string): Promise<void> {
@@ -225,9 +233,10 @@ export class PreviewServerService {
     if (metadata) this.identities.delete(metadata.identity);
     if (metadata?.tunnelId) await this.portForwards.stop(metadata.tunnelId);
     this.emit({ type: 'remove', id });
-    if (server.kind === 'direct' && server.source.kind === 'terminal-output') {
+    if (server.source.kind === 'terminal-output') {
+      const handlerKey = server.kind === 'direct' ? 'local' : server.connectionId;
       try {
-        await this.stopTerminalServerHandler?.(server);
+        await this.stopTerminalServerHandlers.get(handlerKey)?.(server);
       } catch (error) {
         log.warn('PreviewServerService: failed to interrupt dev server terminal', {
           serverId: id,
@@ -329,17 +338,83 @@ export class PreviewServerService {
     return server;
   }
 
-  private async stopForTerminal(input: {
-    projectId: string;
-    workspaceId: string;
-    terminalId: string;
-    server?: DetectedPreviewUrl;
-  }): Promise<void> {
+  private async registerForwardedTarget(
+    target: RegisterDetectedPreviewTarget & { transport: 'ssh' }
+  ): Promise<ForwardedPreviewServer> {
+    const identity = sshAutoIdentity(target);
+    const existing = this.serverForIdentity(identity);
+    if (existing?.kind === 'forwarded') return existing;
+
+    const tunnelId = `preview:${identity}`;
+    const server: ForwardedPreviewServer = {
+      id: identity,
+      kind: 'forwarded',
+      projectId: target.projectId,
+      workspaceId: target.workspaceId,
+      source: target.source,
+      protocol: target.protocol,
+      urlPath: target.urlPath,
+      status: { kind: 'starting' },
+      connectionId: target.connectionId,
+      remotePort: target.port,
+    };
+    this.addServer(identity, server, { identity, tunnelId });
+
+    try {
+      const proxy = await this.getSshProxy(target.connectionId);
+      const currentBeforeOpen = this.servers.get(server.id);
+      if (!currentBeforeOpen || currentBeforeOpen.kind !== 'forwarded') return server;
+
+      const forward = await this.portForwards.open({
+        id: tunnelId,
+        projectId: target.projectId,
+        workspaceId: target.workspaceId,
+        connectionId: target.connectionId,
+        proxy,
+        remotePort: target.port,
+        preferredLocalPort: target.port,
+      });
+      const current = this.servers.get(server.id);
+      if (!current || current.kind !== 'forwarded') {
+        await this.portForwards.stop(tunnelId);
+        return server;
+      }
+
+      const next: ForwardedPreviewServer = {
+        ...current,
+        localPort: forward.localPort,
+        status: { kind: 'ready' },
+      };
+      this.servers.set(next.id, next);
+      this.emit({ type: 'upsert', server: next });
+      return next;
+    } catch (error) {
+      log.warn('PreviewServerService: failed to open detected SSH preview tunnel', {
+        projectId: target.projectId,
+        workspaceId: target.workspaceId,
+        connectionId: target.connectionId,
+        remotePort: target.port,
+        error: String(error),
+      });
+      const current = this.servers.get(server.id);
+      if (!current || current.kind !== 'forwarded') return server;
+      const next: ForwardedPreviewServer = {
+        ...current,
+        status: { kind: 'failed', message: 'Failed to open SSH port forward' },
+      };
+      this.servers.set(next.id, next);
+      this.emit({ type: 'upsert', server: next });
+      return next;
+    }
+  }
+
+  private async stopForTerminal(input: TerminalSourceClosedInput): Promise<void> {
     const ids = Array.from(this.servers.values())
       .filter(
         (server) =>
           server.projectId === input.projectId &&
           server.workspaceId === input.workspaceId &&
+          matchesTransport(server, input) &&
           server.source.kind === 'terminal-output' &&
           server.source.terminalId === input.terminalId &&
           matchesDetectedServer(server, input.server)
@@ -462,6 +537,22 @@ function localAutoIdentity(target: {
   port: number;
 }): string {
   return `local:auto:${target.projectId}:${target.workspaceId}:${target.host}:${target.port}`;
+}
+
+function sshAutoIdentity(target: {
+  connectionId: string;
+  projectId: string;
+  workspaceId: string;
+  protocol: PreviewServerProtocol;
+  port: number;
+}): string {
+  return `ssh:auto:${target.connectionId}:${target.projectId}:${target.workspaceId}:${target.protocol}:${target.port}`;
+}
+
+function matchesTransport(server: PreviewServer, transport: PreviewTargetTransport): boolean {
+  return transport.transport === 'local'
+    ? server.kind === 'direct'
+    : server.kind === 'forwarded' && server.connectionId === transport.connectionId;
 }
 
 function matchesDetectedServer(
