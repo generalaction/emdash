@@ -90,10 +90,12 @@ async function main(): Promise<void> {
     throw new Error(`Expected .nvmrc to contain a full Node version, received '${nodeVersion}'`);
   }
 
-  process.stdout.write('Building workspace-server protocol metadata...\n');
-  await runCommand('pnpm', ['--filter', '@emdash/core', 'run', 'build'], {
-    cwd: repositoryDirectory,
-  });
+  process.stdout.write('Building workspace-server package dependencies...\n');
+  for (const packageName of ['@emdash/shared', '@emdash/wire', '@emdash/core']) {
+    await runCommand('pnpm', ['--filter', packageName, 'run', 'build'], {
+      cwd: repositoryDirectory,
+    });
+  }
   const protocolVersion = await readProtocolVersion();
 
   process.stdout.write('Building plugin adapter assets...\n');
