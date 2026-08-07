@@ -95,6 +95,7 @@ export function wireTerminalUrlDetector({
           startProbe(parsed, portProbe, () => {
             stopProbes.delete(key);
             detected.delete(key);
+            buffer = '';
             void onSourceClosed?.({ reason: 'local-probe-failed', server: parsed });
           })
         );

@@ -216,6 +216,39 @@ describe('adaptive probe cadence', () => {
     stop();
   });
 
+  it('does not re-detect a closed URL from retained output', async () => {
+    const pty = fakePty();
+    const detected: DetectedPreviewUrl[] = [];
+    const closed: PreviewSourceClosed[] = [];
+    const stop = wireTerminalUrlDetector({
+      pty,
+      portProbe: async () => false,
+      onDetected: (server) => {
+        detected.push(server);
+      },
+      onSourceClosed: (event) => {
+        closed.push(event);
+      },
+    });
+
+    pty.emitData('ready http://localhost:3000/');
+    await vi.advanceTimersByTimeAsync(PROBE_FAST_INTERVAL_MS);
+    expect(detected).toHaveLength(1);
+    expect(closed).toEqual([
+      {
+        reason: 'local-probe-failed',
+        server: { protocol: 'http:', host: 'localhost', port: 3000, urlPath: '/' },
+      },
+    ]);
+
+    pty.emitData('$ ');
+    expect(detected).toHaveLength(1);
+
+    pty.emitData('ready http://localhost:3000/');
+    expect(detected).toHaveLength(2);
+    stop();
+  });
+
   it('stops probing on pty exit', async () => {
     const { pty, probeTimes, closed } = probeHarness([true, true, true]);
 
