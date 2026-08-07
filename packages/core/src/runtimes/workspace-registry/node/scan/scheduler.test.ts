@@ -39,17 +39,24 @@ function repoTarget(id: string, repoPath: string): ScanTarget {
     kind: 'repository',
     path: repoPath,
     parentId: null,
+    gitAdminName: null,
     observedStatus: 'present',
     lastObservedAt: 0,
   };
 }
 
-function worktreeTarget(id: string, worktreePath: string, parentId: string): ScanTarget {
+function worktreeTarget(
+  id: string,
+  worktreePath: string,
+  parentId: string,
+  gitAdminName: string | null = null
+): ScanTarget {
   return {
     id,
     kind: 'worktree',
     path: worktreePath,
     parentId,
+    gitAdminName,
     observedStatus: 'present',
     lastObservedAt: 0,
   };
@@ -231,6 +238,7 @@ describe('WorkspaceScanScheduler', () => {
       kind: 'directory',
       path: '/plain',
       parentId: null,
+      gitAdminName: null,
       observedStatus: 'missing',
       lastObservedAt: 0,
     };
@@ -243,6 +251,128 @@ describe('WorkspaceScanScheduler', () => {
         expect(requests).toContainEqual({ kind: 'repository', id: 'repo-1' });
         // Missing records poll too — that is how a returned path is noticed.
         expect(requests).toContainEqual({ kind: 'workspace', id: 'dir-1', mode: 'full' });
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a HEAD or reflog event under one worktree admin entry scans only that worktree, refs-only', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', 'repo-1', 'a');
+    const wtB = worktreeTarget('wt-b', '/worktrees/b', 'repo-1', 'b');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA, wtB]);
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [
+        { kind: 'update', path: path.join(gitDir, 'worktrees/a/HEAD') },
+        { kind: 'update', path: path.join(gitDir, 'worktrees/a/logs/HEAD') },
+      ]);
+      await eventually(() => {
+        // Localized to the one worktree that moved — no repository reconcile, no fanout.
+        expect(requests).toEqual([{ kind: 'workspace', id: 'wt-a', mode: 'refs' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('an index event under a worktree admin entry triggers nothing', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', 'repo-1', 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA], { debounceMs: 5 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [{ kind: 'update', path: path.join(gitDir, 'worktrees/a/index') }]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Staged-only staleness is corrected by the poll floor; the working-tree
+      // watch covers real file changes.
+      expect(requests).toHaveLength(0);
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('membership changes (admin entry or gitdir appearing/disappearing) still reconcile the repo', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wtA = worktreeTarget('wt-a', '/worktrees/a', 'repo-1', 'a');
+    const { watcher, requests, scheduler } = createHarness([repo, wtA]);
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      watcher.emit(gitDir, [{ kind: 'delete', path: path.join(gitDir, 'worktrees/a') }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: 'repo-1' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('a HEAD event for an unknown admin entry falls back to repository reconcile', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const { watcher, requests, scheduler } = createHarness([repo]);
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+      // No registered target carries this admin name — membership knowledge is stale.
+      watcher.emit(gitDir, [{ kind: 'update', path: path.join(gitDir, 'worktrees/ghost/HEAD') }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'repository', id: 'repo-1' }]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('muted ids drop watcher-driven requests until released; the repo mute silences its fanout', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const wt = worktreeTarget('wt-1', '/worktrees/wt', 'repo-1', 'wt');
+    const { watcher, requests, scheduler } = createHarness([repo, wt], { debounceMs: 5 });
+    try {
+      const gitDir = path.join('/repos/main', '.git');
+
+      // Muting the worktree drops its working-tree events (the artifact copy case).
+      const releaseWorktree = scheduler.mute('wt-1');
+      watcher.emit('/worktrees/wt', [{ kind: 'create', path: '/worktrees/wt/node_modules/x' }]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requests).toHaveLength(0);
+
+      // Muting the repository silences gitdir classification wholesale, fanout included
+      // (the background fetch/push case).
+      const releaseRepo = scheduler.mute('repo-1');
+      watcher.emit(gitDir, [{ kind: 'update', path: path.join(gitDir, 'packed-refs') }]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requests).toHaveLength(0);
+
+      releaseWorktree();
+      releaseRepo();
+      watcher.emit(gitDir, [{ kind: 'update', path: path.join(gitDir, 'packed-refs') }]);
+      await eventually(() => {
+        expect(requests).toEqual([
+          { kind: 'workspace', id: 'repo-1', mode: 'refs' },
+          { kind: 'workspace', id: 'wt-1', mode: 'refs' },
+        ]);
+      });
+    } finally {
+      await scheduler.dispose();
+    }
+  });
+
+  it('mute is refcounted: overlapping holds only release when the last one does', async () => {
+    const repo = repoTarget('repo-1', '/repos/main');
+    const { watcher, requests, scheduler } = createHarness([repo], { debounceMs: 5 });
+    try {
+      const first = scheduler.mute('repo-1');
+      const second = scheduler.mute('repo-1');
+      first();
+      first(); // double release of one hold must not free the other
+      watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/a.txt' }]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requests).toHaveLength(0);
+
+      second();
+      watcher.emit('/repos/main', [{ kind: 'update', path: '/repos/main/a.txt' }]);
+      await eventually(() => {
+        expect(requests).toEqual([{ kind: 'workspace', id: 'repo-1', mode: 'full' }]);
       });
     } finally {
       await scheduler.dispose();

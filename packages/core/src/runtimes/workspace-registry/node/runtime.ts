@@ -99,6 +99,13 @@ export class WorkspaceRegistryRuntime {
   private readonly logger: Logger;
   private readonly inspector: PathInspector;
   private onRecordsChanged: (() => void) | undefined;
+  /**
+   * Scan self-suppression seam (spec: scan minimization): points at the scheduler's
+   * refcounted mute. Background steps hold it while writing into a workspace or a
+   * repository's git dir, then request one deliberate scan on settle. A no-op until
+   * the component wires the scheduler in.
+   */
+  private muteScans: (id: string) => () => void = () => () => undefined;
   private readonly overlays = new Map<string, WorkspaceRuntimeOverlay>();
   private readonly recordsCell: Cell<WorkspaceRecords>;
   private mutationQueue: Promise<unknown> = Promise.resolve();
@@ -513,11 +520,15 @@ export class WorkspaceRegistryRuntime {
    * has creation/activation/background work queued or in flight, with the poll floor
    * as the anti-starvation deadline.
    */
-  executeScanRequest(request: ScanRequest): Promise<void> {
+  async executeScanRequest(request: ScanRequest): Promise<void> {
+    // The idle wait happens before the scan lane is taken: one busy repository must
+    // not stall every other repository's scans behind its gate.
+    const gated = this.store.get(request.id);
+    if (!gated) return;
+    await hostGitSchedule.whenIdle(this.repositoryKeyFor(gated), SCAN_IDLE_DEADLINE_MS);
     return this.enqueueScan(async () => {
       const record = this.store.get(request.id);
       if (!record) return;
-      await hostGitSchedule.whenIdle(this.repositoryKeyFor(record), SCAN_IDLE_DEADLINE_MS);
       if (request.kind === 'repository') {
         await this.scanRepository(record, this.store.list());
         return;
@@ -546,6 +557,7 @@ export class WorkspaceRegistryRuntime {
       kind: record.kind,
       path: record.path,
       parentId: record.parentId,
+      gitAdminName: record.gitAdminName,
       observedStatus: record.observedStatus,
       lastObservedAt: record.lastObservedAt,
     }));
@@ -627,6 +639,11 @@ export class WorkspaceRegistryRuntime {
   /** Late-bound because the scheduler needs the runtime before it can be pointed at. */
   setOnRecordsChanged(callback: () => void): void {
     this.onRecordsChanged = callback;
+  }
+
+  /** Late-bound scheduler mute seam; same lifecycle as setOnRecordsChanged. */
+  setScanMuter(muter: (id: string) => () => void): void {
+    this.muteScans = muter;
   }
 
   /**
@@ -837,12 +854,23 @@ export class WorkspaceRegistryRuntime {
         work.push(copy);
       }
       if (branch !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'push-branch'))) {
-        work.push(this.executePushStep(id, repositoryPath, branch));
+        work.push(this.executePushStep(id, parent.id, repositoryPath, branch));
       }
       if (baseRef !== null && isIncompleteStep(getLifecycleStep(lifecycle, 'fetch-refs'))) {
-        work.push(this.executeFetchStep(id, repositoryPath, baseRef));
+        work.push(this.executeFetchStep(id, parent.id, repositoryPath, baseRef));
       }
       await Promise.all(work);
+    });
+  }
+
+  /**
+   * The deliberate trailing scan after a self-suppressed write settles (spec: scan
+   * minimization): fire-and-forget so the step never blocks on scan-lane time.
+   */
+  private settleScan(request: ScanRequest): void {
+    if (this.disposed) return;
+    void this.executeScanRequest(request).catch((error) => {
+      this.logger.warn?.(`settle scan for '${request.id}' failed`, { error });
     });
   }
 
@@ -852,32 +880,59 @@ export class WorkspaceRegistryRuntime {
     worktreePath: string
   ): Promise<void> {
     const preservePatterns = this.store.get(id)?.lifecycle?.preservePatterns ?? [];
-    await this.updateLifecycleStep(id, 'copy-artifacts', { status: 'running' });
-    const startedAt = Date.now();
-    const outcome = await executeCopyArtifacts({ repositoryPath, worktreePath, preservePatterns });
-    this.logger.info?.(
-      `copy-artifacts for '${id}': ${outcome.status} in ${Date.now() - startedAt}ms`,
-      {
-        ...(outcome.status === 'succeeded'
-          ? { engine: outcome.engine, entries: outcome.entries, warnings: outcome.warnings }
-          : {}),
-        ...(outcome.status === 'failed' ? { message: outcome.message } : {}),
-      }
-    );
-    await this.updateLifecycleStep(id, 'copy-artifacts', {
-      ...toStepState(outcome),
-      ...(outcome.status === 'succeeded' ? { params: { fileCount: outcome.entries } } : {}),
-    });
+    // The copy writes straight into the watched working tree: mute the workspace's
+    // watcher-driven scans for the duration, then scan once deliberately.
+    const release = this.muteScans(id);
+    try {
+      await this.updateLifecycleStep(id, 'copy-artifacts', { status: 'running' });
+      const startedAt = Date.now();
+      const outcome = await executeCopyArtifacts({
+        repositoryPath,
+        worktreePath,
+        preservePatterns,
+      });
+      this.logger.info?.(
+        `copy-artifacts for '${id}': ${outcome.status} in ${Date.now() - startedAt}ms`,
+        {
+          ...(outcome.status === 'succeeded'
+            ? { engine: outcome.engine, entries: outcome.entries, warnings: outcome.warnings }
+            : {}),
+          ...(outcome.status === 'failed' ? { message: outcome.message } : {}),
+        }
+      );
+      await this.updateLifecycleStep(id, 'copy-artifacts', {
+        ...toStepState(outcome),
+        ...(outcome.status === 'succeeded' ? { params: { fileCount: outcome.entries } } : {}),
+      });
+    } finally {
+      release();
+      this.settleScan({ kind: 'workspace', id, mode: 'full' });
+    }
   }
 
-  private async executePushStep(id: string, repositoryPath: string, branch: string): Promise<void> {
-    await this.updateLifecycleStep(id, 'push-branch', { status: 'running' });
-    const outcome = await executePushBranch({ repositoryPath, branch });
-    await this.updateLifecycleStep(id, 'push-branch', toStepState(outcome));
+  private async executePushStep(
+    id: string,
+    repositoryId: string,
+    repositoryPath: string,
+    branch: string
+  ): Promise<void> {
+    // The push updates the repository's remote-tracking ref: mute the repository's
+    // gitdir events (fanout included), then refresh the two records it affects.
+    const release = this.muteScans(repositoryId);
+    try {
+      await this.updateLifecycleStep(id, 'push-branch', { status: 'running' });
+      const outcome = await executePushBranch({ repositoryPath, branch });
+      await this.updateLifecycleStep(id, 'push-branch', toStepState(outcome));
+    } finally {
+      release();
+      this.settleScan({ kind: 'workspace', id: repositoryId, mode: 'refs' });
+      this.settleScan({ kind: 'workspace', id, mode: 'refs' });
+    }
   }
 
   private async executeFetchStep(
     id: string,
+    repositoryId: string,
     repositoryPath: string,
     baseRef: string
   ): Promise<void> {
@@ -891,10 +946,24 @@ export class WorkspaceRegistryRuntime {
       return;
     }
     this.lastFetchAt.set(repositoryPath, now);
-    await this.updateLifecycleStep(id, 'fetch-refs', { status: 'running' });
-    const outcome = await executeFetchRefs({ repositoryPath, baseRef });
-    // Advisory by contract: a failed fetch is recorded, never surfaced as an error.
-    await this.updateLifecycleStep(id, 'fetch-refs', toStepState(outcome));
+    // The fetch rewrites refs/remotes and packed-refs: mute the repository so the
+    // watcher does not fan refs scans across every worktree mid-write, then run
+    // the same fanout once, deliberately, when it settles.
+    const release = this.muteScans(repositoryId);
+    try {
+      await this.updateLifecycleStep(id, 'fetch-refs', { status: 'running' });
+      const outcome = await executeFetchRefs({ repositoryPath, baseRef });
+      // Advisory by contract: a failed fetch is recorded, never surfaced as an error.
+      await this.updateLifecycleStep(id, 'fetch-refs', toStepState(outcome));
+    } finally {
+      release();
+      this.settleScan({ kind: 'workspace', id: repositoryId, mode: 'refs' });
+      for (const record of this.store.list()) {
+        if (record.parentId === repositoryId && record.observedStatus === 'present') {
+          this.settleScan({ kind: 'workspace', id: record.id, mode: 'refs' });
+        }
+      }
+    }
   }
 
   /**
@@ -928,7 +997,9 @@ export class WorkspaceRegistryRuntime {
     if (step?.status === 'failed' && parent) {
       if (input.step === 'push-branch') {
         const branch = record.creation?.branch ?? null;
-        if (branch !== null) await this.executePushStep(input.id, parent.path, branch);
+        if (branch !== null) {
+          await this.executePushStep(input.id, parent.id, parent.path, branch);
+        }
       } else {
         await this.executeCopyStep(input.id, parent.path, record.path);
       }
