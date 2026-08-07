@@ -20,17 +20,18 @@ const mocks = vi.hoisted(() => ({
   listIntegrations: vi.fn(),
 }));
 
-vi.mock('@renderer/lib/runtime/desktop-wire-client', () => ({
-  getDesktopWireClient: async () => ({
-    issues: {
-      checkAllConnections: mocks.checkAllConnections,
-      checkConfiguredConnections: mocks.checkConfiguredConnections,
-    },
-    integrations: {
-      list: mocks.listIntegrations,
-      connect: mocks.connectIntegration,
-      disconnect: mocks.disconnectIntegration,
-    },
+vi.mock('@core/features/issues/api/browser/client', () => ({
+  getIssuesClient: async () => ({
+    checkAllConnections: mocks.checkAllConnections,
+    checkConfiguredConnections: mocks.checkConfiguredConnections,
+  }),
+}));
+
+vi.mock('@core/features/integrations/api/browser/client', () => ({
+  getIntegrationsClient: async () => ({
+    list: mocks.listIntegrations,
+    connect: mocks.connectIntegration,
+    disconnect: mocks.disconnectIntegration,
   }),
 }));
 
