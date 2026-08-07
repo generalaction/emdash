@@ -174,9 +174,10 @@ pnpm run typecheck
 pnpm run test
 ```
 
-There are no pre-commit hooks. CI enforces format:check, typecheck, and lint via
-`nx affected` — only projects touched by the PR are checked. Tests are still
-expected locally even when a specific CI workflow does not run the full test suite.
+There are no pre-commit hooks. CI enforces format:check, typecheck, lint, and
+test via `nx affected` — only projects touched by the PR are checked. The
+Playwright-backed `browser` Vitest projects are skipped in CI, so the full
+local suite is still expected before merging.
 
 ## Development Workflow
 

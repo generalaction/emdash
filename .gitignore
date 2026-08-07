@@ -84,7 +84,8 @@ Thumbs.db
 
 apps/*/src/main/appConfig.json
 
-# Per-developer dev database (use pnpm run db:dev)
+# Stray per-developer dev databases from older setups (dev DBs now live in the
+# platform user-data dir or at EMDASH_DB_FILE; reset with pnpm run db:reset)
 apps/*/tooling/db/dev.db
 apps/*/tooling/db/dev.db-wal
 apps/*/tooling/db/dev.db-shm
