@@ -23,7 +23,31 @@ import { SectionHeader } from './components/section-header';
 import { useChangesViewMode } from './hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
-export const UnstagedSection = observer(function UnstagedSection() {
+/** Always-visible header row; rendered as a direct child of the sections group. */
+export const UnstagedSectionHeader = observer(function UnstagedSectionHeader() {
+  const taskView = useTaskComposition();
+  const workspace = useWorkspace();
+  const git = workspace.get(gitCheckoutStoreToken);
+  const changesView = taskView.diffView?.changesView;
+  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
+
+  if (!changesView) return null;
+
+  return (
+    <SectionHeader
+      label="Changed"
+      collapsed={!changesView.expandedSections.unstaged}
+      onToggleCollapsed={() => changesView.toggleExpanded('unstaged')}
+      count={git.unstagedFileChanges.length}
+      selectionState={changesView.unstagedSelectionState}
+      onToggleAll={() => changesView.toggleAllUnstaged()}
+      actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Changed" />}
+    />
+  );
+});
+
+/** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
+export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useTaskComposition();
@@ -41,7 +65,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
 
-  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
+  const { mode: viewMode } = useChangesViewMode('unstaged');
 
   const openConfirmActionModal = useOpenModal('confirmActionModal');
 
@@ -135,88 +159,77 @@ export const UnstagedSection = observer(function UnstagedSection() {
   };
 
   return (
-    <>
-      <SectionHeader
-        label="Changed"
-        collapsed={!changesView.expandedSections.unstaged}
-        onToggleCollapsed={() => changesView.toggleExpanded('unstaged')}
-        count={changes.length}
-        selectionState={changesView.unstagedSelectionState}
-        onToggleAll={() => changesView.toggleAllUnstaged()}
-        actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Changed" />}
-      />
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {!hasChanges && (
-          <EmptyState label="Working tree clean" description="No uncommitted file changes." />
-        )}
-        {hasChanges && (
-          <ActionCard
-            selectedCount={changesView.unstagedSelection.size}
-            selectionActions={
-              <>
-                <Button
-                  variant="link"
-                  size="xs"
-                  onClick={handleDiscardSelection}
-                  title="Discard selected files"
-                  className="text-foreground-destructive"
-                >
-                  <Undo2 className="size-3" />
-                  Discard
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  onClick={handleStageSelection}
-                  title="Stage selected files"
-                >
-                  <Plus className="size-3" />
-                  Stage
-                </Button>
-              </>
-            }
-            generalActions={
-              <>
-                <Button
-                  variant="link"
-                  size="xs"
-                  disabled={!hasChanges}
-                  onClick={handleDiscardAll}
-                  title="Discard all changes"
-                  className="text-foreground-destructive"
-                >
-                  <Undo2 className="size-3" />
-                  Discard all
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  disabled={!hasChanges}
-                  onClick={handleStageAll}
-                  title="Stage all changes"
-                >
-                  <Plus className="size-3" />
-                  Stage all
-                </Button>
-              </>
-            }
-          />
-        )}
-        <div className="min-h-0 flex-1 px-1">
-          <ChangesListOrTree
-            viewMode={viewMode}
-            changes={changes}
-            rootPath={workspace.path}
-            isSelected={(path) => changesView.unstagedSelection.has(path)}
-            onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
-            activePath={activePath}
-            onSelectChange={handleSelectChange}
-            onDoubleClickChange={handleDoubleClickChange}
-            onPrefetch={(change) => prefetch(change.path)}
-          />
-        </div>
-        {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {!hasChanges && (
+        <EmptyState label="Working tree clean" description="No uncommitted file changes." />
+      )}
+      {hasChanges && (
+        <ActionCard
+          selectedCount={changesView.unstagedSelection.size}
+          selectionActions={
+            <>
+              <Button
+                variant="link"
+                size="xs"
+                onClick={handleDiscardSelection}
+                title="Discard selected files"
+                className="text-foreground-destructive"
+              >
+                <Undo2 className="size-3" />
+                Discard
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={handleStageSelection}
+                title="Stage selected files"
+              >
+                <Plus className="size-3" />
+                Stage
+              </Button>
+            </>
+          }
+          generalActions={
+            <>
+              <Button
+                variant="link"
+                size="xs"
+                disabled={!hasChanges}
+                onClick={handleDiscardAll}
+                title="Discard all changes"
+                className="text-foreground-destructive"
+              >
+                <Undo2 className="size-3" />
+                Discard all
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                disabled={!hasChanges}
+                onClick={handleStageAll}
+                title="Stage all changes"
+              >
+                <Plus className="size-3" />
+                Stage all
+              </Button>
+            </>
+          }
+        />
+      )}
+      <div className="min-h-0 flex-1 px-1">
+        <ChangesListOrTree
+          viewMode={viewMode}
+          changes={changes}
+          rootPath={workspace.path}
+          isSelected={(path) => changesView.unstagedSelection.has(path)}
+          onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
+          activePath={activePath}
+          onSelectChange={handleSelectChange}
+          onDoubleClickChange={handleDoubleClickChange}
+          onPrefetch={(change) => prefetch(change.path)}
+        />
       </div>
-    </>
+      {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
+    </div>
   );
 });

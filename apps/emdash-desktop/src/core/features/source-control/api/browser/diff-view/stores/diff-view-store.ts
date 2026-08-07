@@ -46,7 +46,16 @@ export class DiffViewStore {
     private readonly preferencesHandle: MementoHandle<TaskDiffPreferencesState>,
     private readonly selectionHandle: MementoHandle<TaskDiffSelectionState>
   ) {
-    this.changesView = new ChangesViewStore(gitCheckout, pr);
+    // Section expansion persists per task on the diff-preferences memento;
+    // the adapter keeps ChangesViewStore decoupled from the memento shape.
+    this.changesView = new ChangesViewStore(gitCheckout, pr, {
+      get value() {
+        return preferencesHandle.value.expandedSections;
+      },
+      set: (next) => {
+        preferencesHandle.update((current) => ({ ...current, expandedSections: next }));
+      },
+    });
 
     makeObservable<DiffViewStore, 'preferencesHandle' | 'selectionHandle'>(this, {
       activeFileOverride: computed,

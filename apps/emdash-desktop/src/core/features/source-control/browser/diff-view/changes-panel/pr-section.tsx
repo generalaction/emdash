@@ -28,13 +28,12 @@ const BRANCH_COMMITS_EMPTY_STATE = {
   description: 'No commits ahead of the base branch.',
 };
 
-export const PullRequestsSection = observer(function PullRequestsSection({
-  collapsed,
-  onToggleCollapsed,
-}: {
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-}) {
+/**
+ * Facts shared by the section header (label, count, actions) and the body.
+ * Header and body are separate components in the sections group, so each calls
+ * this hook; the underlying react-query cache dedupes the commit lookups.
+ */
+function usePullRequestsSectionModel() {
   const { projectId, taskId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
@@ -59,10 +58,48 @@ export const PullRequestsSection = observer(function PullRequestsSection({
       : undefined;
   const branchCommits = useCommits(projectId, workspaceId, branchCommitRange);
   const branchCommitCount = branchCommits.data?.pages[0]?.aheadCount;
+
+  const showBranchCommits =
+    !!branchCommitRange && branchCommitCount !== undefined && branchCommitCount > 0;
+
+  return {
+    projectId,
+    taskId,
+    workspaceId,
+    repositoryUrl,
+    taskBranch,
+    pullRequests,
+    currentPr,
+    branchCommitRange,
+    showBranchCommits,
+    sectionLabel: showBranchCommits ? 'Branch Commits' : 'Pull Requests',
+    sectionCount: showBranchCommits ? (branchCommitCount ?? 0) : pullRequests.length,
+  };
+}
+
+/** Always-visible header row; rendered as a direct child of the sections group. */
+export const PullRequestsSectionHeader = observer(function PullRequestsSectionHeader({
+  onSyncError,
+}: {
+  onSyncError: (message: string | null) => void;
+}) {
+  const taskView = useTaskComposition();
+  const changesView = taskView.diffView?.changesView;
+  const {
+    projectId,
+    taskId,
+    workspaceId,
+    repositoryUrl,
+    taskBranch,
+    pullRequests,
+    currentPr,
+    sectionLabel,
+    sectionCount,
+  } = usePullRequestsSectionModel();
   const openCreatePrModal = useOpenModal('createPrModal');
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
 
@@ -103,13 +140,13 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const handleRefresh = async () => {
     if (!repositoryUrl) return;
     setIsRefreshing(true);
-    setSyncError(null);
+    onSyncError(null);
     try {
       const client = await getPullRequestsRuntimeClient();
       const result = await client.sync({ repositoryUrl });
       if (!result.success) {
         const message = pullRequestErrorMessage(result.error);
-        setSyncError(message);
+        onSyncError(message);
         toast.error('Failed to refresh pull requests', { description: message });
       }
     } catch (error) {
@@ -121,84 +158,92 @@ export const PullRequestsSection = observer(function PullRequestsSection({
     }
   };
 
-  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
-  const showBranchCommits =
-    !!branchCommitRange && branchCommitCount !== undefined && branchCommitCount > 0;
-  const sectionLabel = showBranchCommits ? 'Branch Commits' : 'Pull Requests';
-  const sectionCount = showBranchCommits ? (branchCommitCount ?? 0) : pullRequests.length;
   const createPrTooltip = !repositoryUrl
     ? 'Pull requests unavailable'
     : hasOpenPr
       ? 'A pull request is already open'
       : 'Create a pull request';
 
+  if (!changesView) return null;
+
   return (
-    <>
-      <SectionHeader
-        label={sectionLabel}
-        count={sectionCount}
-        collapsed={collapsed}
-        onToggleCollapsed={onToggleCollapsed}
-        actions={
-          <>
-            {currentPr && (
-              <ChangesViewModeToggle
-                value={viewMode}
-                onChange={setViewMode}
-                label="Pull request files"
+    <SectionHeader
+      label={sectionLabel}
+      count={sectionCount}
+      collapsed={!changesView.expandedSections.pullRequests}
+      onToggleCollapsed={() => changesView.toggleExpanded('pullRequests')}
+      actions={
+        <>
+          {currentPr && (
+            <ChangesViewModeToggle
+              value={viewMode}
+              onChange={setViewMode}
+              label="Pull request files"
+            />
+          )}
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              <SplitButton
+                variant="secondary"
+                size="xs"
+                options={prActions.map(({ id, label }) => ({ id, label }))}
+                selectedId={selectedPrActionId}
+                onSelectedChange={setSelectedPrActionId}
+                commitOnSelect={false}
+                onAction={(id) => prActions.find((a) => a.id === id)?.action()}
+                disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
+                icon={<Plus className="size-3" />}
               />
-            )}
-            <Tooltip.Root>
-              <Tooltip.Trigger>
-                <SplitButton
-                  variant="secondary"
-                  size="xs"
-                  options={prActions.map(({ id, label }) => ({ id, label }))}
-                  selectedId={selectedPrActionId}
-                  onSelectedChange={setSelectedPrActionId}
-                  commitOnSelect={false}
-                  onAction={(id) => prActions.find((a) => a.id === id)?.action()}
-                  disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
-                  icon={<Plus className="size-3" />}
-                />
-              </Tooltip.Trigger>
-              <Tooltip.Content>{createPrTooltip}</Tooltip.Content>
-            </Tooltip.Root>
-            <Tooltip.Root>
-              <Tooltip.Trigger>
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  icon
-                  onClick={() => void handleRefresh()}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Refresh pull requests</Tooltip.Content>
-            </Tooltip.Root>
-          </>
-        }
-      />
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {currentPr ? (
-          <PullRequestEntry key={currentPr.url} pr={currentPr} />
-        ) : showBranchCommits ? (
-          <BranchCommitsEntry range={branchCommitRange} />
-        ) : !repositoryUrl ? (
-          <EmptyState
-            label="Pull requests unavailable"
-            description="Pull requests are currently available only for configured GitHub remotes."
-          />
-        ) : pullRequests.length === 0 ? (
-          <EmptyState
-            label={syncError ? 'Could not load pull requests' : 'No pull requests'}
-            description={syncError ?? 'Push your branch and create a PR to start a review.'}
-          />
-        ) : null}
-      </div>
-    </>
+            </Tooltip.Trigger>
+            <Tooltip.Content>{createPrTooltip}</Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              <Button
+                variant="secondary"
+                size="xs"
+                icon
+                onClick={() => void handleRefresh()}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Refresh pull requests</Tooltip.Content>
+          </Tooltip.Root>
+        </>
+      }
+    />
+  );
+});
+
+/** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
+export const PullRequestsSectionBody = observer(function PullRequestsSectionBody({
+  syncError,
+}: {
+  syncError: string | null;
+}) {
+  const { repositoryUrl, pullRequests, currentPr, branchCommitRange, showBranchCommits } =
+    usePullRequestsSectionModel();
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {currentPr ? (
+        <PullRequestEntry key={currentPr.url} pr={currentPr} />
+      ) : showBranchCommits && branchCommitRange ? (
+        <BranchCommitsEntry range={branchCommitRange} />
+      ) : !repositoryUrl ? (
+        <EmptyState
+          label="Pull requests unavailable"
+          description="Pull requests are currently available only for configured GitHub remotes."
+        />
+      ) : pullRequests.length === 0 ? (
+        <EmptyState
+          label={syncError ? 'Could not load pull requests' : 'No pull requests'}
+          description={syncError ?? 'Push your branch and create a PR to start a review.'}
+        />
+      ) : null}
+    </div>
   );
 });
 

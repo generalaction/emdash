@@ -73,11 +73,21 @@ export const taskEditorTreeMemento = defineMemento({
   },
 });
 
+const changesExpandedSectionsSchema = z.object({
+  unstaged: z.boolean(),
+  staged: z.boolean(),
+  pullRequests: z.boolean(),
+});
+
 const taskDiffPreferencesV1Schema = z.object({
   version: z.literal('1'),
   diffStyle: z.enum(['unified', 'split']),
   commitAction: z.enum(['commit', 'commit-push', 'commit-pr']).nullable(),
   prTab: z.enum(['files', 'commits', 'checks']),
+  // Changes-panel section expansion. Absent until the first git load seeds
+  // it (ChangesViewStore keeps "never set" semantics); optional-on-v1 so
+  // older app versions still parse documents written by newer ones.
+  expandedSections: changesExpandedSectionsSchema.optional(),
 });
 
 export const taskDiffPreferencesSchema = defineVersionedSchema()

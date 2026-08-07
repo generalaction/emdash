@@ -10,20 +10,33 @@ export interface ExpandedSections {
   pullRequests: boolean;
 }
 
+/**
+ * Task-scoped persistence seam for the section-expansion fact. `undefined`
+ * means the task has never persisted an expansion state, so the store seeds
+ * a sensible initial one after the first git load. Backed by the
+ * `tasks.diff-preferences` memento in production.
+ */
+export interface ExpandedSectionsPersistence {
+  readonly value: ExpandedSections | undefined;
+  set(next: ExpandedSections): void;
+}
+
+const ALL_EXPANDED: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+
 export class ChangesViewStore {
   unstagedSelection = observable.set<string>();
   stagedSelection = observable.set<string>();
-  expandedSections: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
 
   private _disposeReactions: Array<() => void> = [];
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
 
   constructor(
     private readonly gitCheckout: GitCheckoutStore,
-    private readonly pr: PrStore
+    private readonly pr: PrStore,
+    private readonly sections: ExpandedSectionsPersistence
   ) {
     makeObservable(this, {
-      expandedSections: observable,
+      expandedSections: computed,
       unstagedSelectionState: computed,
       stagedSelectionState: computed,
     });
@@ -50,27 +63,37 @@ export class ChangesViewStore {
       )
     );
 
-    // Set sensible initial expanded state once the first git load completes.
+    // Once the first git load completes: seed a sensible initial expansion for
+    // tasks that have never persisted one (a persisted value wins), then start
+    // the auto-expand/collapse reaction. Starting it only after the load means
+    // the initial counts transition (0 → N) can never override persisted state.
     this._disposeReactions.push(
       when(
         () => !this.gitCheckout.isLoading && !this.gitCheckout.error,
         () => {
-          const hasUnstaged = this.gitCheckout.unstagedFileChanges.length > 0;
-          const hasStaged = this.gitCheckout.stagedFileChanges.length > 0;
-          const hasPullRequests = this.pr.pullRequests.length > 0;
+          if (this.sections.value === undefined) {
+            const hasUnstaged = this.gitCheckout.unstagedFileChanges.length > 0;
+            const hasStaged = this.gitCheckout.stagedFileChanges.length > 0;
+            const hasPullRequests = this.pr.pullRequests.length > 0;
 
-          runInAction(() => {
-            this.expandedSections = {
+            this.setSections({
               unstaged: hasUnstaged || (!hasStaged && !hasUnstaged && !hasPullRequests),
               staged: hasStaged,
               pullRequests: hasPullRequests,
-            };
-          });
+            });
+          }
+          this.startAutoExpandReaction();
         }
       )
     );
+  }
 
-    // Auto-collapse when a section empties; auto-expand when it gains entries from zero.
+  get expandedSections(): ExpandedSections {
+    return this.sections.value ?? ALL_EXPANDED;
+  }
+
+  /** Auto-collapse when a section empties; auto-expand when it gains entries from zero. */
+  private startAutoExpandReaction(): void {
     this._disposeReactions.push(
       reaction(
         () => ({
@@ -79,51 +102,54 @@ export class ChangesViewStore {
           pullRequests: this.pr.pullRequests.length,
         }),
         (curr, prev) => {
-          runInAction(() => {
-            const next = { ...this.expandedSections };
-            let changed = false;
+          const next = { ...this.expandedSections };
+          let changed = false;
 
-            if (curr.unstaged === 0 && prev.unstaged > 0) {
-              next.unstaged = false;
+          if (curr.unstaged === 0 && prev.unstaged > 0) {
+            next.unstaged = false;
+            changed = true;
+          } else if (curr.unstaged > 0 && prev.unstaged === 0) {
+            if (this._suppressAutoExpand.has('unstaged')) {
+              this._suppressAutoExpand.delete('unstaged');
+            } else {
+              next.unstaged = true;
               changed = true;
-            } else if (curr.unstaged > 0 && prev.unstaged === 0) {
-              if (this._suppressAutoExpand.has('unstaged')) {
-                this._suppressAutoExpand.delete('unstaged');
-              } else {
-                next.unstaged = true;
-                changed = true;
-              }
             }
+          }
 
-            if (curr.staged === 0 && prev.staged > 0) {
-              next.staged = false;
+          if (curr.staged === 0 && prev.staged > 0) {
+            next.staged = false;
+            changed = true;
+          } else if (curr.staged > 0 && prev.staged === 0) {
+            if (this._suppressAutoExpand.has('staged')) {
+              this._suppressAutoExpand.delete('staged');
+            } else {
+              next.staged = true;
               changed = true;
-            } else if (curr.staged > 0 && prev.staged === 0) {
-              if (this._suppressAutoExpand.has('staged')) {
-                this._suppressAutoExpand.delete('staged');
-              } else {
-                next.staged = true;
-                changed = true;
-              }
             }
+          }
 
-            if (curr.pullRequests === 0 && prev.pullRequests > 0) {
-              next.pullRequests = false;
+          if (curr.pullRequests === 0 && prev.pullRequests > 0) {
+            next.pullRequests = false;
+            changed = true;
+          } else if (curr.pullRequests > 0 && prev.pullRequests === 0) {
+            if (this._suppressAutoExpand.has('pullRequests')) {
+              this._suppressAutoExpand.delete('pullRequests');
+            } else {
+              next.pullRequests = true;
               changed = true;
-            } else if (curr.pullRequests > 0 && prev.pullRequests === 0) {
-              if (this._suppressAutoExpand.has('pullRequests')) {
-                this._suppressAutoExpand.delete('pullRequests');
-              } else {
-                next.pullRequests = true;
-                changed = true;
-              }
             }
+          }
 
-            if (changed) this.expandedSections = next;
-          });
+          if (changed) this.setSections(next);
         }
       )
     );
+  }
+
+  /** Single write path for the expansion fact — everything persists through it. */
+  private setSections(next: ExpandedSections): void {
+    runInAction(() => this.sections.set(next));
   }
 
   get unstagedSelectionState(): SelectionState {
@@ -191,26 +217,26 @@ export class ChangesViewStore {
   }
 
   toggleExpanded(section: keyof ExpandedSections): void {
-    runInAction(() => {
-      this.expandedSections = {
-        ...this.expandedSections,
-        [section]: !this.expandedSections[section],
-      };
+    this.setSections({
+      ...this.expandedSections,
+      [section]: !this.expandedSections[section],
     });
   }
 
+  /** Semantic collapse command — the target of the drag-below-threshold path. */
+  collapseSection(section: keyof ExpandedSections): void {
+    if (!this.expandedSections[section]) return;
+    this.setSections({ ...this.expandedSections, [section]: false });
+  }
+
   setExpanded(next: ExpandedSections | ((prev: ExpandedSections) => ExpandedSections)): void {
-    runInAction(() => {
-      this.expandedSections = typeof next === 'function' ? next(this.expandedSections) : next;
-    });
+    this.setSections(typeof next === 'function' ? next(this.expandedSections) : next);
   }
 
   expandForActiveFileType(group: 'disk' | 'staged' | 'git' | 'pr'): void {
     const section = group === 'disk' ? 'unstaged' : group === 'staged' ? 'staged' : 'pullRequests';
     if (!this.expandedSections[section]) {
-      runInAction(() => {
-        this.expandedSections = { ...this.expandedSections, [section]: true };
-      });
+      this.setSections({ ...this.expandedSections, [section]: true });
     }
   }
 
