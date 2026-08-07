@@ -1,8 +1,8 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import React from 'react';
 import type { Theme } from '@core/primitives/app-settings/api';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { useTheme } from '@core/primitives/theme/browser';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
 const ThemeCard: React.FC = () => {
   const { theme, setTheme } = useTheme();

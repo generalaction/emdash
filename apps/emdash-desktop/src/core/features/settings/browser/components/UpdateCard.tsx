@@ -2,8 +2,8 @@ import { UpdateCard as UpdateCardUi, type UpdateStatus } from '@emdash/ui/react/
 import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type React from 'react';
+import { getUpdateStore } from '@core/features/updates/contributions/app-stores';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
-import { getUpdateStore } from '@renderer/lib/stores/update-store-contribution';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = getUpdateStore();

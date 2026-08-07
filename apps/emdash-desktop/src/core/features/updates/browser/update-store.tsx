@@ -3,8 +3,9 @@ import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import type { DesktopUpdateEvent } from '@core/features/updates/api';
+import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getUpdatesClient } from '../api/browser/client';
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
 const SNOOZE_HOURS = 6;
@@ -60,8 +61,8 @@ export class UpdateStore {
   start(): void {
     void this._startWire();
 
-    void getDesktopWireClient().then((client) => {
-      void client.host.events.subscribe(undefined, {
+    void getHostClient().then((client) => {
+      void client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.type === 'menu-check-for-updates') void this.check();
         },
@@ -75,8 +76,8 @@ export class UpdateStore {
       this.state = { status: 'checking' };
     });
     try {
-      const client = await getDesktopWireClient();
-      const res = await client.updates.check(undefined);
+      const client = await getUpdatesClient();
+      const res = await client.check(undefined);
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
@@ -101,8 +102,8 @@ export class UpdateStore {
 
   async download(): Promise<void> {
     try {
-      const client = await getDesktopWireClient();
-      const res = await client.updates.download(undefined);
+      const client = await getUpdatesClient();
+      const res = await client.download(undefined);
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
@@ -127,8 +128,8 @@ export class UpdateStore {
       this.state = { status: 'installing' };
     });
     try {
-      const client = await getDesktopWireClient();
-      const res = await client.updates.quitAndInstall(undefined);
+      const client = await getUpdatesClient();
+      const res = await client.quitAndInstall(undefined);
       if (!res) {
         runInAction(() => {
           this.state = { status: 'error', message: 'Update API unavailable' };
@@ -149,16 +150,16 @@ export class UpdateStore {
 
   async openLatest(): Promise<void> {
     try {
-      const client = await getDesktopWireClient();
-      await client.updates.openLatest(undefined);
+      const client = await getUpdatesClient();
+      await client.openLatest(undefined);
     } catch {
       // openLatest quits the app — errors are best-effort
     }
   }
 
   private async _startWire(): Promise<void> {
-    const client = await getDesktopWireClient();
-    await client.updates.events.subscribe(undefined, {
+    const client = await getUpdatesClient();
+    await client.events.subscribe(undefined, {
       onEvent: (event) => this._applyEvent(event),
       onGap: () => void this._refreshWireState(),
     });
@@ -167,8 +168,8 @@ export class UpdateStore {
   }
 
   private async _refreshWireState(): Promise<void> {
-    const client = await getDesktopWireClient();
-    const result = await client.updates.getState(undefined);
+    const client = await getUpdatesClient();
+    const result = await client.getState(undefined);
     if (!result.success) return;
     runInAction(() => {
       this.currentVersion = result.data.currentVersion;

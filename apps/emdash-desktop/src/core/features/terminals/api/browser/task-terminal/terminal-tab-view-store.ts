@@ -5,14 +5,14 @@ import type {
   TerminalStore,
 } from '@core/features/terminals/api/browser/task-terminal/terminal-manager';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
-import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider } from '@core/primitives/workbench-shell/browser/tabs/generic-tab-view';
 import {
   reorderTabIds,
   setNextTabActive,
   setPreviousTabActive,
   setTabActive,
   setTabActiveIndex,
-} from '@renderer/lib/stores/tab-utils';
+} from '@core/primitives/workbench-shell/browser/tabs/tab-utils';
 
 export class TerminalTabViewStore implements TabViewProvider<TerminalStore, never> {
   private readonly _getResource: () => TerminalManagerStore | null;

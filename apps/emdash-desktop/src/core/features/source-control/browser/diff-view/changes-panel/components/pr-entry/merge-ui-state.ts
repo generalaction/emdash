@@ -1,4 +1,4 @@
-import { computeCheckRunsSummary } from '@renderer/utils/github';
+import { computeCheckRunsSummary } from '@core/features/github/api/browser/checks';
 import type { PullRequest, PullRequestCheck } from '@root/src/core/services/pull-requests/api';
 
 export type MergeSeverity = 'success' | 'warning' | 'error' | 'neutral';

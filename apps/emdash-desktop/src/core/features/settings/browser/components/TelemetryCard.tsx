@@ -3,8 +3,8 @@ import { ArrowUpRight } from 'lucide-react';
 import React from 'react';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { PRODUCT_NAME } from '@core/primitives/app-identity/api/app-identity';
-import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import { useTelemetryConsent } from '@core/primitives/telemetry/browser/useTelemetryConsent';
 import { SettingRow } from './SettingRow';
 
 const TelemetryCard: React.FC = () => {

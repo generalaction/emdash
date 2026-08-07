@@ -1,11 +1,19 @@
 /**
- * Simple telemetry client for renderer process.
- * Captures events and sends them to the main process via IPC.
+ * Simple telemetry client for the browser side.
+ * Captures events and sends them to the main process over the wire.
  */
+import type { ContractClient } from '@emdash/wire/rpc';
 import type { TelemetryEvent, TelemetryProperties } from '@core/primitives/telemetry/api/telemetry';
+import { telemetryContract, telemetryDomain } from '@core/primitives/telemetry/api/wire-contract';
 import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
-import { getDesktopWireClient } from '../lib/runtime/desktop-wire-client';
+import { domainClient } from '@core/primitives/wire/browser/connection';
 import { getTelemetryScope } from './telemetry-scope';
+
+export type TelemetryClient = ContractClient<typeof telemetryContract>;
+
+export function getTelemetryClient(): Promise<TelemetryClient> {
+  return domainClient<TelemetryClient>(telemetryDomain, telemetryContract);
+}
 
 let cachedSessionId: string | null | undefined;
 let pendingSessionIdPromise: Promise<string | null> | null = null;
@@ -14,8 +22,8 @@ async function getSessionId(): Promise<string | null> {
   if (cachedSessionId !== undefined) return cachedSessionId;
   if (pendingSessionIdPromise) return pendingSessionIdPromise;
 
-  pendingSessionIdPromise = getDesktopWireClient()
-    .then((client) => client.telemetry.getStatus())
+  pendingSessionIdPromise = getTelemetryClient()
+    .then((client) => client.getStatus())
     .then((result) => {
       cachedSessionId = result.status?.session_id ?? null;
       return cachedSessionId;
@@ -33,9 +41,9 @@ async function getSessionId(): Promise<string | null> {
 async function captureWithProps(event: TelemetryEvent, properties?: Record<string, unknown>) {
   const sessionId = await getSessionId();
 
-  void getDesktopWireClient()
+  void getTelemetryClient()
     .then((client) =>
-      client.telemetry.capture({
+      client.capture({
         event,
         properties: {
           ...(properties ?? {}),

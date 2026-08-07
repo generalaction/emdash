@@ -1,6 +1,6 @@
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { getDesktopWireClient } from '../lib/runtime/desktop-wire-client';
-import { captureTelemetry } from './telemetryClient';
 
 /** Matches the main-process vitals cadence: 12 reports/hour. */
 export const RENDERER_PERF_VITALS_INTERVAL_MS = 5 * 60_000;

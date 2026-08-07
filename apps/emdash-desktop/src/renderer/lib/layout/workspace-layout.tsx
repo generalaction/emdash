@@ -1,6 +1,6 @@
 import { Resizable, useResizableDefaultLayout } from '@emdash/ui/react/primitives';
 import { type ReactNode } from 'react';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
 
 const LEFT_PANEL_DEFAULT_SIZE = '20%';
 const LEFT_SIDEBAR_MIN_SIZE = '200px';

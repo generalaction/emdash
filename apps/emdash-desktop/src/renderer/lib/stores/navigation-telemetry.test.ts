@@ -9,7 +9,7 @@ import type {
 
 const captureTelemetry = vi.hoisted(() => vi.fn());
 
-vi.mock('@renderer/utils/telemetryClient', () => ({
+vi.mock('@core/primitives/telemetry/browser/telemetry-client', () => ({
   captureTelemetry,
 }));
 

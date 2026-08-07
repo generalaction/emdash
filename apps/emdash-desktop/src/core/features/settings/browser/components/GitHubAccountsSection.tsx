@@ -1,5 +1,10 @@
 import { Button, Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
+import {
+  useGitHubAccounts,
+  useRemoveGitHubAccount,
+  useSetDefaultGitHubAccount,
+} from '@core/features/github/api/browser/useGithubAccounts';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import {
   GitHubCredentialSourceBadge,
@@ -8,11 +13,6 @@ import {
 import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { GitHubAccountSummary } from '@core/primitives/github/api';
-import {
-  useGitHubAccounts,
-  useRemoveGitHubAccount,
-  useSetDefaultGitHubAccount,
-} from '@renderer/lib/hooks/useGithubAccounts';
 
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();

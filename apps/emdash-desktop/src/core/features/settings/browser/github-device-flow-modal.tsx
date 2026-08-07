@@ -2,13 +2,13 @@ import { Button, Dialog, useToast } from '@emdash/ui/react/primitives';
 import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getGithubClient } from '@core/features/github/api/browser/client';
+import { useGithubContext } from '@core/features/github/api/browser/github-context-provider';
 import { openExternal } from '@core/features/workbench/api/browser/host-client';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import type { GitHubUser } from '@core/primitives/github/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { defineModal } from '@core/primitives/modals/react';
 import { EMDASH_ISSUES_URL } from '@core/primitives/urls/api/urls';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 
 export type GithubDeviceFlowModalArgs = {
   onError?: (error: string) => void;

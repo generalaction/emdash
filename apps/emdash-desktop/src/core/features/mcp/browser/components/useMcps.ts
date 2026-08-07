@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { useAgentInstallationStatuses } from '@core/features/agents/api/browser/use-agent-installation-statuses';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import { getCatalogClient } from '@core/features/catalog/api/browser/client';
 import { getMcpClient } from '@core/features/mcp/api/browser/client';
-import { getCatalogRuntimeClient } from '@renderer/lib/catalog/runtime-client';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
 import { useInstalledMcpServersLiveModel } from '../live-model-hooks';
 
 const MCP_CATALOG_QUERY_KEY = ['mcp', 'catalog'] as const;
@@ -32,7 +32,7 @@ export function useMcps(host: HostRef = LOCAL_HOST_REF) {
   } = useQuery({
     queryKey: MCP_CATALOG_QUERY_KEY,
     queryFn: async () => {
-      const client = await getCatalogRuntimeClient();
+      const client = await getCatalogClient();
       const result = await client.getMcpCatalog(undefined);
       if (result.success) return result.data;
       throw new Error(result.error.message);

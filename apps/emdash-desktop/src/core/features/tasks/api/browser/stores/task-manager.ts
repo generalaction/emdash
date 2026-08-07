@@ -25,6 +25,7 @@ import { getWorkspacesWireClient } from '@core/features/workspaces/api/browser/c
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
+import { reconcileKeyedEntities } from '@core/primitives/reconcile/browser/keyed-entity-reconciler';
 import type { ScopedStoreLookup } from '@core/primitives/scoped-stores/browser';
 import {
   isProvisioned,
@@ -45,8 +46,7 @@ import type {
   TaskRow,
   TaskStatsData,
 } from '@core/primitives/tasks/api';
-import { reconcileKeyedEntities } from '@renderer/lib/state/keyed-entity-reconciler';
-import { observeReadableInAction } from '@renderer/lib/state/mobx-readable';
+import { observeReadableInAction } from '@core/primitives/wire/browser/mobx-readable';
 import { getTasksWireClient } from '../client';
 
 type TaskMutationInvocation<Data, Error> = {

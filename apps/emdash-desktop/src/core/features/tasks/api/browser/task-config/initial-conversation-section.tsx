@@ -30,8 +30,8 @@ import {
   parseIssueMentionToken,
 } from '@core/primitives/issues/api';
 import type { LinkedIssue } from '@core/primitives/linked-issues/api';
+import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { buildIssueContextText } from '../../../browser/context-bar/context-actions';
 import { appendInitialConversationText } from '../../../browser/create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../../../browser/create-task-modal/use-prompt-file-drop';

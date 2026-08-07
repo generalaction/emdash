@@ -9,18 +9,18 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useState } from 'react';
-import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
-import { defineModal } from '@core/primitives/modals/react';
-import { cn } from '@core/primitives/styling/browser/cn';
 import {
   useAccountLinkProvider,
   useAccountSession,
   useAccountSignIn,
-} from '@renderer/lib/hooks/useAccount';
+} from '@core/features/account/api/browser/useAccount';
 import {
   useGitHubDeviceFlowAuth,
   useImportGitHubCliAccounts,
-} from '@renderer/lib/hooks/useGithubAccounts';
+} from '@core/features/github/api/browser/useGithubAccounts';
+import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import { defineModal } from '@core/primitives/modals/react';
+import { cn } from '@core/primitives/styling/browser/cn';
 
 type MethodError = {
   method: 'oauth' | 'cli' | 'device_flow';

@@ -1,4 +1,7 @@
-import type { ChatView, ChatViewCommandId } from '@renderer/lib/chat/chat-transcript';
+import type {
+  ChatView,
+  ChatViewCommandId,
+} from '@core/features/conversations/api/browser/chat/chat-transcript';
 
 type ChatShortcutEvent = Pick<
   KeyboardEvent,

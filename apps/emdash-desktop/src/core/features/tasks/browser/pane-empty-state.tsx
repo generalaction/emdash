@@ -3,11 +3,11 @@ import type { ReactNode } from 'react';
 import { useTaskViewContext } from '@core/features/tasks/api/browser/task-state/task-view-context';
 import { useWorkspaceId } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { EmdashLogo } from '@core/primitives/app-identity/browser/emdash-logo';
 import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
+import { useArrowKeyNavigation } from '@core/primitives/react-hooks/browser/use-arrow-key-navigation';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { EmdashLogo } from '@renderer/lib/emdash-logo';
-import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 
 export function PaneEmptyState() {
   const { projectId, taskId } = useTaskViewContext();

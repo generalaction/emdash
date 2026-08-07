@@ -1,5 +1,5 @@
 import type { Monaco } from '@monaco-editor/react';
-import { cssColorToHex } from '@renderer/utils/cssVars';
+import { cssColorToHex } from '@core/primitives/styling/browser/cssVars';
 
 type MonacoColors = Record<string, string>;
 

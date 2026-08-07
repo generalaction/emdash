@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getTelemetryClient } from './telemetry-client';
 
 type TelemetryState = {
   prefEnabled: boolean;
@@ -43,7 +43,7 @@ export function useTelemetryConsent() {
   const refresh = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true }));
     try {
-      applyStatus(await (await getDesktopWireClient()).telemetry.getStatus());
+      applyStatus(await (await getTelemetryClient()).getStatus());
     } catch {
       setState((prev) => ({ ...prev, loading: false }));
     }
@@ -53,7 +53,7 @@ export function useTelemetryConsent() {
     async (enabled: boolean) => {
       setState((prev) => ({ ...prev, prefEnabled: enabled, loading: true }));
       try {
-        await (await getDesktopWireClient()).telemetry.setEnabled({ enabled });
+        await (await getTelemetryClient()).setEnabled({ enabled });
       } catch {
         // ignore, refresh will reconcile
       }
@@ -64,8 +64,8 @@ export function useTelemetryConsent() {
 
   useEffect(() => {
     let cancelled = false;
-    getDesktopWireClient()
-      .then((client) => client.telemetry.getStatus())
+    getTelemetryClient()
+      .then((client) => client.getStatus())
       .then((res) => {
         if (!cancelled) applyStatus(res);
       })

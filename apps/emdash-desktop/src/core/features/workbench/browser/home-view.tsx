@@ -4,12 +4,12 @@ import { motion } from 'motion/react';
 import { Fragment } from 'react';
 import { homeViewDef } from '@core/features/workbench/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { EmdashShimmerLogo } from '@core/primitives/app-identity/browser/emdash-shimmer-logo';
 import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
+import { useArrowKeyNavigation } from '@core/primitives/react-hooks/browser/use-arrow-key-navigation';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { useTheme } from '@core/primitives/theme/browser';
 import { defineViewRuntime } from '@core/primitives/views/react';
-import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
-import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 
 const PROJECT_ACTIONS = [
   {

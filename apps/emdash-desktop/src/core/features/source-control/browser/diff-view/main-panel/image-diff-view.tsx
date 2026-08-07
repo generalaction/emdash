@@ -11,9 +11,9 @@ import {
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import { HEAD_REF, type GitRef } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
-import { formatBytes } from '@renderer/utils/formatBytes';
 
 interface ImageDiffViewProps {
   projectId: string;

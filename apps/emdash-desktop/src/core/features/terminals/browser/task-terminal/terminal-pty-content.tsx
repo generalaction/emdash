@@ -7,11 +7,11 @@ import { type PtySession } from '@core/features/terminals/api/browser/pty/pty-se
 import { TerminalSearchOverlay } from '@core/features/terminals/api/browser/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@core/features/terminals/api/browser/pty/use-terminal-search';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { cssVar } from '@core/primitives/styling/browser/cssVars';
 import {
   createPaneDimensionSink,
   PaneDimensionProvider,
 } from '@core/primitives/workbench-shell/browser/tabs/pane-dimension-provider';
-import { cssVar } from '@renderer/utils/cssVars';
 
 export interface TerminalPtyContentProps {
   activeSession: PtySession | null;

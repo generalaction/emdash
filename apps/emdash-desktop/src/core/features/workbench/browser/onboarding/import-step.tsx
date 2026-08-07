@@ -1,13 +1,13 @@
 import { Button } from '@emdash/ui/react/primitives';
 import { useMemo, useState } from 'react';
-import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
-import { cn } from '@core/primitives/styling/browser/cn';
-import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,
   useLegacyPortPreview,
   useLegacyPortStartFresh,
-} from '@renderer/lib/hooks/useLegacyPort';
+} from '@core/features/legacy-port/api/browser/useLegacyPort';
+import type { LegacyImportSource } from '@core/primitives/legacy-port/api/legacy-port';
+import { useImportProgress } from '@core/primitives/react-hooks/browser/useImportProgress';
+import { cn } from '@core/primitives/styling/browser/cn';
 import { ImportHeader } from './components/import-header';
 import { ImportProgress } from './components/import-progress';
 import { ImportSourceSelector } from './components/import-source-selector';

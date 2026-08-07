@@ -6,9 +6,9 @@ import {
 } from '@core/features/terminals/api/browser/pty/file-link-provider';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
 import { copyTextToClipboard } from '@core/features/workbench/api/browser/host-client';
+import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { log } from '@core/primitives/logging/browser/logger';
-import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
-import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
+import { cssColorToHex, cssVar } from '@core/primitives/styling/browser/cssVars';
 import { decodeOsc52ClipboardData } from '../../../browser/pty/pty-clipboard';
 import { ensureXtermHost } from '../../../browser/pty/xterm-host';
 

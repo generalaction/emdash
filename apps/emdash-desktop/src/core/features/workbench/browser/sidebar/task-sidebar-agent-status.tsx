@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
 import { type TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
-import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
 import { getSortInstant, sortKindFor } from './sidebar-store';
 
 /**

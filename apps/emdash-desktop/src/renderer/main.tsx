@@ -6,10 +6,12 @@ import {
   pinTopMode,
 } from '@emdash/chat-ui';
 import ReactDOM from 'react-dom/client';
+import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { configureDevPerfClient } from '@core/features/dev-perf/api/browser/client';
 import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { initSoundPlayer, soundPlayer } from '@core/features/settings/browser/sound-player';
 import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { workbenchSidebarMemento } from '@core/features/workbench/contributions/mementos';
 import { appStoreContributions } from '@core/manifests/browser/app-scoped-stores';
@@ -19,33 +21,30 @@ import { mementoCatalog } from '@core/manifests/shared/memento-catalog';
 import { log } from '@core/primitives/logging/browser/logger';
 import { getMementosWireClient } from '@core/primitives/mementos/api/client';
 import { configureMementos, initMementos } from '@core/primitives/mementos/browser';
-import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
-import {
-  workbenchHistoryMemento,
-  workbenchNavigationMemento,
-} from '@core/primitives/navigation/api/mementos';
 import '@fontsource-variable/inter/index.css';
 import '@emdash/ui/style.css';
 import '@emdash/chat-ui/style.css';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
+import { MementoClientProvider, SubjectProvider } from '@core/primitives/mementos/react';
+import {
+  workbenchHistoryMemento,
+  workbenchNavigationMemento,
+} from '@core/primitives/navigation/api/mementos';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import { createAppScope } from '@core/primitives/scoped-stores/browser';
 import { appSubject } from '@core/primitives/subjects/api';
 import { assertViewRuntimesComplete, registerViewRuntime } from '@core/primitives/views/react';
 import { ErrorBoundary } from '@renderer/error-boundary';
-import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { seedDesktopWire } from '@renderer/lib/runtime/seed-desktop-wire';
 import { seedRendererNavigationHost } from '@renderer/lib/runtime/seed-navigation-host';
 import { initRendererPerfVitals } from '@renderer/utils/perf-vitals';
-import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { initNotificationDeliveryListener } from '@root/src/core/services/notifications/browser';
 import { App } from './App';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
-import { updateAppStoreContributions } from './lib/stores/update-store-contribution';
 
 async function bootstrap() {
   // Core owns wire access through the seeded-connection seam; seed it before
@@ -66,11 +65,10 @@ async function bootstrap() {
   wireExternalLinkRequests();
 
   // Builds and activates all app-scoped stores (projects, machines, sidebar,
-  // updates) before React mounts. The update contribution is renderer-side
-  // because UpdateStore depends on renderer-only modules.
-  createAppScope([...appStoreContributions, ...updateAppStoreContributions]);
+  // updates) before React mounts.
+  createAppScope([...appStoreContributions]);
   initSoundPlayer();
-  initNotificationDeliveryListener();
+  initNotificationDeliveryListener((sound, dedupeKey) => soundPlayer.play(sound, dedupeKey));
   initRendererPerfVitals();
   configureDevPerfClient(async () => (await getDesktopWireClient()).devPerf);
 

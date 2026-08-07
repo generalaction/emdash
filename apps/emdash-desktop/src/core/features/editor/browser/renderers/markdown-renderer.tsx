@@ -12,8 +12,8 @@ import {
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
+import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 
 interface MarkdownEditorRendererProps {
   tab: FileTabResource;

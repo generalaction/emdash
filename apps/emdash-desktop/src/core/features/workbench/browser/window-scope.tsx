@@ -2,6 +2,7 @@ import { toast } from '@emdash/ui/react/primitives';
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { captureDevPerfTrace } from '@core/features/dev-perf/api/browser/capture-trace';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import { toggleAppTheme } from '@core/features/settings/api/browser/theme-toggle';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { applyHistoryEntry } from '@core/features/workbench/api/browser/nav-buttons';
@@ -9,18 +10,17 @@ import { getTaskComposition } from '@core/features/workbench/api/browser/task-co
 import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
+import { useWorkspaceLayoutContext } from '@core/primitives/layouts/react/layout-provider';
 import {
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
 import { getNavigationHistory } from '@core/primitives/navigation/browser/navigation-selectors';
+import { toggleSettingsView } from '@core/primitives/navigation/browser/settings-toggle';
+import { openInCommandRegistry } from '@core/primitives/open-in-apps/browser/open-in-command-registry';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
-import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
 
 export function WindowScope({ children }: { readonly children: ReactNode }) {
   const { currentView } = useWorkspaceSlots();

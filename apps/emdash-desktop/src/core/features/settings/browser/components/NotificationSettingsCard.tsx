@@ -3,10 +3,10 @@ import { Button, Select, SeparatedList, Switch, Tooltip } from '@emdash/ui/react
 import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { configureSoundPlayer, soundPlayer } from '@core/features/settings/browser/sound-player';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import type { NotificationSettings } from '@core/primitives/app-settings/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

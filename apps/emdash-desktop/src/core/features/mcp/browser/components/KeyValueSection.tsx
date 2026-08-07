@@ -1,7 +1,10 @@
 import { Button, Field, Input } from '@emdash/ui/react/primitives';
 import { X } from 'lucide-react';
 import React from 'react';
-import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
+import {
+  parseEnvAssignmentPaste,
+  replaceEnvEntryWithPaste,
+} from '@core/primitives/env-paste/browser/env-paste';
 
 export interface KVEntry {
   id: number;

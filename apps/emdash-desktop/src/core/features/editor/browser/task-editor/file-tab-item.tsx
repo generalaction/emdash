@@ -4,6 +4,7 @@ import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-m
 import { FileIcon } from '@core/features/editor/api/browser/renderers/file-icon';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
 import type {
   TabBarItemProps,
   ResolvedTab,
@@ -12,7 +13,6 @@ import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
-import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { isFileTabLoading } from './file-tab-loading';
 
 function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {

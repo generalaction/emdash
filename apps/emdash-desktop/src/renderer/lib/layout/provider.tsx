@@ -5,9 +5,12 @@ import { viewCatalog } from '@core/manifests/browser/view-catalog';
 import { getNavigation } from '@core/primitives/navigation/browser/navigation-selectors';
 import type { FocusView } from '@core/primitives/telemetry/api/telemetry';
 import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
+import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import {
+  clearTelemetryTaskScope,
+  setTelemetryTaskScope,
+} from '@core/primitives/telemetry/browser/telemetry-scope';
 import type { ViewRef } from '@core/primitives/views/api';
-import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/telemetry-scope';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
 function syncTelemetryScope(ref: ViewRef): void {
   if (ref.viewId !== 'task') {

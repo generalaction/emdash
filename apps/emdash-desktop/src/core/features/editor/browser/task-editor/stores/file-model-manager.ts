@@ -8,8 +8,8 @@ import {
   isMonacoBackedKind,
 } from '@core/features/editor/api/browser/renderers/fileKind';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { getMonacoLanguageId } from '@core/features/editor/browser/diffUtils';
 import { HEAD_REF } from '@core/primitives/git/api';
-import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 
 /**
  * Context needed to register Monaco models for a file.

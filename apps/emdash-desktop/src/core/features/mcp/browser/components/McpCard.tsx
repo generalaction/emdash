@@ -6,7 +6,7 @@ import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
-import { McpServerIcon } from '@renderer/utils/mcpIcons';
+import { McpServerIcon } from '@core/features/mcp/browser/mcpIcons';
 
 interface McpCardProps {
   server?: McpServer;

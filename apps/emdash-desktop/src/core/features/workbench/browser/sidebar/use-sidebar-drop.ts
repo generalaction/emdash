@@ -3,10 +3,13 @@ import { useCallback, useRef, useState } from 'react';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
+import {
+  getDraggedFilePaths,
+  hasDraggedFiles,
+} from '@core/primitives/drag-files/browser/drag-files';
 import { log } from '@core/primitives/logging/browser/logger';
 import { useNavigate } from '@core/primitives/navigation/browser/navigation-hooks';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
-import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 
 export function useSidebarDrop() {
   const [isDragOver, setIsDragOver] = useState(false);

@@ -7,12 +7,12 @@ import type {
   GitHubUser,
 } from '@core/primitives/github/api';
 import { log } from '@core/primitives/logging/browser/logger';
-import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
+import { getGithubClient } from './client';
 import {
   GITHUB_ACCOUNTS_QUERY_KEY,
   GITHUB_ACCOUNT_STATE_QUERY_KEY,
   ISSUE_CONNECTION_STATUS_QUERY_KEY,
-} from '../hooks/useGithubAccounts';
+} from './useGithubAccounts';
 
 type GithubContextValue = {
   user: GitHubUser | null;
@@ -40,7 +40,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const { data: accountState } = useQuery<GitHubAccountState>({
     queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY,
-    queryFn: async () => (await getDesktopWireClient()).github.getAccountState(undefined),
+    queryFn: async () => (await getGithubClient()).getAccountState(undefined),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -60,7 +60,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     () =>
       queryClient.fetchQuery<GitHubAccountState>({
         queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY,
-        queryFn: async () => (await getDesktopWireClient()).github.getAccountState(undefined),
+        queryFn: async () => (await getGithubClient()).getAccountState(undefined),
         staleTime: 0,
       }),
     [queryClient]
@@ -89,8 +89,8 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void getDesktopWireClient().then(async (client) => {
-      const nextUnsubscribe = await client.github.events.subscribe(undefined, {
+    void getGithubClient().then(async (client) => {
+      const nextUnsubscribe = await client.events.subscribe(undefined, {
         onEvent: (event) => {
           if (event.type === 'auth-success') {
             void handleDeviceFlowSuccess(event.user);
@@ -113,7 +113,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   }, [handleDeviceFlowSuccess, handleDeviceFlowError, invalidateGitHubState]);
 
   const cancelGithubConnect = useCallback(() => {
-    void getDesktopWireClient().then((client) => client.github.authCancel(undefined));
+    void getGithubClient().then((client) => client.authCancel(undefined));
     toast('GitHub connection unsuccessful', { description: 'Device flow was canceled' });
   }, [toast]);
 
@@ -122,7 +122,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     cancelGithubConnect,
   };
 
-  return <GithubContext.Provider value={value}>{children}</GithubContext.Provider>;
+  return React.createElement(GithubContext.Provider, { value }, children);
 }
 
 export function useGithubContext() {

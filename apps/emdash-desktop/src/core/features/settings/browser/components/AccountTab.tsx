@@ -1,13 +1,13 @@
 import { Button, useToast } from '@emdash/ui/react/primitives';
 import { Loader2, LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
-import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
   useAccountHealth,
   useAccountSession,
   useAccountSignIn,
   useAccountSignOut,
-} from '@renderer/lib/hooks/useAccount';
+} from '@core/features/account/api/browser/useAccount';
+import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
 
 export function AccountTab() {

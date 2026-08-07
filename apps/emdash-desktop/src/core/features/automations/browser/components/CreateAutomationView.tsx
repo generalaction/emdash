@@ -14,7 +14,7 @@ import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
 import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
-import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
+import { useLocalStorage } from '@core/primitives/react-hooks/browser/useLocalStorage';
 import { formatAutomationError } from '../automation-run-format';
 import type { BuiltinAutomationTemplate } from '../automation-template';
 import { emptyStateAutomationTemplates } from '../builtin-catalog';

@@ -20,7 +20,7 @@ vi.mock('@core/features/editor/api/browser/monaco/monaco-model-registry', () => 
   },
 }));
 
-vi.mock('@renderer/utils/telemetry-scope', () => ({
+vi.mock('@core/primitives/telemetry/browser/telemetry-scope', () => ({
   setTelemetryConversationScope: vi.fn(),
 }));
 

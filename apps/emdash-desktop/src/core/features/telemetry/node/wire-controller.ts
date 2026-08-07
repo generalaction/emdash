@@ -1,6 +1,6 @@
 import { createController, type Controller } from '@emdash/wire/rpc';
 import type { TelemetryEvent, TelemetryService } from '@core/primitives/telemetry/api/telemetry';
-import { telemetryContract } from '../api';
+import { telemetryContract } from '@core/primitives/telemetry/api/wire-contract';
 
 export function createTelemetryWireController(telemetry: TelemetryService): Controller {
   return createController(telemetryContract, {

@@ -1,12 +1,12 @@
 import { Sheet, Tooltip } from '@emdash/ui/react/primitives';
 import React, { useMemo, useState } from 'react';
+import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
 import { isIssueIntegration } from '@core/features/integrations/api/browser/integration-display';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
 import { sortGitHubAccountsByDefault } from '@core/features/projects/api/browser/components/github-account-select-model';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { AgentIconAsset } from '@core/primitives/agents/api';
 import type { ConnectionStatus, IssueProviderType } from '@core/primitives/issue-providers/api';
-import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { IntegrationDetailSidebar } from './IntegrationDetailSidebar';
 import { IntegrationGridCard } from './IntegrationGridCard';
 

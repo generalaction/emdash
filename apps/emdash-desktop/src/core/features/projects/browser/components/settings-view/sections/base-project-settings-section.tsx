@@ -2,6 +2,7 @@ import type { GitBranchRef, GitRemote } from '@emdash/core/runtimes/git/api';
 import { Button, Field, Input, Select, Separator, Switch } from '@emdash/ui/react/primitives';
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useGitHubAccounts } from '@core/features/github/api/browser/useGithubAccounts';
 import {
   GitHubAccountSelectItem,
   GitHubAccountSelectLabel,
@@ -14,7 +15,6 @@ import {
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import type { Project } from '@core/primitives/projects/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
   createProjectGitHubAccountSelectState,

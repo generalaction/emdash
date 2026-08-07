@@ -16,6 +16,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon } from '@core/features/agents/api/browser/components/agent-icon';
 import { useAgents } from '@core/features/agents/api/browser/use-agents';
+import {
+  issueMentionToken,
+  parseIssueMentionToken,
+} from '@core/features/conversations/api/browser/chat/chat-mention-provider';
+import { ChatTranscript } from '@core/features/conversations/api/browser/chat/chat-transcript';
+import type {
+  ChatCommands,
+  ChatView,
+} from '@core/features/conversations/api/browser/chat/chat-transcript';
 import { conversationRegistry } from '@core/features/conversations/api/browser/stores/conversation-registry';
 // TODO(conversations-extraction): Inject task editor/file-opening behavior into ACP chat.
 import {
@@ -48,12 +57,6 @@ import { openModal } from '@core/manifests/browser/modal-api';
 import { linkedIssueMentionName, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
-import {
-  issueMentionToken,
-  parseIssueMentionToken,
-} from '@renderer/lib/chat/chat-mention-provider';
-import { ChatTranscript } from '@renderer/lib/chat/chat-transcript';
-import type { ChatCommands, ChatView } from '@renderer/lib/chat/chat-transcript';
 import type { AcpChatStore, AcpPromptAttachment } from './acp-chat-store';
 import type { AcpChatTabResource } from './acp-chat-tab-resource';
 import { chatViewCommandForShortcut, executeChatViewCommand } from './acp-chat-view-commands';

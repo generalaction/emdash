@@ -1,5 +1,5 @@
 import React from 'react';
-import mcpDefaultSvg from '../../assets/images/mcp/mcp_default.svg?raw';
+import mcpDefaultSvg from '@/assets/images/mcp/mcp_default.svg?raw';
 import { coerceRawSvgContent, prepareInlineSvgMarkup } from './mcp-icon-data';
 
 const svgs = import.meta.glob('../../assets/images/mcp/*.svg', { query: '?raw', eager: true });

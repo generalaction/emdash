@@ -18,10 +18,10 @@ import {
   measureTerminalCell,
 } from '@core/features/terminals/api/browser/pty/pty-dimensions';
 import { buildTerminalFontFamily } from '@core/features/terminals/api/browser/pty/terminal-font';
+import { confirmOpenExternalLink } from '@core/features/workbench/api/browser/open-external-link';
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { defineModal } from '@core/primitives/modals/react';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@core/primitives/terminals/api';
-import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 
 export type AgentSignInModalArgs = {
   providerId: string;
