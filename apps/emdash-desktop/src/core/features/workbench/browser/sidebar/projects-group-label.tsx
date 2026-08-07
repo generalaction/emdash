@@ -2,7 +2,7 @@ import { Button, DropdownMenu, MicroLabel, Tooltip } from '@emdash/ui/react/prim
 import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {

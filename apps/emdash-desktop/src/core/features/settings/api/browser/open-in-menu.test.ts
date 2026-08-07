@@ -110,7 +110,7 @@ vi.mock('@core/primitives/ui/browser/select', async () => {
   };
 });
 
-vi.mock('@core/primitives/ui/browser/shortcut', async () => {
+vi.mock('@core/primitives/keybindings/browser/shortcut', async () => {
   const React = await import('react');
   return {
     BoundShortcut: () => React.createElement('span', {}),

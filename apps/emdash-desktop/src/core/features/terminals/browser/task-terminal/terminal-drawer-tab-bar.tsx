@@ -8,6 +8,7 @@ import { Button, DropdownMenu, Tabs, Tooltip } from '@emdash/ui/react/primitives
 import { ChevronDown, LoaderCircle, Pause, Play, Plus, RefreshCw, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { TerminalShellOptionLabel } from '@core/features/terminals/api/browser/components/terminal-shell-option-label';
 import {
   TERMINAL_DRAWER_DRAG_TYPE,
   type TerminalDrawerDragData,
@@ -17,9 +18,8 @@ import {
   type LifecycleScriptStatus,
   type LifecycleScriptsStore,
 } from '@core/features/workspaces/api/browser/lifecycle-scripts';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { TerminalShellOptionLabel } from '@core/primitives/ui/browser/components/terminal-shell-option-label';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 
 export type TerminalDrawerMode = 'terminals' | 'scripts';
 

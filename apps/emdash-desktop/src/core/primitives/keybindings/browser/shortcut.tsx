@@ -3,8 +3,9 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useState } from 'react';
 import type { CommandDef } from '@core/primitives/commands/api';
 import { chord, detectPlatformContext, type Chord } from '@core/primitives/keybindings/api';
-import { keyboardLayoutService, keybindingService } from '@core/primitives/keybindings/browser';
 import { cn } from '@core/primitives/styling/browser/cn';
+import { keybindingService } from './keybinding-service';
+import { keyboardLayoutService } from './keyboard-layout-service';
 
 type ShortcutVariant = 'text' | 'badge' | 'keycaps';
 

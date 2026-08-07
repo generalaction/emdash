@@ -7,7 +7,7 @@ import {
   useSearchFocusHotkeys,
   type UseSearchFocusHotkeysOptions,
 } from '@core/primitives/keybindings/browser';
-import { Shortcut } from '@core/primitives/ui/browser/shortcut';
+import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 
 const PLATFORM = detectPlatformContext().os;
 

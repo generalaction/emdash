@@ -1,7 +1,7 @@
 import { ContextMenu } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
-import { BoundShortcut, Shortcut } from '@core/primitives/ui/browser/shortcut';
+import { BoundShortcut, Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import type { TabHost } from '@core/primitives/workbench-shell/browser/tabs/core/tab-host';
 import type {
   ResolvedTab,

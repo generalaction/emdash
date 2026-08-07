@@ -14,8 +14,8 @@ import { TaskConfigPanel } from '@core/features/tasks/api/browser/task-config/ta
 import { TaskStateProvider } from '@core/features/tasks/api/browser/task-config/task-state-context';
 import { WorkspaceSettingsSection } from '@core/features/tasks/api/browser/task-config/workspace-settings-section';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,

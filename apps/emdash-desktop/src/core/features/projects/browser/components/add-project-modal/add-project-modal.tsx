@@ -17,10 +17,10 @@ import type {
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { basenameFromAnyPath } from '@core/primitives/path-name/api';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,

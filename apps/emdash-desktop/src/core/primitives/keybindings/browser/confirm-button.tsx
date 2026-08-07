@@ -1,7 +1,7 @@
 import { Button, type ButtonProps } from '@emdash/ui/react/primitives';
 import { useRef } from 'react';
-import { useConfirm } from '@core/primitives/keybindings/browser';
 import { BoundShortcut } from './shortcut';
+import { useConfirm } from './use-confirm';
 
 export function ConfirmButton({ disabled, children, ...props }: ButtonProps) {
   const ref = useRef<HTMLButtonElement>(null);

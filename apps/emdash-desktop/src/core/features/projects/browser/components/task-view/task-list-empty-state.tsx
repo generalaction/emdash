@@ -5,9 +5,9 @@ import { useConnectedIssueProviders } from '@core/features/integrations/api/brow
 import { settingsViewDef } from '@core/features/settings/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { isGitHubDotComHost } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 

@@ -2,7 +2,7 @@ import { Button, useToast } from '@emdash/ui/react/primitives';
 import { Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useIntegrationsContext } from '@core/features/integrations/api/browser/integrations-provider';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { DialogContentArea, DialogFooter } from '@core/primitives/ui/browser/dialog';
 import type { IntegrationFormInput } from './types';
 

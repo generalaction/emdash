@@ -7,7 +7,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
 export const TabBarActions = observer(function TabBarActions() {

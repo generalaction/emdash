@@ -5,7 +5,7 @@ import { Button } from '@emdash/ui/react/primitives';
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import {
   Dialog,
   DialogContent,

@@ -13,6 +13,7 @@ import { getTaskManagerStore } from '@core/features/tasks/api/browser/task-state
 import { taskListScope } from '@core/features/tasks/contributions/scopes';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { useSearchFocusHotkeys } from '@core/primitives/keybindings/browser';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
 import {
   Select,
@@ -21,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@core/primitives/ui/browser/select';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { disabled, enabled, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { selectCurrentPr } from '@core/services/pull-requests/api/repository';

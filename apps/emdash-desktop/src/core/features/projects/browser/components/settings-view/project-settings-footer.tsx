@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { Check, Loader2, Undo2 } from 'lucide-react';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 
 export type ProjectSettingsSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 

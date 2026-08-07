@@ -18,7 +18,7 @@ import {
   keybindingService,
   useChordRecorder,
 } from '@core/primitives/keybindings/browser';
-import { Shortcut } from '@core/primitives/ui/browser/shortcut';
+import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 
 const groupsByCommandId = new Map<string, string[]>();
 for (const scope of SCOPE_CATALOG) {

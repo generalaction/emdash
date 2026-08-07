@@ -3,18 +3,18 @@ import { Combobox, Separator, SplitButton } from '@emdash/ui/react/primitives';
 import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
+import { BranchDisplay } from '@core/features/source-control/api/browser/components/branch-display';
 import { ProjectBranchSelector } from '@core/features/source-control/api/browser/components/project-branch-selector';
+import { RemoteSelectContent } from '@core/features/source-control/api/browser/components/remote-select-content';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { formatPushErrorDetail } from '@core/features/source-control/api/git-error-messages';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { parseRepositoryRef } from '@core/primitives/repository/api';
 import { Alert, AlertDescription, AlertTitle } from '@core/primitives/ui/browser/alert';
-import { BranchDisplay } from '@core/primitives/ui/browser/components/branch-display';
-import { RemoteSelectContent } from '@core/primitives/ui/browser/components/remote-select-content';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,

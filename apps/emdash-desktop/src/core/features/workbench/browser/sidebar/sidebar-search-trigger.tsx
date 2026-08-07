@@ -4,7 +4,7 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { SidebarMenuButton } from './sidebar-primitives';
 

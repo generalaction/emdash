@@ -4,9 +4,9 @@ import { Button, Label } from '@emdash/ui/react/primitives';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { useModalController } from '@core/manifests/browser/modal-api';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import { useCloseGuard } from '@core/primitives/modals/react/use-close-guard';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,

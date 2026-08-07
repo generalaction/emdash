@@ -13,7 +13,7 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { lifecycleScriptsStoreToken } from '@core/features/workspaces/contributions/browser/workspace-stores';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { useTerminalShellAvailability } from '@renderer/lib/hooks/use-terminal-shell-availability';
 import {

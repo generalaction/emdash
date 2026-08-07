@@ -10,9 +10,9 @@ import { useState } from 'react';
 import { deriveConnectionMachineStatusKind } from '@core/features/machines/api/browser/machine-status-kind';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { useModalController, useOpenModal } from '@core/manifests/browser/modal-api';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { defineModal } from '@core/primitives/modals/react';
 import type { SshConfig } from '@core/primitives/ssh/api';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
 import {
   DialogContentArea,
   DialogFooter,

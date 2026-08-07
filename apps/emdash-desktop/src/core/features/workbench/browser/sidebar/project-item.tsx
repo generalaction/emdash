@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
+import { ConnectionStatusDot } from '@core/features/machines/api/browser/components/connection-status-dot';
 import { useConfirmDeleteProject } from '@core/features/projects/api/browser/hooks/use-confirm-delete-project';
 import {
   isUnmountedProject,
@@ -26,10 +27,9 @@ import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import type { ConnectionState } from '@core/primitives/ssh/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import {
   useNavigate,
   useViewParams,

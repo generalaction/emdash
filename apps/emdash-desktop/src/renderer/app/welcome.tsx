@@ -7,8 +7,8 @@ import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-s
 import { confirmCommand } from '@core/features/workbench/contributions/commands';
 import { detectPlatformContext, resolveEffectiveChord } from '@core/primitives/keybindings/api';
 import { useChordKeydown } from '@core/primitives/keybindings/browser';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useTheme } from '@core/primitives/theme/browser';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 
 const SHORTCUT_PRESS_DURATION_MS = 120;
 

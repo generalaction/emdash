@@ -2,8 +2,8 @@ import { Combobox } from '@emdash/ui/react/primitives';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useChordKeydown } from '@core/primitives/keybindings/browser';
+import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { buildContextActionText, type ContextAction } from '../context-bar/context-actions';
 

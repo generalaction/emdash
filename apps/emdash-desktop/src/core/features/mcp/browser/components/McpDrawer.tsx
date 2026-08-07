@@ -7,7 +7,7 @@ import { Button, MicroLabel, Sheet } from '@emdash/ui/react/primitives';
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { Field, FieldGroup, FieldLabel } from '@core/primitives/ui/browser/field';
 import { Input } from '@core/primitives/ui/browser/input';
 import {

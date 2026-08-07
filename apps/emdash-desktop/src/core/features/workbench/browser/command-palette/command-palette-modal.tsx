@@ -13,12 +13,12 @@ import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/
 import { useModalController } from '@core/manifests/browser/modal-api';
 import { PALETTE_CATALOG } from '@core/manifests/shared/palette-catalog';
 import { keybindingService } from '@core/primitives/keybindings/browser';
+import { Shortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { defineModal } from '@core/primitives/modals/react';
 import type { PaletteItemDef } from '@core/primitives/palette/api';
 import { getPaletteRenderer } from '@core/primitives/palette/browser';
 import type { SearchItem } from '@core/primitives/search/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { Shortcut } from '@core/primitives/ui/browser/shortcut';
 import type { BoundCommand } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';

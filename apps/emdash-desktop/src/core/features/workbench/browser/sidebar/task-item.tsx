@@ -14,13 +14,13 @@ import { getTaskWorkspace } from '@core/features/workbench/api/browser/task-comp
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { PrBadge } from '@core/primitives/ui/browser/components/pr-badge';
 import {
   useNavigate,
   useViewParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
+import { PrBadge } from '@root/src/core/services/pull-requests/browser/components/pr-badge';
 import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {

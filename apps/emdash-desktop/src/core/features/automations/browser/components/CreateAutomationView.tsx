@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { Automation } from '@core/primitives/automations/api';
 import type { ConversationConfig } from '@core/primitives/automations/api';
 import { assertValidCronTrigger } from '@core/primitives/automations/api';
-import { ConfirmButton } from '@core/primitives/ui/browser/confirm-button';
+import { ConfirmButton } from '@core/primitives/keybindings/browser/confirm-button';
 import { EditableNameField } from '@core/primitives/ui/browser/editable-name-field';
 import { Field } from '@core/primitives/ui/browser/field';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
