@@ -10,22 +10,22 @@ A feature slice's `api/` directory is its contract with other slices, nothing mo
 - Cross-slice UI flows through the contributions registries (`contributions/browser.ts`,
   aggregated by `src/core/manifests/browser/browser-contributions.ts`), never through `api/`
 - React components never live under `api/`; they belong in `browser/`
-  (enforced by the `emdash/no-tsx-in-api` lint rule; existing offenders are ratcheted in
-  `tooling/oxlint/allowlists/api-surfaces.json`)
+  (enforced by the `emdash/no-tsx-in-api` lint rule; the shrink-only allowlist at repo-root
+  `tooling/oxlint/allowlists/api-surfaces.json` is empty and must stay that way)
 
 ## Modal System
 
 Modals are renderer-only feature contributions. They render as a stack, with only the top modal
 responding to outside presses and close commands.
 
-- `src/core/primitives/modals/react/` — modal definitions, catalog types, host context, and typed API
+- `src/core/primitives/modals/react/` — modal definitions, catalog types, host context, the modal
+  store (`modal-store.ts` — active modal state and promise outcomes), and the close-guard hook
+  (`use-close-guard.ts`)
 - `src/core/features/*/contributions/browser.ts` — feature-owned `modalDefs`
 - `src/core/manifests/browser/modal-catalog.ts` — application modal catalog
-- `src/renderer/lib/modal/api.ts` — catalog-bound `openModal`, `useOpenModal`, and
+- `src/core/manifests/browser/modal-api.ts` — catalog-bound `openModal`, `useOpenModal`, and
   `useModalController`
 - `src/renderer/lib/modal/modal-renderer.tsx` — resolves and renders the active catalog definition
-- `src/renderer/lib/modal/modal-store.ts` — active modal state and promise outcomes
-- `src/renderer/lib/modal/use-close-guard.ts` — close-guard hook
 
 **Adding a modal:**
 1. Create the component in its feature slice. Caller data is ordinary component props; completion
@@ -53,48 +53,66 @@ if (outcome.success) {
 
 ## View System
 
-Views use a registry + parameterized navigation pattern.
+Views use a contributions + catalog + parameterized navigation pattern.
 
-- `src/renderer/app/view-registry.ts` — view definitions (required `MainPanel`, optional
-  `WrapView` and `TitlebarSlot`) plus navigation guards (`setupNavigationGuards`)
-- `src/renderer/lib/layout/` — `provider.tsx`, `navigation-provider.tsx` (navigation and
-  param persistence), `layout-provider.tsx` (panel collapse/expand/drag state),
-  `panel-drag-store.ts`
+- `src/core/primitives/views/` — `defineView` (schema-backed view definitions with `params`,
+  `layout`, and optional `historyKey`) and the React runtime bindings (`registerViewRuntime`,
+  which binds slots such as `MainPanel`, `WrapView`, and `TitlebarSlot`)
+- `src/core/features/*/contributions/views.ts` — feature-owned view definitions
+- `src/core/manifests/browser/view-catalog.ts` — the aggregated application view catalog
+- `src/core/primitives/navigation/` — the navigation engine: `NavigationStore` and
+  `NavigationHistoryStore` (app-scoped), `getNavigation()` selectors, and React hooks
+  (`useNavigate`, `useViewParams`, `useCurrentViewParams`); the renderer bootstrap seeds the
+  catalog through `seedRendererNavigationHost()` before the app scope creates the stores
 
 **Key behaviors:**
-- `navigate(viewId, params?)` (from `useNavigate`) is type-safe; params are optional when all fields are optional
-- Params persist per-view (navigating away and back preserves params)
-- `updateViewParams(viewId, partial)` updates params without re-navigating
+- Calling a view definition is the only way to construct a `ViewRef`
+  (`taskViewDef({ projectId, taskId })`); the schema validates params at construction, and
+  `safeRef()` is the boundary for untrusted values
+- `navigate(ref)` (from `useNavigate`) takes a `ViewRef`; definitions whose params are all
+  optional can be called without an argument
+- Params persist per-view (`useViewParams(def)` returns the current or last-recorded params);
+  `useCurrentViewParams(def)` also returns `setParams` for updating the active view's params
 
 **Rules:**
-- Views are singletons — one per ViewId
-- Add new views to `src/renderer/app/view-registry.ts`
+- Views without a `historyKey` are singleton history places; `historyKey` splits history per
+  entity (for example per task)
+- Add new views through the owning slice's `contributions/views.ts` and register them in
+  `src/core/manifests/browser/view-catalog.ts`
 
-## PTY Frontend (`src/renderer/lib/pty/`)
+## PTY Frontend (`src/core/features/terminals/`)
 
-- `pty.ts` — `FrontendPty` class; subscribing fetches the main-process ring buffer and
-  registers the consumer in one synchronous tick, so there is no renderer-side buffer
+The PTY frontend is owned by the terminals slice:
+
+- `api/browser/pty/pty.ts` — `FrontendPty` class; subscribing fetches the main-process ring
+  buffer and registers the consumer in one synchronous tick, so there is no renderer-side buffer
   and no missed output
-- `pty-session.ts` — session lifecycle
-- `pty-pool-provider.tsx` — `TerminalPoolProvider` managing reusable xterm.js instances
-- `pty-pane.tsx` — terminal pane component
-- `prompt-injection.ts`, `pty-input-buffer.ts`, `pty-keybindings.ts`, `pty-clipboard.ts` — input handling
+- `api/browser/pty/pty-session.ts` — session lifecycle
+- `api/browser/pty/prompt-injection.ts` — prompt injection
+- `browser/pty/pty-pool-provider.tsx` — `TerminalPoolProvider` managing reusable xterm.js
+  instances
+- `contributions/browser/pty/pty-pane.tsx` — terminal pane component
+- `browser/pty/pty-input-buffer.ts`, `browser/pty/pty-keybindings.ts`,
+  `browser/pty/pty-clipboard.ts` — input handling
 
 **Rules:**
 - Historical output comes from the main-process ring buffer; do not add renderer-side buffering
 - `sessionId` format: `makePtySessionId(projectId, scopeId, leafId)` from
   `src/core/primitives/pty/api/pty-session-id.ts` — deterministic
-- Panel drag pauses resizing to avoid jank (`src/renderer/lib/layout/panel-drag-store.ts`)
 
 ## React Query Context Pattern
 
 Context providers use React Query for data fetching with optimistic updates:
 
 ```tsx
-// Pattern used in AppSettingsProvider, ProjectProvider, etc.
-const { data } = useQuery({ queryKey: ['resource'], queryFn: () => rpc.ns.get() });
+// Pattern used in the settings slice (useAppSettingsKey) and similar providers.
+// Fetching goes through the owning slice's domain client.
+const { data } = useQuery({
+  queryKey: ['resource'],
+  queryFn: async () => (await getExampleClient()).get(),
+});
 const mutation = useMutation({
-  mutationFn: (args) => rpc.ns.update(args),
+  mutationFn: async (args) => (await getExampleClient()).update(args),
   onMutate: async (args) => {
     // optimistic update via queryClient.setQueryData
   },
@@ -113,8 +131,13 @@ const mutation = useMutation({
 
 For state that must survive React unmounts or be shared across unrelated components:
 
-- **`useSyncExternalStore`-compatible stores** — e.g., `panelDragStore` in `src/renderer/lib/layout/`
-- **Cross-feature stores** — `src/renderer/lib/stores/` (navigation, dependencies, resource monitor, ...)
-- **MobX task and project stores** — `src/core/features/tasks/browser/stores/` and
-  `src/core/features/projects/browser/stores/`; access them through selectors
-  (`task-selectors.ts`, `project-selectors.ts`) and task view hooks, never directly
+- **App-scoped stores** — app-lifetime stores are slice-owned and ride the scoped-store
+  mechanism: `createAppScope()` (`src/core/primitives/scoped-stores/browser/`) builds them at
+  bootstrap from the contributions aggregated in
+  `src/core/manifests/browser/app-scoped-stores.ts`; access them through per-slice typed
+  selectors (for example `getNavigation()` from
+  `src/core/primitives/navigation/browser/navigation-selectors.ts`)
+- **MobX task and project stores** — slice-owned; access them through selectors
+  (`src/core/features/tasks/api/browser/task-state/task-selectors.ts`,
+  `src/core/features/projects/api/browser/stores/project-selectors.ts`) and task view hooks,
+  never directly

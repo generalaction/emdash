@@ -38,6 +38,10 @@ _Avoid_: Conversation (that is the durable record a session carries forward)
 A durable record of an agent exchange, attached to a Workspace. One Conversation outlives its Sessions — the successive live processes that carry it; resuming starts a new Session of the same Conversation. Identified by its own id for its whole life; any provider session handle it holds is a last-observed pointer, not its identity.
 _Avoid_: Session (a conversation is not a process), using the provider's session id as the conversation's identity
 
+**Plugins**:
+One word, three homes — say which one you mean: the capability framework (`@emdash/shared/plugins`), the concrete agent providers (`@emdash/plugins`), and the host services that install and run them (`packages/core/src/services/agent-plugins`).
+_Avoid_: Unqualified "plugins" where the home matters
+
 ### Desktop concepts
 
 **Project**:
@@ -46,6 +50,10 @@ _Avoid_: Using "project" to mean the git repository on disk
 
 **Task**:
 A desktop-owned unit of agent work, linked to the Workspace it runs in.
+
+**Host (services/hosts)**:
+`src/core/services/hosts` owns machine lifecycle and workspace-server provisioning under the Host vocabulary (`HostService`, the `hosts` wire domain) — the merged home of the former `remote-machine` and `workspace-server` services. "Machine" remains a UI label only. Host (wire) remains the separately-scoped wire term.
+_Avoid_: Machine (outside UI labels), "remote" as a noun
 
 **Host registry**:
 A host's durable, sole-writer index of its Workspaces: registered paths plus host-computed Observations, pushed to desktops as one live model that merges the durable records with the Runtime overlay. The filesystem stays authoritative — the registry observes it (adopting and un-adopting worktrees), never converges it toward a record. See ADR 0005.
@@ -164,3 +172,7 @@ _Avoid_: Authoring state models with hand-written providers (use `cell` + `expos
 
 **Bridge**:
 The adapter pair carrying kernel state over the live-model wire protocol: `expose` (server) and `remote` (client). An adapter over the live layer, not a parallel transport.
+
+**Wire seam**:
+The seeded-connection seam in `primitives/wire/browser` — the single point where a host process hands core its wire connection. The host bootstrap calls `seedWireConnection` once; everything else reaches the wire through `domainClient`.
+_Avoid_: Acquiring a connection anywhere else in core, reaching the wire through renderer-owned clients (the aggregate desktop wire client is renderer-internal)
