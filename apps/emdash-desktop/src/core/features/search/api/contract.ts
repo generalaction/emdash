@@ -24,6 +24,8 @@ export const contentSearchRuntimeContract = defineContract({
   searchContent: fileSearchContract.searchContent,
 });
 
+export const searchDomain = 'search' as const;
+
 export const searchContract = defineContract({
   commandPalette: procedure({
     input: z.custom<CommandPaletteQuery>(),

@@ -1,5 +1,6 @@
 export {
   editorContract,
+  editorDomain,
   MAX_EDITOR_FILE_UPLOAD_BYTES,
   type EditorContract,
   type EditorFileContentModel,

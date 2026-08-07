@@ -162,6 +162,8 @@ const conversationsTuiContract = defineContract({
   sessions: desktopTuiSessions,
 });
 
+export const conversationsDomain = 'conversations' as const;
+
 export const conversationsContract = defineContract({
   getConversations: procedure({
     input: z.void(),

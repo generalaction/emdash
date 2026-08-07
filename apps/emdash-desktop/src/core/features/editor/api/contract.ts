@@ -88,6 +88,8 @@ const editorBufferLocationSchema = z.object({
   filePath: z.string(),
 });
 
+export const editorDomain = 'editor' as const;
+
 export const editorContract = defineContract({
   fs: editorFsContract,
   tree: editorTreeContract,

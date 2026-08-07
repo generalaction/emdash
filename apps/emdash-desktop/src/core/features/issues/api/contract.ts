@@ -13,6 +13,8 @@ import type {
 
 const voidInput = z.void();
 
+export const issuesDomain = 'issues' as const;
+
 export const issuesContract = defineContract({
   checkConnection: procedure({
     input: z.object({ provider: z.custom<IssueProviderType>() }),

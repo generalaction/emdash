@@ -9,12 +9,16 @@ import type {
   ProjectWorkspacesResult,
 } from '@core/primitives/workspaces/api';
 
+export const projectSettingsDomain = 'projectSettings' as const;
+
 export const projectSettingsContract = defineContract({
   getSettings: procedure({
     input: z.object({ workspaceId: z.string() }),
     output: z.custom<ProjectSettingsLoadResult>(),
   }),
 });
+
+export const projectWorkspacesDomain = 'projectWorkspaces' as const;
 
 /**
  * Mirror-served workspace reads (planning ticket 09): both live models are DB reads

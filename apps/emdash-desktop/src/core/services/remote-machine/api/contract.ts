@@ -38,6 +38,8 @@ export function isServerUsable(state: RemoteMachineServerState | undefined): boo
   return state?.status === 'healthy' && state.error === undefined;
 }
 
+export const remoteMachineDomain = 'remoteMachine' as const;
+
 export const remoteMachineContract = defineContract({
   serverStates: liveModel({
     key: z.void(),

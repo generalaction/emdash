@@ -9,6 +9,8 @@ import {
   type MementoRow,
 } from './schemas';
 
+export const mementosDomain = 'mementos' as const;
+
 export const mementosWireContract = defineContract({
   memento: liveModel({
     key: mementoModelKeySchema,

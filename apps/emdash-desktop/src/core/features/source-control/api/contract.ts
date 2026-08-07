@@ -148,6 +148,8 @@ const sourceControlCheckoutContract = defineContract({
   }),
 });
 
+export const sourceControlDomain = 'sourceControl' as const;
+
 export const sourceControlContract = defineContract({
   repository: sourceControlRepositoryContract,
   checkout: sourceControlCheckoutContract,

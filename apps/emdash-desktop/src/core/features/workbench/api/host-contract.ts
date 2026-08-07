@@ -51,6 +51,8 @@ type OptionalPathResult =
   | { success: true; path: string | undefined }
   | { success: false; error: string };
 
+export const desktopHostDomain = 'host' as const;
+
 export const desktopHostContract = defineContract({
   openExternal: procedure({
     input: z.object({ url: z.string() }),

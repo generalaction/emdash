@@ -12,6 +12,8 @@ const hostInputSchema = z.object({ host: hostRefSchema });
 const providerInputSchema = hostInputSchema.extend({ providerId: z.string() });
 const mcpErrorSchema = z.union([agentConfigMcpErrorSchema, runtimeResolveErrorSchema]);
 
+export const mcpDomain = 'mcp' as const;
+
 export const mcpContract = defineContract({
   servers: liveModel({
     key: hostInputSchema,

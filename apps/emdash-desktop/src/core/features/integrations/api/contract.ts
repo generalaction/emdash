@@ -24,6 +24,8 @@ type ConnectResult =
   | { success: false; error: string };
 type DisconnectResult = { success: boolean; error?: string };
 
+export const integrationsDomain = 'integrations' as const;
+
 export const integrationsContract = defineContract({
   list: procedure({ input: z.void(), output: z.array(z.custom<IntegrationListItem>()) }),
   connect: procedure({

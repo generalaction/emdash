@@ -21,6 +21,8 @@ export const devPerfTraceErrorSchema = z.object({
 
 export type DevPerfTraceError = z.infer<typeof devPerfTraceErrorSchema>;
 
+export const devPerfDomain = 'devPerf' as const;
+
 export const devPerfContract = defineContract({
   /**
    * One `ps` snapshot of the app's process tree (main + all descendants,

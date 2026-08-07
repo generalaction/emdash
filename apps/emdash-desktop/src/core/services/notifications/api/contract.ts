@@ -25,6 +25,8 @@ const markAllReadInputSchema = z.object({
   at: z.number().int(),
 });
 
+export const notificationsDomain = 'notifications' as const;
+
 export const notificationsContract = defineContract({
   feed: liveModel({
     key: z.void().optional(),

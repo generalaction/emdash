@@ -6,6 +6,8 @@ import type {
 } from '@core/primitives/legacy-port/api/legacy-port';
 import type { StartupDataGateStatus } from '@core/primitives/legacy-port/api/startup-data-gate';
 
+export const legacyPortDomain = 'legacyPort' as const;
+
 export const legacyPortContract = defineContract({
   checkStatus: procedure({
     input: z.void(),

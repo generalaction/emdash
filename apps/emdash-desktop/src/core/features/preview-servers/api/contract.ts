@@ -6,6 +6,8 @@ import type {
   PreviewServerEvent,
 } from '@core/primitives/preview-servers/api';
 
+export const previewServersDomain = 'previewServers' as const;
+
 export const previewServersContract = defineContract({
   listForWorkspace: procedure({
     input: z.object({ projectId: z.string(), workspaceId: z.string() }),

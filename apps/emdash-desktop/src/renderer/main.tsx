@@ -32,6 +32,7 @@ import { installChatUiRuntime } from '@renderer/lib/chat/chat-ui-runtime';
 import { wireExternalLinkRequests } from '@renderer/lib/external-link-requests';
 import { getDesktopWireClient } from '@renderer/lib/runtime/desktop-wire-client';
 import { getMementosWireClient } from '@renderer/lib/runtime/mementos-wire-client';
+import { seedDesktopWire } from '@renderer/lib/runtime/seed-desktop-wire';
 import { log } from '@renderer/utils/logger';
 import { initRendererPerfVitals } from '@renderer/utils/perf-vitals';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
@@ -41,6 +42,10 @@ import { appState } from './lib/stores/app-state';
 import { wireNavigationTelemetry } from './lib/stores/navigation-telemetry';
 
 async function bootstrap() {
+  // Core owns wire access through the seeded-connection seam; seed it before
+  // React mounts so any slice can reach the wire without host imports.
+  seedDesktopWire();
+
   installChatUiRuntime({
     connectSession,
     createChatContext,

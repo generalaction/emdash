@@ -8,6 +8,8 @@ import type {
 
 type BrowserActionResult = { success: boolean; error?: string };
 
+export const browserDomain = 'browser' as const;
+
 export const browserContract = defineContract({
   registerSession: procedure({
     input: z.object({ browserId: z.string(), partition: z.string() }),

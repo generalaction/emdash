@@ -33,6 +33,8 @@ type AccountResult = {
   error?: string;
 };
 
+export const accountDomain = 'account' as const;
+
 export const accountContract = defineContract({
   getSession: procedure({ input: z.void(), output: z.custom<AccountSession>() }),
   signIn: procedure({

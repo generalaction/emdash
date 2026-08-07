@@ -44,6 +44,8 @@ export type ReleaseNotesResult =
 
 const voidInput = z.void();
 
+export const updatesDomain = 'updates' as const;
+
 export const updatesContract = defineContract({
   check: procedure({ input: voidInput, output: z.custom<UpdateCheckResult>() }),
   download: procedure({ input: voidInput, output: z.custom<UpdateActionResult>() }),

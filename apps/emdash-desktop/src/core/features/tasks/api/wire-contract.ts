@@ -36,6 +36,8 @@ const taskIdInputSchema = z.object({
   taskId: z.string(),
 });
 
+export const tasksDomain = 'tasks' as const;
+
 export const tasksWireContract = defineContract({
   createTask: procedure({
     input: z.custom<CreateTaskParams>(),

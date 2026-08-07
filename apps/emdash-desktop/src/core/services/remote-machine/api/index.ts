@@ -2,6 +2,7 @@ import type { WorkspaceServerTarget } from '../../workspace-server/node/targets'
 
 export {
   remoteMachineContract,
+  remoteMachineDomain,
   remoteMachineServerStateSchema,
   remoteMachineServerStatusSchema,
   isServerUsable,

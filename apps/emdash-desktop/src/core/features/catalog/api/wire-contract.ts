@@ -31,6 +31,8 @@ export const mcpCatalogInputSchema = z
   })
   .optional();
 
+export const catalogDomain = 'catalog' as const;
+
 export const catalogWireContract = defineContract({
   getSkillsCatalog: fallible({
     input: catalogVoidInputSchema,

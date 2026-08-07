@@ -71,6 +71,8 @@ const systemDependencyInstallResult = resultSchema(
   hostDependencyErrorSchema
 );
 
+export const machinesDomain = 'machines' as const;
+
 export const machinesContract = defineContract({
   getMachines: procedure({ input: voidInput, output: z.array(z.custom<SshConfig>()) }),
   getMachineUsage: procedure({
