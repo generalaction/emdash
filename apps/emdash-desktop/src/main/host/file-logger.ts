@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { redactAll, serializeLogValue, stringifyLogValue } from '@emdash/shared/logger';
-import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/transport';
+import { createFileTransport, trimToLineBoundary } from '@emdash/shared/logger/node';
 import { app } from 'electron';
 import type pinoLib from 'pino';
 

@@ -30,25 +30,9 @@ const alias = {
   '@emdash/plugins/agents/types': resolve(__dirname, '../../packages/plugins/src/agents/types.ts'),
   '@emdash/plugins/agents': resolve(__dirname, '../../packages/plugins/src/agents/registry.ts'),
   '@emdash/shared/config': resolve(__dirname, '../../packages/shared/src/config/index.ts'),
-  '@emdash/shared/logger/context-node': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/context-node.ts'
-  ),
-  '@emdash/shared/logger/context': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/context.ts'
-  ),
   '@emdash/shared/logger/node': resolve(
     __dirname,
     '../../packages/shared/src/logger/node/index.ts'
-  ),
-  '@emdash/shared/logger/pino': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/pino/index.ts'
-  ),
-  '@emdash/shared/logger/transport': resolve(
-    __dirname,
-    '../../packages/shared/src/logger/transport/index.ts'
   ),
   '@emdash/shared/logger': resolve(__dirname, '../../packages/shared/src/logger/index.ts'),
   '@emdash/shared/markdown': resolve(__dirname, '../../packages/shared/src/markdown/index.ts'),
