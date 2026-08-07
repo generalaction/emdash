@@ -2,20 +2,20 @@ import { Tooltip, useToast } from '@emdash/ui/react/primitives';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import {
   getAppById,
   isValidOpenInAppId,
   type OpenInAppId,
 } from '@core/primitives/open-in-apps/api/open-in-apps';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from '@core/primitives/ui/browser/select';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 

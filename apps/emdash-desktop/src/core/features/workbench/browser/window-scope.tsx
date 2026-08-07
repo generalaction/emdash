@@ -4,15 +4,15 @@ import { captureDevPerfTrace } from '@core/features/dev-perf/api/browser/capture
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { getRegisteredTaskData } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { taskViewDef } from '@core/features/tasks/contributions/views';
+import { applyHistoryEntry } from '@core/features/workbench/api/browser/nav-buttons';
 import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { openModal } from '@core/manifests/browser/modal-api';
 import { windowScope } from '@core/manifests/browser/scope-catalog';
 import { confirmRegistry } from '@core/primitives/keybindings/browser';
-import { applyHistoryEntry } from '@core/primitives/ui/browser/components/nav-buttons';
-import { openInCommandRegistry } from '@core/primitives/ui/browser/components/titlebar/open-in-command-registry';
 import { disabled, enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { scopes } from '@core/primitives/view-scopes/browser';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
+import { openInCommandRegistry } from '@renderer/lib/commands/open-in-command-registry';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { useViewParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';

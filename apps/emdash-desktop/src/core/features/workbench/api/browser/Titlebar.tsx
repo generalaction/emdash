@@ -2,11 +2,11 @@ import { Button, Tooltip } from '@emdash/ui/react/primitives';
 import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { detectPlatformContext } from '@core/primitives/keybindings/api';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { NavButtons } from '@core/primitives/ui/browser/components/nav-buttons';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { WindowControls } from './window-controls';
+import { WindowControls } from '@renderer/window-controls';
+import { NavButtons } from './nav-buttons';
 
 const platform = detectPlatformContext().os;
 const isMac = platform === 'mac';

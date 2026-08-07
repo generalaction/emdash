@@ -21,6 +21,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { ConnectionStatusDot } from '@core/features/machines/api/browser/components/connection-status-dot';
 import {
   asMounted,
   getProjectStore,
@@ -43,11 +44,10 @@ import {
   useTaskComposition,
   useWorkspace,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { Titlebar } from '@core/features/workbench/api/browser/Titlebar';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { linkedIssueDisplayIdentifier, type LinkedIssue } from '@core/primitives/linked-issues/api';
 import { cn } from '@core/primitives/styling/browser/cn';
-import { ConnectionStatusDot } from '@core/primitives/ui/browser/components/connection-status-dot';
-import { Titlebar } from '@core/primitives/ui/browser/components/titlebar/Titlebar';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { rpc } from '@renderer/lib/runtime/desktop-host-client';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';

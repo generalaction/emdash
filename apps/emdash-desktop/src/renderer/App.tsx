@@ -5,8 +5,8 @@ import { IntegrationsProvider } from '@core/features/integrations/api/browser/in
 import { TerminalPoolProvider } from '@core/features/terminals/browser/pty/pty-pool-provider';
 import { Onboarding } from '@core/features/workbench/browser/onboarding/onboarding';
 import { ExternalLinkProvider } from '@core/primitives/external-links/browser';
-import { FramelessTitlebarOverlay } from '@core/primitives/ui/browser/components/titlebar/window-controls';
-import { RightSidebarProvider } from '@core/primitives/ui/browser/right-sidebar';
+import { RightSidebarProvider } from '@renderer/lib/layout/right-sidebar';
+import { FramelessTitlebarOverlay } from '@renderer/window-controls';
 import { AppMenuEvents } from './app/app-menu-events';
 import { AppShutdownLifecycle } from './app/app-shutdown-lifecycle';
 import { WelcomeScreen } from './app/welcome';

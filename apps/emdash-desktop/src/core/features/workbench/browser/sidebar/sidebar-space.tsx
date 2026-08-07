@@ -1,7 +1,7 @@
 import { Toggle, Tooltip } from '@emdash/ui/react/primitives';
 import { PanelLeft } from 'lucide-react';
-import { NavButtons } from '@core/primitives/ui/browser/components/nav-buttons';
-import { BoundShortcut } from '@core/primitives/ui/browser/shortcut';
+import { NavButtons } from '@core/features/workbench/api/browser/nav-buttons';
+import { BoundShortcut } from '@core/primitives/keybindings/browser/shortcut';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 
 export function SidebarSpace() {
