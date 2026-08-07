@@ -1,11 +1,11 @@
 import { LOCAL_HOST_REF, sshConnectionIdOf, type HostRef } from '@emdash/core/primitives/host/api';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import { useCallback, useState } from 'react';
+import { SkillsList } from '@core/features/skills/browser/components/SkillsList';
+import { SkillsToolbar } from '@core/features/skills/browser/components/SkillsToolbar';
+import { useSkills } from '@core/features/skills/browser/components/useSkills';
 import { getHostClient } from '@core/features/workbench/api/browser/host-client';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { useSkills } from '../../../browser/components/useSkills';
-import { SkillsList } from './SkillsList';
-import { SkillsToolbar } from './SkillsToolbar';
 
 type SkillsPanelProps = {
   host?: HostRef;

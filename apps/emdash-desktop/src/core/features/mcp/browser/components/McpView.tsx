@@ -1,5 +1,5 @@
 import React from 'react';
-import { McpPanel } from './McpPanel';
+import { McpPanel } from '@core/features/mcp/contributions/browser/McpPanel';
 
 export const McpView: React.FC = () => (
   <McpPanel

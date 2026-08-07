@@ -1,10 +1,10 @@
 import { LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
 import { PageLayout } from '@emdash/ui/react/patterns';
 import React, { useState } from 'react';
-import type { McpDrawerMode } from '../../../browser/components/McpDrawer';
-import { useMcps } from '../../../browser/components/useMcps';
-import { McpServersList } from './McpServersList';
-import { McpToolbar } from './McpToolbar';
+import type { McpDrawerMode } from '@core/features/mcp/browser/components/McpDrawer';
+import { McpServersList } from '@core/features/mcp/browser/components/McpServersList';
+import { McpToolbar } from '@core/features/mcp/browser/components/McpToolbar';
+import { useMcps } from '@core/features/mcp/browser/components/useMcps';
 
 type McpPanelProps = {
   host?: HostRef;

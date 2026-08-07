@@ -1,10 +1,10 @@
 import { CardGridSection } from '@emdash/ui/react/components';
 import { Loader2 } from 'lucide-react';
 import React from 'react';
+import { McpCard } from '@core/features/mcp/browser/components/McpCard';
+import { McpDrawer, type McpDrawerMode } from '@core/features/mcp/browser/components/McpDrawer';
+import type { UseMcpsResult } from '@core/features/mcp/browser/components/useMcps';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
-import { McpCard } from '../../../browser/components/McpCard';
-import { McpDrawer, type McpDrawerMode } from '../../../browser/components/McpDrawer';
-import type { UseMcpsResult } from '../../../browser/components/useMcps';
 
 type McpServersListProps = {
   mcp: UseMcpsResult;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { SkillsPanel } from './SkillsPanel';
+import { SkillsPanel } from '@core/features/skills/contributions/browser/SkillsPanel';
 
 export const SkillsView: React.FC = () => (
   <SkillsPanel
