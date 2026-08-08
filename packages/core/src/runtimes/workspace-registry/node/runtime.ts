@@ -59,6 +59,7 @@ import {
 import { WorkspaceRecordStore, type DurableWorkspaceRecord } from './persistence/record-store';
 import type { WorkspaceRegistryDb } from './persistence/store';
 import {
+  createRemoteUrlCache,
   createUntrackedLinesCache,
   listRepositoryWorktrees,
   observeWorkspaceGit,
@@ -1180,6 +1181,9 @@ export class WorkspaceRegistryRuntime {
       return settled;
     }
 
+    // One remote-URL resolution per repository per reconcile pass (spec: probe budget);
+    // worktrees share their repository's config, so the cache is safe across children.
+    const remoteUrlCache = createRemoteUrlCache();
     const children = records.filter(
       (record) => record.kind === 'worktree' && record.parentId === repository.id
     );
@@ -1210,6 +1214,7 @@ export class WorkspaceRegistryRuntime {
             observedStatus: 'present',
             git: await observeWorkspaceGit(canonicalPath, listing, {
               untrackedCache: this.untrackedCacheFor(child.id),
+              remoteUrlCache,
             }),
           },
           now
@@ -1234,6 +1239,7 @@ export class WorkspaceRegistryRuntime {
         lastRemovalAttempt: null,
         git: await observeWorkspaceGit(canonicalPath, listing, {
           untrackedCache: this.untrackedCacheFor(adoptedId),
+          remoteUrlCache,
         }),
         lastActivatedAt: null,
         createdAt: now,
@@ -1258,6 +1264,7 @@ export class WorkspaceRegistryRuntime {
             observedStatus: 'present',
             git: await observeWorkspaceGit(child.path, undefined, {
               untrackedCache: this.untrackedCacheFor(child.id),
+              remoteUrlCache,
             }),
           },
           now
@@ -1274,6 +1281,7 @@ export class WorkspaceRegistryRuntime {
         observedStatus: 'present',
         git: await observeWorkspaceGit(repository.path, undefined, {
           untrackedCache: this.untrackedCacheFor(repository.id),
+          remoteUrlCache,
         }),
       },
       now

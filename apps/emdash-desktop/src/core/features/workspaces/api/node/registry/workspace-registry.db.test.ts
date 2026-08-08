@@ -58,7 +58,7 @@ describe('WorkspaceRegistry', () => {
       path: '/new',
       observedStatus: 'present',
       observedGit: {
-        version: '1',
+        version: '2',
         branch: 'main',
         dirty: true,
         diffStats: null,
@@ -66,6 +66,9 @@ describe('WorkspaceRegistry', () => {
         behind: null,
         locked: false,
         prunable: false,
+        headOid: null,
+        upstream: null,
+        prBreadcrumb: null,
       },
       observedAt: Date.parse('2026-01-01T00:00:00.000Z'),
     });
@@ -73,7 +76,7 @@ describe('WorkspaceRegistry', () => {
     expect(registry.getLive('workspace')).toMatchObject({
       path: '/new',
       observedStatus: 'present',
-      observedGit: { version: '1', branch: 'main', dirty: true },
+      observedGit: { version: '2', branch: 'main', dirty: true },
       observedAt: Date.parse('2026-01-01T00:00:00.000Z'),
       updatedAt: '2026-01-02T00:00:00.000Z',
     });

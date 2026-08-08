@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createUntrackedLinesCache, observeWorkspaceGit } from './observe-git';
+import {
+  createRemoteUrlCache,
+  createUntrackedLinesCache,
+  observeWorkspaceGit,
+  observeWorkspaceGitRefs,
+} from './observe-git';
 
 const run = promisify(execFile);
 
@@ -109,5 +114,136 @@ describe('observeWorkspaceGit untracked line counting', () => {
     await git('add', 'one.txt');
     await observeWorkspaceGit(repo, undefined, { untrackedCache: cache });
     expect([...cache.keys()]).toEqual(['two.txt']);
+  });
+});
+
+async function headOidOf(cwd: string): Promise<string> {
+  const { stdout } = await run('git', ['rev-parse', 'HEAD'], { cwd });
+  return stdout.trim();
+}
+
+// Raw git facts only (spec: Observation): the observer reports config values and
+// OIDs verbatim and never interprets breadcrumbs or ref patterns.
+
+describe('observeWorkspaceGit head OID, upstream identity, and PR breadcrumb', () => {
+  beforeEach(async () => {
+    await git('branch', '-M', 'main');
+  });
+
+  it('reports head OID, upstream identity, and the raw breadcrumb', async () => {
+    await git('remote', 'add', 'origin', 'https://example.com/acme/app.git');
+    await git('config', 'branch.main.remote', 'origin');
+    await git('config', 'branch.main.merge', 'refs/heads/main');
+    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/7');
+
+    const observed = await observeWorkspaceGit(repo);
+
+    expect(observed?.headOid).toBe(await headOidOf(repo));
+    expect(observed?.upstream).toEqual({
+      remote: 'origin',
+      mergeRef: 'refs/heads/main',
+      remoteUrl: 'https://example.com/acme/app.git',
+    });
+    expect(observed?.prBreadcrumb).toBe('https://github.com/acme/app/pull/7');
+  });
+
+  it('reports upstream null without tracking config while other fields populate', async () => {
+    const observed = await observeWorkspaceGit(repo);
+
+    expect(observed?.branch).toBe('main');
+    expect(observed?.headOid).toBe(await headOidOf(repo));
+    expect(observed?.upstream).toBeNull();
+    expect(observed?.prBreadcrumb).toBeNull();
+  });
+
+  it('reports the breadcrumb independently of upstream tracking', async () => {
+    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/9');
+
+    const observed = await observeWorkspaceGit(repo);
+
+    expect(observed?.upstream).toBeNull();
+    expect(observed?.prBreadcrumb).toBe('https://github.com/acme/app/pull/9');
+  });
+
+  it('degrades remoteUrl to null when the remote does not resolve', async () => {
+    await git('config', 'branch.main.remote', 'gone');
+    await git('config', 'branch.main.merge', 'refs/heads/main');
+
+    const observed = await observeWorkspaceGit(repo);
+
+    expect(observed?.upstream).toEqual({
+      remote: 'gone',
+      mergeRef: 'refs/heads/main',
+      remoteUrl: null,
+    });
+  });
+
+  it('matches the branch config literally when the branch name has regex metacharacters', async () => {
+    await git('checkout', '-b', 'release/1.2+x');
+    await git('config', 'branch.release/1.2+x.emdash-pr-url', 'https://github.com/a/b/pull/3');
+    // A decoy the unescaped pattern `1.2+x` would also match.
+    await git('config', 'branch.release/1a22x.emdash-pr-url', 'https://github.com/a/b/pull/4');
+
+    const observed = await observeWorkspaceGit(repo);
+
+    expect(observed?.branch).toBe('release/1.2+x');
+    expect(observed?.prBreadcrumb).toBe('https://github.com/a/b/pull/3');
+  });
+
+  it('nulls upstream and breadcrumb on detached HEAD but still reports headOid', async () => {
+    await git('config', 'branch.main.remote', 'origin');
+    await git('config', 'branch.main.merge', 'refs/heads/main');
+    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/7');
+    await git('checkout', '--detach');
+
+    const observed = await observeWorkspaceGit(repo);
+
+    expect(observed?.branch).toBeNull();
+    expect(observed?.headOid).toBe(await headOidOf(repo));
+    expect(observed?.upstream).toBeNull();
+    expect(observed?.prBreadcrumb).toBeNull();
+  });
+
+  it('serves the remote URL from the per-cycle cache without probing git', async () => {
+    // No `origin` remote exists: only the cache can supply this URL.
+    await git('config', 'branch.main.remote', 'origin');
+    await git('config', 'branch.main.merge', 'refs/heads/main');
+    const cache = createRemoteUrlCache();
+    cache.set('origin', 'https://cached.example/app.git');
+
+    const observed = await observeWorkspaceGit(repo, undefined, { remoteUrlCache: cache });
+
+    expect(observed?.upstream?.remoteUrl).toBe('https://cached.example/app.git');
+  });
+});
+
+describe('observeWorkspaceGitRefs', () => {
+  beforeEach(async () => {
+    await git('branch', '-M', 'main');
+  });
+
+  it('re-reads head OID, upstream, and breadcrumb on a branch switch, carrying dirty state', async () => {
+    await git('remote', 'add', 'origin', 'https://example.com/acme/app.git');
+    await git('config', 'branch.main.remote', 'origin');
+    await git('config', 'branch.main.merge', 'refs/heads/main');
+    await git('config', 'branch.main.emdash-pr-url', 'https://github.com/acme/app/pull/7');
+    await writeFile(join(repo, 'wip.txt'), 'wip\n');
+    const previous = await observeWorkspaceGit(repo, undefined, {
+      untrackedCache: createUntrackedLinesCache(),
+    });
+    expect(previous?.upstream).not.toBeNull();
+    expect(previous?.dirty).toBe(true);
+
+    // A plain new branch carries no tracking config and no breadcrumb.
+    await git('checkout', '-b', 'other');
+    const observed = await observeWorkspaceGitRefs(repo, previous);
+
+    expect(observed?.branch).toBe('other');
+    expect(observed?.headOid).toBe(await headOidOf(repo));
+    expect(observed?.upstream).toBeNull();
+    expect(observed?.prBreadcrumb).toBeNull();
+    // Carried forward from the previous full observation, not re-probed.
+    expect(observed?.dirty).toBe(true);
+    expect(observed?.diffStats).toEqual(previous?.diffStats);
   });
 });
