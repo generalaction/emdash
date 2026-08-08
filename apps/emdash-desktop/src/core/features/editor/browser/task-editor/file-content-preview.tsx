@@ -10,7 +10,7 @@ interface FileContentPreviewProps {
 }
 
 /**
- * Renders the preview for a file tab by routing on tab.contentType via FILE_CONTENT_TYPES.
+ * Renders the preview for a file tab by routing on tab.fileKind via FILE_CONTENT_TYPES.
  *
  * Also owns the async external-file content load: when an external file is opened,
  * the store starts in an isLoading state and this effect triggers the actual read.
@@ -47,7 +47,7 @@ export const FileContentPreview = observer(function FileContentPreview({
     };
   }, [tab, tab.isExternal, tab.isLoading, tab.path]);
 
-  const def = FILE_CONTENT_TYPES[tab.contentType];
+  const def = FILE_CONTENT_TYPES[tab.fileKind];
   if (!def.Preview) return null;
   const { Preview } = def;
   return <Preview tab={tab} />;

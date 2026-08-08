@@ -2,18 +2,14 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { editorFilePath, readEditorImage } from '@core/features/editor/api/browser/files';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { HTML_EXTS } from '@core/features/editor/api/browser/renderers/fileKind';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
-import {
-  useTaskComposition,
-  useWorkspace,
-} from '@core/features/workbench/api/browser/task-composition-context';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
 interface HtmlRendererProps {
-  filePath: string;
+  tab: FileTabResource;
 }
 
 interface HtmlContentRendererProps {
@@ -43,16 +39,13 @@ const LINK_INTERCEPT_SCRIPT = `
  * Renders an HTML file in a sandboxed iframe preview.
  * The source/preview toggle lives in the FileContent container above this component.
  */
-export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
-  const { editorView } = useTaskComposition();
-  const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
-
-  // Touch bufferVersions so this observer re-renders when the buffer is first
+export const HtmlRenderer = observer(function HtmlRenderer({ tab }: HtmlRendererProps) {
+  // Touch bufferVersion so this observer re-renders when the buffer is first
   // populated — otherwise the preview can stick on stale content.
-  void modelRegistry.bufferVersions.get(bufferUri);
-  const rawContent = modelRegistry.getValue(bufferUri) ?? '';
+  void tab.bufferVersion;
+  const rawContent = tab.bufferText();
 
-  return <HtmlContentRenderer filePath={filePath} rawContent={rawContent} />;
+  return <HtmlContentRenderer filePath={tab.path} rawContent={rawContent} />;
 });
 
 export const HtmlContentRenderer = observer(function HtmlContentRenderer({

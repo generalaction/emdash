@@ -1,29 +1,22 @@
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
-import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
-import { ModelStatusOverlay } from '@core/features/editor/contributions/browser/monaco/model-status-overlay';
-import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { MAX_PREVIEW_COLUMNS, MAX_PREVIEW_ROWS, parseCsv } from './csv-parser';
 
 interface CsvRendererProps {
-  filePath: string;
+  tab: FileTabResource;
 }
 
 /**
  * Renders a CSV file as a table preview.
  * The source/preview toggle lives in the FileContent container above this component.
+ * Load-time states are handled above this component by FileStatusPlaceholder.
  */
-export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRendererProps) {
-  const { editorView } = useTaskComposition();
-  const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
-  const modelStatus = useModelStatus(bufferUri);
-
-  // Touch bufferVersions so this observer re-renders when the buffer is first
-  // populated or updated externally before reading the non-observable model text.
-  void modelRegistry.bufferVersions.get(bufferUri);
-  const content = modelStatus === 'ready' ? (modelRegistry.getValue(bufferUri) ?? '') : '';
+export const CsvRenderer = observer(function CsvRenderer({ tab }: CsvRendererProps) {
+  // Touch bufferVersion so this observer re-renders when the buffer is first
+  // populated or updated externally before reading the non-observable text.
+  void tab.bufferVersion;
+  const content = tab.bufferText();
   const parsed = useMemo(() => parseCsv(content), [content]);
   const [header, ...bodyRows] = parsed.rows;
   const columnCount = Math.max(
@@ -33,9 +26,7 @@ export const CsvRenderer = observer(function CsvRenderer({ filePath }: CsvRender
 
   return (
     <div className="h-full w-full overflow-hidden bg-background-secondary-1">
-      {modelStatus !== 'ready' ? (
-        <ModelStatusOverlay status={modelStatus} />
-      ) : parsed.rows.length ? (
+      {parsed.rows.length ? (
         <div className="h-full overflow-auto">
           <table className="min-w-full border-separate border-spacing-0 cursor-text text-left text-xs">
             <thead>

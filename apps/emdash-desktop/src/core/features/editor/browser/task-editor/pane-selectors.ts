@@ -40,13 +40,3 @@ export function allOpenFileResources(paneLayout: PaneLayoutStore): FileTabResour
 export function allOpenFilePaths(paneLayout: PaneLayoutStore): string[] {
   return allOpenFileResources(paneLayout).map((r) => r.path);
 }
-
-// ---------------------------------------------------------------------------
-// Legacy aliases (for callers that still use old FileTabStore names)
-// TODO: remove once all callers are updated
-// ---------------------------------------------------------------------------
-
-/** @deprecated Use activeFileResource */
-export const activeFileEntry = activeFileResource;
-/** @deprecated Use fileResourceByPath */
-export const fileEntryByPath = fileResourceByPath;

@@ -11,9 +11,6 @@ let installed: MonacoFacetBinder | null = null;
  * and view-state APIs. Monaco loads lazily through `monacoBootstrap.init()`
  * on first handle creation; an init failure rejects handle creation and the
  * store degrades those facets to error placeholders instead of wedging.
- *
- * Not wired into the running app yet: no view consumes the store until the
- * per-consumer cutover (ticket 07).
  */
 export function installMonacoFacetBinder(): MonacoFacetBinder {
   if (installed) return installed;

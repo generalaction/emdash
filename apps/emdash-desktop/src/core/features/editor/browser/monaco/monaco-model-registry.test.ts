@@ -118,9 +118,9 @@ describe('MonacoModelRegistry live content', () => {
     await register(runtime.registry, 'buffer');
 
     runtime.setFileContent('incoming', 'etag-2');
-    await waitFor(() => runtime.registry.getDiskValue(uri) === 'incoming');
+    await waitFor(() => diskValue(runtime.registry, uri) === 'incoming');
 
-    expect(runtime.registry.getValue(uri)).toBe('incoming');
+    expect(bufferValue(runtime.registry, uri)).toBe('incoming');
     expect(runtime.registry.isDirty(uri)).toBe(false);
     expect(runtime.registry.bufferVersions.get(uri)).toBe(2);
   });
@@ -132,9 +132,9 @@ describe('MonacoModelRegistry live content', () => {
     runtime.registry.getModelByUri(uri)?.setValue('mine');
 
     runtime.setFileContent('incoming', 'etag-2');
-    await waitFor(() => runtime.registry.getDiskValue(uri) === 'incoming');
+    await waitFor(() => diskValue(runtime.registry, uri) === 'incoming');
 
-    expect(runtime.registry.getValue(uri)).toBe('mine');
+    expect(bufferValue(runtime.registry, uri)).toBe('mine');
     expect(runtime.registry.isDirty(uri)).toBe(true);
     expect(runtime.registry.hasPendingConflict(uri)).toBe(true);
     await expect(runtime.registry.saveFileToDisk(uri)).resolves.toBeNull();
@@ -142,7 +142,7 @@ describe('MonacoModelRegistry live content', () => {
 
     const version = runtime.registry.bufferVersions.get(uri);
     runtime.registry.reloadFromDisk(uri);
-    expect(runtime.registry.getValue(uri)).toBe('incoming');
+    expect(bufferValue(runtime.registry, uri)).toBe('incoming');
     expect(runtime.registry.bufferVersions.get(uri)).toBe((version ?? 0) + 1);
   });
 
@@ -189,7 +189,7 @@ describe('MonacoModelRegistry live content', () => {
 
     expect(editorClient.clearBuffer).toHaveBeenCalledWith({ uri: bufferKey('/repo/file.ts') });
     expect(runtime.registry.isDirty(uri)).toBe(false);
-    expect(runtime.registry.getDiskValue(uri)).toBe('saved');
+    expect(diskValue(runtime.registry, uri)).toBe('saved');
   });
 
   it('discards dirty buffers and clears their crash-recovery state', async () => {
@@ -201,10 +201,20 @@ describe('MonacoModelRegistry live content', () => {
     await runtime.registry.discardAllDirtyBuffers();
 
     expect(editorClient.clearBuffer).toHaveBeenCalledWith({ uri: bufferKey('/repo/file.ts') });
-    expect(runtime.registry.getValue(uri)).toBe('base');
+    expect(bufferValue(runtime.registry, uri)).toBe('base');
     expect(runtime.registry.isDirty(uri)).toBe(false);
   });
 });
+
+function bufferValue(registry: MonacoModelRegistry, uri: string): string | null {
+  const entry = registry.getModelByUri(uri);
+  return entry ? entry.getValue() : null;
+}
+
+function diskValue(registry: MonacoModelRegistry, uri: string): string | null {
+  const entry = registry.getModelByUri(registry.toDiskUri(uri));
+  return entry ? entry.getValue() : null;
+}
 
 function createRuntime() {
   const filePath = portablePath('file.ts');

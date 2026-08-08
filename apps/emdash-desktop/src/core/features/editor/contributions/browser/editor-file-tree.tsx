@@ -45,6 +45,7 @@ import { FileIcon } from '@core/features/editor/contributions/browser/file-icon'
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
+import { openFile as openWorkbenchFile } from '@core/features/workbench/api/browser/open-file';
 import {
   useTaskComposition,
   useWorkspace,
@@ -57,7 +58,10 @@ import {
   copyTextToClipboard,
   getHostClient,
 } from '@core/primitives/desktop-host/browser/host-client';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import {
+  hostFileRefFromNativePath,
+  nativePathFromHost,
+} from '@core/primitives/desktop-runtime/api';
 import {
   clearDraggedWorkspaceFile,
   setDraggedWorkspaceFile,
@@ -314,8 +318,14 @@ export const EditorFileTree = observer(function EditorFileTree() {
     })();
   }, [editorView, files, revealRequest.counter, revealRequest.path]);
 
+  // Route through the openFile seam (spec §10): sidebar clicks resolve the
+  // file's identity here at the edge and never reveal (the tree already shows
+  // the file and keeps focus).
   const openFile = (path: string, preview: boolean) => {
-    tabLayout.open('file', { path }, { preview });
+    openWorkbenchFile(hostFileRefFromNativePath(path, workspace.sshConnectionId), {
+      context: { projectId: taskView.projectId, taskId: taskView.taskId },
+      preview,
+    });
   };
 
   const startDraft = (kind: 'file' | 'directory') => {

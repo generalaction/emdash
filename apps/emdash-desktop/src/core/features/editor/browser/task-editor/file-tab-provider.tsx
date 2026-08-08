@@ -1,11 +1,11 @@
 import { observer } from 'mobx-react-lite';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { openFileStore } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type { FilePayload } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal } from '@core/manifests/browser/modal-api';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import type {
   TabEntry,
   TabHandle,
@@ -19,8 +19,8 @@ import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
 import { FileContentToolbar } from './file-content-toolbar';
 import { FILE_CONTENT_TYPES } from './file-content-types';
+import { FileStatusPlaceholder } from './file-status-placeholder';
 import { FileTabBarItem, FileTabBarItemDragPreview } from './file-tab-item';
-import { getFileModelManager } from './stores/file-model-manager';
 
 export interface FileOpenArgs {
   path: string;
@@ -46,13 +46,19 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   const activeFile = activeTab?.kind === 'file' ? (activeTab.resource as FileTabResource) : null;
 
-  const def = activeFile ? FILE_CONTENT_TYPES[activeFile.contentType] : null;
-  const showSource = def
-    ? def.editable && (activeFile!.viewMode === 'source' || !def.Preview)
-    : false;
-  const showPreview = def
-    ? !!def.Preview && (activeFile!.viewMode === 'preview' || !def.editable)
-    : false;
+  // Content state comes from the tab's OpenFileStore entry: anything that is
+  // not ready (bounded loading, seam errors, orphaned) renders a placeholder
+  // instead of the source/preview surfaces.
+  const status = activeFile?.contentStatus;
+  const blocked = status !== undefined && status.kind !== 'ready';
+
+  const def = activeFile ? FILE_CONTENT_TYPES[activeFile.fileKind] : null;
+  const showSource =
+    !blocked && def ? def.editable && (activeFile!.viewMode === 'source' || !def.Preview) : false;
+  const showPreview =
+    !blocked && def
+      ? !!def.Preview && (activeFile!.viewMode === 'preview' || !def.editable)
+      : false;
   const canToggle = def ? def.editable && !!def.Preview : false;
 
   return (
@@ -62,6 +68,11 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
         <div className="absolute inset-0" style={{ visibility: showSource ? 'visible' : 'hidden' }}>
           <FileContentRenderer />
         </div>
+        {activeFile && blocked && (
+          <div className="absolute inset-0">
+            <FileStatusPlaceholder resource={activeFile} />
+          </div>
+        )}
         {activeFile && showPreview && (
           <div className="absolute inset-0">
             <FileContentPreview tab={activeFile} />
@@ -92,24 +103,18 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       ctx: TabViewContext
     ): FileTabResource {
       const taskCtx = ctx as TaskTabContext;
-      if (!taskCtx.workspacePath) throw new Error('Local workspace path is unavailable');
-      const modelManager = getFileModelManager(taskCtx.workspaceId, {
-        projectId: taskCtx.projectId,
-        workspaceId: taskCtx.workspaceId,
-        workspacePath: taskCtx.workspacePath,
-        modelRootPath: taskCtx.modelRootPath,
-      });
-      return new FileTabResource(
-        entry.state,
-        modelManager,
-        {
-          projectId: taskCtx.projectId,
-          workspaceId: taskCtx.workspaceId,
-          workspacePath: taskCtx.workspacePath,
-          modelRootPath: taskCtx.modelRootPath,
-        },
-        handle
-      );
+      // Identity resolution happens here at the edge (spec §10): the tab path
+      // is workspace-absolute after onBeforeOpen, and the workspace binding
+      // carries the host (local vs. ssh connection).
+      let ref = null;
+      if (!entry.state.isExternal) {
+        try {
+          ref = hostFileRefFromNativePath(entry.state.path, taskCtx.getRemoteConnectionId?.());
+        } catch {
+          ref = null;
+        }
+      }
+      return new FileTabResource(entry.state, { ref, handle });
     },
 
     dispose(_entry: TabEntry<FilePayload>, resource: FileTabResource): void {
@@ -118,35 +123,36 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
 
     async onBeforeClose(
       entry: TabEntry<FilePayload>,
-      _resource: FileTabResource,
-      ctx: TabViewContext
+      resource: FileTabResource,
+      _ctx: TabViewContext
     ): Promise<boolean> {
-      if (entry.state.isExternal) return true;
-      const taskCtx = ctx as TaskTabContext;
-      const bufferUri = buildMonacoModelPath(taskCtx.modelRootPath, entry.state.path);
-      if (!modelRegistry.isDirty(bufferUri)) return true;
+      const fileEntry = resource.entry;
+      if (!fileEntry?.dirty) return true;
 
       const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
       const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });
       if (!unsavedOutcome.success) return false;
-      if (unsavedOutcome.data === 'discard') return true;
+      if (unsavedOutcome.data === 'discard') {
+        openFileStore.reloadFromDisk(fileEntry);
+        return true;
+      }
 
       try {
-        const saved = await modelRegistry.saveFileToDisk(bufferUri);
-        if (saved !== null) return true;
-        if (!modelRegistry.hasPendingConflict(bufferUri)) return false;
+        const saved = await openFileStore.save(fileEntry);
+        if (saved.success) return true;
+        if (saved.error.type !== 'conflict') return false;
 
         const conflictOutcome = await openModal('conflictDialog', {
           filePath: entry.state.path,
         });
         if (!conflictOutcome.success) return false;
         if (conflictOutcome.data) {
-          modelRegistry.reloadFromDisk(bufferUri);
+          openFileStore.reloadFromDisk(fileEntry);
           return true;
         }
 
-        const overwritten = await modelRegistry.saveFileToDisk(bufferUri, { overwrite: true });
-        return overwritten !== null;
+        const overwritten = await openFileStore.save(fileEntry, { overwrite: true });
+        return overwritten.success;
       } catch {
         return false;
       }

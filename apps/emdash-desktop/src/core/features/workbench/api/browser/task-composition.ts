@@ -253,8 +253,8 @@ export class TaskComposition {
     if (desc?.kind === 'terminal') return 'terminal';
     const resource = this.activePane.activeResourceOfKind<FileTabResource>('file');
     if (!resource) return 'agents';
-    if (resource.contentType === 'markdown' && resource.viewMode === 'preview') return 'markdown';
-    if (resource.contentType === 'text' || resource.viewMode === 'source') return 'monaco';
+    if (resource.fileKind === 'markdown' && resource.viewMode === 'preview') return 'markdown';
+    if (resource.fileKind === 'text' || resource.viewMode === 'source') return 'monaco';
     return 'other-file';
   }
 
@@ -486,12 +486,6 @@ export class TaskComposition {
               : 'terminal';
     focusTracker.transition({ mainPanel: panelView }, 'panel_switch');
     this.activePane.setActiveTab(tabId);
-  }
-
-  openWorkspaceFile(path: string, target: 'active' | 'right' = 'active'): void {
-    this.paneLayout.open('file', { path }, { preview: false, target });
-    this.setFocusedRegion('main');
-    this.revealWorkspaceFile(path);
   }
 
   revealWorkspaceFile(path: string): void {

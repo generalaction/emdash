@@ -2,8 +2,7 @@ import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { encodeFacetUri } from '@core/features/editor/api/browser/facet-binder/facet-uri';
 import { useIsActiveTask } from '@core/features/tasks/api/browser/hooks/use-is-active-task';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
@@ -13,14 +12,17 @@ import { useTheme } from '@core/primitives/theme/browser';
 import { enabled, hidden, type ViewScopeImpl } from '@core/primitives/view-scopes/api';
 import { useViewScope, ViewScopeInstanceProvider } from '@core/primitives/view-scopes/react';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
+import { installMonacoFacetBinder } from '../monaco/install-monaco-facet-binder';
 import { monacoBootstrap } from '../monaco/monaco-bootstrap';
 import { addMonacoKeyboardShortcuts, configureMonacoEditor } from '../monaco/monaco-config';
 import { registerActiveCodeEditor } from '../renderers/activeCodeEditor';
 import { DEFAULT_EDITOR_OPTIONS } from '../renderers/utils';
 import {
-  activeFileEntry as getActiveFileEntry,
   activeFilePath as getActiveFilePath,
+  activeFileResource as getActiveFileResource,
 } from './pane-selectors';
+
+const BUFFER = { kind: 'buffer' } as const;
 
 interface EditorContextValue {
   /**
@@ -68,7 +70,7 @@ export const EditorProvider = observer(function EditorProvider({
     editorScopeImplementation
   );
 
-  // Conflict dialog — shown when editorView.pendingConflictUri is set.
+  // Conflict dialog — shown when editorView.pendingConflictPath is set.
   const openConflictModal = useOpenModal('conflictDialog');
 
   // The directly-created Monaco editor for this pane.
@@ -80,8 +82,8 @@ export const EditorProvider = observer(function EditorProvider({
   // Stable host element provided by PaneContent via setEditorHost.
   const hostRef = useRef<HTMLElement | null>(null);
 
-  // Tracks the previously-attached buffer URI so modelRegistry.attach can
-  // save view state before switching models.
+  // Tracks the previously-attached buffer facet URI so the binder can save
+  // view state before switching models.
   const prevBufUriRef = useRef<string | undefined>(undefined);
 
   // ---------------------------------------------------------------------------
@@ -100,6 +102,7 @@ export const EditorProvider = observer(function EditorProvider({
   useEffect(() => {
     const m = monacoBootstrap.getMonaco();
     if (!m) return;
+    const binder = installMonacoFacetBinder();
 
     const container = document.createElement('div');
     container.style.width = '100%';
@@ -138,7 +141,7 @@ export const EditorProvider = observer(function EditorProvider({
       cleanupActive();
       // Save the active file's view state before disposal. Must run here, not in
       // the attachment autorun's cleanup — that fires after the editor is disposed.
-      modelRegistry.detach(editor, prevBufUriRef.current);
+      binder.detach(editor, prevBufUriRef.current);
       editor.dispose();
       container.remove();
       editorRef.current = null;
@@ -161,38 +164,34 @@ export const EditorProvider = observer(function EditorProvider({
 
   // ---------------------------------------------------------------------------
   // Model attachment — autorun that re-evaluates whenever the pane-local active
-  // file or model registration status changes.
+  // file or its OpenFileStore buffer handle changes.
   // ---------------------------------------------------------------------------
   useEffect(
     () =>
       autorun(() => {
         const editor = editorRef.current;
         if (!editor) return;
+        const binder = installMonacoFacetBinder();
 
-        const entry = getActiveFileEntry(paneTabManager); // reactive
-        const newBufUri = entry ? buildMonacoModelPath(editorView.modelRootPath, entry.path) : null;
+        const resource = getActiveFileResource(paneTabManager); // reactive
+        // The buffer handle appears once the store has content and disappears
+        // on teardown/re-key; handleFor reads an observable map, so this
+        // autorun re-fires exactly when attachability changes.
+        const handle = resource?.ref ? resource.entry?.handleFor(BUFFER) : undefined; // reactive
+        const newBufUri = resource?.ref && handle ? encodeFacetUri(resource.ref, BUFFER) : null;
 
         if (!newBufUri) {
           // detach saves the file's view state, so the scroll position survives
           // switching to a non-file tab (conversation, diff, …).
-          modelRegistry.detach(editor, prevBufUriRef.current);
+          binder.detach(editor, prevBufUriRef.current);
           prevBufUriRef.current = undefined;
           return;
         }
 
-        const status = modelRegistry.modelStatus.get(newBufUri); // reactive
-        if (status !== 'ready') {
-          if (prevBufUriRef.current && prevBufUriRef.current !== newBufUri) {
-            modelRegistry.detach(editor, prevBufUriRef.current);
-            prevBufUriRef.current = undefined;
-          }
-          return;
-        }
-
-        modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
+        binder.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;
 
-        const selectionRequest = entry?.selectionRequest;
+        const selectionRequest = resource?.selectionRequest;
         if (selectionRequest) {
           const { lineNumber, startColumn, endColumn } = selectionRequest.selection;
           const selection = {
@@ -204,7 +203,7 @@ export const EditorProvider = observer(function EditorProvider({
           editor.setSelection(selection);
           editor.revealRangeInCenter(selection);
           editor.focus();
-          entry?.consumeSelectionRequest(selectionRequest.id);
+          resource?.consumeSelectionRequest(selectionRequest.id);
         }
 
         // Satisfy any focus request that arrived while the model was still loading.
@@ -227,14 +226,12 @@ export const EditorProvider = observer(function EditorProvider({
   }, [taskId]);
 
   // ---------------------------------------------------------------------------
-  // Conflict dialog — reaction on pendingConflictUri shows the modal.
+  // Conflict dialog — reaction on pendingConflictPath shows the modal.
   // ---------------------------------------------------------------------------
   useEffect(
     () =>
       autorun(() => {
-        const uri = editorView.pendingConflictUri; // reactive
-        if (!uri) return;
-        const filePath = modelRegistry.filePathForUri(uri);
+        const filePath = editorView.pendingConflictPath; // reactive
         if (!filePath) return;
         if (!editorView.openFilePaths.includes(filePath)) return;
         void (async () => {

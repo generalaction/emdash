@@ -39,8 +39,6 @@ const BUFFER_DEBOUNCE_MS = 2000;
 interface BufferModelEntry {
   type: 'buffer';
   model: monaco.editor.ITextModel;
-  /** Monaco cursor/scroll/folding state, saved between tab switches. */
-  viewState: monaco.editor.ICodeEditorViewState | null;
   refs: number;
   projectId: string;
   workspaceId: string;
@@ -103,9 +101,13 @@ type WorkspaceRoot = {
  * Manages up to three Monaco ITextModel instances per open file using a single
  * unified map keyed by Monaco URI string.
  *
- *   buffer  (file://)  — writable; shown in the code editor; holds user edits + undo stack
+ *   buffer  (file://)  — writable; holds user edits + undo stack
  *   disk    (disk://)  — read-only mirror of the current on-disk content; updated by watcher
  *   git     (git://)   — read-only snapshot of a git ref (HEAD or arbitrary ref)
+ *
+ * The registry now serves only diff views (single file tabs run on
+ * OpenFileStore + MonacoFacetBinder; ticket 09 moves diff views onto git
+ * facets and deletes the registry entirely).
  *
  * ### Lifecycle
  *
@@ -214,13 +216,6 @@ export class MonacoModelRegistry {
     }
   }
 
-  /** ResourceUri for a registered buffer model, or null if none is registered. */
-  resourceUriForBuffer(bufferUri: string): ResourceUri | null {
-    const entry = this.modelMap.get(bufferUri);
-    if (entry?.type !== 'buffer') return null;
-    return this.resourceUriForWorkspaceFile(entry.workspaceId, entry.filePath);
-  }
-
   unbindWorkspaceRoot(projectId: string, workspaceId: string): void {
     const root = this.workspaceRoots.get(workspaceId);
     if (root?.projectId === projectId) this.workspaceRoots.delete(workspaceId);
@@ -235,8 +230,6 @@ export class MonacoModelRegistry {
    */
   readonly pendingConflicts = observable.set<string>();
 
-  private bufferReadyCallbacks = new Map<string, Array<() => void>>();
-
   // ---------------------------------------------------------------------------
   // MobX reactive state
   // ---------------------------------------------------------------------------
@@ -248,7 +241,7 @@ export class MonacoModelRegistry {
 
   /**
    * Total file size in bytes for disk:// URIs where the file was too large to load into Monaco.
-   * Keyed by disk:// URI. Used to display file size in the tab bar tooltip and TooLargeRenderer.
+   * Keyed by disk:// URI.
    */
   readonly modelTotalSizes = observable.map<string, number>();
 
@@ -550,7 +543,6 @@ export class MonacoModelRegistry {
         workspaceId,
         filePath,
         language,
-        viewState: null,
         baseEtag: this.diskEtag(diskEntry),
       };
       this.modelMap.set(uri, entry);
@@ -561,17 +553,11 @@ export class MonacoModelRegistry {
     }
 
     this.modelStatus.set(uri, 'ready');
-    // Mark the buffer as having content so markdown/other renderers that depend
-    // on bufferVersions can react to the initial population.
+    // Mark the buffer as having content so observers that depend on
+    // bufferVersions can react to the initial population.
     runInAction(() => {
       this.bufferVersions.set(uri, 1);
     });
-
-    const callbacks = this.bufferReadyCallbacks.get(uri);
-    if (callbacks?.length) {
-      callbacks.forEach((cb) => cb());
-      this.bufferReadyCallbacks.delete(uri);
-    }
 
     return uri;
   }
@@ -660,7 +646,6 @@ export class MonacoModelRegistry {
           clearTimeout(autosaveTimer);
           this.bufferAutosaveTimers.delete(uri);
         }
-        this.bufferReadyCallbacks.delete(uri);
         this.pendingConflicts.delete(uri);
         runInAction(() => {
           this.dirtyUris.delete(uri);
@@ -724,37 +709,6 @@ export class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // Attach / view state
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Attach the buffer model to a leased code editor.
-   * Saves view state for `previousUri` and restores it for `newUri`.
-   */
-  attach(editor: monaco.editor.IStandaloneCodeEditor, newUri: string, previousUri?: string): void {
-    if (previousUri && previousUri !== newUri) {
-      const prev = this.modelMap.get(previousUri);
-      if (prev?.type === 'buffer') prev.viewState = editor.saveViewState();
-    }
-
-    const entry = this.modelMap.get(newUri);
-    if (entry?.type === 'buffer') {
-      editor.setModel(entry.model);
-      if (entry.viewState) {
-        editor.restoreViewState(entry.viewState);
-      }
-    }
-  }
-
-  detach(editor: monaco.editor.IStandaloneCodeEditor, previousUri?: string): void {
-    if (previousUri) {
-      const prev = this.modelMap.get(previousUri);
-      if (prev?.type === 'buffer') prev.viewState = editor.saveViewState();
-    }
-    editor.setModel(null);
-  }
-
-  // ---------------------------------------------------------------------------
   // Diff view state — scroll/cursor preservation across diff tab switches
   // ---------------------------------------------------------------------------
 
@@ -787,70 +741,6 @@ export class MonacoModelRegistry {
   ): void {
     const vs = this.diffViewStates.get(this.diffKey(originalUri, modifiedUri));
     if (vs) editor.restoreViewState(vs);
-  }
-
-  /**
-   * Register a one-shot callback that fires when the buffer model for `uri` is created.
-   * If the model already exists, fires immediately.
-   * Returns a cleanup function that cancels the pending callback.
-   */
-  onceBufferReady(uri: string, cb: () => void): () => void {
-    if (this.modelMap.has(uri)) {
-      cb();
-      return () => {};
-    }
-    const cbs = this.bufferReadyCallbacks.get(uri) ?? [];
-    cbs.push(cb);
-    this.bufferReadyCallbacks.set(uri, cbs);
-    return () => {
-      const current = this.bufferReadyCallbacks.get(uri);
-      if (!current) return;
-      const filtered = current.filter((c) => c !== cb);
-      if (filtered.length === 0) {
-        this.bufferReadyCallbacks.delete(uri);
-      } else {
-        this.bufferReadyCallbacks.set(uri, filtered);
-      }
-    };
-  }
-
-  async transferBufferState(
-    oldUri: string,
-    newUri: string,
-    newFilePath: string
-  ): Promise<() => void> {
-    if (oldUri === newUri) return () => {};
-    const oldEntry = this.modelMap.get(oldUri);
-    if (oldEntry?.type !== 'buffer') return () => {};
-
-    const dirtyContent = this.dirtyUris.has(oldUri) ? oldEntry.model.getValue() : null;
-    const viewState = oldEntry.viewState;
-    const { workspaceId, filePath: oldPath } = oldEntry;
-
-    if (dirtyContent !== null) {
-      const newKey = this.resourceUriForWorkspaceFile(workspaceId, newFilePath);
-      const oldKey = this.resourceUriForWorkspaceFile(workspaceId, oldPath);
-      if (newKey && oldKey) {
-        const client = await getEditorClient();
-        await client.saveBuffer({ uri: newKey, content: dirtyContent });
-        await client.clearBuffer({ uri: oldKey });
-      }
-    }
-
-    return this.onceBufferReady(newUri, () => {
-      const newEntry = this.modelMap.get(newUri);
-      if (newEntry?.type !== 'buffer') return;
-      if (dirtyContent !== null) {
-        this.reloadingFromDisk.add(newUri);
-        newEntry.model.setValue(dirtyContent);
-        this.reloadingFromDisk.delete(newUri);
-        this.reconcileBufferDirtyState(newUri);
-        runInAction(() => {
-          this.bufferVersions.set(newUri, (this.bufferVersions.get(newUri) ?? 0) + 1);
-        });
-      }
-      if (viewState) newEntry.viewState = viewState;
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -950,32 +840,6 @@ export class MonacoModelRegistry {
    */
   getModelByUri(uri: string): monaco.editor.ITextModel | undefined {
     return this.modelMap.get(uri)?.model;
-  }
-
-  filePathForUri(uri: string): string | undefined {
-    return this.modelMap.get(uri)?.filePath;
-  }
-
-  /** Current text content of the buffer model. */
-  getValue(uri: string): string | null {
-    const entry = this.modelMap.get(uri);
-    return entry?.type === 'buffer' ? entry.model.getValue() : null;
-  }
-
-  /** Current text content of the disk model. */
-  getDiskValue(uri: string): string | null {
-    const entry = this.modelMap.get(this.toDiskUri(uri));
-    return entry?.type === 'disk' ? entry.model.getValue() : null;
-  }
-
-  /** True if a buffer model is registered for this URI. */
-  hasModel(uri: string): boolean {
-    return this.modelMap.get(uri)?.type === 'buffer';
-  }
-
-  /** True while a programmatic disk reload is in progress (suppresses false dirty flag). */
-  isReloadingFromDisk(uri: string): boolean {
-    return this.reloadingFromDisk.has(uri);
   }
 
   // ---------------------------------------------------------------------------

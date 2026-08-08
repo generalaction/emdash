@@ -24,22 +24,7 @@ function createTaskCompositionHarness() {
 }
 
 describe('TaskComposition workspace file navigation', () => {
-  it('opens a file and reveals it in the Files sidebar as one intent', () => {
-    const harness = createTaskCompositionHarness();
-
-    harness.taskView.openWorkspaceFile('/repo/src/chat-link.ts', 'right');
-
-    expect(harness.open).toHaveBeenCalledWith(
-      'file',
-      { path: '/repo/src/chat-link.ts' },
-      { preview: false, target: 'right' }
-    );
-    expect(harness.focusRegion).toHaveBeenCalledWith('main');
-    expect(harness.openSidebarTab).toHaveBeenCalledWith('files');
-    expect(harness.requestRevealFile).toHaveBeenCalledWith('/repo/src/chat-link.ts');
-  });
-
-  it('can reveal an already-open file without opening another tab', () => {
+  it('reveals an already-open file without opening another tab', () => {
     const harness = createTaskCompositionHarness();
 
     harness.taskView.revealWorkspaceFile('/repo/src/already-open.ts');

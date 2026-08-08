@@ -258,6 +258,48 @@ export class OpenFileStore {
     return this.entries.get(resourceKeyFromFileRef(ref));
   }
 
+  /** All entries whose buffer currently has unsaved changes. */
+  dirtyEntries(): OpenFileEntry[] {
+    return [...this.entries.values()].filter((entry) => entry.dirty);
+  }
+
+  /** Saves every dirty buffer; false when any save failed (e.g. a conflict). */
+  async saveAllDirty(): Promise<boolean> {
+    let allSaved = true;
+    for (const entry of this.dirtyEntries()) {
+      const result = await this.save(entry);
+      if (!result.success) allSaved = false;
+    }
+    return allSaved;
+  }
+
+  /** Discards every dirty buffer by reloading it from disk. */
+  discardAllDirty(): void {
+    for (const entry of this.dirtyEntries()) this.reloadFromDisk(entry);
+  }
+
+  /**
+   * Applies a crash-recovery buffer row to an already-open entry (the
+   * workspace-open restore flow). User edits made since the entry was opened
+   * win over the persisted row; a still-loading buffer takes the row as its
+   * seed, applied once the handle exists. Entries that are not open are left
+   * alone — their rows apply when a tab opens them.
+   */
+  hydrateBuffer(ref: HostFileRef, content: string): void {
+    const entry = this.entries.get(resourceKeyFromFileRef(ref));
+    if (!entry || entry.dirty) return;
+    const slot = entry.slots.get(BUFFER_SLOT);
+    if (!slot) return;
+    const handle = slot.handle;
+    if (!handle) {
+      entry.pendingBufferSeed = content;
+      return;
+    }
+    if (handle.getText() === content) return;
+    this.silentSet(entry, handle, content);
+    this.reconcileDirty(entry);
+  }
+
   /**
    * Writes the buffer through the content model's etag-preconditioned write
    * mutation. A stale etag classifies as a conflict: the entry flags
@@ -961,6 +1003,6 @@ function describeWriteError(failure: WriteFailure): string {
 /**
  * The app-global instance (spec §4): one per app, never per workspace, so the
  * same file opened from two workspaces — or from outside any workspace —
- * shares one entry. No view consumes it yet (migration stage 2).
+ * shares one entry. File tabs acquire buffer+disk facets from it on mount.
  */
 export const openFileStore = new OpenFileStore();

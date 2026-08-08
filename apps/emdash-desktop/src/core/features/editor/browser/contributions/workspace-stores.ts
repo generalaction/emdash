@@ -5,7 +5,6 @@ import {
   scopedStoreToken,
   type ScopedStoreContribution,
 } from '@core/primitives/scoped-stores/browser';
-import { releaseFileModelManager } from '../task-editor/stores/file-model-manager';
 
 type WorkspaceModelBinding = Readonly<{
   projectId: string;
@@ -24,7 +23,6 @@ export const editorWorkspaceStoreContributions: readonly ScopedStoreContribution
         return { projectId, workspaceId };
       },
       dispose: ({ projectId, workspaceId }) => {
-        releaseFileModelManager(workspaceId);
         modelRegistry.unbindWorkspaceRoot(projectId, workspaceId);
       },
     }),
