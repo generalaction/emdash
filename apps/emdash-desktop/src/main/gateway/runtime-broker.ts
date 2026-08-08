@@ -64,5 +64,7 @@ async function resolveDesktopRuntimeClient(
     workspaceRegistry: clients.workspaceRegistry,
     resourceUsage: clients.resourceUsage,
     hostDependencies: clients.hostDependencies,
+    hostSettings: clients.hostSettings,
+    scripts: clients.scripts,
   });
 }

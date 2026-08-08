@@ -15,8 +15,12 @@ import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesWorkerSpec } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
+import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
+import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
+import type { ScriptsContract } from '@emdash/core/runtimes/scripts/api';
+import { scriptsWorkerSpec } from '@emdash/core/runtimes/scripts/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
@@ -49,7 +53,9 @@ export type WorkspaceServerRuntimeClients = {
   fileSearch: ContractClient<FileSearchContract>;
   files: ContractClient<FilesContract>;
   git: ContractClient<GitContract>;
+  hostSettings: ContractClient<HostSettingsContract>;
   resourceUsage: ContractClient<ResourceUsageContract>;
+  scripts: ContractClient<ScriptsContract>;
   terminals: ContractClient<TerminalsContract>;
   tuiAgents: ContractClient<TuiAgentsContract>;
   workspaceRegistry: ContractClient<WorkspaceRegistryContract>;
@@ -126,6 +132,22 @@ export async function createWorkspaceServerRuntimeHost(
       env,
     })
   );
+  const hostSettingsPromise = workerHost.spawn(
+    ...hostSettingsWorkerSpec({
+      executable: workspaceWorkerPath('host-settings'),
+      env,
+      settingsPath: paths.hostSettingsFile,
+    })
+  );
+  const scriptsPromise = hostSettingsPromise.then((hostSettings) =>
+    workerHost.spawn(
+      ...scriptsWorkerSpec({
+        executable: workspaceWorkerPath('scripts'),
+        env,
+        dependencies: { hostSettings },
+      })
+    )
+  );
   const acpPromise = conversationsPromise.then((conversations) =>
     workerHost.spawn(
       ...acpWorkerSpec({
@@ -166,16 +188,27 @@ export async function createWorkspaceServerRuntimeHost(
     )
   );
 
-  const [conversations, watcher, terminals, resourceUsage, acp, agentConfig, tuiAgents] =
-    await Promise.all([
-      conversationsPromise,
-      watcherPromise,
-      terminalsPromise,
-      resourceUsagePromise,
-      acpPromise,
-      agentConfigPromise,
-      tuiAgentsPromise,
-    ]);
+  const [
+    conversations,
+    watcher,
+    terminals,
+    resourceUsage,
+    hostSettings,
+    scripts,
+    acp,
+    agentConfig,
+    tuiAgents,
+  ] = await Promise.all([
+    conversationsPromise,
+    watcherPromise,
+    terminalsPromise,
+    resourceUsagePromise,
+    hostSettingsPromise,
+    scriptsPromise,
+    acpPromise,
+    agentConfigPromise,
+    tuiAgentsPromise,
+  ]);
 
   const filesPromise = workerHost.spawn(
     ...filesWorkerSpec({
@@ -247,7 +280,9 @@ export async function createWorkspaceServerRuntimeHost(
       fileSearch,
       files,
       git,
+      hostSettings,
       resourceUsage,
+      scripts,
       terminals,
       tuiAgents,
       workspaceRegistry,

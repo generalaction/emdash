@@ -8,6 +8,7 @@ import { systemClock, type Clock } from '@emdash/shared/scheduling';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { cell, expose, type Cell } from '@emdash/wire/state';
 import type { StoreHandle } from '#primitives/sqlite-store/api';
+import { ConfigModel } from '#services/config-model/node';
 import { workspaceRegistryContract } from '../api/contract';
 import type {
   ActivateWorkspaceError,
@@ -41,7 +42,6 @@ import type {
 } from '../api/schemas';
 import { WorkspaceActivationManager, type WorkspaceDeactivationResult } from './activation';
 import { executeFetchRefs, executePushBranch } from './background-steps';
-import { ConfigModel } from '#services/config-model/node';
 import { readWorkspaceConfig, type WorkspaceConfigEntry } from './config-model';
 import { executeCopyArtifacts } from './copy-artifacts';
 import { executeCreateWorktree } from './create-worktree';

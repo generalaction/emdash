@@ -365,6 +365,31 @@
       "types": "./dist/runtimes-resource-usage-node.d.mts",
       "default": "./dist/runtimes-resource-usage-node.mjs"
     },
+    "./runtimes/host-settings/api": {
+      "development": "./src/runtimes/host-settings/api/index.ts",
+      "types": "./dist/runtimes-host-settings-api.d.mts",
+      "default": "./dist/runtimes-host-settings-api.mjs"
+    },
+    "./runtimes/host-settings/node": {
+      "development": "./src/runtimes/host-settings/node/index.ts",
+      "types": "./dist/runtimes-host-settings-node.d.mts",
+      "default": "./dist/runtimes-host-settings-node.mjs"
+    },
+    "./runtimes/scripts/api": {
+      "development": "./src/runtimes/scripts/api/index.ts",
+      "types": "./dist/runtimes-scripts-api.d.mts",
+      "default": "./dist/runtimes-scripts-api.mjs"
+    },
+    "./runtimes/scripts/node": {
+      "development": "./src/runtimes/scripts/node/index.ts",
+      "types": "./dist/runtimes-scripts-node.d.mts",
+      "default": "./dist/runtimes-scripts-node.mjs"
+    },
+    "./services/config-model/node": {
+      "development": "./src/services/config-model/node/index.ts",
+      "types": "./dist/services-config-model-node.d.mts",
+      "default": "./dist/services-config-model-node.mjs"
+    },
     "./workspace-server": {
       "development": "./src/workspace-server/index.ts",
       "types": "./dist/workspace-server.d.mts",

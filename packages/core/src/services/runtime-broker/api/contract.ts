@@ -6,7 +6,9 @@ import { conversationsContract } from '../../../runtimes/conversations/api';
 import { fileSearchContract } from '../../../runtimes/file-search/api';
 import { filesContract } from '../../../runtimes/files/api';
 import { gitContract } from '../../../runtimes/git/api';
+import { hostSettingsContract } from '../../../runtimes/host-settings/api';
 import { resourceUsageContract } from '../../../runtimes/resource-usage/api';
+import { scriptsContract } from '../../../runtimes/scripts/api';
 import { terminalsContract } from '../../../runtimes/terminals/api';
 import { tuiAgentsContract } from '../../../runtimes/tui-agents/api';
 import { workspaceRegistryContract } from '../../../runtimes/workspace-registry/api';
@@ -34,6 +36,8 @@ export const hostRuntimesDefinitions = {
   workspaceRegistry: workspaceRegistryContract,
   resourceUsage: resourceUsageContract,
   hostDependencies: hostDependenciesContract,
+  hostSettings: hostSettingsContract,
+  scripts: scriptsContract,
 } as const;
 
 export const hostRuntimesContract = defineContract(hostRuntimesDefinitions);

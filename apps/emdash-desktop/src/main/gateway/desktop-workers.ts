@@ -13,8 +13,12 @@ import type { FilesContract } from '@emdash/core/runtimes/files/api';
 import { filesWorkerSpec } from '@emdash/core/runtimes/files/node';
 import type { GitContract } from '@emdash/core/runtimes/git/api';
 import { gitWorkerSpec } from '@emdash/core/runtimes/git/node';
+import type { HostSettingsContract } from '@emdash/core/runtimes/host-settings/api';
+import { hostSettingsWorkerSpec } from '@emdash/core/runtimes/host-settings/node';
 import type { ResourceUsageContract } from '@emdash/core/runtimes/resource-usage/api';
 import { resourceUsageWorkerSpec } from '@emdash/core/runtimes/resource-usage/node';
+import type { ScriptsContract } from '@emdash/core/runtimes/scripts/api';
+import { scriptsWorkerSpec } from '@emdash/core/runtimes/scripts/node';
 import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
@@ -68,7 +72,9 @@ export type ConversationsRuntimeClient = ContractClient<ConversationsContract>;
 export type FileSearchRuntimeClient = ContractClient<FileSearchContract>;
 export type FilesRuntimeClient = ContractClient<FilesContract>;
 export type GitRuntimeClient = ContractClient<GitContract>;
+export type HostSettingsRuntimeClient = ContractClient<HostSettingsContract>;
 export type ResourceUsageRuntimeClient = ContractClient<ResourceUsageContract>;
+export type ScriptsRuntimeClient = ContractClient<ScriptsContract>;
 export type HostDependenciesClient = ContractClient<HostDependenciesContract>;
 export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
@@ -85,9 +91,11 @@ export type DesktopRuntimeClients = {
   readonly files: FilesRuntimeClient;
   readonly git: GitRuntimeClient;
   readonly hostDependencies: HostDependenciesClient;
+  readonly hostSettings: HostSettingsRuntimeClient;
   readonly mementos: MementosRuntimeClient;
   readonly pullRequests: PullRequestsRuntimeClient;
   readonly resourceUsage: ResourceUsageRuntimeClient;
+  readonly scripts: ScriptsRuntimeClient;
   readonly terminals: TerminalsRuntimeClient;
   readonly tuiAgents: TuiAgentsRuntimeClient;
   readonly workspaceRegistry: WorkspaceRegistryRuntimeClient;
@@ -243,6 +251,24 @@ async function startDesktopWorkersWithHost(
       env: process.env,
     })
   );
+  const hostSettingsWorker = host.create(
+    ...hostSettingsWorkerSpec({
+      executable: desktopWorkerPath('host-settings'),
+      env: process.env,
+      settingsPath: join(app.getPath('userData'), 'host-settings.json'),
+    })
+  );
+  const hostSettingsReady = hostSettingsWorker.ready();
+  const scriptsReady = hostSettingsReady.then(async (hostSettings) => {
+    const worker = host.create(
+      ...scriptsWorkerSpec({
+        executable: desktopWorkerPath('scripts'),
+        env: process.env,
+        dependencies: { hostSettings },
+      })
+    );
+    return await worker.ready();
+  });
 
   const watcherReady = fsWatchWorker.ready();
   const acpReady = acpStart.then((result) => result.client);
@@ -354,9 +380,11 @@ async function startDesktopWorkersWithHost(
     fileSearch,
     files,
     git,
+    hostSettings,
     mementos,
     pullRequests,
     resourceUsage,
+    scripts,
     terminals,
     tuiAgentsResult,
     workspaceRegistry,
@@ -368,9 +396,11 @@ async function startDesktopWorkersWithHost(
     fileSearchReady,
     filesReady,
     gitReady,
+    hostSettingsReady,
     mementosReady,
     pullRequestsReady,
     resourceUsageReady,
+    scriptsReady,
     terminalsReady,
     tuiAgentsReady,
     workspaceRegistryReady,
@@ -389,9 +419,11 @@ async function startDesktopWorkersWithHost(
       files,
       git,
       hostDependencies: hostDependencies.client,
+      hostSettings,
       mementos,
       pullRequests,
       resourceUsage,
+      scripts,
       terminals,
       tuiAgents,
       workspaceRegistry,

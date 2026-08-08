@@ -76,8 +76,11 @@ describe('ConfigModel', () => {
 
   it('fires onChanged only when the entry actually changed', async () => {
     const contents = new Map<string, number>([['a', 1]]);
-    const events: Array<{ key: string; entry: { n: number }; previous: { n: number } | undefined }> =
-      [];
+    const events: Array<{
+      key: string;
+      entry: { n: number };
+      previous: { n: number } | undefined;
+    }> = [];
     const model = new ConfigModel<{ n: number }>({
       read: async (key) => ({ n: contents.get(key) ?? 0 }),
       onChanged: (key, entry, previous) => {

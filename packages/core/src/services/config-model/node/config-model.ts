@@ -1,4 +1,6 @@
+import { watch, type FSWatcher } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 /**
  * The result of leniently reading a config file: a missing file yields the parser's
@@ -92,4 +94,41 @@ export class ConfigModel<T> {
     this.disposed = true;
     this.entries.clear();
   }
+}
+
+export type ConfigFileWatcher = {
+  dispose(): void;
+};
+
+/**
+ * The watch-refresh half of the config-model pattern for a single standalone file
+ * (e.g. a host settings file): watches the containing directory so create/delete of
+ * the file itself is seen, debounces bursts, and calls `onChange` once per settle.
+ * The directory must exist; the file need not.
+ */
+export function watchConfigFile(
+  filePath: string,
+  onChange: () => void,
+  options?: { debounceMs?: number }
+): ConfigFileWatcher {
+  const debounceMs = options?.debounceMs ?? 100;
+  const fileName = path.basename(filePath);
+  let timer: NodeJS.Timeout | null = null;
+  let disposed = false;
+  const watcher: FSWatcher = watch(path.dirname(filePath), (_event, changed) => {
+    if (disposed) return;
+    if (changed !== null && changed !== fileName) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      if (!disposed) onChange();
+    }, debounceMs);
+  });
+  return {
+    dispose() {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      watcher.close();
+    },
+  };
 }
