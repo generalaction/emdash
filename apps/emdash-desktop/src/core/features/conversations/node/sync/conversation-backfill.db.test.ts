@@ -26,7 +26,12 @@ describe('ConversationBackfillService', () => {
     const broker = {
       client: async () =>
         reachable
-          ? { success: true, data: { conversations: { create, reportProviderSessionId } } }
+          ? {
+              success: true,
+              data: {
+                conversations: { create, reports: { providerSessionId: reportProviderSessionId } },
+              },
+            }
           : { success: false, error: { type: 'host-unavailable', message: 'offline' } },
     } as unknown as ConversationsRuntimeBroker;
     service = new ConversationBackfillService({ db: fixture.db, runtimes: broker });
@@ -77,11 +82,13 @@ describe('ConversationBackfillService', () => {
     await run();
 
     // Host-scoped and live-only: the remote row and the untracked row are not replayed.
-    const createdIds = create.mock.calls.map(([input]) => (input as { id: string }).id).sort();
+    const createdIds = create.mock.calls
+      .map(([input]) => (input as { conversationId: string }).conversationId)
+      .sort();
     expect(createdIds).toEqual(['conv-1', 'conv-3']);
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'conv-1',
+        conversationId: 'conv-1',
         provider: 'claude',
         type: 'acp',
         cwd: '/work/repo',
@@ -94,7 +101,7 @@ describe('ConversationBackfillService', () => {
     // The cached resume handle is seeded so convergence does not null it out.
     expect(reportProviderSessionId).toHaveBeenCalledTimes(1);
     expect(reportProviderSessionId).toHaveBeenCalledWith({
-      id: 'conv-3',
+      conversationId: 'conv-3',
       providerSessionId: 'sess-3',
     });
 
@@ -113,7 +120,7 @@ describe('ConversationBackfillService', () => {
 
     await run(hostRef('remote', 'conn-1'));
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ id: 'conv-remote' }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ conversationId: 'conv-remote' }));
   });
 
   it('resumes after an interrupted sweep; idempotent creates make the replay safe', async () => {
@@ -157,7 +164,7 @@ describe('ConversationBackfillService', () => {
 
     await run();
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ id: 'conv-full' }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ conversationId: 'conv-full' }));
 
     // The unfillable row stays a live cached observation, and the sweep still completed.
     expect(createConversationRegistry(fixture.db).getLive('conv-partial')).toBeDefined();
@@ -173,7 +180,9 @@ describe('ConversationBackfillService', () => {
     const broker = {
       client: async () => ({
         success: true,
-        data: { conversations: { create, reportProviderSessionId } },
+        data: {
+          conversations: { create, reports: { providerSessionId: reportProviderSessionId } },
+        },
       }),
     } as unknown as ConversationsRuntimeBroker;
     service = new ConversationBackfillService({

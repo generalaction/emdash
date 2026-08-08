@@ -3,7 +3,6 @@ import type { Scope } from '@emdash/shared/concurrency';
 import { type LiveJobContext } from '@emdash/wire/live';
 import { type LeasedLiveModelProvider } from '@emdash/wire/rpc';
 import { expose, type Query } from '@emdash/wire/state';
-import type { PortableRelativePath } from '#primitives/path/api';
 import {
   gitContract,
   type gitRepositoryContract,
@@ -12,9 +11,7 @@ import {
   type GitCommandError,
   type GitRefsState,
   type GitRemotesState,
-  type GitStashesState,
   type GitTransferProgress,
-  type GitWorktreesState,
   type PublishBranchJobInput,
   type RepositorySelector,
 } from '#runtimes/git/api';
@@ -23,7 +20,7 @@ import { expectedGitCommandError } from '#runtimes/git/node/api/errors';
 import type { RepositoryResource } from './repository-resource';
 
 type RepositoryModel = typeof gitRepositoryContract.model;
-type RepositoryStateName = 'refs' | 'remotes' | 'stashes' | 'worktrees';
+type RepositoryStateName = 'refs' | 'remotes';
 
 export class GitRepositoryRuntime {
   readonly model: LeasedLiveModelProvider<RepositoryModel>;
@@ -42,37 +39,10 @@ export class GitRepositoryRuntime {
       {
         refs: (key, scope) => this.repositoryState<GitRefsState>(key, 'refs', scope),
         remotes: (key, scope) => this.repositoryState<GitRemotesState>(key, 'remotes', scope),
-        stashes: (key, scope) => this.repositoryState<GitStashesState>(key, 'stashes', scope),
-        worktrees: (key, scope) => this.repositoryState<GitWorktreesState>(key, 'worktrees', scope),
       },
       {
         mutations: {
-          createBranch: (context) =>
-            this.run(context.key, (resource) => resource.createBranch(context)),
-          deleteBranch: (context) =>
-            this.run(context.key, (resource) => resource.deleteBranch(context)),
-          renameBranch: (context) =>
-            this.run(context.key, (resource) => resource.renameBranch(context)),
-          setUpstream: (context) =>
-            this.run(context.key, (resource) => resource.setUpstream(context)),
-          setBranchBase: (context) =>
-            this.run(context.key, (resource) => resource.setBranchBase(context)),
-          createTag: (context) => this.run(context.key, (resource) => resource.createTag(context)),
-          deleteTag: (context) => this.run(context.key, (resource) => resource.deleteTag(context)),
           addRemote: (context) => this.run(context.key, (resource) => resource.addRemote(context)),
-          setRemoteUrl: (context) =>
-            this.run(context.key, (resource) => resource.setRemoteUrl(context)),
-          removeRemote: (context) =>
-            this.run(context.key, (resource) => resource.removeRemote(context)),
-          stashDrop: (context) => this.run(context.key, (resource) => resource.stashDrop(context)),
-          addWorktree: (context) =>
-            this.run(context.key, (resource) => resource.addWorktree(context)),
-          removeWorktree: (context) =>
-            this.run(context.key, (resource) => resource.removeWorktree(context)),
-          moveWorktree: (context) =>
-            this.run(context.key, (resource) => resource.moveWorktree(context)),
-          pruneWorktrees: (context) =>
-            this.run(context.key, (resource) => resource.pruneWorktrees(context)),
         },
       }
     );
@@ -81,19 +51,15 @@ export class GitRepositoryRuntime {
   }
 
   listWorktrees(input: RepositorySelector) {
-    return this.read(input, (repository) => repository.listWorktrees());
+    return this.read(input, async (repository) => ({
+      worktrees: await repository.listWorktrees(),
+    }));
   }
 
   getDefaultBranch(input: RepositorySelector & { remote?: string }) {
-    return this.read(input, (repository) => repository.getDefaultBranch(input.remote));
-  }
-
-  getBranchBase(input: RepositorySelector & { branch: string }) {
-    return this.read(input, (repository) => repository.getBranchBase(input.branch));
-  }
-
-  readBlobAtRef(input: RepositorySelector & { ref: string; filePath: PortableRelativePath }) {
-    return this.read(input, (repository) => repository.readBlobAtRef(input.ref, input.filePath));
+    return this.read(input, async (repository) => ({
+      branch: await repository.getDefaultBranch(input.remote),
+    }));
   }
 
   fetch(input: FetchJobInput, context: LiveJobContext<GitTransferProgress>) {
@@ -158,10 +124,6 @@ export class GitRepositoryRuntime {
         return repository.state('refs') as unknown as Query<T>;
       case 'remotes':
         return repository.state('remotes') as unknown as Query<T>;
-      case 'stashes':
-        return repository.state('stashes') as unknown as Query<T>;
-      case 'worktrees':
-        return repository.state('worktrees') as unknown as Query<T>;
     }
   }
 

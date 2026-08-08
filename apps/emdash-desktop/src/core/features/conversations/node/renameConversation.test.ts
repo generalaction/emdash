@@ -37,12 +37,15 @@ describe('renameConversation', () => {
     });
     host.rename.mockResolvedValueOnce({
       success: true,
-      data: { id: 'conversation-1', title: 'Trimmed by host', updatedAt: Date.now() },
+      data: { conversationId: 'conversation-1', title: 'Trimmed by host', updatedAt: Date.now() },
     } as never);
 
     await renameConversation(deps, 'conversation-1', '  New title  ');
 
-    expect(host.rename).toHaveBeenCalledWith({ id: 'conversation-1', title: 'New title' });
+    expect(host.rename).toHaveBeenCalledWith({
+      conversationId: 'conversation-1',
+      title: 'New title',
+    });
     // The cache holds the host-acknowledged value, not the requested one.
     expect(cacheWrites[0]?.title).toBe('Trimmed by host');
     expect(emitWire).toHaveBeenCalledWith(
@@ -89,7 +92,7 @@ describe('renameConversation', () => {
 function fakeDeps(row: FakeRow) {
   const cacheWrites: Array<Record<string, unknown>> = [];
   const host = {
-    rename: vi.fn(async (input: { id: string; title: string }) => ({
+    rename: vi.fn(async (input: { conversationId: string; title: string }) => ({
       success: true as const,
       data: { ...input, updatedAt: Date.now() },
     })),

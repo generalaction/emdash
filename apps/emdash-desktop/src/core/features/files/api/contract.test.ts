@@ -16,12 +16,11 @@ describe('filesWireContract', () => {
       'readText',
       'readBytes',
       'upload',
-    ]);
-    expect(Object.keys(filesWireContract.mutations)).toEqual([
       'createFile',
       'createDirectory',
       'rename',
       'move',
+      'copy',
       'delete',
     ]);
     expect(Object.keys(filesWireContract.tree.model.mutations)).toEqual(
@@ -82,15 +81,6 @@ describe('filesWireContract', () => {
         sessionId: 'session-1',
       })
     ).toThrow();
-  });
-
-  it('keys rename and move by source and target ResourceUri', () => {
-    const target = resourceUri('/repo/worktree/src/renamed.ts');
-    expect(filesWireContract.mutations.rename.input.parse({ uri, to: target })).toEqual({
-      uri,
-      to: target,
-    });
-    expect(() => filesWireContract.mutations.move.input.parse({ uri, to: 'renamed.ts' })).toThrow();
   });
 });
 

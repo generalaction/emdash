@@ -78,11 +78,11 @@ describe('deleteTask', () => {
 
   function makeRuntimes() {
     const registry = {
-      deleteWorktree: vi.fn(async (_input: { id: string; deleteBranch: boolean }) => ({
+      deleteWorktree: vi.fn(async (_input: { workspaceId: string; deleteBranch: boolean }) => ({
         success: true as const,
         data: undefined,
       })),
-      deleteWorkspace: vi.fn(async (_input: { id: string }) => ({
+      deleteWorkspace: vi.fn(async (_input: { workspaceId: string }) => ({
         success: true as const,
         data: undefined,
       })),
@@ -143,7 +143,7 @@ describe('deleteTask', () => {
     const taskRows = await fixture.db.select().from(tasks).where(eq(tasks.id, 'task-1'));
     expect(taskRows).toHaveLength(0);
     expect(registry.deleteWorktree).toHaveBeenCalledWith({
-      id: 'workspace-1',
+      workspaceId: 'workspace-1',
       deleteBranch: false,
     });
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
@@ -161,7 +161,10 @@ describe('deleteTask', () => {
 
     await deleteTask(dependencies, { taskId: 'task-1', deleteBranch: true });
 
-    expect(registry.deleteWorktree).toHaveBeenCalledWith({ id: 'workspace-1', deleteBranch: true });
+    expect(registry.deleteWorktree).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      deleteBranch: true,
+    });
   });
 
   it('completes the desktop half against an unreachable host: tombstone written, sweep poked', async () => {

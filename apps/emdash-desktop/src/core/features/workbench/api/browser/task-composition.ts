@@ -148,7 +148,6 @@ export class TaskComposition {
       get workspacePath(): string | undefined {
         return getWorkspacePath();
       },
-      modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
     };
     // Split-pane sizes live on the shared panel-layouts storage (spec:
@@ -563,7 +562,9 @@ function resolvePaneLayoutPaths(
 }
 
 function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
-  if (tab.kind === 'file' && !tab.isExternal) {
+  // Absolute paths (including files outside the workspace) pass through
+  // resolveWorkspacePath unchanged; only workspace-relative ones resolve.
+  if (tab.kind === 'file') {
     return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
   }
   if (tab.kind === 'diff' && tab.diffGroup !== 'pr') {

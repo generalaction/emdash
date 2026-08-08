@@ -1,7 +1,6 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { waitFor } from '@emdash/shared/testing';
 import { client, connect, memoryTransportPair, serve } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 import { filesContract } from '#runtimes/files/api';
@@ -16,35 +15,32 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-describe('files runtime absolute-path mutations', () => {
-  it('creates files and directories at bare absolute paths', async () => {
+describe('files runtime fs mutations', () => {
+  it('creates files and directories at absolute paths', async () => {
     const dir = await makeDir();
     const { connection, dispose } = await makeRuntime();
 
     try {
-      const filePath = runtimeRoot(path.join(dir, 'created.txt'));
       await expect(
-        connection.api.mutations.createFile({ path: filePath, content: 'seeded\n' })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'created.txt'), 'utf8')).resolves.toBe('seeded\n');
-
-      await expect(connection.api.mutations.createFile({ path: filePath })).resolves.toMatchObject({
-        success: false,
-        error: { type: 'already-exists' },
-      });
-
-      await expect(
-        connection.api.mutations.createDirectory({
+        connection.api.fs.createDirectory({
           path: runtimeRoot(path.join(dir, 'made-dir')),
         })
       ).resolves.toEqual({ success: true, data: undefined });
       await expect(stat(path.join(dir, 'made-dir'))).resolves.toMatchObject({});
+
+      await expect(
+        connection.api.fs.createFile({ path: runtimeRoot(path.join(dir, 'made.txt')) })
+      ).resolves.toEqual({ success: true, data: undefined });
+      await expect(readFile(path.join(dir, 'made.txt'), 'utf8')).resolves.toBe('');
+      await expect(
+        connection.api.fs.createFile({ path: runtimeRoot(path.join(dir, 'made.txt')) })
+      ).resolves.toMatchObject({ success: false, error: { type: 'already-exists' } });
     } finally {
       await dispose();
     }
   });
 
-  it('deletes files and directories at bare absolute paths', async () => {
+  it('deletes files and directories at absolute paths', async () => {
     const dir = await makeDir();
     await writeFile(path.join(dir, 'doomed.txt'), 'bye\n');
     await mkdir(path.join(dir, 'nested/deep'), { recursive: true });
@@ -52,12 +48,12 @@ describe('files runtime absolute-path mutations', () => {
 
     try {
       await expect(
-        connection.api.mutations.delete({ path: runtimeRoot(path.join(dir, 'doomed.txt')) })
+        connection.api.fs.delete({ path: runtimeRoot(path.join(dir, 'doomed.txt')) })
       ).resolves.toEqual({ success: true, data: undefined });
       await expect(stat(path.join(dir, 'doomed.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
 
       await expect(
-        connection.api.mutations.delete({
+        connection.api.fs.delete({
           path: runtimeRoot(path.join(dir, 'nested')),
           recursive: true,
         })
@@ -68,100 +64,104 @@ describe('files runtime absolute-path mutations', () => {
     }
   });
 
-  it('renames within one parent directory and rejects cross-directory renames', async () => {
+  it('renames, moves, and copies between absolute paths', async () => {
     const dir = await makeDir();
-    await writeFile(path.join(dir, 'before.txt'), 'same bytes\n');
-    await mkdir(path.join(dir, 'elsewhere'));
+    await writeFile(path.join(dir, 'from.txt'), 'payload\n');
+    await mkdir(path.join(dir, 'target'));
     const { connection, dispose } = await makeRuntime();
 
     try {
       await expect(
-        connection.api.mutations.rename({
-          from: runtimeRoot(path.join(dir, 'before.txt')),
-          to: runtimeRoot(path.join(dir, 'after.txt')),
+        connection.api.fs.rename({
+          from: runtimeRoot(path.join(dir, 'from.txt')),
+          to: runtimeRoot(path.join(dir, 'renamed.txt')),
         })
       ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'after.txt'), 'utf8')).resolves.toBe('same bytes\n');
+      await expect(readFile(path.join(dir, 'renamed.txt'), 'utf8')).resolves.toBe('payload\n');
 
+      // Rename never changes the parent; that is what move is for.
       await expect(
-        connection.api.mutations.rename({
-          from: runtimeRoot(path.join(dir, 'after.txt')),
-          to: runtimeRoot(path.join(dir, 'elsewhere/after.txt')),
+        connection.api.fs.rename({
+          from: runtimeRoot(path.join(dir, 'renamed.txt')),
+          to: runtimeRoot(path.join(dir, 'target', 'renamed.txt')),
         })
       ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-    } finally {
-      await dispose();
-    }
-  });
-
-  it('moves and copies across directories and pushes updates to live content models', async () => {
-    const dir = await makeDir();
-    await mkdir(path.join(dir, 'source'));
-    await mkdir(path.join(dir, 'target'));
-    await writeFile(path.join(dir, 'source/wandering.txt'), 'travels\n');
-    const { connection, dispose } = await makeRuntime();
-    const fromKey = { path: runtimeRoot(path.join(dir, 'source/wandering.txt')) };
-    const toKey = { path: runtimeRoot(path.join(dir, 'target/wandering.txt')) };
-
-    try {
-      // Live content models on both endpoints must observe the move through the
-      // published change notifications alone (the manual watcher never fires).
-      await expect(
-        connection.api.content.state(fromKey, 'content').snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'text', content: 'travels\n' } });
-      await expect(
-        connection.api.content.state(toKey, 'content').snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'unavailable', error: { type: 'not-found' } } });
 
       await expect(
-        connection.api.mutations.move({ from: fromKey.path, to: toKey.path })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'target/wandering.txt'), 'utf8')).resolves.toBe(
-        'travels\n'
-      );
-      await waitFor(async () => {
-        const gone = await connection.api.content.state(fromKey, 'content').snapshot();
-        const arrived = await connection.api.content.state(toKey, 'content').snapshot();
-        return gone.data.kind === 'unavailable' && arrived.data.kind === 'text';
-      });
-
-      await expect(
-        connection.api.mutations.copy({
-          from: toKey.path,
-          to: runtimeRoot(path.join(dir, 'source/copied.txt')),
+        connection.api.fs.move({
+          from: runtimeRoot(path.join(dir, 'renamed.txt')),
+          to: runtimeRoot(path.join(dir, 'target', 'moved.txt')),
         })
       ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'source/copied.txt'), 'utf8')).resolves.toBe(
-        'travels\n'
+      await expect(stat(path.join(dir, 'renamed.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(readFile(path.join(dir, 'target', 'moved.txt'), 'utf8')).resolves.toBe(
+        'payload\n'
       );
-      await expect(readFile(path.join(dir, 'target/wandering.txt'), 'utf8')).resolves.toBe(
-        'travels\n'
-      );
-    } finally {
-      await dispose();
-    }
-  });
 
-  it('refuses to move onto an existing entry', async () => {
-    const dir = await makeDir();
-    await writeFile(path.join(dir, 'a.txt'), 'a\n');
-    await writeFile(path.join(dir, 'b.txt'), 'b\n');
-    const { connection, dispose } = await makeRuntime();
-
-    try {
       await expect(
-        connection.api.mutations.move({
-          from: runtimeRoot(path.join(dir, 'a.txt')),
-          to: runtimeRoot(path.join(dir, 'b.txt')),
+        connection.api.fs.copy({
+          from: runtimeRoot(path.join(dir, 'target', 'moved.txt')),
+          to: runtimeRoot(path.join(dir, 'copied.txt')),
+        })
+      ).resolves.toEqual({ success: true, data: undefined });
+      await expect(readFile(path.join(dir, 'target', 'moved.txt'), 'utf8')).resolves.toBe(
+        'payload\n'
+      );
+      await expect(readFile(path.join(dir, 'copied.txt'), 'utf8')).resolves.toBe('payload\n');
+      await expect(
+        connection.api.fs.copy({
+          from: runtimeRoot(path.join(dir, 'target', 'moved.txt')),
+          to: runtimeRoot(path.join(dir, 'copied.txt')),
         })
       ).resolves.toMatchObject({ success: false, error: { type: 'already-exists' } });
-      await expect(readFile(path.join(dir, 'b.txt'), 'utf8')).resolves.toBe('b\n');
     } finally {
       await dispose();
     }
   });
 
-  it('uploads bytes to a bare absolute path', async () => {
+  it('writes whole files with etag preconditions preserved', async () => {
+    const dir = await makeDir();
+    await writeFile(path.join(dir, 'guarded.txt'), 'original\n');
+    const { connection, dispose } = await makeRuntime();
+
+    try {
+      const key = { path: runtimeRoot(path.join(dir, 'guarded.txt')) };
+      const read = await connection.api.fs.readText(key);
+      expect(read.success).toBe(true);
+      if (!read.success) throw new Error('Expected readText to succeed');
+
+      await expect(
+        connection.api.fs.writeFile({
+          ...key,
+          content: 'updated\n',
+          precondition: { kind: 'etag', etag: read.data.etag },
+        })
+      ).resolves.toEqual({ success: true, data: undefined });
+      await expect(readFile(path.join(dir, 'guarded.txt'), 'utf8')).resolves.toBe('updated\n');
+
+      await expect(
+        connection.api.fs.writeFile({
+          ...key,
+          content: 'stale write\n',
+          precondition: { kind: 'etag', etag: read.data.etag },
+        })
+      ).resolves.toMatchObject({ success: false, error: { type: 'etag-mismatch' } });
+      await expect(readFile(path.join(dir, 'guarded.txt'), 'utf8')).resolves.toBe('updated\n');
+
+      await expect(
+        connection.api.fs.writeFile({
+          ...key,
+          content: 'forced\n',
+          precondition: { kind: 'overwrite' },
+        })
+      ).resolves.toEqual({ success: true, data: undefined });
+      await expect(readFile(path.join(dir, 'guarded.txt'), 'utf8')).resolves.toBe('forced\n');
+    } finally {
+      await dispose();
+    }
+  });
+
+  it('uploads bytes to an absolute path', async () => {
     const dir = await makeDir();
     const { connection, dispose } = await makeRuntime();
 
@@ -196,58 +196,53 @@ describe('files runtime absolute-path mutations', () => {
     }
   });
 
-  it('rejects mixed addressing modes at the seam', async () => {
+  // Spec §3.4: the runtime reflects its own stateless mutations into affected
+  // live tree sessions at ack time. The watcher here is a stub that never
+  // emits, so every tree update observed after a mutation ack must come from
+  // the synchronous republish path.
+  it('reflects fs mutations into open tree sessions at ack time without the watcher', async () => {
     const dir = await makeDir();
-    await writeFile(path.join(dir, 'mixed.txt'), 'x\n');
-    const { connection, dispose } = await makeRuntime();
+    await mkdir(path.join(dir, 'src'));
+    await writeFile(path.join(dir, 'src/kept.ts'), 'kept\n');
+    await writeFile(path.join(dir, 'src/doomed.ts'), 'doomed\n');
+    const { connection, dispose } = await makeRuntime({ watcher: new SilentWatcher() });
+    const key = { root: runtimeRoot(dir), sessionId: 'republish' };
+    const treeEntries = async () =>
+      (await connection.api.tree.model.state(key, 'tree').snapshot()).data.entries;
 
     try {
-      // A root-scoped call must use relative targets.
-      await expect(
-        connection.api.mutations.delete({
-          root: runtimeRoot(dir),
-          path: runtimeRoot(path.join(dir, 'mixed.txt')),
-        })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-      // A bare call must use absolute targets.
-      await expect(
-        connection.api.mutations.delete({ path: relativePath('mixed.txt') })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-      // Rename endpoints must agree on the addressing mode.
-      await expect(
-        connection.api.mutations.rename({
-          from: runtimeRoot(path.join(dir, 'mixed.txt')),
-          to: relativePath('renamed.txt'),
-        })
-      ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-      await expect(readFile(path.join(dir, 'mixed.txt'), 'utf8')).resolves.toBe('x\n');
-    } finally {
-      await dispose();
-    }
-  });
+      for (const entryPath of ['', 'src']) {
+        await expect(
+          connection.api.tree.model.mutate('expand', {
+            key,
+            input: { path: relativePath(entryPath) },
+          })
+        ).resolves.toMatchObject({ success: true });
+      }
+      expect(await treeEntries()).toMatchObject({
+        'src/kept.ts': { kind: 'file' },
+        'src/doomed.ts': { kind: 'file' },
+      });
 
-  it('keeps serving root-scoped mutations unchanged', async () => {
-    const dir = await makeDir();
-    const { connection, dispose } = await makeRuntime();
-
-    try {
       await expect(
-        connection.api.mutations.createFile({
-          root: runtimeRoot(dir),
-          path: relativePath('scoped.txt'),
-          content: 'in root\n',
+        connection.api.fs.delete({ path: runtimeRoot(path.join(dir, 'src/doomed.ts')) })
+      ).resolves.toEqual({ success: true, data: undefined });
+      expect((await treeEntries())['src/doomed.ts']).toBeUndefined();
+
+      await expect(
+        connection.api.fs.createFile({ path: runtimeRoot(path.join(dir, 'src/fresh.ts')) })
+      ).resolves.toEqual({ success: true, data: undefined });
+      expect(await treeEntries()).toMatchObject({ 'src/fresh.ts': { kind: 'file' } });
+
+      await expect(
+        connection.api.fs.rename({
+          from: runtimeRoot(path.join(dir, 'src/kept.ts')),
+          to: runtimeRoot(path.join(dir, 'src/kept-renamed.ts')),
         })
       ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'scoped.txt'), 'utf8')).resolves.toBe('in root\n');
-
-      await expect(
-        connection.api.mutations.move({
-          root: runtimeRoot(dir),
-          from: relativePath('scoped.txt'),
-          to: relativePath('moved.txt'),
-        })
-      ).resolves.toEqual({ success: true, data: undefined });
-      await expect(readFile(path.join(dir, 'moved.txt'), 'utf8')).resolves.toBe('in root\n');
+      const afterRename = await treeEntries();
+      expect(afterRename['src/kept.ts']).toBeUndefined();
+      expect(afterRename['src/kept-renamed.ts']).toMatchObject({ kind: 'file' });
     } finally {
       await dispose();
     }
@@ -260,7 +255,7 @@ async function* chunks(bytes: Uint8Array): AsyncIterable<Uint8Array> {
 
 async function makeRuntime(options: FilesRuntimeOptions = {}) {
   const runtime = new FilesRuntime({
-    watcher: options.watcher ?? new ManualWatcher(),
+    watcher: options.watcher ?? new SilentWatcher(),
     idleTtlMs: 10_000,
     ...options,
   });
@@ -283,7 +278,8 @@ async function makeDir(): Promise<string> {
   return dir;
 }
 
-class ManualWatcher implements IWatchService {
+/** Accepts watch registrations but never reports any filesystem events. */
+class SilentWatcher implements IWatchService {
   private readonly entries = new Map<
     string,
     { onEvents: (events: WatchEvent[]) => void; options: WatchOptions }

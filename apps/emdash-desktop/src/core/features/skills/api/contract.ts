@@ -22,17 +22,17 @@ export const skillsContract = defineContract({
   }),
   install: fallible({
     input: agentConfigContract.installSkill.input.extend(hostInputSchema.shape),
-    data: installedSkillsSchema,
+    data: z.object({ skills: installedSkillsSchema }),
     error: skillsErrorSchema,
   }),
   remove: fallible({
     input: agentConfigContract.removeSkill.input.extend(hostInputSchema.shape),
-    data: installedSkillsSchema,
+    data: z.object({ skills: installedSkillsSchema }),
     error: skillsErrorSchema,
   }),
   create: fallible({
     input: agentConfigContract.createSkill.input.extend(hostInputSchema.shape),
-    data: installedSkillsSchema,
+    data: z.object({ skills: installedSkillsSchema }),
     error: skillsErrorSchema,
   }),
 });

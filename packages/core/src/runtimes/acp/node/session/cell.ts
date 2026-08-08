@@ -529,7 +529,9 @@ export class SessionCell {
 
     try {
       const resolvedAttachments = await Promise.all(
-        (prompt.attachments ?? []).map((attachment) => this.deps.resolveAttachment(attachment))
+        (prompt.attachments ?? []).map((attachment) =>
+          this.deps.resolveAttachment(this.deps.conversationId, attachment)
+        )
       );
       const promptRequest = {
         sessionId: this.acpSessionId,

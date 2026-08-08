@@ -13,6 +13,7 @@ import {
   type HistoryPage,
   type PromptDraftUpdate,
   type PromptInput,
+  type PromptPlacement,
   type SessionState,
   type TerminalState,
 } from '@emdash/core/runtimes/acp/api/client';
@@ -128,7 +129,7 @@ export class AcpLiveSession {
   static async create(conversationId: string): Promise<AcpLiveSession> {
     const client = (await getConversationsClient()).acp;
     const result = await withTimeout(
-      (signal) => client.startSession({ conversationId }, { signal }),
+      (signal) => client.start({ conversationId }, { signal }),
       'Timed out starting ACP session'
     );
     if (!result.success) {
@@ -157,11 +158,11 @@ export class AcpLiveSession {
   }
 
   start(): Promise<Result<{ sessionId: string }, unknown>> {
-    return this.client.startSession({ conversationId: this.conversationId });
+    return this.client.start({ conversationId: this.conversationId });
   }
 
   async resume(): Promise<Result<HistoryPage, unknown>> {
-    const result = await this.client.resumeSession({ conversationId: this.conversationId });
+    const result = await this.client.resume({ conversationId: this.conversationId });
     if (!result.success) return result;
     return {
       success: true,
@@ -176,12 +177,18 @@ export class AcpLiveSession {
     return this.client.getHistory({ conversationId: this.conversationId, before, limit });
   }
 
-  exportTranscript(): Promise<Result<string, unknown>> {
-    return this.client.exportACPTranscript({ conversationId: this.conversationId });
+  async exportTranscript(): Promise<Result<string, unknown>> {
+    const result = await this.client.exportAcpTranscript({
+      conversationId: this.conversationId,
+    });
+    if (!result.success) return result;
+    return { success: true, data: result.data.transcript };
   }
 
-  exportRawAcpLog(): Promise<Result<string, unknown>> {
-    return this.client.exportRawAcpLog({ conversationId: this.conversationId });
+  async exportRawAcpLog(): Promise<Result<string, unknown>> {
+    const result = await this.client.exportRawAcpLog({ conversationId: this.conversationId });
+    if (!result.success) return result;
+    return { success: true, data: result.data.log };
   }
 
   uploadAttachment(input: {
@@ -208,7 +215,7 @@ export class AcpLiveSession {
     id: string
   ): Promise<Result<{ ref: AttachmentRef; data: Uint8Array }, unknown>> {
     return this.client
-      .downloadAttachment({ conversationId: this.conversationId, id })
+      .downloadAttachment({ conversationId: this.conversationId, attachmentId: id })
       .then(async (result) => {
         if (!result.success) return result;
         return {
@@ -222,15 +229,17 @@ export class AcpLiveSession {
   }
 
   deleteAttachment(id: string): Promise<Result<void, unknown>> {
-    return this.client.deleteAttachment({ conversationId: this.conversationId, id });
+    return this.client.deleteAttachment({
+      conversationId: this.conversationId,
+      attachmentId: id,
+    });
   }
 
-  sendPrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.sendPrompt({ conversationId: this.conversationId, prompt });
-  }
-
-  queuePrompt(prompt: PromptInput): Promise<Result<{ queued: boolean }, unknown>> {
-    return this.client.queuePrompt({ conversationId: this.conversationId, prompt });
+  sendPrompt(
+    prompt: PromptInput,
+    placement?: PromptPlacement
+  ): Promise<Result<{ queued: boolean }, unknown>> {
+    return this.client.sendPrompt({ conversationId: this.conversationId, prompt, placement });
   }
 
   editQueuedPrompt(id: string, input: PromptInput): Promise<Result<void, unknown>> {

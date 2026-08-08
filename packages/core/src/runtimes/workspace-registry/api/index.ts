@@ -1,3 +1,8 @@
+export {
+  compileWorktreePayload,
+  type CompiledWorktreePayload,
+  type CompileWorktreePayloadInput,
+} from './compile-worktree-payload';
 export { workspaceRegistryContract, type WorkspaceRegistryContract } from './contract';
 export {
   activateWorkspaceErrorSchema,
@@ -5,6 +10,7 @@ export {
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
+  measureUsageErrorSchema,
   updateWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
   type ActivateWorkspaceError,
@@ -12,6 +18,7 @@ export {
   type CreateWorktreeError,
   type DeleteWorkspaceError,
   type DeleteWorktreeError,
+  type MeasureUsageError,
   type UpdateWorktreeError,
   type WorkspaceNotFoundError,
 } from './errors';
@@ -22,6 +29,7 @@ export {
   deactivateWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
   deleteWorktreeInputSchema,
+  measureUsageInputSchema,
   refreshWorkspacesInputSchema,
   retryableLifecycleStepSchema,
   retryStepInputSchema,
@@ -43,12 +51,15 @@ export {
   workspaceRecordsSchema,
   workspaceRemovalAttemptSchema,
   workspaceRuntimeOverlaySchema,
+  workspaceUsageErrorSchema,
+  workspaceUsageSchema,
   type ActivateWorkspaceInput,
   type CreateWorkspaceInput,
   type CreateWorktreeInput,
   type DeactivateWorkspaceInput,
   type DeleteWorkspaceInput,
   type DeleteWorktreeInput,
+  type MeasureUsageInput,
   type RefreshWorkspacesInput,
   type RetryableLifecycleStep,
   type RetryStepInput,
@@ -71,5 +82,7 @@ export {
   type WorkspaceRecords,
   type WorkspaceRemovalAttempt,
   type WorkspaceRuntimeOverlay,
+  type WorkspaceUsage,
+  type WorkspaceUsageError,
 } from './schemas';
 export { workspaceRegistryWorker } from './worker';

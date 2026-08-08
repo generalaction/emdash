@@ -75,15 +75,15 @@ function applyConversationSnapshotTx(
 
   const seen = new Set<string>();
   for (const record of Object.values(input.records)) {
-    seen.add(record.id);
+    seen.add(record.conversationId);
     // Matching is a primary-key lookup on the emdash conversation id — no path matching.
     // A row cached from another host converges here too: source host is a refreshable
     // field, and the last-observed host wins on duplicated ids (spec §5).
-    const existing = registry.getLive(record.id, tx);
+    const existing = registry.getLive(record.conversationId, tx);
     if (existing === undefined) {
       registry.adopt(
         {
-          id: record.id,
+          id: record.conversationId,
           ...observationFor(record, input.host, observedAt),
           createdAt: isoFromMs(record.createdAt),
         },
@@ -92,7 +92,7 @@ function applyConversationSnapshotTx(
       counts.adopted += 1;
       continue;
     }
-    registry.refresh(record.id, observationFor(record, input.host, observedAt), tx);
+    registry.refresh(record.conversationId, observationFor(record, input.host, observedAt), tx);
     counts.refreshed += 1;
   }
 

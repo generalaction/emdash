@@ -43,6 +43,9 @@ const treeKeySchema = z.object({
 
 const readOptionsShape = { options: readFileOptionsSchema.optional() };
 
+// Two-endpoint mutations address source and target as URIs on the same host.
+const fromToUriKeySchema = z.object({ from: resourceUriSchema, to: resourceUriSchema });
+
 const filesFsContract = defineContract({
   exists: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.exists.output),
   realPath: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.realPath.output),
@@ -61,24 +64,14 @@ const filesFsContract = defineContract({
     result: filesContract.fs.upload.result,
     error: runtimeResolveErrorUnion(filesContract.fs.upload.error),
   }),
-});
-
-const renameKeySchema = z.object({ uri: resourceUriSchema, to: resourceUriSchema });
-
-const filesMutationsContract = defineContract({
-  createFile: runtimeFallibleProcedure(
-    uriKeySchema.extend({ content: z.string().optional() }),
-    filesContract.mutations.createFile.output
-  ),
-  createDirectory: runtimeFallibleProcedure(
-    uriKeySchema,
-    filesContract.mutations.createDirectory.output
-  ),
-  rename: runtimeFallibleProcedure(renameKeySchema, filesContract.mutations.rename.output),
-  move: runtimeFallibleProcedure(renameKeySchema, filesContract.mutations.move.output),
+  createFile: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.createFile.output),
+  createDirectory: runtimeFallibleProcedure(uriKeySchema, filesContract.fs.createDirectory.output),
+  rename: runtimeFallibleProcedure(fromToUriKeySchema, filesContract.fs.rename.output),
+  move: runtimeFallibleProcedure(fromToUriKeySchema, filesContract.fs.move.output),
+  copy: runtimeFallibleProcedure(fromToUriKeySchema, filesContract.fs.copy.output),
   delete: runtimeFallibleProcedure(
     uriKeySchema.extend({ recursive: z.boolean().optional() }),
-    filesContract.mutations.delete.output
+    filesContract.fs.delete.output
   ),
 });
 
@@ -102,7 +95,6 @@ export const filesWireContract = defineContract({
     },
     mutations: runtimeFallibleMutations(filesContract.content.mutations),
   }),
-  mutations: filesMutationsContract,
 });
 
 export type FilesWireContract = typeof filesWireContract;

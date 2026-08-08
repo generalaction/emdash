@@ -59,7 +59,7 @@ export class ConversationsRuntime {
 
     const initial: ConversationRecords = {};
     for (const record of this.store.list()) {
-      initial[record.id] = record;
+      initial[record.conversationId] = record;
     }
     this.recordsCell = cell<ConversationRecords>(initial, { name: 'conversation-records' });
     this.recordsHost = expose(conversationsContract.records, {
@@ -72,7 +72,7 @@ export class ConversationsRuntime {
   }
 
   create(input: CreateConversationInput): Result<ConversationRecord, CreateConversationError> {
-    const existing = this.store.get(input.id);
+    const existing = this.store.get(input.conversationId);
     if (existing) {
       const mismatched = IMMUTABLE_CREATE_FIELDS.filter(
         (field) => existing[field] !== input[field]
@@ -80,9 +80,9 @@ export class ConversationsRuntime {
       if (mismatched.length > 0) {
         return err({
           type: 'immutable-field-mismatch',
-          conversationId: input.id,
+          conversationId: input.conversationId,
           fields: [...mismatched],
-          message: `Conversation '${input.id}' already exists with different immutable fields: ${mismatched.join(', ')}`,
+          message: `Conversation '${input.conversationId}' already exists with different immutable fields: ${mismatched.join(', ')}`,
         });
       }
       // Idempotent replay: same id, identical immutable fields — no-op success (spec §4.2).
@@ -90,7 +90,7 @@ export class ConversationsRuntime {
     }
 
     const record: ConversationRecord = {
-      id: input.id,
+      conversationId: input.conversationId,
       provider: input.provider,
       type: input.type,
       cwd: input.cwd,
@@ -112,25 +112,27 @@ export class ConversationsRuntime {
   }
 
   rename(input: RenameConversationInput): Result<ConversationRecord, ConversationMutationError> {
-    return this.mutate(input.id, (record) => ({ ...record, title: input.title }));
+    return this.mutate(input.conversationId, (record) => ({ ...record, title: input.title }));
   }
 
   updateConfig(
     input: UpdateConversationConfigInput
   ): Result<ConversationRecord, ConversationMutationError> {
-    return this.mutate(input.id, (record) => ({ ...record, config: input.config }));
+    return this.mutate(input.conversationId, (record) => ({ ...record, config: input.config }));
   }
 
   delete(input: DeleteConversationInput): Result<void, DeleteConversationError> {
-    const deleted = this.store.delete(input.id);
+    const deleted = this.store.delete(input.conversationId);
     if (deleted) {
       this.recordsCell.update((previous) => {
         const next = { ...previous };
-        delete next[input.id];
+        delete next[input.conversationId];
         return next;
       });
     } else {
-      this.logger.debug?.(`delete of absent conversation '${input.id}' — idempotent no-op`);
+      this.logger.debug?.(
+        `delete of absent conversation '${input.conversationId}' — idempotent no-op`
+      );
     }
     return ok(undefined);
   }
@@ -138,7 +140,7 @@ export class ConversationsRuntime {
   reportSessionStarted(input: ReportSessionStartedInput): Result<void, ConversationMutationError> {
     const now = this.clock.now();
     return dropData(
-      this.mutate(input.id, (record) => ({
+      this.mutate(input.conversationId, (record) => ({
         ...record,
         lastSpawnedAt: now,
         ...(input.providerSessionId === null
@@ -154,7 +156,7 @@ export class ConversationsRuntime {
   ): Result<void, ConversationMutationError> {
     const now = this.clock.now();
     return dropData(
-      this.mutate(input.id, (record) => ({
+      this.mutate(input.conversationId, (record) => ({
         ...record,
         providerSessionId: input.providerSessionId,
         providerSessionIdObservedAt: now,
@@ -166,12 +168,16 @@ export class ConversationsRuntime {
     input: ReportSessionActivityInput
   ): Result<void, ConversationMutationError> {
     const now = this.clock.now();
-    return dropData(this.mutate(input.id, (record) => ({ ...record, lastSessionActivityAt: now })));
+    return dropData(
+      this.mutate(input.conversationId, (record) => ({ ...record, lastSessionActivityAt: now }))
+    );
   }
 
   reportSessionEnded(input: ReportSessionEndedInput): Result<void, ConversationMutationError> {
     const now = this.clock.now();
-    return dropData(this.mutate(input.id, (record) => ({ ...record, lastSessionActivityAt: now })));
+    return dropData(
+      this.mutate(input.conversationId, (record) => ({ ...record, lastSessionActivityAt: now }))
+    );
   }
 
   private mutate(
@@ -193,7 +199,7 @@ export class ConversationsRuntime {
   }
 
   private publish(record: ConversationRecord): void {
-    this.recordsCell.update((previous) => ({ ...previous, [record.id]: record }));
+    this.recordsCell.update((previous) => ({ ...previous, [record.conversationId]: record }));
   }
 }
 

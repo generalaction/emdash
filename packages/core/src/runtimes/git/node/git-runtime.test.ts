@@ -1,12 +1,11 @@
 import { execFile } from 'node:child_process';
-import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { gitContract } from '#runtimes/git/api';
-import { createGitExec } from '#runtimes/git/node/exec/git-exec';
-import { gitPath, hostPath } from '#runtimes/git/node/testing/paths';
+import { hostPath } from '#runtimes/git/node/testing/paths';
 import { ExecError, type BoundExec } from '#services/exec/api';
 import type { IWatchService } from '#services/fs-watch/api';
 import { GitRuntime } from './index';
@@ -91,7 +90,6 @@ describe('GitRuntime', () => {
     try {
       expect(runtime.repository.model.contract.id).toBe(gitContract.repository.model.id);
       expect(runtime.checkout.model.contract.id).toBe(gitContract.checkout.model.id);
-      expect(runtime.checkout.fileDiffModel.contract.id).toBe(gitContract.checkout.fileDiff.id);
       expect(runtime.checkout.fileContentModel.contract.id).toBe(gitContract.checkout.content.id);
     } finally {
       await runtime.dispose();
@@ -105,13 +103,16 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toEqual({
-        kind: 'not-repository',
-        path: hostPath(directory),
+        success: true,
+        data: { kind: 'not-repository', path: hostPath(directory) },
       });
       await expect(runtime.provisioning.inspectPath(hostPath(repo))).resolves.toMatchObject({
-        kind: 'repository',
-        rootPath: hostPath(await realpath(repo)),
-        baseRef: 'main',
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: hostPath(await realpath(repo)),
+          baseRef: 'main',
+        },
       });
     } finally {
       await runtime.dispose();
@@ -125,8 +126,11 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(repo))).resolves.toMatchObject({
-        kind: 'repository',
-        rootPath: hostPath(await realpath(repo)),
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: hostPath(await realpath(repo)),
+        },
       });
     } finally {
       await runtime.dispose();
@@ -152,9 +156,12 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(targetPath))).resolves.toEqual({
-        kind: 'inspect-failed',
-        path: hostPath(targetPath),
-        message: `fatal: cannot change to '${targetPath}': Permission denied`,
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          path: hostPath(targetPath),
+          message: `fatal: cannot change to '${targetPath}': Permission denied`,
+        },
       });
     } finally {
       await runtime.dispose();
@@ -168,8 +175,8 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toEqual({
-        kind: 'not-repository',
-        path: hostPath(directory),
+        success: true,
+        data: { kind: 'not-repository', path: hostPath(directory) },
       });
     } finally {
       await runtime.dispose();
@@ -234,8 +241,11 @@ describe('GitRuntime', () => {
         },
       });
       await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toMatchObject({
-        kind: 'repository',
-        rootPath: hostPath(await realpath(directory)),
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: hostPath(await realpath(directory)),
+        },
       });
     } finally {
       await runtime.dispose();
@@ -325,58 +335,6 @@ describe('GitRuntime', () => {
     } finally {
       await runtime.dispose();
       await watcher.dispose();
-    }
-  });
-
-  it('targets repository reads independently of the runtime cwd', async () => {
-    const target = await makeRepo();
-    const runtimeCwd = await makeRepo();
-    await writeFile(path.join(target, 'INITIAL.md'), '# Target\n', 'utf8');
-    await execFileAsync('git', ['commit', '-am', 'target content'], { cwd: target });
-    await writeFile(path.join(runtimeCwd, 'INITIAL.md'), '# Other\n', 'utf8');
-    await execFileAsync('git', ['commit', '-am', 'other content'], { cwd: runtimeCwd });
-    const runtime = new GitRuntime({
-      exec: createGitExec({ cwd: runtimeCwd }),
-      watcher: createNoopWatcher(),
-    });
-
-    try {
-      await expect(
-        runtime.repository.readBlobAtRef({
-          ...repositorySelector(target),
-          ref: 'HEAD',
-          filePath: gitPath('INITIAL.md'),
-        })
-      ).resolves.toEqual({ success: true, data: '# Target\n' });
-    } finally {
-      await runtime.dispose();
-      await rm(target, { recursive: true, force: true });
-      await rm(runtimeCwd, { recursive: true, force: true });
-    }
-  });
-
-  it('uses the configured executable for persistent repository reads', async () => {
-    const repo = await makeRepo();
-    const gitDir = await realpath(path.join(repo, '.git'));
-    const { executable, logPath } = await makeRecordingGitExecutable();
-    const runtime = new GitRuntime({ executable, watcher: createNoopWatcher() });
-
-    try {
-      await expect(
-        runtime.repository.readBlobAtRef({
-          ...repositorySelector(repo),
-          ref: 'HEAD',
-          filePath: gitPath('INITIAL.md'),
-        })
-      ).resolves.toEqual({ success: true, data: '# Initial\n' });
-      await runtime.dispose();
-
-      const calls = (await readFile(logPath, 'utf8')).trim().split('\n').filter(Boolean);
-      expect(calls).toContain(`--git-dir=${gitDir} cat-file --batch`);
-    } finally {
-      await runtime.dispose();
-      await rm(repo, { recursive: true, force: true });
-      await rm(path.dirname(executable), { recursive: true, force: true });
     }
   });
 

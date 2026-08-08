@@ -1,4 +1,4 @@
-import type { StartSessionInput } from '@emdash/core/runtimes/acp/api/client';
+import type { AcpStartInputWire } from '@emdash/core/runtimes/acp/api/client';
 import {
   runtimeResolveErrorAsError,
   type HostRuntimesClient,
@@ -6,7 +6,7 @@ import {
   type RuntimeResolveError,
 } from '@emdash/core/services/runtime-broker/api';
 
-export type ConversationsAcpStartInput = StartSessionInput;
+export type ConversationsAcpStartInput = AcpStartInputWire;
 export type ConversationsHostRuntimesClient = HostRuntimesClient;
 export type ConversationsRuntimeBroker = Pick<RuntimeBroker, 'client'>;
 export type ConversationsRuntimeResolveError = RuntimeResolveError;

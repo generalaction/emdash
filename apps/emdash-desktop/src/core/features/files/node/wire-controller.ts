@@ -13,7 +13,7 @@ import {
   type PortableRelativePath,
   type ResourceUri,
 } from '@emdash/core/primitives/path/api';
-import type { FileContentModel, FsError } from '@emdash/core/runtimes/files/api';
+import type { ContentUnavailableCode, FileContentModel } from '@emdash/core/runtimes/files/api';
 import {
   gitContract,
   type GitFileContentState,
@@ -75,33 +75,35 @@ export function createFilesWireController(options: CreateFilesWireControllerOpti
         withFileRuntime(options, input.uri, (files, ref) =>
           files.fs.upload({ path: ref.path, overwrite: input.overwrite }, file, callOptions(meta))
         ),
+      createFile: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.createFile({ path: ref.path }, callOptions(meta))
+        ),
+      createDirectory: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.createDirectory({ path: ref.path }, callOptions(meta))
+        ),
+      rename: (input, meta) =>
+        withFromToRuntime(options, input, (files, from, to) =>
+          files.fs.rename({ from, to }, callOptions(meta))
+        ),
+      move: (input, meta) =>
+        withFromToRuntime(options, input, (files, from, to) =>
+          files.fs.move({ from, to }, callOptions(meta))
+        ),
+      copy: (input, meta) =>
+        withFromToRuntime(options, input, (files, from, to) =>
+          files.fs.copy({ from, to }, callOptions(meta))
+        ),
+      delete: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.delete({ path: ref.path, recursive: input.recursive }, callOptions(meta))
+        ),
     },
     tree: {
       model: createTreeModelProvider(options),
     },
     content: createContentModelProvider(options),
-    mutations: {
-      createFile: (input, meta) =>
-        withFileRuntime(options, input.uri, (files, ref) =>
-          files.mutations.createFile({ path: ref.path, content: input.content }, callOptions(meta))
-        ),
-      createDirectory: (input, meta) =>
-        withFileRuntime(options, input.uri, (files, ref) =>
-          files.mutations.createDirectory({ path: ref.path }, callOptions(meta))
-        ),
-      rename: (input, meta) =>
-        withFilePairRuntime(options, input.uri, input.to, (files, from, to) =>
-          files.mutations.rename({ from: from.path, to: to.path }, callOptions(meta))
-        ),
-      move: (input, meta) =>
-        withFilePairRuntime(options, input.uri, input.to, (files, from, to) =>
-          files.mutations.move({ from: from.path, to: to.path }, callOptions(meta))
-        ),
-      delete: (input, meta) =>
-        withFileRuntime(options, input.uri, (files, ref) =>
-          files.mutations.delete({ path: ref.path, recursive: input.recursive }, callOptions(meta))
-        ),
-    },
   });
 }
 
@@ -216,57 +218,35 @@ async function resolveGitContentState(
   const client = runtime.data;
   const fallbackPath = bestEffortRelativePath(fileRef.path);
 
+  // Requests that never reach the git machinery — an unusable ref, a path
+  // outside any checkout, an inspection failure — all classify onto the
+  // closed seam-error enum as `unavailable`.
   const source = toGitFileSource(key.source.ref);
-  if (!source.success) {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: source.error,
-    });
-  }
+  if (!source.success) return contentErrorState(fallbackPath, 'unavailable');
 
   const parent = absoluteDirname(fileRef.path);
-  if (!parent) {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: 'A filesystem root cannot be read as a file',
-    });
-  }
+  if (!parent) return contentErrorState(fallbackPath, 'unavailable');
 
   // The parent directory is inspected instead of the file itself so a file
   // deleted from the working tree still resolves its checkout (spec §6).
   const inspection = await client.git.inspectPath({ path: parent });
-  if (inspection.kind === 'inspect-failed') {
-    return contentErrorState(fallbackPath, {
-      type: 'io',
-      path: formatAbsolute(fileRef.path),
-      message: inspection.message,
-    });
-  }
-  if (inspection.kind === 'not-repository') {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: 'Path is not inside any git checkout',
-    });
+  if (!inspection.success) return contentErrorState(fallbackPath, 'unavailable');
+  if (inspection.data.kind === 'not-repository') {
+    return contentErrorState(fallbackPath, 'unavailable');
   }
 
-  const relative = relativizeHostFileRef(hostFileRef(fileRef.host, inspection.rootPath), fileRef);
-  if (!relative.success) {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: relative.error.message,
-    });
-  }
+  const relative = relativizeHostFileRef(
+    hostFileRef(fileRef.host, inspection.data.rootPath),
+    fileRef
+  );
+  if (!relative.success) return contentErrorState(fallbackPath, 'unavailable');
   const checkoutRelativePath = relative.data;
 
   const contentModel = remote(gitContract.checkout.content, client.git.checkout.content, {
     scope,
   });
   const upstream = contentModel({
-    checkout: inspection.rootPath,
+    checkout: inspection.data.rootPath,
     path: checkoutRelativePath,
     source: source.data,
   }).states.content;
@@ -319,21 +299,17 @@ function toFileContentModel(
     case 'missing':
       // The ref resolves but does not contain the path, or the ref itself is
       // unknown — both classify as not-found at this seam.
-      return { kind: 'unavailable', path, error: { type: 'not-found', path } };
+      return { kind: 'unavailable', path, code: 'not-found' };
     case 'unavailable':
-      return {
-        kind: 'unavailable',
-        path,
-        error: { type: 'io', path, message: state.error.message },
-      };
+      return { kind: 'unavailable', path, code: 'unavailable' };
   }
 }
 
 function contentErrorState(
   path: PortableRelativePath,
-  error: FsError
+  code: ContentUnavailableCode
 ): Readable<FileContentModel | undefined> {
-  return cell<FileContentModel | undefined>({ kind: 'unavailable', path, error });
+  return cell<FileContentModel | undefined>({ kind: 'unavailable', path, code });
 }
 
 /**
@@ -345,6 +321,28 @@ function bestEffortRelativePath(path: HostAbsolutePath): PortableRelativePath {
   return parsed.success ? parsed.data : ROOT_RELATIVE_PATH;
 }
 
+/**
+ * Two-endpoint mutations decode both URIs and forward the pair of absolute
+ * paths to one host's files runtime. A cross-host pair is a programming error
+ * at this seam, like an invalid URI.
+ */
+async function withFromToRuntime<T, E>(
+  options: CreateFilesWireControllerOptions,
+  input: { from: ResourceUri; to: ResourceUri },
+  work: (
+    files: HostRuntimesClient['files'],
+    from: HostAbsolutePath,
+    to: HostAbsolutePath
+  ) => Promise<Result<T, E>>
+): Promise<Result<T, E | RuntimeResolveError>> {
+  const from = decodeUri(input.from);
+  const to = decodeUri(input.to);
+  if (!hostRefEquals(from.host, to.host)) {
+    throw new Error('Cross-host file mutations are not supported');
+  }
+  return withHostRuntime(options, from.host, (client) => work(client.files, from.path, to.path));
+}
+
 async function withFileRuntime<T, E>(
   options: CreateFilesWireControllerOptions,
   uri: ResourceUri,
@@ -352,30 +350,6 @@ async function withFileRuntime<T, E>(
 ): Promise<Result<T, E | RuntimeResolveError>> {
   const ref = decodeUri(uri);
   return withHostRuntime(options, ref.host, (client) => work(client.files, ref));
-}
-
-async function withFilePairRuntime<T, E>(
-  options: CreateFilesWireControllerOptions,
-  uri: ResourceUri,
-  target: ResourceUri,
-  work: (
-    files: HostRuntimesClient['files'],
-    from: HostFileRef,
-    to: HostFileRef
-  ) => Promise<Result<T, E>>
-): Promise<
-  Result<T, E | RuntimeResolveError | { type: 'invalid-path'; path: string; message: string }>
-> {
-  const from = decodeUri(uri);
-  const to = decodeUri(target);
-  if (!hostRefEquals(from.host, to.host)) {
-    return err({
-      type: 'invalid-path' as const,
-      path: formatAbsolute(to.path),
-      message: 'The target must be on the same host as the source',
-    });
-  }
-  return withHostRuntime(options, from.host, (client) => work(client.files, from, to));
 }
 
 async function withHostRuntime<T, E>(

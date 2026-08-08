@@ -27,18 +27,18 @@ describe('files runtime absolute-path content', () => {
       const fileKey = { path: runtimeRoot(path.join(dir, 'note.txt')) };
       await expect(connection.api.fs.exists(fileKey)).resolves.toEqual({
         success: true,
-        data: true,
+        data: { exists: true },
       });
       await expect(
         connection.api.fs.exists({ path: runtimeRoot(path.join(dir, 'missing.txt')) })
-      ).resolves.toEqual({ success: true, data: false });
+      ).resolves.toEqual({ success: true, data: { exists: false } });
       await expect(
         connection.api.fs.exists({ path: runtimeRoot(path.join(dir, 'no-parent', 'missing.txt')) })
-      ).resolves.toEqual({ success: true, data: false });
+      ).resolves.toEqual({ success: true, data: { exists: false } });
 
       await expect(connection.api.fs.realPath(fileKey)).resolves.toEqual({
         success: true,
-        data: runtimeRoot(path.join(dir, 'note.txt')),
+        data: { path: runtimeRoot(path.join(dir, 'note.txt')) },
       });
 
       const text = await connection.api.fs.readText(fileKey);
@@ -170,7 +170,7 @@ describe('files runtime absolute-path content', () => {
       watcher.emit(dir, [{ kind: 'delete', path: filePath }]);
       await waitFor(async () => {
         const snapshot = await state.snapshot();
-        return snapshot.data.kind === 'unavailable' && snapshot.data.error.type === 'not-found';
+        return snapshot.data.kind === 'unavailable' && snapshot.data.code === 'not-found';
       });
 
       await writeFile(filePath, 'three\n');
@@ -218,7 +218,7 @@ describe('files runtime absolute-path content', () => {
           .state({ path: runtimeRoot(path.join(dir, 'absent.txt')) }, 'content')
           .snapshot()
       ).resolves.toMatchObject({
-        data: { kind: 'unavailable', error: { type: 'not-found' } },
+        data: { kind: 'unavailable', code: 'not-found' },
       });
 
       if (process.platform !== 'win32' && process.getuid?.() !== 0) {
@@ -228,7 +228,7 @@ describe('files runtime absolute-path content', () => {
             .state({ path: runtimeRoot(path.join(dir, 'locked.txt')) }, 'content')
             .snapshot()
         ).resolves.toMatchObject({
-          data: { kind: 'unavailable', error: { type: 'permission-denied' } },
+          data: { kind: 'unavailable', code: 'no-permissions' },
         });
         await chmod(path.join(dir, 'locked.txt'), 0o644);
       }
@@ -259,7 +259,7 @@ describe('files runtime absolute-path content', () => {
         connection.api.fs.realPath({ path: runtimeRoot(path.join(dir, 'alias.txt')) })
       ).resolves.toEqual({
         success: true,
-        data: runtimeRoot(path.join(dir, 'real/target.txt')),
+        data: { path: runtimeRoot(path.join(dir, 'real/target.txt')) },
       });
     } finally {
       await dispose();

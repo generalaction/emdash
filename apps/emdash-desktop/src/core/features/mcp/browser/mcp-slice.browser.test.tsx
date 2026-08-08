@@ -46,7 +46,7 @@ describe('mcp slice through the wire seam', () => {
       },
       removeServer: async () => ok(undefined),
       removeForAgent: async () => ok(undefined),
-      listForAgent: async () => ok([fakeServer('for-agent')]),
+      listForAgent: async () => ok({ servers: [fakeServer('for-agent')] }),
     });
     container = document.createElement('div');
     document.body.append(container);
@@ -68,7 +68,7 @@ describe('mcp slice through the wire seam', () => {
     expect(savedInputs).toEqual([{ host: LOCAL_HOST_REF, server: fakeServer('linear') }]);
 
     const listed = await client.listForAgent({ host: LOCAL_HOST_REF, providerId: 'claude' });
-    expect(listed).toEqual(ok([fakeServer('for-agent')]));
+    expect(listed).toEqual(ok({ servers: [fakeServer('for-agent')] }));
   });
 
   it('streams live-model updates into the slice hook', async () => {

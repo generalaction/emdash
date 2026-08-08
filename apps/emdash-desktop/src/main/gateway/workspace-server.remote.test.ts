@@ -67,7 +67,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 
       const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);
-      const homeDirectory = await resolved.data.files.getHomeDir(undefined);
+      const homeDirectory = (await resolved.data.files.getHomeDir(undefined)).path;
       expect(homeDirectory).toMatchObject({
         root: { kind: 'posix' },
         segments: ['home', 'devuser'],
@@ -88,18 +88,26 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         resolved.data.fileSearch.searchContent
       );
       try {
+        const smokeFilePath = joinAbsolute(homeDirectory, smokeFile.data);
+        if (!smokeFilePath.success) {
+          throw new Error('Could not construct workspace-server ripgrep smoke-file path');
+        }
         await expect(
-          resolved.data.files.mutations.createDirectory({
-            root: homeDirectory,
-            path: smokeDirectory.data,
-          })
+          resolved.data.files.fs.createDirectory({ path: smokeRoot.data })
         ).resolves.toMatchObject({ success: true });
+        const smokeBytes = Buffer.from('bundled-ripgrep-smoke\n');
         await expect(
-          resolved.data.files.mutations.createFile({
-            root: homeDirectory,
-            path: smokeFile.data,
-            content: 'bundled-ripgrep-smoke\n',
-          })
+          resolved.data.files.fs.upload(
+            { path: smokeFilePath.data },
+            {
+              name: 'needle.txt',
+              mimeType: 'text/plain',
+              size: smokeBytes.byteLength,
+              source: (async function* () {
+                yield smokeBytes;
+              })(),
+            }
+          )
         ).resolves.toMatchObject({ success: true });
         await expect(
           resolved.data.fileSearch.registerRoot({ root: smokeRoot.data })
@@ -121,9 +129,8 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         if (searchRootRegistered) {
           await resolved.data.fileSearch.unregisterRoot({ root: smokeRoot.data });
         }
-        await resolved.data.files.mutations.delete({
-          root: homeDirectory,
-          path: smokeDirectory.data,
+        await resolved.data.files.fs.delete({
+          path: smokeRoot.data,
           recursive: true,
         });
       }
@@ -142,8 +149,10 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 
       await expect(connection.ready()).resolves.toMatchObject({ server: { daemonId } });
       await expect(resolved.data.files.getHomeDir(undefined)).resolves.toMatchObject({
-        root: { kind: 'posix' },
-        segments: ['home', 'devuser'],
+        path: {
+          root: { kind: 'posix' },
+          segments: ['home', 'devuser'],
+        },
       });
       expect(invalidations).toEqual([]);
     } finally {

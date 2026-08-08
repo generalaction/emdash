@@ -37,7 +37,7 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
       const result = negotiateProtocol(protocolVersion, PROTOCOL_VERSION);
       if (!result.compatible) {
         return err({
-          code: 'protocol-incompatible' as const,
+          type: 'protocol-incompatible' as const,
           action: result.action,
           clientProtocolVersion: result.clientProtocolVersion,
           serverProtocolVersion: result.serverProtocolVersion,
@@ -70,10 +70,6 @@ export function createWorkspaceWireController(deps: WorkspaceWireControllerDeps)
     ),
     terminals: forwardContractImpl(workspaceWireContract.terminals, deps.runtimes.terminals),
     tuiAgents: forwardContractImpl(workspaceWireContract.tuiAgents, deps.runtimes.tuiAgents),
-    workspaceHost: forwardContractImpl(
-      workspaceWireContract.workspaceHost,
-      deps.runtimes.workspaceHost
-    ),
     workspaceRegistry: forwardContractImpl(
       workspaceWireContract.workspaceRegistry,
       deps.runtimes.workspaceRegistry

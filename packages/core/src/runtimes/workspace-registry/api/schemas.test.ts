@@ -7,7 +7,7 @@ import { createWorktreeInputSchema } from './schemas';
 // gitSetup block is the only crossing.
 
 const base = {
-  id: 'ws-1',
+  workspaceId: 'ws-1',
   repositoryId: 'repo-1',
   branch: 'pr/7/fix',
   path: '/tmp/wt',

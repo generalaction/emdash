@@ -59,6 +59,7 @@ function setup(options: { sshConnectionId?: string } = {}) {
   const treeCell = cell<FileTreeModel>(makeTreeModel('/repo'));
   const stateKeys: FilesTreeKey[] = [];
   const mutationCalls: RecordedMutation[] = [];
+  const fsCalls: Array<{ name: string; input: unknown }> = [];
 
   const touch = async (
     name: string,
@@ -89,12 +90,6 @@ function setup(options: { sshConnectionId?: string } = {}) {
       mutations: {
         expand: (context) => touch('expand', context),
         reveal: (context) => touch('reveal', context),
-        createFile: (context) => touch('createFile', context),
-        createDirectory: (context) => touch('createDirectory', context),
-        rename: (context) => touch('rename', context),
-        move: (context) => touch('move', context),
-        copy: (context) => touch('copy', context),
-        delete: (context) => touch('delete', context),
         refresh: (context) => touch('refresh', context),
       },
     }
@@ -102,10 +97,26 @@ function setup(options: { sshConnectionId?: string } = {}) {
 
   const testContract = defineContract({ tree: filesWireContract.tree });
   const wire = createTestWire(testContract, { tree: { model: provider } });
-  wireClient.current = wire.client;
+  const recordFsCall = (name: string) => async (input: unknown) => {
+    fsCalls.push({ name, input });
+    return ok(undefined);
+  };
+  // The write verbs are stateless fs procedures; the tree updates arrive
+  // through the live model after the runtime's ack-time republish.
+  wireClient.current = {
+    ...wire.client,
+    fs: {
+      createFile: recordFsCall('createFile'),
+      createDirectory: recordFsCall('createDirectory'),
+      rename: recordFsCall('rename'),
+      move: recordFsCall('move'),
+      copy: recordFsCall('copy'),
+      delete: recordFsCall('delete'),
+    },
+  };
 
   const store = new FilesStore('project-1', 'workspace-1', '/repo', options.sshConnectionId);
-  return { store, stateKeys, mutationCalls };
+  return { store, stateKeys, mutationCalls, fsCalls };
 }
 
 let disposeStore: (() => void) | null = null;
@@ -150,8 +161,8 @@ describe('FilesStore', () => {
     );
   });
 
-  it('routes tree-driven mutations through the files domain tree model', async () => {
-    const { store, mutationCalls } = setup();
+  it('routes write operations through the stateless fs verbs keyed by ResourceUri', async () => {
+    const { store, fsCalls } = setup();
     disposeStore = () => store.dispose();
     await store.start();
 
@@ -161,12 +172,22 @@ describe('FilesStore', () => {
     await expect(store.move('/repo/README.md', '/repo/src')).resolves.toEqual(ok(undefined));
     await expect(store.deleteEntry('/repo/src/index.ts', true)).resolves.toEqual(ok(undefined));
 
-    const named = (name: string) => mutationCalls.filter((call) => call.name === name);
-    expect(named('createFile')[0]?.input).toEqual({ path: 'src/new.ts' });
-    expect(named('createDirectory')[0]?.input).toEqual({ path: 'src/lib' });
-    expect(named('rename')[0]?.input).toEqual({ from: 'README.md', to: 'README2.md' });
-    expect(named('move')[0]?.input).toEqual({ from: 'README.md', to: 'src/README.md' });
-    expect(named('delete')[0]?.input).toEqual({ path: 'src/index.ts', recursive: true });
+    const uri = (path: string) => encodeResourceUri(hostFileRefFromNativePath(path));
+    const named = (name: string) => fsCalls.filter((call) => call.name === name);
+    expect(named('createFile')[0]?.input).toEqual({ uri: uri('/repo/src/new.ts') });
+    expect(named('createDirectory')[0]?.input).toEqual({ uri: uri('/repo/src/lib') });
+    expect(named('rename')[0]?.input).toEqual({
+      from: uri('/repo/README.md'),
+      to: uri('/repo/README2.md'),
+    });
+    expect(named('move')[0]?.input).toEqual({
+      from: uri('/repo/README.md'),
+      to: uri('/repo/src/README.md'),
+    });
+    expect(named('delete')[0]?.input).toEqual({
+      uri: uri('/repo/src/index.ts'),
+      recursive: true,
+    });
   });
 
   it('reveals files through the tree model and reports ancestor directories', async () => {

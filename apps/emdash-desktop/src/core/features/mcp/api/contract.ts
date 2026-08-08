@@ -38,7 +38,7 @@ export const mcpContract = defineContract({
   }),
   listForAgent: fallible({
     input: providerInputSchema,
-    data: mcpServerListSchema,
+    data: z.object({ servers: mcpServerListSchema }),
     error: mcpErrorSchema,
   }),
 });

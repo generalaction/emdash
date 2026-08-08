@@ -28,14 +28,13 @@ import type {
   AcpEditQueuedPromptError,
   AcpExportRawLogError,
   AcpExportTranscriptError,
-  AcpQueuePromptError,
   AcpResolvePermissionError,
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpSetPromptDraftError,
-  AcpStartSessionError,
-  AcpStopSessionError,
+  AcpStartError,
+  AcpKillError,
   AgentState,
   InvalidStateError,
   NormalizedEvent,
@@ -149,7 +148,7 @@ export class SessionManager implements InboundRouter {
     });
   }
 
-  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
+  async start(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
     const existing = this.cells.get(input.conversationId);
     if (existing) {
       this.persistActiveIntent(input, existing.cell.acpSessionId);
@@ -285,7 +284,7 @@ export class SessionManager implements InboundRouter {
       this.syncRecord(record);
       this.persistActiveIntent(input, record.cell.acpSessionId);
       this.reports.sessionStarted({
-        id: input.conversationId,
+        conversationId: input.conversationId,
         providerSessionId: record.cell.acpSessionId,
         resumeOutcome,
       });
@@ -305,16 +304,12 @@ export class SessionManager implements InboundRouter {
     const record = this.cells.get(input.conversationId);
     if (!record) return acpErr.conversationNotFound(input.conversationId);
     this.recordInputActivity(input.conversationId);
+    if (input.placement === 'queue') {
+      const result = record.cell.queuePrompt(input.prompt);
+      if (!result.success) return result;
+      return ok({ queued: true });
+    }
     return record.cell.prompt(input.prompt);
-  }
-
-  queuePrompt(input: SendPromptInput): Result<{ queued: boolean }, AcpQueuePromptError> {
-    const record = this.cells.get(input.conversationId);
-    if (!record) return acpErr.conversationNotFound(input.conversationId);
-    this.recordInputActivity(input.conversationId);
-    const result = record.cell.queuePrompt(input.prompt);
-    if (!result.success) return result;
-    return ok({ queued: true });
   }
 
   editQueuedPrompt(
@@ -357,7 +352,7 @@ export class SessionManager implements InboundRouter {
     return record.cell.setPromptDraft(draft);
   }
 
-  stop(conversationId: string, cause = 'user'): Result<void, AcpStopSessionError> {
+  stop(conversationId: string, cause = 'user'): Result<void, AcpKillError> {
     const record = this.cells.get(conversationId);
     if (record) {
       record.cell.closeSession().catch(() => {});
@@ -368,7 +363,7 @@ export class SessionManager implements InboundRouter {
     return ok();
   }
 
-  kill(conversationId: string): Result<void, AcpStopSessionError> {
+  kill(conversationId: string): Result<void, AcpKillError> {
     const result = this.stop(conversationId, 'user');
     if (!result.success) return result;
     this.removePersistedIntent(conversationId);
@@ -494,7 +489,7 @@ export class SessionManager implements InboundRouter {
     if (record.cell.acpSessionId !== params.sessionId) {
       record.cell.setAcpSessionId(params.sessionId);
       this.registerRoute(connection.key, params.sessionId, conversationId);
-      this.reports.providerSessionId({ id: conversationId, providerSessionId: params.sessionId });
+      this.reports.providerSessionId({ conversationId, providerSessionId: params.sessionId });
     }
     record.cell.recordRaw({
       kind: 'session_update',

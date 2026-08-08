@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { hostPathFromNative, nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { isRealPathContained, realPathNearestExisting } from '../files/realpath-containment';
 import { filesClientScope } from '../files/runtime-client';
 
@@ -21,12 +21,12 @@ function makeFiles(root: string) {
   return filesClientScope(
     {
       fs: {
-        realPath: async ({ relative }: { relative: string }) => {
-          const filePath = path.join(root, relative);
+        realPath: async ({ path: target }: { path: Parameters<typeof nativePathFromHost>[0] }) => {
+          const filePath = nativePathFromHost(target);
           try {
-            return ok(hostPathFromNative(fs.realpathSync(filePath)));
+            return ok({ path: hostPathFromNative(fs.realpathSync(filePath)) });
           } catch {
-            return err({ type: 'not-found', path: relative } as never);
+            return err({ type: 'not-found', path: filePath } as never);
           }
         },
       },

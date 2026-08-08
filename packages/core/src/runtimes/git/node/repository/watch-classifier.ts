@@ -4,8 +4,6 @@ import type { WatchEvent } from '#services/fs-watch/api';
 export type RepoWatchEffects = {
   refs: boolean;
   remotes: boolean;
-  stashes: boolean;
-  worktrees: boolean;
 };
 
 export type WorktreeWatchEffects = {
@@ -27,7 +25,7 @@ export function classifyGitWatchEvents(
   events: WatchEvent[],
   layout: GitLayout
 ): GitWatchClassification {
-  const repo: RepoWatchEffects = { refs: false, remotes: false, stashes: false, worktrees: false };
+  const repo: RepoWatchEffects = { refs: false, remotes: false };
   const worktrees = new Map<string, WorktreeWatchEffects>();
   const gitCommonDir = normalize(layout.gitCommonDir);
   const normalizedWorktrees = layout.worktrees.map((worktree) => ({
@@ -90,12 +88,6 @@ function classifyCommonGitPath(rel: string, repo: RepoWatchEffects): void {
   }
   if (rel === 'packed-refs') {
     repo.refs = true;
-  }
-  if (rel === 'refs/stash') {
-    repo.stashes = true;
-  }
-  if (rel.startsWith('worktrees/')) {
-    repo.worktrees = true;
   }
   if (rel === 'config') {
     repo.refs = true;

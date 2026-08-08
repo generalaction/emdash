@@ -46,7 +46,7 @@ describe('ACP API contract schemas', () => {
     try {
       await summaries.states.list.refresh();
       const input = makeStartInput({ conversationId: 'conv-wire' });
-      const started = await contractClient.startSession({ input });
+      const started = await contractClient.start(input);
       expect(started).toEqual({ success: true, data: { sessionId: 'session-1' } });
 
       await vi.waitFor(() => {
@@ -67,12 +67,15 @@ describe('ACP API contract schemas', () => {
   });
 
   it('accepts attachment upload sidecar input with or without original path', () => {
-    expect(() => uploadAttachmentCommandSchema.parse({})).not.toThrow();
+    expect(() => uploadAttachmentCommandSchema.parse({ conversationId: 'conv-1' })).not.toThrow();
     expect(() =>
       uploadAttachmentCommandSchema.parse({
+        conversationId: 'conv-1',
         originalPath: '/tmp/image.png',
       })
     ).not.toThrow();
+    // Attachments are conversation-scoped (spec §3.6): the owning conversation is required.
+    expect(() => uploadAttachmentCommandSchema.parse({})).toThrow();
   });
 
   it('accepts auth_required runtime errors', () => {

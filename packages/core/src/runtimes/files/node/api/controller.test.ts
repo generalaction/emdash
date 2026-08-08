@@ -13,7 +13,6 @@ import {
   type LiveUpdate,
 } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { PortableRelativePath } from '#primitives/path/api';
 import { filesContract } from '#runtimes/files/api';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -39,9 +38,9 @@ describe('createFilesController', () => {
     let detachTree: (() => void) | undefined;
 
     try {
-      await expect(connection.api.getHomeDir()).resolves.toEqual(
-        runtimeRoot(await realpath(homedir()))
-      );
+      await expect(connection.api.getHomeDir()).resolves.toEqual({
+        path: runtimeRoot(await realpath(homedir())),
+      });
       await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
         data: { entries: { '': { childrenLoaded: false } } },
       });
@@ -74,15 +73,14 @@ describe('createFilesController', () => {
       detachTree = await treeState.attach((update) => treeUpdates.push(update));
       await expect(
         connection.api.content
-          .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'src/foo/bar.ts')) }, 'content')
           .snapshot()
       ).resolves.toMatchObject({ data: { kind: 'text', content: 'before\n' } });
 
       await expect(
-        connection.api.mutations.rename({
-          root: rootRef,
-          from: relativePath('src/foo/bar.ts'),
-          to: relativePath('src/foo/baar.ts'),
+        connection.api.fs.rename({
+          from: runtimeRoot(path.join(root, 'src/foo/bar.ts')),
+          to: runtimeRoot(path.join(root, 'src/foo/baar.ts')),
         })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
@@ -108,48 +106,24 @@ describe('createFilesController', () => {
       ).toBe(true);
       await expect(
         connection.api.content
-          .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'src/foo/bar.ts')) }, 'content')
           .snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'unavailable', error: { type: 'not-found' } } });
+      ).resolves.toMatchObject({ data: { kind: 'unavailable', code: 'not-found' } });
 
-      await expect(
-        connection.api.tree.model.mutate('collapse', {
-          key,
-          input: { path: relativePath('src/foo') },
-        })
-      ).resolves.toMatchObject({ success: true });
-      await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
-        data: {
-          entries: {
-            'src/foo': { childrenLoaded: false, children: [] },
-          },
-        },
-      });
-      expect(
-        (await connection.api.tree.model.state(key, 'tree').snapshot()).data.entries[
-          'src/foo/baar.ts'
-        ]
-      ).toBeUndefined();
-      await expect(
-        connection.api.tree.model.mutate('reveal', {
-          key,
-          input: { path: relativePath('src/foo/baar.ts') },
-        })
-      ).resolves.toMatchObject({ success: true });
-
+      // Content sessions watch the file's parent directory, so external edits
+      // are observed there rather than through the tree root's watch.
       await writeFile(path.join(root, 'src/foo/baar.ts'), 'external\n');
-      watcher.emit(root, [{ kind: 'update', path: path.join(root, 'src/foo/baar.ts') }]);
+      watcher.emit(path.join(root, 'src/foo'), [
+        { kind: 'update', path: path.join(root, 'src/foo/baar.ts') },
+      ]);
       await waitFor(async () => {
         const snapshot = await connection.api.content
-          .state({ root: rootRef, relative: relativePath('src/foo/baar.ts') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'src/foo/baar.ts')) }, 'content')
           .snapshot();
         return snapshot.data.kind === 'text' && snapshot.data.content === 'external\n';
       });
 
-      const contentKey = {
-        root: rootRef,
-        relative: relativePath('src/foo/baar.ts'),
-      };
+      const contentKey = { path: runtimeRoot(path.join(root, 'src/foo/baar.ts')) };
       const beforeSave = await connection.api.content.state(contentKey, 'content').snapshot();
       expect(beforeSave.data.kind).toBe('text');
       if (beforeSave.data.kind !== 'text') throw new Error('Expected text content');
@@ -169,7 +143,9 @@ describe('createFilesController', () => {
       });
 
       await writeFile(path.join(root, 'src/foo/baar.ts'), 'newer external\n');
-      watcher.emit(root, [{ kind: 'update', path: path.join(root, 'src/foo/baar.ts') }]);
+      watcher.emit(path.join(root, 'src/foo'), [
+        { kind: 'update', path: path.join(root, 'src/foo/baar.ts') },
+      ]);
       await waitFor(async () => {
         const snapshot = await connection.api.content.state(contentKey, 'content').snapshot();
         return snapshot.data.kind === 'text' && snapshot.data.content === 'newer external\n';
@@ -184,20 +160,18 @@ describe('createFilesController', () => {
         })
       ).resolves.toMatchObject({ success: false, error: { type: 'etag-mismatch' } });
 
+      // A live not-found content session recovers when an fs mutation makes
+      // the file appear (ack-time republish, no watcher event involved).
       await mkdir(path.join(root, 'incoming/nested'), { recursive: true });
       await writeFile(path.join(root, 'incoming/nested/arrived.txt'), 'arrived');
-      const arrivedKey = {
-        root: rootRef,
-        relative: relativePath('arrived/nested/arrived.txt'),
-      };
+      const arrivedKey = { path: runtimeRoot(path.join(root, 'arrived.txt')) };
       await expect(
         connection.api.content.state(arrivedKey, 'content').snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'unavailable' } });
+      ).resolves.toMatchObject({ data: { kind: 'unavailable', code: 'not-found' } });
       await expect(
-        connection.api.mutations.move({
-          root: rootRef,
-          from: relativePath('incoming'),
-          to: relativePath('arrived'),
+        connection.api.fs.move({
+          from: runtimeRoot(path.join(root, 'incoming/nested/arrived.txt')),
+          to: runtimeRoot(path.join(root, 'arrived.txt')),
         })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
@@ -206,8 +180,7 @@ describe('createFilesController', () => {
       });
 
       const download = await connection.api.fs.readBytes({
-        root: rootRef,
-        relative: relativePath('src/foo/baar.ts'),
+        path: runtimeRoot(path.join(root, 'src/foo/baar.ts')),
       });
       expect(download.success).toBe(true);
       if (download.success) {
@@ -221,9 +194,8 @@ describe('createFilesController', () => {
     }
   });
 
-  it('rejects traversal and cannot follow an outside-root symlink', async () => {
+  it('cannot follow an outside-parent symlink but deletes the link itself', async () => {
     const root = await makeRoot();
-    const rootRef = runtimeRoot(root);
     const outside = await makeRoot();
     const outsideFile = path.join(outside, 'outside.txt');
     await writeFile(outsideFile, 'keep');
@@ -237,16 +209,10 @@ describe('createFilesController', () => {
 
     try {
       await expect(
-        connection.api.fs.stat({
-          root: rootRef,
-          relative: '../outside.txt' as PortableRelativePath,
-        })
-      ).rejects.toThrow('Path escapes its root');
-      await expect(
-        connection.api.fs.readText({ root: rootRef, relative: relativePath('outside-link') })
+        connection.api.fs.readText({ path: runtimeRoot(path.join(root, 'outside-link')) })
       ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
       await expect(
-        connection.api.mutations.delete({ root: rootRef, path: relativePath('outside-link') })
+        connection.api.fs.delete({ path: runtimeRoot(path.join(root, 'outside-link')) })
       ).resolves.toMatchObject({ success: true });
       await expect(readFile(outsideFile, 'utf8')).resolves.toBe('keep');
     } finally {
@@ -355,44 +321,29 @@ describe('createFilesController', () => {
     }
   });
 
-  it('runs glob and enumeration as cancellable Wire jobs with relative paths', async () => {
+  it('runs enumeration as a cancellable Wire job with directory-relative paths', async () => {
     const root = await makeRoot();
-    const rootRef = runtimeRoot(root);
     await mkdir(path.join(root, 'src/nested'), { recursive: true });
     await writeFile(path.join(root, 'src/a.ts'), 'a');
     await writeFile(path.join(root, 'src/nested/b.ts'), 'b');
     await writeFile(path.join(root, 'src/nested/c.txt'), 'c');
     const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
     const connection = makeClient(runtime);
-    const globJobs = createLiveJobReplicaCache(filesContract.fs.glob, connection.api.fs.glob);
     const enumerateJobs = createLiveJobReplicaCache(
       filesContract.fs.enumerate,
       connection.api.fs.enumerate
     );
 
     try {
-      const globLease = await globJobs.start({
-        root: rootRef,
-        patterns: ['**/*.ts'],
-        options: { cwd: relativePath('src') },
-      });
-      const glob = await globLease.ready();
-      await expect(glob.result).resolves.toEqual({
-        paths: ['src/a.ts', 'src/nested/b.ts'],
-      });
-      await globLease.release();
-
       const enumerationLease = await enumerateJobs.start({
-        root: rootRef,
-        relative: relativePath('src'),
+        path: runtimeRoot(path.join(root, 'src')),
       });
       const enumeration = await enumerationLease.ready();
       await expect(enumeration.result).resolves.toEqual({
-        paths: ['src/a.ts', 'src/nested/b.ts', 'src/nested/c.txt'],
+        paths: ['a.ts', 'nested/b.ts', 'nested/c.txt'],
       });
       await enumerationLease.release();
     } finally {
-      await globJobs.dispose();
       await enumerateJobs.dispose();
       connection.dispose();
       await runtime.dispose();
@@ -401,15 +352,13 @@ describe('createFilesController', () => {
 
   it('round-trips JSON-safe state and raw downloads through stream transport', async () => {
     const root = await makeRoot();
-    const rootRef = runtimeRoot(root);
     await writeFile(path.join(root, 'stream.txt'), 'stream\r\n');
     const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
     const connection = makeStreamClient(runtime);
 
     try {
       const metadata = await connection.api.fs.stat({
-        root: rootRef,
-        relative: relativePath('stream.txt'),
+        path: runtimeRoot(path.join(root, 'stream.txt')),
       });
       expect(metadata).toMatchObject({
         success: true,
@@ -422,13 +371,12 @@ describe('createFilesController', () => {
 
       await expect(
         connection.api.content
-          .state({ root: rootRef, relative: relativePath('stream.txt') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'stream.txt')) }, 'content')
           .snapshot()
       ).resolves.toMatchObject({ data: { kind: 'text', eol: 'crlf', content: 'stream\r\n' } });
 
       const download = await connection.api.fs.readBytes({
-        root: rootRef,
-        relative: relativePath('stream.txt'),
+        path: runtimeRoot(path.join(root, 'stream.txt')),
       });
       expect(download.success).toBe(true);
       if (download.success) {
@@ -438,7 +386,7 @@ describe('createFilesController', () => {
       const uploadBytes = Buffer.from('uploaded through Wire\n');
       await expect(
         connection.api.fs.upload(
-          { root: rootRef, path: relativePath('uploaded.txt') },
+          { path: runtimeRoot(path.join(root, 'uploaded.txt')) },
           {
             name: 'uploaded.txt',
             mimeType: 'text/plain',

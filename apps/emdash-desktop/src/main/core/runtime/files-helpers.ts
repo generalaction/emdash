@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { FsError } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import {
   fileKey,
   fileRelativePath,
@@ -70,7 +70,7 @@ async function realPathAbsolute(
   if (!opened.success) return opened;
   if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
   const result = await opened.data.client.fs.realPath(fileKey(opened.data, absPath));
-  return result.success ? ok(nativePathFromHost(result.data)) : result;
+  return result.success ? ok(nativePathFromHost(result.data.path)) : result;
 }
 
 async function isRealPathContained(
@@ -100,13 +100,11 @@ async function ensureDirectory(
   if (!relative) return ok<void>();
   const candidates = options.recursive ? parentFilePaths(relative) : [relative];
   for (const candidate of candidates) {
-    const exists = await files.client.fs.exists({ root: files.root, relative: candidate });
+    const key = { path: resolveRelativePath(files.root, candidate) };
+    const exists = await files.client.fs.exists(key);
     if (!exists.success) return exists;
-    if (exists.data) continue;
-    const created = await files.client.mutations.createDirectory({
-      root: files.root,
-      path: candidate,
-    });
+    if (exists.data.exists) continue;
+    const created = await files.client.fs.createDirectory(key);
     if (!created.success && created.error.type !== 'already-exists') return created;
   }
   return ok<void>();

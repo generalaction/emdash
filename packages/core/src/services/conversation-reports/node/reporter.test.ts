@@ -12,10 +12,12 @@ type Report = Promise<Result<void, ConversationReportError>>;
 
 function makeClient() {
   return {
-    reportSessionStarted: vi.fn(async (): Report => ok(undefined)),
-    reportProviderSessionId: vi.fn(async (): Report => ok(undefined)),
-    reportSessionActivity: vi.fn(async (): Report => ok(undefined)),
-    reportSessionEnded: vi.fn(async (): Report => ok(undefined)),
+    reports: {
+      sessionStarted: vi.fn(async (): Report => ok(undefined)),
+      providerSessionId: vi.fn(async (): Report => ok(undefined)),
+      sessionActivity: vi.fn(async (): Report => ok(undefined)),
+      sessionEnded: vi.fn(async (): Report => ok(undefined)),
+    },
   };
 }
 
@@ -25,24 +27,24 @@ describe('conversation lifecycle reporter', () => {
     const reporter = createConversationLifecycleReporter({ client });
 
     reporter.sessionStarted({
-      id: 'conv-1',
+      conversationId: 'conv-1',
       providerSessionId: 'session-1',
       resumeOutcome: 'loaded',
     });
-    reporter.providerSessionId({ id: 'conv-1', providerSessionId: 'session-2' });
+    reporter.providerSessionId({ conversationId: 'conv-1', providerSessionId: 'session-2' });
     reporter.sessionEnded('conv-1');
 
     await vi.waitFor(() => {
-      expect(client.reportSessionStarted).toHaveBeenCalledWith({
-        id: 'conv-1',
+      expect(client.reports.sessionStarted).toHaveBeenCalledWith({
+        conversationId: 'conv-1',
         providerSessionId: 'session-1',
         resumeOutcome: 'loaded',
       });
-      expect(client.reportProviderSessionId).toHaveBeenCalledWith({
-        id: 'conv-1',
+      expect(client.reports.providerSessionId).toHaveBeenCalledWith({
+        conversationId: 'conv-1',
         providerSessionId: 'session-2',
       });
-      expect(client.reportSessionEnded).toHaveBeenCalledWith({ id: 'conv-1' });
+      expect(client.reports.sessionEnded).toHaveBeenCalledWith({ conversationId: 'conv-1' });
     });
   });
 
@@ -59,31 +61,31 @@ describe('conversation lifecycle reporter', () => {
     reporter.activity('conv-1');
     reporter.activity('conv-2');
     await vi.waitFor(() => {
-      expect(client.reportSessionActivity).toHaveBeenCalledTimes(2);
+      expect(client.reports.sessionActivity).toHaveBeenCalledTimes(2);
     });
 
     await clock.advanceBy(9_999);
     reporter.activity('conv-1');
-    expect(client.reportSessionActivity).toHaveBeenCalledTimes(2);
+    expect(client.reports.sessionActivity).toHaveBeenCalledTimes(2);
 
     await clock.advanceBy(1);
     reporter.activity('conv-1');
     await vi.waitFor(() => {
-      expect(client.reportSessionActivity).toHaveBeenCalledTimes(3);
+      expect(client.reports.sessionActivity).toHaveBeenCalledTimes(3);
     });
   });
 
   it('never throws when the index rejects or errors — log-and-continue', async () => {
     const warn = vi.fn();
     const client = makeClient();
-    client.reportSessionStarted.mockImplementation(async () =>
+    client.reports.sessionStarted.mockImplementation(async () =>
       err({
         type: 'conversation-not-found' as const,
         conversationId: 'conv-1',
         message: 'gone',
       })
     );
-    client.reportSessionEnded.mockImplementation(async () => {
+    client.reports.sessionEnded.mockImplementation(async () => {
       throw new Error('wire transport down');
     });
     const reporter = createConversationLifecycleReporter({
@@ -92,7 +94,11 @@ describe('conversation lifecycle reporter', () => {
     });
 
     expect(() => {
-      reporter.sessionStarted({ id: 'conv-1', providerSessionId: null, resumeOutcome: null });
+      reporter.sessionStarted({
+        conversationId: 'conv-1',
+        providerSessionId: null,
+        resumeOutcome: null,
+      });
       reporter.sessionEnded('conv-1');
     }).not.toThrow();
 

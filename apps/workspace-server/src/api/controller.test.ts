@@ -3,7 +3,7 @@ import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { parseAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import { parseAbsolute } from '@emdash/core/primitives/path/api';
 import type { TerminalShellResolver } from '@emdash/core/primitives/terminal-shell/api';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
@@ -33,21 +33,17 @@ describe('createWorkspaceWireController', () => {
     const wireClient = createClient(workspaceWireContract, connect(transport));
 
     try {
-      const result = await wireClient.acp.startSession({
-        input: {
-          conversationId: 'conversation-1',
-          providerId: 'codex',
-          cwd: '/tmp/project',
-          sessionId: null,
-          model: null,
-        },
+      const result = await wireClient.acp.start({
+        conversationId: 'conversation-1',
+        providerId: 'codex',
+        cwd: '/tmp/project',
+        sessionId: null,
+        model: null,
       });
 
       expect(result).toEqual(ok({ sessionId: 'acp-session-1' }));
-      expect(acp.startSession).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: expect.objectContaining({ conversationId: 'conversation-1' }),
-        }),
+      expect(acp.start).toHaveBeenCalledWith(
+        expect.objectContaining({ conversationId: 'conversation-1' }),
         expect.any(Object)
       );
     } finally {
@@ -76,12 +72,10 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
   });
 
   return {
-    startSession: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
-    resumeSession: vi.fn(),
-    stopSession: vi.fn(),
-    killSession: vi.fn(),
+    start: vi.fn(async () => ok({ sessionId: 'acp-session-1' })),
+    resume: vi.fn(),
+    kill: vi.fn(),
     sendPrompt: vi.fn(),
-    queuePrompt: vi.fn(),
     editQueuedPrompt: vi.fn(),
     deleteQueuedPrompt: vi.fn(),
     changeQueuePromptOrder: vi.fn(),
@@ -90,11 +84,12 @@ function createFakeAcpClient(): ContractClient<AcpApiContract> {
     setModeOption: vi.fn(),
     resolvePermission: vi.fn(),
     setPromptDraft: vi.fn(),
-    exportACPTranscript: vi.fn(),
+    exportAcpTranscript: vi.fn(),
     exportRawAcpLog: vi.fn(),
     uploadAttachment: vi.fn(),
     downloadAttachment: vi.fn(),
     deleteAttachment: vi.fn(),
+    deleteAttachments: vi.fn(),
     getHistory: vi.fn(),
     sessions: liveModel(workspaceWireContract.acp.sessions),
     session: liveModel(workspaceWireContract.acp.session),
@@ -153,8 +148,8 @@ describe('runtime domain forwarding', () => {
   it('forwards Git and Files procedures, live models, and binary streams', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-server-domains-'));
     const root = parseAbsolute(directory);
-    const textPath = parsePortableRelativePath('remote.txt');
-    const binaryPath = parsePortableRelativePath('remote.bin');
+    const textPath = parseAbsolute(join(directory, 'remote.txt'));
+    const binaryPath = parseAbsolute(join(directory, 'remote.bin'));
     if (!root.success || !textPath.success || !binaryPath.success) {
       throw new Error('expected test paths to parse');
     }
@@ -170,15 +165,20 @@ describe('runtime domain forwarding', () => {
     );
 
     try {
+      const textBytes = Buffer.from('hello from the remote runtime');
       await expect(
-        workspace.client.files.mutations.createFile({
-          root: root.data,
-          path: textPath.data,
-          content: 'hello from the remote runtime',
-        })
-      ).resolves.toEqual(ok(undefined));
+        workspace.client.files.fs.upload(
+          { path: textPath.data },
+          {
+            name: 'remote.txt',
+            mimeType: 'text/plain',
+            size: textBytes.byteLength,
+            source: chunks(textBytes),
+          }
+        )
+      ).resolves.toEqual(ok({ bytesWritten: textBytes.byteLength }));
       await expect(
-        workspace.client.files.fs.readText({ root: root.data, relative: textPath.data })
+        workspace.client.files.fs.readText({ path: textPath.data })
       ).resolves.toMatchObject({
         success: true,
         data: { content: 'hello from the remote runtime', truncated: false },
@@ -187,7 +187,7 @@ describe('runtime domain forwarding', () => {
       const binary = new Uint8Array([0, 1, 2, 255]);
       await expect(
         workspace.client.files.fs.upload(
-          { root: root.data, path: binaryPath.data },
+          { path: binaryPath.data },
           {
             name: 'remote.bin',
             mimeType: 'application/octet-stream',
@@ -197,8 +197,7 @@ describe('runtime domain forwarding', () => {
         )
       ).resolves.toEqual(ok({ bytesWritten: binary.byteLength }));
       const download = await workspace.client.files.fs.readBytes({
-        root: root.data,
-        relative: binaryPath.data,
+        path: binaryPath.data,
       });
       expect(download.success).toBe(true);
       if (!download.success) return;
@@ -300,7 +299,7 @@ describe('createWorkspaceWireController', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        code: 'protocol-incompatible',
+        type: 'protocol-incompatible',
         action: 'upgrade-client',
         clientProtocolVersion: '0.9.0',
         serverProtocolVersion: PROTOCOL_VERSION,
@@ -321,7 +320,7 @@ describe('createWorkspaceWireController', () => {
     expect(result).toMatchObject({
       success: false,
       error: {
-        code: 'protocol-incompatible',
+        type: 'protocol-incompatible',
         action: 'upgrade-server',
         clientProtocolVersion: futureVersion,
         serverProtocolVersion: PROTOCOL_VERSION,

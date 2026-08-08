@@ -79,7 +79,7 @@ async function readConductorMigrationData(
   if (!hasConductorConfig.success) {
     log.warn('Failed to inspect Conductor config for migration', hasConductorConfig.error);
   }
-  if (hasConductorConfig.success && hasConductorConfig.data) {
+  if (hasConductorConfig.success && hasConductorConfig.data.exists) {
     const content = await files.client.fs.readText(fileKey(files, conductorConfigPath));
     if (!content.success) {
       log.warn('Failed to read Conductor config for migration', content.error);
@@ -115,7 +115,7 @@ async function readConductorMigrationData(
       hasWorktreeInclude.error
     );
   }
-  if (hasWorktreeInclude.success && hasWorktreeInclude.data) {
+  if (hasWorktreeInclude.success && hasWorktreeInclude.data.exists) {
     const content = await files.client.fs.readText(fileKey(files, worktreeIncludePath));
     if (!content.success) {
       log.warn('Failed to read Conductor worktree include for migration', content.error);

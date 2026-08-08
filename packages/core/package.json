@@ -240,11 +240,6 @@
       "types": "./dist/services-script-workflows-api.d.mts",
       "default": "./dist/services-script-workflows-api.mjs"
     },
-    "./services/workspace-host-actions/api": {
-      "development": "./src/services/workspace-host-actions/api/index.ts",
-      "types": "./dist/services-workspace-host-actions-api.d.mts",
-      "default": "./dist/services-workspace-host-actions-api.mjs"
-    },
     "./services/fs-watch/node": {
       "development": "./src/services/fs-watch/node/index.ts",
       "types": "./dist/services-fs-watch-node.d.mts",
@@ -264,11 +259,6 @@
       "development": "./src/runtimes/files/api/index.ts",
       "types": "./dist/runtimes-files-api.d.mts",
       "default": "./dist/runtimes-files-api.mjs"
-    },
-    "./runtimes/files/api/tree/optimistic": {
-      "development": "./src/runtimes/files/api/tree/optimistic.ts",
-      "types": "./dist/runtimes-files-api-tree-optimistic.d.mts",
-      "default": "./dist/runtimes-files-api-tree-optimistic.mjs"
     },
     "./runtimes/files/node": {
       "development": "./src/runtimes/files/node/index.ts",
@@ -354,16 +344,6 @@
       "development": "./src/runtimes/terminals/node/index.ts",
       "types": "./dist/runtimes-terminals-node.d.mts",
       "default": "./dist/runtimes-terminals-node.mjs"
-    },
-    "./runtimes/workspace-host/api": {
-      "development": "./src/runtimes/workspace-host/api/index.ts",
-      "types": "./dist/runtimes-workspace-host-api.d.mts",
-      "default": "./dist/runtimes-workspace-host-api.mjs"
-    },
-    "./runtimes/workspace-host/node": {
-      "development": "./src/runtimes/workspace-host/node/index.ts",
-      "types": "./dist/runtimes-workspace-host-node.d.mts",
-      "default": "./dist/runtimes-workspace-host-node.mjs"
     },
     "./runtimes/workspace-registry/api": {
       "development": "./src/runtimes/workspace-registry/api/index.ts",

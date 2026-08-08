@@ -1,11 +1,17 @@
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { observer } from 'mobx-react-lite';
 import { openFileStore } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type { FilePayload } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal } from '@core/manifests/browser/modal-api';
-import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
+import {
+  hostFileRefFromNativePath,
+  hostPathFromNative,
+  relativePathWithin,
+} from '@core/primitives/desktop-runtime/api';
 import type {
   TabEntry,
   TabHandle,
@@ -24,8 +30,6 @@ import { FileTabBarItem, FileTabBarItemDragPreview } from './file-tab-item';
 
 export interface FileOpenArgs {
   path: string;
-  /** When true, file is read-only from outside the workspace. */
-  external?: boolean;
 }
 
 /**
@@ -91,10 +95,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
 
     onBeforeOpen: (args: FileOpenArgs, ctx: TabViewContext): FilePayload | null => {
       const taskCtx = ctx as TaskTabContext;
-      return {
-        path: args.external ? args.path : resolveWorkspacePath(taskCtx.workspacePath, args.path),
-        isExternal: args.external,
-      };
+      return { path: resolveWorkspacePath(taskCtx.workspacePath, args.path) };
     },
 
     initialize(
@@ -104,17 +105,24 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     ): FileTabResource {
       const taskCtx = ctx as TaskTabContext;
       // Identity resolution happens here at the edge (spec §10): the tab path
-      // is workspace-absolute after onBeforeOpen, and the workspace binding
-      // carries the host (local vs. ssh connection).
-      let ref = null;
-      if (!entry.state.isExternal) {
-        try {
-          ref = hostFileRefFromNativePath(entry.state.path, taskCtx.getRemoteConnectionId?.());
-        } catch {
-          ref = null;
-        }
+      // is absolute after onBeforeOpen (workspace-resolved when it was
+      // relative), and the task's workspace binding carries the host (local
+      // vs. ssh connection) — including for paths outside the workspace root.
+      const path = entry.state.path;
+      const connectionId = taskCtx.getRemoteConnectionId?.();
+      let ref: HostFileRef | null = null;
+      try {
+        ref = hostFileRefFromNativePath(path, connectionId);
+      } catch {
+        ref = null;
       }
-      return new FileTabResource(entry.state, { ref, handle });
+      const inWorkspace = isWithinWorkspace(taskCtx.workspacePath, path);
+      return new FileTabResource(entry.state, {
+        ref,
+        handle,
+        inWorkspace,
+        displayPath: displayPathFor(path, inWorkspace, connectionId),
+      });
     },
 
     dispose(_entry: TabEntry<FilePayload>, resource: FileTabResource): void {
@@ -162,3 +170,27 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     TabBarItemDragPreview: FileTabBarItemDragPreview,
     TabContent: FileTabContent,
   });
+
+function isWithinWorkspace(workspacePath: string | undefined, path: string): boolean {
+  if (!workspacePath) return false;
+  try {
+    relativePathWithin(hostPathFromNative(workspacePath), hostPathFromNative(path));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Files with no containing workspace root display an absolute path,
+ * host-prefixed when the task runs on a remote host (spec §5).
+ */
+function displayPathFor(
+  path: string,
+  inWorkspace: boolean,
+  connectionId: string | undefined
+): string {
+  if (inWorkspace || !connectionId) return path;
+  const machine = getMachinesStore().connections.find((config) => config.id === connectionId);
+  return `${machine?.name ?? connectionId}:${path}`;
+}

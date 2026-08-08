@@ -26,7 +26,7 @@ import { createConversationsController } from './controller';
 //   reads, enumerates, or parses provider session storage.
 
 const baseCreate = {
-  id: 'conv-1',
+  conversationId: 'conv-1',
   provider: 'claude-code',
   type: 'acp' as const,
   cwd: '/work/repo',
@@ -76,7 +76,7 @@ describe('conversations contract', () => {
     try {
       await model.states.list.refresh();
       expect(snapshot(model.states.list).value).toMatchObject({
-        'conv-1': { id: 'conv-1', title: 'First conversation' },
+        'conv-1': { conversationId: 'conv-1', title: 'First conversation' },
       });
     } finally {
       await records.dispose();
@@ -132,7 +132,7 @@ describe('conversations contract', () => {
     await wire.client.create(baseCreate);
 
     await clock.advanceTo(20_000);
-    const renamed = await wire.client.rename({ id: 'conv-1', title: 'Renamed' });
+    const renamed = await wire.client.rename({ conversationId: 'conv-1', title: 'Renamed' });
     expect(renamed).toEqual({
       success: true,
       data: {
@@ -148,7 +148,10 @@ describe('conversations contract', () => {
     });
 
     await clock.advanceTo(30_000);
-    const renamedAgain = await wire.client.rename({ id: 'conv-1', title: 'Renamed again' });
+    const renamedAgain = await wire.client.rename({
+      conversationId: 'conv-1',
+      title: 'Renamed again',
+    });
     expect(renamedAgain.success).toBe(true);
     if (!renamedAgain.success) throw new Error('expected success');
     expect(renamedAgain.data.title).toBe('Renamed again');
@@ -160,7 +163,7 @@ describe('conversations contract', () => {
 
     await clock.advanceTo(20_000);
     const updated = await wire.client.updateConfig({
-      id: 'conv-1',
+      conversationId: 'conv-1',
       config: { model: 'opus', initialQueue: [{ text: 'hello' }] },
     });
     expect(updated.success).toBe(true);
@@ -171,13 +174,13 @@ describe('conversations contract', () => {
   });
 
   it('rename and updateConfig of an unknown record are conversation-not-found errors', async () => {
-    const renamed = await wire.client.rename({ id: 'conv-missing', title: 'x' });
+    const renamed = await wire.client.rename({ conversationId: 'conv-missing', title: 'x' });
     expect(renamed).toMatchObject({
       success: false,
       error: { type: 'conversation-not-found', conversationId: 'conv-missing' },
     });
 
-    const updated = await wire.client.updateConfig({ id: 'conv-missing', config: {} });
+    const updated = await wire.client.updateConfig({ conversationId: 'conv-missing', config: {} });
     expect(updated).toMatchObject({
       success: false,
       error: { type: 'conversation-not-found', conversationId: 'conv-missing' },
@@ -187,11 +190,11 @@ describe('conversations contract', () => {
   it('delete removes the record and is idempotent', async () => {
     await wire.client.create(baseCreate);
 
-    const deleted = await wire.client.delete({ id: 'conv-1' });
+    const deleted = await wire.client.delete({ conversationId: 'conv-1' });
     expect(deleted).toEqual({ success: true, data: undefined });
 
     // Deleting an absent record succeeds — Outbox retries replay the same delete.
-    const replay = await wire.client.delete({ id: 'conv-1' });
+    const replay = await wire.client.delete({ conversationId: 'conv-1' });
     expect(replay).toEqual({ success: true, data: undefined });
 
     const records = remote(conversationsContract.records, wire.client.records);
@@ -213,15 +216,15 @@ describe('conversations contract', () => {
       await model.states.list.refresh();
       expect(Object.keys(snapshot(model.states.list).value ?? {})).toEqual(['conv-1']);
 
-      await wire.client.create({ ...baseCreate, id: 'conv-2', title: 'Second' });
-      await wire.client.rename({ id: 'conv-1', title: 'Renamed live' });
+      await wire.client.create({ ...baseCreate, conversationId: 'conv-2', title: 'Second' });
+      await wire.client.rename({ conversationId: 'conv-1', title: 'Renamed live' });
       await vi.waitFor(() => {
         const value = snapshot(model.states.list).value;
         expect(value?.['conv-2']).toMatchObject({ title: 'Second' });
         expect(value?.['conv-1']).toMatchObject({ title: 'Renamed live' });
       });
 
-      await wire.client.delete({ id: 'conv-2' });
+      await wire.client.delete({ conversationId: 'conv-2' });
       await vi.waitFor(() => {
         expect(snapshot(model.states.list).value?.['conv-2']).toBeUndefined();
       });
@@ -266,8 +269,8 @@ describe('conversations lifecycle reports', () => {
 
   it('session start stamps lastSpawnedAt and the observed provider session id', async () => {
     await clock.advanceTo(20_000);
-    const reported = await wire.client.reportSessionStarted({
-      id: 'conv-1',
+    const reported = await wire.client.reports.sessionStarted({
+      conversationId: 'conv-1',
       providerSessionId: 'provider-session-9',
       resumeOutcome: null,
     });
@@ -285,8 +288,8 @@ describe('conversations lifecycle reports', () => {
 
   it('resume outcomes record loaded and replaced-by-new', async () => {
     await clock.advanceTo(20_000);
-    await wire.client.reportSessionStarted({
-      id: 'conv-1',
+    await wire.client.reports.sessionStarted({
+      conversationId: 'conv-1',
       providerSessionId: 'provider-session-9',
       resumeOutcome: 'loaded',
     });
@@ -295,8 +298,8 @@ describe('conversations lifecycle reports', () => {
     await clock.advanceTo(30_000);
     // The loadSession-fallback moment: the provider pruned its transcript, resume fell back
     // to a new session — the honest "history could not be restored" signal (spec §7.4).
-    await wire.client.reportSessionStarted({
-      id: 'conv-1',
+    await wire.client.reports.sessionStarted({
+      conversationId: 'conv-1',
       providerSessionId: 'provider-session-10',
       resumeOutcome: 'replaced-by-new',
     });
@@ -309,15 +312,15 @@ describe('conversations lifecycle reports', () => {
   });
 
   it('mid-stream provider-id rebinds update the linkage sub-record', async () => {
-    await wire.client.reportSessionStarted({
-      id: 'conv-1',
+    await wire.client.reports.sessionStarted({
+      conversationId: 'conv-1',
       providerSessionId: 'provider-session-9',
       resumeOutcome: null,
     });
 
     await clock.advanceTo(25_000);
-    await wire.client.reportProviderSessionId({
-      id: 'conv-1',
+    await wire.client.reports.providerSessionId({
+      conversationId: 'conv-1',
       providerSessionId: 'provider-session-rebound',
     });
     expect(await recordSnapshot()).toMatchObject({
@@ -330,19 +333,19 @@ describe('conversations lifecycle reports', () => {
 
   it('activity and session end stamp lastSessionActivityAt', async () => {
     await clock.advanceTo(21_000);
-    await wire.client.reportSessionActivity({ id: 'conv-1' });
+    await wire.client.reports.sessionActivity({ conversationId: 'conv-1' });
     expect(await recordSnapshot()).toMatchObject({ lastSessionActivityAt: 21_000 });
 
     await clock.advanceTo(22_000);
-    await wire.client.reportSessionEnded({ id: 'conv-1' });
+    await wire.client.reports.sessionEnded({ conversationId: 'conv-1' });
     expect(await recordSnapshot()).toMatchObject({ lastSessionActivityAt: 22_000 });
   });
 
   it('reports for unknown records are conversation-not-found errors', async () => {
     // A report must never create a record (conv.records-only: reports carry facts about
     // records that exist; deletion wins over late reports).
-    const reported = await wire.client.reportSessionStarted({
-      id: 'conv-unknown',
+    const reported = await wire.client.reports.sessionStarted({
+      conversationId: 'conv-unknown',
       providerSessionId: 's',
       resumeOutcome: null,
     });
@@ -381,7 +384,7 @@ describe('conversations durability', () => {
         await model.states.list.refresh();
         expect(snapshot(model.states.list).value).toMatchObject({
           'conv-1': {
-            id: 'conv-1',
+            conversationId: 'conv-1',
             title: 'First conversation',
             config: { model: 'sonnet' },
             idRegime: 'provider-minted',

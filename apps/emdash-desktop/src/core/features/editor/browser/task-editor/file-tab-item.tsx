@@ -40,11 +40,10 @@ export const FileTabBarItem = observer(function FileTabBarItem({
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
 
   const status = resource.contentStatus;
-  const isLoading = resource.isExternal ? resource.isLoading : status.kind === 'loading';
-  const showSpinner = useDelayedBoolean(isLoading, 200);
+  const showSpinner = useDelayedBoolean(status.kind === 'loading', 200);
 
   const errorTooltip = fileTabErrorTooltip(status);
-  const tooltip = errorTooltip ? `${resource.path} — ${errorTooltip}` : resource.path;
+  const tooltip = errorTooltip ? `${resource.displayPath} — ${errorTooltip}` : resource.displayPath;
 
   return (
     <GenericTabItem
@@ -64,9 +63,8 @@ export const FileTabBarItem = observer(function FileTabBarItem({
       }
       hasError={status.kind === 'error'}
       kindCommands={
-        resource.isExternal
-          ? undefined
-          : [
+        resource.inWorkspace
+          ? [
               {
                 id: 'file:reveal',
                 label: 'Reveal File',
@@ -77,6 +75,7 @@ export const FileTabBarItem = observer(function FileTabBarItem({
                 },
               },
             ]
+          : undefined
       }
       statusSlot={
         resource.isDirty ? (

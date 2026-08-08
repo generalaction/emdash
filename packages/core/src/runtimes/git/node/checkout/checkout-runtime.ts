@@ -12,35 +12,30 @@ import {
   type CheckoutHeadState,
   type CheckoutStatusState,
   type GitCommandError,
+  type GitFileContentKey,
   type GitLogOptions,
-  type GitSyncProgress,
   type GitTransferProgress,
   type NormalizedDiffTarget,
   type PullJobInput,
   type PushJobInput,
-  type SyncJobInput,
 } from '#runtimes/git/api';
 import type { GitAllocationGraph } from '#runtimes/git/node/allocation/allocation-graph';
 import { expectedGitCommandError } from '#runtimes/git/node/api/errors';
 import type { CheckoutResource } from './checkout-resource';
 
 type CheckoutModel = typeof gitCheckoutContract.model;
-type FileDiffModel = typeof gitCheckoutContract.fileDiff;
 type FileContentModel = typeof gitCheckoutContract.content;
 type CheckoutStateName = 'status' | 'head';
 
 export class GitCheckoutRuntime {
   readonly model: LeasedLiveModelProvider<CheckoutModel>;
-  readonly fileDiffModel: LeasedLiveModelProvider<FileDiffModel>;
   readonly fileContentModel: LeasedLiveModelProvider<FileContentModel>;
 
   private readonly modelHosts = new Map<string, LeasedLiveModelProvider<CheckoutModel>>();
-  private readonly fileDiffHosts = new Map<string, LeasedLiveModelProvider<FileDiffModel>>();
   private readonly fileContentHosts = new Map<string, LeasedLiveModelProvider<FileContentModel>>();
 
   constructor(private readonly allocations: GitAllocationGraph) {
     this.model = this.modelHost(gitContract.checkout.model);
-    this.fileDiffModel = this.fileDiffHost(gitContract.checkout.fileDiff);
     this.fileContentModel = this.fileContentHost(gitContract.checkout.content);
   }
 
@@ -62,60 +57,11 @@ export class GitCheckoutRuntime {
             this.run(context.key, (resource) => resource.unstageAll(context)),
           revert: (context) => this.run(context.key, (resource) => resource.revert(context)),
           revertAll: (context) => this.run(context.key, (resource) => resource.revertAll(context)),
-          clean: (context) => this.run(context.key, (resource) => resource.clean(context)),
-          stageHunk: (context) => this.run(context.key, (resource) => resource.stageHunk(context)),
-          unstageHunk: (context) =>
-            this.run(context.key, (resource) => resource.unstageHunk(context)),
-          discardHunk: (context) =>
-            this.run(context.key, (resource) => resource.discardHunk(context)),
           commit: (context) => this.run(context.key, (resource) => resource.commit(context)),
-          switch: (context) => this.run(context.key, (resource) => resource.switch(context)),
-          reset: (context) => this.run(context.key, (resource) => resource.reset(context)),
-          merge: (context) => this.run(context.key, (resource) => resource.merge(context)),
-          mergeContinue: (context) =>
-            this.run(context.key, (resource) => resource.mergeContinue(context)),
-          mergeAbort: (context) =>
-            this.run(context.key, (resource) => resource.mergeAbort(context)),
-          rebase: (context) => this.run(context.key, (resource) => resource.rebase(context)),
-          rebaseContinue: (context) =>
-            this.run(context.key, (resource) => resource.rebaseContinue(context)),
-          rebaseAbort: (context) =>
-            this.run(context.key, (resource) => resource.rebaseAbort(context)),
-          rebaseSkip: (context) =>
-            this.run(context.key, (resource) => resource.rebaseSkip(context)),
-          cherryPick: (context) =>
-            this.run(context.key, (resource) => resource.cherryPick(context)),
-          revertCommit: (context) =>
-            this.run(context.key, (resource) => resource.revertCommit(context)),
-          stashPush: (context) => this.run(context.key, (resource) => resource.stashPush(context)),
-          stashApply: (context) =>
-            this.run(context.key, (resource) => resource.stashApply(context)),
-          stashPop: (context) => this.run(context.key, (resource) => resource.stashPop(context)),
         },
       }
     );
     this.modelHosts.set(contract.id, host);
-    return host;
-  }
-
-  fileDiffHost(contract: FileDiffModel = gitContract.checkout.fileDiff) {
-    const existing = this.fileDiffHosts.get(contract.id);
-    if (existing) return existing;
-    const host = expose(contract, {
-      staleness: async (key, scope) => {
-        const lease = this.allocations.acquireCheckout(key);
-        scope.add(() => lease.release());
-        const checkout = await lease.ready();
-        return checkout.fileDiffStaleness(
-          {
-            filePath: key.filePath,
-            target: key.target,
-          },
-          scope
-        );
-      },
-    });
-    this.fileDiffHosts.set(contract.id, host);
     return host;
   }
 
@@ -134,48 +80,22 @@ export class GitCheckoutRuntime {
     return host;
   }
 
-  getFileDiff(
-    input: CheckoutSelector & {
-      path: PortableRelativePath;
-      target?: NormalizedDiffTarget;
-    }
-  ) {
-    return this.run(input, (checkout) =>
-      checkout.getFileDiff(
-        input.path,
-        input.target ? denormalizeDiffTarget(input.target) : undefined
-      )
-    );
-  }
-
   getChangedFiles(input: CheckoutSelector & { target: NormalizedDiffTarget }) {
-    return this.read(input, (checkout) =>
-      checkout.getChangedFiles(denormalizeDiffTarget(input.target))
+    return this.read(input, async (checkout) => ({
+      files: await checkout.getChangedFiles(denormalizeDiffTarget(input.target)),
+    }));
+  }
+
+  getFile(input: GitFileContentKey) {
+    return this.run(input, (checkout) =>
+      checkout.getFile({ path: input.path, source: input.source })
     );
   }
 
-  isFileTracked(input: CheckoutSelector & { path: PortableRelativePath }) {
-    return this.read(input, (checkout) => checkout.isFileTracked(input.path));
-  }
-
-  getConflictVersions(input: CheckoutSelector & { path: PortableRelativePath }) {
-    return this.run(input, (checkout) => checkout.getConflictVersions(input.path));
-  }
-
-  getFileAtRef(input: CheckoutSelector & { filePath: PortableRelativePath; ref: string }) {
-    return this.read(input, (checkout) => checkout.getFileAtRef(input.filePath, input.ref));
-  }
-
-  getFileAtIndex(input: CheckoutSelector & { filePath: PortableRelativePath }) {
-    return this.read(input, (checkout) => checkout.getFileAtIndex(input.filePath));
-  }
-
-  getImageAtRef(input: CheckoutSelector & { filePath: PortableRelativePath; ref: string }) {
-    return this.read(input, (checkout) => checkout.getImageAtRef(input.filePath, input.ref));
-  }
-
-  getImageAtIndex(input: CheckoutSelector & { filePath: PortableRelativePath }) {
-    return this.read(input, (checkout) => checkout.getImageAtIndex(input.filePath));
+  download(input: GitFileContentKey) {
+    return this.run(input, (checkout) =>
+      checkout.download({ path: input.path, source: input.source })
+    );
   }
 
   getLog(input: CheckoutSelector & { options?: GitLogOptions }) {
@@ -183,11 +103,13 @@ export class GitCheckoutRuntime {
   }
 
   getCommit(input: CheckoutSelector & { hash: string }) {
-    return this.read(input, (checkout) => checkout.getCommit(input.hash));
+    return this.read(input, async (checkout) => ({ commit: await checkout.getCommit(input.hash) }));
   }
 
   getCommitFiles(input: CheckoutSelector & { hash: string }) {
-    return this.read(input, (checkout) => checkout.getCommitFiles(input.hash));
+    return this.read(input, async (checkout) => ({
+      files: await checkout.getCommitFiles(input.hash),
+    }));
   }
 
   blame(input: CheckoutSelector & { path: PortableRelativePath; ref?: string }) {
@@ -209,20 +131,12 @@ export class GitCheckoutRuntime {
     );
   }
 
-  sync(input: SyncJobInput, context: LiveJobContext<GitSyncProgress>) {
-    return this.run(input, (checkout) =>
-      checkout.sync({ signal: context.signal, onProgress: context.progress })
-    );
-  }
-
   async dispose(): Promise<void> {
     await Promise.all([
       ...[...this.modelHosts.values()].map((host) => host.dispose()),
-      ...[...this.fileDiffHosts.values()].map((host) => host.dispose()),
       ...[...this.fileContentHosts.values()].map((host) => host.dispose()),
     ]);
     this.modelHosts.clear();
-    this.fileDiffHosts.clear();
     this.fileContentHosts.clear();
   }
 

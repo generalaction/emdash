@@ -76,7 +76,6 @@ export function createDesktopWireOptions(
       openExternal: ({ url }) => appOperations.openExternal(url),
       openPath: ({ path }) => appOperations.openPath(path),
       showWorkspaceItemInFolder: (input) => appOperations.showWorkspaceItemInFolder(input),
-      readUserFile: ({ path }) => appOperations.readUserFile(path),
       clipboardWriteText: ({ text }) => appOperations.clipboardWriteText(text),
       persistDroppedBlob: (input) => appOperations.persistDroppedBlob(input),
       persistClipboardImage: () => appOperations.persistClipboardImage(),

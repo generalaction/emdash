@@ -62,14 +62,54 @@ export const scriptWorkflowResultSchema = z.object({
 
 export type ScriptWorkflowResult = z.infer<typeof scriptWorkflowResultSchema>;
 
-export const terminalErrorSchema = z.object({
-  type: z.string().min(1),
+/** A workflow of a different kind is already running for the workspace. */
+export const workflowInFlightErrorSchema = z.object({
+  type: z.literal('workflow-in-flight'),
+  message: z.string().min(1),
+});
+
+/** The workflow graph failed to compile (duplicate node, cycle, unknown dependency…). */
+export const workflowCompileFailedErrorSchema = z.object({
+  type: z.literal('workflow-compile-failed'),
+  message: z.string().min(1),
+});
+
+/** A script node exited non-zero, was signalled, or failed while running. */
+export const scriptFailedErrorSchema = z.object({
+  type: z.literal('script-failed'),
   message: z.string().min(1),
   nodeId: z.string().optional(),
+});
+
+/** The workflow (or a node) was cancelled before completing. */
+export const workflowCancelledErrorSchema = z.object({
+  type: z.literal('cancelled'),
+  message: z.string().min(1),
+});
+
+/**
+ * Catch-all for workflow-primitive errors whose open `WorkflowError.type` is not one of
+ * the enumerated variants above (an unexpected node throw, an illegal machine
+ * transition, …). The original open discriminant survives in `workflowErrorType` so the
+ * union itself stays closed.
+ */
+export const workflowRuntimeErrorSchema = z.object({
+  type: z.literal('workflow-runtime-error'),
+  /** The workflow primitive's original open `WorkflowError.type`, when one existed. */
+  workflowErrorType: z.string().min(1).optional(),
+  message: z.string().min(1),
   resolutions: z.array(z.string()).optional(),
 });
 
-export type TerminalError = z.infer<typeof terminalErrorSchema>;
+export const scriptWorkflowErrorSchema = z.discriminatedUnion('type', [
+  workflowInFlightErrorSchema,
+  workflowCompileFailedErrorSchema,
+  scriptFailedErrorSchema,
+  workflowCancelledErrorSchema,
+  workflowRuntimeErrorSchema,
+]);
+
+export type ScriptWorkflowError = z.infer<typeof scriptWorkflowErrorSchema>;
 
 export const terminalScopeInputSchema = z.object({
   workspace: hostFileRefSchema,

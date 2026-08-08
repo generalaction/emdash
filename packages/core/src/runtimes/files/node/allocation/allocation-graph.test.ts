@@ -2,7 +2,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
+import { runtimeRoot } from '#runtimes/files/node/testing/paths';
 import type { IWatchService, WatchOptions } from '#services/fs-watch/api';
 import { FilesAllocationGraph } from './allocation-graph';
 
@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe('FilesAllocationGraph', () => {
-  it('pools one root watcher across tree sessions and shared content', async () => {
+  it('pools root watchers across tree sessions and shared content', async () => {
     const root = await makeRoot();
     let watchCount = 0;
     let releaseCount = 0;
@@ -33,16 +33,18 @@ describe('FilesAllocationGraph', () => {
     const rootRef = runtimeRoot(root);
     const treeA = graph.acquireTree({ root: rootRef, sessionId: 'a' });
     const treeB = graph.acquireTree({ root: rootRef, sessionId: 'b' });
-    const contentA = graph.acquireContent({ root: rootRef, relative: relativePath('file.txt') });
-    const contentB = graph.acquireContent({ root: rootRef, relative: relativePath('file.txt') });
+    const contentA = graph.acquireContent({ path: runtimeRoot(path.join(root, 'file.txt')) });
+    const contentB = graph.acquireContent({ path: runtimeRoot(path.join(root, 'file.txt')) });
 
     expect(await treeA.ready()).not.toBe(await treeB.ready());
     expect(await contentA.ready()).toBe(await contentB.ready());
-    expect(watchCount).toBe(1);
+    // One recursive watch shared by the tree sessions plus one children-scoped
+    // per-file watch shared by the content sessions of the same file.
+    expect(watchCount).toBe(2);
 
     await Promise.all([treeA.release(), treeB.release(), contentA.release(), contentB.release()]);
     await graph.dispose();
-    expect(releaseCount).toBe(1);
+    expect(releaseCount).toBe(2);
   });
 
   it('serves acquisitions when watch startup fails and reports the error', async () => {

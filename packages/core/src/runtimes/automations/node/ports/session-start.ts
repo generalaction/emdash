@@ -1,12 +1,18 @@
+import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '@emdash/shared';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { formatAbsolute, type HostFileRef } from '#primitives/path/api';
+// oxlint-disable-next-line emdash/core-module-boundaries -- run workspaces register and activate through the registry's plain verbs (workspaceHost retirement, spec §4.1); the contract has no services-level home yet
+import type {
+  ActivateWorkspaceError,
+  CreateWorkspaceError,
+  WorkspaceRegistryContract,
+} from '#runtimes/workspace-registry/api';
 import type {
   ConversationIndexContract,
   CreateConversationIndexRecordInput,
 } from '#services/conversation-index/api';
 import type { AcpSessionStartContract, TuiSessionStartContract } from '#services/session-start/api';
-import type { WorkspaceHostActionsContract } from '#services/workspace-host-actions/api';
 import type { AutomationAgentConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
 
@@ -25,7 +31,7 @@ export interface AutomationSessionPort {
 }
 
 export function createSessionPortFromDependencies(dependencies: {
-  workspaceHost: ContractClient<WorkspaceHostActionsContract>;
+  workspaceRegistry: ContractClient<WorkspaceRegistryContract>;
   acp: ContractClient<AcpSessionStartContract>;
   tui: ContractClient<TuiSessionStartContract>;
   conversationIndex: ContractClient<ConversationIndexContract>;
@@ -53,26 +59,34 @@ export function createSessionPortFromDependencies(dependencies: {
           return err({ code: created.error.type, message: created.error.message });
         }
 
-        // Session-plane init runs start → prepare → activate before any agent
-        // touches the worktree. A failed prepare script is non-fatal (the host
-        // surfaces it through workspace notices); only an initialization error
-        // blocks the session.
-        const initialized = await dependencies.workspaceHost.initializeWorkspace(
-          { workspacePath: input.cwd.path },
+        // Session-plane init runs register → activate through the registry before
+        // any agent touches the worktree (spec §4.1): registration is idempotent
+        // for existing paths, and activation returns once the prepare script
+        // settles. Script failures surface as registry notices and never fail
+        // activation; only a registry-level error blocks the session.
+        const workspaceId = await registerWorkspace(
+          dependencies.workspaceRegistry,
+          cwd,
+          input.signal
+        );
+        if (!workspaceId.success) return workspaceId;
+        const activated = await dependencies.workspaceRegistry.activateWorkspace(
+          { workspaceId: workspaceId.data },
           { signal: input.signal }
         );
-        if (!initialized.success) {
-          return err({ code: initialized.error.type, message: initialized.error.message });
+        if (!activated.success) {
+          return err({
+            code: activated.error.type,
+            message: describeActivateWorkspaceError(activated.error),
+          });
         }
         if (input.agent.type === 'acp') {
-          const result = await dependencies.acp.startSession(
+          const result = await dependencies.acp.start(
             {
-              input: {
-                conversationId: input.conversationId,
-                cwd,
-                sessionId: null,
-                ...input.agent.start,
-              },
+              conversationId: input.conversationId,
+              cwd,
+              sessionId: null,
+              ...input.agent.start,
             },
             { signal: input.signal }
           );
@@ -81,16 +95,14 @@ export function createSessionPortFromDependencies(dependencies: {
             : err({ code: result.error.type, message: result.error.message });
         }
 
-        const result = await dependencies.tui.startSession(
+        const result = await dependencies.tui.start(
           {
-            input: {
-              conversationId: input.conversationId,
-              cwd,
-              sessionId: null,
-              cols: HEADLESS_TERMINAL_COLS,
-              rows: HEADLESS_TERMINAL_ROWS,
-              ...input.agent.start,
-            },
+            conversationId: input.conversationId,
+            cwd,
+            sessionId: null,
+            cols: HEADLESS_TERMINAL_COLS,
+            rows: HEADLESS_TERMINAL_ROWS,
+            ...input.agent.start,
           },
           { signal: input.signal }
         );
@@ -105,6 +117,47 @@ export function createSessionPortFromDependencies(dependencies: {
       }
     },
   };
+}
+
+/**
+ * Idempotent workspace registration (the desktop's `createWorktreeThroughRegistry`
+ * pattern, mirrored by the workspace-provisioning port): a fresh id either registers
+ * the path or adopts the record that already owns it, so repeated runs converge on
+ * one stable workspace id.
+ */
+async function registerWorkspace(
+  client: ContractClient<WorkspaceRegistryContract>,
+  path: string,
+  signal: AbortSignal
+): Promise<Result<string, AutomationPortError>> {
+  const result = await client.createWorkspace({ workspaceId: randomUUID(), path }, { signal });
+  if (result.success) return ok(result.data.id);
+  if (result.error.type === 'already-registered') return ok(result.error.record.id);
+  return err({
+    code: result.error.type,
+    message: describeCreateWorkspaceError(result.error),
+  });
+}
+
+function describeCreateWorkspaceError(
+  error: Exclude<CreateWorkspaceError, { type: 'already-registered' }>
+): string {
+  switch (error.type) {
+    case 'path-not-found':
+      return `Workspace path not found: ${error.path}`;
+    case 'inspect-failed':
+    case 'immutable-field-mismatch':
+      return error.message;
+  }
+}
+
+function describeActivateWorkspaceError(error: ActivateWorkspaceError): string {
+  switch (error.type) {
+    case 'workspace-not-found':
+      return `Workspace record not found: ${error.workspaceId}`;
+    case 'workspace-missing':
+      return `Workspace path is missing on disk: ${error.workspaceId}`;
+  }
 }
 
 /**
@@ -134,7 +187,7 @@ function compileConversationIndexRecord(
           initialPrompt: agent.start.initialPrompt,
         };
   return {
-    id: conversationId,
+    conversationId,
     provider: agent.start.providerId,
     type: agent.type === 'acp' ? 'acp' : 'pty',
     cwd,

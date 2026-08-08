@@ -102,7 +102,7 @@ async function readPaseoMigrationData(
     log.warn('Failed to inspect Paseo config for migration', exists.error);
     return data;
   }
-  if (!exists.data) return data;
+  if (!exists.data.exists) return data;
 
   const content = await files.client.fs.readText(fileKey(files, paseoConfigPath));
   if (!content.success) {

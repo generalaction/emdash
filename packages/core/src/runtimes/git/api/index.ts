@@ -1,10 +1,4 @@
-export { gitContract, type GitContract } from '#runtimes/git/api/api/contract';
-export {
-  boundFileDiffKeySchema,
-  fileDiffKeySchema,
-  type BoundFileDiffKey,
-  type FileDiffKey,
-} from '#runtimes/git/api/checkout/file-diff-key';
+export { gitContract, type GitContract } from '#runtimes/git/api/contract';
 export {
   boundGitFileContentKeySchema,
   gitFileContentKeySchema,
@@ -20,7 +14,7 @@ export {
   type GitPathSelector,
   type GitSelector,
   type RepositorySelector,
-} from '#runtimes/git/api/api/selectors';
+} from '#runtimes/git/api/selectors';
 export { gitCheckoutContract, type GitCheckoutContract } from '#runtimes/git/api/checkout/contract';
 export {
   MAX_STATUS_FILES,
@@ -37,8 +31,7 @@ export {
 export type {
   CloneRepositoryError,
   CommitError,
-  CreateBranchError,
-  DeleteBranchError,
+  DownloadError,
   EnsureRepositoryError,
   FetchError,
   FetchPrForReviewError,
@@ -47,34 +40,27 @@ export type {
   GitExecErrorCode,
   GitOperationError,
   GitResolutionError,
-  MergeError,
+  InspectPathError,
   PullError,
   PushError,
-  RebaseError,
-  SwitchError,
-  SyncError,
-} from '#runtimes/git/api/api/errors';
+} from '#runtimes/git/api/errors';
 export type {
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
   GitPathInspection,
   GitRepositoryInfo,
-  GitSyncProgress,
   GitTransferProgress,
-} from '#runtimes/git/api/api/schemas';
+} from '#runtimes/git/api/schemas';
 export type {
   BlameHunk,
   BlameResult,
   Commit,
   CommitFile,
   CommitOptions,
-  ConflictVersions,
-  DiffHunk,
-  DiffLine,
   DiffMode,
   DiffTarget,
+  DownloadMeta,
   FileChange,
-  FileDiff,
   GitChange,
   GitChangeStatus,
   GitFileSource,
@@ -82,20 +68,11 @@ export type {
   GitLogOptions,
   GitLogResult,
   GitObjectRef,
-  ImageBlob,
-  ImageReadResult,
-  ImageUnavailableReason,
   MergeBaseRange,
-  MergeOptions,
   NormalizedDiffTarget,
   PullJobInput,
   PushJobInput,
   PushOptions,
-  RebaseOptions,
-  ResetMode,
-  StashPushOptions,
-  SwitchOptions,
-  SyncJobInput,
 } from '#runtimes/git/api/checkout/schemas';
 export {
   denormalizeDiffTarget,
@@ -112,9 +89,6 @@ export {
   type GitFileContentState,
 } from '#runtimes/git/api/checkout/states/content';
 export type {
-  AddWorktreeOptions,
-  ExplicitCreateBranchOptions,
-  ExplicitTagOptions,
   FetchJobInput,
   FetchPrForReviewJobInput,
   FetchPrForReviewOptions,
@@ -137,12 +111,6 @@ export {
   type GitStatusCode,
 } from '#runtimes/git/api/checkout/states/status';
 export {
-  fileDiffStalenessReasonSchema,
-  fileDiffStalenessStateSchema,
-  type FileDiffStalenessReason,
-  type FileDiffStalenessState,
-} from '#runtimes/git/api/checkout/states/file-diff-staleness';
-export {
   gitBranchRefSchema,
   gitBranchSchema,
   gitLocalBranchRefSchema,
@@ -164,12 +132,6 @@ export {
   gitRemotesStateSchema,
   type GitRemotesState,
 } from '#runtimes/git/api/repository/states/remotes';
-export {
-  gitStashSchema,
-  gitStashesStateSchema,
-  type GitStash,
-  type GitStashesState,
-} from '#runtimes/git/api/repository/states/stashes';
 export {
   gitWorktreesStateSchema,
   worktreeHeadSummarySchema,

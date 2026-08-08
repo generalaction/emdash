@@ -19,7 +19,7 @@ export async function computeProjectSettingsOverrideState(
       const exists = await resolved.files.client.fs.exists(
         fileKey(resolved.files, resolved.configPath)
       );
-      if (!exists.success || !exists.data) continue;
+      if (!exists.success || !exists.data.exists) continue;
 
       const content = await resolved.files.client.fs.readText(
         fileKey(resolved.files, resolved.configPath)

@@ -1,10 +1,9 @@
-import type { Result } from '@emdash/shared';
+import { ok, type Result } from '@emdash/shared';
 import type { McpServer } from '#primitives/mcp/api';
 import type { CatalogSkill } from '#primitives/skills/api';
 import type {
   AgentConfigAuthError,
   AgentConfigMcpError,
-  AgentConfigRefreshError,
   AgentConfigSkillsError,
   HooksStatus,
 } from '#runtimes/agent-config/api';
@@ -15,12 +14,6 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
   return {
     hooksStatus(input: { providerId: string }): Promise<HooksStatus> {
       return runtime.hooksStatus(input.providerId);
-    },
-    refreshAgents(input: {
-      providerId?: string;
-      refreshShellEnv?: boolean;
-    }): Promise<Result<void, AgentConfigRefreshError>> {
-      return runtime.refreshAgents(input);
     },
     startLogin(input: {
       providerId: string;
@@ -67,23 +60,29 @@ export function createAgentConfigProcedures(runtime: AgentConfigRuntime) {
     }): Promise<Result<void, AgentConfigMcpError>> {
       return runtime.removeMcpForAgent(input.providerId, input.name);
     },
-    listMcpForAgent(input: {
+    async listMcpForAgent(input: {
       providerId: string;
-    }): Promise<Result<McpServer[], AgentConfigMcpError>> {
-      return runtime.listMcpForAgent(input.providerId);
+    }): Promise<Result<{ servers: McpServer[] }, AgentConfigMcpError>> {
+      const listed = await runtime.listMcpForAgent(input.providerId);
+      return listed.success ? ok({ servers: listed.data }) : listed;
     },
-    installSkill(
+    async installSkill(
       input: Parameters<AgentConfigRuntime['installSkill']>[0]
-    ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
-      return runtime.installSkill(input);
+    ): Promise<Result<{ skills: CatalogSkill[] }, AgentConfigSkillsError>> {
+      const installed = await runtime.installSkill(input);
+      return installed.success ? ok({ skills: installed.data }) : installed;
     },
-    removeSkill(input: { name: string }): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
-      return runtime.removeSkill(input.name);
+    async removeSkill(input: {
+      name: string;
+    }): Promise<Result<{ skills: CatalogSkill[] }, AgentConfigSkillsError>> {
+      const removed = await runtime.removeSkill(input.name);
+      return removed.success ? ok({ skills: removed.data }) : removed;
     },
-    createSkill(
+    async createSkill(
       input: Parameters<AgentConfigRuntime['createSkill']>[0]
-    ): Promise<Result<CatalogSkill[], AgentConfigSkillsError>> {
-      return runtime.createSkill(input);
+    ): Promise<Result<{ skills: CatalogSkill[] }, AgentConfigSkillsError>> {
+      const created = await runtime.createSkill(input);
+      return created.success ? ok({ skills: created.data }) : created;
     },
   };
 }

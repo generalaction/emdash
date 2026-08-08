@@ -10,19 +10,19 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpGetHistoryError,
-  AcpQueuePromptError,
   AcpResolvePermissionError,
-  AcpResumeSessionError,
+  AcpResumeError,
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpSetPromptDraftError,
-  AcpStartSessionError,
-  AcpStopSessionError,
+  AcpStartError,
+  AcpKillError,
   AttachmentMimeType,
   AttachmentRef,
   PromptDraftUpdate,
   PromptInput,
+  PromptPlacement,
   ResumeResult,
   SessionState,
   TerminalState,
@@ -76,25 +76,26 @@ export class AcpRuntime {
     this.manager = manager;
   }
 
-  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
+  startSession(input: AcpStartInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
     return this.manager.start(input);
   }
 
   async resumeSession(
     input: AcpStartInput & { sessionId: string },
     limit = 50
-  ): Promise<Result<ResumeResult, AcpResumeSessionError>> {
+  ): Promise<Result<ResumeResult, AcpResumeError>> {
     const result = await this.manager.start(input);
     if (!result.success) return result;
     const page = this.manager.getHistory(input.conversationId, undefined, limit);
     return ok({ sessionId: result.data.sessionId, ...page });
   }
 
-  stopSession(conversationId: string): Result<void, AcpStopSessionError> {
+  /** Runtime-internal graceful stop (persists suspended intent); not exposed on the wire. */
+  stopSession(conversationId: string): Result<void, AcpKillError> {
     return this.manager.stop(conversationId);
   }
 
-  killSession(conversationId: string): Result<void, AcpStopSessionError> {
+  killSession(conversationId: string): Result<void, AcpKillError> {
     return this.manager.kill(conversationId);
   }
 
@@ -104,16 +105,10 @@ export class AcpRuntime {
 
   sendPrompt(
     conversationId: string,
-    prompt: PromptInput
+    prompt: PromptInput,
+    placement?: PromptPlacement
   ): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-    return this.manager.prompt({ conversationId, prompt });
-  }
-
-  queuePrompt(
-    conversationId: string,
-    prompt: PromptInput
-  ): Result<{ queued: boolean }, AcpQueuePromptError> {
-    return this.manager.queuePrompt({ conversationId, prompt });
+    return this.manager.prompt({ conversationId, prompt, placement });
   }
 
   editQueuedPrompt(
@@ -209,6 +204,7 @@ export class AcpRuntime {
   }
 
   async uploadAttachment(input: {
+    conversationId: string;
     data?: Uint8Array;
     mimeType: AttachmentMimeType;
     name?: string;
@@ -218,16 +214,34 @@ export class AcpRuntime {
     return ok(await this.deps.attachmentStore.put(input));
   }
 
-  async downloadAttachment(id: string): Promise<Result<StoredAttachment, AcpAttachmentError>> {
+  async downloadAttachment(
+    conversationId: string,
+    attachmentId: string
+  ): Promise<Result<StoredAttachment, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    const stored = await this.deps.attachmentStore.get(id);
-    if (!stored) return acpErr.invalidState(`Attachment '${id}' not found`);
+    const stored = await this.deps.attachmentStore.get(conversationId, attachmentId);
+    if (!stored) return acpErr.invalidState(`Attachment '${attachmentId}' not found`);
     return ok(stored);
   }
 
-  async deleteAttachment(id: string): Promise<Result<void, AcpAttachmentError>> {
+  async deleteAttachment(
+    conversationId: string,
+    attachmentId: string
+  ): Promise<Result<void, AcpAttachmentError>> {
     if (!this.deps.attachmentStore) return acpErr.invalidState('No attachment store configured');
-    await this.deps.attachmentStore.delete(id);
+    await this.deps.attachmentStore.delete(conversationId, attachmentId);
+    return ok();
+  }
+
+  /**
+   * Conversation-deletion cleanup (spec §3.6): removes the conversation's attachment
+   * directory. Idempotent; a runtime without attachment storage has nothing to clean.
+   */
+  async deleteConversationAttachments(
+    conversationId: string
+  ): Promise<Result<void, AcpAttachmentError>> {
+    if (!this.deps.attachmentStore) return ok();
+    await this.deps.attachmentStore.deleteConversation(conversationId);
     return ok();
   }
 

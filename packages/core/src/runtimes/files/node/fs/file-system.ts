@@ -4,44 +4,38 @@ import path from 'node:path';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveJobContext } from '@emdash/wire/live';
 import type { BlobSource, WireFile } from '@emdash/wire/rpc';
-import { glob } from 'glob';
 import {
   absoluteDirname,
-  absoluteEquals,
   formatAbsolute,
-  joinPortableRelativePath,
   parseAbsolute,
+  ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
   type PortableRelativePath,
 } from '#primitives/path/api';
 import type {
-  CopyInput,
+  AbsolutePathKey,
   CreateDirectoryInput,
   CreateFileInput,
   DeleteInput,
-  FileGlobOptions,
-  FileKey,
   FileStat,
-  FileUsage,
+  FromToKey,
   FsError,
-  MoveInput,
-  MutationTarget,
   PathBatch,
-  PathKey,
   PathList,
   ReadBytesMeta,
-  ReadFileOptions,
+  ReadFileKey,
   ReadTextResult,
-  RenameInput,
-  RootKey,
   UploadFileInput,
   UploadFileResult,
   WriteFileInput,
 } from '#runtimes/files/api';
 import type { FilesAllocationGraph } from '#runtimes/files/node/allocation/allocation-graph';
 import { expectedFsError, toFsError } from '#runtimes/files/node/api/errors';
-import type { RootChange, RootResource } from '#runtimes/files/node/root/root-resource';
-import { measureAbsolutePathUsage } from '#services/fs-usage/node';
+import type {
+  AbsoluteChange,
+  RootChange,
+  RootResource,
+} from '#runtimes/files/node/root/root-resource';
 import { enumerateFiles } from './enumerate';
 import { mimeTypeForPath, normalizeMaxBytes, readStrongSnapshot } from './metadata';
 import {
@@ -55,14 +49,18 @@ import {
 import { writeFileContent } from './write-file';
 
 const STREAM_CHUNK_SIZE = 64 * 1024;
-const PROGRESS_BATCH_SIZE = 100;
 
+/**
+ * The stateless fs plane, keyed by bare host-absolute paths (spec §3.4). Every
+ * successful mutation is reflected into affected live tree sessions before it
+ * resolves (ack-time republish); the fs watcher covers external changes only.
+ */
 export class FileSystemRuntime {
   constructor(private readonly allocations: FilesAllocationGraph) {}
 
-  stat(input: PathKey): Promise<Result<FileStat, FsError>> {
-    return this.run(input.root, async (root) => {
-      const resolved = await root.paths.resolveFollowed(input.relative);
+  stat(input: AbsolutePathKey): Promise<Result<FileStat, FsError>> {
+    return this.runAt(input, async (root, relative) => {
+      const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
       try {
         const metadata = await stat(resolved.data.realPath);
@@ -83,42 +81,19 @@ export class FileSystemRuntime {
     });
   }
 
-  measureUsage(input: PathKey): Promise<Result<FileUsage, FsError>> {
-    return this.run(input.root, async (root) => {
-      const resolved = await root.paths.resolveExistingEntry(input.relative);
-      if (!resolved.success) return resolved;
-      try {
-        const usage = await measureAbsolutePathUsage(
-          resolved.data.absolutePath,
-          resolved.data.path
-        );
-        return ok({
-          ...usage,
-          path: resolved.data.path,
-          errors: usage.errors.map((error) => ({
-            path: error.path as PortableRelativePath,
-            message: error.message,
-          })),
-        });
-      } catch (error) {
-        return err(toFsError(error, input.relative));
-      }
-    });
-  }
-
-  async exists(input: FileKey): Promise<Result<boolean, FsError>> {
+  async exists(input: AbsolutePathKey): Promise<Result<{ exists: boolean }, FsError>> {
     const result = await this.runAt(input, async (root, relative) => {
       const resolved = await root.paths.resolveFollowed(relative);
-      if (resolved.success) return ok(true);
-      return resolved.error.type === 'not-found' ? ok(false) : resolved;
+      if (resolved.success) return ok({ exists: true });
+      return resolved.error.type === 'not-found' ? ok({ exists: false }) : resolved;
     });
-    // For a bare absolute path, a missing parent directory means the file does
-    // not exist rather than an addressing failure.
-    if (!result.success && result.error.type === 'not-found' && 'path' in input) return ok(false);
+    // A missing parent directory means the file does not exist rather than an
+    // addressing failure.
+    if (!result.success && result.error.type === 'not-found') return ok({ exists: false });
     return result;
   }
 
-  realPath(input: FileKey): Promise<Result<HostAbsolutePath, FsError>> {
+  realPath(input: AbsolutePathKey): Promise<Result<{ path: HostAbsolutePath }, FsError>> {
     return this.runAt(input, async (root, relative) => {
       const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
@@ -129,14 +104,12 @@ export class FileSystemRuntime {
         },
       });
       return parsed.success
-        ? ok(parsed.data)
+        ? ok({ path: parsed.data })
         : err({ type: 'invalid-path', path: relative, message: parsed.error.message });
     });
   }
 
-  readText(
-    input: FileKey & { options?: ReadFileOptions }
-  ): Promise<Result<ReadTextResult, FsError>> {
+  readText(input: ReadFileKey): Promise<Result<ReadTextResult, FsError>> {
     return this.runAt(input, async (root, relative) => {
       const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
@@ -175,7 +148,7 @@ export class FileSystemRuntime {
   }
 
   readBytes(
-    input: FileKey & { options?: ReadFileOptions }
+    input: ReadFileKey
   ): Promise<Result<{ meta: ReadBytesMeta; source: BlobSource }, FsError>> {
     return this.runAt(input, async (root, relative) => {
       const resolved = await root.paths.resolveFollowed(relative);
@@ -225,248 +198,201 @@ export class FileSystemRuntime {
   }
 
   async upload(input: UploadFileInput, file: WireFile): Promise<Result<UploadFileResult, FsError>> {
-    const key = mutationFileKey(input.root, input.path);
-    if (!key.success) return key;
-
     let bytes: Uint8Array;
     try {
       bytes = await file.bytes();
     } catch (error) {
-      return err(toFsError(error, formatMutationTarget(input.path)));
+      return err(toFsError(error, formatAbsolute(input.path)));
     }
 
-    return this.runAt(key.data, async (root, relative) => {
+    return this.runAt({ path: input.path }, async (root, relative) => {
       const destination = await root.paths.resolveDestination(relative);
       if (!destination.success) return destination;
 
-      return root.runFileMutation(destination.data.absolutePath, async () => {
-        let existed = false;
-        try {
-          const metadata = await lstat(destination.data.absolutePath).catch((error: unknown) => {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-            throw error;
-          });
-          existed = metadata !== null;
-          if (metadata?.isDirectory()) {
-            return err({ type: 'is-a-directory', path: destination.data.path });
-          }
-          if (metadata?.isSymbolicLink()) {
-            return err({
-              type: 'invalid-path',
-              path: destination.data.path,
-              message: 'Upload destination must not be a symbolic link',
-            });
-          }
-          if (existed && !input.overwrite) {
-            return err({ type: 'already-exists', path: destination.data.path });
-          }
-
-          const flags = input.overwrite
-            ? constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW
-            : constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
-          const handle = await open(destination.data.absolutePath, flags, 0o666);
+      const written = await root.runFileMutation(
+        destination.data.absolutePath,
+        async (): Promise<Result<{ bytesWritten: number; change: RootChange }, FsError>> => {
           try {
-            await handle.writeFile(bytes);
-          } finally {
-            await handle.close();
-          }
-          this.allocations.notifyActiveRoot(root, [
-            { kind: existed ? 'update' : 'create', path: destination.data.path },
-          ]);
-          return ok({ bytesWritten: bytes.byteLength });
-        } catch (error) {
-          return err(toFsError(error, destination.data.path));
-        }
-      });
-    });
-  }
+            const metadata = await lstat(destination.data.absolutePath).catch((error: unknown) => {
+              if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+              throw error;
+            });
+            const existed = metadata !== null;
+            if (metadata?.isDirectory()) {
+              return err({ type: 'is-a-directory', path: destination.data.path });
+            }
+            if (metadata?.isSymbolicLink()) {
+              return err({
+                type: 'invalid-path',
+                path: destination.data.path,
+                message: 'Upload destination must not be a symbolic link',
+              });
+            }
+            if (existed && !input.overwrite) {
+              return err({ type: 'already-exists', path: destination.data.path });
+            }
 
-  glob(
-    input: {
-      root: RootKey['root'];
-      patterns: string[];
-      options: FileGlobOptions;
-    },
-    context: LiveJobContext<PathBatch>
-  ): Promise<Result<PathList, FsError>> {
-    return this.run(input.root, async (root) => {
-      if (input.patterns.length === 0) {
-        return err({ type: 'invalid-path', path: '', message: 'At least one pattern is required' });
-      }
-      const invalid = input.patterns.find(
-        (pattern) =>
-          !pattern ||
-          pattern.includes('\0') ||
-          pattern.includes('\\') ||
-          path.posix.isAbsolute(pattern) ||
-          pattern.split('/').includes('..')
+            const flags = input.overwrite
+              ? constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW
+              : constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
+            const handle = await open(destination.data.absolutePath, flags, 0o666);
+            try {
+              await handle.writeFile(bytes);
+            } finally {
+              await handle.close();
+            }
+            return ok({
+              bytesWritten: bytes.byteLength,
+              change: { kind: existed ? 'update' : 'create', path: destination.data.path },
+            });
+          } catch (error) {
+            return err(toFsError(error, destination.data.path));
+          }
+        }
       );
-      if (invalid !== undefined) {
-        return err({ type: 'invalid-path', path: invalid, message: 'Invalid glob pattern' });
-      }
-      const cwd = await root.paths.resolveFollowed(input.options.cwd);
-      if (!cwd.success) return cwd;
-
-      try {
-        const paths: PortableRelativePath[] = [];
-        const pending: PortableRelativePath[] = [];
-        const matches = await Promise.all(
-          input.patterns.map((pattern) =>
-            glob(pattern, {
-              absolute: false,
-              cwd: cwd.data.realPath,
-              dot: input.options.dot ?? false,
-              follow: false,
-            })
-          )
-        );
-        for (const match of matches.flat()) {
-          if (context.signal.aborted) break;
-          if (typeof match !== 'string') continue;
-          const matchPath = match.split(path.sep).join('/');
-          const relative = joinPortableRelativePath(input.options.cwd, matchPath);
-          if (!relative.success) continue;
-          paths.push(relative.data);
-          pending.push(relative.data);
-          if (pending.length >= PROGRESS_BATCH_SIZE) {
-            context.progress({ paths: pending.splice(0) });
-          }
-        }
-        if (pending.length > 0) context.progress({ paths: pending });
-        return ok({ paths });
-      } catch (error) {
-        return err(toFsError(error, input.options.cwd));
-      }
+      if (!written.success) return written;
+      this.allocations.notifyActiveRoot(root, [written.data.change]);
+      await this.allocations.reflectMutation(
+        [root],
+        toAbsoluteChanges(root, [written.data.change])
+      );
+      return ok({ bytesWritten: written.data.bytesWritten });
     });
   }
 
   enumerate(
-    input: PathKey & { options?: { includeSymlinkFiles?: boolean } },
+    input: AbsolutePathKey & { options?: { includeSymlinkFiles?: boolean } },
     context: LiveJobContext<PathBatch>
   ): Promise<Result<PathList, FsError>> {
-    return this.run(input.root, (root) =>
-      enumerateFiles(root, input.relative, input.options ?? {}, context)
+    return this.run(input.path, (root) =>
+      enumerateFiles(root, ROOT_RELATIVE_PATH, input.options ?? {}, context)
     );
   }
 
   createFile(input: CreateFileInput): Promise<Result<void, FsError>> {
-    return this.mutateEntry(input.root, input.path, (root, relative) =>
-      createFileInRoot(root, { path: relative, content: input.content })
-    );
+    return this.mutateAt(input, (root, relative) => createFileInRoot(root, { path: relative }));
   }
 
   createDirectory(input: CreateDirectoryInput): Promise<Result<void, FsError>> {
-    return this.mutateEntry(input.root, input.path, (root, relative) =>
+    return this.mutateAt(input, (root, relative) =>
       createDirectoryInRoot(root, { path: relative })
     );
   }
 
-  rename(input: RenameInput): Promise<Result<void, FsError>> {
-    const guard = sameParentGuard(input);
-    if (guard) return Promise.resolve(err(guard));
-    return this.move(input);
-  }
-
-  move(input: MoveInput): Promise<Result<void, FsError>> {
-    return this.mutatePair(input, async (from, to) => {
-      const moved = await moveBetweenRoots(from, to);
-      if (!moved.success) return moved;
-      this.allocations.notifyActiveRoot(from.root, moved.data.source);
-      this.allocations.notifyActiveRoot(to.root, moved.data.target);
-      return ok<void>();
-    });
-  }
-
-  copy(input: CopyInput): Promise<Result<void, FsError>> {
-    return this.mutatePair(input, async (from, to) => {
-      const copied = await copyBetweenRoots(from, to);
-      if (!copied.success) return copied;
-      this.allocations.notifyActiveRoot(to.root, copied.data.target);
-      return ok<void>();
-    });
-  }
-
   delete(input: DeleteInput): Promise<Result<void, FsError>> {
-    return this.mutateEntry(input.root, input.path, (root, relative) =>
+    return this.mutateAt(input, (root, relative) =>
       deleteInRoot(root, { path: relative, recursive: input.recursive })
     );
   }
 
   writeFile(input: WriteFileInput): Promise<Result<void, FsError>> {
-    return this.mutate(input.root, async (root) => {
-      return writeFileContent(
+    return this.runAt({ path: input.path }, async (root, relative) => {
+      const written = await writeFileContent(
         root,
-        input.path,
+        relative,
         Buffer.from(input.content, input.encoding ?? 'utf8'),
         input.precondition
       );
+      if (!written.success) return written;
+      await this.allocations.reflectMutation(
+        [root],
+        toAbsoluteChanges(root, [{ kind: 'update', path: relative }])
+      );
+      return ok<void>();
+    });
+  }
+
+  rename(input: FromToKey): Promise<Result<void, FsError>> {
+    const fromParent = absoluteDirname(input.from);
+    const toParent = absoluteDirname(input.to);
+    if (!fromParent || !toParent || formatAbsolute(fromParent) !== formatAbsolute(toParent)) {
+      return Promise.resolve(
+        err({
+          type: 'invalid-path',
+          path: formatAbsolute(input.to),
+          message: 'Rename requires the same parent',
+        })
+      );
+    }
+    return this.move(input);
+  }
+
+  move(input: FromToKey): Promise<Result<void, FsError>> {
+    return this.runAtPair(input, async (from, to) => {
+      const moved = await moveBetweenRoots(from, to);
+      if (!moved.success) return moved;
+      this.allocations.notifyActiveRoot(from.root, moved.data.source);
+      this.allocations.notifyActiveRoot(to.root, moved.data.target);
+      await this.allocations.reflectMutation(
+        [from.root, to.root],
+        [
+          ...toAbsoluteChanges(from.root, moved.data.source),
+          ...toAbsoluteChanges(to.root, moved.data.target),
+        ]
+      );
+      return ok<void>();
+    });
+  }
+
+  copy(input: FromToKey): Promise<Result<void, FsError>> {
+    return this.runAtPair(input, async (from, to) => {
+      const copied = await copyBetweenRoots(from, to);
+      if (!copied.success) return copied;
+      this.allocations.notifyActiveRoot(to.root, copied.data.target);
+      await this.allocations.reflectMutation(
+        [to.root],
+        toAbsoluteChanges(to.root, copied.data.target)
+      );
+      return ok<void>();
     });
   }
 
   private run<T>(
-    root: RootKey['root'],
+    root: HostAbsolutePath,
     operation: (root: RootResource) => Promise<Result<T, FsError>>
   ): Promise<Result<T, FsError>> {
     return this.withExpectedErrors(() => this.allocations.useRoot({ root }, operation));
   }
 
   private runAt<T>(
-    key: FileKey,
+    key: AbsolutePathKey,
     operation: (root: RootResource, relative: PortableRelativePath) => Promise<Result<T, FsError>>
   ): Promise<Result<T, FsError>> {
     return this.withExpectedErrors(() => this.allocations.useFileLocation(key, operation));
   }
 
-  private mutate(
-    root: RootKey['root'],
-    operation: (root: RootResource) => Promise<Result<void, FsError>>
-  ): Promise<Result<void, FsError>> {
-    return this.withExpectedErrors(() => this.allocations.useRoot({ root }, operation));
+  private runAtPair<T>(
+    key: FromToKey,
+    operation: (from: RootLocation, to: RootLocation) => Promise<Result<T, FsError>>
+  ): Promise<Result<T, FsError>> {
+    return this.withExpectedErrors(() =>
+      this.allocations.useFileLocation({ path: key.from }, (fromRoot, fromRelative) =>
+        this.allocations.useFileLocation({ path: key.to }, (toRoot, toRelative) =>
+          operation({ root: fromRoot, path: fromRelative }, { root: toRoot, path: toRelative })
+        )
+      )
+    );
   }
 
   /**
    * Runs a single-target mutation in the operational root the target resolves
-   * to — the given root for root-scoped targets, the entry's parent directory
-   * for bare absolute targets — and publishes the resulting changes to it.
+   * to (the entry's parent directory), publishes the resulting changes to it,
+   * and reflects them into affected live tree sessions before resolving.
    */
-  private mutateEntry(
-    root: HostAbsolutePath | undefined,
-    target: MutationTarget,
+  private mutateAt(
+    key: AbsolutePathKey,
     operation: (
       root: RootResource,
       relative: PortableRelativePath
     ) => Promise<Result<RootChange[], FsError>>
   ): Promise<Result<void, FsError>> {
-    const key = mutationFileKey(root, target);
-    if (!key.success) return Promise.resolve(key);
-    return this.runAt(key.data, async (rootResource, relative) => {
-      const result = await operation(rootResource, relative);
+    return this.runAt(key, async (root, relative) => {
+      const result = await operation(root, relative);
       if (!result.success) return result;
-      this.allocations.notifyActiveRoot(rootResource, result.data);
+      this.allocations.notifyActiveRoot(root, result.data);
+      await this.allocations.reflectMutation([root], toAbsoluteChanges(root, result.data));
       return ok<void>();
     });
-  }
-
-  /**
-   * Runs a two-endpoint mutation with each endpoint resolved to its own
-   * operational root (both endpoints share the given root in root-scoped mode;
-   * bare absolute endpoints resolve to their parent directories).
-   */
-  private mutatePair(
-    input: { root?: HostAbsolutePath; from: MutationTarget; to: MutationTarget },
-    operation: (from: RootLocation, to: RootLocation) => Promise<Result<void, FsError>>
-  ): Promise<Result<void, FsError>> {
-    const fromKey = mutationFileKey(input.root, input.from);
-    if (!fromKey.success) return Promise.resolve(fromKey);
-    const toKey = mutationFileKey(input.root, input.to);
-    if (!toKey.success) return Promise.resolve(toKey);
-    return this.withExpectedErrors(() =>
-      this.allocations.useFileLocation(fromKey.data, (fromRoot, fromRelative) =>
-        this.allocations.useFileLocation(toKey.data, (toRoot, toRelative) =>
-          operation({ root: fromRoot, path: fromRelative }, { root: toRoot, path: toRelative })
-        )
-      )
-    );
   }
 
   private async withExpectedErrors<T>(
@@ -480,6 +406,21 @@ export class FileSystemRuntime {
       throw error;
     }
   }
+}
+
+function toAbsoluteChanges(root: RootResource, changes: RootChange[]): AbsoluteChange[] {
+  return changes.flatMap((change): AbsoluteChange[] => {
+    if (change.kind === 'resync') return [];
+    return [
+      {
+        kind: change.kind,
+        absolutePath: path.resolve(
+          root.identity.rootPath,
+          ...change.path.split('/').filter(Boolean)
+        ),
+      },
+    ];
+  });
 }
 
 function bufferBlobSource(bytes: Buffer): AsyncIterable<Uint8Array> {
@@ -508,66 +449,6 @@ function sameFileVersion(
     before.mtimeMs === after.mtimeMs &&
     before.ctimeMs === after.ctimeMs
   );
-}
-
-function isAbsoluteTarget(target: MutationTarget): target is HostAbsolutePath {
-  return typeof target !== 'string';
-}
-
-function formatMutationTarget(target: MutationTarget): string {
-  return isAbsoluteTarget(target) ? formatAbsolute(target) : target;
-}
-
-/**
- * Normalizes a mutation target into a file key: root-relative when the input
- * carries an operational root, a bare absolute path otherwise. Mode mismatches
- * (a root with an absolute target, or a bare relative target) are addressing
- * errors, mirroring the fileKeySchema duality the read path already serves.
- */
-function mutationFileKey(
-  root: HostAbsolutePath | undefined,
-  target: MutationTarget
-): Result<FileKey, FsError> {
-  if (root !== undefined) {
-    if (isAbsoluteTarget(target)) {
-      return err({
-        type: 'invalid-path',
-        path: formatAbsolute(target),
-        message: 'A root-scoped mutation target must be a root-relative path',
-      });
-    }
-    return ok({ root, relative: target });
-  }
-  if (!isAbsoluteTarget(target)) {
-    return err({
-      type: 'invalid-path',
-      path: target,
-      message: 'A mutation without a root must target an absolute path',
-    });
-  }
-  return ok({ path: target });
-}
-
-/** Rename keeps move semantics plus a same-parent invariant in both modes. */
-function sameParentGuard(input: {
-  root?: HostAbsolutePath;
-  from: MutationTarget;
-  to: MutationTarget;
-}): FsError | undefined {
-  if (input.root !== undefined) {
-    if (isAbsoluteTarget(input.from) || isAbsoluteTarget(input.to)) return undefined;
-    if (path.posix.dirname(input.from) === path.posix.dirname(input.to)) return undefined;
-    return { type: 'invalid-path', path: input.to, message: 'Rename requires the same parent' };
-  }
-  if (!isAbsoluteTarget(input.from) || !isAbsoluteTarget(input.to)) return undefined;
-  const fromParent = absoluteDirname(input.from);
-  const toParent = absoluteDirname(input.to);
-  if (fromParent && toParent && absoluteEquals(fromParent, toParent)) return undefined;
-  return {
-    type: 'invalid-path',
-    path: formatAbsolute(input.to),
-    message: 'Rename requires the same parent',
-  };
 }
 
 function changedWhileReading(entryPath: PortableRelativePath): FsError {

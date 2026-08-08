@@ -23,7 +23,7 @@ export async function getEffectiveTaskSettings(args: {
     log.warn('Failed to check task .emdash.json, falling back to project settings', exists.error);
     return mergeShareableProjectSettings(defaults, localShareableSettings);
   }
-  if (!exists.data) {
+  if (!exists.data.exists) {
     return mergeShareableProjectSettings(defaults, localShareableSettings);
   }
 

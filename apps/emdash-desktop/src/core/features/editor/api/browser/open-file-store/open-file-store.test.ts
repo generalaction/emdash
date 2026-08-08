@@ -1,5 +1,5 @@
 import { encodeResourceUri } from '@emdash/core/primitives/path/api';
-import type { FileContentModel, FsError } from '@emdash/core/runtimes/files/api';
+import type { ContentUnavailableCode, FileContentModel } from '@emdash/core/runtimes/files/api';
 import { err, ok } from '@emdash/shared';
 import type { Clock } from '@emdash/shared/scheduling';
 import { waitFor } from '@emdash/shared/testing';
@@ -134,8 +134,8 @@ function textContent(content: string, etag: string): Extract<FileContentModel, {
   };
 }
 
-function unavailableContent(error: FsError): FileContentModel {
-  return { kind: 'unavailable', path: portablePath('file.ts'), error };
+function unavailableContent(code: ContentUnavailableCode): FileContentModel {
+  return { kind: 'unavailable', path: portablePath('file.ts'), code };
 }
 
 function setup() {
@@ -379,22 +379,17 @@ describe('OpenFileStore', () => {
   });
 
   describe('error classification', () => {
-    it.each([
-      ['not-found', { type: 'not-found' as const, path: 'file.ts' }, 'not-found'],
-      [
-        'permission-denied',
-        { type: 'permission-denied' as const, path: 'file.ts' },
-        'no-permissions',
-      ],
-      ['io', { type: 'io' as const, path: 'file.ts', message: 'boom' }, 'unavailable'],
-    ])('classifies a first-load %s as error', async (_name, fsError, code) => {
-      const h = start();
-      const ref = hostFileRefFromNativePath('/repo/missing.ts');
-      const lease = h.store.acquire(ref, BUFFER);
-      h.publish(h.diskKey('/repo/missing.ts'), unavailableContent(fsError));
-      await waitFor(() => lease.entry.status.kind === 'error');
-      expect(lease.entry.status).toEqual({ kind: 'error', code });
-    });
+    it.each([['not-found' as const], ['no-permissions' as const], ['unavailable' as const]])(
+      'classifies a first-load %s as error',
+      async (code) => {
+        const h = start();
+        const ref = hostFileRefFromNativePath('/repo/missing.ts');
+        const lease = h.store.acquire(ref, BUFFER);
+        h.publish(h.diskKey('/repo/missing.ts'), unavailableContent(code));
+        await waitFor(() => lease.entry.status.kind === 'error');
+        expect(lease.entry.status).toEqual({ kind: 'error', code });
+      }
+    );
 
     it('classifies binary and too-large content as errors', async () => {
       const h = start();
@@ -420,6 +415,29 @@ describe('OpenFileStore', () => {
       });
       await waitFor(() => lease2.entry.status.kind === 'error');
       expect(lease2.entry.status).toEqual({ kind: 'error', code: 'too-large' });
+    });
+
+    it('recovers a never-existed file to ready when it is created while interest is held', async () => {
+      const h = start();
+      const path = '/repo/docs/spec-to-be-written.md';
+      const ref = hostFileRefFromNativePath(path);
+      const bufferLease = h.store.acquire(ref, BUFFER);
+      const diskLease = h.store.acquire(ref, DISK);
+
+      h.publish(h.diskKey(path), unavailableContent('not-found'));
+      await waitFor(() => bufferLease.entry.status.kind === 'error');
+      expect(bufferLease.entry.status).toEqual({ kind: 'error', code: 'not-found' });
+
+      // A chat link to a file the agent is about to write: when the file is
+      // created, the live watch pushes content and the not-found placeholder
+      // auto-recovers without any user action.
+      h.publish(h.diskKey(path), textContent('# Spec', 'e1'));
+      await waitFor(() => bufferLease.entry.status.kind === 'ready');
+      await waitFor(() => bufferLease.entry.handleFor(BUFFER) !== undefined);
+      expect(bufferHandle(bufferLease.entry).getText()).toBe('# Spec');
+
+      bufferLease.release();
+      diskLease.release();
     });
 
     it('hits the first-load deadline as error(unavailable) and recovers on late content', async () => {
@@ -460,10 +478,7 @@ describe('OpenFileStore', () => {
       const h = start();
       const ref = hostFileRefFromNativePath('/repo/broken.ts');
       const lease = h.store.acquire(ref, BUFFER);
-      h.publish(
-        h.diskKey('/repo/broken.ts'),
-        unavailableContent({ type: 'io', path: 'file.ts', message: 'boom' })
-      );
+      h.publish(h.diskKey('/repo/broken.ts'), unavailableContent('unavailable'));
       await waitFor(() => lease.entry.status.kind === 'error');
 
       // Error entries do not linger: the drop happens on release, not 15 s later.
@@ -486,7 +501,7 @@ describe('OpenFileStore', () => {
       const path = '/repo/src/index.ts';
       const { entry } = await openReady(h, path, 'one');
 
-      h.publish(h.diskKey(path), unavailableContent({ type: 'not-found', path: 'file.ts' }));
+      h.publish(h.diskKey(path), unavailableContent('not-found'));
       await waitFor(() => entry.status.kind === 'orphaned');
       // Buffer text survives orphaning.
       expect(bufferHandle(entry).getText()).toBe('one');

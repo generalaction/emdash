@@ -10,7 +10,7 @@ const remoteHost = hostRef('remote', 'ssh-3');
 
 describe('createSkillsWireController', () => {
   it('forwards skill procedures to the selected host', async () => {
-    const installSkill = vi.fn(async () => ok([]));
+    const installSkill = vi.fn(async () => ok({ skills: [] }));
     const client = vi.fn(async () => ok({ agentConfig: { installSkill } }));
     const controller = createSkillsWireController({ runtimes: { client } as never });
     const skill = {
@@ -19,7 +19,9 @@ describe('createSkillsWireController', () => {
       source: 'local' as const,
     };
 
-    await expect(controller.call('install', { host: remoteHost, skill })).resolves.toEqual(ok([]));
+    await expect(controller.call('install', { host: remoteHost, skill })).resolves.toEqual(
+      ok({ skills: [] })
+    );
 
     expect(client).toHaveBeenCalledWith(remoteHost);
     expect(installSkill).toHaveBeenCalledWith({ skill }, {});

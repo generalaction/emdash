@@ -76,7 +76,7 @@ describe('WorkspaceServerProvisioner', () => {
     const fixture = createProvisionerFixture();
     fixture.dialOnce.mockRejectedValueOnce(
       new WorkspaceServerProtocolError({
-        code: 'protocol-incompatible',
+        type: 'protocol-incompatible',
         action: 'upgrade-server',
         clientProtocolVersion: '5.0.0',
         serverProtocolVersion: '4.0.0',

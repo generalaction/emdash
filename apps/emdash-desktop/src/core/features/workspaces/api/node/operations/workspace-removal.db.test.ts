@@ -59,11 +59,11 @@ describe('deleteWorkspaceThroughRegistry', () => {
 
   function makeRuntimes() {
     const registry = {
-      deleteWorktree: vi.fn(async (_input: { id: string; deleteBranch: boolean }) => ({
+      deleteWorktree: vi.fn(async (_input: { workspaceId: string; deleteBranch: boolean }) => ({
         success: true as const,
         data: undefined,
       })),
-      deleteWorkspace: vi.fn(async (_input: { id: string }) => ({
+      deleteWorkspace: vi.fn(async (_input: { workspaceId: string }) => ({
         success: true as const,
         data: undefined,
       })),
@@ -87,7 +87,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
 
     expect(result.success).toBe(true);
     expect(registry.deleteWorktree).toHaveBeenCalledWith({
-      id: 'workspace-1',
+      workspaceId: 'workspace-1',
       deleteBranch: true,
     });
     expect(registry.deleteWorkspace).not.toHaveBeenCalled();
@@ -107,7 +107,7 @@ describe('deleteWorkspaceThroughRegistry', () => {
     const result = await deleteWorkspaceThroughRegistry(fixture.db, runtimes, 'workspace-1');
 
     expect(result.success).toBe(true);
-    expect(registry.deleteWorkspace).toHaveBeenCalledWith({ id: 'workspace-1' });
+    expect(registry.deleteWorkspace).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
     expect(registry.deleteWorktree).not.toHaveBeenCalled();
     expect(createWorkspaceRegistry(fixture.db).getLive('workspace-1')).toBeUndefined();
   });

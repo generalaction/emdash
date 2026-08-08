@@ -4,7 +4,6 @@ import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
-import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { sourceControlContract } from '../../api';
 import { GitCheckoutStore } from './git-checkout-store';
 
@@ -26,10 +25,10 @@ vi.mock('@core/features/source-control/api/browser/client', async (importOrigina
   };
 });
 
-vi.mock('@core/features/editor/api/browser/client', () => ({
-  getEditorClient: async () => ({
-    filesystem: {
-      readFileText: mocks.readFileText,
+vi.mock('@core/features/files/api/browser/client', () => ({
+  getFilesClient: async () => ({
+    fs: {
+      readText: mocks.readFileText,
     },
   }),
 }));
@@ -42,7 +41,7 @@ describe('GitCheckoutStore', () => {
   beforeEach(() => {
     statusState = cell(status());
     headState = cell(head('main'));
-    mocks.getChangedFiles.mockResolvedValue(ok([]));
+    mocks.getChangedFiles.mockResolvedValue(ok({ files: [] }));
     mocks.getGitRepositoryStore.mockReturnValue({
       isBranchOnRemote: () => true,
       getBranchDivergence: () => ({ ahead: 2, behind: 1 }),
@@ -94,22 +93,10 @@ function createSourceControlWire() {
   const repositoryProvider = expose(sourceControlContract.repository.model, {
     refs: cell({ branches: [], tags: [] }),
     remotes: cell({ remotes: [] }),
-    stashes: cell({ stashes: [] }),
-    worktrees: cell([]),
   });
   const checkoutProvider = expose(sourceControlContract.checkout.model, {
     status: statusState,
     head: headState,
-  });
-  const fileDiffProvider = expose(sourceControlContract.checkout.fileDiff, {
-    staleness: cell({ revision: 0 }),
-  });
-  const contentProvider = expose(sourceControlContract.checkout.content, {
-    content: cell({
-      kind: 'missing',
-      path: portablePath('README.md'),
-      source: { kind: 'head' },
-    }),
   });
 
   return createTestWire(sourceControlContract, {
@@ -117,31 +104,21 @@ function createSourceControlWire() {
       model: repositoryProvider,
       listWorktrees: vi.fn(),
       getDefaultBranch: vi.fn(),
-      getBranchBase: vi.fn(),
-      readBlobAtRef: vi.fn(),
       fetch: { run: vi.fn() },
       publishBranch: { run: vi.fn() },
       fetchPrForReview: { run: vi.fn() },
     },
     checkout: {
       model: checkoutProvider,
-      fileDiff: fileDiffProvider,
-      content: contentProvider,
       getChangedFiles: mocks.getChangedFiles,
-      getFileDiff: vi.fn(),
-      isFileTracked: vi.fn(),
-      getConflictVersions: vi.fn(),
-      getFileAtRef: vi.fn(),
-      getFileAtIndex: vi.fn(),
-      getImageAtRef: vi.fn(),
-      getImageAtIndex: vi.fn(),
+      getFile: vi.fn(),
+      download: vi.fn(),
       getLog: vi.fn(),
       getCommit: vi.fn(),
       getCommitFiles: vi.fn(),
       blame: vi.fn(),
       push: { run: vi.fn() },
       pull: { run: vi.fn() },
-      sync: { run: vi.fn() },
     },
   } as never);
 }

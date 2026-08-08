@@ -3,12 +3,15 @@ import {
   terminalShellAvailabilityListSchema,
   terminalShellIdSchema,
 } from '@emdash/core/primitives/terminal-shell/api';
-import { scriptWorkflowStateSchema } from '@emdash/core/runtimes/terminals/api';
+import {
+  scriptWorkflowStateSchema,
+  terminalErrorSchema,
+} from '@emdash/core/runtimes/terminals/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import {
+  scriptWorkflowErrorSchema,
   scriptWorkflowProgressSchema,
   scriptWorkflowResultSchema,
-  terminalErrorSchema,
   terminalSizeSchema,
 } from '@emdash/core/services/script-workflows/api';
 import { defineContract, fallible, liveJob, liveLog, liveModel, liveState } from '@emdash/wire/rpc';
@@ -85,7 +88,23 @@ export const runTerminalScriptWorkflowInputSchema = z.object({
   type: z.enum(['prepare', 'setup', 'run', 'teardown']),
 });
 
-export const terminalSliceErrorSchema = z.union([runtimeResolveErrorSchema, terminalErrorSchema]);
+/** Failures the desktop slice itself produces while resolving terminal context. */
+export const terminalSliceContextErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('missing-terminal'), message: z.string() }),
+  z.object({ type: z.literal('missing-task'), message: z.string() }),
+  z.object({ type: z.literal('missing-workspace'), message: z.string() }),
+  z.object({ type: z.literal('missing-project'), message: z.string() }),
+  /** Catch-all for unexpected wire failures surfaced by the slice. */
+  z.object({ type: z.literal('terminal-wire-error'), message: z.string() }),
+]);
+export type TerminalSliceContextError = z.infer<typeof terminalSliceContextErrorSchema>;
+
+export const terminalSliceErrorSchema = z.union([
+  runtimeResolveErrorSchema,
+  terminalErrorSchema,
+  scriptWorkflowErrorSchema,
+  terminalSliceContextErrorSchema,
+]);
 
 export const terminalsDomain = 'terminals' as const;
 
@@ -147,16 +166,6 @@ export const terminalsContract = defineContract({
   }),
   kill: fallible({
     input: terminalRuntimeKeySchema,
-    data: z.void(),
-    error: terminalSliceErrorSchema,
-  }),
-  killScope: fallible({
-    input: terminalWorkspaceInputSchema,
-    data: z.void(),
-    error: terminalSliceErrorSchema,
-  }),
-  detachScope: fallible({
-    input: terminalWorkspaceInputSchema,
     data: z.void(),
     error: terminalSliceErrorSchema,
   }),

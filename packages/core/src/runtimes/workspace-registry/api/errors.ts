@@ -78,6 +78,16 @@ export const updateWorktreeErrorSchema = z.discriminatedUnion('type', [
 ]);
 export type UpdateWorktreeError = z.infer<typeof updateWorktreeErrorSchema>;
 
+export const measureUsageErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('workspace-not-found'), workspaceId: z.string() }),
+  /** `git clean -ndX` (the artifact-root listing) failed in the workspace. */
+  z.object({ type: z.literal('git-command-failed'), message: z.string() }),
+  z.object({ type: z.literal('filesystem-error'), message: z.string() }),
+  /** git reported an ignored artifact outside the workspace tree; measurement refused. */
+  z.object({ type: z.literal('unsafe-artifact-path'), message: z.string() }),
+]);
+export type MeasureUsageError = z.infer<typeof measureUsageErrorSchema>;
+
 export const createWorktreeErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('repository-not-found'), repositoryId: z.string() }),
   z.object({

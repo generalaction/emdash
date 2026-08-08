@@ -35,21 +35,26 @@ export async function readGitFileContent(
       return { kind: 'binary', ...base };
     }
   } catch (error) {
-    const failure = gitFailure(error);
-    if (
-      isMissingObject(failure) ||
-      (failure.exitCode === 128 &&
-        failure.message.toLowerCase().includes('needed a single revision')) ||
-      checkoutFailures.isUnknownRevision(error) ||
-      (source.kind === 'index' && checkoutFailures.isMissingIndexEntry(error))
-    ) {
+    if (isMissingGitContent(error, source)) {
       return { kind: 'missing', path, source };
     }
     return { kind: 'unavailable', path, source, error: commandFailed(error).error };
   }
 }
 
-function sourceSpec(source: GitFileSource, path: PortableRelativePath): string {
+/** True when a failed object read means "no blob at this path/source" rather than a git error. */
+export function isMissingGitContent(error: unknown, source: GitFileSource): boolean {
+  const failure = gitFailure(error);
+  return (
+    isMissingObject(failure) ||
+    (failure.exitCode === 128 &&
+      failure.message.toLowerCase().includes('needed a single revision')) ||
+    checkoutFailures.isUnknownRevision(error) ||
+    (source.kind === 'index' && checkoutFailures.isMissingIndexEntry(error))
+  );
+}
+
+export function sourceSpec(source: GitFileSource, path: PortableRelativePath): string {
   switch (source.kind) {
     case 'head':
       return `HEAD:${path}`;

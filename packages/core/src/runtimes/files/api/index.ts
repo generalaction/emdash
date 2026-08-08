@@ -2,24 +2,18 @@ export {
   filesContract,
   MAX_FILE_UPLOAD_BYTES,
   type FilesContract,
-} from '#runtimes/files/api/api/contract';
-export { fsErrorSchema, type FsError } from '#runtimes/files/api/api/errors';
+} from '#runtimes/files/api/contract';
+export { fsErrorSchema, type FsError } from '#runtimes/files/api/errors';
 export {
   absolutePathKeySchema,
   contentKeySchema,
-  copyInputSchema,
   createDirectoryInputSchema,
   createFileInputSchema,
   deleteInputSchema,
   exclusionPatternsSchema,
   fileEnumerationOptionsSchema,
-  fileGlobOptionsSchema,
-  fileKeySchema,
   fileStatSchema,
-  fileUsageErrorSchema,
-  fileUsageSchema,
-  moveInputSchema,
-  mutationTargetSchema,
+  fromToKeySchema,
   pathBatchSchema,
   pathKeySchema,
   pathListSchema,
@@ -27,7 +21,6 @@ export {
   readFileKeySchema,
   readFileOptionsSchema,
   readTextResultSchema,
-  renameInputSchema,
   rootKeySchema,
   treeKeySchema,
   uploadFileInputSchema,
@@ -37,19 +30,13 @@ export {
   writePreconditionSchema,
   type AbsolutePathKey,
   type ContentKey,
-  type CopyInput,
   type CreateDirectoryInput,
   type CreateFileInput,
   type DeleteInput,
   type ExclusionPatterns,
   type FileEnumerationOptions,
-  type FileGlobOptions,
-  type FileKey,
   type FileStat,
-  type FileUsage,
-  type FileUsageError,
-  type MoveInput,
-  type MutationTarget,
+  type FromToKey,
   type PathBatch,
   type PathKey,
   type PathList,
@@ -57,7 +44,6 @@ export {
   type ReadFileKey,
   type ReadFileOptions,
   type ReadTextResult,
-  type RenameInput,
   type RootKey,
   type TreeKey,
   type UploadFileInput,
@@ -65,8 +51,16 @@ export {
   type WriteFileInput,
   type WriteContentInput,
   type WritePrecondition,
-} from '#runtimes/files/api/api/schemas';
-export { fileContentModelSchema, type FileContentModel } from '#runtimes/files/api/content/state';
+} from '#runtimes/files/api/schemas';
+export {
+  contentSeamErrorCodeSchema,
+  contentUnavailableCode,
+  contentUnavailableCodeSchema,
+  fileContentModelSchema,
+  type ContentSeamErrorCode,
+  type ContentUnavailableCode,
+  type FileContentModel,
+} from '#runtimes/files/api/content/state';
 export { copyNameForConflict } from '#runtimes/files/api/tree/copy-name';
 export {
   fileEntryKindSchema,

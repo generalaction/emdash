@@ -86,6 +86,31 @@ describe('files wire controller against a live files runtime', () => {
     }
   });
 
+  it('reports a missing file through the closed seam-error enum and recovers on create', async () => {
+    const { dir, watcher, controller } = await makeStack();
+    const filePath = path.join(dir, 'not-yet.txt');
+    const key = { uri: localUri(filePath), source: 'disk' as const };
+    const topic = encodeTopic(filesWireContract.content.states.content.id, key);
+
+    const lease = controller.acquireLive(topic);
+    const source = await lease?.ready();
+    if (!source) throw new Error('Expected a live content source');
+    try {
+      await expect(source.snapshot()).resolves.toMatchObject({
+        data: { kind: 'unavailable', code: 'not-found' },
+      });
+
+      await writeFile(filePath, 'arrived\n');
+      watcher.emit(dir, [{ kind: 'create', path: filePath }]);
+      await waitFor(async () => {
+        const updated = (await source.snapshot()).data as { kind: string; content?: string };
+        return updated.kind === 'text' && updated.content === 'arrived\n';
+      });
+    } finally {
+      await lease?.release();
+    }
+  });
+
   it('serves the tree live model keyed by root ResourceUri and exclusions', async () => {
     const { dir, controller } = await makeStack();
     await mkdir(path.join(dir, 'src'));
@@ -121,44 +146,58 @@ describe('files wire controller against a live files runtime', () => {
 
     await expect(
       controller.call('fs.exists', { uri: localUri(path.join(dir, 'present.txt')) })
-    ).resolves.toEqual(ok(true));
+    ).resolves.toEqual(ok({ exists: true }));
     await expect(
       controller.call('fs.exists', { uri: localUri(path.join(dir, 'absent.txt')) })
-    ).resolves.toEqual(ok(false));
+    ).resolves.toEqual(ok({ exists: false }));
     await expect(
       controller.call('fs.readText', { uri: localUri(path.join(dir, 'present.txt')) })
     ).resolves.toMatchObject({ success: true, data: { content: 'here\n' } });
 
     await expect(
-      controller.call('mutations.createDirectory', { uri: localUri(path.join(dir, 'docs')) })
+      controller.call('fs.createDirectory', { uri: localUri(path.join(dir, 'docs')) })
     ).resolves.toEqual(ok(undefined));
-    await expect(
-      controller.call('mutations.createFile', {
-        uri: localUri(path.join(dir, 'docs/note.md')),
-        content: 'note\n',
-      })
-    ).resolves.toEqual(ok(undefined));
-    await expect(readFile(path.join(dir, 'docs/note.md'), 'utf8')).resolves.toBe('note\n');
+    await expect(stat(path.join(dir, 'docs'))).resolves.toMatchObject({});
 
     await expect(
-      controller.call('mutations.rename', {
-        uri: localUri(path.join(dir, 'docs/note.md')),
-        to: localUri(path.join(dir, 'docs/renamed.md')),
-      })
+      controller.call('fs.createFile', { uri: localUri(path.join(dir, 'docs', 'note.md')) })
     ).resolves.toEqual(ok(undefined));
+    await expect(readFile(path.join(dir, 'docs', 'note.md'), 'utf8')).resolves.toBe('');
 
     await expect(
-      controller.call('mutations.move', {
-        uri: localUri(path.join(dir, 'docs/renamed.md')),
+      controller.call('fs.rename', {
+        from: localUri(path.join(dir, 'docs', 'note.md')),
+        to: localUri(path.join(dir, 'docs', 'renamed.md')),
+      })
+    ).resolves.toEqual(ok(undefined));
+    await expect(stat(path.join(dir, 'docs', 'renamed.md'))).resolves.toMatchObject({});
+
+    await expect(
+      controller.call('fs.copy', {
+        from: localUri(path.join(dir, 'docs', 'renamed.md')),
+        to: localUri(path.join(dir, 'docs', 'copied.md')),
+      })
+    ).resolves.toEqual(ok(undefined));
+    await expect(stat(path.join(dir, 'docs', 'copied.md'))).resolves.toMatchObject({});
+
+    await expect(
+      controller.call('fs.move', {
+        from: localUri(path.join(dir, 'docs', 'copied.md')),
         to: localUri(path.join(dir, 'moved.md')),
       })
     ).resolves.toEqual(ok(undefined));
-    await expect(readFile(path.join(dir, 'moved.md'), 'utf8')).resolves.toBe('note\n');
+    await expect(stat(path.join(dir, 'moved.md'))).resolves.toMatchObject({});
+    await expect(stat(path.join(dir, 'docs', 'copied.md'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
 
     await expect(
-      controller.call('mutations.delete', { uri: localUri(path.join(dir, 'moved.md')) })
+      controller.call('fs.delete', {
+        uri: localUri(path.join(dir, 'docs')),
+        recursive: true,
+      })
     ).resolves.toEqual(ok(undefined));
-    await expect(stat(path.join(dir, 'moved.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(path.join(dir, 'docs'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 
@@ -245,7 +284,7 @@ describe('files wire controller serving git-ref content', () => {
 
     await expect(readGitContent(controller, filePath, { kind: 'head' })).resolves.toMatchObject({
       kind: 'unavailable',
-      error: { type: 'invalid-path' },
+      code: 'unavailable',
     });
   });
 
@@ -259,14 +298,14 @@ describe('files wire controller serving git-ref content', () => {
 
     await expect(readGitContent(controller, untracked, { kind: 'head' })).resolves.toMatchObject({
       kind: 'unavailable',
-      error: { type: 'not-found' },
+      code: 'not-found',
     });
     await expect(
       readGitContent(controller, path.join(repo, 'committed.txt'), {
         kind: 'branch',
         branch: { type: 'local', branch: 'no-such-branch' },
       })
-    ).resolves.toMatchObject({ kind: 'unavailable', error: { type: 'not-found' } });
+    ).resolves.toMatchObject({ kind: 'unavailable', code: 'not-found' });
   });
 
   it('classifies the unstaged ref as unavailable: the working tree is the disk source', async () => {
@@ -277,7 +316,7 @@ describe('files wire controller serving git-ref content', () => {
     await git(repo, 'commit', '-m', 'commit');
 
     await expect(readGitContent(controller, filePath, { kind: 'unstaged' })).resolves.toMatchObject(
-      { kind: 'unavailable', error: { type: 'invalid-path' } }
+      { kind: 'unavailable', code: 'unavailable' }
     );
   });
 });

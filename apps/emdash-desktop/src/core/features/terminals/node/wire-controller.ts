@@ -18,10 +18,12 @@ import type { ProjectSessionManager } from '@core/features/projects/api/node/pro
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import {
   terminalsContract,
+  terminalSliceErrorSchema,
   type RunTerminalScriptWorkflowInput,
   type TerminalCreateResult,
   type TerminalHydrateResult,
   type TerminalRuntimeKey,
+  type TerminalSliceContextError,
 } from '@core/features/terminals/api';
 import {
   isTerminalsRuntimeResolveError,
@@ -70,7 +72,7 @@ type TerminalContext = Readonly<{
   shellSetup?: string;
   taskEnvVars: Record<string, string>;
 }>;
-type TerminalControllerError = TerminalError | RuntimeResolveError;
+type TerminalControllerError = TerminalError | RuntimeResolveError | TerminalSliceContextError;
 
 const DEFAULT_TERMINAL_SIZE = { cols: 80, rows: 24 };
 
@@ -103,14 +105,6 @@ export function createTerminalsWireController(
       ),
     kill: (input, meta) =>
       withTerminalRuntime(options, input, (client, key) => client.kill({ key }, callOptions(meta))),
-    killScope: (input, meta) =>
-      withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
-        client.terminals.killScope({ workspace: workspaceRef(identity) }, callOptions(meta))
-      ),
-    detachScope: (input, meta) =>
-      withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
-        client.terminals.detachScope({ workspace: workspaceRef(identity) }, callOptions(meta))
-      ),
   });
 }
 
@@ -270,7 +264,7 @@ async function startRuntimeTerminal(
 
   const colorEnv = await options.terminalShell.getColorEnv();
   const result = await withWorkspaceRuntime(options, context.data.identity.workspaceId, (client) =>
-    client.terminals.startTerminal({
+    client.terminals.start({
       key: context.data.key,
       spec: {
         cwd: context.data.identity.path,
@@ -542,20 +536,17 @@ function mapTerminalRowToTerminal(row: typeof terminals.$inferSelect): Terminal 
   };
 }
 
-function terminalError(type: string, message: string): TerminalError {
+function terminalError(
+  type: TerminalSliceContextError['type'],
+  message: string
+): TerminalSliceContextError {
   return { type, message };
 }
 
 function unknownToTerminalError(error: unknown): TerminalControllerError {
   if (isTerminalsRuntimeResolveError(error)) return error;
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    typeof (error as { type?: unknown }).type === 'string' &&
-    typeof (error as { message?: unknown }).message === 'string'
-  ) {
-    return error as TerminalError;
-  }
+  const parsed = terminalSliceErrorSchema.safeParse(error);
+  if (parsed.success) return parsed.data;
   return terminalError('terminal-wire-error', errorMessage(error));
 }
 

@@ -43,34 +43,11 @@ export async function createDirectoryInRoot(
   });
 }
 
-export async function renameInRoot(
-  root: RootResource,
-  input: { from: PortableRelativePath; to: PortableRelativePath }
-): Promise<Result<RootChange[], FsError>> {
-  if (path.posix.dirname(input.from) !== path.posix.dirname(input.to)) {
-    return err({
-      type: 'invalid-path',
-      path: input.to,
-      message: 'Rename requires the same parent',
-    });
-  }
-  return moveInRoot(root, input);
-}
-
 /** A mutation endpoint addressed as an operational root plus a root-relative path. */
 export type RootLocation = {
   root: RootResource;
   path: PortableRelativePath;
 };
-
-export async function moveInRoot(
-  root: RootResource,
-  input: { from: PortableRelativePath; to: PortableRelativePath }
-): Promise<Result<RootChange[], FsError>> {
-  const moved = await moveBetweenRoots({ root, path: input.from }, { root, path: input.to });
-  if (!moved.success) return moved;
-  return ok([...moved.data.source, ...moved.data.target]);
-}
 
 /**
  * Moves an entry between two (possibly identical) operational roots, returning
@@ -109,14 +86,6 @@ export async function moveBetweenRoots(
       return err(toFsError(error, source.data.path));
     }
   });
-}
-
-export async function copyInRoot(
-  root: RootResource,
-  input: { from: PortableRelativePath; to: PortableRelativePath }
-): Promise<Result<RootChange[], FsError>> {
-  const copied = await copyBetweenRoots({ root, path: input.from }, { root, path: input.to });
-  return copied.success ? ok(copied.data.target) : copied;
 }
 
 /** Copies an entry between two (possibly identical) operational roots. */

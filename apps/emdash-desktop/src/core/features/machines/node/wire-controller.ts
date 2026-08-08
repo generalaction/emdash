@@ -22,7 +22,9 @@ export function createMachinesWireController(
     getMachineUsage: () => service.getMachineUsage(),
     getMachineMetrics: async ({ machineId }) => {
       const runtime = await resolveMachineRuntime(runtimes, machineId);
-      return await runtime.resourceUsage.sample(undefined);
+      const sample = await runtime.resourceUsage.sample(undefined);
+      if (!sample.success) throw new Error(sample.error.message);
+      return sample.data;
     },
     systemDependencies: createSystemDependenciesModelProvider(runtimes),
     installSystemDependencies: {

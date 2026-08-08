@@ -1,15 +1,175 @@
+/**
+ * Git wire error vocabulary: shared variant schemas composed into a closed
+ * `type`-discriminated union per verb (convention 2), plus the `gitErr`
+ * constructors the runtime uses to produce declared failures.
+ */
+
 import { err, type Err } from '@emdash/shared';
-import type { HostAbsolutePath, PortableRelativePath } from '#primitives/path/api';
-import type {
-  CreateBranchError,
-  DeleteBranchError,
-  FetchError,
-  FetchPrForReviewError,
-  GitExecError,
-  GitOperationError,
-  GitResolutionError,
-  SwitchError,
-} from '#runtimes/git/api/api/errors';
+import { z } from 'zod';
+import {
+  hostAbsolutePathSchema,
+  portableRelativePathSchema,
+  type HostAbsolutePath,
+  type PortableRelativePath,
+} from '#primitives/path/api';
+
+const messageError = <Type extends string>(type: Type) =>
+  z.object({ type: z.literal(type), message: z.string() });
+
+export const gitExecErrorCodeSchema = z.enum(['stale_ref_update']);
+export type GitExecErrorCode = z.infer<typeof gitExecErrorCodeSchema>;
+
+export const gitExecErrorSchema = z.object({
+  type: z.literal('git_error'),
+  code: gitExecErrorCodeSchema.optional(),
+  message: z.string(),
+  stderr: z.string().optional(),
+});
+export type GitExecError = z.infer<typeof gitExecErrorSchema>;
+
+export const gitResolutionErrorSchema = z.object({
+  type: z.literal('resolution_failed'),
+  path: hostAbsolutePathSchema,
+  message: z.string(),
+});
+export type GitResolutionError = z.infer<typeof gitResolutionErrorSchema>;
+
+export const gitCommandErrorSchema = z.discriminatedUnion('type', [
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type GitCommandError = z.infer<typeof gitCommandErrorSchema>;
+
+export const authRequiredErrorSchema = messageError('auth_required');
+export const authFailedErrorSchema = messageError('auth_failed');
+export const networkErrorSchema = messageError('network_error');
+export const noRemoteErrorSchema = z.object({
+  type: z.literal('no_remote'),
+  message: z.string().optional(),
+});
+export const noUpstreamErrorSchema = messageError('no_upstream');
+export const remoteNotFoundErrorSchema = z.object({
+  type: z.literal('remote_not_found'),
+  remote: z.string().optional(),
+  message: z.string(),
+});
+export const conflictErrorSchema = z.object({
+  type: z.literal('conflict'),
+  message: z.string(),
+  conflictedFiles: z.array(portableRelativePathSchema).optional(),
+});
+export const targetExistsErrorSchema = z.object({
+  type: z.literal('target_exists'),
+  path: hostAbsolutePathSchema,
+  message: z.string(),
+});
+export const notRepositoryErrorSchema = z.object({
+  type: z.literal('not-repository'),
+  path: hostAbsolutePathSchema,
+});
+export const inspectFailedErrorSchema = z.object({
+  type: z.literal('inspect-failed'),
+  path: hostAbsolutePathSchema,
+  message: z.string(),
+});
+export const initFailedErrorSchema = z.object({
+  type: z.literal('init-failed'),
+  path: hostAbsolutePathSchema,
+  message: z.string(),
+});
+
+export const inspectPathErrorSchema = inspectFailedErrorSchema;
+export type InspectPathError = z.infer<typeof inspectPathErrorSchema>;
+
+export const cloneRepositoryErrorSchema = z.discriminatedUnion('type', [
+  targetExistsErrorSchema,
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
+  remoteNotFoundErrorSchema,
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type CloneRepositoryError = z.infer<typeof cloneRepositoryErrorSchema>;
+
+export const ensureRepositoryErrorSchema = z.discriminatedUnion('type', [
+  notRepositoryErrorSchema,
+  inspectFailedErrorSchema,
+  initFailedErrorSchema,
+]);
+export type EnsureRepositoryError = z.infer<typeof ensureRepositoryErrorSchema>;
+
+export const fetchErrorSchema = z.discriminatedUnion('type', [
+  noRemoteErrorSchema,
+  remoteNotFoundErrorSchema,
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type FetchError = z.infer<typeof fetchErrorSchema>;
+
+export const commitErrorSchema = z.discriminatedUnion('type', [
+  messageError('nothing_to_commit'),
+  messageError('empty_message'),
+  messageError('hook_failed'),
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type CommitError = z.infer<typeof commitErrorSchema>;
+
+export const pushErrorSchema = z.discriminatedUnion('type', [
+  noRemoteErrorSchema,
+  noUpstreamErrorSchema,
+  messageError('rejected'),
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
+  remoteNotFoundErrorSchema,
+  messageError('hook_rejected'),
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type PushError = z.infer<typeof pushErrorSchema>;
+
+export const pullErrorSchema = z.discriminatedUnion('type', [
+  conflictErrorSchema,
+  noUpstreamErrorSchema,
+  messageError('diverged'),
+  authRequiredErrorSchema,
+  authFailedErrorSchema,
+  networkErrorSchema,
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type PullError = z.infer<typeof pullErrorSchema>;
+
+export const downloadErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('missing') }),
+  z.object({ type: z.literal('too-large'), maxBytes: z.number().int() }),
+  z.object({ type: z.literal('lfs-pointer') }),
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type DownloadError = z.infer<typeof downloadErrorSchema>;
+
+export const fetchPrForReviewErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('not_found'), prNumber: z.number().int(), message: z.string() }),
+  authRequiredErrorSchema,
+  gitExecErrorSchema,
+  gitResolutionErrorSchema,
+]);
+export type FetchPrForReviewError = z.infer<typeof fetchPrForReviewErrorSchema>;
+
+export type GitOperationError =
+  | CloneRepositoryError
+  | EnsureRepositoryError
+  | FetchError
+  | CommitError
+  | PushError
+  | PullError
+  | FetchPrForReviewError;
 
 type TaggedError<Type extends GitOperationError['type']> = Extract<
   GitOperationError,
@@ -79,47 +239,11 @@ export const gitErr = {
   diverged(message: string): Err<TaggedError<'diverged'>> {
     return failure({ type: 'diverged', message });
   },
-  alreadyExists(branch: string, message: string): Err<TaggedError<'already_exists'>> {
-    return failure({ type: 'already_exists', branch, message });
-  },
-  invalidName(branch: string, message: string): Err<TaggedError<'invalid_name'>> {
-    return failure({ type: 'invalid_name', branch, message });
-  },
-  invalidBase(branch: string, from: string, message: string): Err<TaggedError<'invalid_base'>> {
-    return failure({ type: 'invalid_base', branch, from, message });
-  },
-  fetchFailed(remote: string, branch: string, error: FetchError): Err<CreateBranchError> {
-    return failure({ type: 'fetch_failed', remote, branch, error });
-  },
   prNotFound(
     prNumber: number,
     message: string
   ): Err<Extract<FetchPrForReviewError, { type: 'not_found' }>> {
     return failure({ type: 'not_found', prNumber, message });
-  },
-  branchNotFound(
-    branch: string,
-    message: string
-  ): Err<Extract<DeleteBranchError, { type: 'not_found' }>> {
-    return failure({ type: 'not_found', branch, message });
-  },
-  branchNotMerged(branch: string, message: string): Err<TaggedError<'not_merged'>> {
-    return failure({ type: 'not_merged', branch, message });
-  },
-  branchIsCurrent(branch: string, message: string): Err<TaggedError<'is_current'>> {
-    return failure({ type: 'is_current', branch, message });
-  },
-  alreadyUpToDate(message: string): Err<TaggedError<'already_up_to_date'>> {
-    return failure({ type: 'already_up_to_date', message });
-  },
-  nothingToRebase(message: string): Err<TaggedError<'nothing_to_rebase'>> {
-    return failure({ type: 'nothing_to_rebase', message });
-  },
-  localChanges(message: string): Err<TaggedError<'local_changes'>> {
-    return failure({ type: 'local_changes', message });
-  },
-  refNotFound(ref: string, message: string): Err<Extract<SwitchError, { type: 'not_found' }>> {
-    return failure({ type: 'not_found', ref, message });
   },
   notRepository(path: HostAbsolutePath): Err<TaggedError<'not-repository'>> {
     return failure({ type: 'not-repository', path });

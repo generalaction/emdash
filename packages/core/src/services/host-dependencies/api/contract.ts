@@ -1,48 +1,32 @@
 import {
   defineContract,
+  fallible,
   liveJob,
   liveModel,
   liveState,
   mutation,
-  procedure,
 } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   dependencyIdSchema,
   hostDependencyErrorSchema,
-  hostDependencyResolveResultSchema,
   hostDependencySelectionSchema,
   hostDependencySnapshotSchema,
-  hostDependencyViewResultSchema,
   hostDependencyViewSchema,
-  installMethodSchema,
+  resolvedHostDependencySchema,
 } from '#primitives/host-dependencies/api';
-
-const depInput = z.object({ id: dependencyIdSchema });
-export const hostDependencyInstallRequestSchema = depInput.extend({
-  method: installMethodSchema.optional(),
-  elevate: z.boolean().optional(),
-});
-export type HostDependencyInstallRequest = z.output<typeof hostDependencyInstallRequestSchema>;
-
-export const hostDependencyInstallBatchResultSchema = z.record(
-  dependencyIdSchema,
-  hostDependencyViewResultSchema
-);
-export type HostDependencyInstallBatchResult = z.output<
-  typeof hostDependencyInstallBatchResultSchema
->;
-export const hostDependencyOperationProgressSchema = z.object({
-  phase: z.enum(['resolving', 'running', 'refreshing']),
-});
-export type HostDependencyOperationProgress = z.output<
-  typeof hostDependencyOperationProgressSchema
->;
+import {
+  hostDependencyInputSchema,
+  hostDependencyInstallBatchResultSchema,
+  hostDependencyInstallRequestSchema,
+  hostDependencyOperationProgressSchema,
+} from './schemas';
 
 export const hostDependencyResolverContract = defineContract({
-  resolve: procedure({
-    input: depInput,
-    output: hostDependencyResolveResultSchema,
+  resolve: fallible({
+    input: hostDependencyInputSchema,
+    data: resolvedHostDependencySchema,
+    error: hostDependencyErrorSchema,
   }),
 });
 
@@ -55,7 +39,7 @@ export const hostDependenciesContract = defineContract({
     },
     mutations: {
       setSelection: mutation({
-        input: depInput.extend({ selection: hostDependencySelectionSchema }),
+        input: hostDependencyInputSchema.extend({ selection: hostDependencySelectionSchema }),
         data: hostDependencyViewSchema,
         error: hostDependencyErrorSchema,
       }),
@@ -67,7 +51,7 @@ export const hostDependenciesContract = defineContract({
     },
   }),
   runSelfUpdateCommand: liveJob({
-    input: depInput,
+    input: hostDependencyInputSchema,
     progress: hostDependencyOperationProgressSchema,
     result: hostDependencyViewSchema,
     error: hostDependencyErrorSchema,

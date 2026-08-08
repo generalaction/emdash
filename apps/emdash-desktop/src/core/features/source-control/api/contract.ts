@@ -1,5 +1,5 @@
 import { gitContract } from '@emdash/core/runtimes/git/api';
-import { defineContract, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
+import { defineContract, downloadFile, liveJob, liveModel, liveState } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import {
   runtimeFallibleMutations,
@@ -19,8 +19,6 @@ const sourceControlRepositoryContract = defineContract({
     states: {
       refs: liveState({ data: repository.model.states.refs.dataSchema }),
       remotes: liveState({ data: repository.model.states.remotes.dataSchema }),
-      stashes: liveState({ data: repository.model.states.stashes.dataSchema }),
-      worktrees: liveState({ data: repository.model.states.worktrees.dataSchema }),
     },
     mutations: runtimeFallibleMutations(repository.model.mutations),
   }),
@@ -28,14 +26,6 @@ const sourceControlRepositoryContract = defineContract({
   getDefaultBranch: runtimeFallibleProcedure(
     repository.getDefaultBranch.input.omit({ repository: true }).extend(projectKeySchema.shape),
     repository.getDefaultBranch.output
-  ),
-  getBranchBase: runtimeFallibleProcedure(
-    repository.getBranchBase.input.omit({ repository: true }).extend(projectKeySchema.shape),
-    repository.getBranchBase.output
-  ),
-  readBlobAtRef: runtimeFallibleProcedure(
-    repository.readBlobAtRef.input.omit({ repository: true }).extend(projectKeySchema.shape),
-    repository.readBlobAtRef.output
   ),
   fetch: liveJob({
     input: repository.fetch.input.omit({ repository: true }).extend(projectKeySchema.shape),
@@ -68,50 +58,19 @@ const sourceControlCheckoutContract = defineContract({
     },
     mutations: runtimeFallibleMutations(checkout.model.mutations),
   }),
-  fileDiff: liveModel({
-    key: checkout.fileDiff.keySchema.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    states: {
-      staleness: liveState({ data: checkout.fileDiff.states.staleness.dataSchema }),
-    },
-  }),
-  content: liveModel({
-    key: checkout.content.keySchema.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    states: {
-      content: liveState({ data: checkout.content.states.content.dataSchema }),
-    },
-  }),
-  getFileDiff: runtimeFallibleProcedure(
-    checkout.getFileDiff.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getFileDiff.output
-  ),
   getChangedFiles: runtimeFallibleProcedure(
     checkout.getChangedFiles.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
     checkout.getChangedFiles.output
   ),
-  isFileTracked: runtimeFallibleProcedure(
-    checkout.isFileTracked.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.isFileTracked.output
+  getFile: runtimeFallibleProcedure(
+    checkout.getFile.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
+    checkout.getFile.output
   ),
-  getConflictVersions: runtimeFallibleProcedure(
-    checkout.getConflictVersions.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getConflictVersions.output
-  ),
-  getFileAtRef: runtimeFallibleProcedure(
-    checkout.getFileAtRef.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getFileAtRef.output
-  ),
-  getFileAtIndex: runtimeFallibleProcedure(
-    checkout.getFileAtIndex.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getFileAtIndex.output
-  ),
-  getImageAtRef: runtimeFallibleProcedure(
-    checkout.getImageAtRef.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getImageAtRef.output
-  ),
-  getImageAtIndex: runtimeFallibleProcedure(
-    checkout.getImageAtIndex.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    checkout.getImageAtIndex.output
-  ),
+  download: downloadFile({
+    input: checkout.download.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
+    meta: checkout.download.meta,
+    error: runtimeResolveErrorUnion(checkout.download.error),
+  }),
   getLog: runtimeFallibleProcedure(
     checkout.getLog.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
     checkout.getLog.output
@@ -139,12 +98,6 @@ const sourceControlCheckoutContract = defineContract({
     progress: checkout.pull.progress,
     result: checkout.pull.result,
     error: runtimeResolveErrorUnion(checkout.pull.error),
-  }),
-  sync: liveJob({
-    input: checkout.sync.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    progress: checkout.sync.progress,
-    result: checkout.sync.result,
-    error: runtimeResolveErrorUnion(checkout.sync.error),
   }),
 });
 

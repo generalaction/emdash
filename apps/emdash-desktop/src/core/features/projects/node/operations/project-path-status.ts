@@ -36,18 +36,18 @@ export async function getProjectPathStatus(
     }
 
     const inspection = await runtime.data.git.inspectPath({ path: absolutePath });
-    if (inspection.kind === 'inspect-failed') {
+    if (!inspection.success) {
       return {
         isDirectory: true,
         isGitRepo: false,
         error: {
           type: 'inspect-failed',
-          path: nativePathFromHost(inspection.path),
-          message: inspection.message,
+          path: nativePathFromHost(inspection.error.path),
+          message: inspection.error.message,
         },
       };
     }
-    return { isDirectory: true, isGitRepo: inspection.kind === 'repository' };
+    return { isDirectory: true, isGitRepo: inspection.data.kind === 'repository' };
   } catch (error) {
     return {
       isDirectory: false,

@@ -1,9 +1,4 @@
-import { err, ok, type Result } from '@emdash/shared';
-import type {
-  AgentConfigEntry,
-  AgentConfigList,
-  AgentConfigRefreshError,
-} from '#runtimes/agent-config/api';
+import type { AgentConfigEntry, AgentConfigList } from '#runtimes/agent-config/api';
 import type { AgentConfigAgentsModel } from '#runtimes/agent-config/node/state/live-models';
 import { publishLiveModelState } from '#runtimes/agent-config/node/state/live-models';
 import type { AgentConfigRuntimeDeps } from './types';
@@ -25,19 +20,6 @@ export class AgentInstallManager {
   }
 
   initialize(): void {}
-
-  async refresh(input: {
-    providerId?: string;
-    refreshShellEnv?: boolean;
-  }): Promise<Result<void, AgentConfigRefreshError>> {
-    if (input.providerId) {
-      if (!this.providersById.has(input.providerId)) {
-        return err({ type: 'unknown-provider' as const, providerId: input.providerId });
-      }
-      return ok();
-    }
-    return ok();
-  }
 
   updateAuth(providerId: string, auth: AgentConfigEntry['auth']): void {
     const current = this.entry(providerId);

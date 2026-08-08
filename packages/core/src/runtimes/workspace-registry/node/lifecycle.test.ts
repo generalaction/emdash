@@ -3,7 +3,7 @@ import type { CreateWorktreeInput } from '../api/schemas';
 import { buildCreationLifecycle, withLifecycleStep } from './lifecycle';
 
 const input: CreateWorktreeInput = {
-  id: 'ws-1',
+  workspaceId: 'ws-1',
   repositoryId: 'repo-1',
   branch: 'feature/x',
   baseRef: 'origin/main',
@@ -167,7 +167,7 @@ describe('buildCreationLifecycle', () => {
 
 describe('buildCreationLifecycle with gitSetup', () => {
   const gitSetupInput: CreateWorktreeInput = {
-    id: 'ws-2',
+    workspaceId: 'ws-2',
     repositoryId: 'repo-1',
     branch: 'pr/7/fix',
     path: '/tmp/pr-wt',

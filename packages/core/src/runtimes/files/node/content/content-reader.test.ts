@@ -42,7 +42,7 @@ describe('ContentReader', () => {
     await expect(new ContentReader(paths).read(relativePath('missing.txt'))).resolves.toMatchObject(
       {
         kind: 'unavailable',
-        error: { type: 'not-found', path: 'missing.txt' },
+        code: 'not-found',
       }
     );
   });

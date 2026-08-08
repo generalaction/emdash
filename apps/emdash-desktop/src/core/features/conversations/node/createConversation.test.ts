@@ -138,7 +138,7 @@ describe('createConversation', () => {
     expect(hostConversations.create).toHaveBeenCalledTimes(1);
     const hostInput = hostConversations.create.mock.calls[0][0] as Record<string, unknown>;
     expect(hostInput).toMatchObject({
-      id: 'conv-1',
+      conversationId: 'conv-1',
       cwd: '/work/repo',
       workspacePath: '/work/repo',
       idRegime: 'provider-minted',
@@ -171,7 +171,7 @@ describe('createConversation', () => {
 
     await expect(createConversation(baseParams, deps)).rejects.toThrow('constraint violation');
     expect(hostConversations.create).toHaveBeenCalledTimes(1);
-    expect(hostConversations.delete).toHaveBeenCalledWith({ id: 'conv-1' });
+    expect(hostConversations.delete).toHaveBeenCalledWith({ conversationId: 'conv-1' });
   });
 
   it('fails without a client insert when host registration fails', async () => {
@@ -195,6 +195,6 @@ describe('createConversation', () => {
       'spawn failed'
     );
     expect((deps.db as unknown as ReturnType<typeof fakeDatabase>).delete).toHaveBeenCalled();
-    expect(hostConversations.delete).toHaveBeenCalledWith({ id: 'conv-1' });
+    expect(hostConversations.delete).toHaveBeenCalledWith({ conversationId: 'conv-1' });
   });
 });

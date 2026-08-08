@@ -23,7 +23,7 @@ export const workspacesScopedStoreContributions: readonly ScopedStoreContributio
     contributeScopedStore({
       token: lifecycleScriptsStoreToken,
       create: ({ projectId, workspaceId, path, sshConnectionId }) =>
-        new LifecycleScriptsStore(projectId, workspaceId, sshConnectionId ? undefined : path),
+        new LifecycleScriptsStore(projectId, workspaceId, path, sshConnectionId),
       dispose: (store) => store.dispose(),
     }),
   ];

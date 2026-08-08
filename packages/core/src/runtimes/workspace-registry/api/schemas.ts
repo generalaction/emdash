@@ -306,18 +306,18 @@ export const workspaceRecordsSchema = z.record(z.string(), workspaceRecordSchema
 export type WorkspaceRecords = z.infer<typeof workspaceRecordsSchema>;
 
 export const createWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   path: z.string().min(1),
 });
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>;
 
 export const deleteWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 export type DeleteWorkspaceInput = z.infer<typeof deleteWorkspaceInputSchema>;
 
 export const deleteWorktreeInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   /** The branch is deletable independently of its worktree. */
   deleteBranch: z.boolean().default(false),
 });
@@ -326,7 +326,7 @@ export type DeleteWorktreeInput = z.infer<typeof deleteWorktreeInputSchema>;
 export const createWorktreeInputSchema = z
   .object({
     /** Desktop-minted UUID for the new worktree record. */
-    id: z.string().min(1),
+    workspaceId: z.string().min(1),
     /** The registered repository record to create from. */
     repositoryId: z.string().min(1),
     branch: z.string().min(1),
@@ -355,27 +355,56 @@ export type CreateWorktreeInput = z.infer<typeof createWorktreeInputSchema>;
  * created before the model shipped updatable with the exact same call.
  */
 export const updateWorktreeInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   remote: z.string().min(1),
   sourceRef: z.string().min(1),
 });
 export type UpdateWorktreeInput = z.infer<typeof updateWorktreeInputSchema>;
 
-/** Explicit "refresh now": rescans one workspace, or the whole host when id is omitted. */
+/**
+ * Explicit "refresh now": rescans one workspace, or the whole host when workspaceId is
+ * omitted.
+ */
 export const refreshWorkspacesInputSchema = z.object({
-  id: z.string().min(1).optional(),
+  workspaceId: z.string().min(1).optional(),
 });
 export type RefreshWorkspacesInput = z.infer<typeof refreshWorkspacesInputSchema>;
 
 export const activateWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 export type ActivateWorkspaceInput = z.infer<typeof activateWorkspaceInputSchema>;
 
 export const deactivateWorkspaceInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
 });
 export type DeactivateWorkspaceInput = z.infer<typeof deactivateWorkspaceInputSchema>;
+
+/**
+ * Keyed by workspace id (convention 5) — the registry resolves the path from its own
+ * record; clients never hand it a path.
+ */
+export const measureUsageInputSchema = z.object({
+  workspaceId: z.string().min(1),
+});
+export type MeasureUsageInput = z.infer<typeof measureUsageInputSchema>;
+
+/** A non-fatal per-path measurement failure (unreadable directory, vanished file). */
+export const workspaceUsageErrorSchema = z.object({
+  path: z.string(),
+  message: z.string(),
+});
+export type WorkspaceUsageError = z.infer<typeof workspaceUsageErrorSchema>;
+
+/** The git-aware disk observation for one workspace. */
+export const workspaceUsageSchema = z.object({
+  /** Exclusive disk bytes for the workspace tree. */
+  totalBytes: z.number().int().nonnegative(),
+  /** Disk bytes attributable to git-ignored artifacts (reclaimable). */
+  artifactBytes: z.number().int().nonnegative(),
+  errors: z.array(workspaceUsageErrorSchema),
+});
+export type WorkspaceUsage = z.infer<typeof workspaceUsageSchema>;
 
 /** The lifecycle steps a user may retry after a durable failure. */
 export const retryableLifecycleStepSchema = z.enum(['copy-artifacts', 'push-branch']);
@@ -387,7 +416,7 @@ export type RetryableLifecycleStep = z.infer<typeof retryableLifecycleStepSchema
  * current record.
  */
 export const retryStepInputSchema = z.object({
-  id: z.string().min(1),
+  workspaceId: z.string().min(1),
   step: retryableLifecycleStepSchema,
 });
 export type RetryStepInput = z.infer<typeof retryStepInputSchema>;

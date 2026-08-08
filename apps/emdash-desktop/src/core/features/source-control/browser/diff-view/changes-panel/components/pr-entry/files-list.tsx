@@ -1,10 +1,8 @@
 import type { GitChange } from '@emdash/core/runtimes/git/api';
 import { observer } from 'mobx-react-lite';
-import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
-  useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { commitRef, refsEqual } from '@core/primitives/git/api';
 import { getPrNumber, type PullRequest } from '@core/services/pull-requests/api';
@@ -14,8 +12,6 @@ import { usePrefetchDiffModels } from '../../hooks/use-prefetch-diff-models';
 import { ChangesListOrTree } from '../changes-list-or-tree';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
   const workspace = useWorkspace();
   const taskView = useTaskComposition();
   const prStore = taskView.prStore!;
@@ -26,7 +22,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const modifiedRef = commitRef(pr.headRefOid);
   const prFiles = prStore.getFiles(pr).data ?? [];
 
-  const prefetchPrDiff = usePrefetchDiffModels(projectId, workspaceId, 'pr', baseRef, modifiedRef);
+  const prefetchPrDiff = usePrefetchDiffModels('pr', baseRef, modifiedRef);
 
   const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath =

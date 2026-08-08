@@ -62,7 +62,6 @@ export type DesktopHostEvent =
     };
 
 type ActionResult = { success: boolean; error?: string };
-type ReadResult = { success: true; content: string } | { success: false; error: string };
 type RequiredPathResult = { success: true; path: string } | { success: false; error: string };
 type NullablePathResult =
   | { success: true; path: string | null }
@@ -85,10 +84,6 @@ export const desktopHostContract = defineContract({
   showWorkspaceItemInFolder: procedure({
     input: z.object({ workspaceId: z.string(), relativePath: z.string() }),
     output: z.custom<ActionResult>(),
-  }),
-  readUserFile: procedure({
-    input: z.object({ path: z.string() }),
-    output: z.custom<ReadResult>(),
   }),
   clipboardWriteText: procedure({
     input: z.object({ text: z.string() }),

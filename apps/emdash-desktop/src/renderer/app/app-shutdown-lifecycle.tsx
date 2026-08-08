@@ -1,6 +1,5 @@
 import { Spinner, toast } from '@emdash/ui/react/primitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { openFileStore } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import type { ActiveSessionSummary } from '@core/primitives/desktop-host/api/host-contract';
@@ -20,20 +19,17 @@ export function AppShutdownLifecycle() {
 
   const runQuitGuards = useCallback(
     async (requestId: string, summary: ActiveSessionSummary): Promise<boolean> => {
-      // File tabs hold dirty state in the OpenFileStore; diff-editable buffers
-      // still live in the Monaco model registry until ticket 09 moves them.
-      const dirtyCount = openFileStore.dirtyEntries().length + modelRegistry.dirtyUris.size;
+      // All dirty buffers — file tabs and editable diffs alike — live in the
+      // app-global OpenFileStore.
+      const dirtyCount = openFileStore.dirtyEntries().length;
       if (dirtyCount > 0) {
         const outcome = await openUnsavedChangesModal({ count: dirtyCount });
         if (!outcome.success || activeRequestId.current !== requestId) return false;
 
         try {
           if (outcome.data === 'save-all') {
-            const results = await Promise.all([
-              openFileStore.saveAllDirty(),
-              modelRegistry.saveAllDirtyBuffers(),
-            ]);
-            if (results.includes(false)) {
+            const allSaved = await openFileStore.saveAllDirty();
+            if (!allSaved) {
               toast.error('Could not save all files', {
                 description: 'Resolve any file conflicts and try quitting again.',
               });
@@ -41,7 +37,6 @@ export function AppShutdownLifecycle() {
             }
           } else {
             openFileStore.discardAllDirty();
-            await modelRegistry.discardAllDirtyBuffers();
           }
         } catch (error) {
           log.error('Failed to resolve unsaved files before quit:', error);

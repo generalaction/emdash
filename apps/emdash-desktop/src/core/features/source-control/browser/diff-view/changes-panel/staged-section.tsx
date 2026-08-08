@@ -5,11 +5,9 @@ import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
-import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
-  useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
@@ -47,8 +45,6 @@ export const StagedSectionHeader = observer(function StagedSectionHeader() {
 
 /** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
 export const StagedSectionBody = observer(function StagedSectionBody() {
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
   const taskView = useTaskComposition();
   const workspace = useWorkspace();
   const git = workspace.get(gitCheckoutStoreToken);
@@ -61,7 +57,7 @@ export const StagedSectionBody = observer(function StagedSectionBody() {
   const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath = _activeDiff?.diffGroup === 'staged' ? _activeDiff.path : undefined;
 
-  const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'staged', HEAD_REF);
+  const prefetch = usePrefetchDiffModels('staged', HEAD_REF);
 
   const { mode: viewMode } = useChangesViewMode('staged');
 

@@ -1,25 +1,16 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  fileKey,
-  fileMutationKey,
-  filesClientScope,
-  nativeFilePath,
-  parentFilePaths,
-} from './runtime-client';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { fileKey, filesClientScope, nativeFilePath, parentFilePaths } from './runtime-client';
 
 describe('Files runtime client paths', () => {
-  it('binds native paths to a structured runtime root', () => {
+  it('resolves native paths to host-absolute fs keys within the scope root', () => {
     const rootPath = path.resolve('repo');
     const filePath = path.join(rootPath, 'src', 'file.ts');
     const files = filesClientScope({} as never, rootPath);
 
-    expect(fileKey(files, filePath)).toMatchObject({
-      relative: 'src/file.ts',
-    });
-    expect(fileMutationKey(files, filePath)).toMatchObject({
-      path: 'src/file.ts',
-    });
+    expect(nativePathFromHost(fileKey(files, filePath).path)).toBe(filePath);
+    expect(() => fileKey(files, path.resolve('outside', 'file.ts'))).toThrow();
     expect(nativeFilePath(files, 'src/file.ts' as never)).toBe(filePath);
   });
 

@@ -9,7 +9,7 @@ import type {
 } from '@core/primitives/project-settings/api';
 import { mergeShareableProjectSettings } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { fileMutationKey, fsErrorMessage } from '@core/services/runtime-broker/node/files';
+import { fileKey, fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { CONFIG_FILE } from './workspace-config-file';
 
 type ScriptField = Extract<ShareableProjectSettingsWriteField, `scripts.${string}`>;
@@ -83,8 +83,8 @@ export async function applyProjectConfigMigration(
   }
 
   const configPath = projectPath(project, CONFIG_FILE);
-  const written = await project.files.client.mutations.writeFile({
-    ...fileMutationKey(project.files, configPath),
+  const written = await project.files.client.fs.writeFile({
+    ...fileKey(project.files, configPath),
     content: `${JSON.stringify(data.settings, null, 2)}\n`,
     precondition: { kind: 'overwrite' },
   });

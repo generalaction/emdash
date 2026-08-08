@@ -63,7 +63,7 @@ export const automationScheduleSchema = z.object({
 
 export const automationAcpAgentConfigSchema = z.object({
   type: z.literal('acp'),
-  start: acpSessionStartInputSchema.shape.input.omit({
+  start: acpSessionStartInputSchema.omit({
     conversationId: true,
     cwd: true,
     sessionId: true,
@@ -73,7 +73,7 @@ export const automationAcpAgentConfigSchema = z.object({
 
 export const automationTuiAgentConfigSchema = z.object({
   type: z.literal('tui'),
-  start: tuiSessionStartInputSchema.shape.input.omit({
+  start: tuiSessionStartInputSchema.omit({
     conversationId: true,
     cwd: true,
     sessionId: true,

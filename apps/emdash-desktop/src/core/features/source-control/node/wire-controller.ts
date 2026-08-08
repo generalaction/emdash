@@ -16,10 +16,7 @@ import {
 } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import {
-  forwardLiveModel,
-  forwardModelMutation,
-} from '@core/services/runtime-clients/node/forward-live-model';
+import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
 import {
   sourceControlGitRuntimeContract as gitContract,
@@ -41,8 +38,6 @@ export function createSourceControlWireController(
 ): Controller {
   const repositoryModel = createRepositoryModelProvider(options);
   const checkoutModel = createCheckoutModelProvider(options);
-  const fileDiffModel = createFileDiffModelProvider(options);
-  const contentModel = createContentModelProvider(options);
 
   return createController(sourceControlContract, {
     repository: {
@@ -54,14 +49,6 @@ export function createSourceControlWireController(
       getDefaultBranch: (input, meta) =>
         withRepositoryRuntime(options, input, (git, mapped) =>
           git.repository.getDefaultBranch(mapped, callOptions(meta))
-        ),
-      getBranchBase: (input, meta) =>
-        withRepositoryRuntime(options, input, (git, mapped) =>
-          git.repository.getBranchBase(mapped, callOptions(meta))
-        ),
-      readBlobAtRef: (input, meta) =>
-        withRepositoryRuntime(options, input, (git, mapped) =>
-          git.repository.readBlobAtRef(mapped, callOptions(meta))
         ),
       fetch: job<typeof sourceControlContract.repository.fetch>((input, context) =>
         runRepositoryJob(
@@ -94,40 +81,21 @@ export function createSourceControlWireController(
     },
     checkout: {
       model: checkoutModel,
-      fileDiff: fileDiffModel,
-      content: contentModel,
-      getFileDiff: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getFileDiff(mapped, callOptions(meta))
-        ),
       getChangedFiles: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getChangedFiles(mapped, callOptions(meta))
         ),
-      isFileTracked: (input, meta) =>
+      getFile: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.isFileTracked(mapped, callOptions(meta))
+          git.checkout.getFile(mapped, callOptions(meta))
         ),
-      getConflictVersions: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getConflictVersions(mapped, callOptions(meta))
-        ),
-      getFileAtRef: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getFileAtRef(mapped, callOptions(meta))
-        ),
-      getFileAtIndex: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getFileAtIndex(mapped, callOptions(meta))
-        ),
-      getImageAtRef: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getImageAtRef(mapped, callOptions(meta))
-        ),
-      getImageAtIndex: (input, meta) =>
-        withCheckoutRuntime(options, input, (git, mapped) =>
-          git.checkout.getImageAtIndex(mapped, callOptions(meta))
-        ),
+      download: async (input, meta) => {
+        const result = await withCheckoutRuntime(options, input, (git, mapped) =>
+          git.checkout.download(mapped, callOptions(meta))
+        );
+        if (!result.success) return result;
+        return ok({ meta: result.data.meta, source: result.data.chunks() });
+      },
       getLog: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getLog(mapped, callOptions(meta))
@@ -160,15 +128,6 @@ export function createSourceControlWireController(
           input,
           context,
           (git) => git.checkout.pull
-        )
-      ),
-      sync: job<typeof sourceControlContract.checkout.sync>((input, context) =>
-        runCheckoutJob(
-          options,
-          gitContract.checkout.sync,
-          input,
-          context,
-          (git) => git.checkout.sync
         )
       ),
     },
@@ -247,48 +206,6 @@ function createCheckoutModelProvider({
   };
 }
 
-function createFileDiffModelProvider({
-  runtimes,
-  workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LiveModelProvider<
-  typeof sourceControlContract.checkout.fileDiff
-> {
-  return forwardLiveModel(sourceControlContract.checkout.fileDiff, (key, name) =>
-    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
-      client.git.checkout.fileDiff
-        .state(
-          {
-            ...withoutWorkspaceId(key),
-            checkout: hostPathFromNative(identity.path),
-          },
-          name
-        )
-        .asLiveSource()
-    )
-  );
-}
-
-function createContentModelProvider({
-  runtimes,
-  workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LiveModelProvider<
-  typeof sourceControlContract.checkout.content
-> {
-  return forwardLiveModel(sourceControlContract.checkout.content, (key, name) =>
-    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
-      client.git.checkout.content
-        .state(
-          {
-            ...withoutWorkspaceId(key),
-            checkout: hostPathFromNative(identity.path),
-          },
-          name
-        )
-        .asLiveSource()
-    )
-  );
-}
-
 async function withRepositoryRuntime<T extends { projectId: string }, R, E>(
   options: CreateSourceControlWireControllerOptions,
   input: T,
@@ -357,11 +274,6 @@ async function requireIdentity(
   const identity = await identityPromise;
   if (!identity) throw new Error('Source-control workspace identity was not found');
   return identity;
-}
-
-function withoutWorkspaceId<T extends { workspaceId: string }>(input: T): Omit<T, 'workspaceId'> {
-  const { workspaceId: _, ...rest } = input;
-  return rest;
 }
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {

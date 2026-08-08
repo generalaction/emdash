@@ -12,7 +12,6 @@ export const gitComponentConfigSchema = z.object({
   env: z.record(z.string(), z.string().optional()).optional(),
   idleTtlMs: z.number().nonnegative().optional(),
   aliasTtlMs: z.number().nonnegative().optional(),
-  maxFileDiffStates: z.number().nonnegative().optional(),
   maxFileContentStates: z.number().nonnegative().optional(),
 });
 
@@ -36,7 +35,6 @@ export const gitComponent = defineWireComponent({
       env: config.env as NodeJS.ProcessEnv | undefined,
       idleTtlMs: config.idleTtlMs,
       aliasTtlMs: config.aliasTtlMs,
-      maxFileDiffStates: config.maxFileDiffStates,
       maxFileContentStates: config.maxFileContentStates,
       onError: (context, error) => logger.warn(context, { error }),
     });

@@ -8,7 +8,7 @@ import { conversationsComponent, conversationsComponentConfigSchema } from './co
 // it takes no dependencies and owns the SQLite file it is configured with (spec §3.4).
 
 const createInput = {
-  id: 'conv-worker-1',
+  conversationId: 'conv-worker-1',
   provider: 'claude-code',
   type: 'acp' as const,
   cwd: '/work/repo',
@@ -65,7 +65,7 @@ describe('conversationsComponent', () => {
     const client = await ready;
 
     const created = await client.create(createInput);
-    expect(created).toMatchObject({ success: true, data: { id: 'conv-worker-1' } });
+    expect(created).toMatchObject({ success: true, data: { conversationId: 'conv-worker-1' } });
     const replay = await client.create(createInput);
     expect(replay).toEqual(created);
 

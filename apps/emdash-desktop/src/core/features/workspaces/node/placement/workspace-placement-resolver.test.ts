@@ -31,16 +31,14 @@ function makeResolver(options: {
   const missingParents = new Set(options.missingParents ?? []);
   const getHomeDir = vi.fn(async () => {
     if (options.homeError) throw options.homeError;
-    return hostPathFromNative(options.home ?? '/home/jona');
+    return { path: hostPathFromNative(options.home ?? '/home/jona') };
   });
-  const exists = vi.fn(async ({ root, relative }) => {
-    const parent = nativePathFromHost(root);
-    if (missingParents.has(parent)) {
+  const exists = vi.fn(async ({ path: target }) => {
+    const candidate = nativePathFromHost(target);
+    if (missingParents.has(path.posix.dirname(candidate))) {
       return err({ type: 'not-found' as const, path: '' });
     }
-    const candidate =
-      relative === '' ? parent : path.posix.join(parent, relative.replaceAll('\\', '/'));
-    return ok(existingPaths.has(candidate));
+    return ok({ exists: existingPaths.has(candidate) });
   });
   const broker = {
     client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } } })),
@@ -131,10 +129,7 @@ describe('WorkspacePlacementResolver', () => {
       resolver.resolveRepositoryDestination(LOCAL_HOST_REF, 'emdash', '/chosen')
     ).resolves.toEqual({ success: true, data: '/chosen/emdash' });
     expect(exists).toHaveBeenCalledWith(
-      expect.objectContaining({
-        root: hostPathFromNative('/chosen'),
-        relative: 'emdash',
-      })
+      expect.objectContaining({ path: hostPathFromNative('/chosen/emdash') })
     );
   });
 

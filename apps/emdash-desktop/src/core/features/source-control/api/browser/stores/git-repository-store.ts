@@ -375,7 +375,7 @@ async function loadDefaultBranch(projectId: string, remote: string) {
     ...repositorySelector(projectId),
     remote,
   });
-  return result.success ? { success: true as const, data: result.data } : result;
+  return result.success ? { success: true as const, data: result.data.branch } : result;
 }
 
 function waitForRepositoryModel(

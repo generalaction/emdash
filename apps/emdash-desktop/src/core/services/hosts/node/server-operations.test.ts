@@ -171,7 +171,7 @@ function createFixture() {
 
 function protocolError(action: 'upgrade-client' | 'upgrade-server'): WorkspaceServerProtocolError {
   return new WorkspaceServerProtocolError({
-    code: 'protocol-incompatible',
+    type: 'protocol-incompatible',
     action,
     clientProtocolVersion: '2.0.0',
     serverProtocolVersion: '1.0.0',

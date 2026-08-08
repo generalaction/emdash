@@ -27,7 +27,6 @@ export function createGitProcedures(
     checkout: {
       ...createCheckoutProcedures(runtime.checkout),
       model: runtime.checkout.modelHost(contract.checkout.model),
-      fileDiff: runtime.checkout.fileDiffHost(contract.checkout.fileDiff),
       content: runtime.checkout.fileContentHost(contract.checkout.content),
     },
   };

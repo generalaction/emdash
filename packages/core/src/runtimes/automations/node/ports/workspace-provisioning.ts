@@ -9,12 +9,12 @@ import {
   type HostFileRef,
 } from '#primitives/path/api';
 // oxlint-disable-next-line emdash/core-module-boundaries -- runs await the registry's plain createWorktree verb (operation-log retirement §5); the contract has no services-level home yet
-import type {
-  CreateWorkspaceError,
-  CreateWorktreeError,
-  WorkspaceRegistryContract,
+import {
+  compileWorktreePayload,
+  type CreateWorkspaceError,
+  type CreateWorktreeError,
+  type WorkspaceRegistryContract,
 } from '#runtimes/workspace-registry/api';
-import { compileWorktreePayload } from '#services/workspace-host-actions/api';
 import type { WorkspaceCreationAdmissionContract } from '../../api/creation-admission';
 import type { AutomationWorkspaceConfig } from '../../api/deployment';
 import type { AutomationPortError } from './port-error';
@@ -76,7 +76,7 @@ export function createWorkspacePortFromDependency(
 
         const created = await client.createWorktree(
           {
-            id: input.runId,
+            workspaceId: input.runId,
             repositoryId: repository.data,
             branch: compiled.branchName,
             baseRef: compiled.baseRef,
@@ -156,7 +156,7 @@ async function registerRepository(
   signal: AbortSignal
 ): Promise<Result<string, AutomationPortError>> {
   const result = await client.createWorkspace(
-    { id: randomUUID(), path: repositoryPath },
+    { workspaceId: randomUUID(), path: repositoryPath },
     { signal }
   );
   if (result.success) return ok(result.data.id);

@@ -228,11 +228,6 @@ export const projectsWireContract = defineContract({
         data: z.void(),
         error: fsErrorSchema,
       }),
-      collapse: mutation({
-        input: z.object({ path: portableRelativePathSchema }),
-        data: z.void(),
-        error: fsErrorSchema,
-      }),
       reveal: mutation({
         input: z.object({
           path: portableRelativePathSchema,

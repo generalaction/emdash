@@ -149,7 +149,7 @@ export class ProjectProvider implements Disposable {
     if (!worktrees.success) {
       throw new Error(worktrees.error.message ?? `Failed to list worktrees for ${this.repoPath}`);
     }
-    const worktree = worktrees.data.find(
+    const worktree = worktrees.data.worktrees.find(
       (candidate) =>
         !candidate.isMain &&
         !candidate.prunable &&

@@ -48,18 +48,18 @@ type TestRuntimeTarget = typeof target;
 
 describe('createConversationsWireController', () => {
   it('passes ACP session start through without a client session id write', async () => {
-    const startSession = vi.fn(async () => ok({ sessionId: 'session-1' }));
+    const start = vi.fn(async () => ok({ sessionId: 'session-1' }));
     const controller = setupController({
-      client: { acp: { startSession } },
+      client: { acp: { start } },
     });
 
     await expect(
-      controller.call('acp.startSession', { conversationId: target.conversationId })
+      controller.call('acp.start', { conversationId: target.conversationId })
     ).resolves.toEqual(ok({ sessionId: 'session-1' }));
 
     // The ACP runtime reports the session id into the conversation index (spec §3.3);
     // the desktop no longer persists it from the response.
-    expect(startSession).toHaveBeenCalledWith({ input: target.acpInput }, {});
+    expect(start).toHaveBeenCalledWith(target.acpInput, {});
   });
 
   it('records submitted TUI input only after a successful carriage return', async () => {
@@ -106,12 +106,20 @@ describe('createConversationsWireController', () => {
       { conversationId: target.conversationId, originalPath: '/tmp/image.png' },
       { uploadFile: file }
     );
-    expect(uploadAttachment).toHaveBeenCalledWith({ originalPath: '/tmp/image.png' }, file, {});
+    expect(uploadAttachment).toHaveBeenCalledWith(
+      { conversationId: target.conversationId, originalPath: '/tmp/image.png' },
+      file,
+      {}
+    );
 
     const result = await controller.call('acp.downloadAttachment', {
       conversationId: target.conversationId,
-      id: 'attachment-1',
+      attachmentId: 'attachment-1',
     });
+    expect(downloadAttachment).toHaveBeenCalledWith(
+      { conversationId: target.conversationId, attachmentId: 'attachment-1' },
+      {}
+    );
     expect(isDownloadFileOpenResult(result)).toBe(true);
     if (!isDownloadFileOpenResult(result)) throw new Error('Expected a download result');
     const chunks: Uint8Array[] = [];
@@ -122,7 +130,7 @@ describe('createConversationsWireController', () => {
 
     const cancelled = await controller.call('acp.downloadAttachment', {
       conversationId: target.conversationId,
-      id: 'attachment-1',
+      attachmentId: 'attachment-1',
     });
     if (!isDownloadFileOpenResult(cancelled)) throw new Error('Expected a download result');
     const iterator = (cancelled.data.source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
@@ -214,12 +222,12 @@ describe('createConversationsWireController', () => {
     });
 
     await expect(
-      controller.call('acp.startSession', { conversationId: target.conversationId })
+      controller.call('acp.start', { conversationId: target.conversationId })
     ).resolves.toEqual(err(resolveError));
     await expect(
       controller.call('acp.downloadAttachment', {
         conversationId: target.conversationId,
-        id: 'attachment-1',
+        attachmentId: 'attachment-1',
       })
     ).resolves.toEqual(err(resolveError));
   });

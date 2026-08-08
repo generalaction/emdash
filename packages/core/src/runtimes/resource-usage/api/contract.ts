@@ -1,11 +1,13 @@
-import { defineContract, procedure } from '@emdash/wire/rpc';
+import { defineContract, fallible } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { resourceUsageErrorSchema } from './errors';
 import { resourceUsageSampleSchema } from './schemas';
 
 export const resourceUsageContract = defineContract({
-  sample: procedure({
+  sample: fallible({
     input: z.void().optional(),
-    output: resourceUsageSampleSchema,
+    data: resourceUsageSampleSchema,
+    error: resourceUsageErrorSchema,
   }),
 });
 

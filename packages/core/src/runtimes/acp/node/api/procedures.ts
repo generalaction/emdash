@@ -9,21 +9,21 @@ import type {
   AcpExportRawLogError,
   AcpExportTranscriptError,
   AcpGetHistoryError,
-  AcpQueuePromptError,
+  AcpKillError,
   AcpResolvePermissionError,
-  AcpResumeSessionError,
+  AcpResumeError,
   AcpSendPromptError,
   AcpSetModeOptionError,
   AcpSetModelOptionError,
   AcpSetPromptDraftError,
-  AcpStartSessionError,
-  AcpStopSessionError,
+  AcpStartError,
   AcpStartInputWire,
   AttachmentMimeType,
   AttachmentRef,
   HistoryPage,
   PromptDraftUpdate,
   PromptInput,
+  PromptPlacement,
   ResumeResult,
 } from '#runtimes/acp/api';
 import type { AcpRuntime } from '#runtimes/acp/node/runtime/runtime';
@@ -32,33 +32,23 @@ export type StartSessionInput = AcpStartInputWire;
 
 export function createAcpProcedures(runtime: AcpRuntime) {
   return {
-    startSession(input: {
-      input: StartSessionInput;
-    }): Promise<Result<{ sessionId: string }, AcpStartSessionError>> {
-      return runtime.startSession(input.input);
+    start(input: StartSessionInput): Promise<Result<{ sessionId: string }, AcpStartError>> {
+      return runtime.startSession(input);
     },
-    resumeSession(input: {
-      input: StartSessionInput & { sessionId: string };
-    }): Promise<Result<ResumeResult, AcpResumeSessionError>> {
-      return runtime.resumeSession(input.input);
+    resume(
+      input: StartSessionInput & { sessionId: string }
+    ): Promise<Result<ResumeResult, AcpResumeError>> {
+      return runtime.resumeSession(input);
     },
-    stopSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
-      return runtime.stopSession(input.conversationId);
-    },
-    killSession(input: { conversationId: string }): Result<void, AcpStopSessionError> {
+    kill(input: { conversationId: string }): Result<void, AcpKillError> {
       return runtime.killSession(input.conversationId);
     },
     sendPrompt(input: {
       conversationId: string;
       prompt: PromptInput;
+      placement?: PromptPlacement;
     }): Promise<Result<{ queued: boolean }, AcpSendPromptError>> {
-      return runtime.sendPrompt(input.conversationId, input.prompt);
-    },
-    queuePrompt(input: {
-      conversationId: string;
-      prompt: PromptInput;
-    }): Result<{ queued: boolean }, AcpQueuePromptError> {
-      return runtime.queuePrompt(input.conversationId, input.prompt);
+      return runtime.sendPrompt(input.conversationId, input.prompt, input.placement);
     },
     editQueuedPrompt(input: {
       conversationId: string;
@@ -108,22 +98,28 @@ export function createAcpProcedures(runtime: AcpRuntime) {
     }): Result<void, AcpResolvePermissionError> {
       return runtime.resolvePermission(input.conversationId, input.requestId, input.optionId);
     },
-    exportACPTranscript(input: {
+    exportAcpTranscript(input: {
       conversationId: string;
-    }): Result<string, AcpExportTranscriptError> {
-      return runtime.exportParsedTranscript(input.conversationId);
+    }): Result<{ transcript: string }, AcpExportTranscriptError> {
+      const result = runtime.exportParsedTranscript(input.conversationId);
+      return result.success ? ok({ transcript: result.data }) : result;
     },
-    exportRawAcpLog(input: { conversationId: string }): Result<string, AcpExportRawLogError> {
-      return runtime.exportRawAcpLog(input.conversationId);
+    exportRawAcpLog(input: {
+      conversationId: string;
+    }): Result<{ log: string }, AcpExportRawLogError> {
+      const result = runtime.exportRawAcpLog(input.conversationId);
+      return result.success ? ok({ log: result.data }) : result;
     },
     async uploadAttachment(
       input: {
+        conversationId: string;
         originalPath?: string;
       },
       file: WireFile
     ): Promise<Result<AttachmentRef, AcpAttachmentError>> {
       const data = input.originalPath ? undefined : await file.bytes();
       return runtime.uploadAttachment({
+        conversationId: input.conversationId,
         data,
         mimeType: file.mimeType as AttachmentMimeType,
         name: file.name,
@@ -131,19 +127,28 @@ export function createAcpProcedures(runtime: AcpRuntime) {
       });
     },
     async downloadAttachment(input: {
-      id: string;
+      conversationId: string;
+      attachmentId: string;
     }): Promise<
       Result<{ meta: AttachmentRef; source: AsyncIterable<Uint8Array> }, AcpAttachmentError>
     > {
-      const result = await runtime.downloadAttachment(input.id);
+      const result = await runtime.downloadAttachment(input.conversationId, input.attachmentId);
       if (!result.success) return result;
       return ok({
         meta: result.data.ref,
         source: blobSourceFromBytes(result.data.data),
       });
     },
-    deleteAttachment(input: { id: string }): Promise<Result<void, AcpAttachmentError>> {
-      return runtime.deleteAttachment(input.id);
+    deleteAttachment(input: {
+      conversationId: string;
+      attachmentId: string;
+    }): Promise<Result<void, AcpAttachmentError>> {
+      return runtime.deleteAttachment(input.conversationId, input.attachmentId);
+    },
+    deleteAttachments(input: {
+      conversationId: string;
+    }): Promise<Result<void, AcpAttachmentError>> {
+      return runtime.deleteConversationAttachments(input.conversationId);
     },
     getHistory(input: {
       conversationId: string;

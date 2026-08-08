@@ -83,12 +83,12 @@ describe('workspace registry ref-follow pass', () => {
     name: string,
     options: { followRef?: boolean; sourceRef?: string } = {}
   ): Promise<{ id: string; path: string }> {
-    const registered = await runtime.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const registered = await runtime.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     if (!registered.success && registered.error.type !== 'already-registered') {
       throw new Error(`createWorkspace failed: ${JSON.stringify(registered.error)}`);
     }
     const result = await runtime.createWorktree({
-      id: `wt-${name}`,
+      workspaceId: `wt-${name}`,
       repositoryId: 'ws-repo',
       branch: `branch-${name}`,
       path: path.join(root, name),

@@ -11,6 +11,7 @@ import { RefFollowScheduler } from './ref-follow';
 import { WorkspaceRegistryRuntime } from './runtime';
 import { WorkspaceScanScheduler } from './scan/scheduler';
 import { createSessionCounter, createSessionKiller } from './session-cleanup';
+import { WorkspaceSessionGc } from './session-gc';
 
 export const workspaceRegistryComponentConfigSchema = z.object({
   databasePath: z
@@ -32,6 +33,7 @@ export const workspaceRegistryComponentConfigSchema = z.object({
       jitterMs: z.number().nonnegative().optional(),
     })
     .optional(),
+  sessionGcIntervalMs: z.number().int().positive().optional(),
 });
 
 /**
@@ -66,6 +68,14 @@ export const workspaceRegistryComponent = defineWireComponent({
       killSessions,
       countSessions: createSessionCounter(sessionClients),
     });
+    // Sweeps sessions under vanished paths (moved from the retired workspace-host).
+    const sessionGc = new WorkspaceSessionGc({
+      clients: sessionClients,
+      intervalMs: config.sessionGcIntervalMs ?? 60_000,
+      scope,
+      onError: (error) => logger.warn('workspace session GC failed', { error }),
+    });
+    sessionGc.start();
     scope.add(() => runtime.dispose());
 
     const watcher = createProcessWatchServiceFromDependency({

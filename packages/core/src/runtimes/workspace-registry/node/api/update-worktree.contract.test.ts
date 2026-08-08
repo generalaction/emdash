@@ -82,12 +82,15 @@ describe('workspace registry updateWorktree', () => {
 
   /** A plain worktree with NO gitSetup on the record — the pre-model shape. */
   async function createWorktree(name: string): Promise<{ id: string; path: string }> {
-    const registered = await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const registered = await wire.client.createWorkspace({
+      workspaceId: 'ws-repo',
+      path: repoPath,
+    });
     if (!registered.success && registered.error.type !== 'already-registered') {
       throw new Error(`createWorkspace failed: ${JSON.stringify(registered.error)}`);
     }
     const result = await wire.client.createWorktree({
-      id: `wt-${name}`,
+      workspaceId: `wt-${name}`,
       repositoryId: 'ws-repo',
       branch: `branch-${name}`,
       baseRef: 'main',
@@ -109,7 +112,7 @@ describe('workspace registry updateWorktree', () => {
     expect(movedOid).not.toBe(staleOid);
 
     const updated = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/pull/7/head',
     });
@@ -127,7 +130,7 @@ describe('workspace registry updateWorktree', () => {
 
     // Replay when already at the fetched OID: a no-op success.
     const again = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/pull/7/head',
     });
@@ -142,7 +145,7 @@ describe('workspace registry updateWorktree', () => {
     await fs.writeFile(path.join(worktree.path, 'scratch.txt'), 'uncommitted');
 
     const updated = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/heads/main',
     });
@@ -163,7 +166,7 @@ describe('workspace registry updateWorktree', () => {
     sessionCount = 1;
 
     const updated = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/heads/main',
     });
@@ -176,7 +179,7 @@ describe('workspace registry updateWorktree', () => {
     // The same call succeeds once the sessions are gone — the guard is the only stop.
     sessionCount = 0;
     const retried = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/heads/main',
     });
@@ -189,7 +192,7 @@ describe('workspace registry updateWorktree', () => {
     await commitFile(originPath, 'remote.txt', 'remote commit\n');
 
     const updated = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/heads/main',
     });
@@ -207,7 +210,7 @@ describe('workspace registry updateWorktree', () => {
     const localOid = await commitFile(worktree.path, 'local.txt', 'local commit\n');
 
     const updated = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/heads/main',
     });
@@ -220,7 +223,7 @@ describe('workspace registry updateWorktree', () => {
     const beforeOid = git(worktree.path, 'rev-parse', 'HEAD');
 
     const updated = await wire.client.updateWorktree({
-      id: worktree.id,
+      workspaceId: worktree.id,
       remote: 'origin',
       sourceRef: 'refs/pull/404/head',
     });
@@ -231,15 +234,23 @@ describe('workspace registry updateWorktree', () => {
 
   it('absent, non-worktree, and missing records get their distinct typed errors', async () => {
     expect(
-      await wire.client.updateWorktree({ id: 'wt-never', remote: 'origin', sourceRef: 'main' })
+      await wire.client.updateWorktree({
+        workspaceId: 'wt-never',
+        remote: 'origin',
+        sourceRef: 'main',
+      })
     ).toEqual({
       success: false,
       error: { type: 'workspace-not-found', workspaceId: 'wt-never' },
     });
 
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     expect(
-      await wire.client.updateWorktree({ id: 'ws-repo', remote: 'origin', sourceRef: 'main' })
+      await wire.client.updateWorktree({
+        workspaceId: 'ws-repo',
+        remote: 'origin',
+        sourceRef: 'main',
+      })
     ).toEqual({
       success: false,
       error: { type: 'not-a-worktree', workspaceId: 'ws-repo' },
@@ -247,9 +258,13 @@ describe('workspace registry updateWorktree', () => {
 
     const worktree = await createWorktree('vanished');
     git(repoPath, 'worktree', 'remove', '--force', worktree.path);
-    await wire.client.refresh({ id: worktree.id });
+    await wire.client.refresh({ workspaceId: worktree.id });
     expect(
-      await wire.client.updateWorktree({ id: worktree.id, remote: 'origin', sourceRef: 'main' })
+      await wire.client.updateWorktree({
+        workspaceId: worktree.id,
+        remote: 'origin',
+        sourceRef: 'main',
+      })
     ).toEqual({
       success: false,
       error: { type: 'workspace-missing', workspaceId: worktree.id },

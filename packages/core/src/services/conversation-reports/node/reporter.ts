@@ -53,21 +53,21 @@ export function createConversationLifecycleReporter(
 
   return {
     sessionStarted(input) {
-      deliver('session-started', options.client.reportSessionStarted(input));
+      deliver('session-started', options.client.reports.sessionStarted(input));
     },
     providerSessionId(input) {
-      deliver('provider-session-id', options.client.reportProviderSessionId(input));
+      deliver('provider-session-id', options.client.reports.providerSessionId(input));
     },
     activity(conversationId) {
       const now = clock.now();
       const last = lastActivityReportAt.get(conversationId);
       if (last !== undefined && now - last < debounceMs) return;
       lastActivityReportAt.set(conversationId, now);
-      deliver('session-activity', options.client.reportSessionActivity({ id: conversationId }));
+      deliver('session-activity', options.client.reports.sessionActivity({ conversationId }));
     },
     sessionEnded(conversationId) {
       lastActivityReportAt.delete(conversationId);
-      deliver('session-ended', options.client.reportSessionEnded({ id: conversationId }));
+      deliver('session-ended', options.client.reports.sessionEnded({ conversationId }));
     },
   };
 }

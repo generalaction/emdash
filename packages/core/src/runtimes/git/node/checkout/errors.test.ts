@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { gitPath } from '#runtimes/git/node/testing/paths';
 import { ExecError } from '#services/exec/api';
 import { checkoutFailures } from './errors';
 
@@ -14,18 +13,6 @@ describe('checkout failures', () => {
     ).toMatchObject({
       success: false,
       error: { type: 'nothing_to_commit' },
-    });
-    expect(
-      checkoutFailures.switch(
-        execError('error: pathspec missing did not match any file'),
-        'missing'
-      )
-    ).toMatchObject({ success: false, error: { type: 'not_found', ref: 'missing' } });
-    expect(
-      checkoutFailures.merge(execError('CONFLICT (content): merge conflict'), [gitPath('file')])
-    ).toMatchObject({
-      success: false,
-      error: { type: 'conflict', conflictedFiles: ['file'] },
     });
     expect(checkoutFailures.pull(execError('fatal: no upstream configured'))).toMatchObject({
       success: false,

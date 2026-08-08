@@ -1,25 +1,23 @@
-import path from 'node:path';
 import type { Result, Unsubscribe } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
+import type { BlobSource } from '@emdash/wire/rpc';
 import { query, type ExposedMutationContext, type Query, type Revision } from '@emdash/wire/state';
-import { parsePortableRelativePath, type PortableRelativePath } from '#primitives/path/api';
+import type { PortableRelativePath } from '#primitives/path/api';
 import {
   type gitCheckoutContract,
   type BlameResult,
-  type BoundFileDiffKey,
   type BoundGitFileContentKey,
   type CheckoutHeadState,
   type CheckoutStatusState,
   type Commit,
   type CommitFile,
-  type ConflictVersions,
   type DiffTarget,
-  type FileDiff,
+  type DownloadError,
+  type DownloadMeta,
   type GitChange,
   type GitCommandError,
   type GitLogOptions,
   type GitLogResult,
-  type ImageReadResult,
 } from '#runtimes/git/api';
 import type { CheckoutIdentity } from '#runtimes/git/node/allocation/identity';
 import type { GitOperationContext } from '#runtimes/git/node/exec/operation-context';
@@ -27,7 +25,6 @@ import type { RepositoryResource } from '#runtimes/git/node/repository/repositor
 import type { WorktreeWatchEffects } from '#runtimes/git/node/repository/watch-classifier';
 import type { IWatchService, WatchHandle } from '#services/fs-watch/api';
 import { GitFileContentRegistry } from './file-content-registry';
-import { FileDiffRegistry } from './file-diff-registry';
 import type { GitCheckout } from './git-checkout';
 
 const WATCH_DEBOUNCE_MS = 100;
@@ -47,7 +44,6 @@ export type CheckoutResourceOptions = Readonly<{
   repository: RepositoryResource;
   watcher: IWatchService;
   onError?: (context: string, error: unknown) => void;
-  maxFileDiffStates?: number;
   maxFileContentStates?: number;
 }>;
 
@@ -62,7 +58,6 @@ export class CheckoutResource {
     status: Query<CheckoutStatusState>;
     head: Query<CheckoutHeadState>;
   };
-  private readonly fileDiffs: FileDiffRegistry;
   private readonly fileContents: GitFileContentRegistry;
   private readonly worktreeWatch: WatchHandle;
   private readonly unregister: Unsubscribe;
@@ -89,9 +84,6 @@ export class CheckoutResource {
       status: this.computed('status', () => this.commands.getStatus()),
       head: this.computed('head', () => this.commands.getHead()),
     };
-    this.fileDiffs = new FileDiffRegistry({
-      maxEntries: options.maxFileDiffStates,
-    });
     this.fileContents = new GitFileContentRegistry({
       commands: this.commands,
       execute: (run) => this.repository.execute(run),
@@ -123,19 +115,9 @@ export class CheckoutResource {
     this.states[name].invalidate();
   }
 
-  fileDiffStaleness(key: BoundFileDiffKey, scope: Scope) {
-    this.assertActive();
-    return this.fileDiffs.state(key, scope);
-  }
-
   fileContent(key: BoundGitFileContentKey, scope: Scope) {
     this.assertActive();
     return this.fileContents.state(key, scope);
-  }
-
-  getFileDiff(filePath: string, target?: DiffTarget): Promise<Result<FileDiff, GitCommandError>> {
-    this.assertActive();
-    return this.commands.getFileDiff(filePath, target);
   }
 
   getChangedFiles(target: DiffTarget): Promise<GitChange[]> {
@@ -143,34 +125,18 @@ export class CheckoutResource {
     return this.commands.getChangedFiles(target);
   }
 
-  isFileTracked(filePath: string): Promise<boolean> {
+  getFile(
+    key: BoundGitFileContentKey
+  ): Promise<Result<{ content: string | null }, GitCommandError>> {
     this.assertActive();
-    return this.commands.isFileTracked(filePath);
+    return this.commands.getFile(key);
   }
 
-  getConflictVersions(filePath: string): Promise<Result<ConflictVersions, GitCommandError>> {
+  download(
+    key: BoundGitFileContentKey
+  ): Promise<Result<{ meta: DownloadMeta; source: BlobSource }, DownloadError>> {
     this.assertActive();
-    return this.commands.getConflictVersions(filePath);
-  }
-
-  getFileAtRef(filePath: string, ref: string): Promise<string | null> {
-    this.assertActive();
-    return this.commands.getFileAtRef(filePath, ref);
-  }
-
-  getFileAtIndex(filePath: string): Promise<string | null> {
-    this.assertActive();
-    return this.commands.getFileAtIndex(filePath);
-  }
-
-  getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
-    this.assertActive();
-    return this.commands.getImageAtRef(filePath, ref);
-  }
-
-  getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    this.assertActive();
-    return this.commands.getImageAtIndex(filePath);
+    return this.commands.download(key);
   }
 
   getLog(options?: GitLogOptions): Promise<GitLogResult> {
@@ -219,43 +185,13 @@ export class CheckoutResource {
 
   async revert(context: CheckoutMutationContext<'revert'>) {
     const result = await this.execute(() => this.commands.revert(context.input.paths));
-    if (result.success) this.contentChanged(context.input.paths);
+    if (result.success) this.contentChanged();
     return result;
   }
 
   async revertAll(_context: CheckoutMutationContext<'revertAll'>) {
     const result = await this.execute(() => this.commands.revertAll());
-    if (result.success) this.contentChanged('all');
-    return result;
-  }
-
-  async clean(context: CheckoutMutationContext<'clean'>) {
-    const result = await this.execute(() => this.commands.clean(context.input));
-    if (result.success) this.contentChanged(context.input.paths ?? 'all');
-    return result;
-  }
-
-  async stageHunk(context: CheckoutMutationContext<'stageHunk'>) {
-    const result = await this.execute(() =>
-      this.commands.stageHunk(context.input.path, context.input.hunkHeader)
-    );
-    if (result.success) this.indexChanged([context.input.path]);
-    return result;
-  }
-
-  async unstageHunk(context: CheckoutMutationContext<'unstageHunk'>) {
-    const result = await this.execute(() =>
-      this.commands.unstageHunk(context.input.path, context.input.hunkHeader)
-    );
-    if (result.success) this.indexChanged([context.input.path]);
-    return result;
-  }
-
-  async discardHunk(context: CheckoutMutationContext<'discardHunk'>) {
-    const result = await this.execute(() =>
-      this.commands.discardHunk(context.input.path, context.input.hunkHeader)
-    );
-    if (result.success) this.contentChanged([context.input.path]);
+    if (result.success) this.contentChanged();
     return result;
   }
 
@@ -264,96 +200,6 @@ export class CheckoutResource {
       this.commands.commit(context.input.message, context.input.options)
     );
     this.historyChanged(result.success);
-    return result;
-  }
-
-  async switch(context: CheckoutMutationContext<'switch'>) {
-    const result = await this.execute(() => this.commands.switch(context.input.options));
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async reset(context: CheckoutMutationContext<'reset'>) {
-    const result = await this.execute(() =>
-      this.commands.reset(context.input.ref, context.input.mode)
-    );
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async merge(context: CheckoutMutationContext<'merge'>) {
-    const result = await this.execute(() => this.commands.merge(context.input.options));
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async mergeContinue(context: CheckoutMutationContext<'mergeContinue'>) {
-    const result = await this.execute(() => this.commands.mergeContinue(context.input.message));
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async mergeAbort(_context: CheckoutMutationContext<'mergeAbort'>) {
-    const result = await this.execute(() => this.commands.mergeAbort());
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async rebase(context: CheckoutMutationContext<'rebase'>) {
-    const result = await this.execute(() => this.commands.rebase(context.input.options));
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async rebaseContinue(_context: CheckoutMutationContext<'rebaseContinue'>) {
-    const result = await this.execute(() => this.commands.rebaseContinue());
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async rebaseAbort(_context: CheckoutMutationContext<'rebaseAbort'>) {
-    const result = await this.execute(() => this.commands.rebaseAbort());
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async rebaseSkip(_context: CheckoutMutationContext<'rebaseSkip'>) {
-    const result = await this.execute(() => this.commands.rebaseSkip());
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async cherryPick(context: CheckoutMutationContext<'cherryPick'>) {
-    const result = await this.execute(() =>
-      this.commands.cherryPick(context.input.commits, context.input.noCommit)
-    );
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async revertCommit(context: CheckoutMutationContext<'revertCommit'>) {
-    const result = await this.execute(() =>
-      this.commands.revertCommit(context.input.commit, context.input.noCommit)
-    );
-    this.historyChanged(result.success);
-    return result;
-  }
-
-  async stashPush(context: CheckoutMutationContext<'stashPush'>) {
-    const result = await this.execute(() => this.commands.stashPush(context.input.options));
-    if (result.success) this.stashChanged();
-    return result;
-  }
-
-  async stashApply(context: CheckoutMutationContext<'stashApply'>) {
-    const result = await this.execute(() => this.commands.stashApply(context.input.stashIndex));
-    if (result.success) this.stashChanged();
-    return result;
-  }
-
-  async stashPop(context: CheckoutMutationContext<'stashPop'>) {
-    const result = await this.execute(() => this.commands.stashPop(context.input.stashIndex));
-    if (result.success) this.stashChanged();
     return result;
   }
 
@@ -369,24 +215,15 @@ export class CheckoutResource {
     return result;
   }
 
-  async sync(context: Parameters<GitCheckout['sync']>[0]) {
-    const result = await this.execute(() => this.commands.sync(context), true);
-    this.syncChanged();
-    return result;
-  }
-
   invalidateRepositoryHistory(): void {
     this.invalidate('status');
     this.invalidate('head');
-    this.fileDiffs.bump('all', 'ref-changed');
     this.fileContents.invalidate('all', 'refs');
   }
 
   applyRepositoryWatchEffects(effects: WorktreeWatchEffects): void {
     if (effects.status) this.invalidate('status');
     if (effects.head) this.invalidate('head');
-    if (effects.head) this.fileDiffs.bump('all', 'ref-changed');
-    else if (effects.status) this.fileDiffs.bump('all', 'index-changed');
     if (effects.head) this.fileContents.invalidate('all', 'refs');
     if (effects.status) this.fileContents.invalidate('all', 'index');
   }
@@ -397,7 +234,6 @@ export class CheckoutResource {
     this.unregister();
     await this.worktreeWatch.release();
     await this.statesScope.dispose();
-    this.fileDiffs.dispose();
     this.fileContents.dispose();
   }
 
@@ -415,32 +251,18 @@ export class CheckoutResource {
     paths: 'all' | readonly PortableRelativePath[]
   ): Promise<void> {
     await context.observed('status', this.refresh('status', context.mutationId));
-    this.fileDiffs.bump(paths, 'index-changed');
     this.fileContents.invalidate(paths, 'index');
   }
 
-  private indexChanged(paths: 'all' | readonly PortableRelativePath[]): void {
+  private contentChanged(): void {
     this.invalidate('status');
-    this.fileDiffs.bump(paths, 'index-changed');
-    this.fileContents.invalidate(paths, 'index');
-  }
-
-  private contentChanged(paths: 'all' | readonly PortableRelativePath[]): void {
-    this.invalidate('status');
-    this.fileDiffs.bump(paths, 'content-changed');
   }
 
   private historyChanged(success: boolean): void {
     this.invalidate('status');
     this.invalidate('head');
-    this.fileDiffs.bump('all', 'ref-changed');
     this.fileContents.invalidate('all', 'history');
     if (success) this.repository.invalidate('refs');
-  }
-
-  private stashChanged(): void {
-    this.indexChanged('all');
-    this.repository.invalidate('stashes');
   }
 
   private syncChanged(): void {
@@ -449,16 +271,13 @@ export class CheckoutResource {
     this.repository.invalidate('refs');
   }
 
-  private onWorktreeEvents(events: { path: string }[]): void {
+  private onWorktreeEvents(_events: { path: string }[]): void {
     this.invalidate('status');
-    const paths = events.map((event) => this.toRelativePath(event.path));
-    this.fileDiffs.bump(paths, 'content-changed');
   }
 
   private onWorktreeResync(): void {
     this.invalidate('status');
     this.invalidate('head');
-    this.fileDiffs.bump('all', 'content-changed');
   }
 
   private computed<T>(name: string, compute: () => Promise<T>): Query<T> {
@@ -469,15 +288,6 @@ export class CheckoutResource {
       scope: this.statesScope,
       onError: (error) => this.onError(`${name} ${this.identity.checkoutRoot}`, error),
     });
-  }
-
-  private toRelativePath(filePath: string): PortableRelativePath {
-    const relative = path.relative(this.identity.checkoutRoot, filePath).replace(/\\/g, '/');
-    const parsed = parsePortableRelativePath(relative, { unicodeNormalization: 'preserve' });
-    if (!parsed.success || !parsed.data) {
-      throw new Error(`Watcher path is outside checkout: ${filePath}`);
-    }
-    return parsed.data;
   }
 
   private assertActive(): void {

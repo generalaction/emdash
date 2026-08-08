@@ -20,7 +20,7 @@ export async function renameConversation(
   const title = name.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
   const { row, client } = await resolveConversationHostClient(deps, conversationId);
 
-  const renamed = await client.rename({ id: conversationId, title });
+  const renamed = await client.rename({ conversationId, title });
   if (!renamed.success) {
     throw new Error(`Rename was rejected by the host: ${renamed.error.message}`);
   }

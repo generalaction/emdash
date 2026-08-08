@@ -9,7 +9,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
   getResolvedLabel,
@@ -269,28 +269,12 @@ class AppService implements Disposable {
     }
 
     const resolved = await workspace.files.client.fs.realPath({
-      root: workspace.files.root,
-      relative: relativePath.data,
+      path: resolveRelativePath(workspace.files.root, relativePath.data),
     });
     if (!resolved.success) return resolved;
 
-    shell.showItemInFolder(nativePathFromHost(resolved.data));
+    shell.showItemInFolder(nativePathFromHost(resolved.data.path));
     return ok();
-  }
-
-  /**
-   * Restricted to the user home directory: terminal output drives these reads,
-   * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.
-   * Symlinks are resolved before the home-jail check so they can't escape.
-   */
-  async readUserFile(rawPath: string, maxBytes = 1_048_576): Promise<{ content: string }> {
-    const realPath = await resolveHomeJailedPath(rawPath);
-    const stats = await stat(realPath);
-    if (stats.size > maxBytes) {
-      throw new Error(`File too large (${stats.size} bytes, max ${maxBytes})`);
-    }
-    const buffer = await readFile(realPath);
-    return { content: buffer.toString('utf8') };
   }
 
   clipboardWriteText(text: string): void {

@@ -415,7 +415,7 @@ describe('AcpRuntime session manager', () => {
     });
 
     expect(isOk(sent)).toBe(true);
-    expect(resolveAttachment).toHaveBeenCalledWith({
+    expect(resolveAttachment).toHaveBeenCalledWith('conv-attachment', {
       type: 'attachment',
       id: 'attachment-1',
       name: 'image.png',
@@ -469,6 +469,59 @@ describe('AcpRuntime session manager', () => {
       text: 'Fix @[ENG-123](issue:linear:ENG-123)',
     });
     expect(JSON.stringify(history.data.turns[0].items[0])).not.toContain('Context body');
+  });
+
+  it('delivers a prompt immediately with default placement when the session is idle', async () => {
+    const { h, rt } = await startHarness('conv-placement-auto');
+
+    const sent = await rt.sendPrompt('conv-placement-auto', { text: 'now' });
+
+    expect(isOk(sent)).toBe(true);
+    if (!isOk(sent)) return;
+    expect(sent.data).toEqual({ queued: false });
+    expect(h.agent.prompt).toHaveBeenCalledTimes(1);
+    expect(rt.getSessionState('conv-placement-auto').queuedPrompts).toEqual([]);
+  });
+
+  it('queues a prompt with default placement while a turn is active', async () => {
+    const { h, rt } = await startHarness('conv-placement-active');
+    let resolvePrompt!: (value: { stopReason: 'end_turn' }) => void;
+    h.agent.prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: 'end_turn' }>((resolve) => {
+          resolvePrompt = resolve;
+        })
+    );
+
+    const first = rt.sendPrompt('conv-placement-active', { text: 'first' });
+    const second = await rt.sendPrompt('conv-placement-active', { text: 'second' });
+
+    expect(isOk(second)).toBe(true);
+    if (!isOk(second)) return;
+    expect(second.data).toEqual({ queued: true });
+    expect(rt.getSessionState('conv-placement-active').queuedPrompts).toMatchObject([
+      { text: 'second' },
+    ]);
+
+    resolvePrompt({ stopReason: 'end_turn' });
+    const firstResult = await first;
+    expect(isOk(firstResult)).toBe(true);
+    if (!isOk(firstResult)) return;
+    expect(firstResult.data).toEqual({ queued: false });
+  });
+
+  it("always queues a prompt with placement 'queue', even while idle", async () => {
+    const { h, rt } = await startHarness('conv-placement-queue');
+
+    const result = await rt.sendPrompt('conv-placement-queue', { text: 'later' }, 'queue');
+
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.data).toEqual({ queued: true });
+    expect(h.agent.prompt).not.toHaveBeenCalled();
+    expect(rt.getSessionState('conv-placement-queue').queuedPrompts).toMatchObject([
+      { text: 'later' },
+    ]);
   });
 
   it('returns a resume result with replayed history', async () => {
@@ -581,7 +634,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     await rt.startSession(makeStartInput({ conversationId: 'conv-fresh' }));
 
     expect(reports.started).toEqual([
-      { id: 'conv-fresh', providerSessionId: 'session-1', resumeOutcome: null },
+      { conversationId: 'conv-fresh', providerSessionId: 'session-1', resumeOutcome: null },
     ]);
     expect(reports.activities).toContain('conv-fresh');
   });
@@ -598,7 +651,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     });
 
     expect(reports.started).toEqual([
-      { id: 'conv-resume', providerSessionId: 'session-old', resumeOutcome: 'loaded' },
+      { conversationId: 'conv-resume', providerSessionId: 'session-old', resumeOutcome: 'loaded' },
     ]);
   });
 
@@ -617,7 +670,11 @@ describe('AcpRuntime conversation lifecycle reports', () => {
 
     expect(isOk(result)).toBe(true);
     expect(reports.started).toEqual([
-      { id: 'conv-fallback', providerSessionId: 'session-1', resumeOutcome: 'replaced-by-new' },
+      {
+        conversationId: 'conv-fallback',
+        providerSessionId: 'session-1',
+        resumeOutcome: 'replaced-by-new',
+      },
     ]);
   });
 
@@ -644,7 +701,7 @@ describe('AcpRuntime conversation lifecycle reports', () => {
     });
 
     expect(reports.providerIds).toEqual([
-      { id: 'conv-rebind', providerSessionId: 'session-rebound' },
+      { conversationId: 'conv-rebind', providerSessionId: 'session-rebound' },
     ]);
   });
 

@@ -117,7 +117,7 @@ describe('workspace registry contract', () => {
   it('createWorkspace detects a repository and the records model lists it', async () => {
     const repoPath = await makeRepo(root, 'repo');
 
-    const created = await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    const created = await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     expect(created).toEqual({
       success: true,
       data: {
@@ -149,13 +149,13 @@ describe('workspace registry contract', () => {
   it('createWorkspace detects a plain directory (including subdirectories of a repo)', async () => {
     const plain = path.join(root, 'plain');
     await fs.mkdir(plain);
-    const created = await wire.client.createWorkspace({ id: 'ws-dir', path: plain });
+    const created = await wire.client.createWorkspace({ workspaceId: 'ws-dir', path: plain });
     expect(created).toMatchObject({ success: true, data: { kind: 'directory' } });
 
     const repoPath = await makeRepo(root, 'repo-with-sub');
     const sub = path.join(repoPath, 'packages');
     await fs.mkdir(sub);
-    const subCreated = await wire.client.createWorkspace({ id: 'ws-sub', path: sub });
+    const subCreated = await wire.client.createWorkspace({ workspaceId: 'ws-sub', path: sub });
     expect(subCreated).toMatchObject({ success: true, data: { kind: 'directory' } });
   });
 
@@ -163,7 +163,7 @@ describe('workspace registry contract', () => {
     const repoPath = await makeRepo(root, 'repo');
     const worktreePath = await makeWorktree(repoPath, root, 'wt-1');
 
-    const created = await wire.client.createWorkspace({ id: 'ws-wt', path: worktreePath });
+    const created = await wire.client.createWorkspace({ workspaceId: 'ws-wt', path: worktreePath });
     expect(created).toMatchObject({
       success: true,
       data: {
@@ -188,8 +188,8 @@ describe('workspace registry contract', () => {
 
   it('createWorkspace replays idempotently and rejects a divergent path', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    const first = await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
-    const replay = await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
+    const first = await wire.client.createWorkspace({ workspaceId: 'ws-1', path: repoPath });
+    const replay = await wire.client.createWorkspace({ workspaceId: 'ws-1', path: repoPath });
     if (!first.success || !replay.success) throw new Error('createWorkspace failed');
     // The config summary is a live-model projection and may fill in between the two
     // calls; replay idempotency is a property of the durable record.
@@ -199,7 +199,7 @@ describe('workspace registry contract', () => {
 
     const other = path.join(root, 'other');
     await fs.mkdir(other);
-    const divergent = await wire.client.createWorkspace({ id: 'ws-1', path: other });
+    const divergent = await wire.client.createWorkspace({ workspaceId: 'ws-1', path: other });
     expect(divergent).toMatchObject({
       success: false,
       error: { type: 'immutable-field-mismatch', workspaceId: 'ws-1' },
@@ -208,9 +208,9 @@ describe('workspace registry contract', () => {
 
   it('createWorkspace hands the existing record to a second registrant of the same path', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-a', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-a', path: repoPath });
 
-    const second = await wire.client.createWorkspace({ id: 'ws-b', path: repoPath });
+    const second = await wire.client.createWorkspace({ workspaceId: 'ws-b', path: repoPath });
     expect(second).toMatchObject({
       success: false,
       error: { type: 'already-registered', record: { id: 'ws-a', path: repoPath } },
@@ -219,7 +219,7 @@ describe('workspace registry contract', () => {
 
   it('createWorkspace errors on a nonexistent path', async () => {
     const missing = path.join(root, 'does-not-exist');
-    const created = await wire.client.createWorkspace({ id: 'ws-x', path: missing });
+    const created = await wire.client.createWorkspace({ workspaceId: 'ws-x', path: missing });
     expect(created).toEqual({
       success: false,
       error: { type: 'path-not-found', path: missing },
@@ -228,24 +228,24 @@ describe('workspace registry contract', () => {
 
   it('deleteWorkspace unregisters without touching disk and is idempotent', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-1', path: repoPath });
 
-    const deleted = await wire.client.deleteWorkspace({ id: 'ws-1' });
+    const deleted = await wire.client.deleteWorkspace({ workspaceId: 'ws-1' });
     expect(deleted).toEqual({ success: true, data: undefined });
     expect(await listRecords()).toEqual({});
     // The artifact is untouched.
     await fs.access(path.join(repoPath, 'README.md'));
 
-    const again = await wire.client.deleteWorkspace({ id: 'ws-1' });
+    const again = await wire.client.deleteWorkspace({ workspaceId: 'ws-1' });
     expect(again).toEqual({ success: true, data: undefined });
-    const absent = await wire.client.deleteWorkspace({ id: 'never-existed' });
+    const absent = await wire.client.deleteWorkspace({ workspaceId: 'never-existed' });
     expect(absent).toEqual({ success: true, data: undefined });
   });
 
   it('refresh observes git state with untracked lines counted as additions', async () => {
     const repoPath = await makeRepo(root, 'repo');
     const worktreePath = await makeWorktree(repoPath, root, 'wt-1');
-    const created = await wire.client.createWorkspace({ id: 'ws-wt', path: worktreePath });
+    const created = await wire.client.createWorkspace({ workspaceId: 'ws-wt', path: worktreePath });
     expect(created).toMatchObject({ success: true });
 
     // Only untracked changes: a new 3-line file plus an ignored file that must not count.
@@ -253,7 +253,7 @@ describe('workspace registry contract', () => {
     await fs.writeFile(path.join(worktreePath, '.gitignore'), 'ignored.txt\n');
     await fs.writeFile(path.join(worktreePath, 'ignored.txt'), 'x\n'.repeat(100));
 
-    const refreshed = await wire.client.refresh({ id: 'ws-wt' });
+    const refreshed = await wire.client.refresh({ workspaceId: 'ws-wt' });
     expect(refreshed).toEqual({ success: true, data: undefined });
 
     const records = await listRecords();
@@ -268,7 +268,7 @@ describe('workspace registry contract', () => {
 
   it('refresh adopts hand-made worktrees and un-adopts vanished ones', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktreePath = await makeWorktree(repoPath, root, 'hand-made');
 
     await wire.client.refresh({});
@@ -292,7 +292,7 @@ describe('workspace registry contract', () => {
   it('refresh flips vanished registered workspaces to missing and back', async () => {
     const plain = path.join(root, 'plain');
     await fs.mkdir(plain);
-    await wire.client.createWorkspace({ id: 'ws-dir', path: plain });
+    await wire.client.createWorkspace({ workspaceId: 'ws-dir', path: plain });
 
     await fs.rm(plain, { recursive: true, force: true });
     await wire.client.refresh({});
@@ -308,7 +308,7 @@ describe('workspace registry contract', () => {
   it('refresh relinks a moved worktree by its admin name, preserving identity', async () => {
     const repoPath = await makeRepo(root, 'repo');
     const worktreePath = await makeWorktree(repoPath, root, 'movable');
-    await wire.client.createWorkspace({ id: 'ws-moved', path: worktreePath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-moved', path: worktreePath });
 
     const movedPath = path.join(root, 'relocated');
     git(repoPath, 'worktree', 'move', worktreePath, movedPath);
@@ -323,8 +323,32 @@ describe('workspace registry contract', () => {
     });
   });
 
+  it('measureUsage reports total and reclaimable git-ignored artifact bytes by workspace id', async () => {
+    const repoPath = await makeRepo(root, 'repo');
+    await fs.writeFile(path.join(repoPath, '.gitignore'), 'dist/\n');
+    git(repoPath, 'add', '.gitignore');
+    git(repoPath, 'commit', '-m', 'ignore dist');
+    await fs.mkdir(path.join(repoPath, 'dist'));
+    await fs.writeFile(path.join(repoPath, 'dist', 'bundle.js'), 'x'.repeat(4_096));
+    await wire.client.createWorkspace({ workspaceId: 'ws-usage', path: repoPath });
+
+    const measured = await wire.client.measureUsage({ workspaceId: 'ws-usage' });
+    expect(measured).toMatchObject({ success: true, data: { errors: [] } });
+    if (!measured.success) throw new Error('expected success');
+    expect(measured.data.artifactBytes).toBeGreaterThan(0);
+    expect(measured.data.totalBytes).toBeGreaterThanOrEqual(measured.data.artifactBytes);
+  });
+
+  it('measureUsage of an unknown workspaceId is a typed not-found error', async () => {
+    const measured = await wire.client.measureUsage({ workspaceId: 'unknown' });
+    expect(measured).toEqual({
+      success: false,
+      error: { type: 'workspace-not-found', workspaceId: 'unknown' },
+    });
+  });
+
   it('refresh of an unknown id is a typed not-found error', async () => {
-    const refreshed = await wire.client.refresh({ id: 'unknown' });
+    const refreshed = await wire.client.refresh({ workspaceId: 'unknown' });
     expect(refreshed).toEqual({
       success: false,
       error: { type: 'workspace-not-found', workspaceId: 'unknown' },
@@ -346,11 +370,11 @@ describe('workspace registry contract', () => {
     await fs.writeFile(path.join(repoPath, 'node_modules', 'dep', 'index.js'), 'ok\n');
     git(repoPath, 'add', '.gitignore');
     git(repoPath, 'commit', '-m', 'ignore env');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     const worktreePath = path.join(root, 'feature-wt');
     const created = await wire.client.createWorktree({
-      id: 'ws-new',
+      workspaceId: 'ws-new',
       repositoryId: 'ws-repo',
       branch: 'feature/new',
       baseRef: 'main',
@@ -406,11 +430,11 @@ describe('workspace registry contract', () => {
     // Spec (git concurrency model): per-repository creation serialization is dropped;
     // git's own locking suffices for parallel `worktree add` calls.
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     const [first, second] = await Promise.all([
       wire.client.createWorktree({
-        id: 'wt-first',
+        workspaceId: 'wt-first',
         repositoryId: 'ws-repo',
         branch: 'parallel/first',
         baseRef: 'main',
@@ -419,7 +443,7 @@ describe('workspace registry contract', () => {
         pushBranch: false,
       }),
       wire.client.createWorktree({
-        id: 'wt-second',
+        workspaceId: 'wt-second',
         repositoryId: 'ws-repo',
         branch: 'parallel/second',
         baseRef: 'main',
@@ -438,11 +462,11 @@ describe('workspace registry contract', () => {
 
   it('createWorktree failure records the stage durably and keeps the record', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     const worktreePath = path.join(root, 'doomed-wt');
     const created = await wire.client.createWorktree({
-      id: 'ws-doomed',
+      workspaceId: 'ws-doomed',
       repositoryId: 'ws-repo',
       branch: 'feature/doomed',
       baseRef: 'refs/heads/does-not-exist',
@@ -468,10 +492,10 @@ describe('workspace registry contract', () => {
 
   it('createWorktree replays: succeeded is a no-op, a failed push retries manually, divergent errors', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktreePath = path.join(root, 'retry-wt');
     const input = {
-      id: 'ws-retry',
+      workspaceId: 'ws-retry',
       repositoryId: 'ws-repo',
       branch: 'feature/retry',
       baseRef: 'main',
@@ -505,7 +529,7 @@ describe('workspace registry contract', () => {
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
-    const retried = await wire.client.retryStep({ id: 'ws-retry', step: 'push-branch' });
+    const retried = await wire.client.retryStep({ workspaceId: 'ws-retry', step: 'push-branch' });
     expect(retried).toMatchObject({ success: true });
     if (!retried.success) throw new Error('expected success');
     expect(lifecycleStep(retried.data, 'push-branch')).toMatchObject({ status: 'succeeded' });
@@ -522,7 +546,7 @@ describe('workspace registry contract', () => {
 
   it('an interrupted creation reads as started with no overlay and retries to success', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
     const worktreePath = path.join(root, 'interrupted-wt');
 
     // Simulated daemon crash mid-flight: the durable registration exists ('started'),
@@ -560,7 +584,7 @@ describe('workspace registry contract', () => {
 
     // The host never re-converges on its own — only a client retry resolves it.
     const retried = await wire.client.createWorktree({
-      id: 'ws-interrupted',
+      workspaceId: 'ws-interrupted',
       repositoryId: 'ws-repo',
       branch: 'feature/interrupted',
       baseRef: 'main',
@@ -587,7 +611,7 @@ describe('workspace registry contract', () => {
     git(root, 'init', '--bare', originPath);
     git(seed, 'push', originPath, 'main', 'HEAD:refs/pull/7/head');
     git(repoPath, 'remote', 'add', 'origin', originPath);
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     const worktreePath = path.join(root, 'pr-wt');
     const gitSetup = {
@@ -598,7 +622,7 @@ describe('workspace registry contract', () => {
     };
     // baseRef omitted: fetchBranch materializes the branch instead.
     const created = await wire.client.createWorktree({
-      id: 'ws-pr',
+      workspaceId: 'ws-pr',
       repositoryId: 'ws-repo',
       branch: 'pr/7/fix',
       path: worktreePath,
@@ -645,10 +669,10 @@ describe('workspace registry contract', () => {
     const originPath = path.join(root, 'origin.git');
     git(root, 'init', '--bare', originPath);
     git(repoPath, 'remote', 'add', 'origin', originPath);
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     const created = await wire.client.createWorktree({
-      id: 'ws-doomed',
+      workspaceId: 'ws-doomed',
       repositoryId: 'ws-repo',
       branch: 'pr/9/missing',
       path: path.join(root, 'doomed-wt'),
@@ -688,7 +712,7 @@ describe('workspace registry contract', () => {
     git(root, 'init', '--bare', originPath);
     git(seed, 'push', originPath, 'main', 'HEAD:refs/pull/7/head');
     git(repoPath, 'remote', 'add', 'origin', originPath);
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     // Simulated crash after fetch-branch, before add-worktree: the branch exists,
     // the record says 'started', and the rebuilt runtime has no overlay.
@@ -725,7 +749,7 @@ describe('workspace registry contract', () => {
     wire = createTestWire(workspaceRegistryContract, createWorkspaceRegistryController(runtime));
 
     const replayed = await wire.client.createWorktree({
-      id: 'ws-replayed',
+      workspaceId: 'ws-replayed',
       repositoryId: 'ws-repo',
       branch: 'pr/7/fix',
       path: worktreePath,
@@ -752,11 +776,11 @@ describe('workspace registry contract', () => {
 
   it('concurrent same-repository creations serialize and both succeed', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath });
 
     const [a, b] = await Promise.all([
       wire.client.createWorktree({
-        id: 'ws-a',
+        workspaceId: 'ws-a',
         repositoryId: 'ws-repo',
         branch: 'feature/a',
         baseRef: 'main',
@@ -765,7 +789,7 @@ describe('workspace registry contract', () => {
         pushBranch: false,
       }),
       wire.client.createWorktree({
-        id: 'ws-b',
+        workspaceId: 'ws-b',
         repositoryId: 'ws-repo',
         branch: 'feature/b',
         baseRef: 'main',
@@ -786,7 +810,7 @@ describe('workspace registry contract', () => {
 
   it('fs events refresh observations without any client call', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-live', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-live', path: repoPath });
 
     const watchService = createWatchService({ backend: nativeWatchBackend() });
     const scheduler = new WorkspaceScanScheduler({
@@ -816,7 +840,7 @@ describe('workspace registry contract', () => {
 
   it('registry state survives a runtime rebuild over the same store', async () => {
     const repoPath = await makeRepo(root, 'repo');
-    await wire.client.createWorkspace({ id: 'ws-1', path: repoPath });
+    await wire.client.createWorkspace({ workspaceId: 'ws-1', path: repoPath });
 
     // Simulated daemon restart: new runtime over the same durable store.
     wire.dispose();

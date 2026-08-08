@@ -1,5 +1,6 @@
+import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import { FILE_SEARCH_MAX_QUERY_LENGTH } from '@emdash/core/runtimes/file-search/api';
-import { copyNameForConflict } from '@emdash/core/runtimes/files/api';
+import { copyNameForConflict, MAX_FILE_UPLOAD_BYTES } from '@emdash/core/runtimes/files/api';
 import {
   FileTree,
   canMoveNode,
@@ -33,16 +34,14 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { MAX_EDITOR_FILE_UPLOAD_BYTES } from '@core/features/editor/api';
-import { getEditorClient } from '@core/features/editor/api/browser/client';
 import type { RenderableFileNode } from '@core/features/editor/api/browser/file-tree/tree-utils';
-import { editorFilePath } from '@core/features/editor/api/browser/files';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileContentSearchResults } from '@core/features/editor/browser/task-editor/file-content-search';
 import type { TreeMutationError } from '@core/features/editor/browser/task-editor/stores/files-store';
 import type { FilesStore } from '@core/features/editor/browser/task-editor/stores/files-store';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { fileTreeScope } from '@core/features/editor/contributions/scopes';
+import { getFilesClient } from '@core/features/files/api/browser/client';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { openFile as openWorkbenchFile } from '@core/features/workbench/api/browser/open-file';
@@ -99,14 +98,21 @@ function conflictPaths(error: ResultLikeError): string[] {
 
 async function importLocalFiles(args: {
   files: FilesStore;
-  workspaceId: string;
   workspacePath: string;
+  sshConnectionId?: string;
   sourceFiles: File[];
   destDirPath: string;
   overwrite?: boolean;
 }): Promise<void> {
-  const { files, workspaceId, workspacePath, sourceFiles, destDirPath, overwrite = false } = args;
-  const oversizedFile = sourceFiles.find((file) => file.size > MAX_EDITOR_FILE_UPLOAD_BYTES);
+  const {
+    files,
+    workspacePath,
+    sshConnectionId,
+    sourceFiles,
+    destDirPath,
+    overwrite = false,
+  } = args;
+  const oversizedFile = sourceFiles.find((file) => file.size > MAX_FILE_UPLOAD_BYTES);
   if (oversizedFile) {
     toast.error('Import failed', {
       description: `${oversizedFile.name} exceeds the 10 MB upload limit.`,
@@ -147,8 +153,8 @@ async function importLocalFiles(args: {
       if (outcome.success) {
         void importLocalFiles({
           files,
-          workspaceId,
           workspacePath,
+          sshConnectionId,
           sourceFiles,
           destDirPath,
           overwrite: true,
@@ -161,17 +167,18 @@ async function importLocalFiles(args: {
   };
 
   try {
-    const client = await getEditorClient();
+    const client = await getFilesClient();
+    const destinationUri = (destination: string) =>
+      encodeResourceUri(hostFileRefFromNativePath(destination, sshConnectionId));
     if (!overwrite) {
       const conflicts: string[] = [];
       for (const destination of destinations) {
-        const target = editorFilePath(workspaceId, workspacePath, destination);
-        const result = await client.fs.exists(target);
+        const result = await client.fs.exists({ uri: destinationUri(destination) });
         if (!result.success) {
           await handleFailure(result.error);
           return;
         }
-        if (result.data) conflicts.push(target.relative);
+        if (result.data.exists) conflicts.push(relativeToWorkspace(workspacePath, destination));
       }
       if (conflicts.length > 0) {
         await handleFailure({
@@ -184,9 +191,8 @@ async function importLocalFiles(args: {
     }
 
     for (const [index, sourceFile] of sourceFiles.entries()) {
-      const destination = editorFilePath(workspaceId, workspacePath, destinations[index]);
       const result = await client.fs.upload(
-        { workspaceId, path: destination.relative, overwrite },
+        { uri: destinationUri(destinations[index]), overwrite },
         {
           name: sourceFile.name,
           mimeType: sourceFile.type || 'application/octet-stream',
@@ -273,17 +279,18 @@ export const EditorFileTree = observer(function EditorFileTree() {
   }, [expandedPaths, files]);
 
   React.useEffect(() => {
-    const activePath = activeFile?.isExternal ? null : (activeFile?.path ?? null);
+    const activePath = activeFile?.path ?? null;
     if (!activePath) {
       lastSyncedActivePathRef.current = null;
       return;
     }
     if (lastSyncedActivePathRef.current === activePath) return;
+    // Paths outside the workspace tree simply have no node to select.
     if (!nodeByPath.has(activePath)) return;
     lastSyncedActivePathRef.current = activePath;
     setSelectedPaths(new Set([activePath]));
     setSelectionAnchorPath(activePath);
-  }, [activeFile?.isExternal, activeFile?.path, nodeByPath]);
+  }, [activeFile?.path, nodeByPath]);
 
   React.useEffect(() => {
     setSelectedPaths((current) => prunePathSet(current, nodeByPath));
@@ -487,9 +494,9 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const copyFile = async (node: FileTreeNode) => {
     if (!isOpenableFileTreeNode(node)) return;
     try {
-      const client = await getEditorClient();
+      const client = await getFilesClient();
       const result = await client.fs.readText({
-        ...editorFilePath(workspaceId, workspace.path, node.path),
+        uri: encodeResourceUri(hostFileRefFromNativePath(node.path, workspace.sshConnectionId)),
         options: { maxBytes: MAX_COPY_FILE_BYTES },
       });
       if (!result.success) {
@@ -511,15 +518,15 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   const copyPath = async (node: FileTreeNode) => {
     try {
-      const client = await getEditorClient();
-      const result = await client.fs.realPath(
-        editorFilePath(workspaceId, workspace.path, node.path)
-      );
+      const client = await getFilesClient();
+      const result = await client.fs.realPath({
+        uri: encodeResourceUri(hostFileRefFromNativePath(node.path, workspace.sshConnectionId)),
+      });
       if (!result.success) {
         toast.error('Copy failed', { description: resultErrorMessage(result.error) });
         return;
       }
-      await copyTextToClipboard(nativePathFromHost(result.data));
+      await copyTextToClipboard(nativePathFromHost(result.data.path));
       toast('Path copied');
     } catch (error) {
       toast.error('Copy failed', {
@@ -843,8 +850,8 @@ export const EditorFileTree = observer(function EditorFileTree() {
                 if (sourceFiles.length === 0) return;
                 void importLocalFiles({
                   files,
-                  workspaceId,
                   workspacePath: workspace.path,
+                  sshConnectionId: workspace.sshConnectionId,
                   sourceFiles,
                   destDirPath: targetDirPath,
                 });

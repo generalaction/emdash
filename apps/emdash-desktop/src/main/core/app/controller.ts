@@ -75,17 +75,6 @@ export const appOperations = {
       error: 'message' in result.error ? result.error.message : result.error.type,
     };
   },
-  readUserFile: async (path: string) => {
-    try {
-      const result = await appService.readUserFile(path);
-      return { success: true as const, ...result };
-    } catch (error) {
-      return {
-        success: false as const,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  },
   clipboardWriteText: async (text: string) => {
     try {
       appService.clipboardWriteText(text);

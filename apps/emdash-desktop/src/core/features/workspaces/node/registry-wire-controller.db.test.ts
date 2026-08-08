@@ -63,13 +63,15 @@ describe('createWorkspaceRegistryWireController', () => {
       drop: vi.fn<(kind: string, id: string) => void>(),
     };
     hostVerbs = {
-      createWorkspace: vi.fn(async (input: { id: string; path: string }) =>
-        ok(hostRecord({ id: input.id, path: input.path }))
+      createWorkspace: vi.fn(async (input: { workspaceId: string; path: string }) =>
+        ok(hostRecord({ id: input.workspaceId, path: input.path }))
       ),
-      createWorktree: vi.fn(async (input: { id: string; path: string }) =>
-        ok(hostRecord({ id: input.id, path: input.path, parentId: 'ws-repo' }))
+      createWorktree: vi.fn(async (input: { workspaceId: string; path: string }) =>
+        ok(hostRecord({ id: input.workspaceId, path: input.path, parentId: 'ws-repo' }))
       ),
-      activateWorkspace: vi.fn(async (input: { id: string }) => ok(hostRecord({ id: input.id }))),
+      activateWorkspace: vi.fn(async (input: { workspaceId: string }) =>
+        ok(hostRecord({ id: input.workspaceId }))
+      ),
       deactivateWorkspace: vi.fn(async () => ok(undefined)),
       deleteWorkspace: vi.fn(async () => ok(undefined)),
       deleteWorktree: vi.fn(async () => ok(undefined)),
@@ -187,7 +189,7 @@ describe('createWorkspaceRegistryWireController', () => {
 
       expect(result.success).toBe(true);
       expect(hostVerbs.createWorktree).toHaveBeenCalledWith({
-        id: 'minted-id',
+        workspaceId: 'minted-id',
         repositoryId: 'ws-repo',
         branch: 'feature/x',
         baseRef: 'origin/main',
@@ -217,14 +219,17 @@ describe('createWorkspaceRegistryWireController', () => {
           deleteBranch: true,
         })
       ).resolves.toEqual(err({ type: 'not-a-worktree', workspaceId: 'ws-1' }));
-      expect(hostVerbs.deleteWorktree).toHaveBeenCalledWith({ id: 'ws-1', deleteBranch: true });
+      expect(hostVerbs.deleteWorktree).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        deleteBranch: true,
+      });
 
       await wire.call('activateWorkspace', { host: LOCAL_HOST_REF, workspaceId: 'ws-2' });
-      expect(hostVerbs.activateWorkspace).toHaveBeenCalledWith({ id: 'ws-2' });
+      expect(hostVerbs.activateWorkspace).toHaveBeenCalledWith({ workspaceId: 'ws-2' });
       await wire.call('deactivateWorkspace', { host: LOCAL_HOST_REF, workspaceId: 'ws-2' });
-      expect(hostVerbs.deactivateWorkspace).toHaveBeenCalledWith({ id: 'ws-2' });
+      expect(hostVerbs.deactivateWorkspace).toHaveBeenCalledWith({ workspaceId: 'ws-2' });
       await wire.call('deleteWorkspace', { host: LOCAL_HOST_REF, workspaceId: 'ws-2' });
-      expect(hostVerbs.deleteWorkspace).toHaveBeenCalledWith({ id: 'ws-2' });
+      expect(hostVerbs.deleteWorkspace).toHaveBeenCalledWith({ workspaceId: 'ws-2' });
       await wire.call('refresh', { host: LOCAL_HOST_REF });
       expect(hostVerbs.refresh).toHaveBeenCalledWith({});
     });

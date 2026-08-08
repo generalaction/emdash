@@ -50,7 +50,7 @@ export async function inspectProjectConfigMigrations(
     log.warn(`Failed to inspect ${CONFIG_FILE} before config migration`, existingConfig.error);
     return [];
   }
-  if (existingConfig.data) return [];
+  if (existingConfig.data.exists) return [];
 
   const migrations = await Promise.all(
     PROJECT_CONFIG_MIGRATORS.map(async (migrator) => {
@@ -78,7 +78,7 @@ export async function migrateProjectConfigFromProvider(
         `Could not check existing ${CONFIG_FILE}: ${fsErrorMessage(existingConfig.error)}`
       );
     }
-    if (existingConfig.data) {
+    if (existingConfig.data.exists) {
       return writeConfigFailed(`${CONFIG_FILE} already exists.`);
     }
 

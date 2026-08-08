@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { AttachmentMimeType, AttachmentRef } from '#runtimes/acp/api';
 import type {
@@ -22,7 +22,70 @@ type AttachmentRecord = {
       };
 };
 
+/**
+ * Per-conversation layout (spec §3.6): `<root>/conversations/<conversationId>/` holds that
+ * conversation's `index.json` and copied bytes under `objects/`, so conversation deletion is
+ * one recursive directory removal. Pre-v8 flat-keyed attachments (`<root>/index.json`,
+ * `<root>/objects/`) are orphaned and left inert — no migration by design.
+ */
 export class LocalAttachmentStore implements AttachmentStore {
+  private readonly conversationsDir: string;
+  private readonly conversations = new Map<string, ConversationAttachmentStore>();
+
+  constructor(rootDir: string) {
+    this.conversationsDir = join(rootDir, 'conversations');
+  }
+
+  async put(input: {
+    conversationId: string;
+    data?: Uint8Array;
+    name?: string;
+    mimeType: AttachmentMimeType;
+    originalPath?: string;
+  }): Promise<AttachmentRef> {
+    return this.forConversation(input.conversationId).put(input);
+  }
+
+  async get(conversationId: string, attachmentId: string): Promise<StoredAttachment | null> {
+    return this.forConversation(conversationId).get(attachmentId);
+  }
+
+  async delete(conversationId: string, attachmentId: string): Promise<void> {
+    return this.forConversation(conversationId).delete(attachmentId);
+  }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    assertSafePathSegment(conversationId);
+    this.conversations.delete(conversationId);
+    await rm(join(this.conversationsDir, conversationId), { recursive: true, force: true });
+  }
+
+  private forConversation(conversationId: string): ConversationAttachmentStore {
+    assertSafePathSegment(conversationId);
+    let store = this.conversations.get(conversationId);
+    if (!store) {
+      store = new ConversationAttachmentStore(join(this.conversationsDir, conversationId));
+      this.conversations.set(conversationId, store);
+    }
+    return store;
+  }
+}
+
+/** Conversation ids are wire input used as a path segment; refuse anything path-like. */
+function assertSafePathSegment(conversationId: string): void {
+  if (
+    conversationId.length === 0 ||
+    conversationId === '.' ||
+    conversationId === '..' ||
+    conversationId.includes('/') ||
+    conversationId.includes('\\') ||
+    conversationId.includes('\0')
+  ) {
+    throw new Error(`Invalid conversation id for attachment storage: '${conversationId}'`);
+  }
+}
+
+class ConversationAttachmentStore {
   private readonly indexPath: string;
   private readonly objectsDir: string;
   private readonly records = new Map<string, AttachmentRecord>();
@@ -113,7 +176,6 @@ export class LocalAttachmentStore implements AttachmentStore {
   }
 
   private async load(): Promise<void> {
-    await mkdir(this.objectsDir, { recursive: true });
     let contents: string;
     try {
       contents = await readFile(this.indexPath, 'utf8');

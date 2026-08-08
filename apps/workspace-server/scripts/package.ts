@@ -49,7 +49,6 @@ const expectedEntryBundleNames = [
   'index.mjs',
   'terminals-runtime.mjs',
   'tui-agents-runtime.mjs',
-  'workspace-host-runtime.mjs',
 ] as const;
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, '..');

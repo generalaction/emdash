@@ -17,19 +17,19 @@ const remoteHost = hostRef('remote', 'ssh-2');
 
 describe('createFilesWireController', () => {
   it('decodes the URI and routes each fs procedure to the host it names', async () => {
-    const exists = vi.fn(async () => ok(true));
+    const exists = vi.fn(async () => ok({ exists: true }));
     const client = vi.fn(async () => ok({ files: { fs: { exists } } }));
     const controller = createFilesWireController({ runtimes: { client } as never });
 
     await expect(
       controller.call('fs.exists', { uri: uriFor(LOCAL_HOST_REF, '/repo/a.txt') })
-    ).resolves.toEqual(ok(true));
+    ).resolves.toEqual(ok({ exists: true }));
     expect(client).toHaveBeenLastCalledWith(LOCAL_HOST_REF);
     expect(exists).toHaveBeenLastCalledWith({ path: absolute('/repo/a.txt') }, {});
 
     await expect(
       controller.call('fs.exists', { uri: uriFor(remoteHost, '/home/dev/b.txt') })
-    ).resolves.toEqual(ok(true));
+    ).resolves.toEqual(ok({ exists: true }));
     expect(client).toHaveBeenLastCalledWith(remoteHost);
     expect(exists).toHaveBeenLastCalledWith({ path: absolute('/home/dev/b.txt') }, {});
   });
@@ -77,46 +77,43 @@ describe('createFilesWireController', () => {
     await lease?.release();
   });
 
-  it('forwards mutations with decoded absolute targets', async () => {
-    const createFile = vi.fn(async () => ok(undefined));
-    const move = vi.fn(async () => ok(undefined));
-    const client = vi.fn(async () => ok({ files: { mutations: { createFile, move } } }));
+  it('forwards fs writes with decoded absolute targets', async () => {
+    const createDirectory = vi.fn(async () => ok(undefined));
+    const deleteEntry = vi.fn(async () => ok(undefined));
+    const rename = vi.fn(async () => ok(undefined));
+    const client = vi.fn(async () =>
+      ok({ files: { fs: { createDirectory, delete: deleteEntry, rename } } })
+    );
     const controller = createFilesWireController({ runtimes: { client } as never });
 
     await expect(
-      controller.call('mutations.createFile', {
-        uri: uriFor(LOCAL_HOST_REF, '/repo/new.txt'),
-        content: 'seed',
+      controller.call('fs.createDirectory', {
+        uri: uriFor(LOCAL_HOST_REF, '/repo/new-dir'),
       })
     ).resolves.toEqual(ok(undefined));
-    expect(createFile).toHaveBeenCalledWith(
-      { path: absolute('/repo/new.txt'), content: 'seed' },
+    expect(createDirectory).toHaveBeenCalledWith({ path: absolute('/repo/new-dir') }, {});
+
+    await expect(
+      controller.call('fs.delete', {
+        uri: uriFor(LOCAL_HOST_REF, '/repo/new-dir'),
+        recursive: true,
+      })
+    ).resolves.toEqual(ok(undefined));
+    expect(deleteEntry).toHaveBeenCalledWith(
+      { path: absolute('/repo/new-dir'), recursive: true },
       {}
     );
 
     await expect(
-      controller.call('mutations.move', {
-        uri: uriFor(LOCAL_HOST_REF, '/repo/new.txt'),
-        to: uriFor(LOCAL_HOST_REF, '/repo/sub/new.txt'),
+      controller.call('fs.rename', {
+        from: uriFor(LOCAL_HOST_REF, '/repo/a.txt'),
+        to: uriFor(LOCAL_HOST_REF, '/repo/b.txt'),
       })
     ).resolves.toEqual(ok(undefined));
-    expect(move).toHaveBeenCalledWith(
-      { from: absolute('/repo/new.txt'), to: absolute('/repo/sub/new.txt') },
+    expect(rename).toHaveBeenCalledWith(
+      { from: absolute('/repo/a.txt'), to: absolute('/repo/b.txt') },
       {}
     );
-  });
-
-  it('rejects rename and move whose endpoints name different hosts', async () => {
-    const client = vi.fn();
-    const controller = createFilesWireController({ runtimes: { client } as never });
-
-    await expect(
-      controller.call('mutations.rename', {
-        uri: uriFor(LOCAL_HOST_REF, '/repo/a.txt'),
-        to: uriFor(remoteHost, '/repo/b.txt'),
-      })
-    ).resolves.toMatchObject({ success: false, error: { type: 'invalid-path' } });
-    expect(client).not.toHaveBeenCalled();
   });
 
   it('passes the downloaded byte stream through', async () => {
@@ -180,7 +177,10 @@ describe('createFilesWireController', () => {
 
     await expect(controller.call('fs.exists', { uri })).resolves.toEqual(err(resolveError));
     await expect(controller.call('fs.readBytes', { uri })).resolves.toEqual(err(resolveError));
-    await expect(controller.call('mutations.delete', { uri })).resolves.toEqual(err(resolveError));
+    await expect(controller.call('fs.delete', { uri })).resolves.toEqual(err(resolveError));
+    await expect(
+      controller.call('fs.rename', { from: uri, to: uriFor(LOCAL_HOST_REF, '/repo/x.md') })
+    ).resolves.toEqual(err(resolveError));
     await expect(
       controller.call('content.write', {
         key: { uri, source: 'disk' },

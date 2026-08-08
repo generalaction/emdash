@@ -1,3 +1,4 @@
+import { err, ok } from '@emdash/shared';
 import { createController } from '@emdash/wire/rpc';
 import { defineWireComponent } from '@emdash/wire/worker';
 import { z } from 'zod';
@@ -14,7 +15,16 @@ export const resourceUsageComponent = defineWireComponent({
     return instance({
       scope,
       controller: createController(resourceUsageContract, {
-        sample: () => runtime.sample(),
+        sample: async () => {
+          try {
+            return ok(await runtime.sample());
+          } catch (error) {
+            return err({
+              type: 'sample-failed',
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
+        },
       }),
     });
   },

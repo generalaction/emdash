@@ -1,4 +1,4 @@
-import { parseAbsolute } from '@emdash/core/primitives/path/api';
+import type { MeasureUsageError } from '@emdash/core/runtimes/workspace-registry/api';
 import {
   runtimeResolveErrorAsError,
   type RuntimeBroker,
@@ -60,24 +60,24 @@ async function measureRow(
   if (row.pathState === 'no-path') {
     return { path: row.path, success: false, message: 'Workspace path is not available.' };
   }
+  if (row.workspaceId === null) {
+    return { path: row.path, success: false, message: 'Workspace is not registered.' };
+  }
 
   try {
     const host = projectWorkspaceHost(project);
     const runtime = await dependencies.runtimes.client(host);
     if (!runtime.success) throw runtimeResolveErrorAsError(runtime.error);
-    const workspacePath = parseAbsolute(row.path);
-    if (!workspacePath.success) {
-      return { path: row.path, success: false, message: workspacePath.error.message };
-    }
-    const usage = await runtime.data.workspaceHost.measureUsage({
-      workspacePath: workspacePath.data,
+    const usage = await runtime.data.workspaceRegistry.measureUsage({
+      workspaceId: row.workspaceId,
     });
     if (!usage.success) {
+      const message = measureUsageErrorMessage(usage.error);
       return {
         path: row.path,
         success: false,
-        message: usage.error.message,
-        errors: [{ path: row.path, message: usage.error.message }],
+        message,
+        errors: [{ path: row.path, message }],
       };
     }
     return {
@@ -96,4 +96,10 @@ async function measureRow(
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function measureUsageErrorMessage(error: MeasureUsageError): string {
+  return error.type === 'workspace-not-found'
+    ? 'Workspace is not registered on the host.'
+    : error.message;
 }

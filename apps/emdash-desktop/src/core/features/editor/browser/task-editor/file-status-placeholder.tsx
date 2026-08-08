@@ -3,7 +3,7 @@ import { FileQuestion, FileX, FileX2, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
+import { openWithOS } from '@core/features/workbench/api/browser/open-with-os';
 
 /**
  * Placeholder for a file tab whose OpenFileStore entry is not ready: the
@@ -43,7 +43,7 @@ export const FileStatusPlaceholder = observer(function FileStatusPlaceholder({
   }
 
   const openInDefaultApp = () => {
-    void getHostClient().then((client) => client.openPath({ path: resource.path }));
+    void openWithOS(resource.ref ?? resource.path);
   };
   const retry = () => resource.retryLoad();
 

@@ -10,20 +10,24 @@ const repositoriesRoot = '/home/devuser/emdash/repositories';
 
 function makeHarness(existingPaths: string[]) {
   const existing = new Set(['/', '/home', ...existingPaths]);
-  const exists = vi.fn(async ({ root, relative }) => {
-    const parent = nativePathFromHost(root);
-    if (!existing.has(parent)) return err({ type: 'not-found' as const, path: relative });
-    const candidate = relative ? path.posix.join(parent, relative) : parent;
-    return ok(existing.has(candidate));
-  });
-  const createDirectory = vi.fn(async ({ root, path: relative }) => {
-    const parent = nativePathFromHost(root);
-    const candidate = path.posix.join(parent, relative);
-    if (!existing.has(parent)) return err({ type: 'not-found' as const, path: relative });
-    if (existing.has(candidate)) return err({ type: 'already-exists' as const, path: relative });
-    existing.add(candidate);
-    return ok();
-  });
+  const exists = vi.fn(
+    async ({ path: target }: { path: Parameters<typeof nativePathFromHost>[0] }) => {
+      const candidate = nativePathFromHost(target);
+      return ok({ exists: existing.has(candidate) });
+    }
+  );
+  const createDirectory = vi.fn(
+    async ({ path: target }: { path: Parameters<typeof nativePathFromHost>[0] }) => {
+      const candidate = nativePathFromHost(target);
+      const parent = path.posix.dirname(candidate);
+      if (!existing.has(parent)) return err({ type: 'not-found' as const, path: candidate });
+      if (existing.has(candidate)) {
+        return err({ type: 'already-exists' as const, path: candidate });
+      }
+      existing.add(candidate);
+      return ok();
+    }
+  );
   const placement = {
     resolveRepositoriesRoot: vi.fn(async () => ok(repositoriesRoot)),
   };
@@ -31,8 +35,7 @@ function makeHarness(existingPaths: string[]) {
     client: vi.fn(async () =>
       ok({
         files: {
-          fs: { exists },
-          mutations: { createDirectory },
+          fs: { exists, createDirectory },
         },
       })
     ),
@@ -72,8 +75,7 @@ describe('ensureDefaultRepositoriesRoot', () => {
     });
     expect(createDirectory).toHaveBeenCalledOnce();
     expect(createDirectory).toHaveBeenCalledWith({
-      root: hostPathFromNative('/home/devuser/emdash'),
-      path: 'repositories',
+      path: hostPathFromNative(repositoriesRoot),
     });
   });
 
@@ -85,18 +87,8 @@ describe('ensureDefaultRepositoriesRoot', () => {
       data: repositoriesRoot,
     });
     expect(createDirectory.mock.calls).toEqual([
-      [
-        {
-          root: hostPathFromNative('/home/devuser'),
-          path: 'emdash',
-        },
-      ],
-      [
-        {
-          root: hostPathFromNative('/home/devuser/emdash'),
-          path: 'repositories',
-        },
-      ],
+      [{ path: hostPathFromNative('/home/devuser/emdash') }],
+      [{ path: hostPathFromNative(repositoriesRoot) }],
     ]);
   });
 });

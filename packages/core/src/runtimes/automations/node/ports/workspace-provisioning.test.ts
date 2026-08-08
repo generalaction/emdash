@@ -148,8 +148,8 @@ describe('createWorkspacePortFromDependency', () => {
 
       expect(wire.calls.createWorktree).toHaveLength(1);
       const request = wire.calls.createWorktree[0]!;
-      expect(request.id).toBe('run-1');
-      expect(request.repositoryId).toBe(wire.calls.createWorkspace[0]!.id);
+      expect(request.workspaceId).toBe('run-1');
+      expect(request.repositoryId).toBe(wire.calls.createWorkspace[0]!.workspaceId);
       expect(request.branch).toBe('emdash abc');
       expect(request.baseRef).toBe('origin/main');
       expect(request.pushBranch).toBe(false);
@@ -365,7 +365,7 @@ describe('createWorkspacePortFromDependency', () => {
         if (attempt === 1) {
           return err({ type: 'stage-failed' as const, stage: 'fetch', message: 'network down' });
         }
-        return ok(stubRecord(input.id, input.path, 'worktree'));
+        return ok(stubRecord(input.workspaceId, input.path, 'worktree'));
       },
     });
     const port = createWorkspacePortFromDependency(wire.client, admissionStub().client);
@@ -392,7 +392,7 @@ describe('createWorkspacePortFromDependency', () => {
       // duplicate creation.
       expect(wire.calls.createWorktree).toHaveLength(2);
       expect(wire.calls.createWorktree[1]).toEqual(wire.calls.createWorktree[0]);
-      expect(wire.calls.createWorktree[0]!.id).toBe('run-replay');
+      expect(wire.calls.createWorktree[0]!.workspaceId).toBe('run-replay');
       expect(wire.calls.createWorktree[0]!.path).toBe(expectedWorktreePath);
     } finally {
       await wire.dispose();
@@ -462,17 +462,17 @@ function registryWire(
       calls.createWorkspace.push(input);
       if (options.createWorkspace) return options.createWorkspace(input);
       const existing = byPath.get(input.path);
-      if (existing && existing.id !== input.id) {
+      if (existing && existing.id !== input.workspaceId) {
         return err({ type: 'already-registered' as const, record: existing });
       }
-      const record = existing ?? stubRecord(input.id, input.path, 'repository');
+      const record = existing ?? stubRecord(input.workspaceId, input.path, 'repository');
       byPath.set(input.path, record);
       return ok(record);
     },
     createWorktree: async (input, meta) => {
       calls.createWorktree.push(input);
       if (options.createWorktree) return await options.createWorktree(input, meta);
-      return ok(stubRecord(input.id, input.path, 'worktree'));
+      return ok(stubRecord(input.workspaceId, input.path, 'worktree'));
     },
     activateWorkspace: async () => {
       throw new Error('unused');

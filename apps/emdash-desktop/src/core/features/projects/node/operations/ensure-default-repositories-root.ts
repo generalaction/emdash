@@ -44,7 +44,7 @@ async function ensureDirectory(
   for (;;) {
     const key = fileKeyForAbsolutePath(candidate);
     const exists = await files.fs.exists(key);
-    if (exists.success && exists.data) break;
+    if (exists.success && exists.data.exists) break;
     if (!exists.success && exists.error.type !== 'not-found') {
       return filesystemUnavailable(candidate, exists.error);
     }
@@ -64,8 +64,7 @@ async function ensureDirectory(
   for (let index = missingDirectories.length - 1; index >= 0; index -= 1) {
     const directory = missingDirectories[index];
     if (!directory) continue;
-    const key = fileKeyForAbsolutePath(directory);
-    const created = await files.mutations.createDirectory({ root: key.root, path: key.relative });
+    const created = await files.fs.createDirectory(fileKeyForAbsolutePath(directory));
     if (!created.success && created.error.type !== 'already-exists') {
       return filesystemUnavailable(directory, created.error);
     }

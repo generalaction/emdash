@@ -1,13 +1,11 @@
 import { LOCAL_HOST_REF, hostRef } from '@emdash/core/primitives/host/api';
 import {
-  absoluteDirname,
   formatAbsolute,
   hostFileRef,
   joinAbsolute,
   parseAbsolute,
   parsePortableRelativePath,
   relativeSegmentsFromAbsolute,
-  ROOT_RELATIVE_PATH,
   type HostAbsolutePath,
   type HostFileRef,
   type PortableRelativePath,
@@ -37,17 +35,9 @@ export function portablePath(input: string): PortableRelativePath {
   return parsed.data;
 }
 
-/** Probe a path that may not exist yet by using its parent as the files-runtime root. */
-export function fileKeyForAbsolutePath(path: HostAbsolutePath): {
-  root: HostAbsolutePath;
-  relative: PortableRelativePath;
-} {
-  const parent = absoluteDirname(path);
-  if (!parent) return { root: path, relative: ROOT_RELATIVE_PATH };
-  return {
-    root: parent,
-    relative: portablePath(path.segments.at(-1) ?? ''),
-  };
+/** The files runtime `fs` surface is keyed by bare host-absolute paths (spec §3.4). */
+export function fileKeyForAbsolutePath(path: HostAbsolutePath): { path: HostAbsolutePath } {
+  return { path };
 }
 
 export function relativePathWithin(

@@ -11,6 +11,16 @@ export type RootChange =
   | { kind: 'create' | 'update' | 'delete'; path: PortableRelativePath }
   | { kind: 'resync' };
 
+/**
+ * A known change addressed by its native absolute path — the shape a
+ * stateless fs mutation republishes into live tree sessions, whose roots
+ * differ from the mutation's own operational root.
+ */
+export type AbsoluteChange = {
+  kind: 'create' | 'update' | 'delete';
+  absolutePath: string;
+};
+
 export type RootResourceOptions = {
   identity: RootIdentity;
   watcher: IWatchService;

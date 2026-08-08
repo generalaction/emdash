@@ -4,7 +4,7 @@ import type { ProjectProvider } from '@core/features/projects/api/node/project-p
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
 import type { WriteProjectConfigRequest } from '@core/primitives/project-settings/api';
 import type { UpdateProjectSettingsError } from '@core/primitives/projects/api';
-import { fileKey, fileMutationKey, fsErrorMessage } from '@core/services/runtime-broker/node/files';
+import { fileKey, fsErrorMessage } from '@core/services/runtime-broker/node/files';
 import { errorMessage, writeConfigFailed } from './config-migration-utils';
 import {
   resolveProjectSettingsTarget,
@@ -42,7 +42,7 @@ export async function shareProjectSettingsToConfig(
         log.warn('Failed to check project config before writing', exists.error);
         return writeConfigFailed(message);
       }
-      if (exists.data) {
+      if (exists.data.exists) {
         const content = await target.files.client.fs.readText(
           fileKey(target.files, target.configPath)
         );
@@ -75,8 +75,8 @@ export async function shareProjectSettingsToConfig(
       request.fields
     );
 
-    const written = await target.files.client.mutations.writeFile({
-      ...fileMutationKey(target.files, target.configPath),
+    const written = await target.files.client.fs.writeFile({
+      ...fileKey(target.files, target.configPath),
       content: `${JSON.stringify(config, null, 2)}\n`,
       precondition: { kind: 'overwrite' },
     });

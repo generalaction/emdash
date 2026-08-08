@@ -170,40 +170,6 @@ describe('createGitController', () => {
     }
   });
 
-  it('reconciles file-diff staleness beside the staging mutation', async () => {
-    const repo = await makeRepo();
-    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
-    const { client: git, dispose } = makeClient(runtime);
-    const checkout = checkoutSelector(repo);
-    const diffKey = {
-      ...checkout,
-      filePath: gitPath('tracked.txt'),
-      target: { kind: 'staged-vs-head' as const },
-    };
-
-    try {
-      await expect(
-        git.checkout.fileDiff.state(diffKey, 'staleness').snapshot()
-      ).resolves.toMatchObject({ data: { revision: 0 } });
-      await writeFile(path.join(repo, 'tracked.txt'), 'after\n', 'utf8');
-
-      await expect(
-        git.checkout.model.mutate('stage', {
-          key: checkout,
-          input: { paths: [gitPath('tracked.txt')] },
-        })
-      ).resolves.toMatchObject({ success: true });
-
-      await expect(
-        git.checkout.fileDiff.state(diffKey, 'staleness').snapshot()
-      ).resolves.toMatchObject({ data: { revision: 1, lastReason: 'index-changed' } });
-    } finally {
-      dispose();
-      await runtime.dispose();
-      await rm(repo, { recursive: true, force: true });
-    }
-  });
-
   it('streams Git-owned file content for the index and mutable refs', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
@@ -334,6 +300,64 @@ describe('createGitController', () => {
     }
   });
 
+  it('streams binary blobs for head and index over the download blob channel', async () => {
+    const repo = await makeRepo();
+    const committedBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 255]);
+    const stagedBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 9, 8, 7]);
+    await writeFile(path.join(repo, 'blob.png'), committedBytes);
+    await execFileAsync('git', ['add', 'blob.png'], { cwd: repo });
+    await execFileAsync('git', ['commit', '-m', 'add binary'], { cwd: repo });
+    await writeFile(path.join(repo, 'blob.png'), stagedBytes);
+    await execFileAsync('git', ['add', 'blob.png'], { cwd: repo });
+    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
+    const { client: git, dispose } = makeClient(runtime);
+    const checkout = checkoutSelector(repo);
+
+    try {
+      const atHead = await git.checkout.download({
+        ...checkout,
+        path: gitPath('blob.png'),
+        source: { kind: 'head' },
+      });
+      expect(atHead.success).toBe(true);
+      if (atHead.success) {
+        expect(atHead.data.meta).toEqual({
+          name: 'blob.png',
+          mimeType: 'image/png',
+          size: committedBytes.length,
+        });
+        expect(Buffer.from(await atHead.data.bytes())).toEqual(committedBytes);
+      }
+
+      const atIndex = await git.checkout.download({
+        ...checkout,
+        path: gitPath('blob.png'),
+        source: { kind: 'index' },
+      });
+      expect(atIndex.success).toBe(true);
+      if (atIndex.success) {
+        expect(atIndex.data.meta).toEqual({
+          name: 'blob.png',
+          mimeType: 'image/png',
+          size: stagedBytes.length,
+        });
+        expect(Buffer.from(await atIndex.data.bytes())).toEqual(stagedBytes);
+      }
+
+      await expect(
+        git.checkout.download({
+          ...checkout,
+          path: gitPath('missing.png'),
+          source: { kind: 'head' },
+        })
+      ).resolves.toEqual({ success: false, error: { type: 'missing' } });
+    } finally {
+      dispose();
+      await runtime.dispose();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('delegates checkout queries', async () => {
     const repo = await makeRepo();
     const runtime = new GitRuntime({ watcher: createNoopWatcher() });
@@ -348,40 +372,6 @@ describe('createGitController', () => {
     } finally {
       dispose();
       await runtime.dispose();
-      await rm(repo, { recursive: true, force: true });
-    }
-  });
-
-  it('routes repository mutation effects into active linked checkouts', async () => {
-    const repo = await makeRepo();
-    const linked = await mkdtemp(path.join(tmpdir(), 'emdash-git-controller-linked-'));
-    await execFileAsync('git', ['worktree', 'add', linked, '-b', 'feature'], { cwd: repo });
-    const runtime = new GitRuntime({ watcher: createNoopWatcher() });
-    const { client: git, dispose } = makeClient(runtime);
-    const checkout = checkoutSelector(linked);
-
-    try {
-      const updates: LiveUpdate[] = [];
-      const detach = await git.checkout.model
-        .state(checkout, 'head')
-        .attach((update) => updates.push(update));
-      await git.checkout.model.state(checkout, 'head').snapshot();
-
-      const renamed = await git.repository.model.mutate('renameBranch', {
-        key: repositorySelector(repo),
-        input: { oldName: 'feature', newName: 'renamed' },
-      });
-
-      expect(renamed).toMatchObject({ success: true, data: { cursors: [] } });
-      await waitFor(() => updates.length > 0, 'expected linked checkout head refresh');
-      await expect(git.checkout.model.state(checkout, 'head').snapshot()).resolves.toMatchObject({
-        data: { kind: 'branch', name: 'renamed' },
-      });
-      await detach();
-    } finally {
-      dispose();
-      await runtime.dispose();
-      await rm(linked, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });
     }
   });
@@ -442,9 +432,10 @@ describe('createGitController', () => {
 
     try {
       await expect(
-        git.checkout.getFileAtIndex({
+        git.checkout.getFile({
           ...checkoutSelector(directory),
-          filePath: gitPath('missing.txt'),
+          path: gitPath('missing.txt'),
+          source: { kind: 'index' },
         })
       ).resolves.toMatchObject({
         success: false,

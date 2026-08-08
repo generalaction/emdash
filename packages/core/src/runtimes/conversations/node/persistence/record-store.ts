@@ -53,7 +53,7 @@ export class ConversationRecordStore {
 function rowToRecord(row: Row): ConversationRecord {
   const link = parseProviderLinkPayload(row.providerLink);
   return {
-    id: row.id,
+    conversationId: row.id,
     provider: row.provider,
     type: row.type,
     cwd: row.cwd,
@@ -73,7 +73,7 @@ function rowToRecord(row: Row): ConversationRecord {
 
 function recordToRow(record: ConversationRecord): Row {
   return {
-    id: record.id,
+    id: record.conversationId,
     provider: record.provider,
     type: record.type,
     cwd: record.cwd,

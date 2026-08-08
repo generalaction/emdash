@@ -237,7 +237,7 @@ export class PrStore {
         target: normalizeDiffTarget(range),
       });
       if (!result.success) return null;
-      const changes = result.data;
+      const changes = result.data.files;
       const expectedChangedFiles = pr.changedFiles;
       if (changes.length === 0 && expectedChangedFiles !== 0) return null;
       if (

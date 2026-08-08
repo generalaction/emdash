@@ -19,8 +19,6 @@ import type { TerminalsContract } from '@emdash/core/runtimes/terminals/api';
 import { terminalsWorkerSpec } from '@emdash/core/runtimes/terminals/node';
 import type { TuiAgentsContract } from '@emdash/core/runtimes/tui-agents/api';
 import { tuiAgentsWorkerSpec } from '@emdash/core/runtimes/tui-agents/node';
-import type { WorkspaceHostContract } from '@emdash/core/runtimes/workspace-host/api';
-import { workspaceHostWorkerSpec } from '@emdash/core/runtimes/workspace-host/node';
 import type { WorkspaceRegistryContract } from '@emdash/core/runtimes/workspace-registry/api';
 import { workspaceRegistryWorkerSpec } from '@emdash/core/runtimes/workspace-registry/node';
 import { buildDescriptorFromProvider } from '@emdash/core/services/agent-plugins/api/plugins';
@@ -76,7 +74,6 @@ export type MementosRuntimeClient = ContractClient<MementosWireContract>;
 export type PullRequestsRuntimeClient = ContractClient<PullRequestsContract>;
 export type TerminalsRuntimeClient = ContractClient<TerminalsContract>;
 export type TuiAgentsRuntimeClient = ContractClient<TuiAgentsContract>;
-export type WorkspaceHostRuntimeClient = ContractClient<WorkspaceHostContract>;
 export type WorkspaceRegistryRuntimeClient = ContractClient<WorkspaceRegistryContract>;
 
 export type DesktopRuntimeClients = {
@@ -93,7 +90,6 @@ export type DesktopRuntimeClients = {
   readonly resourceUsage: ResourceUsageRuntimeClient;
   readonly terminals: TerminalsRuntimeClient;
   readonly tuiAgents: TuiAgentsRuntimeClient;
-  readonly workspaceHost: WorkspaceHostRuntimeClient;
   readonly workspaceRegistry: WorkspaceRegistryRuntimeClient;
 };
 
@@ -324,37 +320,18 @@ async function startDesktopWorkersWithHost(
     );
     return await worker.ready();
   });
-  const workspaceHostReady = Promise.all([acpReady, terminalsReady, tuiAgentsReady]).then(
-    async ([acp, terminals, tuiAgents]) => {
-      const worker = host.create(
-        ...workspaceHostWorkerSpec({
-          executable: desktopWorkerPath('workspace-host'),
-          env: process.env,
-          dependencies: {
-            acp,
-            terminals,
-            tuiAgents: tuiAgents.client,
-          },
-          stateDirectory: join(app.getPath('userData'), 'workspace-host'),
-        })
-      );
-      return await worker.ready();
-    }
-  );
   const automationsReady = Promise.all([
-    workspaceHostReady,
     workspaceRegistryReady,
     acpReady,
     tuiAgentsReady,
     conversationsReady,
-  ]).then(async ([workspaceHost, workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
+  ]).then(async ([workspaceRegistry, acp, tuiAgents, conversationsClient]) => {
     const paths = automationRuntimePaths(resolveDatabasePath());
     const worker = host.create(
       ...automationsWorkerSpec({
         executable: desktopWorkerPath('automations'),
         env: process.env,
         dependencies: {
-          workspaceHost,
           workspaceRegistry,
           // Creation admission is a desktop-mirror data check (ADR 0006): tombstones
           // live in the app db, so the main process answers for the worker.
@@ -382,7 +359,6 @@ async function startDesktopWorkersWithHost(
     resourceUsage,
     terminals,
     tuiAgentsResult,
-    workspaceHost,
     workspaceRegistry,
   ] = await Promise.all([
     acpReady,
@@ -397,7 +373,6 @@ async function startDesktopWorkersWithHost(
     resourceUsageReady,
     terminalsReady,
     tuiAgentsReady,
-    workspaceHostReady,
     workspaceRegistryReady,
   ]);
   const automations = automationsResult.client;
@@ -419,7 +394,6 @@ async function startDesktopWorkersWithHost(
       resourceUsage,
       terminals,
       tuiAgents,
-      workspaceHost,
       workspaceRegistry,
     },
     workers: {

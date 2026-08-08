@@ -308,11 +308,14 @@ export class AcpChatStore {
   queuePrompt(text: string, attachments: AcpPromptAttachment[] = [], hiddenContext?: string): void {
     const promptAttachments = attachments.map((attachment) => attachment.ref);
     void this.session
-      ?.queuePrompt({
-        text,
-        ...(hiddenContext ? { hiddenContext } : {}),
-        ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
-      })
+      ?.sendPrompt(
+        {
+          text,
+          ...(hiddenContext ? { hiddenContext } : {}),
+          ...(promptAttachments.length > 0 ? { attachments: promptAttachments } : {}),
+        },
+        'queue'
+      )
       .then((result) => {
         if (!result.success) this._toastError('Failed to queue message', result.error);
       })

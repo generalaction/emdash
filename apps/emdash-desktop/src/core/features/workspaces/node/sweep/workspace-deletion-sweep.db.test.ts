@@ -22,7 +22,7 @@ import { createWorkspaceDeletionSweepKind } from './workspace-deletion-sweep';
 describe('workspace deletion sweep (integration)', () => {
   type DeleteVerbMock = Mock<
     (input: {
-      id: string;
+      workspaceId: string;
       deleteBranch?: boolean;
     }) => Promise<Result<void, { type: string; message?: string }>>
   >;
@@ -113,7 +113,10 @@ describe('workspace deletion sweep (integration)', () => {
     // The host becomes reachable: the sweep issues the idempotent removal.
     service.attachHost(LOCAL_HOST_REF);
     await vi.waitFor(() => expect(hostVerbs.deleteWorktree).toHaveBeenCalledTimes(1));
-    expect(hostVerbs.deleteWorktree).toHaveBeenCalledWith({ id: 'wt-1', deleteBranch: true });
+    expect(hostVerbs.deleteWorktree).toHaveBeenCalledWith({
+      workspaceId: 'wt-1',
+      deleteBranch: true,
+    });
 
     // The RPC return asserted nothing: the row is still the visible pending state.
     const registry = createWorkspaceRegistry(fixture.db);
@@ -138,7 +141,7 @@ describe('workspace deletion sweep (integration)', () => {
 
     await service.sweepHost(LOCAL_HOST_REF);
 
-    expect(hostVerbs.deleteWorkspace).toHaveBeenCalledWith({ id: 'dir-1' });
+    expect(hostVerbs.deleteWorkspace).toHaveBeenCalledWith({ workspaceId: 'dir-1' });
     expect(hostVerbs.deleteWorktree).not.toHaveBeenCalled();
   });
 

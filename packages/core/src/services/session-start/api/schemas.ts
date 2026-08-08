@@ -18,15 +18,13 @@ export const headlessPromptInputSchema = z.object({
 });
 
 export const acpSessionStartInputSchema = z.object({
-  input: z.object({
-    conversationId: nonBlankStringSchema,
-    providerId: nonBlankStringSchema,
-    cwd: nonBlankStringSchema,
-    sessionId: z.null(),
-    model: nonBlankStringSchema.nullable(),
-    modeId: nonBlankStringSchema.nullable().optional(),
-    initialQueue: z.array(headlessPromptInputSchema).min(1),
-  }),
+  conversationId: nonBlankStringSchema,
+  providerId: nonBlankStringSchema,
+  cwd: nonBlankStringSchema,
+  sessionId: z.null(),
+  model: nonBlankStringSchema.nullable(),
+  modeId: nonBlankStringSchema.nullable().optional(),
+  initialQueue: z.array(headlessPromptInputSchema).min(1),
 });
 
 export const acpSessionStartResultSchema = z.object({
@@ -34,17 +32,15 @@ export const acpSessionStartResultSchema = z.object({
 });
 
 export const tuiSessionStartInputSchema = z.object({
-  input: z.object({
-    conversationId: nonBlankStringSchema,
-    providerId: nonBlankStringSchema,
-    cwd: nonBlankStringSchema,
-    sessionId: z.null(),
-    model: nonBlankStringSchema.nullable(),
-    initialPrompt: nonBlankStringSchema,
-    autoApprove: z.boolean(),
-    cols: z.number().int().positive(),
-    rows: z.number().int().positive(),
-  }),
+  conversationId: nonBlankStringSchema,
+  providerId: nonBlankStringSchema,
+  cwd: nonBlankStringSchema,
+  sessionId: z.null(),
+  model: nonBlankStringSchema.nullable(),
+  initialPrompt: nonBlankStringSchema,
+  autoApprove: z.boolean(),
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
 });
 
 export const tuiSessionStartResultSchema = z.object({

@@ -6,6 +6,7 @@ import {
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
+  measureUsageErrorSchema,
   updateWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
 } from './errors';
@@ -16,11 +17,13 @@ import {
   deactivateWorkspaceInputSchema,
   deleteWorkspaceInputSchema,
   deleteWorktreeInputSchema,
+  measureUsageInputSchema,
   refreshWorkspacesInputSchema,
   retryStepInputSchema,
   updateWorktreeInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
+  workspaceUsageSchema,
 } from './schemas';
 
 /**
@@ -152,6 +155,18 @@ export const workspaceRegistryContract = defineContract({
     input: updateWorktreeInputSchema,
     data: z.void(),
     error: updateWorktreeErrorSchema,
+  }),
+
+  /**
+   * On-demand git-aware disk observation, joining the registry's other per-workspace
+   * observations: exclusive total bytes plus reclaimable git-ignored artifact bytes
+   * (`git clean -ndX` roots). Id-keyed like every registry verb — the path resolves
+   * from the record, never from the client.
+   */
+  measureUsage: fallible({
+    input: measureUsageInputSchema,
+    data: workspaceUsageSchema,
+    error: measureUsageErrorSchema,
   }),
 
   /**

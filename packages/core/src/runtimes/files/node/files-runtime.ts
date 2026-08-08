@@ -46,7 +46,7 @@ export class FilesRuntime {
     this.content = new FileContentRuntime(this.allocations);
   }
 
-  async getHomeDir(): Promise<HostAbsolutePath> {
+  async getHomeDir(): Promise<{ path: HostAbsolutePath }> {
     const canonicalHome = await realpath(homedir());
     const parsed = parseAbsolute(canonicalHome, {
       profile: {
@@ -57,7 +57,7 @@ export class FilesRuntime {
     if (!parsed.success) {
       throw new Error(`Host home directory is not an absolute path: ${parsed.error.message}`);
     }
-    return parsed.data;
+    return { path: parsed.data };
   }
 
   async dispose(): Promise<void> {

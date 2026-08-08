@@ -77,8 +77,8 @@ export class ConversationBackfillService {
       }
       if (row.providerSessionId) {
         // Seed the last-observed resume handle so convergence does not null it out.
-        await index.reportProviderSessionId({
-          id: row.id,
+        await index.reports.providerSessionId({
+          conversationId: row.id,
           providerSessionId: row.providerSessionId,
         });
       }
@@ -128,7 +128,7 @@ export function compileBackfillCreateInput(
   const createdAt = Date.parse(row.createdAt);
   if (!row.provider || type === null || !cwd || Number.isNaN(createdAt)) return undefined;
   return {
-    id: row.id,
+    conversationId: row.id,
     provider: row.provider,
     type,
     cwd,

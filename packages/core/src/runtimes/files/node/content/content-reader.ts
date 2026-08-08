@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { access, open } from 'node:fs/promises';
 import type { PortableRelativePath } from '#primitives/path/api';
-import type { FileContentModel, FsError } from '#runtimes/files/api';
+import { contentUnavailableCode, type FileContentModel, type FsError } from '#runtimes/files/api';
 import { toFsError } from '#runtimes/files/node/api/errors';
 import {
   etagForStat,
@@ -115,5 +115,5 @@ async function isWritable(filePath: string): Promise<boolean> {
 }
 
 function unavailable(path: PortableRelativePath, error: FsError): FileContentModel {
-  return { kind: 'unavailable', path, error };
+  return { kind: 'unavailable', path, code: contentUnavailableCode(error) };
 }

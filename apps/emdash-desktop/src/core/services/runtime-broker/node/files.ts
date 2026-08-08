@@ -29,12 +29,13 @@ export function fileRelativePath(
   return relativePathWithin(scope.root, hostPathFromNative(path.resolve(targetPath)));
 }
 
-export function fileKey(scope: FilesClientScope, targetPath: string) {
-  return { root: scope.root, relative: fileRelativePath(scope, targetPath) };
-}
-
-export function fileMutationKey(scope: FilesClientScope, targetPath: string) {
-  return { root: scope.root, path: fileRelativePath(scope, targetPath) };
+/**
+ * The `fs` surface is keyed by host-absolute paths (spec §3.4). Resolving
+ * through the scope's root keeps the historical containment check: a target
+ * escaping the scope root still throws at this edge.
+ */
+export function fileKey(scope: FilesClientScope, targetPath: string): { path: HostAbsolutePath } {
+  return { path: resolveRelativePath(scope.root, fileRelativePath(scope, targetPath)) };
 }
 
 export function nativeFilePath(scope: FilesClientScope, relative: PortableRelativePath): string {

@@ -8,15 +8,15 @@ import {
   type TuiConversationProviderOptions,
 } from './tui-conversation-provider';
 
-const startSession = vi.hoisted(() => vi.fn());
-const resumeSession = vi.hoisted(() => vi.fn());
+const start = vi.hoisted(() => vi.fn());
+const resume = vi.hoisted(() => vi.fn());
 
 describe('TuiConversationProvider', () => {
   beforeEach(() => {
-    startSession.mockReset();
-    resumeSession.mockReset();
-    startSession.mockResolvedValue(ok({ outcome: 'started' }));
-    resumeSession.mockResolvedValue(ok({ outcome: 'resumed' }));
+    start.mockReset();
+    resume.mockReset();
+    start.mockResolvedValue(ok({ outcome: 'started' }));
+    resume.mockResolvedValue(ok({ outcome: 'resumed' }));
   });
 
   it('routes fresh starts to the runtime start path with the initial prompt', async () => {
@@ -29,16 +29,16 @@ describe('TuiConversationProvider', () => {
     });
 
     expect(result).toEqual({ outcome: 'started' });
-    expect(startSession).toHaveBeenCalledWith({
-      input: expect.objectContaining({
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
         conversationId: 'conversation-1',
         providerId: 'claude',
         sessionId: null,
         initialPrompt: 'hello',
         trustWorkspace: false,
-      }),
-    });
-    expect(resumeSession).not.toHaveBeenCalled();
+      })
+    );
+    expect(resume).not.toHaveBeenCalled();
   });
 
   it('routes native-id providers to the runtime resume path when a native id exists', async () => {
@@ -50,14 +50,14 @@ describe('TuiConversationProvider', () => {
       initialPrompt: 'do not replay',
     });
 
-    expect(resumeSession).toHaveBeenCalledWith({
-      input: expect.objectContaining({
+    expect(resume).toHaveBeenCalledWith(
+      expect.objectContaining({
         providerId: 'codex',
         sessionId: 'native-session',
         initialPrompt: undefined,
-      }),
-    });
-    expect(startSession).not.toHaveBeenCalled();
+      })
+    );
+    expect(start).not.toHaveBeenCalled();
   });
 
   it('downgrades missing-native-id providers to fresh without replaying the prompt', async () => {
@@ -69,14 +69,14 @@ describe('TuiConversationProvider', () => {
       initialPrompt: 'do not replay',
     });
 
-    expect(startSession).toHaveBeenCalledWith({
-      input: expect.objectContaining({
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
         providerId: 'codex',
         sessionId: null,
         initialPrompt: undefined,
-      }),
-    });
-    expect(resumeSession).not.toHaveBeenCalled();
+      })
+    );
+    expect(resume).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -90,9 +90,7 @@ describe('TuiConversationProvider', () => {
       mode: 'start',
     });
 
-    expect(startSession).toHaveBeenCalledWith({
-      input: expect.objectContaining({ trustWorkspace: true }),
-    });
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ trustWorkspace: true }));
   });
 
   it('forces runtime trust for auto-approved conversations without reading settings', async () => {
@@ -108,9 +106,7 @@ describe('TuiConversationProvider', () => {
     });
 
     expect(getTaskSettings).not.toHaveBeenCalled();
-    expect(startSession).toHaveBeenCalledWith({
-      input: expect.objectContaining({ trustWorkspace: true }),
-    });
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ trustWorkspace: true }));
   });
 
   it('backs prompt spill creation, writes, and cleanup with workspace files', async () => {
@@ -121,7 +117,7 @@ describe('TuiConversationProvider', () => {
     const files = {
       root,
       client: {
-        mutations: {
+        fs: {
           createDirectory,
           writeFile,
           delete: remove,
@@ -139,21 +135,22 @@ describe('TuiConversationProvider', () => {
     await deps.removeTempDir(directory);
 
     expect(directory).toBe('/workspace/.emdash/tmp/prompt-conversation-1');
-    expect(createDirectory).toHaveBeenNthCalledWith(1, { root, path: '.emdash' });
-    expect(createDirectory).toHaveBeenNthCalledWith(2, { root, path: '.emdash/tmp' });
+    expect(createDirectory).toHaveBeenNthCalledWith(1, {
+      path: hostPathFromNative('/workspace/.emdash'),
+    });
+    expect(createDirectory).toHaveBeenNthCalledWith(2, {
+      path: hostPathFromNative('/workspace/.emdash/tmp'),
+    });
     expect(createDirectory).toHaveBeenNthCalledWith(3, {
-      root,
-      path: '.emdash/tmp/prompt-conversation-1',
+      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1'),
     });
     expect(writeFile).toHaveBeenCalledWith({
-      root,
-      path: '.emdash/tmp/prompt-conversation-1/task-context.md',
+      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1/task-context.md'),
       content: 'large prompt',
       precondition: { kind: 'overwrite' },
     });
     expect(remove).toHaveBeenCalledWith({
-      root,
-      path: '.emdash/tmp/prompt-conversation-1',
+      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1'),
       recursive: true,
     });
   });
@@ -173,7 +170,7 @@ function createProvider(
         root: hostPathFromNative('/workspace'),
         client: { mutations: {} },
       } as never,
-      tuiAgents: { startSession, resumeSession } as never,
+      tuiAgents: { start, resume } as never,
       projectId: 'project-1',
       taskId: 'task-1',
       taskPath: '/workspace',

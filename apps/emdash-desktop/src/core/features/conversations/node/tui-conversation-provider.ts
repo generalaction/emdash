@@ -20,7 +20,7 @@ import { makePtySessionId } from '@core/primitives/pty/api';
 import type { AppDb } from '@core/services/app-db/node/db';
 import type { TuiAgentsRuntimeClient } from '@core/services/runtime-broker/api/clients';
 import {
-  fileMutationKey,
+  fileKey,
   fsErrorMessage,
   type FilesClientScope,
 } from '@core/services/runtime-broker/node/files';
@@ -95,8 +95,8 @@ export class TuiConversationProvider implements ConversationProvider {
     const input = await this.buildStartInput(conversation, initialSize, mode, initialPrompt);
     const agentSession = resolveAgentSession(conversation, mode);
     const result = agentSession.isResuming
-      ? await this.tuiAgents.resumeSession({ input })
-      : await this.tuiAgents.startSession({ input });
+      ? await this.tuiAgents.resume(input)
+      : await this.tuiAgents.start(input);
     if (!result.success) {
       throw new Error(`TUI session failed to start: ${JSON.stringify(result.error)}`);
     }
@@ -108,12 +108,12 @@ export class TuiConversationProvider implements ConversationProvider {
   }
 
   async stopSession(conversationId: string): Promise<void> {
-    await this.tuiAgents.stopSession({ conversationId });
+    await this.tuiAgents.stop({ conversationId });
     await this.cleanupSpill(conversationId);
   }
 
   async deleteSession(conversationId: string): Promise<void> {
-    await this.tuiAgents.deleteSession({ conversationId });
+    await this.tuiAgents.delete({ conversationId });
     await this.cleanupSpill(conversationId);
   }
 
@@ -207,9 +207,7 @@ export function createWorkspacePromptSpillDeps(
   return {
     createTempDir: async () => {
       for (const directory of [emdashDir, tmpDir, promptDir]) {
-        const result = await files.client.mutations.createDirectory(
-          fileMutationKey(files, directory)
-        );
+        const result = await files.client.fs.createDirectory(fileKey(files, directory));
         if (!result.success && result.error.type !== 'already-exists') {
           throw new Error(fsErrorMessage(result.error));
         }
@@ -217,16 +215,16 @@ export function createWorkspacePromptSpillDeps(
       return promptDir;
     },
     writeContextFile: async (filePath, contents) => {
-      const result = await files.client.mutations.writeFile({
-        ...fileMutationKey(files, filePath),
+      const result = await files.client.fs.writeFile({
+        ...fileKey(files, filePath),
         content: contents,
         precondition: { kind: 'overwrite' },
       });
       if (!result.success) throw new Error(fsErrorMessage(result.error));
     },
     removeTempDir: async (directory) => {
-      const result = await files.client.mutations.delete({
-        ...fileMutationKey(files, directory),
+      const result = await files.client.fs.delete({
+        ...fileKey(files, directory),
         recursive: true,
       });
       if (!result.success && result.error.type !== 'not-found') {

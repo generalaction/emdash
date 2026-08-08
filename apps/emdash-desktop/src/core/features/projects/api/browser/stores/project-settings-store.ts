@@ -1,6 +1,6 @@
-import { EMDASH_CONFIG_FILE } from '@emdash/core/primitives/emdash-config/api';
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import type { Result } from '@emdash/shared';
-import { watchFileContent } from '@core/features/editor/api/browser/files';
+import { watchFileContent } from '@core/features/files/api/browser/file-content';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import {
   type MigrateProjectConfigRequest,
@@ -23,7 +23,7 @@ export class ProjectSettingsStore {
 
   constructor(
     private readonly projectId: string,
-    repositoryWorkspaceId?: string
+    repositoryConfigFileRef?: HostFileRef
   ) {
     this.pageData = new Resource(async () => {
       const result = await (await getProjectsWireClient()).getProjectSettingsPage({ projectId });
@@ -37,8 +37,8 @@ export class ProjectSettingsStore {
       return result.data;
     }, [{ kind: 'demand' }]);
 
-    if (repositoryWorkspaceId) {
-      void watchFileContent(repositoryWorkspaceId, EMDASH_CONFIG_FILE, () => {
+    if (repositoryConfigFileRef) {
+      void watchFileContent(repositoryConfigFileRef, () => {
         this.pageData.invalidate();
       })
         .then((unsubscribe) => {

@@ -17,7 +17,7 @@ export const wireInitializeResultSchema = z.object({
 });
 
 export const wireProtocolIncompatibleSchema = z.object({
-  code: z.literal('protocol-incompatible'),
+  type: z.literal('protocol-incompatible'),
   action: z.enum(['upgrade-client', 'upgrade-server']),
   clientProtocolVersion: z.string(),
   serverProtocolVersion: z.string(),

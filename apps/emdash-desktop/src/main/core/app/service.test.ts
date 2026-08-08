@@ -143,7 +143,7 @@ describe('AppService.showWorkspaceItemInFolder', () => {
 
   it('resolves and reveals a path through the workspace files runtime', async () => {
     const resolvedPath = hostPathFromNative('/workspace/reports/summary.md');
-    mocks.filesRealPath.mockResolvedValue({ success: true, data: resolvedPath });
+    mocks.filesRealPath.mockResolvedValue({ success: true, data: { path: resolvedPath } });
 
     const result = await appService.showWorkspaceItemInFolder({
       workspaceId: 'workspace-1',
@@ -153,8 +153,7 @@ describe('AppService.showWorkspaceItemInFolder', () => {
     expect(result).toEqual({ success: true, data: undefined });
     expect(mocks.workspaceGet).toHaveBeenCalledWith('workspace-1');
     expect(mocks.filesRealPath).toHaveBeenCalledWith({
-      root: workspaceRoot,
-      relative: 'reports/summary.md',
+      path: hostPathFromNative('/workspace/reports/summary.md'),
     });
     expect(mocks.showItemInFolder).toHaveBeenCalledWith('/workspace/reports/summary.md');
   });
@@ -254,7 +253,7 @@ describe('AppService.showWorkspaceItemInFolder', () => {
 
   it('throws unexpected Electron shell failures', async () => {
     const resolvedPath = hostPathFromNative('/workspace/reports/summary.md');
-    mocks.filesRealPath.mockResolvedValue({ success: true, data: resolvedPath });
+    mocks.filesRealPath.mockResolvedValue({ success: true, data: { path: resolvedPath } });
     mocks.showItemInFolder.mockImplementationOnce(() => {
       throw new Error('Electron shell unavailable');
     });

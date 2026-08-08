@@ -2,7 +2,6 @@ import { log } from '@emdash/shared/logger';
 import { SSH_PROJECT_STATE_DIR_NAME } from '@core/features/projects/node/worktree-defaults';
 import {
   fileKey,
-  fileMutationKey,
   fsErrorMessage,
   type FilesClientScope,
 } from '@core/services/runtime-broker/node/files';
@@ -42,7 +41,7 @@ export async function ensureEmdashGitExcluded(
 
   let existing = '';
   const excludeExists = await files.client.fs.exists(fileKey(files, excludePath));
-  if (excludeExists.success && excludeExists.data) {
+  if (excludeExists.success && excludeExists.data.exists) {
     const read = await files.client.fs.readText(fileKey(files, excludePath));
     if (!read.success) return;
     // `read` caps at a default byte limit; rewriting a truncated view would drop
@@ -59,8 +58,8 @@ export async function ensureEmdashGitExcluded(
 
   const base = existing.replace(/\s*$/, '');
   const next = base.length > 0 ? `${base}\n${IGNORE_PATTERN}\n` : `${IGNORE_PATTERN}\n`;
-  const result = await files.client.mutations.writeFile({
-    ...fileMutationKey(files, excludePath),
+  const result = await files.client.fs.writeFile({
+    ...fileKey(files, excludePath),
     content: next,
     precondition: { kind: 'overwrite' },
   });

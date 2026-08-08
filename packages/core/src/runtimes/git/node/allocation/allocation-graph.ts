@@ -26,7 +26,6 @@ export type GitAllocationGraphOptions = Readonly<{
   objectStoreMutex?: KeyedMutex;
   idleTtlMs?: number;
   aliasTtlMs?: number;
-  maxFileDiffStates?: number;
   maxFileContentStates?: number;
   onError?: (context: string, error: unknown) => void;
 }>;
@@ -86,7 +85,6 @@ export class GitAllocationGraph {
         const repository = await repositoryLease.ready();
         const commands = new GitCheckout({
           identity,
-          objectReader: repository,
           exec: options.exec.withCwd(identity.checkoutRoot),
         });
         const resource = await CheckoutResource.create({
@@ -94,7 +92,6 @@ export class GitAllocationGraph {
           commands,
           repository,
           watcher: options.watcher,
-          maxFileDiffStates: options.maxFileDiffStates,
           maxFileContentStates: options.maxFileContentStates,
           onError,
         });

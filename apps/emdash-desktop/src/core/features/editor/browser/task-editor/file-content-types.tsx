@@ -14,10 +14,9 @@
 import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState, type ComponentType } from 'react';
-import { readEditorImage } from '@core/features/editor/api/browser/files';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { HtmlRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
-import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { BinaryRenderer } from '../renderers/binary-renderer';
 import { CsvRenderer } from '../renderers/csv-renderer';
 import { ImageRenderer } from '../renderers/image-renderer';
@@ -55,15 +54,19 @@ function SvgPreview({ tab }: { tab: FileTabResource }) {
  * itself as a data URL (the store classifies binary content as an error).
  */
 const ImagePreview = observer(function ImagePreview({ tab }: { tab: FileTabResource }) {
-  const workspace = useWorkspace();
   const [state, setState] = useState<
     { kind: 'loading' } | { kind: 'ready'; dataUrl: string } | { kind: 'error' }
   >({ kind: 'loading' });
+  const ref = tab.ref;
 
   useEffect(() => {
+    if (!ref) {
+      setState({ kind: 'error' });
+      return;
+    }
     let cancelled = false;
     setState({ kind: 'loading' });
-    void readEditorImage(workspace.workspaceId, workspace.path, tab.path)
+    void readImageFile(ref)
       .then((result) => {
         if (cancelled) return;
         if (result.success && !result.data.truncated) {
@@ -78,7 +81,7 @@ const ImagePreview = observer(function ImagePreview({ tab }: { tab: FileTabResou
     return () => {
       cancelled = true;
     };
-  }, [workspace.workspaceId, workspace.path, tab.path]);
+  }, [ref]);
 
   if (state.kind === 'loading') {
     return (

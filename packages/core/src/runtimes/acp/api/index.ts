@@ -1,7 +1,5 @@
-export * from './api/contract';
-export * from './api/commands';
-export * from './api/errors';
-export * from './api/queries';
+export * from './contract';
+export * from './schemas';
 export * from './errors';
 export * from './models';
 export { decodeSessionUpdate } from './reducer/decode';

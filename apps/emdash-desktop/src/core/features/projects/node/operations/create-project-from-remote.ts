@@ -1,5 +1,4 @@
 import { hostRef, LOCAL_HOST_REF, type HostRef } from '@emdash/core/primitives/host/api';
-import { ROOT_RELATIVE_PATH } from '@emdash/core/primitives/path/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
 import { gitContract, type GitTransferProgress } from '@emdash/core/runtimes/git/api';
 import type { HostRuntimesClient } from '@emdash/core/services/runtime-broker/api';
@@ -153,7 +152,7 @@ async function inspectTarget(
       ? ok('missing')
       : err(creationError('inspect-failed', fsErrorMessage(exists.error)));
   }
-  if (!exists.data) return ok('missing');
+  if (!exists.data.exists) return ok('missing');
 
   const pathEntry = await files.fs.stat(key);
   if (!pathEntry.success) {
@@ -164,8 +163,7 @@ async function inspectTarget(
   if (pathEntry.data.type !== 'directory') return ok('non-empty');
 
   const listed = await runRuntimeLiveJob(filesContract.fs.enumerate, files.fs.enumerate, {
-    root: hostPathFromNative(path),
-    relative: ROOT_RELATIVE_PATH,
+    path: hostPathFromNative(path),
   });
   if (!listed.success) {
     return err(creationError('inspect-failed', fsErrorMessage(listed.error)));
@@ -175,10 +173,8 @@ async function inspectTarget(
 
 async function cleanupCancelledCloneTarget(files: HostFiles, path: string): Promise<void> {
   try {
-    const key = fileKeyForAbsolutePath(hostPathFromNative(path));
-    await files.mutations.delete({
-      root: key.root,
-      path: key.relative,
+    await files.fs.delete({
+      ...fileKeyForAbsolutePath(hostPathFromNative(path)),
       recursive: true,
     });
   } catch (error) {

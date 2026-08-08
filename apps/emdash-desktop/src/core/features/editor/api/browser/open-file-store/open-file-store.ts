@@ -5,7 +5,7 @@ import {
   type ResourceKey,
   type ResourceUri,
 } from '@emdash/core/primitives/path/api';
-import type { FileContentModel, FsError } from '@emdash/core/runtimes/files/api';
+import type { ContentSeamErrorCode, FileContentModel } from '@emdash/core/runtimes/files/api';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { systemClock, type Clock, type TimerHandle } from '@emdash/shared/scheduling';
@@ -41,7 +41,7 @@ export const OPEN_FILE_LINGER_MS = 15_000;
 export const BUFFER_AUTOSAVE_DEBOUNCE_MS = 2_000;
 
 /** The closed seam-error enum rendered by retryable placeholders (spec §4). */
-export type SeamErrorCode = 'not-found' | 'no-permissions' | 'too-large' | 'binary' | 'unavailable';
+export type SeamErrorCode = ContentSeamErrorCode;
 
 export type ContentStatus =
   | { kind: 'loading' }
@@ -647,7 +647,7 @@ export class OpenFileStore {
         this.setGitStatus(entry, slotKey, { kind: 'error', code: 'too-large' });
         return;
       case 'unavailable':
-        this.setGitStatus(entry, slotKey, { kind: 'error', code: seamErrorCode(value.error) });
+        this.setGitStatus(entry, slotKey, { kind: 'error', code: value.code });
         return;
     }
   }
@@ -709,7 +709,7 @@ export class OpenFileStore {
         this.transitionError(entry, 'too-large');
         return;
       case 'unavailable': {
-        const code = seamErrorCode(content.error);
+        const code = content.code;
         if (code === 'not-found' && entry.everReady) {
           // Delete events are stat-re-validated by the runtime before the
           // content state reports not-found, so this is a real deletion.
@@ -982,17 +982,6 @@ export class OpenFileStore {
     slot.unsubscribeChange = null;
     slot.handle?.dispose();
     slot.handle = null;
-  }
-}
-
-function seamErrorCode(error: FsError): SeamErrorCode {
-  switch (error.type) {
-    case 'not-found':
-      return 'not-found';
-    case 'permission-denied':
-      return 'no-permissions';
-    default:
-      return 'unavailable';
   }
 }
 

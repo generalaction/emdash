@@ -106,7 +106,7 @@ describe('workspace registry config live model', () => {
     await fs.mkdir(workspacePath, { recursive: true });
     await writeConfig(workspacePath, { scripts: { prepare: 'echo one >> which-config' } });
     expect(
-      (await wire.client.createWorkspace({ id: 'ws-plain', path: workspacePath })).success
+      (await wire.client.createWorkspace({ workspaceId: 'ws-plain', path: workspacePath })).success
     ).toBe(true);
 
     // Disk edit with no scan in between: the verb must serve the model's state.
@@ -115,16 +115,16 @@ describe('workspace registry config live model', () => {
       expect((await listRecords())['ws-plain']?.config?.scripts.prepare).toBe(true);
     });
     await writeConfig(workspacePath, { scripts: { prepare: 'echo two >> which-config' } });
-    expect((await wire.client.activateWorkspace({ id: 'ws-plain' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-plain' })).success).toBe(true);
     await expect(fs.readFile(path.join(workspacePath, 'which-config'), 'utf8')).resolves.toBe(
       'one\n'
     );
-    expect((await wire.client.deactivateWorkspace({ id: 'ws-plain' })).success).toBe(true);
+    expect((await wire.client.deactivateWorkspace({ workspaceId: 'ws-plain' })).success).toBe(true);
 
     // A settled scan (what the working-tree watcher requests) refreshes the model;
     // the next activation sees the edit without a restart.
-    expect((await wire.client.refresh({ id: 'ws-plain' })).success).toBe(true);
-    expect((await wire.client.activateWorkspace({ id: 'ws-plain' })).success).toBe(true);
+    expect((await wire.client.refresh({ workspaceId: 'ws-plain' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-plain' })).success).toBe(true);
     await expect(fs.readFile(path.join(workspacePath, 'which-config'), 'utf8')).resolves.toBe(
       'one\ntwo\n'
     );
@@ -133,13 +133,13 @@ describe('workspace registry config live model', () => {
   it('a worktree with a divergent config activates with its own scripts', async () => {
     const repoPath = await makeRepo(root, 'repo');
     await writeConfig(repoPath, { scripts: { prepare: 'echo repo >> ../which' } });
-    expect((await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath })).success).toBe(
-      true
-    );
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success
+    ).toBe(true);
 
     const worktreePath = path.join(root, 'diverged');
     const created = await wire.client.createWorktree({
-      id: 'wt-diverged',
+      workspaceId: 'wt-diverged',
       repositoryId: 'ws-repo',
       path: worktreePath,
       branch: 'diverged',
@@ -151,10 +151,12 @@ describe('workspace registry config live model', () => {
 
     // The branch diverges its own config; the scan folds it into the model.
     await writeConfig(worktreePath, { scripts: { prepare: 'echo worktree >> ../which' } });
-    expect((await wire.client.refresh({ id: 'wt-diverged' })).success).toBe(true);
+    expect((await wire.client.refresh({ workspaceId: 'wt-diverged' })).success).toBe(true);
 
-    expect((await wire.client.activateWorkspace({ id: 'wt-diverged' })).success).toBe(true);
-    expect((await wire.client.activateWorkspace({ id: 'ws-repo' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'wt-diverged' })).success).toBe(
+      true
+    );
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-repo' })).success).toBe(true);
     await expect(fs.readFile(path.join(root, 'which'), 'utf8')).resolves.toBe('worktree\nrepo\n');
   });
 
@@ -163,7 +165,7 @@ describe('workspace registry config live model', () => {
     await fs.mkdir(workspacePath, { recursive: true });
     await writeConfig(workspacePath, '{ not json');
     expect(
-      (await wire.client.createWorkspace({ id: 'ws-broken', path: workspacePath })).success
+      (await wire.client.createWorkspace({ workspaceId: 'ws-broken', path: workspacePath })).success
     ).toBe(true);
 
     await eventually(async () => {
@@ -175,12 +177,12 @@ describe('workspace registry config live model', () => {
     });
 
     // Empty default config: activation succeeds with no script steps.
-    expect((await wire.client.activateWorkspace({ id: 'ws-broken' })).success).toBe(true);
+    expect((await wire.client.activateWorkspace({ workspaceId: 'ws-broken' })).success).toBe(true);
     expect((await listRecords())['ws-broken']?.runtime?.lifecycle ?? null).toBeNull();
 
     // Fixing the file clears the notice on the next scan.
     await writeConfig(workspacePath, {});
-    expect((await wire.client.refresh({ id: 'ws-broken' })).success).toBe(true);
+    expect((await wire.client.refresh({ workspaceId: 'ws-broken' })).success).toBe(true);
     const fixed = (await listRecords())['ws-broken'];
     expect(fixed?.config?.parseError).toBe(false);
     expect(fixed?.runtime?.notices ?? []).toEqual([]);
@@ -194,7 +196,8 @@ describe('workspace registry config live model', () => {
       scripts: { setup: 'true', run: 'true' },
     });
     expect(
-      (await wire.client.createWorkspace({ id: 'ws-summarized', path: workspacePath })).success
+      (await wire.client.createWorkspace({ workspaceId: 'ws-summarized', path: workspacePath }))
+        .success
     ).toBe(true);
 
     await eventually(async () => {
@@ -206,7 +209,7 @@ describe('workspace registry config live model', () => {
     });
 
     await fs.rm(workspacePath, { recursive: true, force: true });
-    expect((await wire.client.refresh({ id: 'ws-summarized' })).success).toBe(true);
+    expect((await wire.client.refresh({ workspaceId: 'ws-summarized' })).success).toBe(true);
     const vanished = (await listRecords())['ws-summarized'];
     expect(vanished?.observedStatus).toBe('missing');
     expect(vanished?.config ?? null).toBeNull();
@@ -219,14 +222,14 @@ describe('workspace registry config live model', () => {
     git(repoPath, 'commit', '-m', 'ignore env');
     await fs.writeFile(path.join(repoPath, '.env'), 'SECRET=1\n');
     await writeConfig(repoPath, { preservePatterns: ['.env'] });
-    expect((await wire.client.createWorkspace({ id: 'ws-repo', path: repoPath })).success).toBe(
-      true
-    );
+    expect(
+      (await wire.client.createWorkspace({ workspaceId: 'ws-repo', path: repoPath })).success
+    ).toBe(true);
 
     // The caller passes no patterns; the source repository's `.emdash.json` entry
     // still drives the copy (spec: patterns resolve against the source checkout).
     const created = await wire.client.createWorktree({
-      id: 'wt-carried',
+      workspaceId: 'wt-carried',
       repositoryId: 'ws-repo',
       path: path.join(root, 'carried'),
       branch: 'carried',

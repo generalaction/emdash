@@ -1,15 +1,15 @@
 import { createController } from '@emdash/wire/rpc';
 import { terminalsContract } from '#runtimes/terminals/api';
 import type { TerminalsRuntime } from '#runtimes/terminals/node/runtime/runtime';
-import { terminalJobError } from '#runtimes/terminals/node/runtime/runtime';
+import { scriptWorkflowJobError } from '#runtimes/terminals/node/runtime/runtime';
 
 export function createTerminalsController(runtime: TerminalsRuntime) {
   return createController(terminalsContract, {
-    startTerminal: (input) => runtime.startTerminal(input),
+    start: (input) => runtime.start(input),
     getShellAvailability: () => runtime.getShellAvailability(),
     runWorkflow: {
       run: (input, ctx) => runtime.runWorkflow(input, ctx),
-      toError: terminalJobError,
+      toError: scriptWorkflowJobError,
     },
     workflows: runtime.workflowsHost,
     output: (key) => runtime.outputLog(key),
@@ -19,8 +19,5 @@ export function createTerminalsController(runtime: TerminalsRuntime) {
     resize: ({ key, cols, rows }) => runtime.resize(key, cols, rows),
     kill: ({ key }) => runtime.kill(key),
     killTmuxSessions: (input) => runtime.killTmuxSessions(input),
-    listTmuxSessions: () => runtime.listTmuxSessions(),
-    killScope: ({ workspace }) => runtime.killScope(workspace),
-    detachScope: ({ workspace }) => runtime.detachScope(workspace),
   });
 }

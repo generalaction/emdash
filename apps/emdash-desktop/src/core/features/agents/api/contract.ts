@@ -3,7 +3,6 @@ import {
   agentConfigAuthErrorSchema,
   agentConfigContract,
   agentConfigListSchema,
-  agentConfigRefreshErrorSchema,
   hooksStatusSchema,
 } from '@emdash/core/runtimes/agent-config/api';
 // The auth capability module directly: the plugins barrel drags in the plugin
@@ -29,10 +28,6 @@ const hostInputSchema = z.object({ host: hostRefSchema });
 const agentInputSchema = hostInputSchema.extend({ id: z.string() });
 const providerInputSchema = hostInputSchema.extend({ providerId: z.string() });
 const agentsAuthErrorSchema = z.union([agentConfigAuthErrorSchema, runtimeResolveErrorSchema]);
-const agentsRefreshErrorSchema = z.union([
-  agentConfigRefreshErrorSchema,
-  runtimeResolveErrorSchema,
-]);
 
 export const agentsDomain = 'agents' as const;
 
@@ -118,11 +113,6 @@ export const agentsContract = defineContract({
     states: {
       list: liveState({ data: agentConfigListSchema }),
     },
-  }),
-  refreshAgents: fallible({
-    input: agentConfigContract.refreshAgents.input.extend(hostInputSchema.shape),
-    data: z.void(),
-    error: agentsRefreshErrorSchema,
   }),
   hooksStatus: fallible({
     input: agentConfigContract.hooksStatus.input.extend(hostInputSchema.shape),

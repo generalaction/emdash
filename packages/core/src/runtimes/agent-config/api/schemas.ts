@@ -62,12 +62,6 @@ export const agentConfigSkillsErrorSchema = z.union([
   agentConfigIoErrorSchema,
   runtimeUnavailableErrorSchema,
 ]);
-export const agentConfigRefreshErrorSchema = z.union([
-  agentConfigUnknownProviderErrorSchema,
-  agentConfigInvalidStateErrorSchema,
-  runtimeUnavailableErrorSchema,
-]);
-
 export const authPendingUrlSchema = z.object({
   id: z.string(),
   url: z.url(),
@@ -124,7 +118,6 @@ export type AgentConfigError = z.infer<typeof agentConfigErrorSchema>;
 export type AgentConfigAuthError = z.infer<typeof agentConfigAuthErrorSchema>;
 export type AgentConfigMcpError = z.infer<typeof agentConfigMcpErrorSchema>;
 export type AgentConfigSkillsError = z.infer<typeof agentConfigSkillsErrorSchema>;
-export type AgentConfigRefreshError = z.infer<typeof agentConfigRefreshErrorSchema>;
 export type AuthStatusModelState = z.infer<typeof authStatusModelStateSchema>;
 export type AuthLoginState = z.infer<typeof authLoginStateSchema>;
 export type AuthPendingUrl = z.infer<typeof authPendingUrlSchema>;

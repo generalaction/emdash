@@ -43,7 +43,7 @@ export async function setConversationModeId(
   if (row.config.modeId === trimmed) return ok(context);
 
   const updated = await client.updateConfig({
-    id: conversationId,
+    conversationId,
     config: { ...row.config, modeId: trimmed },
   });
   if (!updated.success) {

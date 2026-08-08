@@ -6,7 +6,9 @@ import { applyConversationSnapshot } from './apply-conversation-snapshot';
 
 const LOCAL_HOST = { location: 'local', sshConnectionId: null } as const;
 
-function hostRecord(overrides: Partial<ConversationRecord> & { id: string }): ConversationRecord {
+function hostRecord(
+  overrides: Partial<ConversationRecord> & { conversationId: string }
+): ConversationRecord {
   return {
     provider: 'claude',
     type: 'acp',
@@ -56,8 +58,8 @@ describe('applyConversationSnapshot', () => {
       db: fixture.db,
       host: LOCAL_HOST,
       records: {
-        'conv-1': hostRecord({ id: 'conv-1', providerSessionId: 'session-1' }),
-        'conv-2': hostRecord({ id: 'conv-2', type: 'pty', title: 'Second' }),
+        'conv-1': hostRecord({ conversationId: 'conv-1', providerSessionId: 'session-1' }),
+        'conv-2': hostRecord({ conversationId: 'conv-2', type: 'pty', title: 'Second' }),
       },
       observedAt: '2026-01-03T00:00:00.000Z',
     });
@@ -94,8 +96,8 @@ describe('applyConversationSnapshot', () => {
       db: fixture.db,
       host: LOCAL_HOST,
       records: {
-        'conv-1': hostRecord({ id: 'conv-1', providerSessionId: 'session-1' }),
-        'conv-2': hostRecord({ id: 'conv-2', type: 'pty', title: 'Second' }),
+        'conv-1': hostRecord({ conversationId: 'conv-1', providerSessionId: 'session-1' }),
+        'conv-2': hostRecord({ conversationId: 'conv-2', type: 'pty', title: 'Second' }),
       },
     });
     expect(replay).toEqual({
@@ -113,7 +115,7 @@ describe('applyConversationSnapshot', () => {
     await applyConversationSnapshot({
       db: fixture.db,
       host: LOCAL_HOST,
-      records: { 'conv-1': hostRecord({ id: 'conv-1' }) },
+      records: { 'conv-1': hostRecord({ conversationId: 'conv-1' }) },
       observedAt: '2026-01-03T00:00:00.000Z',
     });
 
@@ -161,7 +163,7 @@ describe('applyConversationSnapshot', () => {
       host: LOCAL_HOST,
       records: {
         'conv-1': hostRecord({
-          id: 'conv-1',
+          conversationId: 'conv-1',
           title: 'Host renamed this',
           providerSessionId: 'rebound-session',
           lastSessionActivityAt: Date.parse('2026-01-05T00:00:00.000Z'),
@@ -282,7 +284,7 @@ describe('applyConversationSnapshot', () => {
     const result = await applyConversationSnapshot({
       db: fixture.db,
       host: LOCAL_HOST,
-      records: { 'tombstoned-alive': hostRecord({ id: 'tombstoned-alive' }) },
+      records: { 'tombstoned-alive': hostRecord({ conversationId: 'tombstoned-alive' }) },
     });
 
     expect(result).toMatchObject({ refreshed: 1, purgedTombstones: 0 });
@@ -343,7 +345,7 @@ describe('applyConversationSnapshot', () => {
     await applyConversationSnapshot({
       db: fixture.db,
       host: LOCAL_HOST,
-      records: { 'cloned-conv': hostRecord({ id: 'cloned-conv' }) },
+      records: { 'cloned-conv': hostRecord({ conversationId: 'cloned-conv' }) },
     });
 
     expect(registry.getLive('cloned-conv')).toMatchObject({

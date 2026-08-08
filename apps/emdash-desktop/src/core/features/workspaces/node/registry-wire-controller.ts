@@ -60,7 +60,7 @@ export function createWorkspaceRegistryWireController(
 
     createWorkspace: ({ host, path, config }) =>
       withRegistry(host, async (registry) => {
-        const result = await registry.createWorkspace({ id: mintId(), path });
+        const result = await registry.createWorkspace({ workspaceId: mintId(), path });
         if (result.success) upsertMirrorRow(options.db, host, result.data, config);
         return result;
       }),
@@ -68,7 +68,7 @@ export function createWorkspaceRegistryWireController(
     createWorktree: ({ host, config, ...spec }) =>
       withRegistry(host, async (registry) => {
         const result = await registry.createWorktree({
-          id: mintId(),
+          workspaceId: mintId(),
           repositoryId: spec.repositoryId,
           branch: spec.branch,
           baseRef: spec.baseRef,
@@ -81,32 +81,30 @@ export function createWorkspaceRegistryWireController(
       }),
 
     activateWorkspace: ({ host, workspaceId }) =>
-      withRegistry(host, (registry) => registry.activateWorkspace({ id: workspaceId })),
+      withRegistry(host, (registry) => registry.activateWorkspace({ workspaceId })),
 
     deactivateWorkspace: ({ host, workspaceId }) =>
-      withRegistry(host, (registry) => registry.deactivateWorkspace({ id: workspaceId })),
+      withRegistry(host, (registry) => registry.deactivateWorkspace({ workspaceId })),
 
     deleteWorkspace: ({ host, workspaceId }) =>
-      withRegistry(host, (registry) => registry.deleteWorkspace({ id: workspaceId })),
+      withRegistry(host, (registry) => registry.deleteWorkspace({ workspaceId })),
 
     deleteWorktree: ({ host, workspaceId, deleteBranch }) =>
       withRegistry(host, (registry) =>
-        registry.deleteWorktree({ id: workspaceId, deleteBranch: deleteBranch ?? false })
+        registry.deleteWorktree({ workspaceId, deleteBranch: deleteBranch ?? false })
       ),
 
     refresh: ({ host, workspaceId }) =>
       withRegistry(host, (registry) =>
-        registry.refresh(workspaceId === undefined ? {} : { id: workspaceId })
+        registry.refresh(workspaceId === undefined ? {} : { workspaceId })
       ),
 
     updateWorktree: ({ host, workspaceId, remote, sourceRef }) =>
-      withRegistry(host, (registry) =>
-        registry.updateWorktree({ id: workspaceId, remote, sourceRef })
-      ),
+      withRegistry(host, (registry) => registry.updateWorktree({ workspaceId, remote, sourceRef })),
 
     retryStep: ({ host, workspaceId, step }) =>
       withRegistry(host, async (registry) => {
-        const result = await registry.retryStep({ id: workspaceId, step });
+        const result = await registry.retryStep({ workspaceId, step });
         if (result.success) upsertMirrorRow(options.db, host, result.data, undefined);
         return result;
       }),

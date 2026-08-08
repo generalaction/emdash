@@ -40,8 +40,9 @@ port on the remote host.
 wire controller over stdin/stdout and exists as a test and debugging harness.
 
 The daemon runs every core runtime in a required supervised subprocess in both socket and stdio
-modes. Clients reach ACP, agent config, automations, file search, files, Git, terminals, TUI agents,
-and workspace through the corresponding aggregate client domains. Live state, jobs, event streams,
+modes. Clients reach ACP, agent config, automations, conversations, file search, files, Git,
+resource usage, terminals, TUI agents, and the workspace registry through the corresponding
+aggregate client domains. Live state, jobs, event streams,
 mutations, terminal logs, and file blob channels all use the same reconnectable workspace wire
 connection.
 
@@ -93,6 +94,7 @@ async function openInitializedWorkspaceTransport(
   try {
     const initialized = await handshakeClient.initialize({
       protocolVersion: PROTOCOL_VERSION,
+      client: { id: clientId, appVersion },
     });
     if (!initialized.success) throw new WorkspaceProtocolError(initialized.error);
     onInitialized(initialized.data);
@@ -200,9 +202,9 @@ calls `health`.
 
 ## ACP Session IDs
 
-ACP `startSession` and `resumeSession` return `{ sessionId }` directly to the
-desktop client through the workspace wire connection. The desktop side should
-persist the returned session id when remote ACP session resume is wired.
+ACP `start` and `resume` return `{ sessionId }` directly to the desktop client
+through the workspace wire connection. The desktop side should persist the
+returned session id when remote ACP session resume is wired.
 
 Stdio mode:
 
