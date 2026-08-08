@@ -1,4 +1,5 @@
 export * from './build-workspace-config-from-preset';
+export * from './compile-worktree-git-plan';
 export * from './describe-setup-steps';
 export * from './project-workspace';
 export * from './project-workspaces';

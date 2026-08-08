@@ -155,6 +155,7 @@ function makeProjectRemote() {
     host: hostRef('remote', 'conn-1'),
     settings: {
       get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
+      getBaseRemote: vi.fn(async () => 'origin'),
       getPushRemote: vi.fn(async () => 'origin'),
     },
   });
@@ -170,6 +171,7 @@ describe('createTask', () => {
       host: hostRef('local', 'local'),
       settings: {
         get: vi.fn(async () => ({ preservePatterns: ['.env'] })),
+        getBaseRemote: vi.fn(async () => 'origin'),
         getPushRemote: vi.fn(async () => 'origin'),
       },
     });
@@ -671,6 +673,110 @@ describe('createTask', () => {
         success: false,
         error: { stage: 'add-worktree', message: 'branch exists' },
       });
+    });
+  });
+
+  describe('PR-sourced presets (pr-workspace-model)', () => {
+    // The desktop harness mocks the registry client, so these tests pin the seam:
+    // the exact compiled verb input. The host-side execution of gitSetup is
+    // integration-tested in packages/core workspace-registry create-worktree tests.
+    function prParams(git: Record<string, unknown>) {
+      return {
+        id: 'task-1',
+        projectId: 'project-1',
+        taskConfig: { version: '1' as const, name: 'Test Task' },
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'pr-branch',
+            prUrl: 'https://github.com/org/repo/pull/42',
+            prNumber: 42,
+            headBranch: 'feat/my-pr',
+            headRepositoryUrl: 'https://github.com/org/repo',
+            isFork: false,
+            ...git,
+          },
+          workspace: { kind: 'new-worktree' },
+        } as never,
+      };
+    }
+
+    it('compiles same-repo checkout-pr into fetch + upstream on the head branch', async () => {
+      const { captured } = setupTransactionMock();
+
+      await createTask(db, projects, hostIsReachable, prParams({}));
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      await settleCreation(wsInsert.id);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith({
+        id: wsInsert.id,
+        repositoryId: 'repo-workspace',
+        branch: 'feat/my-pr',
+        path: wsInsert.path,
+        preservePatterns: ['.env'],
+        pushBranch: false,
+        gitSetup: {
+          fetchBranch: { remote: 'origin', sourceRef: 'refs/heads/feat/my-pr' },
+          upstream: { remote: 'origin', mergeRef: 'refs/heads/feat/my-pr' },
+          breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
+          followRef: true,
+        },
+      });
+      // baseRef is omitted: fetchBranch materializes the branch.
+      const verbInput = workspaceRegistry.createWorktree.mock.calls[0][0];
+      expect('baseRef' in verbInput).toBe(false);
+    });
+
+    it('compiles fork checkout-pr into the namespaced branch fetched from the PR ref', async () => {
+      const { captured } = setupTransactionMock();
+
+      await createTask(
+        db,
+        projects,
+        hostIsReachable,
+        prParams({ isFork: true, headRepositoryUrl: 'https://github.com/fork/repo' })
+      );
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      await settleCreation(wsInsert.id);
+      expect(wsInsert.path).toMatch(/\/pr-42-feat-my-pr$/u);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'pr/42/feat/my-pr',
+          pushBranch: false,
+          gitSetup: {
+            fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/42/head' },
+            upstream: { remote: 'origin', mergeRef: 'refs/pull/42/head' },
+            breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
+            followRef: true,
+          },
+        })
+      );
+    });
+
+    it('compiles pr-new-branch into the task branch with no gitSetup upstream and a push', async () => {
+      const { captured } = setupTransactionMock();
+
+      await createTask(
+        db,
+        projects,
+        hostIsReachable,
+        prParams({ taskBranch: 'task/42', pushBranch: true })
+      );
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      await settleCreation(wsInsert.id);
+      expect(workspaceRegistry.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'task/42',
+          pushBranch: true,
+          gitSetup: {
+            fetchBranch: { remote: 'origin', sourceRef: 'refs/pull/42/head' },
+            breadcrumb: { prUrl: 'https://github.com/org/repo/pull/42' },
+            followRef: true,
+          },
+        })
+      );
     });
   });
 

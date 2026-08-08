@@ -3,7 +3,7 @@ import type { HostRef } from '@emdash/core/primitives/host/api';
 import type { CreateWorkspaceError } from '@emdash/core/runtimes/workspace-registry/api';
 import type { RuntimeBroker } from '@emdash/core/services/runtime-broker/api';
 import { err, ok, type Result } from '@emdash/shared';
-import type { WorkspaceConfig } from '@core/primitives/workspaces/api';
+import type { WorktreeGitPlan } from '@core/primitives/workspaces/api';
 
 export type WorkspaceCreationFailure = { stage: string; message: string };
 export type WorkspaceCreationOutcome = Result<void, WorkspaceCreationFailure>;
@@ -51,10 +51,13 @@ export type RegistryWorktreeSpec = {
   repositoryPath: string;
   workspaceId: string;
   branch: string;
-  baseRef: string;
+  /** Optional when `gitSetup.fetchBranch` materializes the branch instead. */
+  baseRef?: string;
   path: string;
   preservePatterns: string[];
   pushBranch: boolean;
+  /** The compiled PR-preset git setup block, passed through to the verb verbatim. */
+  gitSetup?: WorktreeGitPlan['gitSetup'];
 };
 
 /**
@@ -94,10 +97,11 @@ export async function createWorktreeThroughRegistry(
     id: spec.workspaceId,
     repositoryId,
     branch: spec.branch,
-    baseRef: spec.baseRef,
+    ...(spec.baseRef !== undefined && { baseRef: spec.baseRef }),
     path: spec.path,
     preservePatterns: spec.preservePatterns,
     pushBranch: spec.pushBranch,
+    ...(spec.gitSetup !== undefined && { gitSetup: spec.gitSetup }),
   });
   if (!created.success) {
     const error = created.error;
@@ -116,37 +120,6 @@ export async function createWorktreeThroughRegistry(
     }
   }
   return ok(undefined);
-}
-
-/**
- * Compiles the git half of a workspace config into the verb's branch/baseRef/push
- * fields. Mirrors the legacy outbox compile: the host resolves an existing local
- * branch itself, so baseRef only matters when the branch is being created.
- */
-export function compileRegistryGitSpec(
-  git: WorkspaceConfig['git']
-): Result<{ branch: string; baseRef: string; pushBranch: boolean }, { message: string }> {
-  switch (git.kind) {
-    case 'create-branch':
-      return ok({
-        branch: git.branchName,
-        baseRef:
-          git.fromBranch.type === 'remote'
-            ? `${git.fromBranch.remote.name}/${git.fromBranch.branch}`
-            : git.fromBranch.branch,
-        pushBranch: git.pushBranch === true,
-      });
-    case 'use-branch':
-      return ok({ branch: git.branchName, baseRef: git.branchName, pushBranch: false });
-    case 'pr-branch':
-      return ok({
-        branch: git.taskBranch ?? git.headBranch,
-        baseRef: git.headBranch,
-        pushBranch: git.pushBranch === true && git.taskBranch !== undefined,
-      });
-    case 'none':
-      return err({ message: 'A Git branch is required when creating a worktree.' });
-  }
 }
 
 function describeCreateWorkspaceError(error: CreateWorkspaceError): string {

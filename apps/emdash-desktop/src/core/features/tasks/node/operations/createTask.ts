@@ -25,7 +25,6 @@ import {
   type WorkspaceRegistry,
 } from '@core/features/workspaces/api/node/registry';
 import {
-  compileRegistryGitSpec,
   createWorktreeThroughRegistry,
   type RegistryWorktreeSpec,
   type WorkspaceCreations,
@@ -43,6 +42,7 @@ import type {
   CreateTaskSuccess,
   TaskLifecycleStatus,
 } from '@core/primitives/tasks/api';
+import { compileWorktreeGitPlan } from '@core/primitives/workspaces/api';
 import type { AppDb, DrizzleTx } from '@core/services/app-db/node/db';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { projects, tasks } from '@core/services/app-db/node/schema';
@@ -91,12 +91,15 @@ export async function prepareCreateTask(
   let registryCreate: RegistryWorktreeSpec | undefined;
 
   const wsTarget = workspaceConfig.workspace;
-  const branchName =
-    workspaceConfig.git.kind === 'use-branch' || workspaceConfig.git.kind === 'create-branch'
-      ? workspaceConfig.git.branchName
-      : workspaceConfig.git.kind === 'pr-branch'
-        ? (workspaceConfig.git.taskBranch ?? workspaceConfig.git.headBranch)
-        : undefined;
+  // The full worktree git plan (branch, baseRef?, pushBranch, gitSetup?), compiled once
+  // desktop-side; PR presets carry their fetch/upstream/breadcrumb instructions here.
+  const gitPlan =
+    workspaceConfig.git.kind === 'none'
+      ? undefined
+      : compileWorktreeGitPlan(workspaceConfig.git, {
+          baseRemote: await project.settings.getBaseRemote(),
+        });
+  const branchName = gitPlan?.branch;
   // Tombstone-aware creation admission (ADR 0006, spec §4): a pending deletion
   // tombstone on the target workspace or its branch refuses creation — a data check
   // against the mirror, the successor to the retired claim-conflict preflight.
@@ -148,7 +151,7 @@ export async function prepareCreateTask(
     const sshConnectionId = isRemote ? project.host.id : null;
     const legacyType = isRemote ? 'project-ssh' : 'local';
 
-    if (!branchName) {
+    if (!gitPlan || !branchName) {
       return err({
         type: 'provision-failed',
         message: 'A Git branch is required when creating a worktree.',
@@ -179,10 +182,6 @@ export async function prepareCreateTask(
     if (!allocated.success) return allocated;
     const workspacePath = allocated.data;
     conversationWorkspacePath = workspacePath;
-    const gitSpec = compileRegistryGitSpec(workspaceConfig.git);
-    if (!gitSpec.success) {
-      return err({ type: 'provision-failed', message: gitSpec.error.message });
-    }
 
     newWorkspaceValues = {
       id: workspaceId,
@@ -200,11 +199,12 @@ export async function prepareCreateTask(
       repositoryWorkspaceId: projectRow?.repositoryWorkspaceId ?? null,
       repositoryPath: project.repoPath,
       workspaceId,
-      branch: gitSpec.data.branch,
-      baseRef: gitSpec.data.baseRef,
+      branch: gitPlan.branch,
+      ...(gitPlan.baseRef !== undefined && { baseRef: gitPlan.baseRef }),
       path: workspacePath,
       preservePatterns: compiled.preservePatterns,
-      pushBranch: gitSpec.data.pushBranch,
+      pushBranch: gitPlan.pushBranch,
+      ...(gitPlan.gitSetup !== undefined && { gitSetup: gitPlan.gitSetup }),
     };
   }
 
