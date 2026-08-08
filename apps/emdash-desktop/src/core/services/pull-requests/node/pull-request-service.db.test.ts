@@ -4,7 +4,7 @@ import { requestPriorities } from '@emdash/shared/requests';
 import { createStubLogger } from '@emdash/shared/testing';
 import type { ContractClient } from '@emdash/wire/rpc';
 import { describe, expect, it, vi } from 'vitest';
-import type { GitHubAuthContract } from '../api';
+import type { GitHubAuthContract, PullRequest } from '../api';
 import type { PullRequestEngine } from './engine';
 import { PullRequestService } from './pull-request-service';
 import { PullRequestStore, pullRequestSqliteStore } from './store';
@@ -181,6 +181,42 @@ describe('PullRequestService lifecycle', () => {
     await scope.dispose();
   });
 
+  it('validates canonical PR URLs against the cache scoped to one repository', async () => {
+    const scope = createScope({ label: 'pull-request-by-url-test' });
+    const handle = await pullRequestSqliteStore.openTemp();
+    scope.add(() => handle.close());
+    const store = new PullRequestStore(handle);
+    const { logger } = createStubLogger();
+    const service = new PullRequestService({
+      store,
+      githubAuth: fakeGitHubAuth(),
+      scope,
+      logger,
+      engine: {} as PullRequestEngine,
+    });
+    const repositoryUrl = 'https://github.com/emdash/emdash';
+    const otherRepositoryUrl = 'https://github.com/other/project';
+    service.registerRepository(repositoryUrl);
+    const pr = store.savePullRequest(pullRequestFixture({ url: `${repositoryUrl}/pull/42` }));
+
+    expect(service.getPullRequestByUrl(repositoryUrl, pr.url)).toEqual(ok({ pr }));
+    // Normalization applies to the repository scope, not the opaque cache key.
+    expect(service.getPullRequestByUrl(`${repositoryUrl}.git`, pr.url)).toEqual(ok({ pr }));
+    // Unknown URLs are ordinary misses — the association layer falls back silently.
+    expect(service.getPullRequestByUrl(repositoryUrl, `${repositoryUrl}/pull/9999`)).toEqual(
+      ok({ pr: null })
+    );
+    // A cached PR is invisible through another repository's scope.
+    expect(service.getPullRequestByUrl(otherRepositoryUrl, pr.url)).toEqual(ok({ pr: null }));
+    // Unregistered repositories validate nothing (mirrors getPullRequestsForBranch).
+    await service.unregisterRepository(repositoryUrl);
+    expect(service.getPullRequestByUrl(repositoryUrl, pr.url)).toEqual(ok({ pr: null }));
+    expect(service.getPullRequestByUrl('not a repository', pr.url)).toEqual(
+      err({ type: 'invalid_repository', input: 'not a repository' })
+    );
+    await scope.dispose();
+  });
+
   it('keeps a successful mutation result when its derived refresh fails', async () => {
     const scope = createScope({ label: 'pull-request-refresh-failure-test' });
     const handle = await pullRequestSqliteStore.openTemp();
@@ -222,6 +258,39 @@ describe('PullRequestService lifecycle', () => {
     await scope.dispose();
   });
 });
+
+function pullRequestFixture(overrides: Partial<PullRequest> = {}): PullRequest {
+  const repositoryUrl = 'https://github.com/emdash/emdash';
+  return {
+    url: `${repositoryUrl}/pull/1`,
+    provider: 'github',
+    repositoryUrl,
+    baseRefName: 'main',
+    baseRefOid: 'base',
+    headRepositoryUrl: repositoryUrl,
+    headRefName: 'feature',
+    headRefOid: 'head',
+    identifier: '#1',
+    title: 'Feature',
+    description: null,
+    status: 'open',
+    isDraft: false,
+    additions: 10,
+    deletions: 2,
+    changedFiles: 1,
+    commitCount: 1,
+    mergeableStatus: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+    reviewDecision: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-02T00:00:00.000Z',
+    author: null,
+    labels: [],
+    assignees: [],
+    checks: [],
+    ...overrides,
+  };
+}
 
 function fakeGitHubAuth(): ContractClient<GitHubAuthContract> {
   return {

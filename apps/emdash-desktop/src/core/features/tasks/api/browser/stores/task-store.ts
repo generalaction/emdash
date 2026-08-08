@@ -23,6 +23,7 @@ import type {
   Task,
   TaskLifecycleStatus,
   WorkspaceLifecycleStepInfo,
+  WorkspaceObservedPrFacts,
 } from '@core/primitives/tasks/api';
 
 export type TaskStoreMutations = {
@@ -54,6 +55,8 @@ export class TaskStore implements TaskState {
   } | null = null;
   /** Lifecycle steps (creation, background, and script steps) from the host overlay. */
   workspaceLifecycle: WorkspaceLifecycleStepInfo[] | null = null;
+  /** Observed PR-association facts (mirror observedGit v2); null when unobserved. */
+  workspaceObservedPr: WorkspaceObservedPrFacts | null = null;
   private stores: ScopedStoreHost<TaskScopedStoreContext>;
 
   get displayName(): string {
@@ -87,6 +90,7 @@ export class TaskStore implements TaskState {
       workspaceCreation: observable,
       workspaceCreateOutcome: observable,
       workspaceLifecycle: observable,
+      workspaceObservedPr: observable,
       stores: false,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
@@ -107,12 +111,14 @@ export class TaskStore implements TaskState {
       message?: string;
     } | null;
     lifecycle?: WorkspaceLifecycleStepInfo[] | null;
+    observedPr?: WorkspaceObservedPrFacts | null;
   }): void {
     this.workspacePath = projection?.path ?? this.workspacePath;
     this.workspaceObservedStatus = projection?.observedStatus ?? null;
     this.workspaceCreation = projection?.creation ?? null;
     this.workspaceCreateOutcome = projection?.lastCreateOutcome ?? null;
     this.workspaceLifecycle = projection?.lifecycle ?? null;
+    this.workspaceObservedPr = projection?.observedPr ?? null;
   }
 
   get<Token extends ScopedStoreToken<unknown>>(token: Token): ScopedStoreValue<Token> {

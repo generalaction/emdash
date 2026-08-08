@@ -107,6 +107,19 @@ export type WorkspaceLifecycleStepInfo = {
   params: Record<string, string | number | boolean>;
 };
 
+/**
+ * Raw observed git facts (mirror observedGit v2) that PR association derives from
+ * desktop-side. Null means not-yet-observed — old hosts and v1 payloads — which
+ * degrades association to branch matching only.
+ */
+export type WorkspaceObservedPrFacts = {
+  branch: string | null;
+  /** Raw `branch.<b>.emdash-pr-url` config value (a canonical PR URL). */
+  prBreadcrumb: string | null;
+  /** Verbatim `branch.<b>.merge` plus the upstream remote's resolved URL. */
+  upstream: { mergeRef: string; remoteUrl: string | null } | null;
+};
+
 export type TaskStatsData = {
   byWorkspaceId: Record<string, { linesAdded: number; linesDeleted: number }>;
   workspaceById?: Record<
@@ -124,6 +137,8 @@ export type TaskStatsData = {
       } | null;
       /** Lifecycle steps in canonical order (creation, background, and script steps). */
       lifecycle?: WorkspaceLifecycleStepInfo[] | null;
+      /** Observed PR-association facts; null while the host has not observed v2 yet. */
+      observedPr?: WorkspaceObservedPrFacts | null;
     }
   >;
 };
