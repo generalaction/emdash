@@ -1,16 +1,25 @@
 import { normalizeDiffTarget, type GitChange } from '@emdash/core/runtimes/git/api';
+import type { UpdateWorktreeError } from '@emdash/core/runtimes/workspace-registry/api';
+import type { RuntimeResolveError } from '@emdash/core/services/runtime-broker/api';
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
+import {
+  asMounted,
+  getProjectStore,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import {
   checkoutSelector,
   getSourceControlClient,
 } from '@core/features/source-control/api/browser/client';
 import type { GitRepositoryStore } from '@core/features/source-control/api/browser/stores/git-repository-store';
 import type { TaskStore } from '@core/features/tasks/api/browser/stores/task-store';
+import { getWorkspaceRegistryWireClient } from '@core/features/workspaces/api/browser/client';
 import { Resource } from '@core/primitives/async-resource/browser/resource';
 import { commitRef, mergeBaseRange } from '@core/primitives/git/api';
+import { projectHostRef } from '@core/primitives/projects/api';
 import { isRegistered } from '@core/primitives/task-state/browser/task-state';
 import type { Task } from '@core/primitives/tasks/api';
 import { captureTelemetry } from '@core/primitives/telemetry/browser/telemetry-client';
+import { compilePrUpdateInstruction } from '@core/primitives/workspaces/api';
 import {
   getPrNumber,
   isForkPr,
@@ -56,6 +65,39 @@ export class PrStore {
    */
   get checkoutDrift(): PrCheckoutDrift {
     return this.taskStore.prCheckoutDrift ?? { kind: 'unknown' };
+  }
+
+  /**
+   * The manual "Update now" verb (pr-workspace-model spec, Staleness): compiles the
+   * `{ remote, sourceRef }` instruction from the current PR association and the
+   * project's base remote, and invokes the registry-owned fast-forward through the
+   * workspace wire API — never reading workspace config or host record fields, so
+   * pre-model workspaces update too. Guard refusals (dirty worktree, active
+   * sessions, diverged branch) come back as readable messages; after a success the
+   * host's post-update scan feeds observation and the drift state returns to
+   * in-sync on the next derivation.
+   */
+  async updatePrCheckout(): Promise<MergeResult> {
+    const pr = this.currentPr;
+    if (!pr) return { success: false, error: 'No pull request is associated with this task' };
+    const instruction = compilePrUpdateInstruction(pr, {
+      baseRemote: this.gitRepositoryStore.baseRemote.name,
+    });
+    if (!instruction) return { success: false, error: 'Could not determine the PR number' };
+    const project = asMounted(getProjectStore(this.projectId));
+    if (!project) return { success: false, error: 'The project is not available' };
+
+    const client = await getWorkspaceRegistryWireClient();
+    const result = await client.updateWorktree({
+      host: projectHostRef(project.data),
+      workspaceId: this.workspaceId,
+      remote: instruction.remote,
+      sourceRef: instruction.sourceRef,
+    });
+    if (!result.success) {
+      return { success: false, error: describeUpdateCheckoutError(result.error) };
+    }
+    return { success: true };
   }
 
   getFiles(pr: PullRequest): Resource<GitChange[]> {
@@ -246,5 +288,26 @@ export class PrStore {
       if (index >= 0) task.prs.splice(index, 1, result.data.pr);
       else task.prs.push(result.data.pr);
     });
+  }
+}
+
+/** Each host guard refusal keeps its own distinct, actionable message. */
+function describeUpdateCheckoutError(error: UpdateWorktreeError | RuntimeResolveError): string {
+  switch (error.type) {
+    case 'worktree-dirty':
+      return 'The checkout has uncommitted changes — commit or stash them first.';
+    case 'workspace-active':
+      return 'The workspace has active sessions — stop them before updating.';
+    case 'diverged':
+      return 'The checkout has local commits the PR head lacks — resolve manually.';
+    case 'stage-failed':
+      return error.message;
+    case 'workspace-not-found':
+    case 'not-a-worktree':
+    case 'workspace-missing':
+      return 'The workspace is not an updatable worktree.';
+    case 'host-unavailable':
+    case 'not-configured':
+      return error.message;
   }
 }

@@ -8,6 +8,40 @@ export type WorkspaceSessionClients = Pick<HostRuntimesClient, 'acp' | 'terminal
 export type SessionKiller = (workspacePath: string) => Promise<void>;
 
 /**
+ * The staleness guards' session probe (pr-workspace-model spec): how many live
+ * ACP/TUI/terminal sessions run under the workspace path — exactly the set
+ * deactivateWorkspace would kill. "Active" for the update/follow guards means
+ * this count is non-zero.
+ */
+export type SessionCounter = (workspacePath: string) => Promise<number>;
+
+export function createSessionCounter(clients: WorkspaceSessionClients): SessionCounter {
+  return async (workspacePath) => {
+    const parsed = parseAbsolute(workspacePath);
+    if (!parsed.success) return 0;
+    const root = parsed.data;
+
+    const [terminalSnapshot, acpSnapshot, tuiSnapshot] = await Promise.all([
+      clients.terminals.sessions.state(undefined, 'list').snapshot(),
+      clients.acp.sessions.state(undefined, 'list').snapshot(),
+      clients.tuiAgents.sessions.state(undefined, 'list').snapshot(),
+    ]);
+
+    let count = 0;
+    for (const session of Object.values(acpSnapshot.data)) {
+      if (cwdUnder(root, session.cwd)) count += 1;
+    }
+    for (const session of Object.values(tuiSnapshot.data)) {
+      if (cwdUnder(root, session.cwd)) count += 1;
+    }
+    for (const session of Object.values(terminalSnapshot.data)) {
+      if (containsAbsolute(root, session.key.workspace.path)) count += 1;
+    }
+    return count;
+  };
+}
+
+/**
  * Kills every ACP, TUI, and terminal session whose cwd falls under the workspace path.
  * Best-effort by contract: deactivation must always reach teardown, so individual kill
  * failures are logged, never thrown.

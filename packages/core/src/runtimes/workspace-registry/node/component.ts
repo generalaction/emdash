@@ -9,7 +9,7 @@ import { createWorkspaceRegistryController } from './api/controller';
 import { workspaceRegistryStore } from './persistence/store';
 import { WorkspaceRegistryRuntime } from './runtime';
 import { WorkspaceScanScheduler } from './scan/scheduler';
-import { createSessionKiller } from './session-cleanup';
+import { createSessionCounter, createSessionKiller } from './session-cleanup';
 
 export const workspaceRegistryComponentConfigSchema = z.object({
   databasePath: z
@@ -47,15 +47,18 @@ export const workspaceRegistryComponent = defineWireComponent({
     const handle = workspaceRegistryStore.open(config.databasePath);
     scope.add(() => handle.close());
 
-    const killSessions = createSessionKiller(
-      {
-        acp: dependencies.acp,
-        terminals: dependencies.terminals,
-        tuiAgents: dependencies.tuiAgents,
-      },
-      logger
-    );
-    const runtime = new WorkspaceRegistryRuntime({ handle, logger, killSessions });
+    const sessionClients = {
+      acp: dependencies.acp,
+      terminals: dependencies.terminals,
+      tuiAgents: dependencies.tuiAgents,
+    };
+    const killSessions = createSessionKiller(sessionClients, logger);
+    const runtime = new WorkspaceRegistryRuntime({
+      handle,
+      logger,
+      killSessions,
+      countSessions: createSessionCounter(sessionClients),
+    });
     scope.add(() => runtime.dispose());
 
     const watcher = createProcessWatchServiceFromDependency({

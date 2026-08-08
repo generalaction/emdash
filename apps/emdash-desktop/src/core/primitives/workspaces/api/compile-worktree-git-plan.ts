@@ -1,4 +1,5 @@
 import { normalizeRepositoryUrl } from '@root/src/core/services/pull-requests/api';
+import { branchHeadRef, prHeadRef } from './pr-source-refs';
 import type { WorkspaceConfig } from './workspace-config';
 
 /**
@@ -64,7 +65,7 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
   const remote = context.baseRemote;
   const prUrl = resolvePrUrl(git);
   const breadcrumb = prUrl !== undefined ? { breadcrumb: { prUrl } } : {};
-  const prHeadRef = `refs/pull/${git.prNumber}/head`;
+  const prRef = prHeadRef(git.prNumber);
 
   // pr-new-branch (either origin, uniform): base the task branch on the PR head; the
   // existing background push-branch step owns pushing and upstream tracking.
@@ -73,7 +74,7 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
       branch: git.taskBranch,
       pushBranch: git.pushBranch === true,
       gitSetup: {
-        fetchBranch: { remote, sourceRef: prHeadRef },
+        fetchBranch: { remote, sourceRef: prRef },
         ...breadcrumb,
         followRef: true,
       },
@@ -89,8 +90,8 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
       branch: `pr/${git.prNumber}/${git.headBranch}`,
       pushBranch: false,
       gitSetup: {
-        fetchBranch: { remote, sourceRef: prHeadRef },
-        upstream: { remote, mergeRef: prHeadRef },
+        fetchBranch: { remote, sourceRef: prRef },
+        upstream: { remote, mergeRef: prRef },
         ...breadcrumb,
         followRef: true,
       },
@@ -99,7 +100,7 @@ function compilePrBranchPlan(git: PrBranchGit, context: WorktreeGitPlanContext):
 
   // checkout-pr, same-repo: the real branch with upstream tracking — commit and push
   // to the PR preserved. Branch reuse on collision is correct (same logical branch).
-  const headRef = `refs/heads/${git.headBranch}`;
+  const headRef = branchHeadRef(git.headBranch);
   return {
     branch: git.headBranch,
     pushBranch: false,

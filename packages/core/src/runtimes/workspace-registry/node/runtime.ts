@@ -15,6 +15,7 @@ import type {
   CreateWorktreeError,
   DeleteWorkspaceError,
   DeleteWorktreeError,
+  UpdateWorktreeError,
   WorkspaceNotFoundError,
 } from '../api/errors';
 import type {
@@ -26,6 +27,7 @@ import type {
   DeleteWorktreeInput,
   RefreshWorkspacesInput,
   RetryStepInput,
+  UpdateWorktreeInput,
   WorkspaceGitSetup,
   WorkspaceLifecycleStep,
   WorkspaceLifecycleStepId,
@@ -70,7 +72,8 @@ import {
 } from './scan/observe-git';
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
 import type { WorkspaceScriptRunner } from './script-runner';
-import type { SessionKiller } from './session-cleanup';
+import type { SessionCounter, SessionKiller } from './session-cleanup';
+import { executeUpdateWorktree } from './update-worktree';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -82,6 +85,8 @@ export type WorkspaceRegistryRuntimeOptions = {
   onRecordsChanged?: () => void;
   /** deactivateWorkspace's session-plane step; the component builds it from the session runtimes. */
   killSessions?: SessionKiller;
+  /** updateWorktree's "active" guard probe; the component builds it from the same runtimes. */
+  countSessions?: SessionCounter;
   activation?: {
     runner?: WorkspaceScriptRunner;
     teardownTimeoutMs?: number;
@@ -137,6 +142,7 @@ export class WorkspaceRegistryRuntime {
   private readonly configReads = new Map<string, Promise<WorkspaceConfigEntry>>();
   private disposed = false;
   private readonly killSessions: SessionKiller;
+  private readonly countSessions: SessionCounter;
   private readonly activationManager: WorkspaceActivationManager;
   readonly recordsHost: LeasedLiveModelProvider<typeof workspaceRegistryContract.records>;
 
@@ -147,6 +153,7 @@ export class WorkspaceRegistryRuntime {
     this.onRecordsChanged = options.onRecordsChanged;
     this.store = new WorkspaceRecordStore(options.handle);
     this.killSessions = options.killSessions ?? (async () => undefined);
+    this.countSessions = options.countSessions ?? (async () => 0);
     this.activationManager = new WorkspaceActivationManager({
       publishActivation: (id, activation) =>
         this.updateOverlay(id, (overlay) => ({ ...overlay, activation })),
@@ -341,6 +348,62 @@ export class WorkspaceRegistryRuntime {
       return await this.enqueue(() =>
         Promise.resolve(this.deleteWorkspaceLocked({ id: input.id }))
       );
+    });
+  }
+
+  /**
+   * Fast-forwards one worktree's checkout to the desktop-compiled `{remote, sourceRef}`
+   * instruction (spec: pr-workspace-model staleness, manual update). The record's own
+   * `gitSetup` is deliberately never read — instruction-as-input is what makes
+   * pre-model workspaces updatable. Held under the per-workspace claim like the other
+   * mutators; the executor takes the per-worktree writer lock around guards + fetch +
+   * ff-only so scans never observe a torn checkout. "Active" means live sessions under
+   * the worktree path — exactly the set deactivateWorkspace would kill — consulted
+   * through the session-count seam. A success writes nothing durable; the trailing
+   * deliberate scan feeds the observation (and the desktop's drift state).
+   */
+  updateWorktree(input: UpdateWorktreeInput): Promise<Result<void, UpdateWorktreeError>> {
+    return this.workspaceClaims.runExclusive(input.id, async () => {
+      const record = this.store.get(input.id);
+      if (!record) return err({ type: 'workspace-not-found', workspaceId: input.id });
+      if (record.kind !== 'worktree') {
+        return err({ type: 'not-a-worktree', workspaceId: input.id });
+      }
+      if (record.observedStatus === 'missing') {
+        return err({ type: 'workspace-missing', workspaceId: input.id });
+      }
+      const parent = record.parentId === null ? null : this.store.get(record.parentId);
+      // The update writes into the worktree (the ff checkout) and the shared git dir
+      // (the private fetch ref): mute both watchers, then scan once deliberately.
+      const releaseWorktree = this.muteScans(input.id);
+      const releaseRepository = parent ? this.muteScans(parent.id) : undefined;
+      try {
+        const result = await executeUpdateWorktree({
+          repositoryPath: parent?.path ?? record.path,
+          worktreePath: record.path,
+          remote: input.remote,
+          sourceRef: input.sourceRef,
+          isActive: async () => (await this.countSessions(record.path)) > 0,
+        });
+        if (result.status === 'refused') {
+          return err(
+            result.reason === 'dirty'
+              ? { type: 'worktree-dirty', workspaceId: input.id }
+              : { type: 'workspace-active', workspaceId: input.id }
+          );
+        }
+        if (result.status === 'diverged') {
+          return err({ type: 'diverged', workspaceId: input.id, message: result.message });
+        }
+        if (result.status === 'failed') {
+          return err({ type: 'stage-failed', stage: result.stage, message: result.message });
+        }
+        return ok(undefined);
+      } finally {
+        releaseRepository?.();
+        releaseWorktree();
+        this.settleScan({ kind: 'workspace', id: input.id, mode: 'full' });
+      }
     });
   }
 

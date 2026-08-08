@@ -348,6 +348,19 @@ export const createWorktreeInputSchema = z
   });
 export type CreateWorktreeInput = z.infer<typeof createWorktreeInputSchema>;
 
+/**
+ * Fast-forward one worktree's checkout to `sourceRef` fetched from `remote` (spec:
+ * pr-workspace-model staleness, manual update). Instruction-as-input: the host never
+ * reads the durable record's `gitSetup` for this verb, which is what makes workspaces
+ * created before the model shipped updatable with the exact same call.
+ */
+export const updateWorktreeInputSchema = z.object({
+  id: z.string().min(1),
+  remote: z.string().min(1),
+  sourceRef: z.string().min(1),
+});
+export type UpdateWorktreeInput = z.infer<typeof updateWorktreeInputSchema>;
+
 /** Explicit "refresh now": rescans one workspace, or the whole host when id is omitted. */
 export const refreshWorkspacesInputSchema = z.object({
   id: z.string().min(1).optional(),

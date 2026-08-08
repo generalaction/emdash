@@ -59,6 +59,25 @@ export const activateWorkspaceErrorSchema = z.discriminatedUnion('type', [
 ]);
 export type ActivateWorkspaceError = z.infer<typeof activateWorkspaceErrorSchema>;
 
+/**
+ * updateWorktree's outcomes: each guard refusal is a distinct machine-readable fact,
+ * and nothing moves in any refusal case. 'stage-failed' tags execution failures
+ * (inspect | fetch | merge) the way createWorktree's stage failures do.
+ */
+export const updateWorktreeErrorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('workspace-not-found'), workspaceId: z.string() }),
+  z.object({ type: z.literal('not-a-worktree'), workspaceId: z.string() }),
+  z.object({ type: z.literal('workspace-missing'), workspaceId: z.string() }),
+  /** Live sessions under the worktree: a checkout never moves under an active session. */
+  z.object({ type: z.literal('workspace-active'), workspaceId: z.string() }),
+  /** Uncommitted changes (untracked included): the update never risks local work. */
+  z.object({ type: z.literal('worktree-dirty'), workspaceId: z.string() }),
+  /** Local commits the fetched head lacks: fast-forward impossible — resolve manually. */
+  z.object({ type: z.literal('diverged'), workspaceId: z.string(), message: z.string() }),
+  z.object({ type: z.literal('stage-failed'), stage: z.string(), message: z.string() }),
+]);
+export type UpdateWorktreeError = z.infer<typeof updateWorktreeErrorSchema>;
+
 export const createWorktreeErrorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('repository-not-found'), repositoryId: z.string() }),
   z.object({

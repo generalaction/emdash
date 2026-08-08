@@ -6,6 +6,7 @@ import {
   createWorktreeErrorSchema,
   deleteWorkspaceErrorSchema,
   deleteWorktreeErrorSchema,
+  updateWorktreeErrorSchema,
   workspaceNotFoundErrorSchema,
 } from './errors';
 import {
@@ -17,6 +18,7 @@ import {
   deleteWorktreeInputSchema,
   refreshWorkspacesInputSchema,
   retryStepInputSchema,
+  updateWorktreeInputSchema,
   workspaceRecordSchema,
   workspaceRecordsSchema,
 } from './schemas';
@@ -135,6 +137,21 @@ export const workspaceRegistryContract = defineContract({
     input: deleteWorktreeInputSchema,
     data: z.void(),
     error: deleteWorktreeErrorSchema,
+  }),
+
+  /**
+   * Fast-forwards a worktree's checkout to `sourceRef` fetched from `remote` — the
+   * manual "Update now" half of the staleness model, sharing its guarded executor with
+   * the host ref-follow loop. Instruction-as-input: the host never reads the record's
+   * `gitSetup`, so pre-model workspaces update identically. Guards run under the
+   * per-worktree writer lock — dirty worktrees, live sessions, and diverged branches
+   * refuse with distinct errors and nothing moves. A success writes nothing durable;
+   * the post-mutation rescan feeds the observation.
+   */
+  updateWorktree: fallible({
+    input: updateWorktreeInputSchema,
+    data: z.void(),
+    error: updateWorktreeErrorSchema,
   }),
 
   /**

@@ -1,5 +1,7 @@
 export * from './build-workspace-config-from-preset';
+export * from './compile-pr-update-instruction';
 export * from './compile-worktree-git-plan';
+export * from './pr-source-refs';
 export * from './describe-worktree-git-plan';
 export * from './project-workspace';
 export * from './project-workspaces';

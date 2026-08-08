@@ -74,6 +74,7 @@ describe('createWorkspaceRegistryWireController', () => {
       deleteWorkspace: vi.fn(async () => ok(undefined)),
       deleteWorktree: vi.fn(async () => ok(undefined)),
       refresh: vi.fn(async () => ok(undefined)),
+      updateWorktree: vi.fn(async () => ok(undefined)),
     };
   });
 
@@ -226,6 +227,36 @@ describe('createWorkspaceRegistryWireController', () => {
       expect(hostVerbs.deleteWorkspace).toHaveBeenCalledWith({ id: 'ws-2' });
       await wire.call('refresh', { host: LOCAL_HOST_REF });
       expect(hostVerbs.refresh).toHaveBeenCalledWith({});
+    });
+
+    it('passes the desktop-compiled update instruction through and returns guard refusals unchanged', async () => {
+      hostVerbs.updateWorktree.mockResolvedValueOnce(
+        err({ type: 'worktree-dirty', workspaceId: 'wt-1' })
+      );
+      const wire = controller();
+
+      await expect(
+        wire.call('updateWorktree', {
+          host: LOCAL_HOST_REF,
+          workspaceId: 'wt-1',
+          remote: 'origin',
+          sourceRef: 'refs/pull/42/head',
+        })
+      ).resolves.toEqual(err({ type: 'worktree-dirty', workspaceId: 'wt-1' }));
+      expect(hostVerbs.updateWorktree).toHaveBeenCalledWith({
+        id: 'wt-1',
+        remote: 'origin',
+        sourceRef: 'refs/pull/42/head',
+      });
+
+      await expect(
+        wire.call('updateWorktree', {
+          host: LOCAL_HOST_REF,
+          workspaceId: 'wt-1',
+          remote: 'origin',
+          sourceRef: 'refs/heads/feature/x',
+        })
+      ).resolves.toEqual(ok(undefined));
     });
 
     it('fails fast with the typed resolve error and no side effects when unreachable', async () => {

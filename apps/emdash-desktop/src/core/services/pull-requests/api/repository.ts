@@ -36,7 +36,9 @@ export function selectCurrentPr(pullRequests: PullRequest[]): PullRequest | unde
   );
 }
 
-export function isForkPr(pullRequest: PullRequest): boolean {
+export function isForkPr(
+  pullRequest: Pick<PullRequest, 'headRepositoryUrl' | 'repositoryUrl'>
+): boolean {
   return pullRequest.headRepositoryUrl !== pullRequest.repositoryUrl;
 }
 

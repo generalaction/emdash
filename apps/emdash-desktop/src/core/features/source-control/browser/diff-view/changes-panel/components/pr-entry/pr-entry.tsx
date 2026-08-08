@@ -54,6 +54,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const [isMerging, setIsMerging] = useState(false);
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [bypassRequirements, setBypassRequirements] = useState(false);
+  const [isUpdatingCheckout, setIsUpdatingCheckout] = useState(false);
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -85,6 +86,20 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
       void doMerge(strategy, false);
     } else if (shouldBypassRequirements) {
       void doMerge(strategy, true);
+    }
+  };
+
+  // Manual "Update now": guard refusals (dirty, active sessions, diverged) come
+  // back as ordinary error messages through the same toast pattern merges use.
+  const updateCheckout = async () => {
+    setIsUpdatingCheckout(true);
+    try {
+      const result = await prStore.updatePrCheckout();
+      if (!result.success) {
+        toast.error('Could not update the checkout', { description: result.error });
+      }
+    } finally {
+      setIsUpdatingCheckout(false);
     }
   };
 
@@ -120,7 +135,11 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           />
         </div>
         <PrMergeLine pr={pr} />
-        <PrCheckoutDriftLine drift={prStore.checkoutDrift} />
+        <PrCheckoutDriftLine
+          drift={prStore.checkoutDrift}
+          onUpdateNow={() => void updateCheckout()}
+          isUpdating={isUpdatingCheckout}
+        />
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-2.5">
         <ToggleGroup.Root
