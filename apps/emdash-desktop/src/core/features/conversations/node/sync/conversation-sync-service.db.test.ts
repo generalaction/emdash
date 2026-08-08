@@ -63,10 +63,12 @@ describe('ConversationSyncService', () => {
         rename: unused,
         updateConfig: unused,
         delete: unused,
-        reportSessionStarted: unused,
-        reportProviderSessionId: unused,
-        reportSessionActivity: unused,
-        reportSessionEnded: unused,
+        reports: {
+          sessionStarted: unused,
+          providerSessionId: unused,
+          sessionActivity: unused,
+          sessionEnded: unused,
+        },
       })
     );
     hostReachable = true;

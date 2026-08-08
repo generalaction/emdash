@@ -18,6 +18,29 @@ import {
   updateConversationConfigInputSchema,
 } from './schemas';
 
+const conversationReportsSubContract = defineContract({
+  sessionStarted: fallible({
+    input: reportSessionStartedInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+  providerSessionId: fallible({
+    input: reportProviderSessionIdInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+  sessionActivity: fallible({
+    input: reportSessionActivityInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+  sessionEnded: fallible({
+    input: reportSessionEndedInputSchema,
+    data: z.void(),
+    error: conversationMutationErrorSchema,
+  }),
+});
+
 /**
  * The host conversation index (spec §4). The `records` live model is the sole read path —
  * durable-backed, so subscribing yields every durable record whether or not a session is
@@ -52,29 +75,19 @@ export const conversationsContract = defineContract({
     error: deleteConversationErrorSchema,
   }),
 
-  // Lifecycle reports — the second feeder (spec §3.3). One-way, same-host calls from the
-  // session runtimes; the index stamps observation times with its own clock. Reports never
-  // create records: a report against a deleted record is a not-found error the feeder logs.
-  reportSessionStarted: fallible({
-    input: reportSessionStartedInputSchema,
-    data: z.void(),
-    error: conversationMutationErrorSchema,
-  }),
-  reportProviderSessionId: fallible({
-    input: reportProviderSessionIdInputSchema,
-    data: z.void(),
-    error: conversationMutationErrorSchema,
-  }),
-  reportSessionActivity: fallible({
-    input: reportSessionActivityInputSchema,
-    data: z.void(),
-    error: conversationMutationErrorSchema,
-  }),
-  reportSessionEnded: fallible({
-    input: reportSessionEndedInputSchema,
-    data: z.void(),
-    error: conversationMutationErrorSchema,
-  }),
+  /**
+   * Lifecycle-report feeders (spec §3.7, §4.2) — feeder verbs for session runtimes and
+   * trusted maintenance flows (e.g. the desktop conversation backfill): one-way, idempotent
+   * liveness-metadata updates into the sole-writer index. The index stamps observation times
+   * with its own clock. Reports never create records: a report against a deleted record is a
+   * not-found error the feeder logs.
+   *
+   * Resume-outcome mapping at the report boundary: the tui runtime's per-call resume result
+   * maps to the durable index enum as `resumed` → `loaded`, `fresh-fallback` →
+   * `replaced-by-new`; an `attached` result means no session was spawned, so no report is
+   * sent and the index is unchanged.
+   */
+  reports: conversationReportsSubContract,
 });
 
 export type ConversationsContract = typeof conversationsContract;

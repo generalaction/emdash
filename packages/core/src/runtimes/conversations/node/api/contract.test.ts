@@ -266,7 +266,7 @@ describe('conversations lifecycle reports', () => {
 
   it('session start stamps lastSpawnedAt and the observed provider session id', async () => {
     await clock.advanceTo(20_000);
-    const reported = await wire.client.reportSessionStarted({
+    const reported = await wire.client.reports.sessionStarted({
       id: 'conv-1',
       providerSessionId: 'provider-session-9',
       resumeOutcome: null,
@@ -285,7 +285,7 @@ describe('conversations lifecycle reports', () => {
 
   it('resume outcomes record loaded and replaced-by-new', async () => {
     await clock.advanceTo(20_000);
-    await wire.client.reportSessionStarted({
+    await wire.client.reports.sessionStarted({
       id: 'conv-1',
       providerSessionId: 'provider-session-9',
       resumeOutcome: 'loaded',
@@ -295,7 +295,7 @@ describe('conversations lifecycle reports', () => {
     await clock.advanceTo(30_000);
     // The loadSession-fallback moment: the provider pruned its transcript, resume fell back
     // to a new session — the honest "history could not be restored" signal (spec §7.4).
-    await wire.client.reportSessionStarted({
+    await wire.client.reports.sessionStarted({
       id: 'conv-1',
       providerSessionId: 'provider-session-10',
       resumeOutcome: 'replaced-by-new',
@@ -309,14 +309,14 @@ describe('conversations lifecycle reports', () => {
   });
 
   it('mid-stream provider-id rebinds update the linkage sub-record', async () => {
-    await wire.client.reportSessionStarted({
+    await wire.client.reports.sessionStarted({
       id: 'conv-1',
       providerSessionId: 'provider-session-9',
       resumeOutcome: null,
     });
 
     await clock.advanceTo(25_000);
-    await wire.client.reportProviderSessionId({
+    await wire.client.reports.providerSessionId({
       id: 'conv-1',
       providerSessionId: 'provider-session-rebound',
     });
@@ -330,18 +330,18 @@ describe('conversations lifecycle reports', () => {
 
   it('activity and session end stamp lastSessionActivityAt', async () => {
     await clock.advanceTo(21_000);
-    await wire.client.reportSessionActivity({ id: 'conv-1' });
+    await wire.client.reports.sessionActivity({ id: 'conv-1' });
     expect(await recordSnapshot()).toMatchObject({ lastSessionActivityAt: 21_000 });
 
     await clock.advanceTo(22_000);
-    await wire.client.reportSessionEnded({ id: 'conv-1' });
+    await wire.client.reports.sessionEnded({ id: 'conv-1' });
     expect(await recordSnapshot()).toMatchObject({ lastSessionActivityAt: 22_000 });
   });
 
   it('reports for unknown records are conversation-not-found errors', async () => {
     // A report must never create a record (conv.records-only: reports carry facts about
     // records that exist; deletion wins over late reports).
-    const reported = await wire.client.reportSessionStarted({
+    const reported = await wire.client.reports.sessionStarted({
       id: 'conv-unknown',
       providerSessionId: 's',
       resumeOutcome: null,

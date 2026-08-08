@@ -26,7 +26,12 @@ describe('ConversationBackfillService', () => {
     const broker = {
       client: async () =>
         reachable
-          ? { success: true, data: { conversations: { create, reportProviderSessionId } } }
+          ? {
+              success: true,
+              data: {
+                conversations: { create, reports: { providerSessionId: reportProviderSessionId } },
+              },
+            }
           : { success: false, error: { type: 'host-unavailable', message: 'offline' } },
     } as unknown as ConversationsRuntimeBroker;
     service = new ConversationBackfillService({ db: fixture.db, runtimes: broker });
@@ -173,7 +178,9 @@ describe('ConversationBackfillService', () => {
     const broker = {
       client: async () => ({
         success: true,
-        data: { conversations: { create, reportProviderSessionId } },
+        data: {
+          conversations: { create, reports: { providerSessionId: reportProviderSessionId } },
+        },
       }),
     } as unknown as ConversationsRuntimeBroker;
     service = new ConversationBackfillService({

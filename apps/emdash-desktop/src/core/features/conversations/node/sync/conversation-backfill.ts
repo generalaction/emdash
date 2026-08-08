@@ -77,7 +77,7 @@ export class ConversationBackfillService {
       }
       if (row.providerSessionId) {
         // Seed the last-observed resume handle so convergence does not null it out.
-        await index.reportProviderSessionId({
+        await index.reports.providerSessionId({
           id: row.id,
           providerSessionId: row.providerSessionId,
         });
