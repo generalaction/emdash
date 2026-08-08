@@ -3,7 +3,10 @@ import {
   terminalShellAvailabilityListSchema,
   terminalShellIdSchema,
 } from '@emdash/core/primitives/terminal-shell/api';
-import { scriptWorkflowStateSchema, terminalErrorSchema } from '@emdash/core/runtimes/terminals/api';
+import {
+  scriptWorkflowStateSchema,
+  terminalErrorSchema,
+} from '@emdash/core/runtimes/terminals/api';
 import { runtimeResolveErrorSchema } from '@emdash/core/services/runtime-broker/api';
 import {
   scriptWorkflowErrorSchema,

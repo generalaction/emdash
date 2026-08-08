@@ -117,7 +117,7 @@ describe('TuiConversationProvider', () => {
     const files = {
       root,
       client: {
-        mutations: {
+        fs: {
           createDirectory,
           writeFile,
           delete: remove,
@@ -135,21 +135,22 @@ describe('TuiConversationProvider', () => {
     await deps.removeTempDir(directory);
 
     expect(directory).toBe('/workspace/.emdash/tmp/prompt-conversation-1');
-    expect(createDirectory).toHaveBeenNthCalledWith(1, { root, path: '.emdash' });
-    expect(createDirectory).toHaveBeenNthCalledWith(2, { root, path: '.emdash/tmp' });
+    expect(createDirectory).toHaveBeenNthCalledWith(1, {
+      path: hostPathFromNative('/workspace/.emdash'),
+    });
+    expect(createDirectory).toHaveBeenNthCalledWith(2, {
+      path: hostPathFromNative('/workspace/.emdash/tmp'),
+    });
     expect(createDirectory).toHaveBeenNthCalledWith(3, {
-      root,
-      path: '.emdash/tmp/prompt-conversation-1',
+      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1'),
     });
     expect(writeFile).toHaveBeenCalledWith({
-      root,
-      path: '.emdash/tmp/prompt-conversation-1/task-context.md',
+      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1/task-context.md'),
       content: 'large prompt',
       precondition: { kind: 'overwrite' },
     });
     expect(remove).toHaveBeenCalledWith({
-      root,
-      path: '.emdash/tmp/prompt-conversation-1',
+      path: hostPathFromNative('/workspace/.emdash/tmp/prompt-conversation-1'),
       recursive: true,
     });
   });

@@ -1,5 +1,6 @@
 import { err, ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import {
   inspectProjectConfigMigrations,
@@ -45,16 +46,14 @@ function createFs(initialFiles: Record<string, string>) {
     files.set(filePath, content);
     return Promise.resolve(ok({ bytesWritten: Buffer.byteLength(content) }));
   });
-  const resolve = (relative: string) => `${repoPath}/${relative}`.replace(/\/+/g, '/');
+  type AbsoluteKey = { path: Parameters<typeof nativePathFromHost>[0] };
   const scope = filesClientScope(
     {
       fs: {
-        exists: ({ relative }: { relative: string }) => exists(resolve(relative)),
-        readText: ({ relative }: { relative: string }) => readText(resolve(relative)),
-      },
-      mutations: {
-        writeFile: ({ path, content }: { path: string; content: string }) =>
-          writeText(resolve(path), content).then((result) =>
+        exists: ({ path }: AbsoluteKey) => exists(nativePathFromHost(path)),
+        readText: ({ path }: AbsoluteKey) => readText(nativePathFromHost(path)),
+        writeFile: ({ path, content }: AbsoluteKey & { content: string }) =>
+          writeText(nativePathFromHost(path), content).then((result) =>
             result.success ? ok(undefined) : result
           ),
       },

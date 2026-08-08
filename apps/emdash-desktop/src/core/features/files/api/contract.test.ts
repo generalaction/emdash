@@ -16,8 +16,13 @@ describe('filesWireContract', () => {
       'readText',
       'readBytes',
       'upload',
+      'createFile',
+      'createDirectory',
+      'rename',
+      'move',
+      'copy',
+      'delete',
     ]);
-    expect(Object.keys(filesWireContract.mutations)).toEqual(['createDirectory', 'delete']);
     expect(Object.keys(filesWireContract.tree.model.mutations)).toEqual(
       Object.keys(filesContract.tree.model.mutations)
     );
@@ -77,7 +82,6 @@ describe('filesWireContract', () => {
       })
     ).toThrow();
   });
-
 });
 
 function resourceUri(path: string) {

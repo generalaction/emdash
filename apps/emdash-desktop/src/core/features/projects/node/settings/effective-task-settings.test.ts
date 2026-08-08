@@ -2,6 +2,7 @@ import { ok } from '@emdash/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { getEffectiveTaskSettings } from '@core/features/projects/api/node/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '@core/features/projects/api/node/settings/provider';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 
 function makeProjectSettings(settings: Awaited<ReturnType<ProjectSettingsProvider['get']>>) {
@@ -51,10 +52,10 @@ describe('getEffectiveTaskSettings', () => {
     });
 
     expect(taskFiles.exists).toHaveBeenCalledWith(
-      expect.objectContaining({ relative: '.emdash.json' })
+      expect.objectContaining({ path: hostPathFromNative('/worktree/.emdash.json') })
     );
     expect(taskFiles.readText).toHaveBeenCalledWith(
-      expect.objectContaining({ relative: '.emdash.json' })
+      expect.objectContaining({ path: hostPathFromNative('/worktree/.emdash.json') })
     );
     expect(settings).toMatchObject({
       preservePatterns: ['.env.local'],

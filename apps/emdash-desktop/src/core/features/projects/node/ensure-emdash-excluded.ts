@@ -2,7 +2,6 @@ import { log } from '@emdash/shared/logger';
 import { SSH_PROJECT_STATE_DIR_NAME } from '@core/features/projects/node/worktree-defaults';
 import {
   fileKey,
-  fileMutationKey,
   fsErrorMessage,
   type FilesClientScope,
 } from '@core/services/runtime-broker/node/files';
@@ -59,8 +58,8 @@ export async function ensureEmdashGitExcluded(
 
   const base = existing.replace(/\s*$/, '');
   const next = base.length > 0 ? `${base}\n${IGNORE_PATTERN}\n` : `${IGNORE_PATTERN}\n`;
-  const result = await files.client.mutations.writeFile({
-    ...fileMutationKey(files, excludePath),
+  const result = await files.client.fs.writeFile({
+    ...fileKey(files, excludePath),
     content: next,
     precondition: { kind: 'overwrite' },
   });

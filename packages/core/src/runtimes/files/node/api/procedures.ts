@@ -20,15 +20,17 @@ export function createFilesProcedures(
       enumerate: {
         run: (input, context) => runtime.fs.enumerate(input, context),
       },
+      createFile: (input) => runtime.fs.createFile(input),
+      createDirectory: (input) => runtime.fs.createDirectory(input),
+      writeFile: (input) => runtime.fs.writeFile(input),
+      rename: (input) => runtime.fs.rename(input),
+      move: (input) => runtime.fs.move(input),
+      copy: (input) => runtime.fs.copy(input),
+      delete: (input) => runtime.fs.delete(input),
     },
     tree: {
       model: runtime.tree.modelHost(contract.tree.model),
     },
     content: runtime.content.modelHost(contract.content),
-    mutations: {
-      createDirectory: (input) => runtime.fs.createDirectory(input),
-      delete: (input) => runtime.fs.delete(input),
-      writeFile: (input) => runtime.fs.writeFile(input),
-    },
   };
 }

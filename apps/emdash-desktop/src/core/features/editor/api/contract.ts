@@ -26,8 +26,9 @@ const treeKeySchema = workspaceKeySchema.extend({
   sessionId: z.string(),
   exclusions: exclusionPatternsSchema,
 });
-// The files runtime addresses these by root-scoped or bare absolute keys; the
-// editor domain stays workspace-scoped, so it derives from the root-scoped shape.
+// The files runtime `fs` surface is keyed by host-absolute paths; the editor
+// domain stays workspace-scoped, so its keys carry a workspace-relative path
+// that the controller resolves to an absolute path at the seam.
 const pathKeySchema = filesPathKeySchema.omit({ root: true }).extend(workspaceKeySchema.shape);
 
 const editorTreeContract = defineContract({
@@ -53,23 +54,15 @@ const editorFsContract = defineContract({
     error: runtimeResolveErrorUnion(filesContract.fs.readBytes.error),
   }),
   upload: uploadFile({
-    input: filesContract.fs.upload.input.omit({ root: true }).extend(workspaceKeySchema.shape),
+    input: pathKeySchema.extend({ overwrite: z.boolean().optional() }),
     maxSize: MAX_FILE_UPLOAD_BYTES,
     result: filesContract.fs.upload.result,
     error: runtimeResolveErrorUnion(filesContract.fs.upload.error),
   }),
-});
-
-const editorMutationsContract = defineContract({
-  createDirectory: runtimeFallibleProcedure(
-    filesContract.mutations.createDirectory.input
-      .omit({ root: true })
-      .extend(workspaceKeySchema.shape),
-    filesContract.mutations.createDirectory.output
-  ),
+  createDirectory: runtimeFallibleProcedure(pathKeySchema, filesContract.fs.createDirectory.output),
   delete: runtimeFallibleProcedure(
-    filesContract.mutations.delete.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.delete.output
+    pathKeySchema.extend({ recursive: z.boolean().optional() }),
+    filesContract.fs.delete.output
   ),
 });
 
@@ -87,7 +80,6 @@ export const editorContract = defineContract({
     },
     mutations: runtimeFallibleMutations(filesContract.content.mutations),
   }),
-  mutations: editorMutationsContract,
   saveBuffer: procedure({
     input: editorBufferKeySchema.extend({ content: z.string() }),
     output: z.void(),

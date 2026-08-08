@@ -17,7 +17,7 @@ import {
   type ProjectHostParams,
 } from '@core/features/projects/api';
 import { projectEvents } from '@core/features/projects/node';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import { appDbPokes } from '@core/services/app-db/node/pokes';
 import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { createProjectOperations, type ProjectOperationDependencies } from './controller';
@@ -81,7 +81,7 @@ export function createProjectsWireController(
       },
       createHostDirectory: async ({ host, root, path }) => {
         const runtime = await acquireHostRuntime(dependencies, host);
-        return runtime.files.mutations.createDirectory({ root, path });
+        return runtime.files.fs.createDirectory({ path: resolveRelativePath(root, path) });
       },
       events: projectEvents,
       projectList,

@@ -3,7 +3,7 @@ import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { parseAbsolute, parsePortableRelativePath } from '@emdash/core/primitives/path/api';
+import { parseAbsolute } from '@emdash/core/primitives/path/api';
 import type { TerminalShellResolver } from '@emdash/core/primitives/terminal-shell/api';
 import type { AcpApiContract } from '@emdash/core/runtimes/acp/api';
 import { filesContract } from '@emdash/core/runtimes/files/api';
@@ -148,8 +148,8 @@ describe('runtime domain forwarding', () => {
   it('forwards Git and Files procedures, live models, and binary streams', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'emdash-workspace-server-domains-'));
     const root = parseAbsolute(directory);
-    const textPath = parsePortableRelativePath('remote.txt');
-    const binaryPath = parsePortableRelativePath('remote.bin');
+    const textPath = parseAbsolute(join(directory, 'remote.txt'));
+    const binaryPath = parseAbsolute(join(directory, 'remote.bin'));
     if (!root.success || !textPath.success || !binaryPath.success) {
       throw new Error('expected test paths to parse');
     }
@@ -168,7 +168,7 @@ describe('runtime domain forwarding', () => {
       const textBytes = Buffer.from('hello from the remote runtime');
       await expect(
         workspace.client.files.fs.upload(
-          { root: root.data, path: textPath.data },
+          { path: textPath.data },
           {
             name: 'remote.txt',
             mimeType: 'text/plain',
@@ -178,7 +178,7 @@ describe('runtime domain forwarding', () => {
         )
       ).resolves.toEqual(ok({ bytesWritten: textBytes.byteLength }));
       await expect(
-        workspace.client.files.fs.readText({ root: root.data, relative: textPath.data })
+        workspace.client.files.fs.readText({ path: textPath.data })
       ).resolves.toMatchObject({
         success: true,
         data: { content: 'hello from the remote runtime', truncated: false },
@@ -187,7 +187,7 @@ describe('runtime domain forwarding', () => {
       const binary = new Uint8Array([0, 1, 2, 255]);
       await expect(
         workspace.client.files.fs.upload(
-          { root: root.data, path: binaryPath.data },
+          { path: binaryPath.data },
           {
             name: 'remote.bin',
             mimeType: 'application/octet-stream',
@@ -197,8 +197,7 @@ describe('runtime domain forwarding', () => {
         )
       ).resolves.toEqual(ok({ bytesWritten: binary.byteLength }));
       const download = await workspace.client.files.fs.readBytes({
-        root: root.data,
-        relative: binaryPath.data,
+        path: binaryPath.data,
       });
       expect(download.success).toBe(true);
       if (!download.success) return;

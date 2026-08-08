@@ -1,4 +1,4 @@
-import { type HostRef } from '@emdash/core/primitives/host/api';
+import { hostRefEquals, type HostRef } from '@emdash/core/primitives/host/api';
 import {
   absoluteBasename,
   absoluteDirname,
@@ -75,21 +75,35 @@ export function createFilesWireController(options: CreateFilesWireControllerOpti
         withFileRuntime(options, input.uri, (files, ref) =>
           files.fs.upload({ path: ref.path, overwrite: input.overwrite }, file, callOptions(meta))
         ),
+      createFile: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.createFile({ path: ref.path }, callOptions(meta))
+        ),
+      createDirectory: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.createDirectory({ path: ref.path }, callOptions(meta))
+        ),
+      rename: (input, meta) =>
+        withFromToRuntime(options, input, (files, from, to) =>
+          files.fs.rename({ from, to }, callOptions(meta))
+        ),
+      move: (input, meta) =>
+        withFromToRuntime(options, input, (files, from, to) =>
+          files.fs.move({ from, to }, callOptions(meta))
+        ),
+      copy: (input, meta) =>
+        withFromToRuntime(options, input, (files, from, to) =>
+          files.fs.copy({ from, to }, callOptions(meta))
+        ),
+      delete: (input, meta) =>
+        withFileRuntime(options, input.uri, (files, ref) =>
+          files.fs.delete({ path: ref.path, recursive: input.recursive }, callOptions(meta))
+        ),
     },
     tree: {
       model: createTreeModelProvider(options),
     },
     content: createContentModelProvider(options),
-    mutations: {
-      createDirectory: (input, meta) =>
-        withFileRuntime(options, input.uri, (files, ref) =>
-          files.mutations.createDirectory({ path: ref.path }, callOptions(meta))
-        ),
-      delete: (input, meta) =>
-        withFileRuntime(options, input.uri, (files, ref) =>
-          files.mutations.delete({ path: ref.path, recursive: input.recursive }, callOptions(meta))
-        ),
-    },
   });
 }
 
@@ -331,6 +345,28 @@ function contentErrorState(
 function bestEffortRelativePath(path: HostAbsolutePath): PortableRelativePath {
   const parsed = parsePortableRelativePath(absoluteBasename(path));
   return parsed.success ? parsed.data : ROOT_RELATIVE_PATH;
+}
+
+/**
+ * Two-endpoint mutations decode both URIs and forward the pair of absolute
+ * paths to one host's files runtime. A cross-host pair is a programming error
+ * at this seam, like an invalid URI.
+ */
+async function withFromToRuntime<T, E>(
+  options: CreateFilesWireControllerOptions,
+  input: { from: ResourceUri; to: ResourceUri },
+  work: (
+    files: HostRuntimesClient['files'],
+    from: HostAbsolutePath,
+    to: HostAbsolutePath
+  ) => Promise<Result<T, E>>
+): Promise<Result<T, E | RuntimeResolveError>> {
+  const from = decodeUri(input.from);
+  const to = decodeUri(input.to);
+  if (!hostRefEquals(from.host, to.host)) {
+    throw new Error('Cross-host file mutations are not supported');
+  }
+  return withHostRuntime(options, from.host, (client) => work(client.files, from.path, to.path));
 }
 
 async function withFileRuntime<T, E>(

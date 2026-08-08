@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import { ensureEmdashGitExcluded } from './ensure-emdash-excluded';
+
+type AbsoluteKey = { path: Parameters<typeof nativePathFromHost>[0] };
+
+function relativeToRepo(key: AbsoluteKey): string {
+  return nativePathFromHost(key.path).replace(/^\/repo\//, '');
+}
 
 function statResult(path: string, type: 'file' | 'directory') {
   return {
@@ -31,17 +38,18 @@ function makeFs(opts: {
   excludeContent?: string | null;
   truncated?: boolean;
 }) {
-  const writeFile = vi.fn(async () => ({
+  const writeFile = vi.fn(async (_input: AbsoluteKey & { content: string }) => ({
     success: true as const,
     data: undefined,
   }));
   const client = {
     fs: {
-      stat: vi.fn(async ({ relative }: { relative: string }) =>
-        relative === '.git' && opts.gitType
+      stat: vi.fn(async (key: AbsoluteKey) => {
+        const relative = relativeToRepo(key);
+        return relative === '.git' && opts.gitType
           ? statResult(relative, opts.gitType)
-          : notFound(relative)
-      ),
+          : notFound(relative);
+      }),
       exists: vi.fn(async () => ({
         success: true as const,
         data: opts.excludeContent != null,
@@ -55,8 +63,8 @@ function makeFs(opts: {
           etag: 'test-etag',
         },
       })),
+      writeFile,
     },
-    mutations: { writeFile },
   };
   return { files: filesClientScope(client as never, '/repo'), writeFile };
 }
@@ -77,9 +85,8 @@ describe('ensureEmdashGitExcluded', () => {
   it('creates the exclude entry when info/exclude is missing', async () => {
     const { files, writeFile } = makeFs({ gitType: 'directory', excludeContent: null });
     await ensureEmdashGitExcluded(files, '/repo');
-    expect(writeFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '.git/info/exclude', content: '.emdash/\n' })
-    );
+    expect(writeFile).toHaveBeenCalledWith(expect.objectContaining({ content: '.emdash/\n' }));
+    expect(relativeToRepo(writeFile.mock.calls[0]![0])).toBe('.git/info/exclude');
   });
 
   it('appends the entry, preserving existing exclude content', async () => {
@@ -89,11 +96,9 @@ describe('ensureEmdashGitExcluded', () => {
     });
     await ensureEmdashGitExcluded(files, '/repo');
     expect(writeFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: '.git/info/exclude',
-        content: '# git ls-files\nbuild/\n.emdash/\n',
-      })
+      expect.objectContaining({ content: '# git ls-files\nbuild/\n.emdash/\n' })
     );
+    expect(relativeToRepo(writeFile.mock.calls[0]![0])).toBe('.git/info/exclude');
   });
 
   it('does nothing when .emdash/ is already excluded', async () => {

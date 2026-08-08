@@ -15,14 +15,15 @@ import { fileContentModelSchema } from '#runtimes/files/api/content/state';
 import { fileTreeModelSchema } from '#runtimes/files/api/tree/state';
 import { fsErrorSchema } from './errors';
 import {
+  absolutePathKeySchema,
   contentKeySchema,
   createDirectoryInputSchema,
+  createFileInputSchema,
   deleteInputSchema,
   fileEnumerationOptionsSchema,
-  fileKeySchema,
   fileStatSchema,
+  fromToKeySchema,
   pathBatchSchema,
-  pathKeySchema,
   pathListSchema,
   readBytesMetaSchema,
   readFileKeySchema,
@@ -36,16 +37,22 @@ import {
 
 export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+/**
+ * The stateless filesystem plane (spec §3.4): reads and writes keyed by a bare
+ * host-absolute path. Successful mutations are reflected into affected live
+ * tree sessions at ack time (synchronous republish) — the fs watcher covers
+ * external changes only.
+ */
 export const filesContract = defineContract({
   getHomeDir: procedure({
     input: z.void().optional(),
     output: hostAbsolutePathSchema,
   }),
   fs: defineContract({
-    stat: fallible({ input: pathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
-    exists: fallible({ input: fileKeySchema, data: z.boolean(), error: fsErrorSchema }),
+    stat: fallible({ input: absolutePathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
+    exists: fallible({ input: absolutePathKeySchema, data: z.boolean(), error: fsErrorSchema }),
     realPath: fallible({
-      input: fileKeySchema,
+      input: absolutePathKeySchema,
       data: hostAbsolutePathSchema,
       error: fsErrorSchema,
     }),
@@ -66,11 +73,22 @@ export const filesContract = defineContract({
       error: fsErrorSchema,
     }),
     enumerate: liveJob({
-      input: pathKeySchema.extend({ options: fileEnumerationOptionsSchema.optional() }),
+      input: absolutePathKeySchema.extend({ options: fileEnumerationOptionsSchema.optional() }),
       progress: pathBatchSchema,
       result: pathListSchema,
       error: fsErrorSchema,
     }),
+    createFile: fallible({ input: createFileInputSchema, data: z.void(), error: fsErrorSchema }),
+    createDirectory: fallible({
+      input: createDirectoryInputSchema,
+      data: z.void(),
+      error: fsErrorSchema,
+    }),
+    writeFile: fallible({ input: writeFileInputSchema, data: z.void(), error: fsErrorSchema }),
+    rename: fallible({ input: fromToKeySchema, data: z.void(), error: fsErrorSchema }),
+    move: fallible({ input: fromToKeySchema, data: z.void(), error: fsErrorSchema }),
+    copy: fallible({ input: fromToKeySchema, data: z.void(), error: fsErrorSchema }),
+    delete: fallible({ input: deleteInputSchema, data: z.void(), error: fsErrorSchema }),
   }),
   tree: defineContract({
     model: liveModel({
@@ -95,48 +113,6 @@ export const filesContract = defineContract({
           data: z.void(),
           error: fsErrorSchema,
         }),
-        createFile: mutation({
-          input: z.object({ path: portableRelativePathSchema }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        createDirectory: mutation({
-          input: z.object({ path: portableRelativePathSchema }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        delete: mutation({
-          input: z.object({
-            path: portableRelativePathSchema,
-            recursive: z.boolean().optional(),
-          }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        rename: mutation({
-          input: z.object({
-            from: portableRelativePathSchema,
-            to: portableRelativePathSchema,
-          }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        move: mutation({
-          input: z.object({
-            from: portableRelativePathSchema,
-            to: portableRelativePathSchema,
-          }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
-        copy: mutation({
-          input: z.object({
-            from: portableRelativePathSchema,
-            to: portableRelativePathSchema,
-          }),
-          data: z.void(),
-          error: fsErrorSchema,
-        }),
         refresh: mutation({
           input: z.void().optional(),
           data: z.void(),
@@ -153,15 +129,6 @@ export const filesContract = defineContract({
     mutations: {
       write: mutation({ input: writeContentInputSchema, data: z.void(), error: fsErrorSchema }),
     },
-  }),
-  mutations: defineContract({
-    createDirectory: fallible({
-      input: createDirectoryInputSchema,
-      data: z.void(),
-      error: fsErrorSchema,
-    }),
-    delete: fallible({ input: deleteInputSchema, data: z.void(), error: fsErrorSchema }),
-    writeFile: fallible({ input: writeFileInputSchema, data: z.void(), error: fsErrorSchema }),
   }),
 });
 

@@ -4,7 +4,11 @@ import type { PortableRelativePath } from '#primitives/path/api';
 import type { ContentKey, FileKey, FsError, RootKey, TreeKey } from '#runtimes/files/api';
 import { FsException } from '#runtimes/files/node/api/errors';
 import { ContentResource } from '#runtimes/files/node/content/content-resource';
-import { RootResource, type RootChange } from '#runtimes/files/node/root/root-resource';
+import {
+  RootResource,
+  type AbsoluteChange,
+  type RootChange,
+} from '#runtimes/files/node/root/root-resource';
 import { TreeResource } from '#runtimes/files/node/tree/tree-resource';
 import type { IWatchService } from '#services/fs-watch/api';
 import {
@@ -36,11 +40,15 @@ export class FilesAllocationGraph {
   private readonly roots: ResourceCache<RootIdentity, RootResource>;
   private readonly trees: ResourceCache<TreeIdentity, TreeResource>;
   private readonly contents: ResourceCache<ContentIdentity, ContentResource>;
+  private readonly activeRoots = new Set<RootResource>();
+  private readonly activeTrees = new Set<TreeResource>();
+  private readonly onError: (context: string, error: unknown) => void;
   private disposed = false;
 
   constructor(options: FilesAllocationGraphOptions) {
     const idleTtlMs = options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     const onError = options.onError ?? (() => {});
+    this.onError = onError;
     this.roots = createResourceCache({
       key: (identity: RootIdentity) => identity.rootId,
       idleTtlMs,
@@ -54,6 +62,10 @@ export class FilesAllocationGraph {
           onError,
         });
         scope.add(() => resource.dispose());
+        this.activeRoots.add(resource);
+        scope.add(() => {
+          this.activeRoots.delete(resource);
+        });
         return resource;
       },
     });
@@ -70,6 +82,10 @@ export class FilesAllocationGraph {
           onError,
         });
         scope.add(() => resource.dispose());
+        this.activeTrees.add(resource);
+        scope.add(() => {
+          this.activeTrees.delete(resource);
+        });
         return resource;
       },
     });
@@ -141,6 +157,35 @@ export class FilesAllocationGraph {
 
   notifyActiveRoot(root: RootResource, changes: RootChange[]): void {
     root.publishKnownChanges(changes);
+  }
+
+  /**
+   * Reflects a successful stateless fs mutation into the rest of the graph
+   * before the mutation acks (spec §3.4) — the fs watcher covers external
+   * changes only. Changes are published into every other active root
+   * subscription (content and tree listeners react on their usual async
+   * paths), and affected live tree sessions are additionally reconciled
+   * synchronously so their state reflects the mutation by ack time. Republish
+   * failures are reported, not propagated: the disk mutation already
+   * succeeded.
+   */
+  async reflectMutation(origins: RootResource[], changes: AbsoluteChange[]): Promise<void> {
+    if (changes.length === 0) return;
+    for (const root of this.activeRoots) {
+      if (origins.includes(root)) continue;
+      const relative = changes.flatMap((change): RootChange[] => {
+        const path = root.paths.toRelative(change.absolutePath);
+        return path === null ? [] : [{ kind: change.kind, path }];
+      });
+      if (relative.length > 0) root.publishKnownChanges(relative);
+    }
+    await Promise.all(
+      [...this.activeTrees].map((tree) =>
+        tree.applyAbsoluteChanges(changes).catch((error: unknown) => {
+          this.onError(`files tree republish ${tree.identity.treeId}`, error);
+        })
+      )
+    );
   }
 
   async dispose(): Promise<void> {

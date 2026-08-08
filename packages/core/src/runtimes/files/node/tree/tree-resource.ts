@@ -22,15 +22,11 @@ import {
   type filesContract,
 } from '#runtimes/files/api';
 import type { TreeIdentity } from '#runtimes/files/node/allocation/identity';
-import {
-  copyInRoot,
-  createDirectoryInRoot,
-  createFileInRoot,
-  deleteInRoot,
-  moveInRoot,
-  renameInRoot,
-} from '#runtimes/files/node/fs/mutation-ops';
-import type { RootChange, RootResource } from '#runtimes/files/node/root/root-resource';
+import type {
+  AbsoluteChange,
+  RootChange,
+  RootResource,
+} from '#runtimes/files/node/root/root-resource';
 import { TreeDirectoryReader } from './directory-reader';
 import { classifyTreeChanges } from './watch-classifier';
 
@@ -116,84 +112,29 @@ export class TreeResource {
     });
   }
 
-  createFile(context: TreeMutationContext<'createFile'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const changes = await createFileInRoot(this.options.root, context.input);
-      if (!changes.success) return changes;
-      this.options.root.publishKnownChanges(changes.data);
-      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
-      if (!reconciled.success) return reconciled;
-      await context.observed('tree', reconciled.data);
-      return ok<void>();
-    });
-  }
-
-  createDirectory(context: TreeMutationContext<'createDirectory'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const changes = await createDirectoryInRoot(this.options.root, context.input);
-      if (!changes.success) return changes;
-      this.options.root.publishKnownChanges(changes.data);
-      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
-      if (!reconciled.success) return reconciled;
-      await context.observed('tree', reconciled.data);
-      return ok<void>();
-    });
-  }
-
-  delete(context: TreeMutationContext<'delete'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const changes = await deleteInRoot(this.options.root, context.input);
-      if (!changes.success) return changes;
-      this.options.root.publishKnownChanges(changes.data);
-      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
-      if (!reconciled.success) return reconciled;
-      await context.observed('tree', reconciled.data);
-      return ok<void>();
-    });
-  }
-
-  rename(context: TreeMutationContext<'rename'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const changes = await renameInRoot(this.options.root, context.input);
-      if (!changes.success) return changes;
-      this.options.root.publishKnownChanges(changes.data);
-      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
-      if (!reconciled.success) return reconciled;
-      await context.observed('tree', reconciled.data);
-      return ok<void>();
-    });
-  }
-
-  move(context: TreeMutationContext<'move'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const changes = await moveInRoot(this.options.root, context.input);
-      if (!changes.success) return changes;
-      this.options.root.publishKnownChanges(changes.data);
-      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
-      if (!reconciled.success) return reconciled;
-      await context.observed('tree', reconciled.data);
-      return ok<void>();
-    });
-  }
-
-  copy(context: TreeMutationContext<'copy'>): Promise<Result<void, FsError>> {
-    return this.run(async () => {
-      const changes = await copyInRoot(this.options.root, context.input);
-      if (!changes.success) return changes;
-      this.options.root.publishKnownChanges(changes.data);
-      const reconciled = await this.reconcileMutationParents(changedParents(changes.data), context);
-      if (!reconciled.success) return reconciled;
-      await context.observed('tree', reconciled.data);
-      return ok<void>();
-    });
-  }
-
   refresh(context: TreeMutationContext<'refresh'>): Promise<Result<void, FsError>> {
     return this.run(async () => {
       const revision = await this.resync(this.current(), [context.mutationId]);
       await context.observed('tree', revision);
       return ok<void>();
     });
+  }
+
+  /**
+   * Reflects the files runtime's own successful stateless fs mutations into
+   * this tree session at ack time (spec §3.4): converts host-absolute changes
+   * to this root's relative paths and resolves once the tree state has been
+   * reconciled. The fs watcher covers external changes only.
+   */
+  applyAbsoluteChanges(changes: AbsoluteChange[]): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    const rootChanges = changes.flatMap((change): RootChange[] => {
+      const relative = this.options.root.paths.toRelative(change.absolutePath);
+      return relative === null ? [] : [{ kind: change.kind, path: relative }];
+    });
+    const relevant = this.filterExcludedChanges(rootChanges);
+    if (relevant.length === 0) return Promise.resolve();
+    return this.run(() => this.reconcileChanges(relevant));
   }
 
   async dispose(): Promise<void> {
@@ -250,24 +191,6 @@ export class TreeResource {
       }
       reconcileDirectory(model, child.path, children.data);
     }
-  }
-
-  private async reconcileMutationParents(
-    parents: PortableRelativePath[],
-    context: TreeMutationContext<TreeMutationName>
-  ): Promise<Result<Revision, FsError>> {
-    const model = this.current();
-    let changed = false;
-    for (const parentPath of parents) {
-      const parent = model.entries[parentPath];
-      if (!parent || !isExpandableFileEntry(parent)) continue;
-      const children = await this.reader.readChildren(parentPath);
-      if (!children.success) return children;
-      reconcileDirectory(model, parentPath, children.data);
-      changed = true;
-    }
-    if (!changed) return ok(revisionOf(this.state));
-    return ok(this.state.set(model, { mutationIds: [context.mutationId] }));
   }
 
   private onRootChanges(changes: RootChange[]): void {
@@ -426,20 +349,6 @@ function ancestorPaths(target: PortableRelativePath): PortableRelativePath[] {
     if (ancestor.success) ancestors.push(ancestor.data);
   }
   return ancestors;
-}
-
-function changedParents(changes: RootChange[]): PortableRelativePath[] {
-  const parents = new Set<PortableRelativePath>();
-  for (const change of changes) {
-    if (change.kind === 'resync') continue;
-    parents.add(parentPath(change.path));
-  }
-  return [...parents];
-}
-
-function parentPath(entryPath: PortableRelativePath): PortableRelativePath {
-  const index = entryPath.lastIndexOf('/');
-  return (index < 0 ? '' : entryPath.slice(0, index)) as PortableRelativePath;
 }
 
 function reconcileDirectory(

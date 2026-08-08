@@ -42,10 +42,7 @@ describe('createEditorWireController', () => {
     expect(resolve).toHaveBeenCalledTimes(2);
     expect(client).toHaveBeenCalledTimes(2);
     expect(exists).toHaveBeenCalledWith(
-      {
-        root: hostPathFromNative(identity.path),
-        relative: input.relative,
-      },
+      { path: hostPathFromNative(`${identity.path}/src/index.ts`) },
       {}
     );
   });

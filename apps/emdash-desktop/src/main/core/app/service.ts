@@ -9,7 +9,7 @@ import { err, ok, type Result } from '@emdash/shared';
 import type { Disposable } from '@emdash/shared/concurrency';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, Menu, shell } from 'electron';
-import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
+import { nativePathFromHost, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import {
   getAppById,
   getResolvedLabel,
@@ -269,8 +269,7 @@ class AppService implements Disposable {
     }
 
     const resolved = await workspace.files.client.fs.realPath({
-      root: workspace.files.root,
-      relative: relativePath.data,
+      path: resolveRelativePath(workspace.files.root, relativePath.data),
     });
     if (!resolved.success) return resolved;
 

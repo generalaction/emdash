@@ -153,8 +153,7 @@ describe('AppService.showWorkspaceItemInFolder', () => {
     expect(result).toEqual({ success: true, data: undefined });
     expect(mocks.workspaceGet).toHaveBeenCalledWith('workspace-1');
     expect(mocks.filesRealPath).toHaveBeenCalledWith({
-      root: workspaceRoot,
-      relative: 'reports/summary.md',
+      path: hostPathFromNative('/workspace/reports/summary.md'),
     });
     expect(mocks.showItemInFolder).toHaveBeenCalledWith('/workspace/reports/summary.md');
   });

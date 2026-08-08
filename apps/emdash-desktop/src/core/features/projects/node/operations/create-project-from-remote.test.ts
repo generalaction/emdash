@@ -39,8 +39,7 @@ describe('createProjectFromRemote', () => {
     client.mockResolvedValue(
       ok({
         files: {
-          fs: { exists, stat, enumerate },
-          mutations: { delete: deleteMutation },
+          fs: { exists, stat, enumerate, delete: deleteMutation },
         },
         git: { cloneRepository },
       })
@@ -80,8 +79,7 @@ describe('createProjectFromRemote', () => {
 
     expect(client).toHaveBeenCalledWith(hostRef('remote', 'ssh-1'));
     expect(exists).toHaveBeenCalledWith({
-      root: hostPathFromNative('/remote'),
-      relative: 'repo',
+      path: hostPathFromNative('/remote/repo'),
     });
     expect(mocks.runRuntimeLiveJob).toHaveBeenCalledWith(
       expect.anything(),

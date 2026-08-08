@@ -182,7 +182,7 @@ async function importLocalFiles(args: {
     for (const [index, sourceFile] of sourceFiles.entries()) {
       const destination = editorFilePath(workspaceId, workspacePath, destinations[index]);
       const result = await client.fs.upload(
-        { workspaceId, path: destination.relative, overwrite },
+        { workspaceId, relative: destination.relative, overwrite },
         {
           name: sourceFile.name,
           mimeType: sourceFile.type || 'application/octet-stream',

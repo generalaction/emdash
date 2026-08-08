@@ -1,19 +1,13 @@
+import type { HostRef } from '@emdash/core/primitives/host/api';
 import { canonicalExclusionPatterns, DEFAULT_TREE_EXCLUDE } from '@emdash/core/primitives/lib/api';
 import {
   encodeResourceUri,
+  hostFileRef,
   type HostAbsolutePath,
   type PortableRelativePath,
   type ResourceUri,
 } from '@emdash/core/primitives/path/api';
 import type { FsError } from '@emdash/core/runtimes/files/api';
-import {
-  reduceCopy,
-  reduceCreateDirectory,
-  reduceCreateFile,
-  reduceDelete,
-  reduceMove,
-  reduceRename,
-} from '@emdash/core/runtimes/files/api/tree/optimistic';
 import { protocolUpgradeMessage } from '@emdash/core/workspace-server';
 import { err, ok, type Result } from '@emdash/shared';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
@@ -36,7 +30,7 @@ import {
   type RenderableFileNode,
 } from '@core/features/editor/api/browser/file-tree/tree-utils';
 import { filesWireContract, type FilesTreeModel } from '@core/features/files/api';
-import { getFilesClient } from '@core/features/files/api/browser/client';
+import { getFilesClient, type FilesClient } from '@core/features/files/api/browser/client';
 import { fetchAppSettingsMeta } from '@core/features/settings/api/browser/app-settings-client';
 import {
   absoluteRuntimePath,
@@ -72,6 +66,7 @@ type ViewData = {
 
 export class FilesStore {
   private readonly root: HostAbsolutePath;
+  private readonly host: HostRef;
   private readonly rootUri: ResourceUri;
   private treeRemote: TreeRemote | null = null;
   private treeModel: TreeRemoteMember | null = null;
@@ -99,6 +94,7 @@ export class FilesStore {
     // the tree is keyed by the root's ResourceUri, never by workspaceId.
     const rootRef = hostFileRefFromNativePath(workspacePath, sshConnectionId);
     this.root = rootRef.path;
+    this.host = rootRef.host;
     this.rootUri = encodeResourceUri(rootRef);
     makeObservable<FilesStore, 'optimistic' | 'treeData' | 'syncError' | 'viewData'>(this, {
       optimistic: observable.ref,
@@ -236,30 +232,24 @@ export class FilesStore {
   }
 
   createFile(path: string): Promise<Result<void, TreeMutationError>> {
-    const input = { path: this.relative(this.resolveWorkspacePath(path)) };
-    return this.runTreeMutation((model) => model.mutations.createFile, input, reduceCreateFile);
+    return this.runFsMutation((client) => client.fs.createFile({ uri: this.uriFor(path) }));
   }
 
   createDirectory(path: string): Promise<Result<void, TreeMutationError>> {
-    const input = { path: this.relative(this.resolveWorkspacePath(path)) };
-    return this.runTreeMutation(
-      (model) => model.mutations.createDirectory,
-      input,
-      reduceCreateDirectory
-    );
+    return this.runFsMutation((client) => client.fs.createDirectory({ uri: this.uriFor(path) }));
   }
 
   deleteEntry(path: string, recursive = false): Promise<Result<void, TreeMutationError>> {
-    const input = { path: this.relative(this.resolveWorkspacePath(path)), recursive };
-    return this.runTreeMutation((model) => model.mutations.delete, input, reduceDelete);
+    return this.runFsMutation((client) => client.fs.delete({ uri: this.uriFor(path), recursive }));
   }
 
   rename(path: string, nextName: string): Promise<Result<void, TreeMutationError>> {
     const absolute = this.resolveWorkspacePath(path);
     const parent = parentPathFromPath(absolute) ?? this.rootPath;
     const nextPath = normalizeFileTreePath(`${parent}/${nextName}`);
-    const input = { from: this.relative(absolute), to: this.relative(nextPath) };
-    return this.runTreeMutation((model) => model.mutations.rename, input, reduceRename);
+    return this.runFsMutation((client) =>
+      client.fs.rename({ from: this.uriFor(absolute), to: this.uriFor(nextPath) })
+    );
   }
 
   move(
@@ -270,8 +260,9 @@ export class FilesStore {
     const source = this.resolveWorkspacePath(sourcePath);
     const targetDir = this.resolveWorkspacePath(targetDirPath);
     const target = normalizeFileTreePath(`${targetDir}/${newName ?? basenameFromPath(source)}`);
-    const input = { from: this.relative(source), to: this.relative(target) };
-    return this.runTreeMutation((model) => model.mutations.move, input, reduceMove);
+    return this.runFsMutation((client) =>
+      client.fs.move({ from: this.uriFor(source), to: this.uriFor(target) })
+    );
   }
 
   copy(
@@ -282,8 +273,9 @@ export class FilesStore {
     const source = this.resolveWorkspacePath(sourcePath);
     const targetDir = this.resolveWorkspacePath(targetDirPath);
     const target = normalizeFileTreePath(`${targetDir}/${newName ?? basenameFromPath(source)}`);
-    const input = { from: this.relative(source), to: this.relative(target) };
-    return this.runTreeMutation((model) => model.mutations.copy, input, reduceCopy);
+    return this.runFsMutation((client) =>
+      client.fs.copy({ from: this.uriFor(source), to: this.uriFor(target) })
+    );
   }
 
   refresh(): Promise<Result<void, TreeMutationError>> {
@@ -483,23 +475,40 @@ export class FilesStore {
       result: Result<unknown, TreeMutationError>;
       settled: Promise<void>;
     }>,
-    input: Input,
-    recipe?: (draft: FilesTreeModel, input: Input) => void
+    input: Input
   ): Promise<Result<void, TreeMutationError>> {
     try {
       const model = await this.requireModel();
-      const run = mutation(model);
-      if (recipe && this.optimistic) {
-        const result = await this.optimistic.run(run, input, recipe);
-        return result.success ? ok<void>() : result;
-      }
-      const invocation = await run(input);
+      const invocation = await mutation(model)(input);
       if (!invocation.result.success) return invocation.result;
       await invocation.settled;
       return ok<void>();
     } catch (error) {
       return err(treeMutationError(error));
     }
+  }
+
+  /**
+   * Stateless fs verbs keyed by the entry's ResourceUri (spec §3.4). The files
+   * runtime reflects successful mutations into the live tree session at ack
+   * time, so no renderer-side optimistic recipe is needed.
+   */
+  private async runFsMutation<T>(
+    run: (client: FilesClient) => Promise<Result<T, TreeMutationError>>
+  ): Promise<Result<void, TreeMutationError>> {
+    try {
+      const client = await getFilesClient();
+      const result = await run(client);
+      return result.success ? ok<void>() : result;
+    } catch (error) {
+      return err(treeMutationError(error));
+    }
+  }
+
+  private uriFor(path: string): ResourceUri {
+    return encodeResourceUri(
+      hostFileRef(this.host, hostPathFromNative(this.resolveWorkspacePath(path)))
+    );
   }
 
   private pendingUploadNodeForPath(path: string): FileNodeId | undefined {

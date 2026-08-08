@@ -64,38 +64,23 @@ function createMemoryFileSystem(initialFiles: Record<string, string> = {}) {
     files.set(filePath, content);
     return ok({ bytesWritten: Buffer.byteLength(content) });
   });
-  const resolve = (relative: string, root = repoPath) => joinPath(root, relative);
-  const clientReadText = vi.fn(
-    ({ root, relative }: { root: Parameters<typeof nativePathFromHost>[0]; relative: string }) =>
-      readText(resolve(relative, nativePathFromHost(root)))
+  const clientReadText = vi.fn(({ path }: { path: Parameters<typeof nativePathFromHost>[0] }) =>
+    readText(nativePathFromHost(path))
   );
   const writeFile = vi.fn(
-    ({
-      root,
-      path,
-      content,
-    }: {
-      root: Parameters<typeof nativePathFromHost>[0];
-      path: string;
-      content: string;
-    }) =>
-      writeText(resolve(path, nativePathFromHost(root)), content).then((result) =>
+    ({ path, content }: { path: Parameters<typeof nativePathFromHost>[0]; content: string }) =>
+      writeText(nativePathFromHost(path), content).then((result) =>
         result.success ? ok(undefined) : result
       )
   );
   const scope = filesClientScope(
     {
       fs: {
-        exists: ({
-          root,
-          relative,
-        }: {
-          root: Parameters<typeof nativePathFromHost>[0];
-          relative: string;
-        }) => exists(resolve(relative, nativePathFromHost(root))),
+        exists: ({ path }: { path: Parameters<typeof nativePathFromHost>[0] }) =>
+          exists(nativePathFromHost(path)),
         readText: clientReadText,
+        writeFile,
       },
-      mutations: { writeFile },
     } as never,
     repoPath
   );
@@ -286,7 +271,7 @@ describe('shareProjectSettingsToConfig', () => {
   it('returns an error when the filesystem reports an unsuccessful write', async () => {
     const patch = vi.fn();
     const fileSystem = createMemoryFileSystem();
-    vi.mocked(fileSystem.client.mutations.writeFile).mockResolvedValue(
+    vi.mocked(fileSystem.client.fs.writeFile).mockResolvedValue(
       err({ type: 'io' as const, path: '.emdash.json', message: 'permission denied' })
     );
     const project = {

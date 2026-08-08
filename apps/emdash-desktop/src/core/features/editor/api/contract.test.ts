@@ -11,8 +11,9 @@ describe('editorContract', () => {
       'readText',
       'readBytes',
       'upload',
+      'createDirectory',
+      'delete',
     ]);
-    expect(Object.keys(editorContract.mutations)).toEqual(['createDirectory', 'delete']);
     expect(Object.keys(editorContract.tree.model.mutations)).toEqual(
       Object.keys(filesContract.tree.model.mutations)
     );

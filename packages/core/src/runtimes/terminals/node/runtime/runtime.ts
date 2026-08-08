@@ -911,7 +911,9 @@ function appendOutputTail(current: string, chunk: string): string {
   return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
 }
 
-function workflowCompileErrorToScriptWorkflowError(error: WorkflowCompileError): ScriptWorkflowError {
+function workflowCompileErrorToScriptWorkflowError(
+  error: WorkflowCompileError
+): ScriptWorkflowError {
   return {
     type: 'workflow-compile-failed',
     message: error.message,

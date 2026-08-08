@@ -88,16 +88,17 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         resolved.data.fileSearch.searchContent
       );
       try {
+        const smokeFilePath = joinAbsolute(homeDirectory, smokeFile.data);
+        if (!smokeFilePath.success) {
+          throw new Error('Could not construct workspace-server ripgrep smoke-file path');
+        }
         await expect(
-          resolved.data.files.mutations.createDirectory({
-            root: homeDirectory,
-            path: smokeDirectory.data,
-          })
+          resolved.data.files.fs.createDirectory({ path: smokeRoot.data })
         ).resolves.toMatchObject({ success: true });
         const smokeBytes = Buffer.from('bundled-ripgrep-smoke\n');
         await expect(
           resolved.data.files.fs.upload(
-            { root: homeDirectory, path: smokeFile.data },
+            { path: smokeFilePath.data },
             {
               name: 'needle.txt',
               mimeType: 'text/plain',
@@ -128,9 +129,8 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
         if (searchRootRegistered) {
           await resolved.data.fileSearch.unregisterRoot({ root: smokeRoot.data });
         }
-        await resolved.data.files.mutations.delete({
-          root: homeDirectory,
-          path: smokeDirectory.data,
+        await resolved.data.files.fs.delete({
+          path: smokeRoot.data,
           recursive: true,
         });
       }

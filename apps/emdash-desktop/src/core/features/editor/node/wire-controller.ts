@@ -1,7 +1,8 @@
+import type { HostAbsolutePath, PortableRelativePath } from '@emdash/core/primitives/path/api';
 import { err, ok, type Result } from '@emdash/shared';
 import type { LiveModelProvider, LiveSource } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
-import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
+import { hostPathFromNative, resolveRelativePath } from '@core/primitives/desktop-runtime/api';
 import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { editorContract } from '../api';
 import {
@@ -24,48 +25,48 @@ export function createEditorWireController(options: CreateEditorWireControllerOp
   return createController(editorContract, {
     fs: {
       exists: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.fs.exists(mapped, callOptions(meta))
+        withFilesRuntime(options, input, (files, path) =>
+          files.fs.exists({ path }, callOptions(meta))
         ),
       realPath: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.fs.realPath(mapped, callOptions(meta))
+        withFilesRuntime(options, input, (files, path) =>
+          files.fs.realPath({ path }, callOptions(meta))
         ),
       readText: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.fs.readText(mapped, callOptions(meta))
+        withFilesRuntime(options, input, (files, path) =>
+          files.fs.readText({ path, options: input.options }, callOptions(meta))
         ),
       readBytes: async (input, meta) => {
         const acquiredResult = await acquireFilesRuntime(options, input.workspaceId);
         if (!acquiredResult.success) return acquiredResult;
         const acquired = acquiredResult.data;
-        const { workspaceId: _, ...rest } = input;
         const result = await acquired.files.fs.readBytes(
-          { ...rest, root: hostPathFromNative(acquired.identity.path) },
+          {
+            path: workspaceAbsolutePath(acquired.identity, input.relative),
+            options: input.options,
+          },
           callOptions(meta)
         );
         if (!result.success) return result;
         return ok({ meta: result.data.meta, source: result.data.chunks() });
       },
       upload: (input, file, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.fs.upload(mapped, file, callOptions(meta))
+        withFilesRuntime(options, input, (files, path) =>
+          files.fs.upload({ path, overwrite: input.overwrite }, file, callOptions(meta))
+        ),
+      createDirectory: (input, meta) =>
+        withFilesRuntime(options, input, (files, path) =>
+          files.fs.createDirectory({ path }, callOptions(meta))
+        ),
+      delete: (input, meta) =>
+        withFilesRuntime(options, input, (files, path) =>
+          files.fs.delete({ path, recursive: input.recursive }, callOptions(meta))
         ),
     },
     tree: {
       model: createTreeModelProvider(options),
     },
     content: createContentModelProvider(options),
-    mutations: {
-      createDirectory: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.mutations.createDirectory(mapped, callOptions(meta))
-        ),
-      delete: (input, meta) =>
-        withFilesRuntime(options, input, (files, mapped) =>
-          files.mutations.delete(mapped, callOptions(meta))
-        ),
-    },
     saveBuffer: ({ uri, content }) => options.editorBuffer.saveBuffer(uri, content),
     clearBuffer: ({ uri }) => options.editorBuffer.clearBuffer(uri),
     listBuffers: ({ root }) => options.editorBuffer.listBuffers(root),
@@ -134,21 +135,25 @@ function createContentModelProvider(
   };
 }
 
-async function withFilesRuntime<T extends { workspaceId: string }, R, E>(
+/**
+ * Resolves the workspace-relative key to the host-absolute path the files
+ * runtime's `fs` surface is keyed by (spec §3.4).
+ */
+async function withFilesRuntime<R, E>(
   options: CreateEditorWireControllerOptions,
-  input: T,
-  work: (
-    files: HostRuntimesClient['files'],
-    mapped: Omit<T, 'workspaceId'> & { root: ReturnType<typeof hostPathFromNative> }
-  ) => Promise<Result<R, E>>
+  input: { workspaceId: string; relative: PortableRelativePath },
+  work: (files: HostRuntimesClient['files'], path: HostAbsolutePath) => Promise<Result<R, E>>
 ): Promise<Result<R, E | RuntimeResolveError>> {
-  const { workspaceId, ...rest } = input;
-  return withWorkspaceRuntime(options, workspaceId, (client, identity) =>
-    work(client.files, {
-      ...rest,
-      root: hostPathFromNative(identity.path),
-    })
+  return withWorkspaceRuntime(options, input.workspaceId, (client, identity) =>
+    work(client.files, workspaceAbsolutePath(identity, input.relative))
   );
+}
+
+function workspaceAbsolutePath(
+  identity: WorkspaceIdentity,
+  relative: PortableRelativePath
+): HostAbsolutePath {
+  return resolveRelativePath(hostPathFromNative(identity.path), relative);
 }
 
 async function withWorkspaceRuntime<T, E>(

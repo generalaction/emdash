@@ -271,8 +271,7 @@ describe('createSessionPortFromDependencies', () => {
     const unavailable = createSessionPortFromDependencies({
       workspaceRegistry: activatingWorkspaceRegistry(),
       acp: {
-        start: async () =>
-          err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
+        start: async () => err({ type: 'runtime-unavailable', message: 'ACP is unavailable' }),
       },
       tui: unusedTuiClient(),
       conversationIndex: creatingConversationIndex(),

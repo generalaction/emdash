@@ -13,7 +13,7 @@ export const conversationIndexConfigSchema = z.record(z.string(), z.unknown());
 
 /** One host conversation record (spec §3.2); mirror of the runtime's record schema. */
 export const conversationIndexRecordSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   provider: z.string().min(1),
   type: conversationIndexTypeSchema,
   cwd: z.string().min(1),
@@ -32,7 +32,7 @@ export const conversationIndexRecordSchema = z.object({
 export type ConversationIndexRecord = z.infer<typeof conversationIndexRecordSchema>;
 
 export const createConversationIndexRecordInputSchema = z.object({
-  id: z.string().min(1),
+  conversationId: z.string().min(1),
   provider: z.string().min(1),
   type: conversationIndexTypeSchema,
   cwd: z.string().min(1),

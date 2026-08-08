@@ -30,14 +30,6 @@ export class FileTreeRuntime {
         mutations: {
           expand: (context) => this.run(context.key, (resource) => resource.expand(context)),
           reveal: (context) => this.run(context.key, (resource) => resource.reveal(context)),
-          createFile: (context) =>
-            this.run(context.key, (resource) => resource.createFile(context)),
-          createDirectory: (context) =>
-            this.run(context.key, (resource) => resource.createDirectory(context)),
-          delete: (context) => this.run(context.key, (resource) => resource.delete(context)),
-          rename: (context) => this.run(context.key, (resource) => resource.rename(context)),
-          move: (context) => this.run(context.key, (resource) => resource.move(context)),
-          copy: (context) => this.run(context.key, (resource) => resource.copy(context)),
           refresh: (context) => this.run(context.key, (resource) => resource.refresh(context)),
         },
         publish: { tree: 'diff' },

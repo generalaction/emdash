@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { HostAbsolutePath } from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nativePathFromHost } from '@core/primitives/desktop-runtime/api';
 import { filesClientScope } from '@core/services/runtime-broker/node/files';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { HostProjectSettingsProvider } from './providers/host-project-settings-provider';
@@ -23,12 +25,12 @@ const projectId = () => `project-${randomUUID()}`;
 function makeLocalConfigFiles(projectPath: string) {
   const client = {
     fs: {
-      exists: vi.fn(async ({ relative }: { relative: string }) =>
-        ok(fs.existsSync(path.join(projectPath, relative)))
+      exists: vi.fn(async ({ path: target }: { path: HostAbsolutePath }) =>
+        ok(fs.existsSync(nativePathFromHost(target)))
       ),
-      readText: vi.fn(async ({ relative }: { relative: string }) => {
+      readText: vi.fn(async ({ path: target }: { path: HostAbsolutePath }) => {
         try {
-          const content = fs.readFileSync(path.join(projectPath, relative), 'utf8');
+          const content = fs.readFileSync(nativePathFromHost(target), 'utf8');
           return ok({
             content,
             truncated: false,
@@ -36,7 +38,7 @@ function makeLocalConfigFiles(projectPath: string) {
             etag: 'test-etag',
           });
         } catch {
-          return err({ type: 'not-found' as const, path: relative });
+          return err({ type: 'not-found' as const, path: nativePathFromHost(target) });
         }
       }),
     },
