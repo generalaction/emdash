@@ -78,12 +78,9 @@ export function createEditorWireController(options: CreateEditorWireControllerOp
           files.mutations.delete(mapped, callOptions(meta))
         ),
     },
-    saveBuffer: ({ projectId, workspaceId, filePath, content }) =>
-      options.editorBuffer.saveBuffer(projectId, workspaceId, filePath, content),
-    clearBuffer: ({ projectId, workspaceId, filePath }) =>
-      options.editorBuffer.clearBuffer(projectId, workspaceId, filePath),
-    listBuffers: ({ projectId, workspaceId }) =>
-      options.editorBuffer.listBuffers(projectId, workspaceId),
+    saveBuffer: ({ uri, content }) => options.editorBuffer.saveBuffer(uri, content),
+    clearBuffer: ({ uri }) => options.editorBuffer.clearBuffer(uri),
+    listBuffers: ({ root }) => options.editorBuffer.listBuffers(root),
   });
 }
 

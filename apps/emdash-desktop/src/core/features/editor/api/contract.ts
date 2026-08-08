@@ -1,3 +1,4 @@
+import { resourceUriSchema } from '@emdash/core/primitives/path/api';
 import {
   exclusionPatternsSchema,
   filesContract,
@@ -84,11 +85,7 @@ const editorMutationsContract = defineContract({
   ),
 });
 
-const editorBufferLocationSchema = z.object({
-  projectId: z.string(),
-  workspaceId: z.string(),
-  filePath: z.string(),
-});
+const editorBufferKeySchema = z.object({ uri: resourceUriSchema });
 
 export const editorDomain = 'editor' as const;
 
@@ -104,16 +101,18 @@ export const editorContract = defineContract({
   }),
   mutations: editorMutationsContract,
   saveBuffer: procedure({
-    input: editorBufferLocationSchema.extend({ content: z.string() }),
+    input: editorBufferKeySchema.extend({ content: z.string() }),
     output: z.void(),
   }),
   clearBuffer: procedure({
-    input: editorBufferLocationSchema,
+    input: editorBufferKeySchema,
     output: z.void(),
   }),
+  // Recovery enumeration: `root` scopes to buffers under that root ResourceUri
+  // prefix; omitting it lists every buffer, including files outside any root.
   listBuffers: procedure({
-    input: workspaceKeySchema.extend({ projectId: z.string() }),
-    output: z.array(z.object({ filePath: z.string(), content: z.string() })),
+    input: z.object({ root: resourceUriSchema.optional() }),
+    output: z.array(z.object({ uri: resourceUriSchema, content: z.string() })),
   }),
 });
 

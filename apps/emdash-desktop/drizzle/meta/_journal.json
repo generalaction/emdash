@@ -316,6 +316,13 @@
       "when": 1785979984293,
       "tag": "0044_plain_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1786146505789,
+      "tag": "0045_editor_buffers_leave_app_db",
+      "breakpoints": true
     }
   ]
 }

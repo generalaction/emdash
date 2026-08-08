@@ -22,6 +22,7 @@ export async function finishBoot(config: AppConfig, signals: BootSignals): Promi
     const services = await step('services', () => bootServices(database, infrastructure, runtimes));
     configureQuitCleanupServices({
       automations: services.automations,
+      editorBuffers: database.editorBuffer,
       projects: services.projects,
       pullRequests: services.pullRequestsRegistration,
       runtimes,
@@ -40,6 +41,7 @@ export async function finishBoot(config: AppConfig, signals: BootSignals): Promi
       await appScope.dispose(error);
     } finally {
       closeAppDb();
+      database.editorBuffer.dispose();
     }
     throw error;
   }

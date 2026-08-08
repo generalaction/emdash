@@ -1,4 +1,5 @@
 import type { AutomationsService } from '@core/features/automations/api/node/automations-service';
+import type { EditorBufferService } from '@core/features/editor/node/editor-buffer-service';
 import type { ProjectSessionManager } from '@core/features/projects/api/node/project-manager';
 import type { PullRequestsRegistration } from '@core/services/pull-requests/node/pull-requests-registration';
 import { acpAgentStatusBridge } from '@main/core/acp/agent-status-bridge';
@@ -17,6 +18,7 @@ const GRACE_WINDOW_MS = 400;
 
 type QuitCleanupServices = {
   automations: Pick<AutomationsService, 'stop'>;
+  editorBuffers: Pick<EditorBufferService, 'dispose'>;
   projects: Pick<ProjectSessionManager, 'dispose' | 'release'>;
   pullRequests: Pick<PullRequestsRegistration, 'dispose'>;
   runtimes: { dispose(): Promise<void> };
@@ -57,6 +59,10 @@ function criticalPhases(services: QuitCleanupServices): Phase<void>[] {
     {
       name: 'database',
       run: () => closeAppDb(),
+    },
+    {
+      name: 'editor-buffers',
+      run: async () => services.editorBuffers.dispose(),
     },
     {
       name: 'telemetry-service',

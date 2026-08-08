@@ -1,4 +1,10 @@
-import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
+import {
+  encodeResourceUri,
+  hostFileRef,
+  type HostFileRef,
+  type PortableRelativePath,
+  type ResourceUri,
+} from '@emdash/core/primitives/path/api';
 import { type GitFileContentState, type GitFileSource } from '@emdash/core/runtimes/git/api';
 import { createScope, type Scope } from '@emdash/shared/concurrency';
 import {
@@ -16,6 +22,10 @@ import { editorFilePath } from '@core/features/editor/api/browser/files';
 import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { sourceControlContract } from '@core/features/source-control/api';
 import { getSourceControlClient } from '@core/features/source-control/api/browser/client';
+import {
+  absoluteRuntimePath,
+  hostFileRefFromNativePath,
+} from '@core/primitives/desktop-runtime/api';
 import { HEAD_REF, type GitRef } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
 import { editorContract, type EditorFileContentModel } from '../..';
@@ -86,6 +96,7 @@ type GitContentRemoteBinding = {
 type WorkspaceRoot = {
   projectId: string;
   path: string;
+  sshConnectionId: string | undefined;
 };
 
 /**
@@ -162,11 +173,52 @@ export class MonacoModelRegistry {
     this.resolveMonacoReady(m);
   }
 
-  bindWorkspaceRoot(projectId: string, workspaceId: string, path: string): void {
+  bindWorkspaceRoot(
+    projectId: string,
+    workspaceId: string,
+    path: string,
+    sshConnectionId?: string
+  ): void {
     this.workspaceRoots.set(workspaceId, {
       projectId,
       path,
+      sshConnectionId,
     });
+  }
+
+  /** HostFileRef of the bound workspace root, or null if unbound or unparseable. */
+  workspaceRootFileRef(workspaceId: string): HostFileRef | null {
+    const root = this.workspaceRoots.get(workspaceId);
+    if (!root) return null;
+    try {
+      return hostFileRefFromNativePath(root.path, root.sshConnectionId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Serialized file identity for a workspace-relative path, constructed from
+   * the bound workspace root. Temporary seam: crash-recovery buffers are keyed
+   * by ResourceUri (spec §2/§8) while buffer entries still carry
+   * workspace-relative paths; a later cutover makes callers carry HostFileRefs.
+   */
+  resourceUriForWorkspaceFile(workspaceId: string, filePath: string): ResourceUri | null {
+    const rootRef = this.workspaceRootFileRef(workspaceId);
+    if (!rootRef || !filePath) return null;
+    try {
+      const absolute = absoluteRuntimePath(rootRef.path, filePath);
+      return encodeResourceUri(hostFileRef(rootRef.host, absolute));
+    } catch {
+      return null;
+    }
+  }
+
+  /** ResourceUri for a registered buffer model, or null if none is registered. */
+  resourceUriForBuffer(bufferUri: string): ResourceUri | null {
+    const entry = this.modelMap.get(bufferUri);
+    if (entry?.type !== 'buffer') return null;
+    return this.resourceUriForWorkspaceFile(entry.workspaceId, entry.filePath);
   }
 
   unbindWorkspaceRoot(projectId: string, workspaceId: string): void {
@@ -470,33 +522,9 @@ export class MonacoModelRegistry {
       // refs previously dropped to 0 (tab close), but the model survived the
       // 60 s eviction window and is now being re-registered.
       if (!this.bufferContentDisposables.has(uri)) {
-        const disposable = existing.model.onDidChangeContent(() => {
-          if (this.reloadingFromDisk.has(uri)) return;
-          this.reconcileBufferDirtyState(uri);
-          runInAction(() => {
-            this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
-          });
-          const existingTimer = this.bufferAutosaveTimers.get(uri);
-          if (existingTimer) clearTimeout(existingTimer);
-          this.bufferAutosaveTimers.set(
-            uri,
-            setTimeout(() => {
-              this.bufferAutosaveTimers.delete(uri);
-              const currentEntry = this.modelMap.get(uri);
-              if (!currentEntry || currentEntry.type !== 'buffer') return;
-              if (!this.isDirty(uri)) return;
-              const value = currentEntry.model.getValue();
-              void getEditorClient().then((client) =>
-                client.saveBuffer({
-                  projectId: currentEntry.projectId,
-                  workspaceId: currentEntry.workspaceId,
-                  filePath: currentEntry.filePath,
-                  content: value,
-                })
-              );
-            }, BUFFER_DEBOUNCE_MS)
-          );
-        });
+        const disposable = existing.model.onDidChangeContent(() =>
+          this.handleBufferContentChange(uri)
+        );
         this.bufferContentDisposables.set(uri, disposable);
       }
       return uri;
@@ -528,38 +556,7 @@ export class MonacoModelRegistry {
       this.modelMap.set(uri, entry);
 
       // Attach content-change listener for dirty tracking and crash-recovery autosave.
-      const disposable = model.onDidChangeContent(() => {
-        if (this.reloadingFromDisk.has(uri)) return;
-
-        // Update reactive dirty set and bump content version so observer()
-        // components that render buffer text (e.g. markdown preview) re-render.
-        this.reconcileBufferDirtyState(uri);
-        runInAction(() => {
-          this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
-        });
-
-        // Debounced crash-recovery save — persists unsaved edits across app restarts.
-        const existingTimer = this.bufferAutosaveTimers.get(uri);
-        if (existingTimer) clearTimeout(existingTimer);
-        this.bufferAutosaveTimers.set(
-          uri,
-          setTimeout(() => {
-            this.bufferAutosaveTimers.delete(uri);
-            const currentEntry = this.modelMap.get(uri);
-            if (!currentEntry || currentEntry.type !== 'buffer') return;
-            if (!this.isDirty(uri)) return;
-            const value = currentEntry.model.getValue();
-            void getEditorClient().then((client) =>
-              client.saveBuffer({
-                projectId: currentEntry.projectId,
-                workspaceId: currentEntry.workspaceId,
-                filePath: currentEntry.filePath,
-                content: value,
-              })
-            );
-          }, BUFFER_DEBOUNCE_MS)
-        );
-      });
+      const disposable = model.onDidChangeContent(() => this.handleBufferContentChange(uri));
       this.bufferContentDisposables.set(uri, disposable);
     }
 
@@ -577,6 +574,39 @@ export class MonacoModelRegistry {
     }
 
     return uri;
+  }
+
+  /**
+   * Shared buffer onDidChangeContent handler: updates the reactive dirty set,
+   * bumps the content version so observer() components re-render, and schedules
+   * the debounced crash-recovery save keyed by the buffer's ResourceUri.
+   */
+  private handleBufferContentChange(uri: string): void {
+    if (this.reloadingFromDisk.has(uri)) return;
+
+    this.reconcileBufferDirtyState(uri);
+    runInAction(() => {
+      this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
+    });
+
+    const existingTimer = this.bufferAutosaveTimers.get(uri);
+    if (existingTimer) clearTimeout(existingTimer);
+    this.bufferAutosaveTimers.set(
+      uri,
+      setTimeout(() => {
+        this.bufferAutosaveTimers.delete(uri);
+        const currentEntry = this.modelMap.get(uri);
+        if (!currentEntry || currentEntry.type !== 'buffer') return;
+        if (!this.isDirty(uri)) return;
+        const key = this.resourceUriForWorkspaceFile(
+          currentEntry.workspaceId,
+          currentEntry.filePath
+        );
+        if (!key) return;
+        const value = currentEntry.model.getValue();
+        void getEditorClient().then((client) => client.saveBuffer({ uri: key, content: value }));
+      }, BUFFER_DEBOUNCE_MS)
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -795,17 +825,16 @@ export class MonacoModelRegistry {
 
     const dirtyContent = this.dirtyUris.has(oldUri) ? oldEntry.model.getValue() : null;
     const viewState = oldEntry.viewState;
-    const { projectId, workspaceId, filePath: oldPath } = oldEntry;
+    const { workspaceId, filePath: oldPath } = oldEntry;
 
     if (dirtyContent !== null) {
-      const client = await getEditorClient();
-      await client.saveBuffer({
-        projectId,
-        workspaceId,
-        filePath: newFilePath,
-        content: dirtyContent,
-      });
-      await client.clearBuffer({ projectId, workspaceId, filePath: oldPath });
+      const newKey = this.resourceUriForWorkspaceFile(workspaceId, newFilePath);
+      const oldKey = this.resourceUriForWorkspaceFile(workspaceId, oldPath);
+      if (newKey && oldKey) {
+        const client = await getEditorClient();
+        await client.saveBuffer({ uri: newKey, content: dirtyContent });
+        await client.clearBuffer({ uri: oldKey });
+      }
     }
 
     return this.onceBufferReady(newUri, () => {
@@ -853,25 +882,18 @@ export class MonacoModelRegistry {
         this.bufferAutosaveTimers.delete(uri);
       }
     }
+    // Buffers whose workspace root is no longer bound cannot be mapped to a
+    // ResourceUri; they have no persisted row to clear but are still reloaded.
+    const keyed = entries.flatMap(({ entry }) => {
+      const key = this.resourceUriForWorkspaceFile(entry.workspaceId, entry.filePath);
+      return key ? [{ entry, key }] : [];
+    });
     try {
-      await Promise.all(
-        entries.map(({ entry }) =>
-          client.clearBuffer({
-            projectId: entry.projectId,
-            workspaceId: entry.workspaceId,
-            filePath: entry.filePath,
-          })
-        )
-      );
+      await Promise.all(keyed.map(({ key }) => client.clearBuffer({ uri: key })));
     } catch (error) {
       await Promise.allSettled(
-        entries.map(({ entry }) =>
-          client.saveBuffer({
-            projectId: entry.projectId,
-            workspaceId: entry.workspaceId,
-            filePath: entry.filePath,
-            content: entry.model.getValue(),
-          })
+        keyed.map(({ entry, key }) =>
+          client.saveBuffer({ uri: key, content: entry.model.getValue() })
         )
       );
       throw error;
@@ -1021,12 +1043,11 @@ export class MonacoModelRegistry {
 
     this.markSaved(uri);
     this.pendingConflicts.delete(uri);
-    const client = await getEditorClient();
-    await client.clearBuffer({
-      projectId: buf.projectId,
-      workspaceId: buf.workspaceId,
-      filePath: buf.filePath,
-    });
+    const key = this.resourceUriForWorkspaceFile(buf.workspaceId, buf.filePath);
+    if (key) {
+      const client = await getEditorClient();
+      await client.clearBuffer({ uri: key });
+    }
     return content;
   }
 

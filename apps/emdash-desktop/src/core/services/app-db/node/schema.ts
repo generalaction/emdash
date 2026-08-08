@@ -493,26 +493,6 @@ export const terminals = sqliteTable(
   })
 );
 
-export const editorBuffers = sqliteTable(
-  'editor_buffers',
-  {
-    id: text('id').primaryKey(), // `${projectId}:${workspaceId}:${filePath}`
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').notNull(),
-    filePath: text('file_path').notNull(),
-    content: text('content').notNull(),
-    updatedAt: integer('updated_at').notNull(),
-  },
-  (table) => ({
-    workspaceFileIdx: index('idx_editor_buffers_workspace_file').on(
-      table.workspaceId,
-      table.filePath
-    ),
-  })
-);
-
 export const kv = sqliteTable(
   'kv',
   {
@@ -572,8 +552,6 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationInsert = typeof conversations.$inferInsert;
 export type TerminalRow = typeof terminals.$inferSelect;
-export type EditorBufferRow = typeof editorBuffers.$inferSelect;
-export type EditorBufferInsert = typeof editorBuffers.$inferInsert;
 export type KvRow = typeof kv.$inferSelect;
 export type KvInsert = typeof kv.$inferInsert;
 export type AppSecretRow = typeof appSecrets.$inferSelect;

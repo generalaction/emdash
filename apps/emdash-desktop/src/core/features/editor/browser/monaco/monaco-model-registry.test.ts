@@ -1,3 +1,10 @@
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import {
+  encodeResourceUri,
+  hostFileRef,
+  parseAbsolute,
+  type ResourceUri,
+} from '@emdash/core/primitives/path/api';
 import { err, ok } from '@emdash/shared';
 import { waitFor } from '@emdash/shared/testing';
 import { defineContract, type LiveStateData } from '@emdash/wire/rpc';
@@ -180,11 +187,7 @@ describe('MonacoModelRegistry live content', () => {
 
     await expect(runtime.registry.saveAllDirtyBuffers()).resolves.toBe(true);
 
-    expect(editorClient.clearBuffer).toHaveBeenCalledWith({
-      projectId: 'project',
-      workspaceId: 'workspace',
-      filePath: 'file.ts',
-    });
+    expect(editorClient.clearBuffer).toHaveBeenCalledWith({ uri: bufferKey('/repo/file.ts') });
     expect(runtime.registry.isDirty(uri)).toBe(false);
     expect(runtime.registry.getDiskValue(uri)).toBe('saved');
   });
@@ -197,11 +200,7 @@ describe('MonacoModelRegistry live content', () => {
 
     await runtime.registry.discardAllDirtyBuffers();
 
-    expect(editorClient.clearBuffer).toHaveBeenCalledWith({
-      projectId: 'project',
-      workspaceId: 'workspace',
-      filePath: 'file.ts',
-    });
+    expect(editorClient.clearBuffer).toHaveBeenCalledWith({ uri: bufferKey('/repo/file.ts') });
     expect(runtime.registry.getValue(uri)).toBe('base');
     expect(runtime.registry.isDirty(uri)).toBe(false);
   });
@@ -293,6 +292,14 @@ function register(
     type,
     ref
   );
+}
+
+function bufferKey(absolutePath: string): ResourceUri {
+  const parsed = parseAbsolute(absolutePath, {
+    profile: { style: 'posix', unicodeNormalization: 'preserve' },
+  });
+  if (!parsed.success) throw new Error(parsed.error.message);
+  return encodeResourceUri(hostFileRef(LOCAL_HOST_REF, parsed.data));
 }
 
 function textContent(content: string, etag: string): EditorFileContentModel {

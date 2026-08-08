@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   appScopeDispose: vi.fn(),
   automationsStop: vi.fn(),
   closeAppDb: vi.fn(),
+  editorBuffersDispose: vi.fn(),
   projectsDispose: vi.fn(),
   projectsRelease: vi.fn(),
   pullRequestsDispose: vi.fn(),
@@ -89,6 +90,7 @@ describe('quit cleanup phases', () => {
   it('closes the database after app scope and before telemetry', async () => {
     configureQuitCleanupServices({
       automations: { stop: mocks.automationsStop },
+      editorBuffers: { dispose: mocks.editorBuffersDispose },
       projects: {
         dispose: mocks.projectsDispose,
         release: mocks.projectsRelease,
@@ -100,6 +102,7 @@ describe('quit cleanup phases', () => {
     await runQuitCleanup();
 
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();
+    expect(mocks.editorBuffersDispose).toHaveBeenCalledOnce();
     expect(mocks.appScopeDispose.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.closeAppDb.mock.invocationCallOrder[0]!
     );

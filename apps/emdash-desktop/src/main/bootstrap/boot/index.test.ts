@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const bundles = {
   controllers: {},
-  database: {},
+  database: { editorBuffer: { dispose: vi.fn() } },
   infrastructure: {},
   runtimes: { clients: {} },
   services: {
@@ -62,6 +62,7 @@ import { finishBoot } from './index';
 describe('finishBoot', () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset();
+    bundles.database.editorBuffer.dispose.mockReset();
     mocks.database.mockResolvedValue(bundles.database);
     mocks.infrastructure.mockResolvedValue(bundles.infrastructure);
     mocks.runtimes.mockResolvedValue(bundles.runtimes);
@@ -101,6 +102,7 @@ describe('finishBoot', () => {
 
     expect(mocks.appScopeDispose).toHaveBeenCalledWith(error);
     expect(mocks.closeAppDb).toHaveBeenCalledOnce();
+    expect(bundles.database.editorBuffer.dispose).toHaveBeenCalledOnce();
     expect(mocks.controllers).not.toHaveBeenCalled();
   });
 });

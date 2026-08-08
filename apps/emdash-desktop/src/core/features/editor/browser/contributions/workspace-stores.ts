@@ -19,8 +19,8 @@ export const editorWorkspaceStoreContributions: readonly ScopedStoreContribution
   [
     contributeScopedStore({
       token: workspaceModelBindingToken,
-      create: ({ projectId, workspaceId, path }) => {
-        modelRegistry.bindWorkspaceRoot(projectId, workspaceId, path);
+      create: ({ projectId, workspaceId, path, sshConnectionId }) => {
+        modelRegistry.bindWorkspaceRoot(projectId, workspaceId, path, sshConnectionId);
         return { projectId, workspaceId };
       },
       dispose: ({ projectId, workspaceId }) => {

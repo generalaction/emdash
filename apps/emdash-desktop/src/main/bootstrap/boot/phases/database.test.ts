@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
     cleanupLegacyBrowserPartitions: vi.fn(),
     client,
     createDrizzleClient: vi.fn(() => client),
+    editorBufferDispose: vi.fn(),
     editorBufferPrune: vi.fn(),
     initializeDatabase: vi.fn(async () => sqlite),
     resetStaleAcpAgentStatuses: vi.fn(),
@@ -32,7 +33,14 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('@core/features/editor/node/editor-buffer-service', () => ({
-  createEditorBufferService: () => ({ pruneStale: mocks.editorBufferPrune }),
+  createEditorBufferService: () => ({
+    dispose: mocks.editorBufferDispose,
+    pruneStale: mocks.editorBufferPrune,
+  }),
+  editorBufferDatabasePath: (appDatabasePath: string) => `${appDatabasePath}-editor-buffers`,
+}));
+vi.mock('@main/db/path', () => ({
+  resolveDatabasePath: () => '/tmp/emdash-test.db',
 }));
 vi.mock('@core/features/workspaces/node/workspace-identity-source', () => ({
   createWorkspaceIdentityService: () => ({}),
@@ -93,6 +101,19 @@ describe('database boot phase', () => {
     expect(getAppDb()).toBe(mocks.client.db);
     expect(mocks.client.close).not.toHaveBeenCalled();
     expect(mocks.resetStaleAcpAgentStatuses).toHaveBeenCalledOnce();
+  });
+
+  it('disposes the buffer store when startup repairs fail', async () => {
+    mocks.resetStaleAcpAgentStatuses.mockImplementation(() => {
+      throw new Error('repairs failed');
+    });
+
+    await expect(bootDatabase({ forceBootFailure: false } as never)).rejects.toThrow(
+      'repairs failed'
+    );
+
+    expect(mocks.editorBufferDispose).toHaveBeenCalledOnce();
+    expect(() => getAppDb()).toThrow('App database has not been initialized');
   });
 
   it('closes an unpublished client when initialization fails', async () => {

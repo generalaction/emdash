@@ -3,6 +3,7 @@ import { resetStaleAcpAgentStatuses } from '@core/features/conversations/node/re
 import { resetStaleTuiAgentStatuses } from '@core/features/conversations/node/reset-stale-tui-agent-statuses';
 import {
   createEditorBufferService,
+  editorBufferDatabasePath,
   type EditorBufferService,
 } from '@core/features/editor/node/editor-buffer-service';
 import type { WorkspaceIdentityService } from '@core/features/workspaces/api/node/workspace-identity-service';
@@ -13,6 +14,7 @@ import { createAppSettingsService, type AppSettingsService } from '@core/service
 import { createDrizzleClient } from '@main/db/drizzleClient';
 import { initializeDatabase } from '@main/db/initialize';
 import { closeAppDb, setAppDb } from '@main/db/instance';
+import { resolveDatabasePath } from '@main/db/path';
 import { cleanupLegacyBrowserPartitions } from '@main/host/browser/browser-partition-cleanup';
 import { log } from '@main/lib/logger';
 import { runInBackground } from '../../core/background';
@@ -36,12 +38,18 @@ export async function bootDatabase(config: AppConfig): Promise<DatabaseBundle> {
 
   const client = createDrizzleClient();
   let published = false;
+  let editorBuffer: EditorBufferService | undefined;
   try {
     await initializeDatabase(client.sqlite);
     setAppDb(client);
     published = true;
     const workspaceIdentity = createWorkspaceIdentityService({ db: client.db });
-    const editorBuffer = createEditorBufferService({ db: client.db, logger: log });
+    // Crash-recovery buffers live in their own derived SQLite store beside the
+    // app database; it is opened here but never touches the Drizzle migrations.
+    editorBuffer = createEditorBufferService({
+      databasePath: editorBufferDatabasePath(resolveDatabasePath()),
+      logger: log,
+    });
     const appSettings = createAppSettingsService({
       db: client.db,
       contributions: appSettingsContributions,
@@ -56,8 +64,12 @@ export async function bootDatabase(config: AppConfig): Promise<DatabaseBundle> {
       workspaceIdentity,
     };
   } catch (error) {
-    if (published) closeAppDb();
-    else client.close();
+    try {
+      editorBuffer?.dispose();
+    } finally {
+      if (published) closeAppDb();
+      else client.close();
+    }
     throw error;
   }
 }

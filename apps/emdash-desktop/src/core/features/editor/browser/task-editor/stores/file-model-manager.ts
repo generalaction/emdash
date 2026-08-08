@@ -206,13 +206,10 @@ export class FileModelManager {
     modelRegistry.unregisterModel(uri);
     modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
     modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, HEAD_REF));
-    void getEditorClient().then((client) =>
-      client.clearBuffer({
-        projectId: this._ctx.projectId,
-        workspaceId: this._ctx.workspaceId,
-        filePath: path,
-      })
-    );
+    const key = modelRegistry.resourceUriForWorkspaceFile(this._ctx.workspaceId, path);
+    if (key) {
+      void getEditorClient().then((client) => client.clearBuffer({ uri: key }));
+    }
   }
 
   private _applyState(resource: FileTabResource, state: EntryState): void {

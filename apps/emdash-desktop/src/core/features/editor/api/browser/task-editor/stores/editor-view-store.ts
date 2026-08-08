@@ -1,3 +1,8 @@
+import {
+  decodeResourceUri,
+  encodeResourceUri,
+  relativizeHostFileRef,
+} from '@emdash/core/primitives/path/api';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
 import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
@@ -232,15 +237,9 @@ export class EditorViewStore {
 
     if (accept) {
       modelRegistry.reloadFromDisk(uri);
-      const filePath = modelRegistry.filePathForUri(uri);
-      if (filePath) {
-        void getEditorClient().then((client) =>
-          client.clearBuffer({
-            projectId: this.projectId,
-            workspaceId: this.workspaceId,
-            filePath,
-          })
-        );
+      const key = modelRegistry.resourceUriForBuffer(uri);
+      if (key) {
+        void getEditorClient().then((client) => client.clearBuffer({ uri: key }));
       }
     } else {
       runInAction(() => {
@@ -258,18 +257,23 @@ export class EditorViewStore {
 
   /**
    * Restores crash-recovery buffer content for any open tabs whose models are
-   * already registered. Called by EditorProvider on mount.
+   * already registered. Called by EditorProvider on mount. Buffers are keyed by
+   * ResourceUri, so persisted keys under the workspace root are mapped back to
+   * workspace-relative paths to locate the Monaco models.
    */
   async restoreBuffers(): Promise<void> {
+    const rootRef = modelRegistry.workspaceRootFileRef(this.workspaceId);
+    if (!rootRef) return;
     try {
       const buffers = await (
         await getEditorClient()
-      ).listBuffers({
-        projectId: this.projectId,
-        workspaceId: this.workspaceId,
-      });
-      for (const { filePath, content } of buffers) {
-        const uri = buildMonacoModelPath(this.modelRootPath, filePath);
+      ).listBuffers({ root: encodeResourceUri(rootRef) });
+      for (const { uri: bufferKey, content } of buffers) {
+        const decoded = decodeResourceUri(bufferKey);
+        if (!decoded.success) continue;
+        const relative = relativizeHostFileRef(rootRef, decoded.data);
+        if (!relative.success) continue;
+        const uri = buildMonacoModelPath(this.modelRootPath, relative.data);
         const model = modelRegistry.getModelByUri(uri);
         if (model) model.setValue(content);
       }
