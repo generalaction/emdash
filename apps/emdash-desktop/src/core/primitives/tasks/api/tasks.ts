@@ -36,15 +36,6 @@ export type GitSetup =
       pushBranch?: boolean;
     };
 
-/**
- * Describes the physical location of a workspace.
- * `path` is set when reusing an existing directory; omitted when a new worktree
- * must be created.
- */
-export type WorkspaceLocation =
-  | { host: 'local'; path?: string }
-  | { host: 'project-ssh'; path?: string };
-
 export const taskLifecycleStatuses = z.enum([
   'todo',
   'in_progress',
