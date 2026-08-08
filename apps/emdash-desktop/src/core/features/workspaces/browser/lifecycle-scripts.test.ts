@@ -17,8 +17,8 @@ const fileWatch = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
-vi.mock('@core/features/editor/api/browser/files', () => ({
-  watchFileContent: vi.fn(async (_workspaceId: string, _path: string, handler: () => void) => {
+vi.mock('@core/features/files/api/browser/file-content', () => ({
+  watchFileContent: vi.fn(async (_ref: unknown, handler: () => void) => {
     fileWatch.handler = handler;
     return fileWatch.unsubscribe;
   }),
@@ -143,7 +143,7 @@ describe('LifecycleScriptsStore', () => {
     getSettings
       .mockResolvedValueOnce(ok({ scripts: { setup: 'pnpm install' } }))
       .mockResolvedValueOnce(ok({ scripts: { setup: 'corepack install', run: 'pnpm dev' } }));
-    const store = new LifecycleScriptsStore('project-1', 'workspace-1');
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1', '/workspace', 'ssh-1');
 
     await (store as unknown as { load(): Promise<void> }).load();
 
@@ -162,7 +162,7 @@ describe('LifecycleScriptsStore', () => {
         resolveSettings = resolve;
       })
     );
-    const store = new LifecycleScriptsStore('project-1', 'workspace-1');
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1', '/workspace', 'ssh-1');
 
     const loadPromise = (store as unknown as { load(): Promise<void> }).load();
     store.dispose();
@@ -177,7 +177,7 @@ describe('LifecycleScriptsStore', () => {
       success: false,
       error: { type: 'fs_error', message: 'filesystem unavailable' },
     });
-    const store = new LifecycleScriptsStore('project-1', 'workspace-1');
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1', '/workspace', 'ssh-1');
 
     await (store as unknown as { load(): Promise<void> }).load();
 

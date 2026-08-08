@@ -191,8 +191,7 @@ export const desktopNodeControllers = {
       createDevPerfWireController(devPerfOperations, logger),
   },
   editor: {
-    create: ({ editorBuffer, runtimes, workspaceIdentity }) =>
-      createEditorWireController({ editorBuffer, runtimes, workspaceIdentity }),
+    create: ({ editorBuffer }) => createEditorWireController({ editorBuffer }),
   },
   files: {
     create: ({ runtimes }) => createFilesWireController({ runtimes }),

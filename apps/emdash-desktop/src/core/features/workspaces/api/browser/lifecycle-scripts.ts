@@ -5,13 +5,15 @@ import { createLiveJobReplicaCache, ReplicaLog } from '@emdash/wire/live';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import type { Terminal } from '@xterm/xterm';
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
-import { watchFileContent } from '@core/features/editor/api/browser/files';
+import { watchFileContent } from '@core/features/files/api/browser/file-content';
 import { getProjectsWireClient } from '@core/features/projects/api/browser/client';
 import { terminalsContract } from '@core/features/terminals/api';
 import { getTerminalsClient } from '@core/features/terminals/api/browser/client';
 import type { FrontendPtyConnector } from '@core/features/terminals/api/browser/pty/pty';
 import { PtySession } from '@core/features/terminals/api/browser/pty/pty-session';
 import { createXtermLogSink } from '@core/features/terminals/api/browser/pty/xterm-log-sink';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import { makePtySessionId } from '@core/primitives/pty/api';
 import { createLifecycleScriptTerminalId } from '@core/primitives/terminals/api';
@@ -131,10 +133,15 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
 
-  constructor(projectId: string, workspaceId: string, localWorkspacePath?: string) {
+  constructor(
+    projectId: string,
+    workspaceId: string,
+    workspacePath: string,
+    sshConnectionId?: string
+  ) {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
-    this.outputAvailable = localWorkspacePath !== undefined;
+    this.outputAvailable = sshConnectionId === undefined;
     makeObservable(this, {
       scripts: observable,
       tabOrder: observable,
@@ -162,15 +169,21 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       if (this._disposed) unsubscribe();
       else this._unsubscribes.push(unsubscribe);
     });
-    void watchFileContent(this.workspaceId, EMDASH_CONFIG_FILE, () => {
-      this.reloadIfLoaded();
-    })
+    void watchFileContent(
+      hostFileRefFromNativePath(
+        resolveWorkspacePath(workspacePath, EMDASH_CONFIG_FILE),
+        sshConnectionId
+      ),
+      () => {
+        this.reloadIfLoaded();
+      }
+    )
       .then((unsubscribe) => {
         if (this._disposed) unsubscribe();
         else this._unsubscribes.push(unsubscribe);
       })
       .catch(() => {});
-    if (localWorkspacePath) this.bindWorkflowState();
+    if (this.outputAvailable) this.bindWorkflowState();
   }
 
   get tabs(): LifecycleScriptStore[] {

@@ -1,3 +1,4 @@
+import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import {
   type CheckoutHeadState,
   type CheckoutStatusState,
@@ -10,14 +11,15 @@ import { createScope, type Scope } from '@emdash/shared/concurrency';
 import { runWithTimeout, TimeoutError } from '@emdash/shared/scheduling';
 import { observe, pin, remote, type RemoteModel } from '@emdash/wire/state';
 import { computed, makeObservable, observable, runInAction } from 'mobx';
-import { getEditorClient } from '@core/features/editor/api/browser/client';
-import { editorFilePath } from '@core/features/editor/api/browser/files';
+import { getFilesClient } from '@core/features/files/api/browser/client';
 import {
   checkoutSelector,
   getSourceControlClient,
   gitFilePath,
 } from '@core/features/source-control/api/browser/client';
 import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { runDesktopLiveJob } from '@core/primitives/wire/browser/run-live-job';
 import { sourceControlContract } from '../../api';
 
@@ -48,7 +50,8 @@ export class GitCheckoutStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
-    readonly workspacePath: string
+    readonly workspacePath: string,
+    private readonly sshConnectionId?: string
   ) {
     makeObservable<
       GitCheckoutStore,
@@ -381,7 +384,7 @@ export class GitCheckoutStore {
 
     const staged = completeChanges(stagedResult.data, status.entries, 'staged');
     const unstaged = completeChanges(unstagedResult.data, status.entries, 'unstaged');
-    await addUntrackedLineCounts(unstaged, this.workspaceId, this.workspacePath);
+    await addUntrackedLineCounts(unstaged, this.workspacePath, this.sshConnectionId);
     if (request !== this.changesRequest || !this.started) return;
     runInAction(() => {
       this.stagedChanges = staged;
@@ -487,16 +490,21 @@ function changeStatus(entry: FileGitStatus): GitChangeStatus {
 
 async function addUntrackedLineCounts(
   changes: GitChange[],
-  workspaceId: string,
-  workspacePath: string
+  workspacePath: string,
+  sshConnectionId: string | undefined
 ): Promise<void> {
   const untracked = changes.filter((change) => change.status === 'added' && change.additions === 0);
   if (untracked.length === 0) return;
-  const client = await getEditorClient();
+  const client = await getFilesClient();
   await Promise.all(
     untracked.map(async (change) => {
       const result = await client.fs.readText({
-        ...editorFilePath(workspaceId, workspacePath, change.path),
+        uri: encodeResourceUri(
+          hostFileRefFromNativePath(
+            resolveWorkspacePath(workspacePath, change.path),
+            sshConnectionId
+          )
+        ),
         options: { maxBytes: MAX_UNTRACKED_STAT_BYTES },
       });
       if (result.success && !result.data.truncated) {

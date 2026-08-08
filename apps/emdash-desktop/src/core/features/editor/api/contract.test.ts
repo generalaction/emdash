@@ -1,45 +1,42 @@
-import { filesContract } from '@emdash/core/runtimes/files/api';
+import { LOCAL_HOST_REF } from '@emdash/core/primitives/host/api';
+import { encodeResourceUri, hostFileRef, parseAbsolute } from '@emdash/core/primitives/path/api';
 import { describe, expect, it } from 'vitest';
-import { portablePath } from '@core/primitives/desktop-runtime/api';
-import { editorContract } from './contract';
+import { editorContract, editorDomain } from './contract';
+
+const uri = resourceUri('/repo/worktree/src/index.ts');
+const rootUri = resourceUri('/repo/worktree');
 
 describe('editorContract', () => {
-  it('owns the renderer file operations needed by the editor', () => {
-    expect(Object.keys(editorContract.fs)).toEqual([
-      'exists',
-      'realPath',
-      'readText',
-      'readBytes',
-      'upload',
-    ]);
-    expect(Object.keys(editorContract.mutations)).toEqual([
-      'createFile',
-      'createDirectory',
-      'rename',
-      'move',
-      'delete',
-    ]);
-    expect(Object.keys(editorContract.tree.model.mutations)).toEqual(
-      Object.keys(filesContract.tree.model.mutations)
-    );
-    expect(Object.keys(editorContract.content.mutations)).toEqual(
-      Object.keys(filesContract.content.mutations)
-    );
+  it('owns only the crash-recovery buffer surface', () => {
+    expect(editorDomain).toBe('editor');
+    expect(Object.keys(editorContract)).toEqual(['saveBuffer', 'clearBuffer', 'listBuffers']);
   });
 
-  it('uses workspace identities and portable paths instead of host roots', () => {
-    const relative = portablePath('src/index.ts');
-    expect(
-      editorContract.content.keySchema.parse({
-        workspaceId: 'workspace-1',
-        relative,
-      })
-    ).toEqual({ workspaceId: 'workspace-1', relative });
+  it('keys buffers by ResourceUri with no workspace identity', () => {
+    expect(editorContract.saveBuffer.input.parse({ uri, content: 'draft' })).toEqual({
+      uri,
+      content: 'draft',
+    });
     expect(() =>
-      editorContract.content.keySchema.parse({
-        root: '/repo/worktree',
-        relative,
+      editorContract.saveBuffer.input.parse({
+        workspaceId: 'workspace-1',
+        relative: 'src/index.ts',
+        content: 'draft',
       })
     ).toThrow();
+    expect(() =>
+      editorContract.clearBuffer.input.parse({ uri: '/repo/worktree/src/index.ts' })
+    ).toThrow();
+  });
+
+  it('scopes recovery enumeration by an optional root ResourceUri', () => {
+    expect(editorContract.listBuffers.input.parse({ root: rootUri })).toEqual({ root: rootUri });
+    expect(editorContract.listBuffers.input.parse({})).toEqual({});
   });
 });
+
+function resourceUri(path: string) {
+  const parsed = parseAbsolute(path, { profile: { style: 'posix' } });
+  if (!parsed.success) throw new Error(parsed.error.message);
+  return encodeResourceUri(hostFileRef(LOCAL_HOST_REF, parsed.data));
+}

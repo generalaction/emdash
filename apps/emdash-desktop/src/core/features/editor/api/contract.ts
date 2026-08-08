@@ -1,105 +1,15 @@
 import { resourceUriSchema } from '@emdash/core/primitives/path/api';
-import {
-  exclusionPatternsSchema,
-  filesContract,
-  MAX_FILE_UPLOAD_BYTES,
-  pathKeySchema as filesPathKeySchema,
-  readFileOptionsSchema,
-} from '@emdash/core/runtimes/files/api';
-import {
-  defineContract,
-  downloadFile,
-  liveModel,
-  liveState,
-  procedure,
-  uploadFile,
-} from '@emdash/wire/rpc';
+import { defineContract, procedure } from '@emdash/wire/rpc';
 import { z } from 'zod';
-import {
-  runtimeFallibleMutations,
-  runtimeFallibleProcedure,
-  runtimeResolveErrorUnion,
-} from '@core/primitives/desktop-runtime/api/fallible-contract';
-
-const workspaceKeySchema = z.object({ workspaceId: z.string() });
-const treeKeySchema = workspaceKeySchema.extend({
-  sessionId: z.string(),
-  exclusions: exclusionPatternsSchema,
-});
-// The files runtime addresses these by root-scoped or bare absolute keys; the
-// editor domain stays workspace-scoped, so it derives from the root-scoped shape.
-const pathKeySchema = filesPathKeySchema.omit({ root: true }).extend(workspaceKeySchema.shape);
-
-const editorTreeContract = defineContract({
-  model: liveModel({
-    key: treeKeySchema,
-    states: {
-      tree: liveState({ data: filesContract.tree.model.states.tree.dataSchema }),
-    },
-    mutations: runtimeFallibleMutations(filesContract.tree.model.mutations),
-  }),
-});
-
-const editorFsContract = defineContract({
-  exists: runtimeFallibleProcedure(pathKeySchema, filesContract.fs.exists.output),
-  realPath: runtimeFallibleProcedure(pathKeySchema, filesContract.fs.realPath.output),
-  readText: runtimeFallibleProcedure(
-    pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
-    filesContract.fs.readText.output
-  ),
-  readBytes: downloadFile({
-    input: pathKeySchema.extend({ options: readFileOptionsSchema.optional() }),
-    meta: filesContract.fs.readBytes.meta,
-    error: runtimeResolveErrorUnion(filesContract.fs.readBytes.error),
-  }),
-  upload: uploadFile({
-    input: filesContract.fs.upload.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    maxSize: MAX_FILE_UPLOAD_BYTES,
-    result: filesContract.fs.upload.result,
-    error: runtimeResolveErrorUnion(filesContract.fs.upload.error),
-  }),
-});
-
-const editorMutationsContract = defineContract({
-  createFile: runtimeFallibleProcedure(
-    filesContract.mutations.createFile.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.createFile.output
-  ),
-  createDirectory: runtimeFallibleProcedure(
-    filesContract.mutations.createDirectory.input
-      .omit({ root: true })
-      .extend(workspaceKeySchema.shape),
-    filesContract.mutations.createDirectory.output
-  ),
-  rename: runtimeFallibleProcedure(
-    filesContract.mutations.rename.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.rename.output
-  ),
-  move: runtimeFallibleProcedure(
-    filesContract.mutations.move.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.move.output
-  ),
-  delete: runtimeFallibleProcedure(
-    filesContract.mutations.delete.input.omit({ root: true }).extend(workspaceKeySchema.shape),
-    filesContract.mutations.delete.output
-  ),
-});
 
 const editorBufferKeySchema = z.object({ uri: resourceUriSchema });
 
 export const editorDomain = 'editor' as const;
 
+// The crash-recovery buffer store is the editor domain's only wire surface;
+// file content, fs one-shots, trees, and mutations live in the `files` domain
+// keyed by ResourceUri (spec §8).
 export const editorContract = defineContract({
-  fs: editorFsContract,
-  tree: editorTreeContract,
-  content: liveModel({
-    key: pathKeySchema,
-    states: {
-      content: liveState({ data: filesContract.content.states.content.dataSchema }),
-    },
-    mutations: runtimeFallibleMutations(filesContract.content.mutations),
-  }),
-  mutations: editorMutationsContract,
   saveBuffer: procedure({
     input: editorBufferKeySchema.extend({ content: z.string() }),
     output: z.void(),
@@ -116,13 +26,4 @@ export const editorContract = defineContract({
   }),
 });
 
-export const MAX_EDITOR_FILE_UPLOAD_BYTES = MAX_FILE_UPLOAD_BYTES;
-
 export type EditorContract = typeof editorContract;
-export type EditorFileContentModel = z.infer<
-  typeof editorContract.content.states.content.dataSchema
->;
-export type EditorFileTreeModel = z.infer<typeof editorContract.tree.model.states.tree.dataSchema>;
-export type EditorFileEntry = EditorFileTreeModel['entries'][string];
-export type EditorFileEntryKind = EditorFileEntry['kind'];
-export type EditorSymlinkTargetKind = NonNullable<EditorFileEntry['symlinkTargetKind']>;

@@ -14,8 +14,8 @@ export const sourceControlWorkspaceStoreContributions: readonly ScopedStoreContr
   [
     contributeScopedStore({
       token: gitCheckoutStoreToken,
-      create: ({ projectId, workspaceId, path }) =>
-        new GitCheckoutStore(projectId, workspaceId, path),
+      create: ({ projectId, workspaceId, path, sshConnectionId }) =>
+        new GitCheckoutStore(projectId, workspaceId, path, sshConnectionId),
       activate: (store) => store.start(),
       dispose: (store) => store.dispose(),
     }),

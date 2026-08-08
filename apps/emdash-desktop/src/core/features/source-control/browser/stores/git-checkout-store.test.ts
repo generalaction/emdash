@@ -25,10 +25,10 @@ vi.mock('@core/features/source-control/api/browser/client', async (importOrigina
   };
 });
 
-vi.mock('@core/features/editor/api/browser/client', () => ({
-  getEditorClient: async () => ({
-    filesystem: {
-      readFileText: mocks.readFileText,
+vi.mock('@core/features/files/api/browser/client', () => ({
+  getFilesClient: async () => ({
+    fs: {
+      readText: mocks.readFileText,
     },
   }),
 }));

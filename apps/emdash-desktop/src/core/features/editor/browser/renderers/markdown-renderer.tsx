@@ -1,10 +1,11 @@
 import { Markdown } from '@emdash/ui/react/components';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import { readEditorImage } from '@core/features/editor/api/browser/files';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
@@ -36,10 +37,12 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         resourcePath: src,
       });
       if (!imagePath) return null;
-      const result = await readEditorImage(workspace.workspaceId, workspacePath, imagePath);
+      const result = await readImageFile(
+        hostFileRefFromNativePath(imagePath, workspace.sshConnectionId)
+      );
       return result.success && !result.data.truncated ? result.data.dataUrl : null;
     },
-    [workspace.workspaceId, workspacePath, tab.path]
+    [workspace.sshConnectionId, workspacePath, tab.path]
   );
 
   const openWorkspaceLink = useCallback(

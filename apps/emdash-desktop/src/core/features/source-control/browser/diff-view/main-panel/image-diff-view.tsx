@@ -2,7 +2,7 @@ import type { ImageReadResult, ImageUnavailableReason } from '@emdash/core/runti
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { readEditorImage } from '@core/features/editor/api/browser/files';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
 import {
   checkoutSelector,
   getSourceControlClient,
@@ -11,6 +11,8 @@ import {
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import type { ActiveFile } from '@core/features/tasks/contributions/mementos';
 import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { formatBytes } from '@core/primitives/formatting/browser/formatBytes';
 import { HEAD_REF, type GitRef } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
@@ -79,11 +81,13 @@ function loadFromRef(workspaceId: string, filePath: string, ref: GitRef): Promis
 }
 
 async function loadFromDisk(
-  workspaceId: string,
   workspacePath: string,
+  sshConnectionId: string | undefined,
   filePath: string
 ): Promise<SideState> {
-  const res = await readEditorImage(workspaceId, workspacePath, filePath);
+  const res = await readImageFile(
+    hostFileRefFromNativePath(resolveWorkspacePath(workspacePath, filePath), sshConnectionId)
+  );
   if (!res.success) {
     return res.error.type === 'not-found' || res.error.type === 'not-a-directory'
       ? { status: 'missing' }
@@ -107,11 +111,12 @@ function loadOriginal(workspaceId: string, activeFile: ActiveFile): Promise<Side
 function loadModified(
   workspaceId: string,
   workspacePath: string,
+  sshConnectionId: string | undefined,
   activeFile: ActiveFile
 ): Promise<SideState> {
   switch (activeFile.group) {
     case 'disk':
-      return loadFromDisk(workspaceId, workspacePath, activeFile.path);
+      return loadFromDisk(workspacePath, sshConnectionId, activeFile.path);
     case 'staged':
       return loadGitImage(async () => {
         const client = await getSourceControlClient();
@@ -139,15 +144,16 @@ function shouldRetryModifiedLoad(state: SideState): boolean {
 async function loadModifiedWithTransientRetry(
   workspaceId: string,
   workspacePath: string,
+  sshConnectionId: string | undefined,
   activeFile: ActiveFile
 ): Promise<SideState> {
   const delays = [120, 300, 600];
-  let state = await loadModified(workspaceId, workspacePath, activeFile);
+  let state = await loadModified(workspaceId, workspacePath, sshConnectionId, activeFile);
 
   for (const ms of delays) {
     if (!shouldRetryModifiedLoad(state)) return state;
     await delay(ms);
-    state = await loadModified(workspaceId, workspacePath, activeFile);
+    state = await loadModified(workspaceId, workspacePath, sshConnectionId, activeFile);
   }
 
   return state;
@@ -243,7 +249,13 @@ export const ImageDiffView = observer(function ImageDiffView({
 
   const modifiedQuery = useQuery({
     queryKey: ['image-diff', 'modified', projectId, workspaceId, fileKey, reactiveRevision],
-    queryFn: () => loadModifiedWithTransientRetry(workspaceId, workspace.path, activeFile),
+    queryFn: () =>
+      loadModifiedWithTransientRetry(
+        workspaceId,
+        workspace.path,
+        workspace.sshConnectionId,
+        activeFile
+      ),
     placeholderData: placeholder,
     staleTime: Infinity,
   });

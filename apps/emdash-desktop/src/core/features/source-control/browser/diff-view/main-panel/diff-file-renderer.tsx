@@ -4,7 +4,6 @@ import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
-import { readEditorImage } from '@core/features/editor/api/browser/files';
 import type { ContentStatus } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
 import {
@@ -12,6 +11,7 @@ import {
   type DiffSideModel,
 } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
 import { HtmlContentRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
@@ -21,6 +21,7 @@ import {
   useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
 import { HEAD_REF } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
@@ -216,7 +217,9 @@ const DiffContentPreview = observer(function DiffContentPreview({
       resourcePath: src,
     });
     if (!imagePath) return null;
-    const result = await readEditorImage(workspace.workspaceId, workspacePath, imagePath);
+    const result = await readImageFile(
+      hostFileRefFromNativePath(imagePath, workspace.sshConnectionId)
+    );
     return result.success && !result.data.truncated ? result.data.dataUrl : null;
   };
 
