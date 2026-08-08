@@ -148,7 +148,6 @@ export class TaskComposition {
       get workspacePath(): string | undefined {
         return getWorkspacePath();
       },
-      modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
     };
     // Split-pane sizes live on the shared panel-layouts storage (spec:

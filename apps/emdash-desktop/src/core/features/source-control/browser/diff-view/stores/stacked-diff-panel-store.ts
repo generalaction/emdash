@@ -1,15 +1,11 @@
 import type { GitChange, GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { isBinaryForDiff } from '@core/features/editor/api/browser/renderers/fileKind';
 import {
   MAX_STACKED_FILES,
   type DiffViewStore,
 } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
 import type { PrStore } from '@core/features/source-control/api/browser/stores/pr-store';
-import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { commitRef } from '@core/primitives/git/api';
 import { getPrNumber } from '@core/services/pull-requests/api';
 import type { GitCheckoutStore } from '../../stores/git-checkout-store';
@@ -53,46 +49,8 @@ export class DiffSlotStore {
       prHeadOid: observable,
       commitOriginalSha: observable,
       commitModifiedSha: observable,
-      uri: computed,
-      originalUri: computed,
-      modifiedUri: computed,
-      language: computed,
       isBinary: computed,
     });
-  }
-
-  get uri(): string {
-    if (!this.file) return '';
-    return buildMonacoModelPath(`workspace:${this.workspaceId}`, this.file.path);
-  }
-
-  get originalUri(): string {
-    if (!this.uri) return '';
-    if (this.diffType === 'git' || this.diffType === 'pr') {
-      return modelRegistry.toGitUri(this.uri, this.originalRef);
-    }
-    if (this.diffType === 'disk') return modelRegistry.toGitUri(this.uri, STAGED_REF);
-
-    return modelRegistry.toGitUri(this.uri, HEAD_REF);
-  }
-
-  get modifiedUri(): string {
-    if (!this.uri) return '';
-    if (this.diffType === 'staged') return modelRegistry.toGitUri(this.uri, STAGED_REF);
-
-    if (this.diffType === 'pr') {
-      return modelRegistry.toGitUri(this.uri, this.modifiedRef ?? HEAD_REF);
-    }
-
-    if (this.diffType === 'git') {
-      return modelRegistry.toGitUri(this.uri, this.modifiedRef ?? HEAD_REF);
-    }
-
-    return this.uri;
-  }
-
-  get language(): string {
-    return this.file ? getLanguageFromPath(this.file.path) : '';
   }
 
   get isBinary(): boolean {

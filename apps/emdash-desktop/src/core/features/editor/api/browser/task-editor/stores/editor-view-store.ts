@@ -1,11 +1,6 @@
-import {
-  decodeResourceUri,
-  encodeResourceUri,
-  hostFileRef,
-} from '@emdash/core/primitives/path/api';
+import { decodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import {
   openFileStore,
   type OpenFileEntry,
@@ -30,9 +25,6 @@ import { FilesStore } from '../../../../browser/task-editor/stores/files-store';
  * restore after a crash, and the sidebar file tree.
  */
 export class EditorViewStore {
-  /** Workspace-scoped prefix for legacy Monaco model URIs (diff views only). */
-  readonly modelRootPath: string;
-
   isSaving = false;
   /**
    * Workspace-absolute path of a file with a conflict pending resolution.
@@ -66,7 +58,6 @@ export class EditorViewStore {
     this.paneLayout = paneLayout;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
-    this.modelRootPath = `workspace:${workspaceId}`;
 
     makeObservable<EditorViewStore, 'treeHandle'>(this, {
       isSaving: observable,
@@ -258,12 +249,12 @@ export class EditorViewStore {
    * files that are not open stay persisted untouched.
    */
   async restoreBuffers(): Promise<void> {
-    const rootRef = modelRegistry.workspaceRootFileRef(this.workspaceId);
-    if (!rootRef) return;
+    // Scope the listing to this view's workspace root, which the files store
+    // resolved at the renderer edge when the session started.
+    const root = this.files?.rootUri;
+    if (!root) return;
     try {
-      const buffers = await (
-        await getEditorClient()
-      ).listBuffers({ root: encodeResourceUri(rootRef) });
+      const buffers = await (await getEditorClient()).listBuffers({ root });
       for (const { uri: bufferKey, content } of buffers) {
         const decoded = decodeResourceUri(bufferKey);
         if (!decoded.success) continue;

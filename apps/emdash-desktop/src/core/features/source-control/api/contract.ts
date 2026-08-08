@@ -74,12 +74,6 @@ const sourceControlCheckoutContract = defineContract({
       staleness: liveState({ data: checkout.fileDiff.states.staleness.dataSchema }),
     },
   }),
-  content: liveModel({
-    key: checkout.content.keySchema.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    states: {
-      content: liveState({ data: checkout.content.states.content.dataSchema }),
-    },
-  }),
   getFileDiff: runtimeFallibleProcedure(
     checkout.getFileDiff.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
     checkout.getFileDiff.output

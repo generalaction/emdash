@@ -218,13 +218,7 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
   const modifiedRef = useMemo(() => commitRefForCommit(commit), [commit]);
   const originalSha = useMemo(() => parentShaForCommit(commit), [commit]);
   const filesQuery = useCommitFiles(projectId, workspaceId, commit.hash, true);
-  const prefetchDiff = usePrefetchDiffModels(
-    projectId,
-    workspaceId,
-    'git',
-    originalRef,
-    modifiedRef
-  );
+  const prefetchDiff = usePrefetchDiffModels('git', originalRef, modifiedRef);
 
   const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath =

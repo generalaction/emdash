@@ -42,7 +42,6 @@ export function createSourceControlWireController(
   const repositoryModel = createRepositoryModelProvider(options);
   const checkoutModel = createCheckoutModelProvider(options);
   const fileDiffModel = createFileDiffModelProvider(options);
-  const contentModel = createContentModelProvider(options);
 
   return createController(sourceControlContract, {
     repository: {
@@ -95,7 +94,6 @@ export function createSourceControlWireController(
     checkout: {
       model: checkoutModel,
       fileDiff: fileDiffModel,
-      content: contentModel,
       getFileDiff: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getFileDiff(mapped, callOptions(meta))
@@ -256,27 +254,6 @@ function createFileDiffModelProvider({
   return forwardLiveModel(sourceControlContract.checkout.fileDiff, (key, name) =>
     resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
       client.git.checkout.fileDiff
-        .state(
-          {
-            ...withoutWorkspaceId(key),
-            checkout: hostPathFromNative(identity.path),
-          },
-          name
-        )
-        .asLiveSource()
-    )
-  );
-}
-
-function createContentModelProvider({
-  runtimes,
-  workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LiveModelProvider<
-  typeof sourceControlContract.checkout.content
-> {
-  return forwardLiveModel(sourceControlContract.checkout.content, (key, name) =>
-    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
-      client.git.checkout.content
         .state(
           {
             ...withoutWorkspaceId(key),

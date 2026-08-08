@@ -5,7 +5,6 @@ import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { configureMonacoTypeScript } from './monaco-config';
 import { defineMonacoThemes, getMonacoTheme } from './monaco-themes';
 
@@ -59,7 +58,6 @@ export const monacoBootstrap = {
       instance = m;
       // oxlint-disable-next-line typescript/no-explicit-any
       (globalThis as any).__monaco = m;
-      modelRegistry.notifyMonacoReady(m);
       defineMonacoThemes(m as Parameters<typeof defineMonacoThemes>[0]);
       configureMonacoTypeScript(m);
       return m;

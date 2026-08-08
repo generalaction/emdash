@@ -5,11 +5,9 @@ import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { gitCheckoutStoreToken } from '@core/features/source-control/contributions/browser/workspace-store-tokens';
 import { formatErrorType } from '@core/features/tasks/api/browser/utils';
-import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
 import {
   useTaskComposition,
   useWorkspace,
-  useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import { HEAD_REF } from '@core/primitives/git/api';
@@ -48,8 +46,6 @@ export const UnstagedSectionHeader = observer(function UnstagedSectionHeader() {
 
 /** Section body; mounted inside a Resizable.Panel only while the section is expanded. */
 export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
-  const { projectId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
   const taskView = useTaskComposition();
   const workspace = useWorkspace();
   const git = workspace.get(gitCheckoutStoreToken);
@@ -63,7 +59,7 @@ export const UnstagedSectionBody = observer(function UnstagedSectionBody() {
   const _activeDiff = activeDiffEntry(taskView.activePane);
   const activePath = _activeDiff?.diffGroup === 'disk' ? _activeDiff.path : undefined;
 
-  const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
+  const prefetch = usePrefetchDiffModels('disk', HEAD_REF);
 
   const { mode: viewMode } = useChangesViewMode('unstaged');
 

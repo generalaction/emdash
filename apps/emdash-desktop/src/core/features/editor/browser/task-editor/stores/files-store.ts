@@ -72,7 +72,8 @@ type ViewData = {
 
 export class FilesStore {
   private readonly root: HostAbsolutePath;
-  private readonly rootUri: ResourceUri;
+  /** The workspace root's serialized identity — the scope key for buffer restore and the tree. */
+  readonly rootUri: ResourceUri;
   private treeRemote: TreeRemote | null = null;
   private treeModel: TreeRemoteMember | null = null;
   private treeScope: Scope | null = null;
