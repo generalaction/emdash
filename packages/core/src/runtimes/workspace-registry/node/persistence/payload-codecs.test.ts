@@ -1,6 +1,55 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkspaceLifecycle } from '../../api/schemas';
-import { parseLifecyclePayload, serializeLifecyclePayload } from './payload-codecs';
+import type { WorkspaceGitObservations, WorkspaceLifecycle } from '../../api/schemas';
+import {
+  parseGitObservationsPayload,
+  parseLifecyclePayload,
+  serializeGitObservationsPayload,
+  serializeLifecyclePayload,
+} from './payload-codecs';
+
+describe('git observations payload codec', () => {
+  it('round-trips the v2 shape', () => {
+    const git: WorkspaceGitObservations = {
+      branch: 'feature/x',
+      dirty: true,
+      diffStats: { added: 3, deleted: 1 },
+      ahead: 2,
+      behind: 0,
+      locked: false,
+      prunable: false,
+      headOid: 'a'.repeat(40),
+      upstream: {
+        remote: 'origin',
+        mergeRef: 'refs/heads/feature/x',
+        remoteUrl: 'https://example.com/acme/app.git',
+      },
+      prBreadcrumb: 'https://github.com/acme/app/pull/7',
+    };
+    expect(parseGitObservationsPayload(serializeGitObservationsPayload(git))).toEqual(git);
+  });
+
+  it('treats a stored v1 payload as not yet observed (no upcast path)', () => {
+    // The exact JSON an old row stored: version '1', none of the v2 fields.
+    const v1 = JSON.stringify({
+      version: '1',
+      value: {
+        branch: 'main',
+        dirty: false,
+        diffStats: null,
+        ahead: null,
+        behind: null,
+        locked: false,
+        prunable: false,
+      },
+    });
+    expect(parseGitObservationsPayload(v1)).toBeNull();
+  });
+
+  it('degrades corrupt payloads to null instead of throwing', () => {
+    expect(parseGitObservationsPayload('not-json')).toBeNull();
+    expect(parseGitObservationsPayload(JSON.stringify({ version: '2', value: 42 }))).toBeNull();
+  });
+});
 
 describe('lifecycle payload codec', () => {
   it('round-trips the current lifecycle shape', () => {

@@ -6,8 +6,8 @@ import z from 'zod';
 // them opaquely and never edits them. Shapes track the registry contract schemas in
 // @emdash/core/runtimes/workspace-registry/api.
 
-const observedGitV1 = z.object({
-  version: z.literal('1'),
+const observedGitV2 = z.object({
+  version: z.literal('2'),
   branch: z.string().nullable(),
   dirty: z.boolean(),
   /** Untracked files' lines count as additions (registry contract). */
@@ -16,9 +16,23 @@ const observedGitV1 = z.object({
   behind: z.number().nullable(),
   locked: z.boolean(),
   prunable: z.boolean(),
+  /** Full OID of HEAD; null on unborn HEAD or probe failure. */
+  headOid: z.string().nullable(),
+  /** Verbatim `branch.<branch>.remote`/`.merge` config plus the resolved remote URL. */
+  upstream: z
+    .object({ remote: z.string(), mergeRef: z.string(), remoteUrl: z.string().nullable() })
+    .nullable(),
+  /** Raw `branch.<branch>.emdash-pr-url` config value; provider recognition is derived. */
+  prBreadcrumb: z.string().nullable(),
 });
 
-export const workspaceObservedGit = defineVersionedSchema().initial('1', observedGitV1).build();
+/**
+ * v2 (headOid, upstream identity, PR breadcrumb) deliberately registers no v1 upcast:
+ * observations are re-derivable host facts, so a stored v1 payload reads as null via
+ * the unknown-version path in `parseVersionedColumn` — not-yet-observed — and the next
+ * `records` delivery overwrites the column with v2.
+ */
+export const workspaceObservedGit = defineVersionedSchema().initial('2', observedGitV2).build();
 export type WorkspaceObservedGit = typeof workspaceObservedGit.Type;
 
 const createOutcomeV1 = z.object({

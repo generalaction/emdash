@@ -58,7 +58,7 @@ describe('getDeletePreflight', () => {
   it('reports mirror-derived stakes without touching git or the host', async () => {
     await seedTask({
       observedGit: {
-        version: '1',
+        version: '2',
         branch: 'feature/example',
         dirty: true,
         diffStats: { added: 12, deleted: 3 },
@@ -66,6 +66,9 @@ describe('getDeletePreflight', () => {
         behind: 0,
         locked: false,
         prunable: false,
+        headOid: null,
+        upstream: null,
+        prBreadcrumb: null,
       },
       observedAt: 1_700_000_000_000,
     });
