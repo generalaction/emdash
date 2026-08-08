@@ -242,7 +242,6 @@ export const tabDescriptorSchema = z.discriminatedUnion('kind', [
     tabId: z.string(),
     path: z.string(),
     isPreview: z.boolean(),
-    isExternal: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal('browser'),

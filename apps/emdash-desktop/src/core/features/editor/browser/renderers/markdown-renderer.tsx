@@ -1,18 +1,12 @@
 import { Markdown } from '@emdash/ui/react/components';
-import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import { readEditorImage } from '@core/features/editor/api/browser/files';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
-import {
-  useTaskComposition,
-  useWorkspace,
-} from '@core/features/workbench/api/browser/task-composition-context';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
+import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
-import { useDelayedBoolean } from '@core/primitives/react-hooks/browser/use-delay-boolean';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
 interface MarkdownEditorRendererProps {
@@ -28,15 +22,12 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 }: MarkdownEditorRendererProps) {
   const workspace = useWorkspace();
   const workspacePath = workspace.path;
-  const { editorView } = useTaskComposition();
   const { pane } = usePaneContext();
-  const showExternalSpinner = useDelayedBoolean(!!(tab.isExternal && tab.isLoading), 200);
-  const bufferUri = tab.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, tab.path);
 
-  // Reading bufferVersions creates a MobX tracking dependency so this observer
+  // Reading bufferVersion creates a MobX tracking dependency so this observer
   // component re-renders whenever the buffer content changes or is first populated.
-  const _version = bufferUri ? modelRegistry.bufferVersions.get(bufferUri) : undefined;
-  const content = tab.isExternal ? tab.content : (modelRegistry.getValue(bufferUri) ?? '');
+  void tab.bufferVersion;
+  const content = tab.bufferText();
 
   const resolveImage = useCallback(
     async (src: string): Promise<string | null> => {
@@ -46,10 +37,12 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         resourcePath: src,
       });
       if (!imagePath) return null;
-      const result = await readEditorImage(workspace.workspaceId, workspacePath, imagePath);
+      const result = await readImageFile(
+        hostFileRefFromNativePath(imagePath, workspace.sshConnectionId)
+      );
       return result.success && !result.data.truncated ? result.data.dataUrl : null;
     },
-    [workspace.workspaceId, workspacePath, tab.path]
+    [workspace.sshConnectionId, workspacePath, tab.path]
   );
 
   const openWorkspaceLink = useCallback(
@@ -66,29 +59,17 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
     [workspacePath, tab.path, pane]
   );
 
-  const openLink = useMarkdownLinkOpener(tab.isExternal ? undefined : openWorkspaceLink);
+  const openLink = useMarkdownLinkOpener(openWorkspaceLink);
 
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
-      {tab.isExternal && tab.isLoading ? (
-        showExternalSpinner ? (
-          <div className="flex h-full items-center justify-center">
-            <Spinner />
-          </div>
-        ) : null
-      ) : tab.isExternal && tab.externalError ? (
-        <div className="text-destructive px-8 py-8 text-sm">
-          Could not load file: {tab.externalError}
-        </div>
-      ) : (
-        <Markdown
-          content={content}
-          variant="full"
-          className="w-full max-w-3xl px-8 py-8"
-          resolveImage={tab.isExternal ? undefined : resolveImage}
-          onOpenLink={openLink}
-        />
-      )}
+      <Markdown
+        content={content}
+        variant="full"
+        className="w-full max-w-3xl px-8 py-8"
+        resolveImage={resolveImage}
+        onOpenLink={openLink}
+      />
     </div>
   );
 });

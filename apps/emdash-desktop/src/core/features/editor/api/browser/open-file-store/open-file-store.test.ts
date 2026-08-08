@@ -417,6 +417,29 @@ describe('OpenFileStore', () => {
       expect(lease2.entry.status).toEqual({ kind: 'error', code: 'too-large' });
     });
 
+    it('recovers a never-existed file to ready when it is created while interest is held', async () => {
+      const h = start();
+      const path = '/repo/docs/spec-to-be-written.md';
+      const ref = hostFileRefFromNativePath(path);
+      const bufferLease = h.store.acquire(ref, BUFFER);
+      const diskLease = h.store.acquire(ref, DISK);
+
+      h.publish(h.diskKey(path), unavailableContent('not-found'));
+      await waitFor(() => bufferLease.entry.status.kind === 'error');
+      expect(bufferLease.entry.status).toEqual({ kind: 'error', code: 'not-found' });
+
+      // A chat link to a file the agent is about to write: when the file is
+      // created, the live watch pushes content and the not-found placeholder
+      // auto-recovers without any user action.
+      h.publish(h.diskKey(path), textContent('# Spec', 'e1'));
+      await waitFor(() => bufferLease.entry.status.kind === 'ready');
+      await waitFor(() => bufferLease.entry.handleFor(BUFFER) !== undefined);
+      expect(bufferHandle(bufferLease.entry).getText()).toBe('# Spec');
+
+      bufferLease.release();
+      diskLease.release();
+    });
+
     it('hits the first-load deadline as error(unavailable) and recovers on late content', async () => {
       const h = start();
       const ref = hostFileRefFromNativePath('/repo/slow.ts');
@@ -725,6 +748,76 @@ describe('OpenFileStore', () => {
       h.clock.advance(OPEN_FILE_LINGER_MS);
       expect(h.store.peek(ref)).toBeUndefined();
       await waitFor(() => h.leases.released === h.leases.acquired);
+    });
+  });
+
+  describe('dirty-buffer hydration (restore after restart)', () => {
+    it('applies a persisted row to a clean open buffer and marks it dirty', async () => {
+      const h = start();
+      const path = '/repo/src/index.ts';
+      const { ref, entry } = await openReady(h, path, 'disk text');
+
+      h.store.hydrateBuffer(ref, 'recovered edits');
+
+      expect(bufferHandle(entry).getText()).toBe('recovered edits');
+      expect(entry.dirty).toBe(true);
+      expect(entry.conflicted).toBe(false);
+    });
+
+    it('never clobbers edits the user made before hydration arrived', async () => {
+      const h = start();
+      const path = '/repo/src/index.ts';
+      const { ref, entry } = await openReady(h, path, 'disk text');
+
+      bufferHandle(entry).setText('typed after restart');
+      await waitFor(() => entry.dirty);
+      h.store.hydrateBuffer(ref, 'stale recovered edits');
+
+      expect(bufferHandle(entry).getText()).toBe('typed after restart');
+    });
+
+    it('seeds a still-loading buffer so the row applies once content arrives', async () => {
+      const h = start();
+      const path = '/repo/src/slow.ts';
+      const ref = hostFileRefFromNativePath(path);
+      const lease = h.store.acquire(ref, BUFFER);
+      expect(lease.entry.status.kind).toBe('loading');
+
+      h.store.hydrateBuffer(ref, 'recovered edits');
+      h.publish(h.diskKey(path), textContent('disk text', 'e1'));
+      await waitFor(() => lease.entry.handleFor(BUFFER) !== undefined);
+
+      expect(bufferHandle(lease.entry).getText()).toBe('recovered edits');
+      expect(lease.entry.dirty).toBe(true);
+    });
+
+    it('leaves files that are not open alone', () => {
+      const h = start();
+      const ref = hostFileRefFromNativePath('/repo/not-open.ts');
+      expect(() => h.store.hydrateBuffer(ref, 'row')).not.toThrow();
+      expect(h.store.peek(ref)).toBeUndefined();
+    });
+  });
+
+  describe('dirty-entry enumeration (quit guards)', () => {
+    it('enumerates, saves, and discards dirty entries across files', async () => {
+      const h = start();
+      const a = await openReady(h, '/repo/a.ts', 'aaa');
+      const b = await openReady(h, '/repo/b.ts', 'bbb');
+
+      bufferHandle(a.entry).setText('aaa edited');
+      bufferHandle(b.entry).setText('bbb edited');
+      await waitFor(() => a.entry.dirty && b.entry.dirty);
+      expect(h.store.dirtyEntries()).toHaveLength(2);
+
+      await expect(h.store.saveAllDirty()).resolves.toBe(true);
+      expect(h.store.dirtyEntries()).toHaveLength(0);
+
+      bufferHandle(a.entry).setText('aaa again');
+      await waitFor(() => a.entry.dirty);
+      h.store.discardAllDirty();
+      expect(bufferHandle(a.entry).getText()).toBe('aaa edited');
+      expect(h.store.dirtyEntries()).toHaveLength(0);
     });
   });
 });

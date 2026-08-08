@@ -6,20 +6,23 @@
  *   Preview   — present when the file has a rendered preview component
  *
  * The FileContent container derives showSource / showPreview / canToggle from these
- * two flags plus FileTabStore.viewMode. No other mapping or coupling is needed.
+ * two flags plus FileTabResource.viewMode. Load-time states (loading, errors,
+ * orphaned) are not kinds: they come from the tab's OpenFileStore entry and render
+ * as FileStatusPlaceholder above this map.
  */
 
-import type { ComponentType } from 'react';
-import type { FileContentType } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { Spinner } from '@emdash/ui/react/primitives';
+import { observer } from 'mobx-react-lite';
+import { useEffect, useState, type ComponentType } from 'react';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { HtmlRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { BinaryRenderer } from '../renderers/binary-renderer';
 import { CsvRenderer } from '../renderers/csv-renderer';
-import { FileErrorRenderer } from '../renderers/file-error-renderer';
 import { ImageRenderer } from '../renderers/image-renderer';
 import { MarkdownEditorRenderer } from '../renderers/markdown-renderer';
 import { SvgRenderer } from '../renderers/svg-renderer';
-import { TooLargeRenderer } from '../renderers/too-large-renderer';
+import type { ManagedFileKind } from '../renderers/types';
 
 export interface FileContentTypeDef {
   /** True when the file type supports Monaco source editing. */
@@ -31,7 +34,7 @@ export interface FileContentTypeDef {
 // Stable wrapper components so React never sees a new reference on re-render.
 
 function CsvPreview({ tab }: { tab: FileTabResource }) {
-  return <CsvRenderer filePath={tab.path} />;
+  return <CsvRenderer tab={tab} />;
 }
 
 function MarkdownPreview({ tab }: { tab: FileTabResource }) {
@@ -39,37 +42,77 @@ function MarkdownPreview({ tab }: { tab: FileTabResource }) {
 }
 
 function HtmlPreview({ tab }: { tab: FileTabResource }) {
-  return <HtmlRenderer filePath={tab.path} />;
+  return <HtmlRenderer tab={tab} />;
 }
 
 function SvgPreview({ tab }: { tab: FileTabResource }) {
-  return <SvgRenderer filePath={tab.path} />;
+  return <SvgRenderer tab={tab} />;
 }
 
-function ImagePreview({ tab }: { tab: FileTabResource }) {
-  return <ImageRenderer file={tab} />;
-}
+/**
+ * Raster images bypass the text-content stack: the preview reads the bytes
+ * itself as a data URL (the store classifies binary content as an error).
+ */
+const ImagePreview = observer(function ImagePreview({ tab }: { tab: FileTabResource }) {
+  const [state, setState] = useState<
+    { kind: 'loading' } | { kind: 'ready'; dataUrl: string } | { kind: 'error' }
+  >({ kind: 'loading' });
+  const ref = tab.ref;
 
-function TooLargePreview({ tab }: { tab: FileTabResource }) {
-  return <TooLargeRenderer file={tab} />;
-}
+  useEffect(() => {
+    if (!ref) {
+      setState({ kind: 'error' });
+      return;
+    }
+    let cancelled = false;
+    setState({ kind: 'loading' });
+    void readImageFile(ref)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.success && !result.data.truncated) {
+          setState({ kind: 'ready', dataUrl: result.data.dataUrl });
+        } else {
+          setState({ kind: 'error' });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setState({ kind: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ref]);
+
+  if (state.kind === 'loading') {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="sm" />
+      </div>
+    );
+  }
+  if (state.kind === 'error') {
+    return (
+      <div className="flex h-full items-center justify-center text-xs text-foreground-passive">
+        Could not load image
+      </div>
+    );
+  }
+  return <ImageRenderer file={{ path: tab.path, content: state.dataUrl }} />;
+});
 
 function BinaryPreview({ tab }: { tab: FileTabResource }) {
   return <BinaryRenderer file={tab} />;
 }
 
-function FileErrorPreview({ tab }: { tab: FileTabResource }) {
-  return <FileErrorRenderer file={tab} />;
-}
-
-export const FILE_CONTENT_TYPES: Record<FileContentType, FileContentTypeDef> = {
+export const FILE_CONTENT_TYPES: Record<
+  Exclude<ManagedFileKind, 'too-large'>,
+  FileContentTypeDef
+> = {
   text: { editable: true },
   csv: { editable: true, Preview: CsvPreview },
   markdown: { editable: true, Preview: MarkdownPreview },
   html: { editable: true, Preview: HtmlPreview },
   svg: { editable: true, Preview: SvgPreview },
   image: { editable: false, Preview: ImagePreview },
-  'too-large': { editable: false, Preview: TooLargePreview },
   binary: { editable: false, Preview: BinaryPreview },
-  'file-error': { editable: false, Preview: FileErrorPreview },
 };

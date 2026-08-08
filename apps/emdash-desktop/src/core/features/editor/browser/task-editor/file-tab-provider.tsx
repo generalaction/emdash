@@ -1,11 +1,17 @@
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import { observer } from 'mobx-react-lite';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import { openFileStore } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type { FilePayload } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { getMachinesStore } from '@core/features/machines/contributions/app-stores';
 import type { TaskTabContext } from '@core/features/workbench/api/browser/tabs/task-tab-context';
 import { resolveWorkspacePath } from '@core/features/workspaces/api/browser/workspace-path';
 import { openModal } from '@core/manifests/browser/modal-api';
+import {
+  hostFileRefFromNativePath,
+  hostPathFromNative,
+  relativePathWithin,
+} from '@core/primitives/desktop-runtime/api';
 import type {
   TabEntry,
   TabHandle,
@@ -19,13 +25,11 @@ import { FileContentPreview } from './file-content-preview';
 import { FileContentRenderer } from './file-content-renderer';
 import { FileContentToolbar } from './file-content-toolbar';
 import { FILE_CONTENT_TYPES } from './file-content-types';
+import { FileStatusPlaceholder } from './file-status-placeholder';
 import { FileTabBarItem, FileTabBarItemDragPreview } from './file-tab-item';
-import { getFileModelManager } from './stores/file-model-manager';
 
 export interface FileOpenArgs {
   path: string;
-  /** When true, file is read-only from outside the workspace. */
-  external?: boolean;
 }
 
 /**
@@ -46,13 +50,19 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
   const activeTab = host.resolvedTabs.find((t) => t.isActive);
   const activeFile = activeTab?.kind === 'file' ? (activeTab.resource as FileTabResource) : null;
 
-  const def = activeFile ? FILE_CONTENT_TYPES[activeFile.contentType] : null;
-  const showSource = def
-    ? def.editable && (activeFile!.viewMode === 'source' || !def.Preview)
-    : false;
-  const showPreview = def
-    ? !!def.Preview && (activeFile!.viewMode === 'preview' || !def.editable)
-    : false;
+  // Content state comes from the tab's OpenFileStore entry: anything that is
+  // not ready (bounded loading, seam errors, orphaned) renders a placeholder
+  // instead of the source/preview surfaces.
+  const status = activeFile?.contentStatus;
+  const blocked = status !== undefined && status.kind !== 'ready';
+
+  const def = activeFile ? FILE_CONTENT_TYPES[activeFile.fileKind] : null;
+  const showSource =
+    !blocked && def ? def.editable && (activeFile!.viewMode === 'source' || !def.Preview) : false;
+  const showPreview =
+    !blocked && def
+      ? !!def.Preview && (activeFile!.viewMode === 'preview' || !def.editable)
+      : false;
   const canToggle = def ? def.editable && !!def.Preview : false;
 
   return (
@@ -62,6 +72,11 @@ const FileContent = observer(function FileContent({ host, ctx: _ctx }: TabConten
         <div className="absolute inset-0" style={{ visibility: showSource ? 'visible' : 'hidden' }}>
           <FileContentRenderer />
         </div>
+        {activeFile && blocked && (
+          <div className="absolute inset-0">
+            <FileStatusPlaceholder resource={activeFile} />
+          </div>
+        )}
         {activeFile && showPreview && (
           <div className="absolute inset-0">
             <FileContentPreview tab={activeFile} />
@@ -80,10 +95,7 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
 
     onBeforeOpen: (args: FileOpenArgs, ctx: TabViewContext): FilePayload | null => {
       const taskCtx = ctx as TaskTabContext;
-      return {
-        path: args.external ? args.path : resolveWorkspacePath(taskCtx.workspacePath, args.path),
-        isExternal: args.external,
-      };
+      return { path: resolveWorkspacePath(taskCtx.workspacePath, args.path) };
     },
 
     initialize(
@@ -92,24 +104,25 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
       ctx: TabViewContext
     ): FileTabResource {
       const taskCtx = ctx as TaskTabContext;
-      if (!taskCtx.workspacePath) throw new Error('Local workspace path is unavailable');
-      const modelManager = getFileModelManager(taskCtx.workspaceId, {
-        projectId: taskCtx.projectId,
-        workspaceId: taskCtx.workspaceId,
-        workspacePath: taskCtx.workspacePath,
-        modelRootPath: taskCtx.modelRootPath,
+      // Identity resolution happens here at the edge (spec §10): the tab path
+      // is absolute after onBeforeOpen (workspace-resolved when it was
+      // relative), and the task's workspace binding carries the host (local
+      // vs. ssh connection) — including for paths outside the workspace root.
+      const path = entry.state.path;
+      const connectionId = taskCtx.getRemoteConnectionId?.();
+      let ref: HostFileRef | null = null;
+      try {
+        ref = hostFileRefFromNativePath(path, connectionId);
+      } catch {
+        ref = null;
+      }
+      const inWorkspace = isWithinWorkspace(taskCtx.workspacePath, path);
+      return new FileTabResource(entry.state, {
+        ref,
+        handle,
+        inWorkspace,
+        displayPath: displayPathFor(path, inWorkspace, connectionId),
       });
-      return new FileTabResource(
-        entry.state,
-        modelManager,
-        {
-          projectId: taskCtx.projectId,
-          workspaceId: taskCtx.workspaceId,
-          workspacePath: taskCtx.workspacePath,
-          modelRootPath: taskCtx.modelRootPath,
-        },
-        handle
-      );
     },
 
     dispose(_entry: TabEntry<FilePayload>, resource: FileTabResource): void {
@@ -118,35 +131,36 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
 
     async onBeforeClose(
       entry: TabEntry<FilePayload>,
-      _resource: FileTabResource,
-      ctx: TabViewContext
+      resource: FileTabResource,
+      _ctx: TabViewContext
     ): Promise<boolean> {
-      if (entry.state.isExternal) return true;
-      const taskCtx = ctx as TaskTabContext;
-      const bufferUri = buildMonacoModelPath(taskCtx.modelRootPath, entry.state.path);
-      if (!modelRegistry.isDirty(bufferUri)) return true;
+      const fileEntry = resource.entry;
+      if (!fileEntry?.dirty) return true;
 
       const fileName = entry.state.path.split('/').pop() ?? entry.state.path;
       const unsavedOutcome = await openModal('unsavedChangesModal', { fileName });
       if (!unsavedOutcome.success) return false;
-      if (unsavedOutcome.data === 'discard') return true;
+      if (unsavedOutcome.data === 'discard') {
+        openFileStore.reloadFromDisk(fileEntry);
+        return true;
+      }
 
       try {
-        const saved = await modelRegistry.saveFileToDisk(bufferUri);
-        if (saved !== null) return true;
-        if (!modelRegistry.hasPendingConflict(bufferUri)) return false;
+        const saved = await openFileStore.save(fileEntry);
+        if (saved.success) return true;
+        if (saved.error.type !== 'conflict') return false;
 
         const conflictOutcome = await openModal('conflictDialog', {
           filePath: entry.state.path,
         });
         if (!conflictOutcome.success) return false;
         if (conflictOutcome.data) {
-          modelRegistry.reloadFromDisk(bufferUri);
+          openFileStore.reloadFromDisk(fileEntry);
           return true;
         }
 
-        const overwritten = await modelRegistry.saveFileToDisk(bufferUri, { overwrite: true });
-        return overwritten !== null;
+        const overwritten = await openFileStore.save(fileEntry, { overwrite: true });
+        return overwritten.success;
       } catch {
         return false;
       }
@@ -156,3 +170,27 @@ export const fileTabProvider: TabProvider<'file', FilePayload, FileTabResource, 
     TabBarItemDragPreview: FileTabBarItemDragPreview,
     TabContent: FileTabContent,
   });
+
+function isWithinWorkspace(workspacePath: string | undefined, path: string): boolean {
+  if (!workspacePath) return false;
+  try {
+    relativePathWithin(hostPathFromNative(workspacePath), hostPathFromNative(path));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Files with no containing workspace root display an absolute path,
+ * host-prefixed when the task runs on a remote host (spec §5).
+ */
+function displayPathFor(
+  path: string,
+  inWorkspace: boolean,
+  connectionId: string | undefined
+): string {
+  if (inWorkspace || !connectionId) return path;
+  const machine = getMachinesStore().connections.find((config) => config.id === connectionId);
+  return `${machine?.name ?? connectionId}:${path}`;
+}

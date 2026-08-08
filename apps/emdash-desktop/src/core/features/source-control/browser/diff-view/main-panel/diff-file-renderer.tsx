@@ -1,17 +1,17 @@
 import type { GitObjectRef } from '@emdash/core/runtimes/git/api';
 import { Markdown } from '@emdash/ui/react/components';
+import { Spinner } from '@emdash/ui/react/primitives';
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
-import { readEditorImage } from '@core/features/editor/api/browser/files';
-import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
-import { useModelStatus } from '@core/features/editor/api/browser/monaco/use-model';
+import type { ContentStatus } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
-import { ModelStatusOverlay } from '@core/features/editor/contributions/browser/monaco/model-status-overlay';
-import { StickyDiffEditor } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
+import {
+  StickyDiffEditor,
+  type DiffSideModel,
+} from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
 import { HtmlContentRenderer } from '@core/features/editor/contributions/browser/renderers/html-renderer';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
 import { draftCommentsStoreToken } from '@core/features/source-control/contributions/browser/task-stores';
 import { getTaskStore } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { useTaskViewContext } from '@core/features/tasks/contributions/browser/task-view-context';
@@ -21,8 +21,9 @@ import {
   useWorkspace,
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { useMarkdownLinkOpener } from '@core/primitives/external-links/browser';
-import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
+import { HEAD_REF } from '@core/primitives/git/api';
 import { gitRefToString } from '@core/primitives/git/api';
 import {
   getDraftCommentTargetKey,
@@ -32,7 +33,7 @@ import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pa
 import { useDiffEditorComments } from '../comments/use-diff-editor-comments';
 import type { DiffTabResource } from '../stores/diff-tab-resource';
 import { ImageDiffView } from './image-diff-view';
-import { isMissingFileError } from './missing-file-error';
+import { useDiffFacets } from './use-diff-facets';
 
 interface DiffFileRendererProps {
   tab: DiffTabResource;
@@ -69,10 +70,10 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
   }
 });
 
-/** Owns text diff model registration, preview rendering, and draft comment wiring. */
+/** Owns text diff facet leases, preview rendering, and draft comment wiring. */
 const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRendererProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const workspaceId = useWorkspaceId();
+  const workspace = useWorkspace();
   const diffView = useTaskComposition().diffView;
   const draftComments = getTaskStore(projectId, taskId)?.get(draftCommentsStoreToken);
 
@@ -117,129 +118,20 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
     onDeleteComment: handleDeleteComment,
   });
 
-  const root = `workspace:${workspaceId}`;
-  const uri = buildMonacoModelPath(root, tab.path);
-  const language = getLanguageFromPath(tab.path);
-
-  const originalUri = (() => {
-    if (tab.diffGroup === 'disk') {
-      return modelRegistry.toGitUri(uri, STAGED_REF);
-    }
-    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
-      return modelRegistry.toGitUri(uri, tab.originalRef);
-    }
-    return modelRegistry.toGitUri(uri, HEAD_REF);
-  })();
-
-  const modifiedUri = (() => {
-    if (tab.diffGroup === 'staged') return modelRegistry.toGitUri(uri, STAGED_REF);
-    if (tab.diffGroup === 'pr') {
-      return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
-    }
-    if (tab.diffGroup === 'git') {
-      return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
-    }
-    return uri;
-  })();
-
-  const previewContentUri = modifiedUri;
-
-  useEffect(() => {
-    let disposed = false;
-
-    if (tab.diffGroup === 'disk') {
-      const diskUri = modelRegistry.toDiskUri(uri);
-      void (async () => {
-        if (tab.status !== 'deleted') {
-          try {
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              tab.path,
-              language,
-              'disk'
-            );
-          } catch (err) {
-            if (!isMissingFileError(err)) throw err;
-          }
-        }
-        if (disposed) {
-          modelRegistry.unregisterModel(diskUri);
-          return;
-        }
-        await modelRegistry.registerModel(
-          projectId,
-          workspaceId,
-          root,
-          tab.path,
-          language,
-          'buffer'
-        );
-        if (disposed) {
-          modelRegistry.unregisterModel(modifiedUri);
-        }
-      })().catch(() => {});
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
-        .catch(() => {});
-    } else if (tab.diffGroup === 'staged') {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', HEAD_REF)
-        .catch(() => {});
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
-        .catch(() => {});
-    } else {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
-        .catch(() => {});
-      const effectiveModifiedRef = tab.modifiedRef ?? HEAD_REF;
-      void modelRegistry
-        .registerModel(
-          projectId,
-          workspaceId,
-          root,
-          tab.path,
-          language,
-          'git',
-          effectiveModifiedRef
-        )
-        .catch(() => {});
-    }
-
-    return () => {
-      disposed = true;
-      modelRegistry.unregisterModel(originalUri);
-      modelRegistry.unregisterModel(modifiedUri);
-      if (tab.diffGroup === 'disk') {
-        modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
-      }
-    };
-  }, [
-    originalUri,
-    modifiedUri,
-    language,
-    tab.path,
-    tab.diffGroup,
-    tab.originalRef,
-    tab.modifiedRef,
-    tab.status,
-    projectId,
-    workspaceId,
-    root,
-    uri,
-  ]);
+  const sides = useDiffFacets({
+    workspacePath: workspace.path,
+    sshConnectionId: workspace.sshConnectionId,
+    filePath: tab.path,
+    group: tab.diffGroup,
+    originalRef: tab.originalRef,
+    modifiedRef: tab.modifiedRef,
+  });
 
   if (!diffView) return null;
 
   if (tab.viewMode === 'preview' && tab.renderer.kind === 'text' && tab.renderer.previewKind) {
     return (
-      <DiffContentPreview
-        tab={tab}
-        contentUri={previewContentUri}
-        previewKind={tab.renderer.previewKind}
-      />
+      <DiffContentPreview tab={tab} side={sides.modified} previewKind={tab.renderer.previewKind} />
     );
   }
 
@@ -247,8 +139,9 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
     <div className="file-diff-view flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
         <StickyDiffEditor
-          originalUri={originalUri}
-          modifiedUri={modifiedUri}
+          original={sides.original}
+          modified={sides.modified}
+          filePath={tab.path}
           diffStyle={diffView.diffStyle}
           onEditorChange={setEditor}
         />
@@ -259,20 +152,28 @@ const TextDiffRenderer = observer(function TextDiffRenderer({ tab }: DiffFileRen
 
 interface DiffContentPreviewProps {
   tab: DiffTabResource;
-  contentUri: string;
+  /** The diff's modified side — the content the preview renders. */
+  side: DiffSideModel | null;
   previewKind: 'markdown' | 'html';
 }
 
 const DiffContentPreview = observer(function DiffContentPreview({
   tab,
-  contentUri,
+  side,
   previewKind,
 }: DiffContentPreviewProps) {
   const workspace = useWorkspace();
   const workspacePath = workspace.path;
   const { pane } = usePaneContext();
-  const status = useModelStatus(contentUri);
-  void modelRegistry.bufferVersions.get(contentUri);
+
+  // The handle appears asynchronously on the observable entry; buffer edits
+  // only fire the handle's change event, so bump a version to re-render.
+  const handle = side?.kind === 'facet' ? side.entry.handleFor(side.facet) : undefined;
+  const [, setContentVersion] = useState(0);
+  useEffect(() => {
+    if (!handle) return;
+    return handle.onDidChange(() => setContentVersion((v) => v + 1));
+  }, [handle]);
 
   const openWorkspaceLink = (href: string): boolean => {
     const target = resolveWorkspaceResourcePath({
@@ -294,15 +195,16 @@ const DiffContentPreview = observer(function DiffContentPreview({
     );
   }
 
-  if (status !== 'ready') {
+  const status = sideStatus(side);
+  if (status.kind !== 'ready' || !handle) {
     return (
       <div className="relative h-full bg-background-secondary-1">
-        <ModelStatusOverlay status={status} />
+        <DiffPreviewStatusOverlay status={status} />
       </div>
     );
   }
 
-  const content = modelRegistry.getModelByUri(contentUri)?.getValue() ?? '';
+  const content = handle.getText();
 
   if (previewKind === 'html') {
     return <HtmlContentRenderer filePath={tab.path} rawContent={content} />;
@@ -315,7 +217,9 @@ const DiffContentPreview = observer(function DiffContentPreview({
       resourcePath: src,
     });
     if (!imagePath) return null;
-    const result = await readEditorImage(workspace.workspaceId, workspacePath, imagePath);
+    const result = await readImageFile(
+      hostFileRefFromNativePath(imagePath, workspace.sshConnectionId)
+    );
     return result.success && !result.data.truncated ? result.data.dataUrl : null;
   };
 
@@ -331,6 +235,34 @@ const DiffContentPreview = observer(function DiffContentPreview({
     </div>
   );
 });
+
+/** Store status of the preview's side; loading until leases are held. */
+function sideStatus(side: DiffSideModel | null): ContentStatus {
+  if (!side || side.kind !== 'facet') return { kind: 'loading' };
+  const status =
+    side.facet.kind === 'git' ? side.entry.gitStatus(side.facet.ref) : side.entry.status;
+  return status ?? { kind: 'loading' };
+}
+
+function DiffPreviewStatusOverlay({ status }: { status: ContentStatus }) {
+  const message =
+    status.kind === 'error'
+      ? status.code === 'too-large'
+        ? 'File too large to display in the editor'
+        : 'Could not load file'
+      : status.kind === 'orphaned'
+        ? 'File was deleted on disk'
+        : 'Loading file...';
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-background-secondary-1 text-xs text-foreground-passive">
+      <div className="flex items-center gap-2">
+        {status.kind === 'loading' ? <Spinner size="sm" /> : null}
+        <span>{message}</span>
+      </div>
+    </div>
+  );
+}
 
 function refShaOrString(ref: GitObjectRef | undefined): string {
   if (!ref) return gitRefToString(HEAD_REF);

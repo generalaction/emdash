@@ -277,21 +277,6 @@ class AppService implements Disposable {
     return ok();
   }
 
-  /**
-   * Restricted to the user home directory: terminal output drives these reads,
-   * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.
-   * Symlinks are resolved before the home-jail check so they can't escape.
-   */
-  async readUserFile(rawPath: string, maxBytes = 1_048_576): Promise<{ content: string }> {
-    const realPath = await resolveHomeJailedPath(rawPath);
-    const stats = await stat(realPath);
-    if (stats.size > maxBytes) {
-      throw new Error(`File too large (${stats.size} bytes, max ${maxBytes})`);
-    }
-    const buffer = await readFile(realPath);
-    return { content: buffer.toString('utf8') };
-  }
-
   clipboardWriteText(text: string): void {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);

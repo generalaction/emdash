@@ -1,6 +1,6 @@
 import { FolderOpen, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
+import type { ContentStatus } from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { useTaskComposition } from '@core/features/workbench/api/browser/task-composition-context';
@@ -13,18 +13,21 @@ import {
   GenericTabDragPreview,
   GenericTabItem,
 } from '@core/primitives/workbench-shell/browser/tabs/tab-bar/generic-tab-item';
-import { isFileTabLoading } from './file-tab-loading';
 
-function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
-  if (diskStatus === 'error') return 'File not found';
-  if (diskStatus === 'too-large') {
-    const bytes = modelRegistry.modelTotalSizes.get(diskUri);
-    if (bytes == null) return 'File too large to display';
-    if (bytes < 1024) return `File too large to display (${bytes} B)`;
-    if (bytes < 1024 * 1024) return `File too large to display (${(bytes / 1024).toFixed(1)} KB)`;
-    return `File too large to display (${(bytes / (1024 * 1024)).toFixed(1)} MB)`;
+function fileTabErrorTooltip(status: ContentStatus): string | undefined {
+  if (status.kind !== 'error') return undefined;
+  switch (status.code) {
+    case 'not-found':
+      return 'File not found';
+    case 'no-permissions':
+      return 'Permission denied';
+    case 'too-large':
+      return 'File too large to display';
+    case 'binary':
+      return 'Binary file';
+    case 'unavailable':
+      return 'Could not load file';
   }
-  return undefined;
 }
 
 export const FileTabBarItem = observer(function FileTabBarItem({
@@ -35,28 +38,12 @@ export const FileTabBarItem = observer(function FileTabBarItem({
   const resource = tab.resource;
   const taskView = useTaskComposition();
   const fileName = resource.path.split('/').pop() ?? 'Untitled';
-  const isMonacoFile =
-    resource.path.endsWith('.md') ||
-    resource.path.endsWith('.svg') ||
-    !resource.path.includes('.') ||
-    /\.(ts|tsx|js|jsx|json|css|html|py|go|rs|sh|yml|yaml|toml|txt)$/.test(resource.path);
 
-  const bufferUri = resource.bufferUri;
-  const diskUri = bufferUri ? modelRegistry.toDiskUri(bufferUri) : '';
-  const diskStatus = diskUri ? modelRegistry.modelStatus.get(diskUri) : undefined;
-  const hasFileIssue = diskStatus === 'error' || diskStatus === 'too-large';
-  const showSpinner = useDelayedBoolean(
-    isFileTabLoading({
-      isExternal: resource.isExternal,
-      isExternalLoading: resource.isLoading,
-      isMonacoFile,
-      diskStatus,
-    }),
-    200
-  );
+  const status = resource.contentStatus;
+  const showSpinner = useDelayedBoolean(status.kind === 'loading', 200);
 
-  const errorTooltip = hasFileIssue ? fileTabErrorTooltip(diskStatus, diskUri) : undefined;
-  const tooltip = errorTooltip ? `${resource.path} — ${errorTooltip}` : resource.path;
+  const errorTooltip = fileTabErrorTooltip(status);
+  const tooltip = errorTooltip ? `${resource.displayPath} — ${errorTooltip}` : resource.displayPath;
 
   return (
     <GenericTabItem
@@ -74,11 +61,10 @@ export const FileTabBarItem = observer(function FileTabBarItem({
           )}
         </span>
       }
-      hasError={hasFileIssue}
+      hasError={status.kind === 'error'}
       kindCommands={
-        resource.isExternal
-          ? undefined
-          : [
+        resource.inWorkspace
+          ? [
               {
                 id: 'file:reveal',
                 label: 'Reveal File',
@@ -89,6 +75,7 @@ export const FileTabBarItem = observer(function FileTabBarItem({
                 },
               },
             ]
+          : undefined
       }
       statusSlot={
         resource.isDirty ? (

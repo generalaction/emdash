@@ -20,16 +20,6 @@ vi.mock('@core/features/browser/api/browser/client', () => ({
   }),
 }));
 
-vi.mock('@core/features/editor/api/browser/monaco/monaco-model-registry', () => ({
-  modelRegistry: {
-    dirtyUris: new Set<string>(),
-    isDirty: vi.fn(() => false),
-    modelStatus: new Map<string, string>(),
-    modelTotalSizes: new Map<string, number>(),
-    toDiskUri: (uri: string) => uri,
-  },
-}));
-
 vi.mock('@core/features/projects/api/browser/stores/project-selectors', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   getProjectManagerStore: () => ({ projects: new Map() }),
@@ -95,7 +85,6 @@ const testCtx = {
   projectId: 'project-1',
   workspaceId: 'workspace-1',
   taskId: 'task-1',
-  modelRootPath: 'workspace:workspace-1',
 };
 
 function createTabManager() {

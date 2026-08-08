@@ -1,32 +1,47 @@
-import { toast } from '@emdash/ui/react/primitives';
-import { getEditorClient } from '@core/features/editor/api/browser/client';
-import { editorFilePath } from '@core/features/editor/api/browser/files';
+import type { HostFileRef } from '@emdash/core/primitives/path/api';
 import {
   asProvisioned,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
-import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openFile } from '@core/features/workbench/api/browser/open-file';
+import { openWithOS } from '@core/features/workbench/api/browser/open-with-os';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import {
   absoluteRuntimePath,
+  hostFileRefFromNativePath,
   hostPathFromNative,
   nativePathFromHost,
-  relativePathWithin,
 } from '@core/primitives/desktop-runtime/api';
-import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
+import { log } from '@core/primitives/logging/browser/logger';
 
-function resolveEditorFilePath(workspacePath: string, filePath: string): string | null {
+/**
+ * Resolves an agent's path spelling — relative, subdirectory-relative, or
+ * absolute — against the task's workspace root into a canonical identity on
+ * the task's host. Paths outside the workspace are ordinary absolute
+ * HostFileRefs on the same host (spec §5/§10); null only for spellings that
+ * cannot form a path at all.
+ */
+function resolveTaskFileRef(
+  workspacePath: string,
+  sshConnectionId: string | undefined,
+  filePath: string
+): HostFileRef | null {
   try {
     const root = hostPathFromNative(workspacePath);
     const resolved = absoluteRuntimePath(root, filePath);
-    relativePathWithin(root, resolved);
-    return nativePathFromHost(resolved).replaceAll('\\', '/');
+    return hostFileRefFromNativePath(nativePathFromHost(resolved), sshConnectionId);
   } catch {
     return null;
   }
 }
 
+/**
+ * Thin adapter over the {@link openFile} seam for callers that carry task ids
+ * and possibly-relative paths (chat links, command palette). Pure resolution +
+ * open: no existence precheck — a link to a missing file opens a tab showing
+ * the store's not-found placeholder, which auto-recovers once the file is
+ * created.
+ */
 export async function openFileInTaskEditor(
   projectId: string,
   taskId: string,
@@ -37,29 +52,17 @@ export async function openFileInTaskEditor(
   if (!provisioned) return;
   const workspace = workspaceRegistry.get(provisioned.workspaceId);
   if (!workspace) return;
-  const resolvedPath = resolveEditorFilePath(workspace.path, filePath);
-  if (resolvedPath === null) {
-    void openExternalFilePath(projectId, taskId, filePath);
+  const ref = resolveTaskFileRef(workspace.path, workspace.sshConnectionId, filePath);
+  if (ref === null) {
+    log.warn('[openFileInTaskEditor] Unresolvable file path:', filePath);
     return;
   }
 
-  // Agent output often points at paths that don't exist in the worktree
-  // (subdirectory-relative, deleted, etc.) — precheck so we can toast a
-  // useful error instead of opening an empty tab.
-  const editor = await getEditorClient();
-  const exists = await editor.fs.exists(
-    editorFilePath(workspace.workspaceId, workspace.path, resolvedPath)
-  );
-  if (!exists.success || !exists.data.exists) {
-    toast.error(`File not found in workspace: ${filePath}`);
-    return;
-  }
-
-  focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  getTaskComposition(projectId, taskId)?.openWorkspaceFile(
-    resolvedPath,
-    options.target ?? 'active'
-  );
+  openFile(ref, {
+    context: { projectId, taskId },
+    target: options.target ?? 'active',
+    reveal: true,
+  });
 }
 
 /**
@@ -76,28 +79,11 @@ export async function openFileInAdjacentPane(
   return openFileInTaskEditor(projectId, taskId, filePath, { target: 'right' });
 }
 
-export async function openExternalFilePath(
-  projectId: string,
-  taskId: string,
-  filePath: string
-): Promise<void> {
-  if (filePath.toLowerCase().endsWith('.md')) {
-    const provisioned = asProvisioned(getTaskStore(projectId, taskId));
-    if (!provisioned) return;
-    focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-    getTaskComposition(projectId, taskId)?.activePane.open(
-      'file',
-      { path: filePath, external: true },
-      { preview: false }
-    );
-    return;
-  }
-  const result = await (await getHostClient()).openPath({ path: filePath });
-  if (!result.success) {
-    toast.error(`Could not open ${filePath}: ${result.error}`);
-  }
-}
-
+/**
+ * Chat/terminal-slice sugar over the seam (spec §10): file links resolve at
+ * this edge and open through {@link openFile}; the explicit "open external"
+ * affordance hands off to the OS via {@link openWithOS}.
+ */
 export function makeFileLinkHandlers(
   projectId: string,
   taskId: string
@@ -107,7 +93,7 @@ export function makeFileLinkHandlers(
       void openFileInTaskEditor(projectId, taskId, filePath);
     },
     onOpenExternal: (filePath) => {
-      void openExternalFilePath(projectId, taskId, filePath);
+      void openWithOS(filePath);
     },
   };
 }

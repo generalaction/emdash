@@ -1,19 +1,17 @@
+import { encodeResourceUri } from '@emdash/core/primitives/path/api';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
-import { getEditorClient } from '@core/features/editor/api/browser/client';
-import { editorFilePath, readEditorImage } from '@core/features/editor/api/browser/files';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
 import { HTML_EXTS } from '@core/features/editor/api/browser/renderers/fileKind';
 import { resolveWorkspaceResourcePath } from '@core/features/editor/api/browser/renderers/workspace-resource-path';
-import {
-  useTaskComposition,
-  useWorkspace,
-} from '@core/features/workbench/api/browser/task-composition-context';
+import type { FileTabResource } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
+import { getFilesClient } from '@core/features/files/api/browser/client';
+import { readImageFile } from '@core/features/files/api/browser/file-content';
+import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
 import { usePaneContext } from '@core/primitives/workbench-shell/browser/tabs/pane-context';
 
 interface HtmlRendererProps {
-  filePath: string;
+  tab: FileTabResource;
 }
 
 interface HtmlContentRendererProps {
@@ -43,16 +41,13 @@ const LINK_INTERCEPT_SCRIPT = `
  * Renders an HTML file in a sandboxed iframe preview.
  * The source/preview toggle lives in the FileContent container above this component.
  */
-export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
-  const { editorView } = useTaskComposition();
-  const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
-
-  // Touch bufferVersions so this observer re-renders when the buffer is first
+export const HtmlRenderer = observer(function HtmlRenderer({ tab }: HtmlRendererProps) {
+  // Touch bufferVersion so this observer re-renders when the buffer is first
   // populated — otherwise the preview can stick on stale content.
-  void modelRegistry.bufferVersions.get(bufferUri);
-  const rawContent = modelRegistry.getValue(bufferUri) ?? '';
+  void tab.bufferVersion;
+  const rawContent = tab.bufferText();
 
-  return <HtmlContentRenderer filePath={filePath} rawContent={rawContent} />;
+  return <HtmlContentRenderer filePath={tab.path} rawContent={rawContent} />;
 });
 
 export const HtmlContentRenderer = observer(function HtmlContentRenderer({
@@ -78,7 +73,7 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
     }
     let cancelled = false;
     setIsProcessing(true);
-    void processHtmlForPreview(rawContent, filePath, workspace.workspaceId, workspacePath)
+    void processHtmlForPreview(rawContent, filePath, workspacePath, workspace.sshConnectionId)
       .then((html) => {
         if (!cancelled) setProcessedHtml(html);
       })
@@ -91,7 +86,7 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
     return () => {
       cancelled = true;
     };
-  }, [rawContent, filePath, workspace.workspaceId, workspacePath]);
+  }, [rawContent, filePath, workspace.sshConnectionId, workspacePath]);
 
   // Route link clicks postMessaged from the sandbox into the tab manager so
   // sibling HTML files open as new tabs.
@@ -152,8 +147,8 @@ export const HtmlContentRenderer = observer(function HtmlContentRenderer({
 async function processHtmlForPreview(
   rawHtml: string,
   containingFilePath: string,
-  workspaceId: string,
-  workspacePath: string
+  workspacePath: string,
+  sshConnectionId: string | undefined
 ): Promise<string> {
   const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
   if (!doc.documentElement) return rawHtml;
@@ -163,7 +158,7 @@ async function processHtmlForPreview(
   const fetchText = (path: string) => {
     let p = textCache.get(path);
     if (!p) {
-      p = readWorkspaceText(workspaceId, workspacePath, path);
+      p = readWorkspaceText(path, sshConnectionId);
       textCache.set(path, p);
     }
     return p;
@@ -171,7 +166,7 @@ async function processHtmlForPreview(
   const fetchImage = (path: string) => {
     let p = imageCache.get(path);
     if (!p) {
-      p = readWorkspaceImage(workspaceId, workspacePath, path);
+      p = readWorkspaceImage(path, sshConnectionId);
       imageCache.set(path, p);
     }
     return p;
@@ -283,20 +278,20 @@ async function inlineCssUrls(
 }
 
 async function readWorkspaceText(
-  workspaceId: string,
-  workspacePath: string,
-  filePath: string
+  filePath: string,
+  sshConnectionId: string | undefined
 ): Promise<string | null> {
-  const client = await getEditorClient();
-  const result = await client.fs.readText(editorFilePath(workspaceId, workspacePath, filePath));
+  const client = await getFilesClient();
+  const result = await client.fs.readText({
+    uri: encodeResourceUri(hostFileRefFromNativePath(filePath, sshConnectionId)),
+  });
   return result.success ? result.data.content : null;
 }
 
 async function readWorkspaceImage(
-  workspaceId: string,
-  workspacePath: string,
-  filePath: string
+  filePath: string,
+  sshConnectionId: string | undefined
 ): Promise<string | null> {
-  const result = await readEditorImage(workspaceId, workspacePath, filePath);
+  const result = await readImageFile(hostFileRefFromNativePath(filePath, sshConnectionId));
   return result.success && !result.data.truncated ? result.data.dataUrl : null;
 }

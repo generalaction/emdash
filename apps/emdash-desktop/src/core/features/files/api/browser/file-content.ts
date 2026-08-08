@@ -1,39 +1,24 @@
-import type { PortableRelativePath } from '@emdash/core/primitives/path/api';
+import { encodeResourceUri, type HostFileRef } from '@emdash/core/primitives/path/api';
 import { createScope } from '@emdash/shared/concurrency';
 import { observe, pin, remote } from '@emdash/wire/state';
-import { getEditorClient } from '@core/features/editor/api/browser/client';
-import {
-  hostPathFromNative,
-  portablePath,
-  relativeRuntimePath,
-} from '@core/primitives/desktop-runtime/api';
-import { editorContract, type EditorFileContentModel } from '..';
+import { filesWireContract, type FilesContentModel } from '../contract';
+import { getFilesClient } from './client';
 
-export function editorFilePath(workspaceId: string, workspacePath: string, filePath: string) {
-  const root = hostPathFromNative(workspacePath);
-  return {
-    workspaceId,
-    relative: relativeRuntimePath(root, filePath),
-  };
-}
-
-export function editorRelativeFilePath(workspaceId: string, filePath: string) {
-  return {
-    workspaceId,
-    relative: runtimeRelativePath(filePath),
-  };
-}
-
+/**
+ * Watches a file's disk content and invokes `onChange` with every snapshot.
+ * Intended for config-file watchers (e.g. `.emdash.json`), not open editors —
+ * editor tabs acquire interest through OpenFileStore instead.
+ */
 export async function watchFileContent(
-  workspaceId: string,
-  filePath: string,
-  onChange: (content: EditorFileContentModel) => void
+  ref: HostFileRef,
+  onChange: (content: FilesContentModel) => void
 ): Promise<() => void> {
   if (typeof window === 'undefined') return () => {};
-  const client = await getEditorClient();
-  const scope = createScope({ label: `watch-file-content:${workspaceId}:${filePath}` });
-  const contentRemote = remote(editorContract.content, client.content, { scope, lingerMs: 0 });
-  const model = contentRemote(editorRelativeFilePath(workspaceId, filePath));
+  const client = await getFilesClient();
+  const uri = encodeResourceUri(ref);
+  const scope = createScope({ label: `watch-file-content:${uri}` });
+  const contentRemote = remote(filesWireContract.content, client.content, { scope, lingerMs: 0 });
+  const model = contentRemote({ uri, source: 'disk' });
   pin(scope, [model.states.content]);
   observe(
     model.states.content,
@@ -56,13 +41,10 @@ export async function watchFileContent(
   };
 }
 
-export async function readEditorImage(
-  workspaceId: string,
-  workspacePath: string,
-  filePath: string
-) {
-  const client = await getEditorClient();
-  const result = await client.fs.readBytes(editorFilePath(workspaceId, workspacePath, filePath));
+/** Reads an image file's bytes and returns them as a data URL for previews. */
+export async function readImageFile(ref: HostFileRef) {
+  const client = await getFilesClient();
+  const result = await client.fs.readBytes({ uri: encodeResourceUri(ref) });
   if (!result.success) return result;
   const bytes = await result.data.bytes();
   const buffer = new ArrayBuffer(bytes.byteLength);
@@ -77,10 +59,6 @@ export async function readEditorImage(
       truncated: result.data.meta.truncated,
     },
   };
-}
-
-export function runtimeRelativePath(path: string): PortableRelativePath {
-  return portablePath(path.replaceAll('\\', '/'));
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

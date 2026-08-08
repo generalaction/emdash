@@ -16,10 +16,7 @@ import {
 } from '@emdash/wire/rpc';
 import { createController, type CallMeta, type Controller } from '@emdash/wire/rpc';
 import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
-import {
-  forwardLiveModel,
-  forwardModelMutation,
-} from '@core/services/runtime-clients/node/forward-live-model';
+import { forwardModelMutation } from '@core/services/runtime-clients/node/forward-live-model';
 import { sourceControlContract } from '../api';
 import {
   sourceControlGitRuntimeContract as gitContract,
@@ -41,7 +38,6 @@ export function createSourceControlWireController(
 ): Controller {
   const repositoryModel = createRepositoryModelProvider(options);
   const checkoutModel = createCheckoutModelProvider(options);
-  const contentModel = createContentModelProvider(options);
 
   return createController(sourceControlContract, {
     repository: {
@@ -85,7 +81,6 @@ export function createSourceControlWireController(
     },
     checkout: {
       model: checkoutModel,
-      content: contentModel,
       getChangedFiles: (input, meta) =>
         withCheckoutRuntime(options, input, (git, mapped) =>
           git.checkout.getChangedFiles(mapped, callOptions(meta))
@@ -211,27 +206,6 @@ function createCheckoutModelProvider({
   };
 }
 
-function createContentModelProvider({
-  runtimes,
-  workspaceIdentity,
-}: CreateSourceControlWireControllerOptions): LiveModelProvider<
-  typeof sourceControlContract.checkout.content
-> {
-  return forwardLiveModel(sourceControlContract.checkout.content, (key, name) =>
-    resolveRuntimeSource(runtimes, workspaceIdentity.resolve(key.workspaceId), (client, identity) =>
-      client.git.checkout.content
-        .state(
-          {
-            ...withoutWorkspaceId(key),
-            checkout: hostPathFromNative(identity.path),
-          },
-          name
-        )
-        .asLiveSource()
-    )
-  );
-}
-
 async function withRepositoryRuntime<T extends { projectId: string }, R, E>(
   options: CreateSourceControlWireControllerOptions,
   input: T,
@@ -300,11 +274,6 @@ async function requireIdentity(
   const identity = await identityPromise;
   if (!identity) throw new Error('Source-control workspace identity was not found');
   return identity;
-}
-
-function withoutWorkspaceId<T extends { workspaceId: string }>(input: T): Omit<T, 'workspaceId'> {
-  const { workspaceId: _, ...rest } = input;
-  return rest;
 }
 
 function callOptions(meta: CallMeta): { signal?: AbortSignal } {

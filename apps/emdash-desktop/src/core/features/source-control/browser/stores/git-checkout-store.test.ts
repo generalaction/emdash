@@ -4,7 +4,6 @@ import { cell, expose, flushStateTurn } from '@emdash/wire/state';
 import { createTestWire } from '@emdash/wire/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as SourceControlClientModule from '@core/features/source-control/api/browser/client';
-import { portablePath } from '@core/primitives/desktop-runtime/api';
 import { sourceControlContract } from '../../api';
 import { GitCheckoutStore } from './git-checkout-store';
 
@@ -26,10 +25,10 @@ vi.mock('@core/features/source-control/api/browser/client', async (importOrigina
   };
 });
 
-vi.mock('@core/features/editor/api/browser/client', () => ({
-  getEditorClient: async () => ({
-    filesystem: {
-      readFileText: mocks.readFileText,
+vi.mock('@core/features/files/api/browser/client', () => ({
+  getFilesClient: async () => ({
+    fs: {
+      readText: mocks.readFileText,
     },
   }),
 }));
@@ -99,13 +98,6 @@ function createSourceControlWire() {
     status: statusState,
     head: headState,
   });
-  const contentProvider = expose(sourceControlContract.checkout.content, {
-    content: cell({
-      kind: 'missing',
-      path: portablePath('README.md'),
-      source: { kind: 'head' },
-    }),
-  });
 
   return createTestWire(sourceControlContract, {
     repository: {
@@ -118,7 +110,6 @@ function createSourceControlWire() {
     },
     checkout: {
       model: checkoutProvider,
-      content: contentProvider,
       getChangedFiles: mocks.getChangedFiles,
       getFile: vi.fn(),
       download: vi.fn(),

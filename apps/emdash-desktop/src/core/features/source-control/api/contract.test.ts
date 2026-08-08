@@ -7,7 +7,11 @@ describe('sourceControlContract', () => {
     expect(Object.keys(sourceControlContract.repository)).toEqual(
       Object.keys(gitContract.repository)
     );
-    expect(Object.keys(sourceControlContract.checkout)).toEqual(Object.keys(gitContract.checkout));
+    // `content` is intentionally not relayed: git-ref file content is served
+    // through the files domain (OpenFileStore git facets), not source-control.
+    expect(Object.keys(sourceControlContract.checkout)).toEqual(
+      Object.keys(gitContract.checkout).filter((key) => key !== 'content')
+    );
     expect(Object.keys(sourceControlContract.repository.model.states)).toEqual(
       Object.keys(gitContract.repository.model.states)
     );

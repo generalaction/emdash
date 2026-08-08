@@ -92,7 +92,7 @@ export interface CommandEntry<T> {
 /**
  * Generic ambient context passed to all tab-kind method implementations.
  * The engine only requires a stable viewId; domain-specific fields
- * (projectId, workspaceId, taskId, modelRootPath) live in TaskTabContext in
+ * (projectId, workspaceId, taskId) live in TaskTabContext in
  * features/tasks and are accessed via a cast at the provider boundary.
  */
 export interface TabViewContext {

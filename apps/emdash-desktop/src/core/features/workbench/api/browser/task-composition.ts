@@ -148,7 +148,6 @@ export class TaskComposition {
       get workspacePath(): string | undefined {
         return getWorkspacePath();
       },
-      modelRootPath: `workspace:${workspaceId}`,
       getRemoteConnectionId: () => this._workspace?.sshConnectionId,
     };
     // Split-pane sizes live on the shared panel-layouts storage (spec:
@@ -253,8 +252,8 @@ export class TaskComposition {
     if (desc?.kind === 'terminal') return 'terminal';
     const resource = this.activePane.activeResourceOfKind<FileTabResource>('file');
     if (!resource) return 'agents';
-    if (resource.contentType === 'markdown' && resource.viewMode === 'preview') return 'markdown';
-    if (resource.contentType === 'text' || resource.viewMode === 'source') return 'monaco';
+    if (resource.fileKind === 'markdown' && resource.viewMode === 'preview') return 'markdown';
+    if (resource.fileKind === 'text' || resource.viewMode === 'source') return 'monaco';
     return 'other-file';
   }
 
@@ -488,12 +487,6 @@ export class TaskComposition {
     this.activePane.setActiveTab(tabId);
   }
 
-  openWorkspaceFile(path: string, target: 'active' | 'right' = 'active'): void {
-    this.paneLayout.open('file', { path }, { preview: false, target });
-    this.setFocusedRegion('main');
-    this.revealWorkspaceFile(path);
-  }
-
   revealWorkspaceFile(path: string): void {
     this.chrome.commands.openSidebarTab('files');
     this.editorView.requestRevealFile(path);
@@ -569,7 +562,9 @@ function resolvePaneLayoutPaths(
 }
 
 function resolveTabDescriptorPath(tab: TabDescriptor, workspacePath: string): TabDescriptor {
-  if (tab.kind === 'file' && !tab.isExternal) {
+  // Absolute paths (including files outside the workspace) pass through
+  // resolveWorkspacePath unchanged; only workspace-relative ones resolve.
+  if (tab.kind === 'file') {
     return { ...tab, path: resolveWorkspacePath(workspacePath, tab.path) };
   }
   if (tab.kind === 'diff' && tab.diffGroup !== 'pr') {

@@ -20,12 +20,12 @@ export function activeFilePath(pane: PaneStore): string | null {
   return activeFileResource(pane)?.path ?? null;
 }
 
-/** All open non-external file tab resources for a single pane, in tab-order. */
+/** All open file tab resources for a single pane, in tab-order. */
 export function openFileResources(pane: PaneStore): FileTabResource[] {
-  return pane.resourcesOfKind<FileTabResource>('file').filter((r) => !r.isExternal);
+  return pane.resourcesOfKind<FileTabResource>('file');
 }
 
-/** Union of open non-external file tab resources across all panes (de-duplicated by path). */
+/** Union of open file tab resources across all panes (de-duplicated by path). */
 export function allOpenFileResources(paneLayout: PaneLayoutStore): FileTabResource[] {
   const seen = new Map<string, FileTabResource>();
   for (const { pane } of paneLayout.groups) {
@@ -40,13 +40,3 @@ export function allOpenFileResources(paneLayout: PaneLayoutStore): FileTabResour
 export function allOpenFilePaths(paneLayout: PaneLayoutStore): string[] {
   return allOpenFileResources(paneLayout).map((r) => r.path);
 }
-
-// ---------------------------------------------------------------------------
-// Legacy aliases (for callers that still use old FileTabStore names)
-// TODO: remove once all callers are updated
-// ---------------------------------------------------------------------------
-
-/** @deprecated Use activeFileResource */
-export const activeFileEntry = activeFileResource;
-/** @deprecated Use fileResourceByPath */
-export const fileEntryByPath = fileResourceByPath;

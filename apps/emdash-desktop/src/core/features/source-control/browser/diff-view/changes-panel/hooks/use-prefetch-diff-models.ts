@@ -1,95 +1,53 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { getLanguageFromPath } from '@core/features/editor/api/browser/languageUtils';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import {
+  openFileStore,
+  type OpenFileLease,
+} from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import { isBinaryForDiff } from '@core/features/editor/api/browser/renderers/fileKind';
-import { HEAD_REF, STAGED_REF, type GitRef } from '@core/primitives/git/api';
-
-interface PrefetchEntry {
-  diskUri?: string;
-  gitUris: string[];
-}
+import { useWorkspace } from '@core/features/workbench/api/browser/task-composition-context';
+import type { GitRef } from '@core/primitives/git/api';
+import { diffSideSpecs, specToFacet, workspaceDiffFileRef } from '../../stores/diff-facets';
 
 /**
- * Returns a stable callback that pre-warms Monaco models on hover so that when the user
- * clicks to open a diff the models are already loaded. Models are unregistered on unmount.
- * TTL eviction (60 s after last subscriber leaves) handles any remaining cleanup.
+ * Returns a stable callback that warms OpenFileStore interest on hover so
+ * that when the user clicks to open a diff, both sides' content is already
+ * loaded. Plain interest warming (spec §9): the same acquire the diff views
+ * use, held until the section unmounts; the store's linger covers the
+ * hand-off to the opened diff's own leases. No special code path, no LRU.
  *
- * Pass `modifiedRef` for 'git'/'pr' groups to pre-warm a fixed modified-side ref instead of HEAD.
+ * Pass `modifiedRef` for 'git'/'pr' groups to pre-warm a fixed modified-side
+ * ref instead of HEAD.
  */
 export function usePrefetchDiffModels(
-  projectId: string,
-  workspaceId: string,
   group: 'disk' | 'staged' | 'git' | 'pr',
   originalRef: GitRef,
   modifiedRef?: GitRef
 ) {
-  const prefetchedRef = useRef(new Map<string, PrefetchEntry>());
+  const workspace = useWorkspace();
+  const leasesRef = useRef(new Map<string, OpenFileLease[]>());
 
   useEffect(() => {
-    const prefetched = prefetchedRef.current;
+    const leases = leasesRef.current;
     return () => {
-      for (const entry of prefetched.values()) {
-        if (entry.diskUri) modelRegistry.unregisterModel(entry.diskUri);
-        for (const gitUri of entry.gitUris) modelRegistry.unregisterModel(gitUri);
+      for (const held of leases.values()) {
+        for (const lease of held) lease.release();
       }
+      leases.clear();
     };
-  }, [workspaceId]);
+  }, [workspace.workspaceId]);
 
   return useCallback(
     (filePath: string) => {
-      if (prefetchedRef.current.has(filePath)) return;
+      if (leasesRef.current.has(filePath)) return;
       if (isBinaryForDiff(filePath)) return;
-      const language = getLanguageFromPath(filePath);
-      const root = `workspace:${workspaceId}`;
-      const uri = buildMonacoModelPath(root, filePath);
-      const entry: PrefetchEntry = { gitUris: [] };
-
-      if (group === 'disk') {
-        void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'disk')
-          .catch(() => {});
-        void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', STAGED_REF)
-          .catch(() => {});
-        entry.diskUri = modelRegistry.toDiskUri(uri);
-        entry.gitUris = [modelRegistry.toGitUri(uri, STAGED_REF)];
-      } else if (group === 'staged') {
-        void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', HEAD_REF)
-          .catch(() => {});
-        void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', STAGED_REF)
-          .catch(() => {});
-        entry.gitUris = [
-          modelRegistry.toGitUri(uri, HEAD_REF),
-          modelRegistry.toGitUri(uri, STAGED_REF),
-        ];
-      } else {
-        const effectiveModifiedRef =
-          (group === 'git' || group === 'pr') && modifiedRef ? modifiedRef : HEAD_REF;
-        void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
-          .catch(() => {});
-        void modelRegistry
-          .registerModel(
-            projectId,
-            workspaceId,
-            root,
-            filePath,
-            language,
-            'git',
-            effectiveModifiedRef
-          )
-          .catch(() => {});
-        entry.gitUris = [
-          modelRegistry.toGitUri(uri, originalRef),
-          modelRegistry.toGitUri(uri, effectiveModifiedRef),
-        ];
-      }
-
-      prefetchedRef.current.set(filePath, entry);
+      const fileRef = workspaceDiffFileRef(workspace.path, workspace.sshConnectionId, filePath);
+      if (!fileRef) return;
+      const specs = diffSideSpecs({ group, originalRef, modifiedRef });
+      leasesRef.current.set(filePath, [
+        openFileStore.acquire(fileRef, specToFacet(specs.original)),
+        openFileStore.acquire(fileRef, specToFacet(specs.modified)),
+      ]);
     },
-    [projectId, workspaceId, group, originalRef, modifiedRef]
+    [workspace.path, workspace.sshConnectionId, group, originalRef, modifiedRef]
   );
 }

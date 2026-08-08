@@ -58,12 +58,6 @@ const sourceControlCheckoutContract = defineContract({
     },
     mutations: runtimeFallibleMutations(checkout.model.mutations),
   }),
-  content: liveModel({
-    key: checkout.content.keySchema.omit({ checkout: true }).extend(workspaceKeySchema.shape),
-    states: {
-      content: liveState({ data: checkout.content.states.content.dataSchema }),
-    },
-  }),
   getChangedFiles: runtimeFallibleProcedure(
     checkout.getChangedFiles.input.omit({ checkout: true }).extend(workspaceKeySchema.shape),
     checkout.getChangedFiles.output

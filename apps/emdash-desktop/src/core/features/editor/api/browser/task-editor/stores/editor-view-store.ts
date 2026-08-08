@@ -1,17 +1,16 @@
-import {
-  decodeResourceUri,
-  encodeResourceUri,
-  relativizeHostFileRef,
-} from '@emdash/core/primitives/path/api';
+import { decodeResourceUri, hostFileRef } from '@emdash/core/primitives/path/api';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { getEditorClient } from '@core/features/editor/api/browser/client';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
-import { buildMonacoModelPath } from '@core/features/editor/api/browser/monaco/monacoModelPath';
+import {
+  openFileStore,
+  type OpenFileEntry,
+} from '@core/features/editor/api/browser/open-file-store/open-file-store';
 import type {
   FilePayload,
   FileTabResource,
 } from '@core/features/editor/api/browser/task-editor/stores/file-tab-resource';
 import type { TaskEditorTreeState } from '@core/features/tasks/contributions/mementos';
+import { hostPathFromNative } from '@core/primitives/desktop-runtime/api';
 import { log } from '@core/primitives/logging/browser/logger';
 import type { MementoHandle } from '@core/primitives/mementos/browser';
 import type { PaneLayoutStore } from '@core/primitives/workbench-shell/browser/tabs/pane-layout-store';
@@ -21,19 +20,17 @@ import { FilesStore } from '../../../../browser/task-editor/stores/files-store';
 /**
  * Manages file persistence (save, conflict resolution) and sidebar navigation state.
  *
- * Monaco model lifecycle (retain/release) is now handled by FileModelManager,
- * which is called by FileTabResource on construction and dispose.
- * This store focuses on save-all, conflict resolution, and buffer restore.
+ * Content state lives in the app-global OpenFileStore; file tabs hold the
+ * leases. This store focuses on save commands, conflict resolution, buffer
+ * restore after a crash, and the sidebar file tree.
  */
 export class EditorViewStore {
-  readonly modelRootPath: string;
-
   isSaving = false;
   /**
-   * Set to the buffer URI of a file that has a conflict pending resolution.
+   * Workspace-absolute path of a file with a conflict pending resolution.
    * EditorProvider watches this via a MobX reaction and shows the conflict modal.
    */
-  pendingConflictUri: string | null = null;
+  pendingConflictPath: string | null = null;
 
   /** Monotonic signal used by the task-level search command to focus the sidebar input. */
   fileSearchFocusRequest = 0;
@@ -61,11 +58,10 @@ export class EditorViewStore {
     this.paneLayout = paneLayout;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
-    this.modelRootPath = `workspace:${workspaceId}`;
 
     makeObservable<EditorViewStore, 'treeHandle'>(this, {
       isSaving: observable,
-      pendingConflictUri: observable,
+      pendingConflictPath: observable,
       fileSearchFocusRequest: observable,
       revealFileRequest: observable.struct,
       files: observable.ref,
@@ -115,13 +111,9 @@ export class EditorViewStore {
     return allOpenFileResources(this.paneLayout);
   }
 
-  /** Union of all open non-external file paths across all panes (deduplicated). */
+  /** Union of all open file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    const seen = new Set<string>();
-    for (const r of this.openFileResources) {
-      if (!r.isExternal) seen.add(r.path);
-    }
-    return [...seen];
+    return [...new Set(this.openFileResources.map((r) => r.path))];
   }
 
   expandPath(path: string): void {
@@ -147,35 +139,35 @@ export class EditorViewStore {
     }));
   }
 
+  /**
+   * Rewrites open tabs after a rename/move: re-keys the OpenFileStore entry
+   * first (preserving buffer text and dirty state under the new identity),
+   * then retargets the pane entries so the replacement tab resources acquire
+   * the re-keyed entry.
+   */
   async retargetOpenFiles(oldPath: string, newPath: string): Promise<void> {
     const normalizedOld = normalizeTreePath(oldPath);
     const normalizedNew = normalizeTreePath(newPath);
     const retargets: Array<() => void> = [];
-    const cancelBufferTransfers: Array<() => void> = [];
+    const rekeyed = new Set<string>();
 
-    try {
-      for (const { pane } of this.paneLayout.groups) {
-        for (const tab of pane.resolvedTabs) {
-          if (tab.kind !== 'file') continue;
-          const resource = tab.resource as FileTabResource;
-          if (resource.isExternal || !isPathAffected(resource.path, normalizedOld)) continue;
-          const rewritten = rewriteAffectedPath(resource.path, normalizedOld, normalizedNew);
-          const cancelTransfer = await modelRegistry.transferBufferState(
-            buildMonacoModelPath(this.modelRootPath, resource.path),
-            buildMonacoModelPath(this.modelRootPath, rewritten),
-            rewritten
-          );
-          cancelBufferTransfers.push(cancelTransfer);
-          retargets.push(() => {
-            pane.retargetEntry(tab.tabId, {
-              state: { path: rewritten, isExternal: false } satisfies FilePayload,
-            });
-          });
+    for (const { pane } of this.paneLayout.groups) {
+      for (const tab of pane.resolvedTabs) {
+        if (tab.kind !== 'file') continue;
+        const resource = tab.resource as FileTabResource;
+        if (!isPathAffected(resource.path, normalizedOld)) continue;
+        const rewritten = rewriteAffectedPath(resource.path, normalizedOld, normalizedNew);
+        const ref = resource.ref;
+        if (ref && !rekeyed.has(resource.path)) {
+          rekeyed.add(resource.path);
+          await openFileStore.rekey(ref, hostFileRef(ref.host, hostPathFromNative(rewritten)));
         }
+        retargets.push(() => {
+          pane.retargetEntry(tab.tabId, {
+            state: { path: rewritten } satisfies FilePayload,
+          });
+        });
       }
-    } catch (error) {
-      for (const cancel of cancelBufferTransfers) cancel();
-      throw error;
     }
 
     for (const retarget of retargets) retarget();
@@ -183,12 +175,12 @@ export class EditorViewStore {
   }
 
   async saveFile(filePath: string): Promise<void> {
-    const uri = buildMonacoModelPath(this.modelRootPath, filePath);
-    if (!modelRegistry.isDirty(uri)) return;
+    const entry = this.openEntryForPath(filePath);
+    if (!entry?.dirty) return;
 
-    if (modelRegistry.hasPendingConflict(uri)) {
+    if (entry.conflicted) {
       runInAction(() => {
-        this.pendingConflictUri = uri;
+        this.pendingConflictPath = filePath;
       });
       return;
     }
@@ -197,14 +189,14 @@ export class EditorViewStore {
       this.isSaving = true;
     });
     try {
-      const result = await modelRegistry.saveFileToDisk(uri);
-      if (result === null) {
-        if (modelRegistry.hasPendingConflict(uri)) {
+      const result = await openFileStore.save(entry);
+      if (!result.success) {
+        if (result.error.type === 'conflict') {
           runInAction(() => {
-            this.pendingConflictUri = uri;
+            this.pendingConflictPath = filePath;
           });
         }
-        log.error('[EditorViewStore] Failed to save file:', filePath);
+        log.error('[EditorViewStore] Failed to save file:', filePath, result.error);
       }
     } catch (error) {
       log.error('[EditorViewStore] Error saving file:', error);
@@ -216,11 +208,8 @@ export class EditorViewStore {
   }
 
   async saveAllFiles(): Promise<void> {
-    const dirtyPaths = this.openFilePaths.filter((path) =>
-      modelRegistry.isDirty(buildMonacoModelPath(this.modelRootPath, path))
-    );
-    for (const path of dirtyPaths) {
-      await this.saveFile(path);
+    for (const resource of this.openFileResources) {
+      if (resource.entry?.dirty) await this.saveFile(resource.path);
     }
   }
 
@@ -229,24 +218,22 @@ export class EditorViewStore {
    * or writes the user's buffer to disk ("Keep Mine").
    */
   async resolveConflict(accept: boolean): Promise<void> {
-    const uri = this.pendingConflictUri;
-    if (!uri) return;
+    const path = this.pendingConflictPath;
+    if (!path) return;
     runInAction(() => {
-      this.pendingConflictUri = null;
+      this.pendingConflictPath = null;
     });
+    const entry = this.openEntryForPath(path);
+    if (!entry) return;
 
     if (accept) {
-      modelRegistry.reloadFromDisk(uri);
-      const key = modelRegistry.resourceUriForBuffer(uri);
-      if (key) {
-        void getEditorClient().then((client) => client.clearBuffer({ uri: key }));
-      }
+      openFileStore.reloadFromDisk(entry);
     } else {
       runInAction(() => {
         this.isSaving = true;
       });
       try {
-        await modelRegistry.saveFileToDisk(uri, { overwrite: true });
+        await openFileStore.save(entry, { overwrite: true });
       } finally {
         runInAction(() => {
           this.isSaving = false;
@@ -256,26 +243,22 @@ export class EditorViewStore {
   }
 
   /**
-   * Restores crash-recovery buffer content for any open tabs whose models are
-   * already registered. Called by EditorProvider on mount. Buffers are keyed by
-   * ResourceUri, so persisted keys under the workspace root are mapped back to
-   * workspace-relative paths to locate the Monaco models.
+   * Hydrates crash-recovery buffer rows into the OpenFileStore for this
+   * workspace. Called by EditorProvider on mount, after the persisted pane
+   * layout has re-opened the tabs whose leases the rows apply to. Rows for
+   * files that are not open stay persisted untouched.
    */
   async restoreBuffers(): Promise<void> {
-    const rootRef = modelRegistry.workspaceRootFileRef(this.workspaceId);
-    if (!rootRef) return;
+    // Scope the listing to this view's workspace root, which the files store
+    // resolved at the renderer edge when the session started.
+    const root = this.files?.rootUri;
+    if (!root) return;
     try {
-      const buffers = await (
-        await getEditorClient()
-      ).listBuffers({ root: encodeResourceUri(rootRef) });
+      const buffers = await (await getEditorClient()).listBuffers({ root });
       for (const { uri: bufferKey, content } of buffers) {
         const decoded = decodeResourceUri(bufferKey);
         if (!decoded.success) continue;
-        const relative = relativizeHostFileRef(rootRef, decoded.data);
-        if (!relative.success) continue;
-        const uri = buildMonacoModelPath(this.modelRootPath, relative.data);
-        const model = modelRegistry.getModelByUri(uri);
-        if (model) model.setValue(content);
+        openFileStore.hydrateBuffer(decoded.data, content);
       }
     } catch (e) {
       log.warn('[EditorViewStore] Failed to restore buffers:', e);
@@ -284,6 +267,10 @@ export class EditorViewStore {
 
   dispose(): void {
     this.disposeFiles();
+  }
+
+  private openEntryForPath(filePath: string): OpenFileEntry | undefined {
+    return this.openFileResources.find((resource) => resource.path === filePath)?.entry;
   }
 
   private retargetExpandedPaths(oldPath: string, newPath: string): void {

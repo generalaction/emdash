@@ -4,7 +4,6 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { modelRegistry } from '@core/features/editor/api/browser/monaco/monaco-model-registry';
 import { FileIcon } from '@core/features/editor/contributions/browser/file-icon';
 import { StickyDiffEditor } from '@core/features/editor/contributions/browser/monaco/sticky-diff-editor';
 import type { DiffViewStore } from '@core/features/source-control/api/browser/diff-view/stores/diff-view-store';
@@ -16,10 +15,9 @@ import {
   useWorkspaceId,
 } from '@core/features/workbench/api/browser/task-composition-context';
 import { formatDiffLineCount } from '@core/primitives/formatting/browser/format-diff-line-count';
-import { HEAD_REF, STAGED_REF } from '@core/primitives/git/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { StackedDiffPanelStore, type DiffSlotStore } from '../stores/stacked-diff-panel-store';
-import { isMissingFileError } from './missing-file-error';
+import { useDiffFacets } from './use-diff-facets';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
 
@@ -164,98 +162,22 @@ const StackedFileSlot = observer(function StackedFileSlot({
 }: StackedFileSlotProps) {
   const [contentHeight, setContentHeight] = useState<number | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
+  const workspace = useWorkspace();
 
-  const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef, modifiedRef } =
-    slotStore;
+  const { file, isBinary, diffType, originalRef, modifiedRef } = slotStore;
 
-  // Register/unregister models whenever URIs change (group switch, file change at slot).
-  // Runs even when file is null; isBinary guard inside skips registration cleanly.
-  useEffect(() => {
-    if (!file || isBinary) return;
-    const { projectId, workspaceId } = slotStore;
-    const root = `workspace:${workspaceId}`;
-    let disposed = false;
-
-    if (diffType === 'staged') {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', HEAD_REF)
-        .catch(() => {});
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
-        .catch(() => {});
-    } else if (diffType === 'git' || diffType === 'pr') {
-      const effectiveModifiedRef = modifiedRef ?? HEAD_REF;
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
-        .catch(() => {});
-      void modelRegistry
-        .registerModel(
-          projectId,
-          workspaceId,
-          root,
-          file.path,
-          language,
-          'git',
-          effectiveModifiedRef
-        )
-        .catch(() => {});
-    } else {
-      const diskUri = modelRegistry.toDiskUri(modifiedUri);
-      void (async () => {
-        if (file.status !== 'deleted') {
-          try {
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'disk'
-            );
-          } catch (err) {
-            if (!isMissingFileError(err)) throw err;
-          }
-        }
-        if (disposed) {
-          modelRegistry.unregisterModel(diskUri);
-          return;
-        }
-        await modelRegistry.registerModel(
-          projectId,
-          workspaceId,
-          root,
-          file.path,
-          language,
-          'buffer'
-        );
-        if (disposed) {
-          modelRegistry.unregisterModel(modifiedUri);
-        }
-      })().catch(() => {});
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
-        .catch(() => {});
-    }
-    return () => {
-      disposed = true;
-      modelRegistry.unregisterModel(originalUri);
-      modelRegistry.unregisterModel(modifiedUri);
-      if (diffType === 'disk') {
-        modelRegistry.unregisterModel(modelRegistry.toDiskUri(modifiedUri));
-      }
-    };
-  }, [
-    isBinary,
-    originalUri,
-    modifiedUri,
-    language,
-    diffType,
+  // Acquire both sides' store leases whenever the slot's diff identity
+  // changes (group switch, file change at slot). Collapsed slots keep their
+  // leases warm so expanding is instant — mirroring the legacy registration.
+  const sides = useDiffFacets({
+    workspacePath: workspace.path,
+    sshConnectionId: workspace.sshConnectionId,
+    filePath: file?.path ?? '',
+    group: diffType,
     originalRef,
     modifiedRef,
-    file,
-    file?.status,
-    slotStore,
-  ]);
+    enabled: !!file && !isBinary,
+  });
 
   if (!file) return null;
 
@@ -325,8 +247,9 @@ const StackedFileSlot = observer(function StackedFileSlot({
             </div>
           ) : (
             <StickyDiffEditor
-              originalUri={originalUri}
-              modifiedUri={modifiedUri}
+              original={sides.original}
+              modified={sides.modified}
+              filePath={file.path}
               diffStyle={diffStyle}
               onHeightChange={setContentHeight}
             />

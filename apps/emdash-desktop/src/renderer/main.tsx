@@ -8,6 +8,7 @@ import {
 import ReactDOM from 'react-dom/client';
 import { installChatUiRuntime } from '@core/features/conversations/api/browser/chat/chat-ui-runtime';
 import { configureDevPerfClient } from '@core/features/dev-perf/api/browser/client';
+import { installMonacoFacetBinder } from '@core/features/editor/browser/monaco/install-monaco-facet-binder';
 import { monacoBootstrap } from '@core/features/editor/browser/monaco/monaco-bootstrap';
 import { getProjectManagerStore } from '@core/features/projects/api/browser/stores/project-selectors';
 import { prefetchAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
@@ -67,6 +68,9 @@ async function bootstrap() {
   // Builds and activates all app-scoped stores (projects, machines, sidebar,
   // updates) before React mounts.
   createAppScope([...appStoreContributions]);
+  // Give the app-global OpenFileStore its Monaco implementation before any
+  // file tab can acquire facets (handle creation awaits Monaco internally).
+  installMonacoFacetBinder();
   initSoundPlayer();
   initNotificationDeliveryListener((sound, dedupeKey) => soundPlayer.play(sound, dedupeKey));
   initRendererPerfVitals();
