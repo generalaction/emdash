@@ -8,7 +8,8 @@ const GROUP_HEADER_RE = /^([0-9a-f]{40}) (\d+) (\d+)(?: (\d+))?$/;
 type CommitMeta = {
   author: string;
   authorEmail: string;
-  date: string;
+  /** Author date as epoch milliseconds. */
+  date: number;
   summary: string;
 };
 
@@ -50,7 +51,7 @@ export function parseBlamePorcelain(output: string): BlameResult {
       oid: currentOid,
       author: meta?.author ?? '',
       authorEmail: meta?.authorEmail ?? '',
-      date: meta?.date ?? '',
+      date: meta?.date ?? 0,
       summary: meta?.summary ?? '',
       startLine: groupStartLine,
       lineCount: groupLineCount,
@@ -71,7 +72,7 @@ export function parseBlamePorcelain(output: string): BlameResult {
         groupStartLine = finalLine;
         groupLineCount = numLines;
         if (!metaByOid.has(oid)) {
-          metaByOid.set(oid, { author: '', authorEmail: '', date: '', summary: '' });
+          metaByOid.set(oid, { author: '', authorEmail: '', date: 0, summary: '' });
         }
       }
       continue;
@@ -86,7 +87,7 @@ export function parseBlamePorcelain(output: string): BlameResult {
       meta.authorEmail = line.slice('author-mail '.length).replace(/^<|>$/g, '');
     } else if (line.startsWith('author-time ')) {
       const epoch = Number.parseInt(line.slice('author-time '.length), 10);
-      if (Number.isFinite(epoch)) meta.date = new Date(epoch * 1000).toISOString();
+      if (Number.isFinite(epoch)) meta.date = epoch * 1000;
     } else if (line.startsWith('summary ')) meta.summary = line.slice('summary '.length);
   }
   flush();

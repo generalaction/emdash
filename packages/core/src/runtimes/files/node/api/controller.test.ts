@@ -38,9 +38,9 @@ describe('createFilesController', () => {
     let detachTree: (() => void) | undefined;
 
     try {
-      await expect(connection.api.getHomeDir()).resolves.toEqual(
-        runtimeRoot(await realpath(homedir()))
-      );
+      await expect(connection.api.getHomeDir()).resolves.toEqual({
+        path: runtimeRoot(await realpath(homedir())),
+      });
       await expect(connection.api.tree.model.state(key, 'tree').snapshot()).resolves.toMatchObject({
         data: { entries: { '': { childrenLoaded: false } } },
       });

@@ -70,7 +70,7 @@ async function realPathAbsolute(
   if (!opened.success) return opened;
   if (!path.isAbsolute(absPath)) return err(expectedAbsolutePath(absPath));
   const result = await opened.data.client.fs.realPath(fileKey(opened.data, absPath));
-  return result.success ? ok(nativePathFromHost(result.data)) : result;
+  return result.success ? ok(nativePathFromHost(result.data.path)) : result;
 }
 
 async function isRealPathContained(
@@ -103,7 +103,7 @@ async function ensureDirectory(
     const key = { path: resolveRelativePath(files.root, candidate) };
     const exists = await files.client.fs.exists(key);
     if (!exists.success) return exists;
-    if (exists.data) continue;
+    if (exists.data.exists) continue;
     const created = await files.client.fs.createDirectory(key);
     if (!created.success && created.error.type !== 'already-exists') return created;
   }

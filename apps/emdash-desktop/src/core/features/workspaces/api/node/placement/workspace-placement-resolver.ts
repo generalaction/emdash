@@ -128,7 +128,7 @@ export class WorkspacePlacementResolver {
           message: fsErrorMessage(exists.error),
         });
       }
-      if (!exists.data && !registeredProject) return ok(candidate);
+      if (!exists.data.exists && !registeredProject) return ok(candidate);
     }
   }
 
@@ -156,7 +156,7 @@ export class WorkspacePlacementResolver {
     const session = await this.dependencies.broker.client(host);
     if (!session.success) return session;
     try {
-      return ok(nativePathFromHost(await session.data.files.getHomeDir()));
+      return ok(nativePathFromHost((await session.data.files.getHomeDir()).path));
     } catch (error) {
       return err({
         type: 'host-home-unavailable',

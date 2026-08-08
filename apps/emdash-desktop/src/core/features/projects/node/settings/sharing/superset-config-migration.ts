@@ -96,7 +96,7 @@ async function readSupersetMigrationData(
     log.warn('Failed to inspect Superset config for migration', exists.error);
     return data;
   }
-  if (!exists.data) return data;
+  if (!exists.data.exists) return data;
 
   const content = await files.client.fs.readText(fileKey(files, supersetConfigPath));
   if (!content.success) {

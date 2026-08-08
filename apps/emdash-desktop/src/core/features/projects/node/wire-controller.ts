@@ -77,7 +77,7 @@ export function createProjectsWireController(
       openProject: ({ projectId }) => projectOperations.openProject(projectId),
       getHostHomeDir: async (input) => {
         const runtime = await acquireHostRuntime(dependencies, input);
-        return nativePathFromHost(await runtime.files.getHomeDir());
+        return nativePathFromHost((await runtime.files.getHomeDir()).path);
       },
       createHostDirectory: async ({ host, root, path }) => {
         const runtime = await acquireHostRuntime(dependencies, host);

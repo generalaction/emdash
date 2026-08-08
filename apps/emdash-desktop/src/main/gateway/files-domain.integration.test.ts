@@ -146,10 +146,10 @@ describe('files wire controller against a live files runtime', () => {
 
     await expect(
       controller.call('fs.exists', { uri: localUri(path.join(dir, 'present.txt')) })
-    ).resolves.toEqual(ok(true));
+    ).resolves.toEqual(ok({ exists: true }));
     await expect(
       controller.call('fs.exists', { uri: localUri(path.join(dir, 'absent.txt')) })
-    ).resolves.toEqual(ok(false));
+    ).resolves.toEqual(ok({ exists: false }));
     await expect(
       controller.call('fs.readText', { uri: localUri(path.join(dir, 'present.txt')) })
     ).resolves.toMatchObject({ success: true, data: { content: 'here\n' } });

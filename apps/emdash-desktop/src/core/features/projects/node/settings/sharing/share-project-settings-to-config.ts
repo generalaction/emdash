@@ -42,7 +42,7 @@ export async function shareProjectSettingsToConfig(
         log.warn('Failed to check project config before writing', exists.error);
         return writeConfigFailed(message);
       }
-      if (exists.data) {
+      if (exists.data.exists) {
         const content = await target.files.client.fs.readText(
           fileKey(target.files, target.configPath)
         );

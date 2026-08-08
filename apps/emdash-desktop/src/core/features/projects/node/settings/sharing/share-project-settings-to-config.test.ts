@@ -44,7 +44,7 @@ function createMemoryFileSystem(initialFiles: Record<string, string> = {}) {
       content,
     ])
   );
-  const exists = vi.fn(async (filePath: string) => ok(files.has(filePath)));
+  const exists = vi.fn(async (filePath: string) => ok({ exists: files.has(filePath) }));
   const readText = vi.fn(async (filePath: string) => {
     const content = files.get(filePath);
     if (content === undefined) {

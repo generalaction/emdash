@@ -67,7 +67,7 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 
       const resolved = await broker.client(host);
       if (!resolved.success) throw new Error(resolved.error.message);
-      const homeDirectory = await resolved.data.files.getHomeDir(undefined);
+      const homeDirectory = (await resolved.data.files.getHomeDir(undefined)).path;
       expect(homeDirectory).toMatchObject({
         root: { kind: 'posix' },
         segments: ['home', 'devuser'],
@@ -149,8 +149,10 @@ describe.skipIf(!remoteTestEnabled)('workspace-server cold install over Docker S
 
       await expect(connection.ready()).resolves.toMatchObject({ server: { daemonId } });
       await expect(resolved.data.files.getHomeDir(undefined)).resolves.toMatchObject({
-        root: { kind: 'posix' },
-        segments: ['home', 'devuser'],
+        path: {
+          root: { kind: 'posix' },
+          segments: ['home', 'devuser'],
+        },
       });
       expect(invalidations).toEqual([]);
     } finally {

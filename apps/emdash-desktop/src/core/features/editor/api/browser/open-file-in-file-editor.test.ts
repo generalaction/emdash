@@ -54,7 +54,7 @@ describe('workspace file opening', () => {
       path: '/repo',
     });
     mocks.getTaskComposition.mockReturnValue({ openWorkspaceFile });
-    mocks.exists.mockResolvedValue({ success: true, data: true });
+    mocks.exists.mockResolvedValue({ success: true, data: { exists: true } });
   });
 
   it('opens and reveals a workspace file in the active pane', async () => {
@@ -75,7 +75,7 @@ describe('workspace file opening', () => {
   });
 
   it('does not change editor or sidebar state when the file no longer exists', async () => {
-    mocks.exists.mockResolvedValue({ success: true, data: false });
+    mocks.exists.mockResolvedValue({ success: true, data: { exists: false } });
 
     await openFileInTaskEditor('project-1', 'task-1', 'src/deleted.ts');
 

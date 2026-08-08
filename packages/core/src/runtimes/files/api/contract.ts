@@ -46,14 +46,18 @@ export const MAX_FILE_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const filesContract = defineContract({
   getHomeDir: procedure({
     input: z.void().optional(),
-    output: hostAbsolutePathSchema,
+    output: z.object({ path: hostAbsolutePathSchema }),
   }),
   fs: defineContract({
     stat: fallible({ input: absolutePathKeySchema, data: fileStatSchema, error: fsErrorSchema }),
-    exists: fallible({ input: absolutePathKeySchema, data: z.boolean(), error: fsErrorSchema }),
+    exists: fallible({
+      input: absolutePathKeySchema,
+      data: z.object({ exists: z.boolean() }),
+      error: fsErrorSchema,
+    }),
     realPath: fallible({
       input: absolutePathKeySchema,
-      data: hostAbsolutePathSchema,
+      data: z.object({ path: hostAbsolutePathSchema }),
       error: fsErrorSchema,
     }),
     readText: fallible({

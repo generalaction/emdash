@@ -23,7 +23,7 @@ const identity = {
 
 describe('createEditorWireController', () => {
   it('resolves a client for each file procedure call', async () => {
-    const exists = vi.fn(async () => ok(true));
+    const exists = vi.fn(async () => ok({ exists: true }));
     const client = vi.fn(async () => ok({ files: { fs: { exists } } }));
     const resolve = vi.fn(async () => identity);
     const controller = createEditorWireController({
@@ -36,8 +36,8 @@ describe('createEditorWireController', () => {
       relative: portablePath('src/index.ts'),
     };
 
-    await expect(controller.call('fs.exists', input)).resolves.toEqual(ok(true));
-    await expect(controller.call('fs.exists', input)).resolves.toEqual(ok(true));
+    await expect(controller.call('fs.exists', input)).resolves.toEqual(ok({ exists: true }));
+    await expect(controller.call('fs.exists', input)).resolves.toEqual(ok({ exists: true }));
 
     expect(resolve).toHaveBeenCalledTimes(2);
     expect(client).toHaveBeenCalledTimes(2);

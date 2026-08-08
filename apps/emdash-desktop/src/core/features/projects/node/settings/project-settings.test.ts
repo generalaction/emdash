@@ -26,7 +26,7 @@ function makeLocalConfigFiles(projectPath: string) {
   const client = {
     fs: {
       exists: vi.fn(async ({ path: target }: { path: HostAbsolutePath }) =>
-        ok(fs.existsSync(nativePathFromHost(target)))
+        ok({ exists: fs.existsSync(nativePathFromHost(target)) })
       ),
       readText: vi.fn(async ({ path: target }: { path: HostAbsolutePath }) => {
         try {

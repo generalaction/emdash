@@ -26,7 +26,7 @@ export async function resolveProjectBaseRef(
     if (!defaultBranch.success) throw new Error(gitErrorMessage(defaultBranch.error));
     return resolveBaseRefFromRemoteDefault({
       detectedBaseRef,
-      gitDefaultBranch: defaultBranch.data,
+      gitDefaultBranch: defaultBranch.data.branch,
       branches: refs.data.branches,
     });
   } catch (error) {

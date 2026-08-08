@@ -379,8 +379,8 @@ export class GitCheckoutStore {
       return;
     }
 
-    const staged = completeChanges(stagedResult.data, status.entries, 'staged');
-    const unstaged = completeChanges(unstagedResult.data, status.entries, 'unstaged');
+    const staged = completeChanges(stagedResult.data.files, status.entries, 'staged');
+    const unstaged = completeChanges(unstagedResult.data.files, status.entries, 'unstaged');
     await addUntrackedLineCounts(unstaged, this.workspaceId, this.workspacePath);
     if (request !== this.changesRequest || !this.started) return;
     runInAction(() => {

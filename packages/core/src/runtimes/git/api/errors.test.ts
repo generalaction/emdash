@@ -4,7 +4,7 @@ import {
   fetchPrForReviewErrorSchema,
   gitCommandErrorSchema,
   gitResolutionErrorSchema,
-} from '#runtimes/git/api/api/errors';
+} from '#runtimes/git/api/errors';
 import { gitErr } from './errors';
 
 describe('gitErr', () => {

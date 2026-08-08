@@ -273,7 +273,7 @@ class AppService implements Disposable {
     });
     if (!resolved.success) return resolved;
 
-    shell.showItemInFolder(nativePathFromHost(resolved.data));
+    shell.showItemInFolder(nativePathFromHost(resolved.data.path));
     return ok();
   }
 

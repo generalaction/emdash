@@ -42,7 +42,7 @@ describe('GitCheckoutStore', () => {
   beforeEach(() => {
     statusState = cell(status());
     headState = cell(head('main'));
-    mocks.getChangedFiles.mockResolvedValue(ok([]));
+    mocks.getChangedFiles.mockResolvedValue(ok({ files: [] }));
     mocks.getGitRepositoryStore.mockReturnValue({
       isBranchOnRemote: () => true,
       getBranchDivergence: () => ({ ahead: 2, behind: 1 }),

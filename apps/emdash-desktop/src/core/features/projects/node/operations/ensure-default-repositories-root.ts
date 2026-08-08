@@ -44,7 +44,7 @@ async function ensureDirectory(
   for (;;) {
     const key = fileKeyForAbsolutePath(candidate);
     const exists = await files.fs.exists(key);
-    if (exists.success && exists.data) break;
+    if (exists.success && exists.data.exists) break;
     if (!exists.success && exists.error.type !== 'not-found') {
       return filesystemUnavailable(candidate, exists.error);
     }

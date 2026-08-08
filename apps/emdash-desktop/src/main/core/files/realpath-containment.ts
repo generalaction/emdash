@@ -26,7 +26,7 @@ export async function realPathNearestExisting(
   for (;;) {
     const real = await files.client.fs.realPath(fileKey(files, current));
     if (real.success) {
-      const nativeRealPath = nativePathFromHost(real.data);
+      const nativeRealPath = nativePathFromHost(real.data.path);
       return ok(
         tail.length
           ? pathOperations.join(nativeRealPath, ...tail.slice().reverse())
@@ -57,12 +57,12 @@ export async function isRealPathContained(
 ): Promise<Result<boolean, FsError>> {
   const rootReal = await files.client.fs.realPath(fileKey(files, rootPath));
   if (!rootReal.success) return rootReal;
-  const nativeRootReal = nativePathFromHost(rootReal.data);
+  const nativeRootReal = nativePathFromHost(rootReal.data.path);
 
   const candidateReal = options.candidateMustExist
     ? await files.client.fs
         .realPath(fileKey(files, candidatePath))
-        .then((result) => (result.success ? ok(nativePathFromHost(result.data)) : result))
+        .then((result) => (result.success ? ok(nativePathFromHost(result.data.path)) : result))
     : await realPathNearestExisting(files, pathOperations, candidatePath);
   if (!candidateReal.success) {
     return options.candidateErrorMode === 'error' ? candidateReal : ok(false);

@@ -13,14 +13,11 @@ export const gitRepositoryInfoSchema = z.object({
 });
 export type GitRepositoryInfo = z.infer<typeof gitRepositoryInfoSchema>;
 
-export const gitPathInspectionSchema = z.union([
+// Success data of the fallible `inspectPath`: repository/not-repository are
+// answers; a failed inspection is the verb's declared error.
+export const gitPathInspectionSchema = z.discriminatedUnion('kind', [
   gitRepositoryInfoSchema,
   z.object({ kind: z.literal('not-repository'), path: hostAbsolutePathSchema }),
-  z.object({
-    kind: z.literal('inspect-failed'),
-    path: hostAbsolutePathSchema,
-    message: z.string(),
-  }),
 ]);
 export type GitPathInspection = z.infer<typeof gitPathInspectionSchema>;
 

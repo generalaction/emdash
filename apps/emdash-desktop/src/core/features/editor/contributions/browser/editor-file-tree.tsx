@@ -167,7 +167,7 @@ async function importLocalFiles(args: {
           await handleFailure(result.error);
           return;
         }
-        if (result.data) conflicts.push(target.relative);
+        if (result.data.exists) conflicts.push(target.relative);
       }
       if (conflicts.length > 0) {
         await handleFailure({
@@ -509,7 +509,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
         toast.error('Copy failed', { description: resultErrorMessage(result.error) });
         return;
       }
-      await copyTextToClipboard(nativePathFromHost(result.data));
+      await copyTextToClipboard(nativePathFromHost(result.data.path));
       toast('Path copied');
     } catch (error) {
       toast.error('Copy failed', {

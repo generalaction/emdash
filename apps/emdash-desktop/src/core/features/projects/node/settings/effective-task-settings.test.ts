@@ -12,7 +12,7 @@ function makeProjectSettings(settings: Awaited<ReturnType<ProjectSettingsProvide
 }
 
 function makeTaskFiles(config: unknown | null) {
-  const exists = vi.fn(async () => ok(config !== null));
+  const exists = vi.fn(async () => ok({ exists: config !== null }));
   const readText = vi.fn(async () =>
     ok({
       content: JSON.stringify(config),

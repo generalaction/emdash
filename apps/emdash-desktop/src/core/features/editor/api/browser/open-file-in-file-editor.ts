@@ -50,7 +50,7 @@ export async function openFileInTaskEditor(
   const exists = await editor.fs.exists(
     editorFilePath(workspace.workspaceId, workspace.path, resolvedPath)
   );
-  if (!exists.success || !exists.data) {
+  if (!exists.success || !exists.data.exists) {
     toast.error(`File not found in workspace: ${filePath}`);
     return;
   }

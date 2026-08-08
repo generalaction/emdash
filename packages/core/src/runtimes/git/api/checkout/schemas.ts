@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { portableRelativePathSchema } from '#primitives/path/api';
-import { checkoutSelectorSchema } from '#runtimes/git/api/api/selectors';
 import { gitBranchRefSchema } from '#runtimes/git/api/repository/states/refs';
+import { checkoutSelectorSchema } from '#runtimes/git/api/selectors';
 
 /**
  * Checkout subdomain schemas: the read/diff/history vocabulary and the option
@@ -43,7 +43,8 @@ export const commitSchema = z.object({
   subject: z.string(),
   body: z.string(),
   author: z.string(),
-  date: z.string(),
+  /** Author date as epoch milliseconds (convention 4). */
+  date: z.number().int(),
   isPushed: z.boolean(),
   tags: z.array(z.string()),
 });
@@ -62,7 +63,8 @@ export const blameHunkSchema = z.object({
   oid: z.string(),
   author: z.string(),
   authorEmail: z.string(),
-  date: z.string(),
+  /** Author date as epoch milliseconds (convention 4). */
+  date: z.number().int(),
   summary: z.string(),
   startLine: z.number().int(),
   lineCount: z.number().int(),

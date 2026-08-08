@@ -14,7 +14,8 @@ export type Numstat = Map<string, { additions: number; deletions: number }>;
 
 const FIELD_SEP = '\x1f';
 const RECORD_SEP = '\x1e';
-export const LOG_FORMAT = `%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%b${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${RECORD_SEP}`;
+// `%at` is the author date as unix epoch seconds; the wire carries epoch ms.
+export const LOG_FORMAT = `%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%b${FIELD_SEP}%an${FIELD_SEP}%at${FIELD_SEP}%D${RECORD_SEP}`;
 
 export async function getLog(exec: BoundExec, options: GitLogOptions = {}): Promise<GitLogResult> {
   const maxCount = typeof options.limit === 'number' ? Math.max(1, Math.floor(options.limit)) : 50;
@@ -103,7 +104,7 @@ export function parseLogRecords(stdout: string, remoteReachable: Set<string>): C
         subject,
         body: body.trim(),
         author,
-        date,
+        date: (Number.parseInt(date, 10) || 0) * 1000,
         isPushed: remoteReachable.has(hash),
         tags: parseDecoratedTags(decorations),
       };

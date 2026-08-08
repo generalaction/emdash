@@ -81,9 +81,9 @@ export class GitCheckoutRuntime {
   }
 
   getChangedFiles(input: CheckoutSelector & { target: NormalizedDiffTarget }) {
-    return this.read(input, (checkout) =>
-      checkout.getChangedFiles(denormalizeDiffTarget(input.target))
-    );
+    return this.read(input, async (checkout) => ({
+      files: await checkout.getChangedFiles(denormalizeDiffTarget(input.target)),
+    }));
   }
 
   getFile(input: GitFileContentKey) {
@@ -103,11 +103,13 @@ export class GitCheckoutRuntime {
   }
 
   getCommit(input: CheckoutSelector & { hash: string }) {
-    return this.read(input, (checkout) => checkout.getCommit(input.hash));
+    return this.read(input, async (checkout) => ({ commit: await checkout.getCommit(input.hash) }));
   }
 
   getCommitFiles(input: CheckoutSelector & { hash: string }) {
-    return this.read(input, (checkout) => checkout.getCommitFiles(input.hash));
+    return this.read(input, async (checkout) => ({
+      files: await checkout.getCommitFiles(input.hash),
+    }));
   }
 
   blame(input: CheckoutSelector & { path: PortableRelativePath; ref?: string }) {

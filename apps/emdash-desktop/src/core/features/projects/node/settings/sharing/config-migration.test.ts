@@ -22,7 +22,7 @@ function createFs(initialFiles: Record<string, string>) {
       content,
     ])
   );
-  const exists = vi.fn((filePath: string) => Promise.resolve(ok(files.has(filePath))));
+  const exists = vi.fn((filePath: string) => Promise.resolve(ok({ exists: files.has(filePath) })));
   const readText = vi.fn((filePath: string) => {
     const content = files.get(filePath);
     if (content === undefined) {

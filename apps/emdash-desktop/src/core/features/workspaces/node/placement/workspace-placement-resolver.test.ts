@@ -31,14 +31,14 @@ function makeResolver(options: {
   const missingParents = new Set(options.missingParents ?? []);
   const getHomeDir = vi.fn(async () => {
     if (options.homeError) throw options.homeError;
-    return hostPathFromNative(options.home ?? '/home/jona');
+    return { path: hostPathFromNative(options.home ?? '/home/jona') };
   });
   const exists = vi.fn(async ({ path: target }) => {
     const candidate = nativePathFromHost(target);
     if (missingParents.has(path.posix.dirname(candidate))) {
       return err({ type: 'not-found' as const, path: '' });
     }
-    return ok(existingPaths.has(candidate));
+    return ok({ exists: existingPaths.has(candidate) });
   });
   const broker = {
     client: vi.fn(async () => ok({ files: { getHomeDir, fs: { exists } } })),

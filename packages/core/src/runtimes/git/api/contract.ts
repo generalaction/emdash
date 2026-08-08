@@ -1,9 +1,13 @@
-import { defineContract, fallible, liveJob, procedure } from '@emdash/wire/rpc';
+import { defineContract, fallible, liveJob } from '@emdash/wire/rpc';
 import { z } from 'zod';
 import { hostAbsolutePathSchema } from '#primitives/path/api';
 import { gitCheckoutContract } from '#runtimes/git/api/checkout/contract';
 import { gitRepositoryContract } from '#runtimes/git/api/repository/contract';
-import { cloneRepositoryErrorSchema, ensureRepositoryErrorSchema } from './errors';
+import {
+  cloneRepositoryErrorSchema,
+  ensureRepositoryErrorSchema,
+  inspectPathErrorSchema,
+} from './errors';
 import {
   cloneRepositoryJobInputSchema,
   ensureRepositoryOptionsSchema,
@@ -13,9 +17,10 @@ import {
 } from './schemas';
 
 export const gitContract = defineContract({
-  inspectPath: procedure({
+  inspectPath: fallible({
     input: z.object({ path: hostAbsolutePathSchema }),
-    output: gitPathInspectionSchema,
+    data: gitPathInspectionSchema,
+    error: inspectPathErrorSchema,
   }),
   ensureRepository: fallible({
     input: z.object({

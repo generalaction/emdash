@@ -27,18 +27,18 @@ describe('files runtime absolute-path content', () => {
       const fileKey = { path: runtimeRoot(path.join(dir, 'note.txt')) };
       await expect(connection.api.fs.exists(fileKey)).resolves.toEqual({
         success: true,
-        data: true,
+        data: { exists: true },
       });
       await expect(
         connection.api.fs.exists({ path: runtimeRoot(path.join(dir, 'missing.txt')) })
-      ).resolves.toEqual({ success: true, data: false });
+      ).resolves.toEqual({ success: true, data: { exists: false } });
       await expect(
         connection.api.fs.exists({ path: runtimeRoot(path.join(dir, 'no-parent', 'missing.txt')) })
-      ).resolves.toEqual({ success: true, data: false });
+      ).resolves.toEqual({ success: true, data: { exists: false } });
 
       await expect(connection.api.fs.realPath(fileKey)).resolves.toEqual({
         success: true,
-        data: runtimeRoot(path.join(dir, 'note.txt')),
+        data: { path: runtimeRoot(path.join(dir, 'note.txt')) },
       });
 
       const text = await connection.api.fs.readText(fileKey);
@@ -259,7 +259,7 @@ describe('files runtime absolute-path content', () => {
         connection.api.fs.realPath({ path: runtimeRoot(path.join(dir, 'alias.txt')) })
       ).resolves.toEqual({
         success: true,
-        data: runtimeRoot(path.join(dir, 'real/target.txt')),
+        data: { path: runtimeRoot(path.join(dir, 'real/target.txt')) },
       });
     } finally {
       await dispose();

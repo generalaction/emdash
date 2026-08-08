@@ -81,19 +81,19 @@ export class FileSystemRuntime {
     });
   }
 
-  async exists(input: AbsolutePathKey): Promise<Result<boolean, FsError>> {
+  async exists(input: AbsolutePathKey): Promise<Result<{ exists: boolean }, FsError>> {
     const result = await this.runAt(input, async (root, relative) => {
       const resolved = await root.paths.resolveFollowed(relative);
-      if (resolved.success) return ok(true);
-      return resolved.error.type === 'not-found' ? ok(false) : resolved;
+      if (resolved.success) return ok({ exists: true });
+      return resolved.error.type === 'not-found' ? ok({ exists: false }) : resolved;
     });
     // A missing parent directory means the file does not exist rather than an
     // addressing failure.
-    if (!result.success && result.error.type === 'not-found') return ok(false);
+    if (!result.success && result.error.type === 'not-found') return ok({ exists: false });
     return result;
   }
 
-  realPath(input: AbsolutePathKey): Promise<Result<HostAbsolutePath, FsError>> {
+  realPath(input: AbsolutePathKey): Promise<Result<{ path: HostAbsolutePath }, FsError>> {
     return this.runAt(input, async (root, relative) => {
       const resolved = await root.paths.resolveFollowed(relative);
       if (!resolved.success) return resolved;
@@ -104,7 +104,7 @@ export class FileSystemRuntime {
         },
       });
       return parsed.success
-        ? ok(parsed.data)
+        ? ok({ path: parsed.data })
         : err({ type: 'invalid-path', path: relative, message: parsed.error.message });
     });
   }

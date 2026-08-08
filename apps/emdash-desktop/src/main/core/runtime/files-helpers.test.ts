@@ -24,7 +24,7 @@ function makeFiles(root: string) {
         realPath: async ({ path: target }: { path: Parameters<typeof nativePathFromHost>[0] }) => {
           const filePath = nativePathFromHost(target);
           try {
-            return ok(hostPathFromNative(fs.realpathSync(filePath)));
+            return ok({ path: hostPathFromNative(fs.realpathSync(filePath)) });
           } catch {
             return err({ type: 'not-found', path: filePath } as never);
           }

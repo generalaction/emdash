@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { repositorySelectorSchema } from '#runtimes/git/api/api/selectors';
+import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
 
 /**
  * Repository subdomain schemas: the input shapes for repository-scoped jobs

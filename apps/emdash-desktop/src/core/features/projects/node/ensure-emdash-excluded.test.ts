@@ -52,7 +52,7 @@ function makeFs(opts: {
       }),
       exists: vi.fn(async () => ({
         success: true as const,
-        data: opts.excludeContent != null,
+        data: { exists: opts.excludeContent != null },
       })),
       readText: vi.fn(async () => ({
         success: true as const,

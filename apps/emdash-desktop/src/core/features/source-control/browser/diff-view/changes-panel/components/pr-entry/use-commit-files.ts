@@ -23,7 +23,7 @@ export function useCommitFiles(
         hash: commitHash,
       });
       if (!result.success) throw new Error('Failed to load commit files');
-      return result.data;
+      return result.data.files;
     },
     enabled,
     staleTime: 5 * 60_000,

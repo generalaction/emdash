@@ -103,13 +103,16 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toEqual({
-        kind: 'not-repository',
-        path: hostPath(directory),
+        success: true,
+        data: { kind: 'not-repository', path: hostPath(directory) },
       });
       await expect(runtime.provisioning.inspectPath(hostPath(repo))).resolves.toMatchObject({
-        kind: 'repository',
-        rootPath: hostPath(await realpath(repo)),
-        baseRef: 'main',
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: hostPath(await realpath(repo)),
+          baseRef: 'main',
+        },
       });
     } finally {
       await runtime.dispose();
@@ -123,8 +126,11 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(repo))).resolves.toMatchObject({
-        kind: 'repository',
-        rootPath: hostPath(await realpath(repo)),
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: hostPath(await realpath(repo)),
+        },
       });
     } finally {
       await runtime.dispose();
@@ -150,9 +156,12 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(targetPath))).resolves.toEqual({
-        kind: 'inspect-failed',
-        path: hostPath(targetPath),
-        message: `fatal: cannot change to '${targetPath}': Permission denied`,
+        success: false,
+        error: {
+          type: 'inspect-failed',
+          path: hostPath(targetPath),
+          message: `fatal: cannot change to '${targetPath}': Permission denied`,
+        },
       });
     } finally {
       await runtime.dispose();
@@ -166,8 +175,8 @@ describe('GitRuntime', () => {
 
     try {
       await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toEqual({
-        kind: 'not-repository',
-        path: hostPath(directory),
+        success: true,
+        data: { kind: 'not-repository', path: hostPath(directory) },
       });
     } finally {
       await runtime.dispose();
@@ -232,8 +241,11 @@ describe('GitRuntime', () => {
         },
       });
       await expect(runtime.provisioning.inspectPath(hostPath(directory))).resolves.toMatchObject({
-        kind: 'repository',
-        rootPath: hostPath(await realpath(directory)),
+        success: true,
+        data: {
+          kind: 'repository',
+          rootPath: hostPath(await realpath(directory)),
+        },
       });
     } finally {
       await runtime.dispose();

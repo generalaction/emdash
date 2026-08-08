@@ -98,7 +98,7 @@ async function readCodexMigrationData(
     log.warn('Failed to inspect Codex environment file for migration', exists.error);
     return data;
   }
-  if (!exists.data) return data;
+  if (!exists.data.exists) return data;
 
   const content = await files.client.fs.readText(fileKey(files, environmentPath));
   if (!content.success) {

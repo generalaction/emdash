@@ -65,7 +65,7 @@ async function readLegacyProjectConfig(
       log.warn('Failed to check legacy .emdash.json for migration', exists.error);
       return undefined;
     }
-    if (!exists.data) return undefined;
+    if (!exists.data.exists) return undefined;
     const content = await configFiles.client.fs.readText(fileKey(configFiles, configPath));
     if (!content.success) {
       log.warn('Failed to read legacy .emdash.json for migration', content.error);

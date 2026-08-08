@@ -41,7 +41,7 @@ export async function ensureEmdashGitExcluded(
 
   let existing = '';
   const excludeExists = await files.client.fs.exists(fileKey(files, excludePath));
-  if (excludeExists.success && excludeExists.data) {
+  if (excludeExists.success && excludeExists.data.exists) {
     const read = await files.client.fs.readText(fileKey(files, excludePath));
     if (!read.success) return;
     // `read` caps at a default byte limit; rewriting a truncated view would drop

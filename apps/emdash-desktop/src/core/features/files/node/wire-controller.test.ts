@@ -17,19 +17,19 @@ const remoteHost = hostRef('remote', 'ssh-2');
 
 describe('createFilesWireController', () => {
   it('decodes the URI and routes each fs procedure to the host it names', async () => {
-    const exists = vi.fn(async () => ok(true));
+    const exists = vi.fn(async () => ok({ exists: true }));
     const client = vi.fn(async () => ok({ files: { fs: { exists } } }));
     const controller = createFilesWireController({ runtimes: { client } as never });
 
     await expect(
       controller.call('fs.exists', { uri: uriFor(LOCAL_HOST_REF, '/repo/a.txt') })
-    ).resolves.toEqual(ok(true));
+    ).resolves.toEqual(ok({ exists: true }));
     expect(client).toHaveBeenLastCalledWith(LOCAL_HOST_REF);
     expect(exists).toHaveBeenLastCalledWith({ path: absolute('/repo/a.txt') }, {});
 
     await expect(
       controller.call('fs.exists', { uri: uriFor(remoteHost, '/home/dev/b.txt') })
-    ).resolves.toEqual(ok(true));
+    ).resolves.toEqual(ok({ exists: true }));
     expect(client).toHaveBeenLastCalledWith(remoteHost);
     expect(exists).toHaveBeenLastCalledWith({ path: absolute('/home/dev/b.txt') }, {});
   });

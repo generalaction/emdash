@@ -230,10 +230,15 @@ async function resolveGitContentState(
   // The parent directory is inspected instead of the file itself so a file
   // deleted from the working tree still resolves its checkout (spec §6).
   const inspection = await client.git.inspectPath({ path: parent });
-  if (inspection.kind === 'inspect-failed') return contentErrorState(fallbackPath, 'unavailable');
-  if (inspection.kind === 'not-repository') return contentErrorState(fallbackPath, 'unavailable');
+  if (!inspection.success) return contentErrorState(fallbackPath, 'unavailable');
+  if (inspection.data.kind === 'not-repository') {
+    return contentErrorState(fallbackPath, 'unavailable');
+  }
 
-  const relative = relativizeHostFileRef(hostFileRef(fileRef.host, inspection.rootPath), fileRef);
+  const relative = relativizeHostFileRef(
+    hostFileRef(fileRef.host, inspection.data.rootPath),
+    fileRef
+  );
   if (!relative.success) return contentErrorState(fallbackPath, 'unavailable');
   const checkoutRelativePath = relative.data;
 
@@ -241,7 +246,7 @@ async function resolveGitContentState(
     scope,
   });
   const upstream = contentModel({
-    checkout: inspection.rootPath,
+    checkout: inspection.data.rootPath,
     path: checkoutRelativePath,
     source: source.data,
   }).states.content;

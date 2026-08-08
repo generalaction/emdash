@@ -12,12 +12,12 @@ import {
   fetchPrForReviewErrorSchema,
   gitCommandErrorSchema,
   pushErrorSchema,
-} from '#runtimes/git/api/api/errors';
-import { transferProgressSchema } from '#runtimes/git/api/api/schemas';
-import { repositorySelectorSchema } from '#runtimes/git/api/api/selectors';
+} from '#runtimes/git/api/errors';
 import { gitRefsStateSchema } from '#runtimes/git/api/repository/states/refs';
 import { gitRemotesStateSchema } from '#runtimes/git/api/repository/states/remotes';
 import { gitWorktreesStateSchema } from '#runtimes/git/api/repository/states/worktrees';
+import { transferProgressSchema } from '#runtimes/git/api/schemas';
+import { repositorySelectorSchema } from '#runtimes/git/api/selectors';
 import {
   fetchJobInputSchema,
   fetchPrForReviewJobInputSchema,
@@ -42,12 +42,12 @@ export const gitRepositoryContract = defineContract({
 
   listWorktrees: fallible({
     input: repositorySelectorSchema,
-    data: gitWorktreesStateSchema,
+    data: z.object({ worktrees: gitWorktreesStateSchema }),
     error: gitCommandErrorSchema,
   }),
   getDefaultBranch: fallible({
     input: repositorySelectorSchema.extend({ remote: z.string().optional() }),
-    data: z.string(),
+    data: z.object({ branch: z.string() }),
     error: gitCommandErrorSchema,
   }),
 

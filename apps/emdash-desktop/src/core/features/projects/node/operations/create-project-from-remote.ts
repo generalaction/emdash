@@ -152,7 +152,7 @@ async function inspectTarget(
       ? ok('missing')
       : err(creationError('inspect-failed', fsErrorMessage(exists.error)));
   }
-  if (!exists.data) return ok('missing');
+  if (!exists.data.exists) return ok('missing');
 
   const pathEntry = await files.fs.stat(key);
   if (!pathEntry.success) {

@@ -51,11 +51,15 @@ export class GitRepositoryRuntime {
   }
 
   listWorktrees(input: RepositorySelector) {
-    return this.read(input, (repository) => repository.listWorktrees());
+    return this.read(input, async (repository) => ({
+      worktrees: await repository.listWorktrees(),
+    }));
   }
 
   getDefaultBranch(input: RepositorySelector & { remote?: string }) {
-    return this.read(input, (repository) => repository.getDefaultBranch(input.remote));
+    return this.read(input, async (repository) => ({
+      branch: await repository.getDefaultBranch(input.remote),
+    }));
   }
 
   fetch(input: FetchJobInput, context: LiveJobContext<GitTransferProgress>) {

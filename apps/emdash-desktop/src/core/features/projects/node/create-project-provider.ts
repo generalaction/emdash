@@ -85,7 +85,7 @@ export async function createProvider(
     const checkout = checkoutSelector(project.path);
     const repositoryInspection = await git.inspectPath({ path: hostPathFromNative(project.path) });
     const hasRepository =
-      repositoryInspection.kind === 'inspect-failed' || repositoryInspection.kind === 'repository';
+      !repositoryInspection.success || repositoryInspection.data.kind === 'repository';
     const gitInspector = {
       isFileCleanlyTracked: async (filePath: string) => {
         try {
@@ -131,7 +131,7 @@ export async function createProvider(
             const targetFiles = filesClientScope(filesClient, targetPath);
             const result = await filesClient.fs.realPath(fileKey(targetFiles, targetPath));
             return result.success
-              ? ok(nativePathFromHost(result.data))
+              ? ok(nativePathFromHost(result.data.path))
               : err({ message: fsErrorMessage(result.error) });
           },
         },

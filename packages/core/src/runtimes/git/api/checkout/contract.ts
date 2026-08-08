@@ -8,18 +8,18 @@ import {
   mutation,
 } from '@emdash/wire/rpc';
 import { z } from 'zod';
+import { gitFileContentStateSchema } from '#runtimes/git/api/checkout/states/content';
+import { checkoutHeadStateSchema } from '#runtimes/git/api/checkout/states/head';
+import { checkoutStatusStateSchema } from '#runtimes/git/api/checkout/states/status';
 import {
   commitErrorSchema,
   downloadErrorSchema,
   gitCommandErrorSchema,
   pullErrorSchema,
   pushErrorSchema,
-} from '#runtimes/git/api/api/errors';
-import { transferProgressSchema } from '#runtimes/git/api/api/schemas';
-import { checkoutSelectorSchema } from '#runtimes/git/api/api/selectors';
-import { gitFileContentStateSchema } from '#runtimes/git/api/checkout/states/content';
-import { checkoutHeadStateSchema } from '#runtimes/git/api/checkout/states/head';
-import { checkoutStatusStateSchema } from '#runtimes/git/api/checkout/states/status';
+} from '#runtimes/git/api/errors';
+import { transferProgressSchema } from '#runtimes/git/api/schemas';
+import { checkoutSelectorSchema } from '#runtimes/git/api/selectors';
 import { gitFileContentKeySchema } from './file-content-key';
 import {
   blameResultSchema,
@@ -80,7 +80,7 @@ export const gitCheckoutContract = defineContract({
 
   getChangedFiles: fallible({
     input: checkoutSelectorSchema.extend({ target: normalizedDiffTargetSchema }),
-    data: z.array(gitChangeSchema),
+    data: z.object({ files: z.array(gitChangeSchema) }),
     error: gitCommandErrorSchema,
   }),
   getFile: fallible({
@@ -100,12 +100,12 @@ export const gitCheckoutContract = defineContract({
   }),
   getCommit: fallible({
     input: checkoutSelectorSchema.extend({ hash: z.string() }),
-    data: commitSchema.nullable(),
+    data: z.object({ commit: commitSchema.nullable() }),
     error: gitCommandErrorSchema,
   }),
   getCommitFiles: fallible({
     input: checkoutSelectorSchema.extend({ hash: z.string() }),
-    data: z.array(commitFileSchema),
+    data: z.object({ files: z.array(commitFileSchema) }),
     error: gitCommandErrorSchema,
   }),
   blame: fallible({

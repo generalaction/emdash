@@ -1,4 +1,4 @@
-export { gitContract, type GitContract } from '#runtimes/git/api/api/contract';
+export { gitContract, type GitContract } from '#runtimes/git/api/contract';
 export {
   boundGitFileContentKeySchema,
   gitFileContentKeySchema,
@@ -14,7 +14,7 @@ export {
   type GitPathSelector,
   type GitSelector,
   type RepositorySelector,
-} from '#runtimes/git/api/api/selectors';
+} from '#runtimes/git/api/selectors';
 export { gitCheckoutContract, type GitCheckoutContract } from '#runtimes/git/api/checkout/contract';
 export {
   MAX_STATUS_FILES,
@@ -40,16 +40,17 @@ export type {
   GitExecErrorCode,
   GitOperationError,
   GitResolutionError,
+  InspectPathError,
   PullError,
   PushError,
-} from '#runtimes/git/api/api/errors';
+} from '#runtimes/git/api/errors';
 export type {
   CloneRepositoryJobInput,
   EnsureRepositoryOptions,
   GitPathInspection,
   GitRepositoryInfo,
   GitTransferProgress,
-} from '#runtimes/git/api/api/schemas';
+} from '#runtimes/git/api/schemas';
 export type {
   BlameHunk,
   BlameResult,

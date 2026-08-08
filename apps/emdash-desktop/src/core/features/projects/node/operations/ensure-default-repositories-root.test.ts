@@ -13,7 +13,7 @@ function makeHarness(existingPaths: string[]) {
   const exists = vi.fn(
     async ({ path: target }: { path: Parameters<typeof nativePathFromHost>[0] }) => {
       const candidate = nativePathFromHost(target);
-      return ok(existing.has(candidate));
+      return ok({ exists: existing.has(candidate) });
     }
   );
   const createDirectory = vi.fn(

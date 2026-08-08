@@ -2,8 +2,8 @@ export {
   filesContract,
   MAX_FILE_UPLOAD_BYTES,
   type FilesContract,
-} from '#runtimes/files/api/api/contract';
-export { fsErrorSchema, type FsError } from '#runtimes/files/api/api/errors';
+} from '#runtimes/files/api/contract';
+export { fsErrorSchema, type FsError } from '#runtimes/files/api/errors';
 export {
   absolutePathKeySchema,
   contentKeySchema,
@@ -51,7 +51,7 @@ export {
   type WriteFileInput,
   type WriteContentInput,
   type WritePrecondition,
-} from '#runtimes/files/api/api/schemas';
+} from '#runtimes/files/api/schemas';
 export {
   contentSeamErrorCodeSchema,
   contentUnavailableCode,

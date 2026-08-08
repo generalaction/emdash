@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { portableRelativePathSchema } from '#primitives/path/api';
-import type { FsError } from '#runtimes/files/api/api/errors';
+import type { FsError } from '#runtimes/files/api/errors';
 
 /**
  * The closed seam-error enum (file-content-stack spec §4): every way file
