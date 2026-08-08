@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -9,7 +22,11 @@ import type {
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
 } from '@shared/core/automations/automation';
-import type { AutomationRun } from '@shared/core/automations/automation-run';
+import {
+  AUTOMATION_SKIP_CODES_EXCLUDED_FROM_NOTIFICATIONS,
+  TERMINAL_AUTOMATION_RUN_STATUSES,
+  type AutomationRun,
+} from '@shared/core/automations/automation-run';
 import {
   automationChangedChannel,
   automationRunChangedChannel,
@@ -31,6 +48,24 @@ import {
 import { markRunSkipped } from './run-transitions';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
+function notificationRunPredicate() {
+  return and(
+    inArray(automationRuns.status, [...TERMINAL_AUTOMATION_RUN_STATUSES]),
+    isNotNull(automationRuns.finishedAt)
+  );
+}
+
+function isExcludedFromUnreadNotifications() {
+  const excludedInList = AUTOMATION_SKIP_CODES_EXCLUDED_FROM_NOTIFICATIONS.map(
+    (code) => `'${code}'`
+  ).join(', ');
+  return or(
+    ne(automationRuns.status, 'skipped'),
+    isNull(sql`json_extract(${automationRuns.error}, '$.code')`),
+    sql`json_extract(${automationRuns.error}, '$.code') NOT IN (${sql.raw(excludedInList)})`
+  );
+}
+
 export type AutomationsServiceHooks = {
   'automation:created': (automation: Automation) => void | Promise<void>;
   'automation:updated': (automation: Automation) => void | Promise<void>;
@@ -49,12 +84,20 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   private readonly scheduler = new AutomationScheduler({
     onRunStep: (run) => {
       this._hooks.callHookBackground('run:step-completed', run);
-      events.emit(automationRunChangedChannel, { automationId: run.automationId, run });
+      this.emitRunChanged(run);
     },
     onScheduledRunChanged: (automationId) => {
       events.emit(automationChangedChannel, { automationId });
     },
   });
+
+  private emitRunChanged(run: AutomationRun): void {
+    events.emit(automationRunChangedChannel, { automationId: run.automationId, run });
+  }
+
+  private emitRunChanges(runs: AutomationRun[]): void {
+    for (const run of runs) this.emitRunChanged(run);
+  }
 
   on<K extends keyof AutomationsServiceHooks>(name: K, handler: AutomationsServiceHooks[K]) {
     return this._hooks.on(name, handler);
@@ -91,7 +134,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const automation = await updateSettingsInRepo(id, patch);
     if (!automation) throw new Error('automation_not_found');
     if (patch.triggerConfig !== undefined) {
-      await skipQueuedCronRuns(id, 'trigger_changed');
+      const skippedRuns = await skipQueuedCronRuns(id, 'trigger_changed');
+      this.emitRunChanges(skippedRuns);
       if (automation.enabled) {
         await ensureNextCronRun(automation);
         events.emit(automationChangedChannel, { automationId: id });
@@ -121,7 +165,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     if (enabled) {
       await ensureNextCronRun(automation);
     } else {
-      await skipQueuedCronRuns(id, 'disabled');
+      const skippedRuns = await skipQueuedCronRuns(id, 'disabled');
+      this.emitRunChanges(skippedRuns);
     }
     this._hooks.callHookBackground('automation:enabled', automation);
     events.emit(automationChangedChannel, { automationId: id });
@@ -149,6 +194,28 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       .limit(limit)
       .offset(offset);
     return rows.map(({ run, taskId }) => mapAutomationRunRowToAutomationRun(run, taskId));
+  }
+
+  async getNotificationsBaselineTimestamp(): Promise<number> {
+    const [row] = await db
+      .select({ ts: sql<number | null>`MAX(${automationRuns.finishedAt})` })
+      .from(automationRuns)
+      .where(notificationRunPredicate());
+    return row?.ts ?? Date.now();
+  }
+
+  async countUnreadFinishedRuns(sinceMs: number): Promise<number> {
+    const [result] = await db
+      .select({ count: count() })
+      .from(automationRuns)
+      .where(
+        and(
+          notificationRunPredicate(),
+          isExcludedFromUnreadNotifications(),
+          gt(automationRuns.finishedAt, sinceMs)
+        )
+      );
+    return result?.count ?? 0;
   }
 
   async countAutomationRunsByStatus(
@@ -238,6 +305,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     }
     this._hooks.callHookBackground('run:stopped', stopped);
     this._hooks.callHookBackground('run:step-completed', stopped);
+    this.emitRunChanged(stopped);
     return stopped;
   }
 
@@ -246,7 +314,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   }
 
   async deleteAutomation(id: string): Promise<void> {
-    await skipQueuedCronRuns(id, 'automation_deleted');
+    const skippedRuns = await skipQueuedCronRuns(id, 'automation_deleted');
+    this.emitRunChanges(skippedRuns);
     const deleted = await softDeleteAutomation(id);
     if (!deleted) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:deleted', id);

@@ -18,6 +18,22 @@ export type RunError = {
   message?: string; // supplementary context (branch name, timeout ms, etc.)
 };
 
+export const TERMINAL_AUTOMATION_RUN_STATUSES = ['done', 'failed', 'skipped'] as const;
+
+export type TerminalAutomationRunStatus = (typeof TERMINAL_AUTOMATION_RUN_STATUSES)[number];
+
+export function isTerminalAutomationRunStatus(
+  status: AutomationRunStatus
+): status is TerminalAutomationRunStatus {
+  return (TERMINAL_AUTOMATION_RUN_STATUSES as readonly AutomationRunStatus[]).includes(status);
+}
+
+/** Skip reasons that reflect user-initiated lifecycle changes, not actionable run outcomes. */
+export const AUTOMATION_SKIP_CODES_EXCLUDED_FROM_NOTIFICATIONS = [
+  'disabled',
+  'automation_deleted',
+] as const;
+
 export type AutomationRun = {
   id: string;
   automationId: string;
