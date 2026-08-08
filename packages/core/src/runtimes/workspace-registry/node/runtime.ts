@@ -73,7 +73,7 @@ import {
 import type { ScanRequest, ScanTarget } from './scan/scheduler';
 import type { WorkspaceScriptRunner } from './script-runner';
 import type { SessionCounter, SessionKiller } from './session-cleanup';
-import { executeUpdateWorktree } from './update-worktree';
+import { executeUpdateWorktree, type UpdateWorktreeExecutionResult } from './update-worktree';
 
 export type WorkspaceRegistryRuntimeOptions = {
   handle: StoreHandle<WorkspaceRegistryDb>;
@@ -403,6 +403,95 @@ export class WorkspaceRegistryRuntime {
         releaseRepository?.();
         releaseWorktree();
         this.settleScan({ kind: 'workspace', id: input.id, mode: 'full' });
+      }
+    });
+  }
+
+  /**
+   * One autonomous ref-follow pass (spec: pr-workspace-model staleness, ref follow):
+   * every follow-flagged, present worktree record fast-forwards to its durably
+   * recorded fetch instruction — the ONE caller that reads `creation.gitSetup`, by
+   * design (the manual verb takes instruction-as-input so pre-model workspaces work).
+   * Every skip is a silent non-error retried on a later pass: dirty, active sessions,
+   * diverged, and fetch failures (a closed PR's `refs/pull/N/head` may simply be
+   * gone) all degrade to observation — nothing durable is written, no notice raised.
+   * Sequential by design: a slow-cadence background pass never needs parallel
+   * fetches, and one worktree at a time keeps the background-tier load trivial. A
+   * registry with no flagged records makes this a cheap no-op — no git subprocess is
+   * ever spawned. Returns pass counts for logging and structural test assertions.
+   */
+  async runRefFollowPass(): Promise<{ eligible: number; updated: number }> {
+    const candidates = this.store
+      .list()
+      .filter(
+        (record) =>
+          record.kind === 'worktree' &&
+          record.observedStatus === 'present' &&
+          record.creation?.gitSetup?.followRef === true &&
+          record.creation.gitSetup.fetchBranch !== undefined
+      );
+    let updated = 0;
+    for (const candidate of candidates) {
+      if (this.disposed) break;
+      if (await this.followWorktree(candidate.id)) updated += 1;
+    }
+    if (updated > 0) {
+      this.logger.info?.(`ref-follow pass moved ${updated} of ${candidates.length} checkouts`);
+    }
+    return { eligible: candidates.length, updated };
+  }
+
+  /**
+   * One worktree's follow attempt, invoked exactly like the manual verb: the same
+   * per-workspace claim (never two concurrent updates of one worktree), the same
+   * watcher muting, the same shared executor (guards + ff-only under the writer
+   * lock), the same trailing deliberate scan — a moved checkout surfaces only through
+   * the normal observation path. Runs at the 'background' budget tier so follow work
+   * never starves probes or creation. True only when the checkout actually moved.
+   */
+  private followWorktree(id: string): Promise<boolean> {
+    return this.workspaceClaims.runExclusive(id, async () => {
+      // Re-validated under the claim: the record may have changed since enumeration.
+      const record = this.store.get(id);
+      const instruction =
+        record?.creation?.gitSetup?.followRef === true
+          ? record.creation.gitSetup.fetchBranch
+          : undefined;
+      if (
+        !record ||
+        record.kind !== 'worktree' ||
+        record.observedStatus !== 'present' ||
+        instruction === undefined
+      ) {
+        return false;
+      }
+      const parent = record.parentId === null ? null : this.store.get(record.parentId);
+      const releaseWorktree = this.muteScans(id);
+      const releaseRepository = parent ? this.muteScans(parent.id) : undefined;
+      try {
+        const result = await executeUpdateWorktree({
+          repositoryPath: parent?.path ?? record.path,
+          worktreePath: record.path,
+          remote: instruction.remote,
+          sourceRef: instruction.sourceRef,
+          tier: 'background',
+          isActive: async () => (await this.countSessions(record.path)) > 0,
+        });
+        if (result.status === 'updated') {
+          this.logger.info?.(
+            `ref-follow fast-forwarded '${id}' to ${instruction.sourceRef} (${result.toOid})`
+          );
+          return true;
+        }
+        if (result.status !== 'up-to-date') {
+          // Forensic breadcrumb only — skips are ordinary, the next pass retries.
+          this.logger.debug?.(`ref-follow skipped '${id}': ${describeSkip(result)}`);
+        }
+        return false;
+      } finally {
+        releaseRepository?.();
+        releaseWorktree();
+        this.settleScan({ kind: 'workspace', id, mode: 'full' });
       }
     });
   }
@@ -1626,6 +1715,20 @@ function toStepState(outcome: {
   if (outcome.status === 'failed') return { status: 'failed', message: outcome.message };
   if (outcome.status === 'skipped') return { status: 'skipped', message: outcome.reason };
   return { status: 'succeeded' };
+}
+
+/** The skip's one-line forensic description for the follow pass's debug log. */
+function describeSkip(result: UpdateWorktreeExecutionResult): string {
+  switch (result.status) {
+    case 'refused':
+      return result.reason;
+    case 'diverged':
+      return 'diverged';
+    case 'failed':
+      return `${result.stage} failed: ${result.message}`;
+    default:
+      return result.status;
+  }
 }
 
 /**

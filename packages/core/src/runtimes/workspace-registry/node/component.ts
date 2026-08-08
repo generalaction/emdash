@@ -7,6 +7,7 @@ import { hostRuntimesDefinitions } from '#services/runtime-broker/api';
 import { workspaceRegistryContract } from '../api';
 import { createWorkspaceRegistryController } from './api/controller';
 import { workspaceRegistryStore } from './persistence/store';
+import { RefFollowScheduler } from './ref-follow';
 import { WorkspaceRegistryRuntime } from './runtime';
 import { WorkspaceScanScheduler } from './scan/scheduler';
 import { createSessionCounter, createSessionKiller } from './session-cleanup';
@@ -23,6 +24,12 @@ export const workspaceRegistryComponentConfigSchema = z.object({
       debounceMs: z.number().positive().optional(),
       activeDebounceMs: z.number().positive().optional(),
       pollIntervalMs: z.number().positive().optional(),
+    })
+    .optional(),
+  refFollow: z
+    .object({
+      intervalMs: z.number().positive().optional(),
+      jitterMs: z.number().nonnegative().optional(),
     })
     .optional(),
 });
@@ -79,6 +86,16 @@ export const workspaceRegistryComponent = defineWireComponent({
     runtime.setScanMuter((id) => scheduler.mute(id));
     scheduler.start();
     scope.add(() => scheduler.dispose());
+
+    // The autonomous ref-follow loop (spec: pr-workspace-model staleness): slow,
+    // jittered, decoupled from the scan — it fetches; the scan never does.
+    const refFollow = new RefFollowScheduler({
+      runPass: () => runtime.runRefFollowPass(),
+      logger,
+      ...config.refFollow,
+    });
+    refFollow.start();
+    scope.add(() => refFollow.dispose());
 
     // Boot reconciliation: catch up with whatever changed while the daemon was down.
     void runtime.scanHost().catch((error) => {

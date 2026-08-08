@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { BoundExec } from '#services/exec/api';
-import { retryTransientLock, worktreeWriteLocks } from './git-schedule';
+import { retryTransientLock, worktreeWriteLocks, type GitWorkTier } from './git-schedule';
 import { createRegistryGitExec } from './scan/observe-git';
 
 export type UpdateWorktreeExecution = {
@@ -9,6 +9,12 @@ export type UpdateWorktreeExecution = {
   worktreePath: string;
   remote: string;
   sourceRef: string;
+  /**
+   * Host git budget tier for the fetch/merge subprocesses. Defaults to 'activation'
+   * (a user-initiated update never waits behind background work); the autonomous
+   * ref-follow pass runs at 'background' so it never starves probes or creation.
+   */
+  tier?: Extract<GitWorkTier, 'activation' | 'background'>;
   /**
    * True when the workspace must not move (live sessions under the worktree path).
    * Consulted under the writer lock, immediately before any git work.
@@ -48,9 +54,8 @@ export type UpdateWorktreeExecutionResult =
 export async function executeUpdateWorktree(
   execution: UpdateWorktreeExecution
 ): Promise<UpdateWorktreeExecutionResult> {
-  // Interactive tier: a user-initiated update never waits behind background work.
   const exec = createRegistryGitExec(execution.worktreePath, {
-    tier: 'activation',
+    tier: execution.tier ?? 'activation',
     repository: execution.repositoryPath,
   });
   return worktreeWriteLocks.withWriter(execution.worktreePath, async () => {
