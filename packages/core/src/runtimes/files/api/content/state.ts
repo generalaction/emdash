@@ -1,6 +1,40 @@
 import { z } from 'zod';
 import { portableRelativePathSchema } from '#primitives/path/api';
-import { fsErrorSchema } from '#runtimes/files/api/api/errors';
+import type { FsError } from '#runtimes/files/api/api/errors';
+
+/**
+ * The closed seam-error enum (file-content-stack spec §4): every way file
+ * content can fail to be served, as consumers see it. `too-large` and
+ * `binary` are distinct content states below; the `unavailable` state
+ * carries the remaining codes.
+ */
+export const contentSeamErrorCodeSchema = z.enum([
+  'not-found',
+  'no-permissions',
+  'too-large',
+  'binary',
+  'unavailable',
+]);
+export type ContentSeamErrorCode = z.infer<typeof contentSeamErrorCodeSchema>;
+
+/** The seam-error codes the `unavailable` content state can carry. */
+export const contentUnavailableCodeSchema = contentSeamErrorCodeSchema.exclude([
+  'too-large',
+  'binary',
+]);
+export type ContentUnavailableCode = z.infer<typeof contentUnavailableCodeSchema>;
+
+/** Maps a filesystem error onto the closed seam-error enum. */
+export function contentUnavailableCode(error: FsError): ContentUnavailableCode {
+  switch (error.type) {
+    case 'not-found':
+      return 'not-found';
+    case 'permission-denied':
+      return 'no-permissions';
+    default:
+      return 'unavailable';
+  }
+}
 
 const fileContentBaseSchema = z.object({
   path: portableRelativePathSchema,
@@ -29,7 +63,7 @@ export const fileContentModelSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('unavailable'),
     path: portableRelativePathSchema,
-    error: fsErrorSchema,
+    code: contentUnavailableCodeSchema,
   }),
 ]);
 

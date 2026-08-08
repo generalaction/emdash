@@ -376,9 +376,7 @@ export class MonacoModelRegistry {
     if (content.kind === 'unavailable') {
       await contentScope.dispose();
       this.modelStatus.set(diskUri, 'error');
-      throw new Error(
-        `registerModel(disk): content unavailable for ${filePath}: ${JSON.stringify(content.error)}`
-      );
+      throw new Error(`registerModel(disk): content unavailable for ${filePath}: ${content.code}`);
     }
     if (content.kind === 'binary') {
       await contentScope.dispose();

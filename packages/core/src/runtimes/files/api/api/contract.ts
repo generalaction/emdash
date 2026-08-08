@@ -121,6 +121,12 @@ export const filesContract = defineContract({
       },
     }),
   }),
+  // Live file content keyed by a bare host-absolute path (spec §3.4). Every
+  // session is per-file watched by watching the file's parent directory, so
+  // files outside any registered root — external files — get live updates
+  // too. Unreadable content reports the closed seam-error enum; `write` is
+  // the etag-preconditioned editor write path (a stale etag rejects with
+  // `etag-mismatch`).
   content: liveModel({
     key: contentKeySchema,
     states: {

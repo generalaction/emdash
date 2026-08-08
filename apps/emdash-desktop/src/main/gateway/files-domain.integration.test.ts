@@ -86,6 +86,31 @@ describe('files wire controller against a live files runtime', () => {
     }
   });
 
+  it('reports a missing file through the closed seam-error enum and recovers on create', async () => {
+    const { dir, watcher, controller } = await makeStack();
+    const filePath = path.join(dir, 'not-yet.txt');
+    const key = { uri: localUri(filePath), source: 'disk' as const };
+    const topic = encodeTopic(filesWireContract.content.states.content.id, key);
+
+    const lease = controller.acquireLive(topic);
+    const source = await lease?.ready();
+    if (!source) throw new Error('Expected a live content source');
+    try {
+      await expect(source.snapshot()).resolves.toMatchObject({
+        data: { kind: 'unavailable', code: 'not-found' },
+      });
+
+      await writeFile(filePath, 'arrived\n');
+      watcher.emit(dir, [{ kind: 'create', path: filePath }]);
+      await waitFor(async () => {
+        const updated = (await source.snapshot()).data as { kind: string; content?: string };
+        return updated.kind === 'text' && updated.content === 'arrived\n';
+      });
+    } finally {
+      await lease?.release();
+    }
+  });
+
   it('serves the tree live model keyed by root ResourceUri and exclusions', async () => {
     const { dir, controller } = await makeStack();
     await mkdir(path.join(dir, 'src'));
@@ -259,7 +284,7 @@ describe('files wire controller serving git-ref content', () => {
 
     await expect(readGitContent(controller, filePath, { kind: 'head' })).resolves.toMatchObject({
       kind: 'unavailable',
-      error: { type: 'invalid-path' },
+      code: 'unavailable',
     });
   });
 
@@ -273,14 +298,14 @@ describe('files wire controller serving git-ref content', () => {
 
     await expect(readGitContent(controller, untracked, { kind: 'head' })).resolves.toMatchObject({
       kind: 'unavailable',
-      error: { type: 'not-found' },
+      code: 'not-found',
     });
     await expect(
       readGitContent(controller, path.join(repo, 'committed.txt'), {
         kind: 'branch',
         branch: { type: 'local', branch: 'no-such-branch' },
       })
-    ).resolves.toMatchObject({ kind: 'unavailable', error: { type: 'not-found' } });
+    ).resolves.toMatchObject({ kind: 'unavailable', code: 'not-found' });
   });
 
   it('classifies the unstaged ref as unavailable: the working tree is the disk source', async () => {
@@ -291,7 +316,7 @@ describe('files wire controller serving git-ref content', () => {
     await git(repo, 'commit', '-m', 'commit');
 
     await expect(readGitContent(controller, filePath, { kind: 'unstaged' })).resolves.toMatchObject(
-      { kind: 'unavailable', error: { type: 'invalid-path' } }
+      { kind: 'unavailable', code: 'unavailable' }
     );
   });
 });

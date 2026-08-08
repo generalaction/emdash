@@ -16,12 +16,13 @@ describe('files schemas', () => {
     expect(() => fileStatSchema.parse({ ...value, mtimeMs: new Date() })).toThrow();
   });
 
-  it('round-trips unavailable content state', () => {
+  it('round-trips unavailable content state with a closed seam-error code', () => {
     const value = {
       kind: 'unavailable' as const,
       path: 'deleted.txt',
-      error: { type: 'not-found' as const, path: 'deleted.txt' },
+      code: 'not-found' as const,
     };
     expect(fileContentModelSchema.parse(JSON.parse(JSON.stringify(value)))).toEqual(value);
+    expect(() => fileContentModelSchema.parse({ ...value, code: 'something-else' })).toThrow();
   });
 });

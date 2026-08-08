@@ -1,7 +1,7 @@
-import { ok, toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
+import { toPendingLease, type Lease, type PendingLease, type Result } from '@emdash/shared';
 import { createResourceCache, type ResourceCache } from '@emdash/shared/concurrency';
 import type { PortableRelativePath } from '#primitives/path/api';
-import type { ContentKey, FileKey, FsError, RootKey, TreeKey } from '#runtimes/files/api';
+import type { AbsolutePathKey, ContentKey, FsError, RootKey, TreeKey } from '#runtimes/files/api';
 import { FsException } from '#runtimes/files/node/api/errors';
 import { ContentResource } from '#runtimes/files/node/content/content-resource';
 import {
@@ -16,7 +16,6 @@ import {
   resolveAbsoluteFileLocation,
   resolveRootIdentity,
   treeIdentity,
-  type FileLocation,
   type RootIdentity,
   type TreeIdentity,
   type ContentIdentity,
@@ -114,8 +113,14 @@ export class FilesAllocationGraph {
     );
   }
 
+  /**
+   * Content sessions are keyed by a bare host-absolute path and always
+   * per-file watched: the key resolves to the file's canonical parent
+   * directory as a children-scoped root, whose watch serves the session's
+   * live updates — whether or not the file sits under any registered root.
+   */
   acquireContent(key: ContentKey): PendingLease<ContentResource> {
-    return this.acquireResolved(this.resolveFileLocation(key), ({ root, relative }) =>
+    return this.acquireResolved(resolveAbsoluteFileLocation(key.path), ({ root, relative }) =>
       this.contents.acquire(contentIdentity(root, relative))
     );
   }
@@ -136,15 +141,15 @@ export class FilesAllocationGraph {
   }
 
   /**
-   * Runs an operation against the root resource and root-relative path a file
-   * key resolves to — the registered root for root-scoped keys, the file's
-   * parent directory for bare absolute paths. One code path for both modes.
+   * Runs an operation against the operational root resource and root-relative
+   * path an absolute file key resolves to: the file's canonical parent
+   * directory plus the file name.
    */
   async useFileLocation<T>(
-    key: FileKey,
+    key: AbsolutePathKey,
     run: (root: RootResource, relative: PortableRelativePath) => Promise<T>
   ): Promise<T> {
-    const location = await this.resolveFileLocation(key);
+    const location = await resolveAbsoluteFileLocation(key.path);
     if (!location.success) throw new FsException(location.error);
     this.assertActive();
     const lease = this.roots.acquire(location.data.root);
@@ -194,12 +199,6 @@ export class FilesAllocationGraph {
     await this.contents.dispose();
     await this.trees.dispose();
     await this.roots.dispose();
-  }
-
-  private async resolveFileLocation(key: FileKey): Promise<Result<FileLocation, FsError>> {
-    if ('path' in key) return resolveAbsoluteFileLocation(key.path);
-    const root = await resolveRootIdentity(key.root);
-    return root.success ? ok({ root: root.data, relative: key.relative }) : root;
   }
 
   private acquireResolved<Resolved, Resource>(

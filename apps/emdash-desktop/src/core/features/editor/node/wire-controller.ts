@@ -105,6 +105,11 @@ function createTreeModelProvider(
   };
 }
 
+/**
+ * The runtime content model is keyed by host-absolute paths (spec §3.4), so
+ * the workspace-relative key resolves to an absolute path at this seam — the
+ * same resolution the `fs` verbs use.
+ */
 function createContentModelProvider(
   options: CreateEditorWireControllerOptions
 ): LiveModelProvider<typeof editorContract.content> {
@@ -115,20 +120,13 @@ function createContentModelProvider(
     resolveState: (key, name) =>
       resolveRuntimeSource(options, key.workspaceId, (client, identity) =>
         client.files.content
-          .state(
-            {
-              root: hostPathFromNative(identity.path),
-              relative: key.relative,
-            },
-            name
-          )
+          .state({ path: workspaceAbsolutePath(identity, key.relative) }, name)
           .asLiveSource()
       ),
     async runMutation(name, envelope) {
       return withWorkspaceRuntime(options, envelope.key.workspaceId, (client, identity) =>
         forwardModelMutation(client.files.content, editorContract.content, name, envelope, {
-          root: hostPathFromNative(identity.path),
-          relative: envelope.key.relative,
+          path: workspaceAbsolutePath(identity, envelope.key.relative),
         })
       ) as ReturnType<LiveModelProvider<typeof contract>['runMutation']>;
     },

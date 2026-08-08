@@ -13,7 +13,7 @@ import {
   type PortableRelativePath,
   type ResourceUri,
 } from '@emdash/core/primitives/path/api';
-import type { FileContentModel, FsError } from '@emdash/core/runtimes/files/api';
+import type { ContentUnavailableCode, FileContentModel } from '@emdash/core/runtimes/files/api';
 import {
   gitContract,
   type GitFileContentState,
@@ -218,50 +218,23 @@ async function resolveGitContentState(
   const client = runtime.data;
   const fallbackPath = bestEffortRelativePath(fileRef.path);
 
+  // Requests that never reach the git machinery — an unusable ref, a path
+  // outside any checkout, an inspection failure — all classify onto the
+  // closed seam-error enum as `unavailable`.
   const source = toGitFileSource(key.source.ref);
-  if (!source.success) {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: source.error,
-    });
-  }
+  if (!source.success) return contentErrorState(fallbackPath, 'unavailable');
 
   const parent = absoluteDirname(fileRef.path);
-  if (!parent) {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: 'A filesystem root cannot be read as a file',
-    });
-  }
+  if (!parent) return contentErrorState(fallbackPath, 'unavailable');
 
   // The parent directory is inspected instead of the file itself so a file
   // deleted from the working tree still resolves its checkout (spec §6).
   const inspection = await client.git.inspectPath({ path: parent });
-  if (inspection.kind === 'inspect-failed') {
-    return contentErrorState(fallbackPath, {
-      type: 'io',
-      path: formatAbsolute(fileRef.path),
-      message: inspection.message,
-    });
-  }
-  if (inspection.kind === 'not-repository') {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: 'Path is not inside any git checkout',
-    });
-  }
+  if (inspection.kind === 'inspect-failed') return contentErrorState(fallbackPath, 'unavailable');
+  if (inspection.kind === 'not-repository') return contentErrorState(fallbackPath, 'unavailable');
 
   const relative = relativizeHostFileRef(hostFileRef(fileRef.host, inspection.rootPath), fileRef);
-  if (!relative.success) {
-    return contentErrorState(fallbackPath, {
-      type: 'invalid-path',
-      path: formatAbsolute(fileRef.path),
-      message: relative.error.message,
-    });
-  }
+  if (!relative.success) return contentErrorState(fallbackPath, 'unavailable');
   const checkoutRelativePath = relative.data;
 
   const contentModel = remote(gitContract.checkout.content, client.git.checkout.content, {
@@ -321,21 +294,17 @@ function toFileContentModel(
     case 'missing':
       // The ref resolves but does not contain the path, or the ref itself is
       // unknown — both classify as not-found at this seam.
-      return { kind: 'unavailable', path, error: { type: 'not-found', path } };
+      return { kind: 'unavailable', path, code: 'not-found' };
     case 'unavailable':
-      return {
-        kind: 'unavailable',
-        path,
-        error: { type: 'io', path, message: state.error.message },
-      };
+      return { kind: 'unavailable', path, code: 'unavailable' };
   }
 }
 
 function contentErrorState(
   path: PortableRelativePath,
-  error: FsError
+  code: ContentUnavailableCode
 ): Readable<FileContentModel | undefined> {
-  return cell<FileContentModel | undefined>({ kind: 'unavailable', path, error });
+  return cell<FileContentModel | undefined>({ kind: 'unavailable', path, code });
 }
 
 /**

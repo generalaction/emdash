@@ -12,7 +12,6 @@ export {
   deleteInputSchema,
   exclusionPatternsSchema,
   fileEnumerationOptionsSchema,
-  fileKeySchema,
   fileStatSchema,
   fromToKeySchema,
   pathBatchSchema,
@@ -36,7 +35,6 @@ export {
   type DeleteInput,
   type ExclusionPatterns,
   type FileEnumerationOptions,
-  type FileKey,
   type FileStat,
   type FromToKey,
   type PathBatch,
@@ -54,7 +52,15 @@ export {
   type WriteContentInput,
   type WritePrecondition,
 } from '#runtimes/files/api/api/schemas';
-export { fileContentModelSchema, type FileContentModel } from '#runtimes/files/api/content/state';
+export {
+  contentSeamErrorCodeSchema,
+  contentUnavailableCode,
+  contentUnavailableCodeSchema,
+  fileContentModelSchema,
+  type ContentSeamErrorCode,
+  type ContentUnavailableCode,
+  type FileContentModel,
+} from '#runtimes/files/api/content/state';
 export { copyNameForConflict } from '#runtimes/files/api/tree/copy-name';
 export {
   fileEntryKindSchema,

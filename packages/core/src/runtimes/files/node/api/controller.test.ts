@@ -13,7 +13,6 @@ import {
   type LiveUpdate,
 } from '@emdash/wire/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { PortableRelativePath } from '#primitives/path/api';
 import { filesContract } from '#runtimes/files/api';
 import { FilesRuntime } from '#runtimes/files/node/files-runtime';
 import { relativePath, runtimeRoot } from '#runtimes/files/node/testing/paths';
@@ -74,7 +73,7 @@ describe('createFilesController', () => {
       detachTree = await treeState.attach((update) => treeUpdates.push(update));
       await expect(
         connection.api.content
-          .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'src/foo/bar.ts')) }, 'content')
           .snapshot()
       ).resolves.toMatchObject({ data: { kind: 'text', content: 'before\n' } });
 
@@ -107,23 +106,24 @@ describe('createFilesController', () => {
       ).toBe(true);
       await expect(
         connection.api.content
-          .state({ root: rootRef, relative: relativePath('src/foo/bar.ts') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'src/foo/bar.ts')) }, 'content')
           .snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'unavailable', error: { type: 'not-found' } } });
+      ).resolves.toMatchObject({ data: { kind: 'unavailable', code: 'not-found' } });
 
+      // Content sessions watch the file's parent directory, so external edits
+      // are observed there rather than through the tree root's watch.
       await writeFile(path.join(root, 'src/foo/baar.ts'), 'external\n');
-      watcher.emit(root, [{ kind: 'update', path: path.join(root, 'src/foo/baar.ts') }]);
+      watcher.emit(path.join(root, 'src/foo'), [
+        { kind: 'update', path: path.join(root, 'src/foo/baar.ts') },
+      ]);
       await waitFor(async () => {
         const snapshot = await connection.api.content
-          .state({ root: rootRef, relative: relativePath('src/foo/baar.ts') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'src/foo/baar.ts')) }, 'content')
           .snapshot();
         return snapshot.data.kind === 'text' && snapshot.data.content === 'external\n';
       });
 
-      const contentKey = {
-        root: rootRef,
-        relative: relativePath('src/foo/baar.ts'),
-      };
+      const contentKey = { path: runtimeRoot(path.join(root, 'src/foo/baar.ts')) };
       const beforeSave = await connection.api.content.state(contentKey, 'content').snapshot();
       expect(beforeSave.data.kind).toBe('text');
       if (beforeSave.data.kind !== 'text') throw new Error('Expected text content');
@@ -143,7 +143,9 @@ describe('createFilesController', () => {
       });
 
       await writeFile(path.join(root, 'src/foo/baar.ts'), 'newer external\n');
-      watcher.emit(root, [{ kind: 'update', path: path.join(root, 'src/foo/baar.ts') }]);
+      watcher.emit(path.join(root, 'src/foo'), [
+        { kind: 'update', path: path.join(root, 'src/foo/baar.ts') },
+      ]);
       await waitFor(async () => {
         const snapshot = await connection.api.content.state(contentKey, 'content').snapshot();
         return snapshot.data.kind === 'text' && snapshot.data.content === 'newer external\n';
@@ -158,19 +160,18 @@ describe('createFilesController', () => {
         })
       ).resolves.toMatchObject({ success: false, error: { type: 'etag-mismatch' } });
 
+      // A live not-found content session recovers when an fs mutation makes
+      // the file appear (ack-time republish, no watcher event involved).
       await mkdir(path.join(root, 'incoming/nested'), { recursive: true });
       await writeFile(path.join(root, 'incoming/nested/arrived.txt'), 'arrived');
-      const arrivedKey = {
-        root: rootRef,
-        relative: relativePath('arrived/nested/arrived.txt'),
-      };
+      const arrivedKey = { path: runtimeRoot(path.join(root, 'arrived.txt')) };
       await expect(
         connection.api.content.state(arrivedKey, 'content').snapshot()
-      ).resolves.toMatchObject({ data: { kind: 'unavailable' } });
+      ).resolves.toMatchObject({ data: { kind: 'unavailable', code: 'not-found' } });
       await expect(
         connection.api.fs.move({
-          from: runtimeRoot(path.join(root, 'incoming')),
-          to: runtimeRoot(path.join(root, 'arrived')),
+          from: runtimeRoot(path.join(root, 'incoming/nested/arrived.txt')),
+          to: runtimeRoot(path.join(root, 'arrived.txt')),
         })
       ).resolves.toMatchObject({ success: true });
       await waitFor(async () => {
@@ -351,7 +352,6 @@ describe('createFilesController', () => {
 
   it('round-trips JSON-safe state and raw downloads through stream transport', async () => {
     const root = await makeRoot();
-    const rootRef = runtimeRoot(root);
     await writeFile(path.join(root, 'stream.txt'), 'stream\r\n');
     const runtime = new FilesRuntime({ watcher: new ManualWatcher() });
     const connection = makeStreamClient(runtime);
@@ -371,7 +371,7 @@ describe('createFilesController', () => {
 
       await expect(
         connection.api.content
-          .state({ root: rootRef, relative: relativePath('stream.txt') }, 'content')
+          .state({ path: runtimeRoot(path.join(root, 'stream.txt')) }, 'content')
           .snapshot()
       ).resolves.toMatchObject({ data: { kind: 'text', eol: 'crlf', content: 'stream\r\n' } });
 

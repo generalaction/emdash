@@ -170,7 +170,7 @@ describe('files runtime absolute-path content', () => {
       watcher.emit(dir, [{ kind: 'delete', path: filePath }]);
       await waitFor(async () => {
         const snapshot = await state.snapshot();
-        return snapshot.data.kind === 'unavailable' && snapshot.data.error.type === 'not-found';
+        return snapshot.data.kind === 'unavailable' && snapshot.data.code === 'not-found';
       });
 
       await writeFile(filePath, 'three\n');
@@ -218,7 +218,7 @@ describe('files runtime absolute-path content', () => {
           .state({ path: runtimeRoot(path.join(dir, 'absent.txt')) }, 'content')
           .snapshot()
       ).resolves.toMatchObject({
-        data: { kind: 'unavailable', error: { type: 'not-found' } },
+        data: { kind: 'unavailable', code: 'not-found' },
       });
 
       if (process.platform !== 'win32' && process.getuid?.() !== 0) {
@@ -228,7 +228,7 @@ describe('files runtime absolute-path content', () => {
             .state({ path: runtimeRoot(path.join(dir, 'locked.txt')) }, 'content')
             .snapshot()
         ).resolves.toMatchObject({
-          data: { kind: 'unavailable', error: { type: 'permission-denied' } },
+          data: { kind: 'unavailable', code: 'no-permissions' },
         });
         await chmod(path.join(dir, 'locked.txt'), 0o644);
       }

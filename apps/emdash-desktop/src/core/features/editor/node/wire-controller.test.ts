@@ -72,11 +72,10 @@ describe('createEditorWireController', () => {
 
     const lease = controller.acquireLive(topic);
     await expect(lease?.ready()).resolves.toBe(source);
+    // The runtime content model is keyed by host-absolute paths; the
+    // workspace-relative key resolves at this seam.
     expect(state).toHaveBeenCalledWith(
-      {
-        root: hostPathFromNative(identity.path),
-        relative: key.relative,
-      },
+      { path: hostPathFromNative(`${identity.path}/README.md`) },
       'content'
     );
 

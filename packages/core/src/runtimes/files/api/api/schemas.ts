@@ -3,10 +3,10 @@ import { hostAbsolutePathSchema, portableRelativePathSchema } from '#primitives/
 
 export const rootKeySchema = z.object({ root: hostAbsolutePathSchema });
 export const pathKeySchema = rootKeySchema.extend({ relative: portableRelativePathSchema });
-// `fs` endpoints are keyed by a bare host-absolute path (spec §3.4); the content
-// live model still accepts both operational modes until its own re-keying ticket.
+// `fs` endpoints and the `content` live model are keyed by a bare
+// host-absolute path (spec §3.4); workspace/root resolution happens at the
+// desktop edge.
 export const absolutePathKeySchema = z.object({ path: hostAbsolutePathSchema });
-export const fileKeySchema = z.union([pathKeySchema, absolutePathKeySchema]);
 // Two-endpoint mutations (`rename`/`move`/`copy`) address source and target as
 // absolute paths; rename and move stay distinct verbs taking a target identity.
 export const fromToKeySchema = z.object({
@@ -18,7 +18,7 @@ export const treeKeySchema = rootKeySchema.extend({
   sessionId: z.string(),
   exclusions: exclusionPatternsSchema,
 });
-export const contentKeySchema = fileKeySchema;
+export const contentKeySchema = absolutePathKeySchema;
 
 export const fileStatSchema = z.object({
   path: portableRelativePathSchema,
@@ -93,7 +93,6 @@ export const writeFileInputSchema = absolutePathKeySchema.extend({
 export type RootKey = z.infer<typeof rootKeySchema>;
 export type PathKey = z.infer<typeof pathKeySchema>;
 export type AbsolutePathKey = z.infer<typeof absolutePathKeySchema>;
-export type FileKey = z.infer<typeof fileKeySchema>;
 export type FromToKey = z.infer<typeof fromToKeySchema>;
 export type ReadFileKey = z.infer<typeof readFileKeySchema>;
 export type ExclusionPatterns = z.infer<typeof exclusionPatternsSchema>;
