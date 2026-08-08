@@ -422,6 +422,29 @@ describe('OpenFileStore', () => {
       expect(lease2.entry.status).toEqual({ kind: 'error', code: 'too-large' });
     });
 
+    it('recovers a never-existed file to ready when it is created while interest is held', async () => {
+      const h = start();
+      const path = '/repo/docs/spec-to-be-written.md';
+      const ref = hostFileRefFromNativePath(path);
+      const bufferLease = h.store.acquire(ref, BUFFER);
+      const diskLease = h.store.acquire(ref, DISK);
+
+      h.publish(h.diskKey(path), unavailableContent({ type: 'not-found', path: 'file.ts' }));
+      await waitFor(() => bufferLease.entry.status.kind === 'error');
+      expect(bufferLease.entry.status).toEqual({ kind: 'error', code: 'not-found' });
+
+      // A chat link to a file the agent is about to write: when the file is
+      // created, the live watch pushes content and the not-found placeholder
+      // auto-recovers without any user action.
+      h.publish(h.diskKey(path), textContent('# Spec', 'e1'));
+      await waitFor(() => bufferLease.entry.status.kind === 'ready');
+      await waitFor(() => bufferLease.entry.handleFor(BUFFER) !== undefined);
+      expect(bufferHandle(bufferLease.entry).getText()).toBe('# Spec');
+
+      bufferLease.release();
+      diskLease.release();
+    });
+
     it('hits the first-load deadline as error(unavailable) and recovers on late content', async () => {
       const h = start();
       const ref = hostFileRefFromNativePath('/repo/slow.ts');

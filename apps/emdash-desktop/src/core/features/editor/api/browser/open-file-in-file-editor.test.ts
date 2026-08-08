@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hostFileRefFromNativePath } from '@core/primitives/desktop-runtime/api';
-import { openFileInAdjacentPane, openFileInTaskEditor } from './open-file-in-file-editor';
+import {
+  makeFileLinkHandlers,
+  openFileInAdjacentPane,
+  openFileInTaskEditor,
+} from './open-file-in-file-editor';
 
 const mocks = vi.hoisted(() => ({
-  getTaskComposition: vi.fn(),
   getTaskStore: vi.fn(),
   getWorkspace: vi.fn(),
   openFile: vi.fn(),
   openPath: vi.fn(),
-  transition: vi.fn(),
 }));
 
 vi.mock('@core/features/tasks/api/browser/task-state/task-selectors', () => ({
@@ -20,10 +22,6 @@ vi.mock('@core/features/workbench/api/browser/open-file', () => ({
   openFile: mocks.openFile,
 }));
 
-vi.mock('@core/features/workbench/api/browser/task-composition-selectors', () => ({
-  getTaskComposition: mocks.getTaskComposition,
-}));
-
 vi.mock('@core/features/workspaces/api/browser/stores/workspace-registry', () => ({
   workspaceRegistry: { get: mocks.getWorkspace },
 }));
@@ -32,11 +30,11 @@ vi.mock('@core/primitives/desktop-host/browser/host-client', () => ({
   getHostClient: async () => ({ openPath: mocks.openPath }),
 }));
 
-vi.mock('@core/primitives/telemetry/browser/focus-tracker', () => ({
-  focusTracker: { transition: mocks.transition },
-}));
+async function flushMicrotasks() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
-describe('workspace file opening', () => {
+describe('task file opening', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getTaskStore.mockReturnValue({ workspaceId: 'workspace-1' });
@@ -84,10 +82,66 @@ describe('workspace file opening', () => {
     );
   });
 
-  it('routes paths that escape the workspace to the external-file flow, not the seam', async () => {
+  it('opens absolute paths outside the workspace through the same seam, never the OS', async () => {
     await openFileInTaskEditor('project-1', 'task-1', '/outside/notes.txt');
 
+    expect(mocks.openFile).toHaveBeenCalledWith(
+      hostFileRefFromNativePath('/outside/notes.txt'),
+      expect.anything()
+    );
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it('resolves absolute paths outside a remote workspace onto the remote host', async () => {
+    mocks.getWorkspace.mockReturnValue({
+      workspaceId: 'workspace-1',
+      path: '/home/dev/repo',
+      sshConnectionId: 'ssh-1',
+    });
+
+    await openFileInTaskEditor('project-1', 'task-1', '/tmp/agent-notes.md');
+
+    expect(mocks.openFile).toHaveBeenCalledWith(
+      hostFileRefFromNativePath('/tmp/agent-notes.md', 'ssh-1'),
+      expect.anything()
+    );
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for spellings that cannot form a path', async () => {
+    await openFileInTaskEditor('project-1', 'task-1', 'src/\u0000bad.ts');
+
     expect(mocks.openFile).not.toHaveBeenCalled();
-    expect(mocks.openPath).toHaveBeenCalledWith({ path: '/outside/notes.txt' });
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+});
+
+describe('makeFileLinkHandlers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getTaskStore.mockReturnValue({ workspaceId: 'workspace-1' });
+    mocks.getWorkspace.mockReturnValue({ workspaceId: 'workspace-1', path: '/repo' });
+    mocks.openPath.mockResolvedValue({ success: true, data: undefined });
+  });
+
+  it('routes onOpenFile through the seam with no existence precheck', async () => {
+    const handlers = makeFileLinkHandlers('project-1', 'task-1');
+    handlers.onOpenFile('docs/spec-the-agent-mentioned.md');
+    await flushMicrotasks();
+
+    expect(mocks.openFile).toHaveBeenCalledWith(
+      hostFileRefFromNativePath('/repo/docs/spec-the-agent-mentioned.md'),
+      expect.anything()
+    );
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it('routes onOpenExternal to the explicit openWithOS verb', async () => {
+    const handlers = makeFileLinkHandlers('project-1', 'task-1');
+    handlers.onOpenExternal('/outside/report.pdf');
+    await flushMicrotasks();
+
+    expect(mocks.openPath).toHaveBeenCalledWith({ path: '/outside/report.pdf' });
+    expect(mocks.openFile).not.toHaveBeenCalled();
   });
 });

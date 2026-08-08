@@ -11,15 +11,17 @@ import {
   hostFileRefFromNativePath,
   hostPathFromNative,
   nativePathFromHost,
-  relativePathWithin,
 } from '@core/primitives/desktop-runtime/api';
+import { log } from '@core/primitives/logging/browser/logger';
 
 /**
- * Resolves a task-relative or absolute path against the task's workspace and
- * returns its canonical identity, or null when the path escapes the workspace
- * (which routes to the external-file path instead).
+ * Resolves an agent's path spelling — relative, subdirectory-relative, or
+ * absolute — against the task's workspace root into a canonical identity on
+ * the task's host. Paths outside the workspace are ordinary absolute
+ * HostFileRefs on the same host (spec §5/§10); null only for spellings that
+ * cannot form a path at all.
  */
-function resolveWorkspaceFileRef(
+function resolveTaskFileRef(
   workspacePath: string,
   sshConnectionId: string | undefined,
   filePath: string
@@ -27,7 +29,6 @@ function resolveWorkspaceFileRef(
   try {
     const root = hostPathFromNative(workspacePath);
     const resolved = absoluteRuntimePath(root, filePath);
-    relativePathWithin(root, resolved);
     return hostFileRefFromNativePath(nativePathFromHost(resolved), sshConnectionId);
   } catch {
     return null;
@@ -36,9 +37,10 @@ function resolveWorkspaceFileRef(
 
 /**
  * Thin adapter over the {@link openFile} seam for callers that carry task ids
- * and possibly-relative paths (chat links, command palette; ticket 11 reworks
- * chat links to carry HostFileRefs directly). No existence precheck: a missing
- * file opens as a tab showing the store's not-found placeholder.
+ * and possibly-relative paths (chat links, command palette). Pure resolution +
+ * open: no existence precheck — a link to a missing file opens a tab showing
+ * the store's not-found placeholder, which auto-recovers once the file is
+ * created.
  */
 export async function openFileInTaskEditor(
   projectId: string,
@@ -50,9 +52,9 @@ export async function openFileInTaskEditor(
   if (!provisioned) return;
   const workspace = workspaceRegistry.get(provisioned.workspaceId);
   if (!workspace) return;
-  const ref = resolveWorkspaceFileRef(workspace.path, workspace.sshConnectionId, filePath);
+  const ref = resolveTaskFileRef(workspace.path, workspace.sshConnectionId, filePath);
   if (ref === null) {
-    void openWithOS(filePath);
+    log.warn('[openFileInTaskEditor] Unresolvable file path:', filePath);
     return;
   }
 
@@ -77,6 +79,11 @@ export async function openFileInAdjacentPane(
   return openFileInTaskEditor(projectId, taskId, filePath, { target: 'right' });
 }
 
+/**
+ * Chat/terminal-slice sugar over the seam (spec §10): file links resolve at
+ * this edge and open through {@link openFile}; the explicit "open external"
+ * affordance hands off to the OS via {@link openWithOS}.
+ */
 export function makeFileLinkHandlers(
   projectId: string,
   taskId: string
