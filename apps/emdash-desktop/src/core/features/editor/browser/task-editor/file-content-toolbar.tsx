@@ -15,10 +15,15 @@ export const FileContentToolbar = observer(function FileContentToolbar({
   canToggle,
 }: FileContentToolbarProps) {
   const workspace = useWorkspace();
-  const displayPath = relativeToWorkspace(workspace.path, tab.path);
+  const displayPath = tab.inWorkspace
+    ? relativeToWorkspace(workspace.path, tab.path)
+    : tab.displayPath;
   return (
     <div className="flex h-[41px] shrink-0 items-center justify-between gap-2 border-b border-border bg-background-secondary-1 px-2">
-      <span className="min-w-0 flex-1 truncate text-xs text-foreground-passive" title={tab.path}>
+      <span
+        className="min-w-0 flex-1 truncate text-xs text-foreground-passive"
+        title={tab.displayPath}
+      >
         {displayPath}
       </span>
       {canToggle && (

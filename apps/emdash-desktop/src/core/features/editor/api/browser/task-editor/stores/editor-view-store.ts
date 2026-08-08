@@ -120,13 +120,9 @@ export class EditorViewStore {
     return allOpenFileResources(this.paneLayout);
   }
 
-  /** Union of all open non-external file paths across all panes (deduplicated). */
+  /** Union of all open file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    const seen = new Set<string>();
-    for (const r of this.openFileResources) {
-      if (!r.isExternal) seen.add(r.path);
-    }
-    return [...seen];
+    return [...new Set(this.openFileResources.map((r) => r.path))];
   }
 
   expandPath(path: string): void {
@@ -168,7 +164,7 @@ export class EditorViewStore {
       for (const tab of pane.resolvedTabs) {
         if (tab.kind !== 'file') continue;
         const resource = tab.resource as FileTabResource;
-        if (resource.isExternal || !isPathAffected(resource.path, normalizedOld)) continue;
+        if (!isPathAffected(resource.path, normalizedOld)) continue;
         const rewritten = rewriteAffectedPath(resource.path, normalizedOld, normalizedNew);
         const ref = resource.ref;
         if (ref && !rekeyed.has(resource.path)) {
@@ -177,7 +173,7 @@ export class EditorViewStore {
         }
         retargets.push(() => {
           pane.retargetEntry(tab.tabId, {
-            state: { path: rewritten, isExternal: false } satisfies FilePayload,
+            state: { path: rewritten } satisfies FilePayload,
           });
         });
       }

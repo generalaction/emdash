@@ -30,7 +30,6 @@ export type FileViewMode = 'source' | 'preview';
 
 export interface FilePayload {
   path: string;
-  isExternal?: boolean;
 }
 
 export type FileSelection = Readonly<{
@@ -52,32 +51,37 @@ const LOADING: ContentStatus = { kind: 'loading' };
 const UNAVAILABLE: ContentStatus = { kind: 'error', code: 'unavailable' };
 
 export interface FileTabResourceOptions {
-  /** Canonical identity; null for external files or unparseable paths. */
+  /** Canonical identity; null only for unparseable paths. */
   ref?: HostFileRef | null;
   handle?: TabHandle;
   /** Test seam; production tabs use the app-global store. */
   store?: Pick<OpenFileStore, 'acquire'>;
+  /**
+   * Human-facing path for tooltips/toolbars. Files with no containing
+   * workspace root show an absolute — host-prefixed when remote — path
+   * (spec §5). Defaults to the tab path.
+   */
+  displayPath?: string;
+  /** False when the file lives outside the workspace root (no tree reveal). */
+  inWorkspace?: boolean;
 }
 
 /**
  * Domain resource for a single open file tab: identity (path + HostFileRef),
- * view mode, and selection requests. Text-backed workspace files hold
- * ref-counted buffer+disk leases on the app-global OpenFileStore for the
- * tab's lifetime; all content state (loading/ready/orphaned/error, dirty,
- * conflicted) is read from the store's entry, never duplicated here.
- * External files (outside any workspace) keep their own one-shot read state.
+ * view mode, and selection requests. Text-backed files — inside or outside
+ * any workspace root — hold ref-counted buffer+disk leases on the app-global
+ * OpenFileStore for the tab's lifetime; all content state
+ * (loading/ready/orphaned/error, dirty, conflicted) is read from the store's
+ * entry, never duplicated here.
  */
 export class FileTabResource implements TabResource {
   readonly path: string;
-  readonly isExternal: boolean;
+  readonly displayPath: string;
+  readonly inWorkspace: boolean;
   readonly fileKind: Exclude<ManagedFileKind, 'too-large'>;
   readonly ref: HostFileRef | null;
 
   viewMode: FileViewMode;
-  /** Loaded content for external files (workspace files read the store). */
-  content: string;
-  isLoading: boolean;
-  externalError: string | undefined;
   selectionRequest: FileSelectionRequest | null = null;
   /** Bumped on every buffer content change; touch before reading bufferText. */
   bufferVersion = 0;
@@ -93,28 +97,20 @@ export class FileTabResource implements TabResource {
   constructor(payload: FilePayload, options: FileTabResourceOptions = {}) {
     const fileKind = getFileKind(payload.path);
     this.path = payload.path;
-    this.isExternal = payload.isExternal ?? false;
+    this.displayPath = options.displayPath ?? payload.path;
+    this.inWorkspace = options.inWorkspace ?? true;
     this.fileKind = fileKind;
     this.ref = options.ref ?? null;
     this.viewMode = isPreviewableKind(fileKind) ? 'preview' : 'source';
-    this.content = '';
-    this.isLoading = this.isExternal;
-    this.externalError = undefined;
 
     this._store = options.store ?? openFileStore;
     this._handle = options.handle ?? null;
 
     makeObservable(this, {
       viewMode: observable,
-      content: observable,
-      isLoading: observable,
-      externalError: observable,
       selectionRequest: observable.ref,
       bufferVersion: observable,
       setViewMode: action,
-      markExternalLoading: action,
-      setExternalContent: action,
-      setExternalError: action,
       requestSelection: action,
       consumeSelectionRequest: action,
     });
@@ -137,9 +133,9 @@ export class FileTabResource implements TabResource {
     // No-op; file tabs don't need activation side-effects.
   }
 
-  /** True for text-backed workspace files whose content lives in OpenFileStore. */
+  /** True for text-backed files whose content lives in OpenFileStore. */
   get usesOpenFileStore(): boolean {
-    return !this.isExternal && isMonacoBackedKind(this.fileKind);
+    return isMonacoBackedKind(this.fileKind);
   }
 
   /** The shared open-file entry backing this tab, once leases are held. */
@@ -148,9 +144,9 @@ export class FileTabResource implements TabResource {
   }
 
   /**
-   * Content status the tab renders from. External files and non-text kinds
-   * (image, binary-by-extension) load through their own preview pathways and
-   * report ready; an unparseable path can never load and reports unavailable.
+   * Content status the tab renders from. Non-text kinds (image,
+   * binary-by-extension) load through their own preview pathways and report
+   * ready; an unparseable path can never load and reports unavailable.
    */
   get contentStatus(): ContentStatus {
     if (!this.usesOpenFileStore) return READY;
@@ -182,24 +178,6 @@ export class FileTabResource implements TabResource {
 
   setViewMode(viewMode: FileViewMode): void {
     this.viewMode = viewMode;
-  }
-
-  markExternalLoading(): void {
-    this.isLoading = true;
-    this.content = '';
-    this.externalError = undefined;
-  }
-
-  setExternalContent(content: string): void {
-    this.content = content;
-    this.isLoading = false;
-    this.externalError = undefined;
-  }
-
-  setExternalError(error: string): void {
-    this.content = '';
-    this.isLoading = false;
-    this.externalError = error;
   }
 
   requestSelection(selection: FileSelection): void {

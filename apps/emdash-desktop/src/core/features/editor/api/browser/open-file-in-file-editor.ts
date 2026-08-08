@@ -1,13 +1,11 @@
 import type { HostFileRef } from '@emdash/core/primitives/path/api';
-import { toast } from '@emdash/ui/react/primitives';
 import {
   asProvisioned,
   getTaskStore,
 } from '@core/features/tasks/api/browser/task-state/task-selectors';
 import { openFile } from '@core/features/workbench/api/browser/open-file';
-import { getTaskComposition } from '@core/features/workbench/api/browser/task-composition-selectors';
+import { openWithOS } from '@core/features/workbench/api/browser/open-with-os';
 import { workspaceRegistry } from '@core/features/workspaces/api/browser/stores/workspace-registry';
-import { getHostClient } from '@core/primitives/desktop-host/browser/host-client';
 import {
   absoluteRuntimePath,
   hostFileRefFromNativePath,
@@ -15,7 +13,6 @@ import {
   nativePathFromHost,
   relativePathWithin,
 } from '@core/primitives/desktop-runtime/api';
-import { focusTracker } from '@core/primitives/telemetry/browser/focus-tracker';
 
 /**
  * Resolves a task-relative or absolute path against the task's workspace and
@@ -55,7 +52,7 @@ export async function openFileInTaskEditor(
   if (!workspace) return;
   const ref = resolveWorkspaceFileRef(workspace.path, workspace.sshConnectionId, filePath);
   if (ref === null) {
-    void openExternalFilePath(projectId, taskId, filePath);
+    void openWithOS(filePath);
     return;
   }
 
@@ -80,28 +77,6 @@ export async function openFileInAdjacentPane(
   return openFileInTaskEditor(projectId, taskId, filePath, { target: 'right' });
 }
 
-export async function openExternalFilePath(
-  projectId: string,
-  taskId: string,
-  filePath: string
-): Promise<void> {
-  if (filePath.toLowerCase().endsWith('.md')) {
-    const provisioned = asProvisioned(getTaskStore(projectId, taskId));
-    if (!provisioned) return;
-    focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-    getTaskComposition(projectId, taskId)?.activePane.open(
-      'file',
-      { path: filePath, external: true },
-      { preview: false }
-    );
-    return;
-  }
-  const result = await (await getHostClient()).openPath({ path: filePath });
-  if (!result.success) {
-    toast.error(`Could not open ${filePath}: ${result.error}`);
-  }
-}
-
 export function makeFileLinkHandlers(
   projectId: string,
   taskId: string
@@ -111,7 +86,7 @@ export function makeFileLinkHandlers(
       void openFileInTaskEditor(projectId, taskId, filePath);
     },
     onOpenExternal: (filePath) => {
-      void openExternalFilePath(projectId, taskId, filePath);
+      void openWithOS(filePath);
     },
   };
 }

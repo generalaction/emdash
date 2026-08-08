@@ -174,17 +174,28 @@ describe('FileTabResource content leases', () => {
     expect(fake.acquired.every((r) => r.released)).toBe(true);
   });
 
-  it('does not touch the store for external files or unresolvable refs', () => {
+  it('treats files outside any workspace root as ordinary store-backed tabs', () => {
     const fake = createFakeStore();
-
-    const external = new FileTabResource(
-      { path: '/somewhere/README.md', isExternal: true },
-      { ref: null, store: fake.store }
+    const outside = new FileTabResource(
+      { path: '/somewhere/README.md' },
+      {
+        ref: hostFileRefFromNativePath('/somewhere/README.md'),
+        store: fake.store,
+        inWorkspace: false,
+        displayPath: '/somewhere/README.md',
+      }
     );
-    expect(fake.acquired).toHaveLength(0);
-    expect(external.usesOpenFileStore).toBe(false);
-    expect(external.contentStatus).toEqual({ kind: 'ready' });
 
+    expect(outside.usesOpenFileStore).toBe(true);
+    expect(fake.acquired.map((r) => r.facet).sort()).toEqual(['buffer', 'disk']);
+    expect(outside.inWorkspace).toBe(false);
+    expect(outside.contentStatus).toEqual({ kind: 'loading' });
+
+    outside.dispose();
+  });
+
+  it('does not touch the store for unresolvable refs', () => {
+    const fake = createFakeStore();
     const unresolvable = new FileTabResource(
       { path: 'src/index.ts' },
       {

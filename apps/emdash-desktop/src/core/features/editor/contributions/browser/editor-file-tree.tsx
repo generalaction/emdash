@@ -273,17 +273,18 @@ export const EditorFileTree = observer(function EditorFileTree() {
   }, [expandedPaths, files]);
 
   React.useEffect(() => {
-    const activePath = activeFile?.isExternal ? null : (activeFile?.path ?? null);
+    const activePath = activeFile?.path ?? null;
     if (!activePath) {
       lastSyncedActivePathRef.current = null;
       return;
     }
     if (lastSyncedActivePathRef.current === activePath) return;
+    // Paths outside the workspace tree simply have no node to select.
     if (!nodeByPath.has(activePath)) return;
     lastSyncedActivePathRef.current = activePath;
     setSelectedPaths(new Set([activePath]));
     setSelectionAnchorPath(activePath);
-  }, [activeFile?.isExternal, activeFile?.path, nodeByPath]);
+  }, [activeFile?.path, nodeByPath]);
 
   React.useEffect(() => {
     setSelectedPaths((current) => prunePathSet(current, nodeByPath));
